@@ -5,7 +5,10 @@ import type {
   AutomationNodeDescriptor,
   AutomationPaletteGroup,
 } from "@/lib/automations/node-descriptor"
-import type { AutomationCanvasPanel } from "@/lib/automations/canvas-panel"
+import type {
+  AutomationCanvasPanel,
+  AutomationCanvasStatus,
+} from "@/lib/automations/canvas-panel"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
 /**
@@ -201,6 +204,16 @@ type AutomationOptions = {
    * See the type for why it is a pointer to a file rather than a component.
    */
   canvasPanel?: AutomationCanvasPanel
+  /**
+   * A small piece of the app's own in the canvas header, beside Pause all.
+   *
+   * For what a flow IS right now rather than what a run produced — the one
+   * strip on the screen that is always visible. Unset means the header is the
+   * shell's alone, which is what every app had before this existed.
+   *
+   * See the type for why it is a pointer to a file rather than a component.
+   */
+  canvasHeaderStatus?: AutomationCanvasStatus
   /**
    * Which flows offer "Test with member…". Unset means every flow does, which
    * is what every app did before this existed.
@@ -399,6 +412,17 @@ export function appCanvasPanel(
   options: AppOptions = appOptions
 ): AutomationCanvasPanel | null {
   return options.automations?.canvasPanel ?? null
+}
+
+/**
+ * The app's status chip for the canvas header, or null when it has none.
+ *
+ * Null is the default and means the header is exactly what it has always been.
+ */
+export function appCanvasHeaderStatus(
+  options: AppOptions = appOptions
+): AutomationCanvasStatus | null {
+  return options.automations?.canvasHeaderStatus ?? null
 }
 
 /**

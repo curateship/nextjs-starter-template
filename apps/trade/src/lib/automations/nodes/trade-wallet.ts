@@ -183,6 +183,8 @@ export const tradeWalletNode = defineNode({
     walletId: null,
     walletLabel: null,
     walletKind: null,
+    walletProtocol: null,
+    walletNetwork: null,
     spendCapUsd: null,
   }),
   settingsSchema: tradeWalletSettingsSchema,
@@ -190,11 +192,15 @@ export const tradeWalletNode = defineNode({
   description: (settings) => {
     const wallet = chosenWallet(settings)
     if (wallet) {
+      // Real money says so first, in capitals, before anything else on the
+      // card. A live flow must be impossible to mistake for a backtest at a
+      // glance, and this line is the glance.
+      const lead = wallet.kind === "live" ? "REAL MONEY — " : ""
       const money = walletMoneyWords(wallet.kind)
       if (wallet.capUsd === null) {
-        return `Trades ${wallet.label} — ${money}. Say how much of it this flow may use.`
+        return `${lead}Trades ${wallet.label} — ${money}. Say how much of it this flow may use.`
       }
-      return `Trades ${wallet.label} — up to ${formatUsd(wallet.capUsd)} of ${money}.`
+      return `${lead}Trades ${wallet.label} — up to ${formatUsd(wallet.capUsd)} of ${money}.`
     }
     const starting =
       typeof settings.startingUsd === "number" ? settings.startingUsd : null

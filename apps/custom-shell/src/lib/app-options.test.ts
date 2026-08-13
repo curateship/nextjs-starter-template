@@ -5,6 +5,7 @@ import { z } from "zod"
 
 import {
   appAutomationNodes,
+  appCanvasHeaderStatus,
   appCanvasPanel,
   appOffersMemberTest,
   appPaletteGroups,
@@ -228,6 +229,23 @@ describe("the app's own canvas panel", () => {
       panel: async () => ({ default: () => null }),
     }
     expect(appCanvasPanel({ automations: { canvasPanel } })).toBe(canvasPanel)
+  })
+})
+
+describe("the app's own status in the canvas header", () => {
+  it("is nothing unless an app asks for one", () => {
+    // The default has to be nothing, or every app copied from this shell would
+    // grow a piece of header it never asked for.
+    expect(appCanvasHeaderStatus({})).toBeNull()
+  })
+
+  it("hands back what the app asked for", () => {
+    const canvasHeaderStatus = {
+      status: async () => ({ default: () => null }),
+    }
+    expect(
+      appCanvasHeaderStatus({ automations: { canvasHeaderStatus } })
+    ).toBe(canvasHeaderStatus)
   })
 })
 

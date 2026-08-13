@@ -82,6 +82,15 @@ import {
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
 
 /** Places the live exchange half of a Smart-order ladder atomically. */
+/** The flow's cap when it has one, never more than the account holds. */
+function livePotOf(
+  input: { potUsd?: number },
+  walletPot: number
+): number {
+  if (input.potUsd === undefined) return walletPot
+  return Math.min(input.potUsd, walletPot)
+}
+
 export async function placeLiveDcaLadder(
   userId: string,
   wallet: TradeWallet,
@@ -148,7 +157,7 @@ async function placeLiveDcaLadderOnce(
 
   const drawn = dcaLadderPlan({
     anchorPx,
-    equity: input.params.compound ? account.equity : wallet.startingBalance,
+    equity: livePotOf(input, input.params.compound ? account.equity : wallet.startingBalance),
     params: input.params,
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,

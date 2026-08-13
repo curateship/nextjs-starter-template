@@ -91,6 +91,20 @@ describe("what the step's card says", () => {
     ).toBe("Trades Practice 2 — up to $500.00 of practice money.")
   })
 
+  it("leads with REAL MONEY so a glance cannot mistake it", () => {
+    // The canvas card is the glance. Anything softer than shouting reads the
+    // same as a backtest from across the screen.
+    expect(
+      say({
+        ...tradeWalletNode.createSettings(),
+        walletId: "w1",
+        walletLabel: "Main",
+        walletKind: "live",
+        spendCapUsd: 250,
+      })
+    ).toMatch(/^REAL MONEY — /)
+  })
+
   it("says real money out loud", () => {
     expect(
       say({

@@ -253,7 +253,11 @@ export default function TradeMarketsFields({
    * "Hyperliquid" reads as two different things.
    */
   const nameOfProtocol = (id: string) =>
-    protocols.find((one) => one.id === id)?.label ?? id
+    protocols.find((one) => one.id === id)?.label ??
+    // The registry arrives a moment after the panel draws, so until it does
+    // this is all there is. Capitalised the way the registry would, rather than
+    // showing the raw "binance" for a beat and then swapping it.
+    (id ? id.charAt(0).toUpperCase() + id.slice(1) : id)
 
   /** Bumped by "Try again", which asks again past the cache. */
   const [attemptKey, setAttemptKey] = React.useState(0)

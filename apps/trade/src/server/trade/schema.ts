@@ -23,6 +23,10 @@ import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { DrawingShape } from "@/lib/trade/drawings"
+import type {
+  TradeFlowRunSpec,
+  TradeFlowRunStatus,
+} from "@/lib/trade/flow-run"
 import type { GridParams } from "@/lib/trade/grid"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -888,4 +892,56 @@ export const tradeWorkerHeartbeats = pgTable(
     meta: jsonb("meta").$type<Record<string, unknown> | null>(),
   },
   (table) => [index("trade_worker_heartbeats_seen_idx").on(table.lastSeenAt)]
+)
+
+/**
+ * A flow that has been switched on to trade a wallet.
+ *
+ * **It holds no trading state.** The ladders a running flow places are ordinary
+ * `tradeSmartLadders` rows, worked by the engine that already exists; this row
+ * only says "keep looking for coins on this list to place one on, with these
+ * settings, out of this much money".
+ *
+ * The settings are FROZEN when it starts. Editing the drawing afterwards must
+ * not change what is already in the market — the same rule a placed ladder
+ * follows with its rung prices. Changing a running flow means switching it off
+ * and on again.
+ */
+export const tradeFlowRuns = pgTable(
+  "trade_flow_runs",
+  {
+    ...paperOwner(),
+    id: varchar("id", { length: 36 }).notNull(),
+    /** The flow this came from. Deleting the flow stops it looking for coins. */
+    automationId: varchar("automation_id", { length: 36 }).notNull(),
+    status: varchar("status", { length: 8 })
+      .$type<TradeFlowRunStatus>()
+      .notNull(),
+    spec: jsonb("spec").$type<TradeFlowRunSpec>().notNull(),
+    /**
+     * The coins this flow has actually placed a ladder on.
+     *
+     * Not the same as its coin list. Stopping cancels what this flow put in
+     * the market and nothing else — a ladder placed by hand on one of these
+     * coins belongs to whoever placed it.
+     */
+    placed: jsonb("placed").$type<string[]>().notNull().default([]),
+    startedAt: timestamp("started_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    stoppedAt: timestamp("stopped_at", { withTimezone: true }),
+    /** Why it stopped, in the words somebody will read on the canvas. */
+    stoppedReason: text("stopped_reason"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    index("trade_flow_runs_running_idx").on(table.status, table.updatedAt),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
 )

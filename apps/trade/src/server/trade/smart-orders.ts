@@ -64,6 +64,16 @@ export type PlaceLadderInput = {
   /** The chart's timeframe at placement — what two-green mode watches. */
   interval: CandleInterval
   params: DcaParams
+  /**
+   * The pot this ladder is a share of, when it is not the whole wallet.
+   *
+   * A hand-placed ladder measures "most of the pot, per coin" against the
+   * wallet itself. A flow measures it against the money that flow was given —
+   * so twenty coins on a $500 cap size themselves off $500, not off everything
+   * in the account. Left out by every hand-placed ladder, which is why it is
+   * optional rather than a fourth meaning bolted onto an existing field.
+   */
+  potUsd?: number
 }
 
 export type PlacedLadder = {
@@ -288,6 +298,20 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
   return { plan, rungs, totalCost }
 }
 
+/**
+ * The pot a ladder sizes itself from: the flow's cap when there is one, and
+ * never more than the wallet really has behind it.
+ *
+ * Capped both ways on purpose. A cap bigger than the account would size rungs
+ * off money that is not there, and every one of them would be refused at the
+ * moment it tried to buy — which reads as the strategy failing rather than as
+ * a number somebody typed.
+ */
+function potOf(input: PlaceLadderInput, walletPot: number): number {
+  if (input.potUsd === undefined) return walletPot
+  return Math.min(input.potUsd, walletPot)
+}
+
 export async function placeDcaLadder(
   userId: string,
   wallet: TradeWallet,
@@ -343,7 +367,7 @@ export async function placeDcaLadder(
     base,
     rules,
     roundPx,
-    equity: input.params.compound ? figures.equity : wallet.startingBalance,
+    equity: potOf(input, input.params.compound ? figures.equity : wallet.startingBalance),
     freeCash: freeCash(book),
     openOrderCount: book.orders.length,
     heldSzi: book.positions.get(input.marketKey)?.szi ?? null,
