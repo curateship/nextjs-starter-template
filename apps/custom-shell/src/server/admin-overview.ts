@@ -5,6 +5,10 @@ import { loadFeedsSummary, type FeedsSummary } from "@/server/content/feeds"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 import { loadMembershipSummary, type MembershipSummary } from "@/server/people/membership"
 import { getDefaultPlan } from "@/server/billing/plans"
+import {
+  listScheduledCancellations,
+  type ScheduledCancellation,
+} from "@/server/billing/cancellations"
 
 /**
  * Everything the admin Overview draws. Nothing here is new data: it is the
@@ -36,6 +40,7 @@ export type AdminOverview = {
   feeds: FeedsSummary
   newestMembers: AccountRow[]
   automations: OverviewAutomation[]
+  scheduledCancellations: ScheduledCancellation[]
 }
 
 export async function loadAdminOverview(
@@ -60,7 +65,11 @@ export async function loadAdminOverview(
         defaultPlan,
         database
       )
-      return { automations, newestMembers }
+      const scheduledCancellations = await listScheduledCancellations(
+        NEWEST_MEMBERS,
+        database
+      )
+      return { automations, newestMembers, scheduledCancellations }
     })(),
   ])
 
@@ -75,6 +84,7 @@ export async function loadAdminOverview(
     membership,
     feeds,
     newestMembers: extras.newestMembers,
+    scheduledCancellations: extras.scheduledCancellations,
     automations: extras.automations.map((row) => ({
       id: row.id,
       name: row.name,

@@ -21,6 +21,10 @@ import {
 } from "@/server/directory/featured"
 import { readPublicBrowse } from "@/server/directory/public"
 import {
+  DIRECTORY_SETTING_DEFAULTS,
+  saveDirectoryBrowseSettings,
+} from "@/server/directory/settings"
+import {
   directoryClaims,
   directoryFeaturedCheckouts,
   directoryFeaturedEntitlements,
@@ -482,6 +486,20 @@ describe("featured placement", () => {
     expect((await browse()).listings.map((row) => [row.title, row.featured])).toEqual([
       ["Cafe", true],
       ["New ordinary", false],
+    ])
+
+    await saveDirectoryBrowseSettings(
+      site.id,
+      {
+        ...DIRECTORY_SETTING_DEFAULTS,
+        defaultSort: "newest",
+        featuredFirst: false,
+      },
+      database
+    )
+    expect((await browse()).listings.map((row) => [row.title, row.featured])).toEqual([
+      ["New ordinary", false],
+      ["Cafe", true],
     ])
 
     await database

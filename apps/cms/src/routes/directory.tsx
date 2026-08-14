@@ -14,12 +14,7 @@ import {
   type DirectorySort,
 } from "@/lib/directory/public-search"
 import { directoryDescription, directoryHead, directoryTitle } from "@/lib/directory/public-seo"
-import {
-  readOneOf,
-  readPage,
-  readSearchText,
-  useListSearchNavigate,
-} from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
  * The public directory: one page of a site's published listings, with a search
@@ -64,8 +59,11 @@ export const Route = createFileRoute("/directory")({
   head: ({ loaderData }) => {
     if (!loaderData) return {}
     return directoryHead(
-      directoryTitle("Directory", loaderData.site.name),
-      directoryDescription(`Browse listings on ${loaderData.site.name}.`)
+      directoryTitle(loaderData.browseTitle, loaderData.site.name),
+      directoryDescription(
+        loaderData.browseIntro,
+        `Browse listings on ${loaderData.site.name}.`
+      )
     )
   },
   component: DirectoryRoute,
@@ -74,15 +72,33 @@ export const Route = createFileRoute("/directory")({
 })
 
 function DirectoryRoute() {
-  const { site, listings, categories, total, page, pageSize } =
-    Route.useLoaderData()
+  const {
+    site,
+    listings,
+    categories,
+    total,
+    page,
+    pageSize,
+    browseTitle,
+    browseIntro,
+    sort,
+  } = Route.useLoaderData()
   const current = Route.useSearch()
-  const setListSearch = useListSearchNavigate()
+  const navigate = Route.useNavigate()
+  const setListSearch = (patch: Partial<DirectoryBrowseSearch>) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...patch }),
+      replace: true,
+    })
+  }
 
   return (
     <DirectoryFrame>
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Directory</h1>
+        <h1 className="text-2xl font-semibold">{browseTitle}</h1>
+        {browseIntro ? (
+          <p className="text-sm text-muted-foreground">{browseIntro}</p>
+        ) : null}
         <p className="text-sm text-muted-foreground">
           {total} {plural(total, "listing", "listings")} on {site.name}
         </p>
@@ -90,6 +106,7 @@ function DirectoryRoute() {
 
       <DirectoryToolbar
         current={current}
+        sort={sort}
         categories={categories}
         // A new search or a new order starts at the beginning: page 4 of the
         // old list is nowhere in the new one.
@@ -112,10 +129,18 @@ function DirectoryRoute() {
         page={page}
         pageSize={pageSize}
         total={total}
-        // Page 1 is the default, so going back to it clears the address rather
-        // than leaving a `?page=1` behind.
-        onPageChange={(next) => setListSearch({ page: next > 1 ? next : undefined })}
+        hrefForPage={(next) => directoryPageHref(current, next)}
       />
     </DirectoryFrame>
   )
+}
+
+function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
+  const parameters = new URLSearchParams()
+  if (search.q) parameters.set("q", search.q)
+  if (search.category) parameters.set("category", search.category)
+  if (search.sort) parameters.set("sort", search.sort)
+  if (page > 1) parameters.set("page", String(page))
+  const query = parameters.toString()
+  return `/directory${query ? `?${query}` : ""}`
 }

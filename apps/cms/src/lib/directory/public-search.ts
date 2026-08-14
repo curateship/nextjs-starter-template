@@ -14,6 +14,13 @@ export const DIRECTORY_SORTS = ["order", "newest", "title"] as const
 
 export type DirectorySort = (typeof DIRECTORY_SORTS)[number]
 
+export function isDirectorySort(value: unknown): value is DirectorySort {
+  return (
+    typeof value === "string" &&
+    DIRECTORY_SORTS.includes(value as DirectorySort)
+  )
+}
+
 /**
  * `order` is the hand-set order an admin gives listings on the edit form, and
  * it is the default because that field exists for exactly this list. Ties fall
@@ -40,9 +47,6 @@ export type DirectoryBrowseSearch = {
   sort?: DirectorySort
   page?: number
 }
-
-/** How many listings one page of the public list holds. */
-export const DIRECTORY_PAGE_SIZE = 12
 
 /** How many "you might also like" listings a detail page shows. */
 export const RELATED_LISTING_COUNT = 3

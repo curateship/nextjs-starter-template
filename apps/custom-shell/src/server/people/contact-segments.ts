@@ -85,10 +85,10 @@ const MATCHES_NOBODY = sql`false`
  * Everything a set of rules needs to look up, fetched once.
  *
  * Two trips, not two per rule. Every segment in the workspace is here so a
- * `notIn` can follow through to another segment's rules, and every plan's id is
- * here so a plan rule does not go back to the database for it. The production
- * database is not on the same machine as the app, so a round trip per rule per
- * segment is what turns a page into a wait.
+ * reference can follow through to another segment's rules, and every plan's
+ * id is here so a plan rule does not go back to the database for it. The
+ * production database is not on the same machine as the app, so a round trip
+ * per rule per segment is what turns a page into a wait.
  */
 type SegmentContext = {
   segments: Map<string, SegmentDefinition>
@@ -130,7 +130,7 @@ async function loadSegmentContext(
  * list" rule as a visible row instead, and the send path keeps its own
  * subscribed-only rule regardless, so nobody who opted out is ever mailed.
  *
- * `index` is every segment in the workspace, which is how a `notIn` follows
+ * `index` is every segment in the workspace, which is how a reference follows
  * through to another segment's rules. Callers that do not have one get it
  * built for them.
  */
@@ -301,8 +301,9 @@ function conditionSql(
           ) as SQL)
     }
 
+    case "in":
     case "notIn": {
-      const excluded: SQL[] = []
+      const references: SQL[] = []
       for (const otherId of condition.segmentIds) {
         // A loop is refused when a segment is saved, so this cannot normally
         // happen. It is here so a row edited straight in the database makes the
@@ -314,26 +315,30 @@ function conditionSql(
         // normally happen either. Same rule: refuse to guess.
         if (!other) return MATCHES_NOBODY
 
-        excluded.push(
-          notInArray(
-            customShellContacts.id,
-            database
-              .select({ id: customShellContacts.id })
-              .from(customShellContacts)
-              .where(
-                buildConditions(
-                  workspaceId,
-                  other,
-                  database,
-                  timestamp,
-                  context,
-                  [...trail, otherId]
-                )
-              )
+        const matchingIds = database
+          .select({ id: customShellContacts.id })
+          .from(customShellContacts)
+          .where(
+            buildConditions(
+              workspaceId,
+              other,
+              database,
+              timestamp,
+              context,
+              [...trail, otherId]
+            )
           )
+        references.push(
+          condition.type === "in"
+            ? inArray(customShellContacts.id, matchingIds)
+            : notInArray(customShellContacts.id, matchingIds)
         )
       }
-      return and(...excluded) as SQL
+      // Inclusion means "in any of these". Exclusion keeps its existing
+      // "in none of these" meaning.
+      return (condition.type === "in"
+        ? or(...references)
+        : and(...references)) as SQL
     }
   }
 }
@@ -754,9 +759,9 @@ async function validateSegment(
 }
 
 /**
- * Refuses a "not in" that points at this segment, directly or round a loop.
+ * Refuses a segment reference that points back here, directly or round a loop.
  *
- * Two segments that exclude each other have no answer — working out who is in
+ * Two segments that refer to each other have no answer — working out who is in
  * one needs the answer to the other first, forever. It is caught here, at the
  * save, because that is the only moment somebody is looking at the rule they
  * just wrote.
@@ -1055,7 +1060,7 @@ export type SegmentDeleteResult = {
  * vanished" reads as "send to everyone", and that is the one mistake that
  * cannot be taken back.
  *
- * Deleting A and B together where A excludes B is fine — nothing is left
+ * Deleting A and B together where A refers to B is fine — nothing is left
  * pointing at anything — so only the segments that survive this call count as
  * users.
  */

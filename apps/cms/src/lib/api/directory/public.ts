@@ -73,7 +73,7 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
     return readPublicBrowse(site, {
       search: data.search,
       category: data.category,
-      sort: data.sort ?? "order",
+      sort: data.sort,
       page: data.page ?? 1,
     })
   })

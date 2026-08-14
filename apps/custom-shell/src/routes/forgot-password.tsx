@@ -8,6 +8,7 @@ import {
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import {
   HumanCheck,
   type HumanCheckHandle,
@@ -111,6 +112,7 @@ function ForgotPasswordRoute() {
           onChange={(event) => setEmail(event.target.value)}
           required
         />
+        <EmailDomainSuggestion email={email} onAccept={setEmail} />
       </div>
       <HumanCheck ref={humanCheckRef} siteKey={siteKey} />
       <Button type="submit" className="w-full" disabled={loading}>

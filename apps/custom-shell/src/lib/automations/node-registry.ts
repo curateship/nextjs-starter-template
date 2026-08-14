@@ -16,6 +16,8 @@ import { aiStepNode } from "./nodes/ai-step"
 import { audienceNode } from "./nodes/audience"
 import { billingMomentNode } from "./nodes/billing-moment"
 import { joinedSegmentNode } from "./nodes/joined-segment"
+import { memberEventNode } from "./nodes/member-event"
+import { memberTagNode } from "./nodes/member-tag"
 import { placeholderNode } from "./nodes/placeholder"
 import { sendEmailNode } from "./nodes/send-email"
 import { timeActivateNode } from "./nodes/time-activate"
@@ -34,6 +36,8 @@ const SHELL_NODE_DESCRIPTORS: readonly AutomationNodeDescriptor[] = [
   audienceNode,
   billingMomentNode,
   joinedSegmentNode,
+  memberEventNode,
+  memberTagNode,
   timeActivateNode,
   placeholderNode,
   sendEmailNode,

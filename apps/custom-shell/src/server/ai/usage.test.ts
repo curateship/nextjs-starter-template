@@ -17,17 +17,23 @@ import {
   customShellAiUsageEvents,
   customShellNotifications,
   customShellPlans,
+  customShellSystemEmailSends,
   customShellUsers,
 } from "@/server/schema"
+import { aiLimitNotificationText } from "@/lib/notification-types"
+import { SYSTEM_EMAIL_META } from "@/lib/system-emails/kinds"
 import { createTestDatabase, type TestDatabase } from "@/server/test-support"
 
 let client: PGlite
 let database: TestDatabase
+const originalEmailKey = process.env.CUSTOM_SHELL_RESEND_API_KEY
 
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
+  delete process.env.CUSTOM_SHELL_RESEND_API_KEY
+  vi.spyOn(console, "info").mockImplementation(() => undefined)
 
   await database.insert(customShellUsers).values({
     id: "user-1",
@@ -40,8 +46,14 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  if (originalEmailKey === undefined) {
+    delete process.env.CUSTOM_SHELL_RESEND_API_KEY
+  } else {
+    process.env.CUSTOM_SHELL_RESEND_API_KEY = originalEmailKey
+  }
   await client.close()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 async function allRows() {
@@ -373,6 +385,10 @@ async function noticeRows() {
   return database.select().from(customShellNotifications)
 }
 
+async function emailRows() {
+  return database.select().from(customShellSystemEmailSends)
+}
+
 describe("checkAiAllowance", () => {
   it("lets everything through when nothing sets a ceiling", async () => {
     // No plan, no override — a missing setting means no ceiling, never zero.
@@ -417,6 +433,9 @@ describe("checkAiAllowance", () => {
     expect(notices).toHaveLength(1)
     expect(notices[0].type).toBe("ai_limit_reached")
     expect(notices[0].recipientUserId).toBe("user-1")
+    expect(await emailRows()).toMatchObject([
+      { kind: "ai-limit-reached", toEmail: "meter@internal.dev" },
+    ])
   })
 
   it("lets a person's own override beat their plan", async () => {
@@ -483,11 +502,18 @@ describe("checkAiAllowance", () => {
     const notices = await noticeRows()
     expect(notices).toHaveLength(1)
     expect(notices[0].type).toBe("ai_limit_warning")
+    expect(await emailRows()).toMatchObject([
+      { kind: "ai-limit-warning", toEmail: "meter@internal.dev" },
+    ])
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining("/home?account=billing")
+    )
 
     // A third call keeps the month over 80% — and warns nobody again.
     await callCosting(1)
     expect(await alertRows()).toHaveLength(1)
     expect(await noticeRows()).toHaveLength(1)
+    expect(await emailRows()).toHaveLength(1)
   })
 
   it("says so once when a success lands exactly on the ceiling", async () => {
@@ -497,6 +523,56 @@ describe("checkAiAllowance", () => {
     // Straight past 80% to 100%: one "reached" notice, not a warning as well.
     expect(alerts).toHaveLength(1)
     expect(alerts[0].level).toBe("reached")
+    expect(await emailRows()).toMatchObject([{ kind: "ai-limit-reached" }])
+  })
+
+  it("sends one warning and one reached email while crossing both thresholds", async () => {
+    await givePlanAllowance(1)
+    await callCosting(80)
+    await callCosting(20)
+    await expect(callCosting(1)).rejects.toThrow("AI_LIMIT_REACHED")
+
+    expect((await noticeRows()).map((row) => row.type).sort()).toEqual([
+      "ai_limit_reached",
+      "ai_limit_warning",
+    ])
+    expect((await emailRows()).map((row) => row.kind).sort()).toEqual([
+      "ai-limit-reached",
+      "ai-limit-warning",
+    ])
+  })
+
+  it("uses the same words in the email and in-app notice", () => {
+    expect(SYSTEM_EMAIL_META["ai-limit-warning"].defaults).toMatchObject({
+      subject: aiLimitNotificationText.ai_limit_warning.message,
+      heading: aiLimitNotificationText.ai_limit_warning.message,
+      message: aiLimitNotificationText.ai_limit_warning.detail,
+    })
+    expect(SYSTEM_EMAIL_META["ai-limit-reached"].defaults).toMatchObject({
+      subject: aiLimitNotificationText.ai_limit_reached.message,
+      heading: aiLimitNotificationText.ai_limit_reached.message,
+      message: aiLimitNotificationText.ai_limit_reached.detail,
+    })
+  })
+
+  it("keeps the notice and records a failed email attempt when delivery is down", async () => {
+    process.env.CUSTOM_SHELL_RESEND_API_KEY = "test-key"
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")))
+    vi.spyOn(console, "error").mockImplementation(() => undefined)
+    await givePlanAllowance(1)
+
+    await expect(callCosting(80)).resolves.toBe("ok")
+
+    expect(await noticeRows()).toMatchObject([
+      { type: "ai_limit_warning", recipientUserId: "user-1" },
+    ])
+    expect(await emailRows()).toMatchObject([
+      {
+        kind: "ai-limit-warning",
+        status: "failed",
+        error: "The email service could not be reached.",
+      },
+    ])
   })
 })
 

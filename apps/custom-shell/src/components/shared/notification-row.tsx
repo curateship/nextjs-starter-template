@@ -7,12 +7,11 @@ import {
   SparklesIcon,
   ThumbsUpIcon,
   UserCheckIcon,
+  UserRoundCogIcon,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import {
-  type NotificationItem,
-} from "@/lib/api/notification"
+import { type NotificationItem } from "@/lib/api/notification"
 import {
   aiLimitNotificationText,
   automationApprovalNotificationText,
@@ -52,6 +51,7 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "announcement" ||
     item.type === "automation_approval" ||
     item.type === "automation_failed" ||
+    item.type === "account_update" ||
     isAiLimitNotification(item.type)
   )
 }
@@ -73,7 +73,7 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
           className={cn(
             "bg-secondary text-secondary-foreground",
             item.type === "automation_failed" &&
-              "bg-destructive text-destructive-foreground"
+              "text-destructive-foreground bg-destructive"
           )}
         >
           {item.type === "changelog" ? (
@@ -84,6 +84,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             <UserCheckIcon className="h-4 w-4" />
           ) : item.type === "automation_failed" ? (
             <CircleAlertIcon className="h-4 w-4" />
+          ) : item.type === "account_update" ? (
+            <UserRoundCogIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -100,6 +102,9 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
+  if (item.type === "account_update") {
+    return <strong>{item.message ?? "Your account was updated"}</strong>
+  }
   if (item.type === "changelog") {
     return <>New update shipped</>
   }
@@ -152,6 +157,9 @@ function NotificationMessage({ item }: { item: NotificationItem }) {
 }
 
 function NotificationIcon({ item }: { item: NotificationItem }) {
+  if (item.type === "account_update") {
+    return <UserRoundCogIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "changelog") {
     return <SparklesIcon className="h-3.5 w-3.5" />
   }
@@ -186,19 +194,21 @@ function notificationPreview(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
-    item.type === "changelog"
-      ? (item.changelog_title ?? "")
-      : item.type === "announcement"
-        ? (item.announcement_body ?? "")
-        : item.type === "automation_approval"
-          ? approvalSummary
-            ? `${approvalText.message}. ${approvalSummary}`
-            : approvalText.detail
-          : item.type === "automation_failed"
-            ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
-            : isAiLimitNotification(item.type)
-              ? aiLimitNotificationText[item.type].detail
-              : (item.feedback_message ?? "")
+    item.type === "account_update"
+      ? (item.detail ?? "")
+      : item.type === "changelog"
+        ? (item.changelog_title ?? "")
+        : item.type === "announcement"
+          ? (item.announcement_body ?? "")
+          : item.type === "automation_approval"
+            ? approvalSummary
+              ? `${approvalText.message}. ${approvalSummary}`
+              : approvalText.detail
+            : item.type === "automation_failed"
+              ? `${item.automation_failure_node_name ?? "Unknown step"}: ${item.automation_failure_error ?? "The step stopped without explaining why."}`
+              : isAiLimitNotification(item.type)
+                ? aiLimitNotificationText[item.type].detail
+                : (item.feedback_message ?? "")
 
   return text.length > 90 ? `${text.slice(0, 90)}...` : text
 }

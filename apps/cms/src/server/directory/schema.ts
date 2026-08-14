@@ -58,6 +58,9 @@ export const directoryListings = pgTable(
      * the same `lib/pages/written-page-body.ts` the shell's written pages use.
      */
     body: jsonb("body").notNull(),
+    /** The one-off importer uses these to update the same old listing on reruns. */
+    sourceType: varchar("source_type", { length: 60 }),
+    sourceId: varchar("source_id", { length: 255 }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -69,6 +72,11 @@ export const directoryListings = pgTable(
       table.workspaceId,
       table.slug
     ),
+    uniqueIndex("ux_directory_listings_workspace_source")
+      .on(table.workspaceId, table.sourceType, table.sourceId)
+      .where(
+        sql`${table.sourceType} IS NOT NULL AND ${table.sourceId} IS NOT NULL`
+      ),
     index("ix_directory_listings_workspace_status").on(
       table.workspaceId,
       table.status
@@ -397,6 +405,12 @@ export const directorySettings = pgTable("directory_settings", {
   claimApprovedMessage: varchar("claim_approved_message", { length: 300 })
     .notNull()
     .default(""),
+  /** Null means the reader supplies the current built-in directory default. */
+  pageSize: integer("page_size"),
+  defaultSort: varchar("default_sort", { length: 20 }),
+  browseTitle: varchar("browse_title", { length: 120 }),
+  browseIntro: varchar("browse_intro", { length: 500 }),
+  featuredFirst: boolean("featured_first"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })

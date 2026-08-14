@@ -72,12 +72,7 @@ const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
 type NotificationSortColumn =
-  | "activity"
-  | "feedback"
-  | "recipient"
-  | "type"
-  | "status"
-  | "created"
+  "activity" | "feedback" | "recipient" | "type" | "status" | "created"
 
 const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
   { key: "activity", label: "Activity", column: "main" },
@@ -95,6 +90,9 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
+  if (item.type === "account_update") {
+    return item.message ?? "Account updated"
+  }
   // An AI-allowance notice carries its own words — there is no thing it is
   // about to borrow a title from.
   if (isAiLimitNotification(item.type)) {
@@ -107,7 +105,12 @@ function notificationSubject(item: NotificationItem) {
   ) {
     return item.automation_name ?? ""
   }
-  return item.changelog_title ?? item.announcement_title ?? item.feedback_message ?? ""
+  return (
+    item.changelog_title ??
+    item.announcement_title ??
+    item.feedback_message ??
+    ""
+  )
 }
 
 /**
@@ -117,6 +120,9 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
+  if (item.type === "account_update") {
+    return item.detail ? `${subject}\n\n${item.detail}` : subject
+  }
   if (isAiLimitNotification(item.type)) {
     return `${subject}\n\n${aiLimitNotificationText[item.type].detail}`
   }
@@ -394,9 +400,7 @@ export function NotificationsPage({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Read filter"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Read filter">
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -414,9 +418,7 @@ export function NotificationsPage({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Type filter"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Type filter">
                 <SelectValue />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -427,9 +429,13 @@ export function NotificationsPage({
                 <SelectItem value="changelog">Updates</SelectItem>
                 <SelectItem value="announcement">Announcements</SelectItem>
                 <SelectItem value="ai_limit_warning">AI warnings</SelectItem>
-                <SelectItem value="ai_limit_reached">AI limit reached</SelectItem>
+                <SelectItem value="ai_limit_reached">
+                  AI limit reached
+                </SelectItem>
                 <SelectItem value="automation_approval">Approvals</SelectItem>
-                <SelectItem value="automation_failed">Automation failures</SelectItem>
+                <SelectItem value="automation_failed">
+                  Automation failures
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -540,9 +546,7 @@ export function NotificationsPage({
                   {notificationSubject(item)}
                 </span>
               </TableCell>
-              <TableCell column="mutedMeta">
-                {item.recipient_name}
-              </TableCell>
+              <TableCell column="mutedMeta">{item.recipient_name}</TableCell>
               <TableCell column="meta">
                 <Badge variant="secondary">
                   {notificationTypeLabels[item.type]}

@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
 
-import { loadAccountDetail, type AccountDetail } from "@/server/people/account-detail"
+import {
+  loadAccountDetail,
+  type AccountDetail,
+} from "@/server/people/account-detail"
 import {
   createAccountByAdmin,
   deleteUserAccount,
@@ -22,14 +25,12 @@ import {
 import { listPlans } from "@/server/billing/plans"
 import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
+import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
+import { replaceMemberTags } from "@/server/people/member-tags"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
-export type {
-  AccountDetail,
-  AccountRow,
-  CancelSubscriptionMode,
-}
+export type { AccountDetail, AccountRow, CancelSubscriptionMode }
 
 /** Plans an admin can hand out by hand, as the account modal lists them. */
 export type AssignablePlan = { id: string; name: string; slug: string }
@@ -38,7 +39,14 @@ const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   role: z.enum(["all", "admin", "member"]).default("all"),
   status: z
-    .enum(["all", "active", "suspended", "pending_deletion", "locked_out"])
+    .enum([
+      "all",
+      "active",
+      "unverified",
+      "suspended",
+      "pending_deletion",
+      "locked_out",
+    ])
     .default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
@@ -78,6 +86,8 @@ export const getAdminUserErrorMessage = createErrorMessage(
       "That account is scheduled for deletion. Restore it first.",
     RESTORE_WINDOW_PASSED:
       "That account was deleted too long ago to bring back.",
+    MEMBER_TAG_LIMIT: `An account can have up to ${MEMBER_TAG_LIMIT} tags.`,
+    MEMBER_TAG_TOO_LONG: `Keep each tag to ${MEMBER_TAG_MAX_LENGTH} characters or fewer.`,
   },
   "We could not update that account. Please try again."
 )
@@ -168,6 +178,20 @@ const updateStatusFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     return setUserStatus(data.userId, data.status)
+  })
+
+const updateMemberTagsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      userId: z.string().min(1).max(36),
+      tags: z
+        .array(z.string().max(MEMBER_TAG_MAX_LENGTH))
+        .max(MEMBER_TAG_LIMIT),
+    })
+  )
+  .handler(async ({ data }) => {
+    return replaceMemberTags(data.userId, data.tags)
   })
 
 const grantPlanFn = createServerFn({ method: "POST" })
@@ -268,6 +292,10 @@ export function updateAccountStatus(
   status: "active" | "suspended"
 ) {
   return updateStatusFn({ data: { userId, status } })
+}
+
+export function updateAccountMemberTags(userId: string, tags: string[]) {
+  return updateMemberTagsFn({ data: { userId, tags } })
 }
 
 export function grantAccountPlan(

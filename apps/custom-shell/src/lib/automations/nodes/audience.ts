@@ -1,6 +1,12 @@
 import { UsersIcon } from "lucide-react"
 import { z } from "zod"
 
+import {
+  MEMBER_TAG_MAX_LENGTH,
+  MEMBER_TAG_SEPARATOR,
+  normalizeMemberTag,
+} from "@/lib/member-tags"
+
 import { defineNode } from "../node-descriptor"
 
 /**
@@ -16,6 +22,7 @@ export const AUDIENCE_KINDS = [
   "paying",
   "plan",
   "segment",
+  "tag",
 ] as const
 
 export type AutomationAudienceKind = (typeof AUDIENCE_KINDS)[number]
@@ -27,15 +34,18 @@ export const AUDIENCE_LABELS: Record<AutomationAudienceKind, string> = {
   paying: "Members paying for any plan",
   plan: "Members on one plan",
   segment: "The people in a segment",
+  tag: "Members with a tag",
 }
 
 export const AUDIENCE_HINTS: Record<AutomationAudienceKind, string> = {
   everyone:
     "Every subscribed contact — including addresses added by hand that never made an account, and admins.",
-  registered: "Only accounts that have clicked the link in their sign-up email.",
+  registered:
+    "Only accounts that have clicked the link in their sign-up email.",
   paying: "Anyone whose paid plan is running right now, on any plan.",
   plan: "Anyone paying for the one plan you pick below.",
   segment: "Whoever is in the segment you pick, at the moment the flow runs.",
+  tag: "Accounts carrying the exact member tag you enter below.",
 }
 
 /**
@@ -46,7 +56,8 @@ export const AUDIENCE_HINTS: Record<AutomationAudienceKind, string> = {
 export function audienceWording(
   kind: AutomationAudienceKind,
   planSlug: string,
-  segmentName = ""
+  segmentName = "",
+  tag = ""
 ): string {
   if (kind === "plan") {
     return planSlug
@@ -57,6 +68,11 @@ export function audienceWording(
     return segmentName
       ? `the people in the "${segmentName}" segment`
       : "a segment nobody has picked yet"
+  }
+  if (kind === "tag") {
+    return tag
+      ? `members with the “${tag}” tag`
+      : "a tag nobody has entered yet"
   }
   return AUDIENCE_LABELS[kind].toLowerCase()
 }
@@ -87,7 +103,9 @@ export function audienceIsMostOfTheList(
   return everyone > 0 && total > 0 && total >= everyone * MOST_OF_THE_LIST
 }
 
-export function isAudienceKind(value: unknown): value is AutomationAudienceKind {
+export function isAudienceKind(
+  value: unknown
+): value is AutomationAudienceKind {
   return (
     typeof value === "string" &&
     (AUDIENCE_KINDS as readonly string[]).includes(value)
@@ -112,6 +130,7 @@ export const audienceNode = defineNode({
     planSlug: "",
     segmentId: "",
     segmentName: "",
+    tag: "",
   }),
   settingsSchema: z
     .object({
@@ -130,6 +149,15 @@ export const audienceNode = defineNode({
       // always looked up by id, so a renamed segment still means the same
       // people even while the card shows its old name.
       segmentName: z.string().trim().max(120).default(""),
+      tag: z
+        .string()
+        .trim()
+        .max(MEMBER_TAG_MAX_LENGTH)
+        .refine((tag) => !tag.includes(MEMBER_TAG_SEPARATOR), {
+          message: "A member tag cannot contain a comma.",
+        })
+        .transform(normalizeMemberTag)
+        .default(""),
     })
     // No `path` on purpose: the compiler prefixes a message with the field it
     // came from, and "planSlug: …" is code-speak in a panel that otherwise
@@ -142,7 +170,10 @@ export const audienceNode = defineNode({
       (settings) =>
         settings.audience !== "segment" || settings.segmentId !== "",
       { message: "Pick which segment this step means." }
-    ),
+    )
+    .refine((settings) => settings.audience !== "tag" || settings.tag !== "", {
+      message: "Enter which member tag this step means.",
+    }),
   name: () => "Audience",
   // Display only, so an unreadable choice reads as the default rather than
   // taking the card down. What must never happen is a *run* quietly falling
@@ -151,7 +182,10 @@ export const audienceNode = defineNode({
     const wording = audienceWording(
       isAudienceKind(settings.audience) ? settings.audience : "everyone",
       typeof settings.planSlug === "string" ? settings.planSlug.trim() : "",
-      typeof settings.segmentName === "string" ? settings.segmentName.trim() : ""
+      typeof settings.segmentName === "string"
+        ? settings.segmentName.trim()
+        : "",
+      typeof settings.tag === "string" ? normalizeMemberTag(settings.tag) : ""
     )
     return wording.charAt(0).toUpperCase() + wording.slice(1)
   },

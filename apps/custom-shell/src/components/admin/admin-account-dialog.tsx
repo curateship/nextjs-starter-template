@@ -57,6 +57,7 @@ import {
   setAccountPlanPaused,
   updateAccountRole,
   updateAccountStatus,
+  updateAccountMemberTags,
   type AccountDetail,
   type AssignablePlan,
 } from "@/lib/api/people/admin-users"
@@ -66,7 +67,11 @@ import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { saveAiAllowanceOverride } from "@/lib/api/ai"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatFileSize } from "@/lib/format/format-bytes"
-import { formatDate, formatDateTime, formatUtcDate } from "@/lib/format/format-time"
+import {
+  formatDate,
+  formatDateTime,
+  formatUtcDate,
+} from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
 import {
   BILLING_HISTORY_START,
@@ -74,6 +79,11 @@ import {
   SUBSCRIPTION_EVENT_LIMIT,
   type SubscriptionEvent,
 } from "@/lib/billing/subscription-events"
+import {
+  MEMBER_TAG_LIMIT,
+  MEMBER_TAG_MAX_LENGTH,
+  normalizeMemberTags,
+} from "@/lib/member-tags"
 
 /**
  * Everything about one person, in one window opened from the Users table.
@@ -412,6 +422,22 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
                 : "Not verified"
             }
           />
+          <DetailRow
+            label="Tags"
+            value={
+              profile.tags.length ? (
+                <span className="flex flex-wrap justify-end gap-1">
+                  {profile.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </span>
+              ) : (
+                "—"
+              )
+            }
+          />
           <DetailRow label="Joined" value={formatDate(profile.createdAt)} />
           <DetailRow
             label="Last changed"
@@ -520,7 +546,11 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
             <Button asChild variant="outline">
               <Link
                 to="/admin/media"
-                search={{ owner: profile.id, media: undefined, orphan: undefined }}
+                search={{
+                  owner: profile.id,
+                  media: undefined,
+                  orphan: undefined,
+                }}
               >
                 <HardDriveIcon className="size-4" />
                 {storage.files ? "Open their files" : "Open the library"}
@@ -618,7 +648,8 @@ function AccountEditPanel({
 
   const grantedPlanId =
     subscription.source === "manual"
-      ? (plans.find((plan) => plan.slug === subscription.planSlug)?.id ?? "none")
+      ? (plans.find((plan) => plan.slug === subscription.planSlug)?.id ??
+        "none")
       : "none"
   const grantedEndsOn =
     subscription.source === "manual" && subscription.currentPeriodEnd
@@ -641,12 +672,15 @@ function AccountEditPanel({
     detail.aiAllowance.overrideCents != null
       ? String(detail.aiAllowance.overrideCents / 100)
       : ""
+  const initialTags = profile.tags.join(", ")
 
   const [role, setRole] = React.useState<"admin" | "member">(initialRole)
   const [status, setStatus] = React.useState<AccountStatus>(initialStatus)
   const [planId, setPlanId] = React.useState(grantedPlanId)
   const [endsOn, setEndsOn] = React.useState(grantedEndsOn)
   const [aiDollars, setAiDollars] = React.useState(initialAiDollars)
+  const [tagsText, setTagsText] = React.useState(initialTags)
+  const [tagsInvalid, setTagsInvalid] = React.useState(false)
   const [saving, setSaving] = React.useState(false)
 
   // What the tab opened with. Held from the first render so the save can send
@@ -657,6 +691,7 @@ function AccountEditPanel({
     planId: grantedPlanId,
     endsOn: grantedEndsOn,
     aiDollars: initialAiDollars,
+    tagsText: initialTags,
   }))
 
   // A window that was only looked at still closes on the first click outside;
@@ -666,7 +701,8 @@ function AccountEditPanel({
     status !== initial.status ||
     planId !== initial.planId ||
     endsOn !== initial.endsOn ||
-    aiDollars !== initial.aiDollars
+    aiDollars !== initial.aiDollars ||
+    tagsText !== initial.tagsText
 
   // The Save button lives in the window's footer, so it submits this form by id
   // and mirrors the status reported back here — the same wiring the member's
@@ -684,6 +720,18 @@ function AccountEditPanel({
     const aiValue = aiText === "" ? null : Number(aiText)
     if (aiValue !== null && (!Number.isFinite(aiValue) || aiValue < 0)) {
       showErrorToast("The AI allowance must be a dollar amount, 0 or more.")
+      return
+    }
+    let tags: string[]
+    try {
+      tags = normalizeMemberTags(tagsText.split(","))
+    } catch (error) {
+      setTagsInvalid(true)
+      showErrorToast(
+        error instanceof Error && error.message === "MEMBER_TAG_LIMIT"
+          ? `Use no more than ${MEMBER_TAG_LIMIT} tags.`
+          : `Keep each tag to ${MEMBER_TAG_MAX_LENGTH} characters or fewer.`
+      )
       return
     }
 
@@ -710,6 +758,9 @@ function AccountEditPanel({
           profile.id,
           aiValue === null ? null : Math.round(aiValue * 100)
         )
+      }
+      if (tagsText !== initial.tagsText) {
+        await updateAccountMemberTags(profile.id, tags)
       }
 
       toast.success("Account updated.")
@@ -738,7 +789,8 @@ function AccountEditPanel({
           <CardTitle>Access</CardTitle>
           <CardDescription>
             Admins reach the whole back office. Suspending someone signs them
-            out everywhere.
+            out everywhere. Role and status changes send them an email and an
+            in-app notice.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -797,10 +849,41 @@ function AccountEditPanel({
 
       <Card size="sm">
         <CardHeader>
+          <CardTitle>Member tags</CardTitle>
+          <CardDescription>
+            Labels that automations can add, remove, and use to choose an
+            audience.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          <div className="grid gap-2">
+            <FieldLabel
+              htmlFor="account-member-tags"
+              hint={`Separate tags with commas. Tags are saved in lowercase. An account can have ${MEMBER_TAG_LIMIT}, each up to ${MEMBER_TAG_MAX_LENGTH} characters.`}
+            >
+              Tags
+            </FieldLabel>
+            <Input
+              id="account-member-tags"
+              value={tagsText}
+              aria-invalid={tagsInvalid}
+              placeholder="beta, at-risk, clicked-changelog"
+              onChange={(event) => {
+                setTagsText(event.target.value)
+                setTagsInvalid(false)
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader>
           <CardTitle>Granted plan</CardTitle>
           <CardDescription>
             Puts this person on a paid plan without charging them. Plans paid
-            through Stripe are not affected.
+            through Stripe are not affected. Granting or removing one tells them
+            by email and in the app.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

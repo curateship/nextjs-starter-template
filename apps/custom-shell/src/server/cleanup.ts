@@ -10,6 +10,7 @@ import {
   type CleanupCounts,
 } from "@/lib/data-cleanup"
 import { db, type CustomShellDb } from "@/server/db"
+import { sendDueVerificationReminders } from "@/server/auth/verification-reminders"
 import {
   customShellAuthTokens,
   customShellNotifications,
@@ -156,10 +157,10 @@ export function resetCleanupSweepForTests() {
 }
 
 /**
- * The opportunistic run. Sweeps at most once a day per process, off the first
- * admin read of the day (see `server/guards.ts`), and never lets its own
- * failure become the failure of the request it is riding on — there is nothing
- * an admin could do about it and nothing was lost.
+ * The opportunistic housekeeping run. At most once a day per process, off the
+ * first admin read of the day (see `server/guards.ts`), it clears old data and
+ * sends any due verification reminders. Neither job can break the page it is
+ * riding on, and one failing does not stop the other.
  */
 export async function maybeCleanUpOldData(
   database: CustomShellDb = db,
@@ -176,5 +177,11 @@ export async function maybeCleanUpOldData(
     await cleanUpOldData(database, at)
   } catch (error) {
     console.error("Old-data cleanup failed", error)
+  }
+
+  try {
+    await sendDueVerificationReminders(database, at)
+  } catch (error) {
+    console.error("Verification reminder sweep failed", error)
   }
 }

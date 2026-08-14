@@ -1,4 +1,5 @@
 import { escapeHtml } from "@/lib/email/escape-html"
+import { emailFirstName } from "@/lib/email/recipient-name"
 import { parseStoredBlocks } from "@/lib/broadcasts/blocks"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import {
@@ -19,6 +20,8 @@ export type AuthEmail = {
   /** Which of the app's own emails this is — the one whose wording it uses. */
   kind: SystemEmailKind
   to: string
+  /** The stored account name. It is never inferred from the email address. */
+  recipientName: string | null
   actionUrl: string
   /**
    * Values for the placeholders this kind of email offers, over and above the
@@ -62,6 +65,7 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
   const values: Record<string, string> = {
     ...email.tokens,
     email: email.to,
+    firstName: emailFirstName(email.recipientName, email.to),
     action_url: email.actionUrl,
   }
 
@@ -72,7 +76,9 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
     const html = renderBroadcastEmailHtml(blocks, {
       preheader: saved?.preheader
         ? applySystemEmailTokens(saved.preheader, values, { html: false })
-        : undefined,
+        : applySystemEmailTokens(subject, values, {
+            html: false,
+          }),
     })
     return {
       subject: applySystemEmailTokens(subject, values, { html: false }),
@@ -86,6 +92,10 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
       html: false,
     }),
     html: renderBuiltInEmail({
+      preheader: applySystemEmailTokens(meta.defaults.message, values, {
+        html: false,
+      }),
+      firstName: values.firstName,
       heading: applySystemEmailTokens(meta.defaults.heading, values, {
         html: false,
       }),
@@ -185,19 +195,30 @@ export async function sendAuthEmail(email: AuthEmail) {
     return { delivered: false }
   }
 
-  const response = await fetch(RESEND_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromAddress(fromName),
-      to: [email.to],
-      subject,
-      html,
-    }),
-  })
+  let response: Response
+  try {
+    response = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromAddress(fromName),
+        to: [email.to],
+        subject,
+        html,
+      }),
+    })
+  } catch {
+    // Network errors have no provider response to quote. Keep the useful fact
+    // without logging a low-level error that could contain request details.
+    await logSend(workspaceId, email, subject, {
+      status: "failed",
+      error: "The email service could not be reached.",
+    })
+    throw new Error("EMAIL_DELIVERY_FAILED")
+  }
 
   if (!response.ok) {
     // Resend's own words, not just the number. Its refusals are the useful
@@ -266,13 +287,16 @@ async function logSend(
  * wording, and what goes out again if somebody empties it.
  */
 function renderBuiltInEmail(email: {
+  preheader: string
+  firstName: string
   heading: string
   message: string
   action: string
   actionUrl: string
   closing: string
 }) {
-  return `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
+  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
+  <p style="font-size:14px;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(email.firstName)},</p>
   <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>
   <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>

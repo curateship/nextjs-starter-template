@@ -15,6 +15,7 @@ import {
   restoreOwnAccount,
 } from "@/server/people/account-deletion"
 import { notifyAppAuthEvent } from "@/server/app-options"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import { appUrlFor } from "@/server/app-url"
 import { enforcePasswordNotBreached } from "@/server/auth/breached-passwords"
 import { db } from "@/server/db"
@@ -307,7 +308,7 @@ const registerFn = createServerFn({ method: "POST" })
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
-    const { userId, token } = await db.transaction(async (tx) => {
+    const { user, token } = await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(customShellUsers)
         .values({
@@ -320,20 +321,25 @@ const registerFn = createServerFn({ method: "POST" })
           createdAt,
           updatedAt: createdAt,
         })
-        .returning({ id: customShellUsers.id })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
 
-      return {
-        userId: user.id,
-        token: await createAuthToken(user.id, "verify_email", tx),
-      }
+      const token = await createAuthToken(user.id, "verify_email", tx)
+      await emitMemberEvent("registered", user, tx)
+
+      return { user, token }
     })
 
     // Told here rather than at the first sign-in because this is the only
     // moment the request that made the account is still in hand, and no
     // session exists yet to carry it — verification comes first.
-    await notifyAppAuthEvent({ kind: "register", userId })
+    await notifyAppAuthEvent({ kind: "register", userId: user.id })
 
-    await sendVerificationEmail(data.email, token)
+    await sendVerificationEmail(data.email, token, data.name)
     return { ok: true }
   })
 
@@ -351,10 +357,18 @@ const verifyEmailFn = createServerFn({ method: "POST" })
         timestamp
       )
 
-      await tx
+      const [verified] = await tx
         .update(customShellUsers)
         .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
         .where(eq(customShellUsers.id, consumed.userId))
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (verified) await emitMemberEvent("verified", verified, tx)
     })
 
     return { ok: true }
@@ -374,7 +388,7 @@ const resendVerificationFn = createServerFn({ method: "POST" })
     // have accounts.
     if (user && !user.emailVerifiedAt) {
       const token = await createAuthToken(user.id, "verify_email")
-      await sendVerificationEmail(user.email, token)
+      await sendVerificationEmail(user.email, token, user.name)
     }
 
     return { ok: true }
@@ -463,6 +477,7 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "sign-in-link",
         to: link.email,
+        recipientName: link.name,
         tokens: { minutes: String(SIGN_IN_LINK_MINUTES) },
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
@@ -525,6 +540,7 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "password-reset",
         to: user.email,
+        recipientName: user.name,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),
@@ -561,6 +577,12 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         timestamp
       )
 
+      const [before] = await tx
+        .select({ emailVerifiedAt: customShellUsers.emailVerifiedAt })
+        .from(customShellUsers)
+        .where(eq(customShellUsers.id, consumed.userId))
+        .limit(1)
+
       const [account] = await tx
         .update(customShellUsers)
         .set({
@@ -570,7 +592,16 @@ const resetPasswordFn = createServerFn({ method: "POST" })
           updatedAt: timestamp,
         })
         .where(eq(customShellUsers.id, consumed.userId))
-        .returning({ email: customShellUsers.email })
+        .returning({
+          id: customShellUsers.id,
+          name: customShellUsers.name,
+          email: customShellUsers.email,
+          currentWorkspaceId: customShellUsers.currentWorkspaceId,
+        })
+
+      if (account && !before?.emailVerifiedAt) {
+        await emitMemberEvent("verified", account, tx)
+      }
 
       // Anyone signed in with the old password is signed out.
       await tx
@@ -586,7 +617,11 @@ const resetPasswordFn = createServerFn({ method: "POST" })
     // because the one somebody did not do is the one worth hearing about, and
     // a reset is the easier of the two to do to somebody else.
     if (changed) {
-      await alertPasswordChanged(changed.email, describeRequestOrigin())
+      await alertPasswordChanged(
+        changed.email,
+        describeRequestOrigin(),
+        changed.name
+      )
     }
     return { ok: true }
   })
@@ -645,7 +680,7 @@ const changePasswordFn = createServerFn({ method: "POST" })
 
     // Keep this session, drop every other one.
     await deleteOtherSessions(user.id, getSessionToken())
-    await alertPasswordChanged(user.email, describeRequestOrigin())
+    await alertPasswordChanged(user.email, describeRequestOrigin(), user.name)
     return { ok: true }
   })
 
@@ -722,6 +757,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "email-change",
         to: data.newEmail,
+        recipientName: user.name,
         tokens: {
           old_email: user.email,
           hours: String(EMAIL_CHANGE_HOURS),
@@ -737,6 +773,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "email-change-warning",
         to: user.email,
+        recipientName: user.name,
         tokens: {
           new_email: data.newEmail,
           hours: String(EMAIL_CHANGE_HOURS),
@@ -793,7 +830,7 @@ const confirmEmailChangeFn = createServerFn({ method: "POST" })
     // The last thing that address will ever hear from the app, and the reason
     // it is worth sending: somebody who missed the warning still learns the
     // account is gone, and that support is now the only way back.
-    await alertEmailChanged(previousEmail, user.email)
+    await alertEmailChanged(previousEmail, user.email, user.name)
 
     return { email: user.email }
   })
@@ -1065,10 +1102,11 @@ export async function startWorkspaceFor(
   await pointAtWorkspaceForHost(user.id)
 }
 
-function sendVerificationEmail(email: string, token: string) {
+function sendVerificationEmail(email: string, token: string, name: string) {
   return sendAuthEmail({
     kind: "verify-email",
     to: email,
+    recipientName: name,
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }

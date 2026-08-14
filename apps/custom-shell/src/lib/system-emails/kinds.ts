@@ -6,6 +6,8 @@ import {
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import { escapeHtml } from "@/lib/email/escape-html"
+import { VERIFICATION_REMINDER_DAYS } from "@/lib/email/verification-reminder"
+import { aiLimitNotificationText } from "@/lib/notification-types"
 
 /**
  * The emails the app sends for itself, as opposed to the newsletters somebody
@@ -25,6 +27,7 @@ import { escapeHtml } from "@/lib/email/escape-html"
  */
 export const SYSTEM_EMAIL_KINDS = [
   "verify-email",
+  "verification-reminder",
   "sign-in-link",
   "password-reset",
   "email-change",
@@ -34,6 +37,9 @@ export const SYSTEM_EMAIL_KINDS = [
   "new-device",
   "new-account",
   "account-closed",
+  "account-updated",
+  "ai-limit-warning",
+  "ai-limit-reached",
 ] as const
 
 export type SystemEmailKind = (typeof SYSTEM_EMAIL_KINDS)[number]
@@ -60,6 +66,13 @@ const EMAIL_TOKEN: SystemEmailToken = {
   token: "{{email}}",
   description: "The address the email is going to",
 }
+
+const FIRST_NAME_TOKEN: SystemEmailToken = {
+  token: "{{firstName}}",
+  description: "The person’s first name, or “there” when no name is available",
+}
+
+const RECIPIENT_TOKENS = [FIRST_NAME_TOKEN, EMAIL_TOKEN]
 
 /**
  * The two an alert needs to be worth reading. "It happened" is not actionable;
@@ -116,12 +129,26 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Verify email",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
+  },
+  "verification-reminder": {
+    kind: "verification-reminder",
+    name: "Verification reminder",
+    whenSent: `Once, when a password sign-up is still unverified ${VERIFICATION_REMINDER_DAYS} days later and an admin next opens the app.`,
+    defaults: {
+      subject: "Finish setting up your account",
+      heading: "You’re one step away",
+      message: "Confirm your email to finish setting up your account.",
+      action: "Verify email",
+      closing: IGNORE_LINE,
+    },
+    tokens: RECIPIENT_TOKENS,
   },
   "sign-in-link": {
     kind: "sign-in-link",
     name: "Your sign-in link",
-    whenSent: "When somebody asks to sign in with a link instead of a password.",
+    whenSent:
+      "When somebody asks to sign in with a link instead of a password.",
     defaults: {
       subject: "Your sign-in link",
       heading: "Sign in",
@@ -131,7 +158,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing: IGNORE_LINE,
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{minutes}}",
         description: "How many minutes the link lasts",
@@ -149,7 +176,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Reset password",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
   },
   "email-change": {
     kind: "email-change",
@@ -165,7 +192,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing: IGNORE_LINE,
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{old_email}}",
         description: "The address the account is moving away from",
@@ -188,7 +215,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "If this was not you, use the button. It cancels the change and signs every browser out of the account, so you can reset your password and take it back.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{new_email}}",
         description: "The address the account would be moving to",
@@ -211,7 +238,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "If you did not do this, contact support from this address straight away — they can see where the account went and move it back.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{new_email}}",
         description: "The address the account moved to",
@@ -233,7 +260,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing:
         "If this was not you, reset your password now — that is the fastest way to lock whoever did it out.",
     },
-    tokens: [EMAIL_TOKEN, WHEN_TOKEN, DEVICE_TOKEN],
+    tokens: [...RECIPIENT_TOKENS, WHEN_TOKEN, DEVICE_TOKEN],
   },
   "new-device": {
     kind: "new-device",
@@ -249,7 +276,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing:
         "If it was not you, reset your password now, then sign the other browsers out under Account → Security.",
     },
-    tokens: [EMAIL_TOKEN, DEVICE_TOKEN, WHEN_TOKEN],
+    tokens: [...RECIPIENT_TOKENS, DEVICE_TOKEN, WHEN_TOKEN],
   },
   "new-account": {
     kind: "new-account",
@@ -263,23 +290,23 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Set your password",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
   },
   "account-closed": {
     kind: "account-closed",
     name: "Account closed",
-    whenSent: "When somebody closes an account, or an admin closes it for them.",
+    whenSent:
+      "When somebody closes an account, or an admin closes it for them.",
     defaults: {
       subject: "Your account has been closed",
       heading: "Your account is closed",
       message:
         "The account for {{email}} will be deleted for good on {{deletion_date}}. {{plan_status}} {{restore_instructions}}",
       action: "Open the app",
-      closing:
-        "After {{deletion_date}}, the account cannot be restored.",
+      closing: "After {{deletion_date}}, the account cannot be restored.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{deletion_date}}",
         description: "The date the account is deleted for good",
@@ -293,6 +320,62 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         description: "How this person can restore the account",
       },
     ],
+  },
+  "account-updated": {
+    kind: "account-updated",
+    name: "Account updated by an admin",
+    whenSent:
+      "When an admin changes somebody's access, role, plan, subscription, or restores their account.",
+    defaults: {
+      subject: "Your account was updated",
+      heading: "Your account was updated",
+      message:
+        "{{change_summary}} This changed on {{changed_when}}. {{practical_effect}}",
+      action: "Open the app",
+      closing:
+        "If you have questions about this change, contact an administrator.",
+    },
+    tokens: [
+      ...RECIPIENT_TOKENS,
+      {
+        token: "{{change_summary}}",
+        description: "What the administrator changed",
+      },
+      {
+        token: "{{changed_when}}",
+        description: "When the change happened, in UTC",
+      },
+      {
+        token: "{{practical_effect}}",
+        description: "What the change means for this person",
+      },
+    ],
+  },
+  "ai-limit-warning": {
+    kind: "ai-limit-warning",
+    name: "AI allowance warning",
+    whenSent: "Once per month, when somebody passes 80% of their AI allowance.",
+    defaults: {
+      subject: aiLimitNotificationText.ai_limit_warning.message,
+      heading: aiLimitNotificationText.ai_limit_warning.message,
+      message: aiLimitNotificationText.ai_limit_warning.detail,
+      action: "Review AI usage",
+      closing: "You can review your usage and allowance in the app.",
+    },
+    tokens: RECIPIENT_TOKENS,
+  },
+  "ai-limit-reached": {
+    kind: "ai-limit-reached",
+    name: "AI allowance reached",
+    whenSent: "Once per month, when somebody uses all of their AI allowance.",
+    defaults: {
+      subject: aiLimitNotificationText.ai_limit_reached.message,
+      heading: aiLimitNotificationText.ai_limit_reached.message,
+      message: aiLimitNotificationText.ai_limit_reached.detail,
+      action: "Review AI usage",
+      closing: "You can review your usage and allowance in the app.",
+    },
+    tokens: RECIPIENT_TOKENS,
   },
 }
 
@@ -329,7 +412,7 @@ export function createSystemEmailBlocks(
           BroadcastBlock,
           { kind: "richText" }
         >["content"]),
-        htmlContent: `<h1>${escapeHtml(defaults.heading)}</h1><p>${escapeHtml(
+        htmlContent: `<p>Hi {{firstName}},</p><h1>${escapeHtml(defaults.heading)}</h1><p>${escapeHtml(
           defaults.message
         )}</p>`,
       },

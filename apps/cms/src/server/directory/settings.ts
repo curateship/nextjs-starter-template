@@ -1,5 +1,9 @@
 import { eq } from "drizzle-orm"
 
+import {
+  isDirectorySort,
+  type DirectorySort,
+} from "@/lib/directory/public-search"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { directorySettings } from "@/server/directory/schema"
@@ -22,6 +26,11 @@ export type DirectorySettings = {
   claimButtonLabel: string
   claimPendingMessage: string
   claimApprovedMessage: string
+  pageSize: number
+  defaultSort: DirectorySort
+  browseTitle: string
+  browseIntro: string
+  featuredFirst: boolean
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -33,6 +42,11 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
     "Thanks — we have your request. We check each one by hand and will email you when it is done.",
   claimApprovedMessage:
     "You look after this listing. Open My listings to suggest a change.",
+  pageSize: 12,
+  defaultSort: "order",
+  browseTitle: "Directory",
+  browseIntro: "",
+  featuredFirst: true,
 }
 
 /**
@@ -45,6 +59,33 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
 function orDefault(saved: string, fallback: string): string {
   const trimmed = saved.trim()
   return trimmed || fallback
+}
+
+function resolvedBrowseSettings(row: {
+  pageSize: number | null
+  defaultSort: string | null
+  browseTitle: string | null
+  browseIntro: string | null
+  featuredFirst: boolean | null
+}) {
+  return {
+    pageSize:
+      Number.isInteger(row.pageSize) && row.pageSize! >= 6 && row.pageSize! <= 48
+        ? row.pageSize!
+        : DIRECTORY_SETTING_DEFAULTS.pageSize,
+    defaultSort: isDirectorySort(row.defaultSort)
+      ? row.defaultSort
+      : DIRECTORY_SETTING_DEFAULTS.defaultSort,
+    browseTitle: orDefault(
+      row.browseTitle ?? "",
+      DIRECTORY_SETTING_DEFAULTS.browseTitle
+    ),
+    browseIntro: (row.browseIntro ?? "").trim(),
+    featuredFirst:
+      typeof row.featuredFirst === "boolean"
+        ? row.featuredFirst
+        : DIRECTORY_SETTING_DEFAULTS.featuredFirst,
+  }
 }
 
 export async function directorySettingsFor(
@@ -74,6 +115,7 @@ export async function directorySettingsFor(
       row.claimApprovedMessage,
       DIRECTORY_SETTING_DEFAULTS.claimApprovedMessage
     ),
+    ...resolvedBrowseSettings(row),
   }
 }
 
@@ -98,6 +140,7 @@ export async function savedDirectorySettings(
         claimButtonLabel: row.claimButtonLabel,
         claimPendingMessage: row.claimPendingMessage,
         claimApprovedMessage: row.claimApprovedMessage,
+        ...resolvedBrowseSettings(row),
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -105,12 +148,25 @@ export async function savedDirectorySettings(
         claimButtonLabel: "",
         claimPendingMessage: "",
         claimApprovedMessage: "",
+        pageSize: DIRECTORY_SETTING_DEFAULTS.pageSize,
+        defaultSort: DIRECTORY_SETTING_DEFAULTS.defaultSort,
+        browseTitle: DIRECTORY_SETTING_DEFAULTS.browseTitle,
+        browseIntro: DIRECTORY_SETTING_DEFAULTS.browseIntro,
+        featuredFirst: DIRECTORY_SETTING_DEFAULTS.featuredFirst,
       }
 }
 
 export async function saveDirectorySettings(
   workspaceId: string,
-  input: Partial<Omit<DirectorySettings, "badgesEnabled">>,
+  input: Partial<
+    Pick<
+      DirectorySettings,
+      | "claimsEnabled"
+      | "claimButtonLabel"
+      | "claimPendingMessage"
+      | "claimApprovedMessage"
+    >
+  >,
   database: CustomShellDb = db
 ): Promise<DirectorySettings> {
   const at = now()
@@ -122,6 +178,55 @@ export async function saveDirectorySettings(
     claimApprovedMessage: (input.claimApprovedMessage ?? "")
       .trim()
       .slice(0, 300),
+  }
+
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, ...values, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { ...values, updatedAt: at },
+    })
+
+  return directorySettingsFor(workspaceId, database)
+}
+
+export type DirectoryBrowseSettingsInput = Pick<
+  DirectorySettings,
+  | "pageSize"
+  | "defaultSort"
+  | "browseTitle"
+  | "browseIntro"
+  | "featuredFirst"
+>
+
+/** Changes the public directory choices without touching claims or badges. */
+export async function saveDirectoryBrowseSettings(
+  workspaceId: string,
+  input: DirectoryBrowseSettingsInput,
+  database: CustomShellDb = db
+): Promise<DirectorySettings> {
+  if (
+    !Number.isInteger(input.pageSize) ||
+    input.pageSize < 6 ||
+    input.pageSize > 48
+  ) {
+    throw new Error("Listings per page must be between 6 and 48.")
+  }
+  if (!isDirectorySort(input.defaultSort)) {
+    throw new Error("Choose a listing order from the available options.")
+  }
+
+  const browseTitle = input.browseTitle.trim()
+  if (!browseTitle) throw new Error("Give the directory browse page a title.")
+
+  const at = now()
+  const values = {
+    pageSize: input.pageSize,
+    defaultSort: input.defaultSort,
+    browseTitle: browseTitle.slice(0, 120),
+    browseIntro: input.browseIntro.trim().slice(0, 500),
+    featuredFirst: input.featuredFirst,
   }
 
   await database
