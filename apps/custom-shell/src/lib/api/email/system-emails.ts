@@ -26,6 +26,7 @@ import {
   parseWorkspaceSettings,
 } from "@/server/people/workspaces"
 import { appUrlFor } from "@/server/app-url"
+import { devOutboxIsAvailable } from "@/server/email/dev-outbox"
 
 import { createErrorMessage } from "../error-message"
 
@@ -37,6 +38,11 @@ export type SystemEmailListItem = {
   updated_at: string | null
   recentSent: number
   recentFailed: number
+}
+
+export type SystemEmailsPageData = {
+  emails: SystemEmailListItem[]
+  devOutboxAvailable: boolean
 }
 
 /**
@@ -78,31 +84,34 @@ const systemEmailErrorMessages: Record<string, string> = {
 
 export const getSystemEmailErrorMessage = createErrorMessage(
   systemEmailErrorMessages,
-  "We could not save that change. Please try again."
+  "We could not save that change. Please try again.",
 )
 
 /** The same codes, said the way a page that would not open needs them said. */
 export const getSystemEmailLoadErrorMessage = createErrorMessage(
   systemEmailErrorMessages,
-  "We could not load the app's emails. Please try again."
+  "We could not load the app's emails. Please try again.",
 )
 
 const kindSchema = z.object({ kind: systemEmailKindSchema })
 
 const loadSystemEmailsPageFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }): Promise<SystemEmailListItem[]> => {
+  .handler(async ({ context }): Promise<SystemEmailsPageData> => {
     const rows = await listSystemEmails(
-      await workspaceIdForRequest(context.user.id)
+      await workspaceIdForRequest(context.user.id),
     )
-    return rows.map((row) => ({
-      kind: row.kind,
-      subject: row.subject,
-      edited: row.edited,
-      updated_at: row.updatedAt?.toISOString() ?? null,
-      recentSent: row.recentSent,
-      recentFailed: row.recentFailed,
-    }))
+    return {
+      devOutboxAvailable: devOutboxIsAvailable(),
+      emails: rows.map((row) => ({
+        kind: row.kind,
+        subject: row.subject,
+        edited: row.edited,
+        updated_at: row.updatedAt?.toISOString() ?? null,
+        recentSent: row.recentSent,
+        recentFailed: row.recentFailed,
+      })),
+    }
   })
 
 const getSystemEmailFn = createServerFn({ method: "GET" })
@@ -116,7 +125,7 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     // real change — see `updateSystemEmail`.
     const row = await getSystemEmailRow(
       await workspaceIdForRequest(context.user.id),
-      data.kind
+      data.kind,
     )
     if (row) return toDetail(data.kind, row)
 
@@ -131,7 +140,7 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
       fromName: null,
       blocks: createSystemEmailBlocks(
         data.kind,
-        parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults
+        parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults,
       ),
     }
   })
@@ -144,7 +153,7 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
       preheader: z.string().max(500).optional(),
       fromName: z.string().max(255).nullable().optional(),
       blocks: broadcastBlocksSchema.optional(),
-    })
+    }),
   )
   .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
     const { kind, ...fields } = data
@@ -153,8 +162,8 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
       await saveSystemEmail(
         await workspaceIdForRequest(context.user.id),
         kind,
-        fields
-      )
+        fields,
+      ),
     )
   })
 
@@ -164,13 +173,13 @@ const loadSystemEmailSendsFn = createServerFn({ method: "GET" })
     kindSchema.extend({
       limit: z.number().int().min(1).max(100).optional(),
       offset: z.number().int().min(0).optional(),
-    })
+    }),
   )
   .handler(async ({ data, context }): Promise<SystemEmailSendsPage> => {
     const { sends, hasMore } = await listSends(
       await workspaceIdForRequest(context.user.id),
       data.kind,
-      { limit: data.limit, offset: data.offset }
+      { limit: data.limit, offset: data.offset },
     )
     return {
       sends: sends.map((send) => ({
@@ -199,6 +208,7 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
   .middleware([adminPost])
   .inputValidator(kindSchema)
   .handler(async ({ data, context }): Promise<{ delivered: boolean }> => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
     const sampleTokens: Record<SystemEmailKind, Record<string, string>> = {
       "verify-email": {},
       "verification-reminder": {},
@@ -240,6 +250,7 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       kind: data.kind,
       to: context.user.email,
       recipientName: context.user.name,
+      workspaceId,
       tokens: sampleTokens[data.kind],
       actionUrl: appUrlFor("/"),
     })
@@ -252,7 +263,7 @@ function toDetail(
     preheader: string
     fromName: string | null
     blocks: unknown
-  }
+  },
 ): SystemEmailDetail {
   return {
     kind,
@@ -283,7 +294,7 @@ export function updateSystemEmail(input: {
 
 export function loadSystemEmailSends(
   kind: SystemEmailKind,
-  options: { limit?: number; offset?: number } = {}
+  options: { limit?: number; offset?: number } = {},
 ) {
   return loadSystemEmailSendsFn({ data: { kind, ...options } })
 }

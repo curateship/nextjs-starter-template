@@ -8,6 +8,10 @@ import {
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
+import {
+  captureDevEmail,
+  devOutboxIsAvailable,
+} from "@/server/email/dev-outbox"
 import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 import {
   getSystemEmail,
@@ -23,6 +27,8 @@ export type AuthEmail = {
   /** The stored account name. It is never inferred from the email address. */
   recipientName: string | null
   actionUrl: string
+  /** The site is explicit for admin test sends; visitor flows resolve it by host. */
+  workspaceId?: string
   /**
    * Values for the placeholders this kind of email offers, over and above the
    * address and the link, which are filled in for every one of them.
@@ -33,13 +39,6 @@ export type AuthEmail = {
 // A sign-in link in a log file is a sign-in link. Treat either signal as
 // production so a deployment that forgets CUSTOM_SHELL_API_ENV fails loudly
 // instead of printing reset tokens and silently sending nothing.
-function isProduction() {
-  return (
-    process.env.CUSTOM_SHELL_API_ENV === "production" ||
-    process.env.NODE_ENV === "production"
-  )
-}
-
 /** Only the parts of a saved row this file cares about. */
 export type SavedSystemEmail = {
   subject: string
@@ -123,7 +122,7 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
  */
 export function composeFromAddress(
   fromName: string | null,
-  configured: string
+  configured: string,
 ) {
   // A From line is one line. Anything that could end it or start a second
   // header — a line break, angle brackets, quotes, a comma splitting it into
@@ -143,7 +142,7 @@ function fromAddress(fromName: string | null) {
   return composeFromAddress(
     fromName,
     process.env.CUSTOM_SHELL_EMAIL_FROM ||
-      "Custom Shell <onboarding@resend.dev>"
+      "Custom Shell <onboarding@resend.dev>",
   )
 }
 
@@ -159,7 +158,8 @@ export async function sendAuthEmail(email: AuthEmail) {
   // somebody registering on Alpha gets Alpha's words from Alpha's sender, and
   // that is a question about the site, not about them. A deployment with no
   // site at all falls through to the built-in wording, as it always did.
-  const workspaceId = await visitorWorkspaceId().catch(() => null)
+  const workspaceId =
+    email.workspaceId ?? (await visitorWorkspaceId().catch(() => null))
 
   // A database that will not answer must not stop a password reset, so a
   // failure here falls through to the built-in wording rather than throwing.
@@ -168,16 +168,18 @@ export async function sendAuthEmail(email: AuthEmail) {
     : null
   const { subject, html, fromName } = composeSystemEmail(email, saved)
 
+  captureDevEmail({ workspaceId, toEmail: email.to, subject, html })
+
   // The key an admin saved under Settings → Email, and the environment
   // variable as the fallback. Reading only the variable is what used to make
   // this quietly do nothing on a server where somebody had filled the tab in.
   const apiKey =
     (await getAppEmailApiKey(undefined, workspaceId ?? undefined).catch(
-      () => null
+      () => null,
     )) || process.env.CUSTOM_SHELL_RESEND_API_KEY
 
   if (!apiKey) {
-    if (isProduction()) {
+    if (!devOutboxIsAvailable()) {
       await logSend(workspaceId, email, subject, {
         status: "failed",
         error: "No Resend key is saved under Settings → Email.",
@@ -186,7 +188,7 @@ export async function sendAuthEmail(email: AuthEmail) {
     }
 
     console.info(
-      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
+      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`,
     )
     await logSend(workspaceId, email, subject, {
       status: "failed",
@@ -265,7 +267,7 @@ async function logSend(
     status: "sent" | "failed"
     providerMessageId?: string | null
     error?: string | null
-  }
+  },
 ) {
   try {
     await recordSystemEmailSend({

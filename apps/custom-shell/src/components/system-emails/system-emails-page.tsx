@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { MailCheckIcon, SettingsIcon } from "lucide-react"
+import { InboxIcon, MailCheckIcon, SettingsIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { Badge } from "@/components/ui/badge"
@@ -12,7 +12,7 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { SystemEmailListItem } from "@/lib/api/email/system-emails"
+import type { SystemEmailsPageData } from "@/lib/api/email/system-emails"
 import {
   RECENT_SEND_DAYS,
   SYSTEM_EMAIL_META,
@@ -34,24 +34,29 @@ type SortColumn = "name" | "subject" | "sends" | "edited"
 export function SystemEmailsPage({
   initial,
 }: {
-  initial: SystemEmailListItem[]
+  initial: SystemEmailsPageData
 }) {
+  const emails = initial.emails
   const navigate = useNavigate()
   // Starts in the order the emails are declared, which is roughly the order
   // somebody meets them: register, sign in, forget the password.
-  const { sort, direction, toggleSort } = useTableSort<SortColumn>("name", "asc", (column) => column === "sends" || column === "edited" ? "desc" : "asc")
+  const { sort, direction, toggleSort } = useTableSort<SortColumn>(
+    "name",
+    "asc",
+    (column) => (column === "sends" || column === "edited" ? "desc" : "asc"),
+  )
 
   const openEditor = (kind: SystemEmailKind) =>
     navigate({ to: "/admin/system-emails/$kind", params: { kind } })
 
   const rows = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
-    return [...initial].sort((left, right) => {
+    return [...emails].sort((left, right) => {
       if (sort === "name") {
         return (
           factor *
           SYSTEM_EMAIL_META[left.kind].name.localeCompare(
-            SYSTEM_EMAIL_META[right.kind].name
+            SYSTEM_EMAIL_META[right.kind].name,
           )
         )
       }
@@ -70,18 +75,30 @@ export function SystemEmailsPage({
       }
       // Never edited sorts as the oldest, so ascending puts the built-in ones
       // first and descending puts what you touched most recently on top.
-      return factor * (left.updated_at ?? "").localeCompare(right.updated_at ?? "")
+      return (
+        factor * (left.updated_at ?? "").localeCompare(right.updated_at ?? "")
+      )
     })
-  }, [direction, initial, sort])
+  }, [direction, emails, sort])
 
   return (
     <DashboardTable
       title="System emails"
       icon={<MailCheckIcon />}
-      count={initial.length}
+      count={emails.length}
+      controls={
+        initial.devOutboxAvailable ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/admin/dev-outbox">
+              <InboxIcon aria-hidden="true" />
+              Dev outbox
+            </Link>
+          </Button>
+        ) : undefined
+      }
       footer={{
         type: "summary",
-        count: initial.length,
+        count: emails.length,
         label: "emails the app sends on its own",
       }}
       header={
