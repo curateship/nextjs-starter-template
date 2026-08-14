@@ -13,6 +13,7 @@ import {
 } from "@/lib/directory/front-page"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { directorySettings } from "@/server/directory/schema"
 
 /**
@@ -222,6 +223,7 @@ export async function saveDirectorySettings(
       set: { ...values, updatedAt: at },
     })
 
+  clearPublicDirectoryCache(workspaceId)
   return directorySettingsFor(workspaceId, database)
 }
 
@@ -267,6 +269,7 @@ export async function saveDirectoryBrowseSettings(
       set: { ...values, updatedAt: at },
     })
 
+  clearPublicDirectoryCache(workspaceId)
   return directorySettingsFor(workspaceId, database)
 }
 

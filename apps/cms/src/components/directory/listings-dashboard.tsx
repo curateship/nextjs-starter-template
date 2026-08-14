@@ -50,10 +50,7 @@ import {
   type ListingStatusFilter,
   type ListingViewRange,
 } from "@/lib/directory/listing-sort"
-import {
-  forgetListings,
-  prefetchListing,
-} from "@/lib/directory/listing-cache"
+import { forgetListings, prefetchListing } from "@/lib/directory/listing-cache"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
@@ -185,7 +182,6 @@ export function ListingsDashboard({
   )
 
   const [copy, copying] = useAsyncAction(getListingErrorMessage)
-
   /** A copy to start from: same content, a free address, always a draft. */
   const duplicate = React.useCallback(
     (listing: ListingSummary) => {
@@ -323,7 +319,10 @@ export function ListingsDashboard({
                 ))}
               </SelectContent>
             </Select>
-            <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
+            <DashboardToolbarButton
+              type="button"
+              onClick={() => setCreating(true)}
+            >
               <PlusIcon className="size-4" />
               New listing
             </DashboardToolbarButton>
@@ -363,8 +362,7 @@ export function ListingsDashboard({
           totalPages,
           onPageChange: (page) =>
             setListSearch({ page: page > 1 ? page : undefined }),
-          onPageSizeChange: (size) =>
-            setListSearch({ size, page: undefined }),
+          onPageSizeChange: (size) => setListSearch({ size, page: undefined }),
         }}
       >
         {data.listings.map((listing) => (
@@ -415,7 +413,9 @@ export function ListingsDashboard({
                 <Badge variant="outline">Draft</Badge>
               )}
             </TableCell>
-            <TableCell column="meta">{listing.views.toLocaleString()}</TableCell>
+            <TableCell column="meta">
+              {listing.views.toLocaleString()}
+            </TableCell>
             <TableCell column="meta" className="hidden md:table-cell">
               {formatDate(listing.createdAt)}
             </TableCell>
@@ -465,7 +465,9 @@ export function ListingsDashboard({
         open={creating || Boolean(search.open)}
         listingId={creating ? null : (search.open ?? null)}
         categories={categories}
-        preview={openRow ? { title: openRow.title, status: openRow.status } : null}
+        preview={
+          openRow ? { title: openRow.title, status: openRow.status } : null
+        }
         onClose={() => {
           if (creating) setCreating(false)
           else setOpen(undefined)

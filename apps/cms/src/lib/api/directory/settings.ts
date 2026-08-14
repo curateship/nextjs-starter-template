@@ -4,6 +4,7 @@ import { z } from "zod"
 import { DIRECTORY_SORTS } from "@/lib/directory/public-search"
 import { DIRECTORY_FRONT_PAGE_MODES } from "@/lib/directory/front-page"
 import { adminGet, adminPost } from "@/server/guards"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
   directorySettingsFor,
   saveDirectoryBadgesEnabled,
@@ -31,6 +32,11 @@ export const getDirectorySettingsErrorMessage = createErrorMessage(
   "The directory settings could not be saved."
 )
 
+export const getClearPublicPagesErrorMessage = createErrorMessage(
+  {},
+  "Cached public pages could not be cleared. Please try again."
+)
+
 const loadDirectorySettingsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
@@ -42,6 +48,18 @@ const loadDirectorySettingsFn = createServerFn({ method: "GET" })
 
 export function loadDirectorySettings() {
   return loadDirectorySettingsFn()
+}
+
+const clearPublicPagesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .handler(async ({ context }): Promise<{ cleared: number }> => {
+    const site = await workspaceIdForRequest(context.user.id)
+    return { cleared: clearPublicDirectoryCache(site) }
+  })
+
+/** Forget this site's short-lived public directory pages immediately. */
+export function clearPublicPages() {
+  return clearPublicPagesFn()
 }
 
 const saveBadgeSettingsFn = createServerFn({ method: "POST" })
