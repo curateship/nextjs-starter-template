@@ -11,6 +11,7 @@ import { toast } from "sonner"
 
 import { CategoryDialog } from "@/components/directory/category-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -30,6 +31,7 @@ import {
   type Category,
 } from "@/lib/api/directory/categories"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 import { plural } from "@/lib/format/plural"
 
@@ -69,6 +71,7 @@ export function CategoriesDashboard({
   searchText: string
 }) {
   const router = useRouter()
+  const { config } = useShellRuntime()
   const navigate = useListSearchNavigate()
   const [text, setText] = useSearchBoxText(searchText, (value) =>
     navigate({ q: value || undefined })
@@ -94,6 +97,11 @@ export function CategoriesDashboard({
       .filter((category) => category.name.toLowerCase().includes(query))
       .map((category) => ({ category, depth: 0 }))
   }, [categories, searchText])
+  const { visible, footer } = useClientPage(
+    rows,
+    config.dashboardRowsPerPage,
+    searchText
+  )
 
   const askToDelete = React.useCallback(
     (category: Category) => {
@@ -120,7 +128,11 @@ export function CategoriesDashboard({
       <DashboardTable
         title="Categories"
         icon={<FolderTreeIcon className="text-muted-foreground" />}
-        count={categories.length}
+        count={rows.length}
+        fillHeight
+        // Short lists keep their natural height. Once the surface reaches the
+        // page's available height, only the rows scroll and the footer stays.
+        className="h-auto max-h-full"
         controls={
           <>
             <DashboardToolbarSearch
@@ -158,15 +170,9 @@ export function CategoriesDashboard({
             : "No categories yet. Create the first one."
         }
         emptyColSpan={4}
-        footer={{
-          type: "summary",
-          count: categories.length,
-          // Said here rather than left to the footer's own singulariser,
-          // which turns "categories" into "categorie".
-          label: plural(categories.length, "category", "categories"),
-        }}
+        footer={footer}
       >
-        {rows.map(({ category, depth }) => (
+        {visible.map(({ category, depth }) => (
           <TableRow
             key={category.id}
             className="group"
