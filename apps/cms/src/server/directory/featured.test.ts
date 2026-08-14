@@ -20,6 +20,7 @@ import {
   saveFeaturedPlan,
 } from "@/server/directory/featured"
 import { readPublicBrowse } from "@/server/directory/public"
+import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
   DIRECTORY_SETTING_DEFAULTS,
   saveDirectoryBrowseSettings,
@@ -40,18 +41,27 @@ let client: PGlite
 let database: TestDatabase
 
 beforeEach(async () => {
+  resetPublicDirectoryCacheForTests()
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
 })
 
-afterEach(async () => client.close())
+afterEach(async () => {
+  resetPublicDirectoryCacheForTests()
+  await client.close()
+})
 
 async function ownedListing() {
   const site = await insertWorkspace(database)
   const user = await insertUser(database)
   const draft = await createListing(site.id, { title: "Cafe" }, database)
-  const listing = await updateListing(site.id, draft.id, { status: "published" }, database)
+  const listing = await updateListing(
+    site.id,
+    draft.id,
+    { status: "published" },
+    database
+  )
   const timestamp = now()
   const [claim] = await database
     .insert(directoryClaims)
@@ -91,7 +101,10 @@ function checkoutStripe() {
     idempotencyKeys,
     sessions,
     client: {
-      create(params: Stripe.Checkout.SessionCreateParams, idempotencyKey: string) {
+      create(
+        params: Stripe.Checkout.SessionCreateParams,
+        idempotencyKey: string
+      ) {
         idempotencyKeys.push(idempotencyKey)
         const existing = sessions.get(idempotencyKey)
         if (existing) return existing
@@ -106,7 +119,8 @@ function checkoutStripe() {
                 status: "open",
                 payment_status: "unpaid",
                 payment_intent: null,
-                amount_total: params.line_items?.[0]?.price_data?.unit_amount ?? null,
+                amount_total:
+                  params.line_items?.[0]?.price_data?.unit_amount ?? null,
                 currency: params.line_items?.[0]?.price_data?.currency ?? null,
                 metadata: params.metadata ?? {},
               } as Stripe.Checkout.Session),
@@ -148,7 +162,9 @@ describe("featured placement", () => {
 
     expect(results[0].url).toBe(results[1].url)
     expect(new Set(fakeStripe.idempotencyKeys).size).toBe(1)
-    expect(await database.select().from(directoryFeaturedCheckouts)).toHaveLength(1)
+    expect(
+      await database.select().from(directoryFeaturedCheckouts)
+    ).toHaveLength(1)
   })
 
   it("keeps a checkout plan until the paid session can be confirmed", async () => {
@@ -161,9 +177,9 @@ describe("featured placement", () => {
       fakeStripe.client
     )
 
-    await expect(deleteFeaturedPlan(site.id, plan.id, database)).rejects.toThrow(
-      "Archive this plan"
-    )
+    await expect(
+      deleteFeaturedPlan(site.id, plan.id, database)
+    ).rejects.toThrow("Archive this plan")
 
     const [openSession] = await Promise.all(fakeStripe.sessions.values())
     await activateFeaturedSession(
@@ -175,7 +191,9 @@ describe("featured placement", () => {
       },
       database
     )
-    expect(await database.select().from(directoryFeaturedCheckouts)).toHaveLength(0)
+    expect(
+      await database.select().from(directoryFeaturedCheckouts)
+    ).toHaveLength(0)
   })
 
   it("recovers the reserved session after its plan is archived", async () => {
@@ -251,7 +269,9 @@ describe("featured placement", () => {
         fakeStripe.client
       )
     ).rejects.toThrow("still open")
-    await expect(deleteListings(site.id, [listing.id], database)).rejects.toThrow()
+    await expect(
+      deleteListings(site.id, [listing.id], database)
+    ).rejects.toThrow()
   })
 
   it("removes an expired checkout before deleting its listing", async () => {
@@ -273,8 +293,12 @@ describe("featured placement", () => {
       database,
       fakeStripe.client
     )
-    expect(await database.select().from(directoryFeaturedCheckouts)).toHaveLength(0)
-    await expect(deleteListings(site.id, [listing.id], database)).resolves.toEqual({
+    expect(
+      await database.select().from(directoryFeaturedCheckouts)
+    ).toHaveLength(0)
+    await expect(
+      deleteListings(site.id, [listing.id], database)
+    ).resolves.toEqual({
       done: [listing.id],
       kept: [],
     })
@@ -301,9 +325,15 @@ describe("featured placement", () => {
         fakeStripe.client
       )
     ).rejects.toThrow("payment completed")
-    expect(await database.select().from(directoryFeaturedCheckouts)).toHaveLength(0)
-    expect(await database.select().from(directoryFeaturedEntitlements)).toHaveLength(1)
-    expect(await featuredImpactForListings(site.id, [listing.id], database)).toEqual({
+    expect(
+      await database.select().from(directoryFeaturedCheckouts)
+    ).toHaveLength(0)
+    expect(
+      await database.select().from(directoryFeaturedEntitlements)
+    ).toHaveLength(1)
+    expect(
+      await featuredImpactForListings(site.id, [listing.id], database)
+    ).toEqual({
       activeFeatured: 1,
     })
   })
@@ -448,18 +478,39 @@ describe("featured placement", () => {
       },
     ])
 
-    expect(await activeFeaturedForListings(site.id, [listing.id], database)).toEqual(
-      new Set()
-    )
-    expect(await featuredImpactForListings(site.id, [listing.id], database)).toEqual({
+    expect(
+      await activeFeaturedForListings(site.id, [listing.id], database)
+    ).toEqual(new Set())
+    expect(
+      await featuredImpactForListings(site.id, [listing.id], database)
+    ).toEqual({
       activeFeatured: 0,
     })
   })
 
   it("sorts an active featured listing first and drops the priority at expiry", async () => {
     const { site, user, listing, claim, plan } = await ownedListing()
-    const ordinary = await createListing(site.id, { title: "New ordinary" }, database)
+    const ordinary = await createListing(
+      site.id,
+      { title: "New ordinary" },
+      database
+    )
     await updateListing(site.id, ordinary.id, { status: "published" }, database)
+    const publicSite = {
+      id: site.id,
+      name: site.name,
+      url: "https://site.test",
+    }
+    const browse = () =>
+      readPublicBrowse(publicSite, { sort: "newest", page: 1 }, database)
+
+    expect(
+      (await browse()).listings.map((row) => [row.title, row.featured])
+    ).toEqual([
+      ["New ordinary", false],
+      ["Cafe", false],
+    ])
+
     const entitlement = await activateFeaturedSession(
       user.id,
       {
@@ -479,11 +530,10 @@ describe("featured placement", () => {
       },
       database
     )
-    const publicSite = { id: site.id, name: site.name, url: "https://site.test" }
-    const browse = () =>
-      readPublicBrowse(publicSite, { sort: "newest", page: 1 }, database)
 
-    expect((await browse()).listings.map((row) => [row.title, row.featured])).toEqual([
+    expect(
+      (await browse()).listings.map((row) => [row.title, row.featured])
+    ).toEqual([
       ["Cafe", true],
       ["New ordinary", false],
     ])
@@ -497,7 +547,9 @@ describe("featured placement", () => {
       },
       database
     )
-    expect((await browse()).listings.map((row) => [row.title, row.featured])).toEqual([
+    expect(
+      (await browse()).listings.map((row) => [row.title, row.featured])
+    ).toEqual([
       ["New ordinary", false],
       ["Cafe", true],
     ])
@@ -506,7 +558,12 @@ describe("featured placement", () => {
       .update(directoryFeaturedEntitlements)
       .set({ endsAt: new Date(Date.now() - 1000) })
       .where(eq(directoryFeaturedEntitlements.id, entitlement.id))
-    expect((await browse()).listings.map((row) => [row.title, row.featured])).toEqual([
+    // This test edits the database directly to simulate time passing. A real
+    // cached page may keep that placement for its remaining short lifetime.
+    resetPublicDirectoryCacheForTests()
+    expect(
+      (await browse()).listings.map((row) => [row.title, row.featured])
+    ).toEqual([
       ["New ordinary", false],
       ["Cafe", false],
     ])

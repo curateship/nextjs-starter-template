@@ -1,6 +1,9 @@
 import * as React from "react"
+import { Loader2Icon } from "lucide-react"
+import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
+import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -14,6 +17,8 @@ import {
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  clearPublicPages,
+  getClearPublicPagesErrorMessage,
   getDirectorySettingsErrorMessage,
   loadDirectorySettings,
   saveBrowseSettings,
@@ -44,6 +49,9 @@ export function DirectorySettings() {
   const [pageSize, setPageSize] = React.useState("")
   const [frontPageCount, setFrontPageCount] = React.useState("")
   const [save, saving] = useAsyncAction(getDirectorySettingsErrorMessage)
+  const [clearCache, clearingCache] = useAsyncAction(
+    getClearPublicPagesErrorMessage
+  )
   const saveQueue = React.useRef(Promise.resolve(true))
 
   React.useEffect(() => {
@@ -323,6 +331,29 @@ export function DirectorySettings() {
             Show featured listings first
           </FieldLabel>
         </div>
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-cache"
+        title="Cached pages"
+        description="Forget this site's saved public directory pages so the next visit rebuilds them."
+      >
+        <Button
+          type="button"
+          variant="outline"
+          disabled={clearingCache}
+          onClick={() => {
+            void clearCache(async () => {
+              await clearPublicPages()
+              toast.success("Cached public pages cleared.")
+            })
+          }}
+        >
+          {clearingCache ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : null}
+          Clear cached pages
+        </Button>
       </CollapsibleSettingsCard>
     </CardGroup>
   )

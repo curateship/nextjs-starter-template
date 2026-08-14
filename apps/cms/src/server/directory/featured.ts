@@ -19,6 +19,7 @@ import { now, uuid } from "@/server/auth/security"
 import { stripe } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendDirectoryEmail } from "@/server/directory/mail"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
   directoryClaims,
   directoryFeaturedCheckouts,
@@ -610,7 +611,7 @@ export async function activateFeaturedSession(
     throw new Error("The completed payment does not match the selected plan.")
   }
 
-  return database.transaction(async (tx) => {
+  const entitlement = await database.transaction(async (tx) => {
     const at = now()
     await tx
       .insert(directoryFeaturedEntitlements)
@@ -650,6 +651,8 @@ export async function activateFeaturedSession(
       )
     return entitlement
   })
+  clearPublicDirectoryCache(valid.workspaceId)
+  return entitlement
 }
 
 export async function confirmFeaturedCheckout(

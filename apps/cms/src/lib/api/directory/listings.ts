@@ -74,12 +74,7 @@ const loadListingsPageFn = createServerFn({ method: "GET" })
       sort: z.enum(LISTING_SORT_COLUMNS).optional(),
       direction: z.enum(["asc", "desc"]).optional(),
       days: z
-        .union([
-          z.literal("all"),
-          z.literal(7),
-          z.literal(30),
-          z.literal(365),
-        ])
+        .union([z.literal("all"), z.literal(7), z.literal(30), z.literal(365)])
         .optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
@@ -191,7 +186,12 @@ const updateListingFn = createServerFn({ method: "POST" })
     const site = await workspaceIdForRequest(context.user.id)
     const listing = await updateListing(site, id, rest)
     if (categoryIds !== undefined) {
-      await setListingCategories(site, id, categoryIds, primaryCategoryId ?? null)
+      await setListingCategories(
+        site,
+        id,
+        categoryIds,
+        primaryCategoryId ?? null
+      )
     }
     return listing
   })
@@ -237,13 +237,14 @@ const listingDeleteImpactFn = createServerFn({ method: "GET" })
     // function lives beside `updateListing`, which the claims module already
     // calls, and having it call back into claims would make the two modules
     // import each other.
-    const [listings, claims, saves, featured, pendingFeatured] = await Promise.all([
-      listingDeleteImpact(site, data.ids),
-      claimImpactForListings(site, data.ids),
-      saveImpactForListings(site, data.ids),
-      featuredImpactForListings(site, data.ids),
-      pendingFeaturedImpactForListings(site, data.ids),
-    ])
+    const [listings, claims, saves, featured, pendingFeatured] =
+      await Promise.all([
+        listingDeleteImpact(site, data.ids),
+        claimImpactForListings(site, data.ids),
+        saveImpactForListings(site, data.ids),
+        featuredImpactForListings(site, data.ids),
+        pendingFeaturedImpactForListings(site, data.ids),
+      ])
     return { ...listings, ...claims, ...saves, ...featured, ...pendingFeatured }
   })
 
@@ -257,28 +258,30 @@ const deleteListingsFn = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({ ids: z.array(z.string().min(1).max(36)).min(1).max(500) })
   )
-  .handler(async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
-    const site = await workspaceIdForRequest(context.user.id)
-    await prepareFeaturedListingsForDeletion(site, data.ids)
-    try {
-      return await deleteListings(site, data.ids)
-    } catch (error) {
-      const constraint =
-        typeof error === "object" && error !== null && "constraint" in error
-          ? String(error.constraint)
-          : ""
-      const message = error instanceof Error ? error.message : String(error)
-      if (
-        constraint === "directory_featured_checkouts_listing_id_fkey" ||
-        message.includes("directory_featured_checkouts_listing_id_fkey")
-      ) {
-        throw new Error(
-          "A featured checkout started before deletion finished. Try again after it finishes or expires."
-        )
+  .handler(
+    async ({ data, context }): Promise<{ done: string[]; kept: string[] }> => {
+      const site = await workspaceIdForRequest(context.user.id)
+      await prepareFeaturedListingsForDeletion(site, data.ids)
+      try {
+        return await deleteListings(site, data.ids)
+      } catch (error) {
+        const constraint =
+          typeof error === "object" && error !== null && "constraint" in error
+            ? String(error.constraint)
+            : ""
+        const message = error instanceof Error ? error.message : String(error)
+        if (
+          constraint === "directory_featured_checkouts_listing_id_fkey" ||
+          message.includes("directory_featured_checkouts_listing_id_fkey")
+        ) {
+          throw new Error(
+            "A featured checkout started before deletion finished. Try again after it finishes or expires."
+          )
+        }
+        throw error
       }
-      throw error
     }
-  })
+  )
 
 /** One request for the whole selection; the result counts honestly. */
 export function removeListings(ids: string[]) {

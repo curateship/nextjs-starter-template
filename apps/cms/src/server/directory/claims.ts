@@ -17,6 +17,7 @@ import {
 } from "@/lib/pages/written-page-body"
 import { createSecretToken, hashToken, now, uuid } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { updateListing } from "@/server/directory/listings"
 import {
   directoryClaims,
@@ -508,6 +509,7 @@ export async function reviewClaim(
 
   if (!updated) throw new Error("Somebody has already dealt with this one.")
 
+  clearPublicDirectoryCache(workspaceId)
   return {
     claim: toClaim(updated),
     listingTitle: found.listingTitle,
