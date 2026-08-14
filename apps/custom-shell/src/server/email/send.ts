@@ -17,6 +17,7 @@ import {
   getSystemEmail,
   recordSystemEmailSend,
 } from "@/server/email/system-emails"
+import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
@@ -59,7 +60,11 @@ export type SavedSystemEmail = {
  * Handed the saved row rather than fetching it, so the rules above can be
  * checked without a database.
  */
-export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
+export function composeSystemEmail(
+  email: AuthEmail,
+  saved: SavedSystemEmail,
+  options: { appName?: string } = {}
+) {
   const meta = SYSTEM_EMAIL_META[email.kind]
   const values: Record<string, string> = {
     ...email.tokens,
@@ -78,6 +83,7 @@ export function composeSystemEmail(email: AuthEmail, saved: SavedSystemEmail) {
         : applySystemEmailTokens(subject, values, {
             html: false,
           }),
+      appName: options.appName,
     })
     return {
       subject: applySystemEmailTokens(subject, values, { html: false }),
@@ -163,10 +169,24 @@ export async function sendAuthEmail(email: AuthEmail) {
 
   // A database that will not answer must not stop a password reset, so a
   // failure here falls through to the built-in wording rather than throwing.
-  const saved = workspaceId
+  let saved = workspaceId
     ? await getSystemEmail(workspaceId, email.kind).catch(() => null)
     : null
-  const { subject, html, fromName } = composeSystemEmail(email, saved)
+  let appName: string | undefined
+  if (workspaceId && saved) {
+    try {
+      await protectSentEmailLogos(workspaceId, parseStoredBlocks(saved.blocks))
+      appName = await emailBrandName(workspaceId)
+    } catch {
+      // Authentication email must still go out. If the database cannot make
+      // its custom logo permanent, the safe answer is the built-in email with
+      // no image rather than a custom email whose logo may later break.
+      saved = null
+    }
+  }
+  const { subject, html, fromName } = composeSystemEmail(email, saved, {
+    appName,
+  })
 
   captureDevEmail({ workspaceId, toEmail: email.to, subject, html })
 

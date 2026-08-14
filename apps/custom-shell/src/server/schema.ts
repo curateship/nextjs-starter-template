@@ -531,6 +531,12 @@ export const customShellMedia = pgTable(
     mimeType: varchar("mime_type", { length: 255 }).notNull(),
     fileType: varchar("file_type", { length: 20 }).notNull(),
     storagePath: text("storage_path").notNull().unique(),
+    /**
+     * Set the first time this picture is used as a logo in an email that is
+     * actually sent. Inbox copies can outlive every record that describes the
+     * email, so the file must stay once this has a value.
+     */
+    emailProtectedAt: timestamp("email_protected_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

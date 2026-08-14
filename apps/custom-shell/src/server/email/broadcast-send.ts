@@ -26,6 +26,7 @@ import {
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { db, type CustomShellDb } from "@/server/db"
 import { getEmailProvider } from "@/server/email/provider"
+import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
 import { getSendableEmailConfig } from "@/server/email/settings"
 import {
   customShellBroadcasts,
@@ -193,6 +194,7 @@ async function validateReadyToSend(
     audienceCount,
     renderedHtml: renderBroadcastEmailHtml(blocks, {
       preheader: broadcast.preheader,
+      appName: await emailBrandName(broadcast.workspaceId, database),
     }),
   }
 }
@@ -325,6 +327,7 @@ export async function sendTestBroadcast(
 
   const html = renderBroadcastEmailHtml(blocks, {
     preheader: broadcast.preheader,
+    appName: await emailBrandName(workspaceId, database),
   })
   const sampleContact = {
     email: toEmail,
@@ -335,6 +338,7 @@ export async function sendTestBroadcast(
     ? `${broadcast.fromName} <${config.fromEmail}>`
     : config.from
 
+  await protectSentEmailLogos(workspaceId, blocks, database)
   const result = await getEmailProvider(config.apiKey).send({
     from,
     to: toEmail,
@@ -556,11 +560,32 @@ async function processBroadcastBatch(
     broadcast.renderedHtml ||
     renderBroadcastEmailHtml(parseStoredBlocks(broadcast.blocks), {
       preheader: broadcast.preheader,
+      appName: await emailBrandName(broadcast.workspaceId, database),
     })
   const from = broadcast.fromName
     ? `${broadcast.fromName} <${config.fromEmail}>`
     : config.from
   const provider = getEmailProvider(config.apiKey)
+
+  // A send that was already in progress during this release still gets the
+  // same protection before its next recipient is handed to the provider.
+  try {
+    await protectSentEmailLogos(
+      broadcast.workspaceId,
+      parseStoredBlocks(broadcast.blocks),
+      database
+    )
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EMAIL_LOGO_MISSING") {
+      throw error
+    }
+    await release({
+      status: "paused",
+      pausedReason:
+        "The logo file is missing, so this email was stopped before it could show a broken image. Choose the logo again, then restart the send.",
+    })
+    return
+  }
 
   let stopped = false
   for (const [index, contact] of batch.entries()) {
