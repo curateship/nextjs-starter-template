@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import {
   HumanCheck,
@@ -139,6 +140,7 @@ function RegisterRoute() {
           onChange={(event) => setEmail(event.target.value)}
           required
         />
+        <EmailDomainSuggestion email={email} onAccept={setEmail} />
       </div>
       <div className="grid gap-2">
         <FieldLabel htmlFor="password" hint={PASSWORD_RULE_HINT}>

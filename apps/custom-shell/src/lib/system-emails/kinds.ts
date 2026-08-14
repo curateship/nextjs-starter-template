@@ -6,6 +6,7 @@ import {
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import { escapeHtml } from "@/lib/email/escape-html"
+import { aiLimitNotificationText } from "@/lib/notification-types"
 
 /**
  * The emails the app sends for itself, as opposed to the newsletters somebody
@@ -35,6 +36,8 @@ export const SYSTEM_EMAIL_KINDS = [
   "new-account",
   "account-closed",
   "account-updated",
+  "ai-limit-warning",
+  "ai-limit-reached",
 ] as const
 
 export type SystemEmailKind = (typeof SYSTEM_EMAIL_KINDS)[number]
@@ -332,6 +335,32 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         description: "What the change means for this person",
       },
     ],
+  },
+  "ai-limit-warning": {
+    kind: "ai-limit-warning",
+    name: "AI allowance warning",
+    whenSent: "Once per month, when somebody passes 80% of their AI allowance.",
+    defaults: {
+      subject: aiLimitNotificationText.ai_limit_warning.message,
+      heading: aiLimitNotificationText.ai_limit_warning.message,
+      message: aiLimitNotificationText.ai_limit_warning.detail,
+      action: "Review AI usage",
+      closing: "You can review your usage and allowance in the app.",
+    },
+    tokens: RECIPIENT_TOKENS,
+  },
+  "ai-limit-reached": {
+    kind: "ai-limit-reached",
+    name: "AI allowance reached",
+    whenSent: "Once per month, when somebody uses all of their AI allowance.",
+    defaults: {
+      subject: aiLimitNotificationText.ai_limit_reached.message,
+      heading: aiLimitNotificationText.ai_limit_reached.message,
+      message: aiLimitNotificationText.ai_limit_reached.detail,
+      action: "Review AI usage",
+      closing: "You can review your usage and allowance in the app.",
+    },
+    tokens: RECIPIENT_TOKENS,
   },
 }
 
