@@ -34,6 +34,7 @@ export const SYSTEM_EMAIL_KINDS = [
   "new-device",
   "new-account",
   "account-closed",
+  "account-updated",
 ] as const
 
 export type SystemEmailKind = (typeof SYSTEM_EMAIL_KINDS)[number]
@@ -128,7 +129,8 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
   "sign-in-link": {
     kind: "sign-in-link",
     name: "Your sign-in link",
-    whenSent: "When somebody asks to sign in with a link instead of a password.",
+    whenSent:
+      "When somebody asks to sign in with a link instead of a password.",
     defaults: {
       subject: "Your sign-in link",
       heading: "Sign in",
@@ -275,15 +277,15 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
   "account-closed": {
     kind: "account-closed",
     name: "Account closed",
-    whenSent: "When somebody closes an account, or an admin closes it for them.",
+    whenSent:
+      "When somebody closes an account, or an admin closes it for them.",
     defaults: {
       subject: "Your account has been closed",
       heading: "Your account is closed",
       message:
         "The account for {{email}} will be deleted for good on {{deletion_date}}. {{plan_status}} {{restore_instructions}}",
       action: "Open the app",
-      closing:
-        "After {{deletion_date}}, the account cannot be restored.",
+      closing: "After {{deletion_date}}, the account cannot be restored.",
     },
     tokens: [
       ...RECIPIENT_TOKENS,
@@ -298,6 +300,36 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       {
         token: "{{restore_instructions}}",
         description: "How this person can restore the account",
+      },
+    ],
+  },
+  "account-updated": {
+    kind: "account-updated",
+    name: "Account updated by an admin",
+    whenSent:
+      "When an admin changes somebody's access, role, plan, subscription, or restores their account.",
+    defaults: {
+      subject: "Your account was updated",
+      heading: "Your account was updated",
+      message:
+        "{{change_summary}} This changed on {{changed_when}}. {{practical_effect}}",
+      action: "Open the app",
+      closing:
+        "If you have questions about this change, contact an administrator.",
+    },
+    tokens: [
+      ...RECIPIENT_TOKENS,
+      {
+        token: "{{change_summary}}",
+        description: "What the administrator changed",
+      },
+      {
+        token: "{{changed_when}}",
+        description: "When the change happened, in UTC",
+      },
+      {
+        token: "{{practical_effect}}",
+        description: "What the change means for this person",
       },
     ],
   },

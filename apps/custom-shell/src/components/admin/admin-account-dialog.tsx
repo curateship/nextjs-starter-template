@@ -789,7 +789,8 @@ function AccountEditPanel({
           <CardTitle>Access</CardTitle>
           <CardDescription>
             Admins reach the whole back office. Suspending someone signs them
-            out everywhere.
+            out everywhere. Role and status changes send them an email and an
+            in-app notice.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -881,7 +882,8 @@ function AccountEditPanel({
           <CardTitle>Granted plan</CardTitle>
           <CardDescription>
             Puts this person on a paid plan without charging them. Plans paid
-            through Stripe are not affected.
+            through Stripe are not affected. Granting or removing one tells them
+            by email and in the app.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">

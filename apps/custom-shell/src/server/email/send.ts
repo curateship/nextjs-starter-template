@@ -195,19 +195,30 @@ export async function sendAuthEmail(email: AuthEmail) {
     return { delivered: false }
   }
 
-  const response = await fetch(RESEND_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: fromAddress(fromName),
-      to: [email.to],
-      subject,
-      html,
-    }),
-  })
+  let response: Response
+  try {
+    response = await fetch(RESEND_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: fromAddress(fromName),
+        to: [email.to],
+        subject,
+        html,
+      }),
+    })
+  } catch {
+    // Network errors have no provider response to quote. Keep the useful fact
+    // without logging a low-level error that could contain request details.
+    await logSend(workspaceId, email, subject, {
+      status: "failed",
+      error: "The email service could not be reached.",
+    })
+    throw new Error("EMAIL_DELIVERY_FAILED")
+  }
 
   if (!response.ok) {
     // Resend's own words, not just the number. Its refusals are the useful

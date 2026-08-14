@@ -70,6 +70,7 @@ import {
 import {
   customShellAuthTokens,
   customShellCancellations,
+  customShellNotifications,
   customShellPlans,
   customShellSessions,
   customShellSubscriptions,
@@ -1972,6 +1973,12 @@ describe("admin account management", () => {
       .where(eq(customShellSystemEmailSends.toEmail, member.email))
     expect(sends).toHaveLength(1)
     expect(sends[0].kind).toBe("account-closed")
+    expect(
+      await database
+        .select()
+        .from(customShellNotifications)
+        .where(eq(customShellNotifications.recipientUserId, member.id))
+    ).toHaveLength(0)
   })
 
   it("deletes nothing when Stripe will not cancel the plan", async () => {

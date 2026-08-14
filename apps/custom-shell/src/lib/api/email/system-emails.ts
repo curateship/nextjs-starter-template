@@ -204,7 +204,10 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       "sign-in-link": { minutes: "15" },
       "password-reset": {},
       "email-change": { old_email: context.user.email, hours: "24" },
-      "email-change-warning": { new_email: "new-address@example.com", hours: "24" },
+      "email-change-warning": {
+        new_email: "new-address@example.com",
+        hours: "24",
+      },
       "email-change-done": {
         new_email: "new-address@example.com",
         when: "Jan 1, 2026, 9:00 AM UTC",
@@ -223,6 +226,11 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         plan_status: "Your paid plan was cancelled immediately.",
         restore_instructions:
           "To restore the account before then, sign in and choose Restore my account.",
+      },
+      "account-updated": {
+        change_summary: "Your role changed to Admin.",
+        changed_when: "Jan 1, 2026, 9:00 AM UTC",
+        practical_effect: "You can now open the admin area and manage the app.",
       },
     }
     return sendAuthEmail({

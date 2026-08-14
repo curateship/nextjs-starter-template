@@ -24,6 +24,8 @@ const failedNotification: NotificationItem = {
   automation_failure_node_id: "webhook-1",
   automation_failure_node_name: "Webhook",
   automation_failure_error: "The service could not be reached.",
+  message: null,
+  detail: null,
   read_at: null,
   created_at: "2026-08-11T12:00:00.000Z",
 }

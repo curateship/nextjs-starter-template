@@ -1,12 +1,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Label } from "@/components/ui/label"
 import {
@@ -76,7 +71,7 @@ export function CancelSubscriptionDialog({
       )
       await onDone()
     })
-  }, [account, granted, mode, onDone])
+  }, [account, granted, mode, onDone, run])
 
   return (
     <ConfirmDialog
@@ -85,7 +80,13 @@ export function CancelSubscriptionDialog({
         if (!open) onClose()
       }}
       title={granted ? "End this granted plan?" : "Cancel this subscription?"}
-      description={describeCancel(account, granted, alreadyEnding, mode, endDate)}
+      description={describeCancel(
+        account,
+        granted,
+        alreadyEnding,
+        mode,
+        endDate
+      )}
       confirmLabel={
         granted
           ? "End granted plan"
@@ -144,13 +145,13 @@ function describeCancel(
   if (!account) return null
 
   if (granted) {
-    return `${account.name} is on ${account.planName} because an admin granted it — nobody is billed for it. Ending it puts them back on the free plan right away.`
+    return `${account.name} is on ${account.planName} because an admin granted it — nobody is billed for it. Ending it puts them back on the free plan right away. They will be told by email and in the app.`
   }
   if (alreadyEnding) {
-    return `This plan is already set to end${endDate ? ` on ${endDate}` : ""} and will not renew. Cancelling here ends it right now instead. Nothing is refunded by this — money already paid stays paid unless you refund it separately in Stripe.`
+    return `This plan is already set to end${endDate ? ` on ${endDate}` : ""} and will not renew. Cancelling here ends it right now instead. Nothing is refunded by this — money already paid stays paid unless you refund it separately in Stripe. They will be told by email and in the app.`
   }
   if (mode === "immediate") {
-    return `${account.name} loses ${account.planName} right away. Nothing is refunded by this — money already paid stays paid unless you refund it separately in Stripe.`
+    return `${account.name} loses ${account.planName} right away. Nothing is refunded by this — money already paid stays paid unless you refund it separately in Stripe. They will be told by email and in the app.`
   }
-  return `${account.name} keeps ${account.planName} until ${endDate ?? "the end of the period they already paid for"}, and is not charged again after that.`
+  return `${account.name} keeps ${account.planName} until ${endDate ?? "the end of the period they already paid for"}, and is not charged again after that. They will be told by email and in the app.`
 }

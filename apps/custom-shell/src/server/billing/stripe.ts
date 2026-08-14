@@ -7,6 +7,7 @@ import {
   isBillingMoment,
 } from "@/lib/automations/nodes/billing-moment"
 import { formatMoney } from "@/lib/format/money"
+import { formatUtcDate } from "@/lib/format/format-time"
 import { appUrlFor } from "@/server/app-url"
 import {
   automationSubjectLabel,
@@ -36,6 +37,10 @@ import {
   type CustomShellSubscription,
   type CustomShellUser,
 } from "@/server/schema"
+import {
+  recordAdminAccountAction,
+  sendAdminAccountAction,
+} from "@/server/people/admin-action-notifications"
 import { now, uuid } from "@/server/auth/security"
 import { getActiveStripeConfig } from "@/server/billing/settings"
 import {
@@ -123,7 +128,9 @@ export async function createCheckoutSession(
 
   const subscription = await findSubscription(user.id, database)
   const trialDays = trialDaysFor(user, plan)
-  const session = await (await stripe()).checkout.sessions.create({
+  const session = await (
+    await stripe()
+  ).checkout.sessions.create({
     mode: "subscription",
     line_items: [{ price, quantity: 1 }],
     customer: subscription?.stripeCustomerId || undefined,
@@ -158,7 +165,9 @@ export async function createPortalSession(
     throw new Error("SUBSCRIPTION_NOT_FOUND")
   }
 
-  const session = await (await stripe()).billingPortal.sessions.create({
+  const session = await (
+    await stripe()
+  ).billingPortal.sessions.create({
     customer: subscription.stripeCustomerId,
     return_url: appUrlFor("/?account=billing"),
   })
@@ -186,7 +195,9 @@ export async function listCustomerInvoices(
     return []
   }
 
-  const invoices = await (await stripe()).invoices.list({
+  const invoices = await (
+    await stripe()
+  ).invoices.list({
     customer: subscription.stripeCustomerId,
     limit: 24,
   })
@@ -394,7 +405,8 @@ async function cancelSubscription(
   source: "admin" | "member",
   database: CustomShellDb,
   api: CancelApi,
-  survey?: { reason: CancellationReason | null; feedback: string | null }
+  survey?: { reason: CancellationReason | null; feedback: string | null },
+  notifyMember = source === "admin"
 ) {
   const subscription = await findSubscription(userId, database)
   // Live, not merely entitled: a paused plan buys nothing but Stripe still has
@@ -413,7 +425,7 @@ async function cancelSubscription(
     if (source === "member") {
       throw new Error("CANNOT_CANCEL_GRANT")
     }
-    return database.transaction(async (tx) => {
+    const result = await database.transaction(async (tx) => {
       await tx
         .delete(customShellSubscriptions)
         .where(eq(customShellSubscriptions.id, subscription.id))
@@ -426,8 +438,21 @@ async function cancelSubscription(
       })
       await emitMemberEventForUser("canceled", userId, tx)
 
-      return { mode: "immediate" as const, endsAt: null }
+      const delivery = notifyMember
+        ? await recordAdminAccountAction(
+            userId,
+            {
+              summary: `${planName ?? "Your granted plan"} was removed from your account.`,
+              effect:
+                "Your account is now on the free plan and paid features are no longer available.",
+            },
+            tx
+          )
+        : null
+      return { mode: "immediate" as const, endsAt: null, delivery }
     })
+    await sendAdminAccountAction(result.delivery)
+    return { mode: result.mode, endsAt: result.endsAt }
   }
 
   if (!subscription.stripeSubscriptionId) {
@@ -468,9 +493,29 @@ async function cancelSubscription(
     })
     await emitMemberEventForUser("canceled", userId, tx)
 
+    const delivery = notifyMember
+      ? await recordAdminAccountAction(
+          userId,
+          mode === "period_end"
+            ? {
+                summary: `${planName ?? "Your paid plan"} was set not to renew.`,
+                effect: endsAt
+                  ? `You keep paid features until ${formatUtcDate(endsAt)}. You will not be charged again after that.`
+                  : "You keep paid features until the current paid period ends and will not be charged again after that.",
+              }
+            : {
+                summary: `${planName ?? "Your paid plan"} was cancelled immediately.`,
+                effect:
+                  "Your account is now on the free plan and paid features are no longer available. This cancellation did not issue a refund.",
+              },
+          tx
+        )
+      : null
+
     return {
       mode,
       endsAt: mode === "period_end" ? (endsAt?.toISOString() ?? null) : null,
+      delivery,
     }
   })
 
@@ -495,7 +540,8 @@ async function cancelSubscription(
     }
   }
 
-  return cancellation
+  await sendAdminAccountAction(cancellation.delivery)
+  return { mode: cancellation.mode, endsAt: cancellation.endsAt }
 }
 
 /**
@@ -534,11 +580,14 @@ export async function cancelSubscriptionsForDeletion(
     }
 
     try {
-      await cancelSubscriptionByAdmin(
+      await cancelSubscription(
         subscription.userId,
         "immediate",
+        "admin",
         database,
-        api
+        api,
+        undefined,
+        false
       )
       if (subscription.source !== "manual") {
         paidPlanCancelledUserIds.push(subscription.userId)
@@ -659,7 +708,9 @@ export async function setSubscriptionPaused(
   return { paused: nowPaused, planName }
 }
 
-type SubscriptionLoader = (subscriptionId: string) => Promise<Stripe.Subscription>
+type SubscriptionLoader = (
+  subscriptionId: string
+) => Promise<Stripe.Subscription>
 
 const loadStripeSubscription: SubscriptionLoader = async (subscriptionId) =>
   (await stripe()).subscriptions.retrieve(subscriptionId)
@@ -737,11 +788,7 @@ export async function applyStripeEvent(
         )
 
         if (values.event.kind === "subscribed") {
-          await emitMemberEventForUser(
-            "subscribed",
-            values.insert.userId,
-            tx
-          )
+          await emitMemberEventForUser("subscribed", values.insert.userId, tx)
         } else if (values.memberCancellation) {
           await emitMemberEventForUser("canceled", values.insert.userId, tx)
         }
@@ -978,8 +1025,7 @@ async function resolveUserId(
 // carry it on the subscription itself.
 function periodEnd(subscription: Stripe.Subscription) {
   const item = subscription.items.data[0] as
-    | { current_period_end?: number }
-    | undefined
+    { current_period_end?: number } | undefined
   const seconds =
     item?.current_period_end ??
     (subscription as unknown as { current_period_end?: number })

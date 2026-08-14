@@ -1,5 +1,14 @@
 import { createServerFn } from "@tanstack/react-start"
-import { listCurrentUserNotificationPage, listAdminNotifications as listAdminNotificationRows, requireAdminNotificationUser, countUnreadNotifications as countUnreadNotificationRows, markCurrentUserNotificationRead, markAllCurrentUserNotificationsRead, deleteAdminNotificationRows, clearAdminNotificationRows } from "@/server/notifications/inbox"
+import {
+  listCurrentUserNotificationPage,
+  listAdminNotifications as listAdminNotificationRows,
+  requireAdminNotificationUser,
+  countUnreadNotifications as countUnreadNotificationRows,
+  markCurrentUserNotificationRead,
+  markAllCurrentUserNotificationsRead,
+  deleteAdminNotificationRows,
+  clearAdminNotificationRows,
+} from "@/server/notifications/inbox"
 import { userGet } from "@/server/guards"
 import { readShellGlobals } from "@/server/shell-settings"
 // The words and the kinds live apart from this module on purpose: it reaches
@@ -52,6 +61,9 @@ export type NotificationItem = {
   automation_failure_node_id: string | null
   automation_failure_node_name: string | null
   automation_failure_error: string | null
+  /** Filled when an admin changed this person's own account. */
+  message: string | null
+  detail: string | null
   read_at: string | null
   created_at: string
 }
@@ -77,9 +89,7 @@ const listNotificationsSchema = z.object({
 const adminListQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   read: z.enum(["all", "unread", "read"]).default("all"),
-  type: z
-    .enum(["all", ...NOTIFICATION_TYPES])
-    .default("all"),
+  type: z.enum(["all", ...NOTIFICATION_TYPES]).default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   sort: z
@@ -95,10 +105,7 @@ const notificationIdSchema = z.object({
 })
 
 const deleteNotificationsSchema = z.object({
-  notificationIds: z
-    .array(z.string().min(1).max(100))
-    .min(1)
-    .max(500),
+  notificationIds: z.array(z.string().min(1).max(100)).min(1).max(500),
 })
 
 export function getNotificationErrorMessage(error: unknown) {
@@ -131,7 +138,10 @@ const loadAdminNotificationsPageFn = createServerFn({ method: "GET" })
     await requireAdminNotificationUser()
     const pageSize = await readDashboardRowsPerPage()
 
-    return { ...(await listAdminNotificationRows({ ...data, pageSize })), pageSize }
+    return {
+      ...(await listAdminNotificationRows({ ...data, pageSize })),
+      pageSize,
+    }
   })
 
 /**

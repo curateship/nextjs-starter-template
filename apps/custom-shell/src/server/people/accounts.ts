@@ -15,6 +15,7 @@ import {
 } from "drizzle-orm"
 
 import { PENDING_DELETION } from "@/lib/account-deletion"
+import { formatUtcDate } from "@/lib/format/format-time"
 import {
   closeAccounts,
   purgeExpiredDeletions,
@@ -45,6 +46,10 @@ import {
 } from "@/server/auth/security"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
 import { listMemberTags } from "@/server/people/member-tags"
+import {
+  recordAdminAccountAction,
+  sendAdminAccountAction,
+} from "@/server/people/admin-action-notifications"
 
 export type AccountSort =
   "name" | "email" | "role" | "status" | "plan" | "created"
@@ -438,17 +443,48 @@ export async function updateUserRole(
     await requireAnotherAdmin(userId, database)
   }
 
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ role, updatedAt: now() })
-    .where(eq(customShellUsers.id, userId))
-    .returning({ id: customShellUsers.id })
+  const changedAt = now()
+  const result = await database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ role, updatedAt: changedAt })
+      .where(
+        and(eq(customShellUsers.id, userId), ne(customShellUsers.role, role))
+      )
+      .returning({ id: customShellUsers.id })
 
-  if (!updated) {
+    if (updated) {
+      return {
+        id: updated.id,
+        delivery: await recordAdminAccountAction(
+          userId,
+          {
+            summary: `Your role changed to ${role === "admin" ? "Admin" : "Member"}.`,
+            effect:
+              role === "admin"
+                ? "You can now open the admin area and manage the app."
+                : "You no longer have access to the admin area.",
+          },
+          tx,
+          changedAt
+        ),
+      }
+    }
+
+    const [existing] = await tx
+      .select({ id: customShellUsers.id })
+      .from(customShellUsers)
+      .where(eq(customShellUsers.id, userId))
+      .limit(1)
+    return existing ? { id: existing.id, delivery: null } : null
+  })
+
+  if (!result) {
     throw new Error("USER_NOT_FOUND")
   }
 
-  return { id: updated.id, role }
+  await sendAdminAccountAction(result.delivery)
+  return { id: result.id, role }
 }
 
 export async function setUserStatus(
@@ -463,33 +499,59 @@ export async function setUserStatus(
   // An account on its way out is not suspended or unsuspended from here. Its
   // status is the deletion clock, and the only two things that may move it are
   // restoring the account and purging it.
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ status, updatedAt: now() })
-    .where(
-      and(
-        eq(customShellUsers.id, userId),
-        ne(customShellUsers.status, PENDING_DELETION)
+  const changedAt = now()
+  const result = await database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ status, updatedAt: changedAt })
+      .where(
+        and(
+          eq(customShellUsers.id, userId),
+          ne(customShellUsers.status, PENDING_DELETION),
+          ne(customShellUsers.status, status)
+        )
       )
-    )
-    .returning({ id: customShellUsers.id })
+      .returning({ id: customShellUsers.id })
 
-  if (!updated) {
+    if (!updated) return { updated: null, delivery: null }
+
+    if (status === "suspended") {
+      // Drop their sessions too, so nothing keeps working on an open tab.
+      await tx
+        .delete(customShellSessions)
+        .where(eq(customShellSessions.userId, userId))
+    }
+
+    const delivery = await recordAdminAccountAction(
+      userId,
+      status === "suspended"
+        ? {
+            summary: "Your account was suspended.",
+            effect:
+              "You were signed out everywhere and cannot sign in. Contact an administrator if you need help.",
+          }
+        : {
+            summary: "Your account suspension was lifted.",
+            effect: "You can sign in and use the app again.",
+          },
+      tx,
+      changedAt
+    )
+    return { updated, delivery }
+  })
+
+  if (!result.updated) {
+    const currentStatus = await findAccountStatus(userId, database)
+    if (currentStatus === status) return { id: userId, status }
     throw new Error(
-      (await findAccountStatus(userId, database)) === PENDING_DELETION
+      currentStatus === PENDING_DELETION
         ? "ACCOUNT_PENDING_DELETION"
         : "USER_NOT_FOUND"
     )
   }
 
-  if (status === "suspended") {
-    // Drop their sessions too, so nothing keeps working on an open tab.
-    await database
-      .delete(customShellSessions)
-      .where(eq(customShellSessions.userId, userId))
-  }
-
-  return { id: updated.id, status }
+  await sendAdminAccountAction(result.delivery)
+  return { id: result.updated.id, status }
 }
 
 /**
@@ -565,12 +627,32 @@ export async function restoreUserAccounts(
   userIds: string[],
   database: CustomShellDb = db
 ) {
-  const restored = await restoreAccounts(userIds, database)
+  const changedAt = now()
+  const { restored, deliveries } = await database.transaction(async (tx) => {
+    const restored = await restoreAccounts(userIds, tx)
+    const deliveries = []
+    for (const user of restored) {
+      deliveries.push(
+        await recordAdminAccountAction(
+          user.id,
+          {
+            summary: "Your account was restored.",
+            effect:
+              "Your account is active again. You can sign in and everything you owned is available again, but any paid plan cancelled during closure was not restored.",
+          },
+          tx,
+          changedAt
+        )
+      )
+    }
+    return { restored, deliveries }
+  })
 
   if (restored.length === 0) {
     throw new Error("RESTORE_WINDOW_PASSED")
   }
 
+  await Promise.all(deliveries.map(sendAdminAccountAction))
   return { restored: restored.length }
 }
 
@@ -585,31 +667,43 @@ export async function grantManualPlan(
   database: CustomShellDb = db
 ) {
   if (!planId) {
-    const [removed] = await database
-      .delete(customShellSubscriptions)
-      .where(
-        and(
-          eq(customShellSubscriptions.userId, userId),
-          eq(customShellSubscriptions.source, "manual")
+    const changedAt = now()
+    const delivery = await database.transaction(async (tx) => {
+      const [removed] = await tx
+        .delete(customShellSubscriptions)
+        .where(
+          and(
+            eq(customShellSubscriptions.userId, userId),
+            eq(customShellSubscriptions.source, "manual")
+          )
         )
-      )
-      .returning({ planId: customShellSubscriptions.planId })
+        .returning({ planId: customShellSubscriptions.planId })
 
-    // Only when there was actually a grant to take away. Saving "no granted
-    // plan" on an account that never had one changed nothing, and a history
-    // entry for it would be a lie.
-    if (removed) {
-      const previous = removed.planId
-        ? await getPlan(removed.planId, database)
-        : null
+      // Only when there was actually a grant to take away. Saving "no granted
+      // plan" on an account that never had one changed nothing, and a history
+      // entry or notice for it would be a lie.
+      if (!removed) return null
 
-      await recordSubscriptionEvent(database, {
+      const previous = removed.planId ? await getPlan(removed.planId, tx) : null
+      await recordSubscriptionEvent(tx, {
         userId,
         kind: "grant_removed",
         planName: previous?.name ?? null,
         source: "admin",
       })
-    }
+      return recordAdminAccountAction(
+        userId,
+        {
+          summary: `${previous?.name ?? "Your granted plan"} was removed from your account.`,
+          effect:
+            "Your account is now on the free plan and paid features are no longer available.",
+        },
+        tx,
+        changedAt
+      )
+    })
+
+    await sendAdminAccountAction(delivery)
 
     return { planId: null }
   }
@@ -629,31 +723,63 @@ export async function grantManualPlan(
     updatedAt: timestamp,
   }
 
-  await database
-    .insert(customShellSubscriptions)
-    .values({
-      id: uuid(),
-      userId,
-      interval: "monthly",
-      createdAt: timestamp,
-      ...values,
-    })
-    .onConflictDoUpdate({
-      target: customShellSubscriptions.userId,
-      set: values,
-    })
+  const delivery = await database.transaction(async (tx) => {
+    const [current] = await tx
+      .select({
+        planId: customShellSubscriptions.planId,
+        source: customShellSubscriptions.source,
+        currentPeriodEnd: customShellSubscriptions.currentPeriodEnd,
+      })
+      .from(customShellSubscriptions)
+      .where(eq(customShellSubscriptions.userId, userId))
+      .limit(1)
+    if (
+      current?.source === "manual" &&
+      current.planId === plan.id &&
+      current.currentPeriodEnd?.getTime() === expiresAt?.getTime()
+    ) {
+      return null
+    }
 
-  await recordSubscriptionEvent(
-    database,
-    {
+    await tx
+      .insert(customShellSubscriptions)
+      .values({
+        id: uuid(),
+        userId,
+        interval: "monthly",
+        createdAt: timestamp,
+        ...values,
+      })
+      .onConflictDoUpdate({
+        target: customShellSubscriptions.userId,
+        set: values,
+      })
+
+    await recordSubscriptionEvent(
+      tx,
+      {
+        userId,
+        kind: "plan_granted",
+        planName: plan.name,
+        detail: expiresAt?.toISOString() ?? null,
+        source: "admin",
+      },
+      timestamp
+    )
+    return recordAdminAccountAction(
       userId,
-      kind: "plan_granted",
-      planName: plan.name,
-      detail: expiresAt?.toISOString() ?? null,
-      source: "admin",
-    },
-    timestamp
-  )
+      {
+        summary: `${plan.name} was granted to your account.`,
+        effect: expiresAt
+          ? `Paid features are available until ${formatUtcDate(expiresAt)}. You will not be charged for this plan.`
+          : "Paid features are available until an administrator removes the grant. You will not be charged for this plan.",
+      },
+      tx,
+      timestamp
+    )
+  })
+
+  await sendAdminAccountAction(delivery)
 
   return { planId: plan.id }
 }

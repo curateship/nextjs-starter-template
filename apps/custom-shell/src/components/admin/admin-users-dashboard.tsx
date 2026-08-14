@@ -360,7 +360,7 @@ export function AdminUsersDashboard({
     const ok = await runAction(
       () => restoreAccountsAsAdmin(selectedDeletedIds),
       ({ restored }) =>
-        `${restored} ${plural(restored, "account", "accounts")} restored.`
+        `${restored} ${plural(restored, "account", "accounts")} restored. In-app notices were created and emails were attempted.`
     )
     setMassRestoring(false)
     if (ok) setSelectedIds(new Set())
@@ -754,7 +754,7 @@ export function AdminUsersDashboard({
         title="Restore this account?"
         description={
           restoreTarget
-            ? `${restoreTarget.name} (${restoreTarget.email}) becomes active again and can sign in. Nothing was deleted, so everything they own comes back with them.`
+            ? `${restoreTarget.name} (${restoreTarget.email}) becomes active again and can sign in. Nothing was deleted, so everything they own comes back with them. They will be told by email and in the app.`
             : null
         }
         confirmLabel="Restore account"
