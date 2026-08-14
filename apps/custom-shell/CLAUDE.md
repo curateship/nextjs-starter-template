@@ -65,9 +65,56 @@ the guess that one might:
   them, keyed by the same `kind`
 - `sitemap.extraEntries` (server) — public addresses from the app's own tables,
   read for the site whose domain is being answered
+- `automations.canvasHeaderStatus` — a piece of the app's own in the canvas
+  header, for what the flow IS right now rather than what a run produced
+- `automations.runControl` — the app's own control in place of Run
+- `automations.pauseControl` — the app's own control in place of Pause all
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.
+
+### The canvas header: shell buttons, and the app's chip
+
+One rule, and it settles every argument this header has had:
+
+> **An app's actions live in the app's chip. All of them.** The shell's own
+> buttons stay the shell's, and an app switches off the ones that do not apply
+> to it. There is no third place.
+
+**Looking the same is not a reason to be the same button.** A control is shared
+only when it *does* the same thing everywhere. Two apps that would write a
+different sentence on the same button do not have the same button.
+
+Run was where this first showed. In the shell it starts a flow; in Trade it is a
+backtest, or switching real money on, or nothing at all because the flow is
+already trading. No wording fixes that — the word itself has to change with what
+the flow is, and the shell cannot know which of the three it is looking at.
+
+Pause was the second, and it hid better because it looked identical. The shell's
+Pause stops **every** automation in the workspace, which is right when
+automations are emails and reminders. In Trade one flow holds a wallet with
+money in the market: pausing everything is far too big a hammer, and pausing
+just this one means something the shell has no word for — stop looking for new
+coins, leave what is already placed exactly where it is. Same icon, same place,
+different act.
+
+The answer is not a slot per button. That way the header ends up half shell and
+half app, with two places to look for an action and no line between them — the
+crossover problem, moved rather than solved. So:
+
+- **`automations.canvasHeaderStatus` is the app's one home in the header.** The
+  chip says what the flow is, and carries every action that belongs to the app.
+  It draws itself completely; the shell gives it a place to stand and nothing
+  else.
+- **Shell buttons an app does not want are switched off**, with a plain option —
+  not replaced in place. Off is the app's decision; what the button does when it
+  is on stays the shell's.
+- **Every option defaults to today's behaviour**, so an app that says nothing is
+  unchanged.
+
+The test before adding anything to this header: *is this the shell acting, or
+the app acting?* The shell's goes in the header as a shell button. The app's
+goes in the chip. Nothing goes in both.
 
 **The shell's own nodes are written exactly the same way**, so there is one way
 to add a node rather than two. A node is:

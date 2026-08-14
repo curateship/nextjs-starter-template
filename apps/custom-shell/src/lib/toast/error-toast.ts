@@ -48,16 +48,24 @@ export function dismissErrorToast() {
 }
 
 /**
- * Clears the failure when the user leaves the page it came from. The toast
- * never expires on its own, so without this a "wrong password" from the sign-in
- * page would still be sitting there on the forgot-password page. Mounted once,
- * beside the Toaster. Re-fetching in place (router.invalidate) keeps the same
- * path, so a failure the user is still looking at survives.
+ * Clears the failure when the user moves on from the page it came from. The
+ * toast never expires on its own, so without this a "wrong password" from the
+ * sign-in page would still be sitting there on the forgot-password page.
+ * Mounted once, beside the Toaster.
+ *
+ * "Moves on" is the whole address — path AND search. Screens like a trading
+ * chart live on one path forever and put everything in the search string, so
+ * watching only the path meant a failure there could never be left behind:
+ * everything worked again and the red toast just sat there. Re-fetching in
+ * place (router.invalidate) keeps the same address, so a failure the user is
+ * still looking at survives.
  */
 export function useDismissErrorToastOnNavigate() {
-  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const address = useRouterState({
+    select: (state) => state.location.pathname + state.location.searchStr,
+  })
 
   React.useEffect(() => {
     return () => dismissErrorToast()
-  }, [pathname])
+  }, [address])
 }

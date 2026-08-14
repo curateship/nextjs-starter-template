@@ -36,8 +36,31 @@ const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
 const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 
+/**
+ * How long the market layout is reused across reconnects.
+ *
+ * **Reconnects come in storms, and this used to cost two requests each.** The
+ * layout — which market sits at which position in the figures the exchange
+ * pushes — only changes when a market is listed or delisted, so re-reading it
+ * every time a socket blinks is asking a question whose answer cannot have
+ * moved. Worse, it fed itself: a rate limit dropped the socket, the reconnect
+ * spent two more requests, and those were refused too. Measured at nineteen
+ * reconnects in thirty seconds, all of them re-asking.
+ */
+const LAYOUT_GOOD_FOR_MS = 10 * 60_000
+
+/** How long a connection must hold before it counts as healthy again. */
+const STEADY_AFTER_MS = 30_000
+
+const layouts = new Map<
+  NetworkId,
+  { at: number; idByVenueIndex: Map<string, string[]> }
+>()
+
 type Hub = {
   network: NetworkId
+  /** When the current connection opened, for judging whether it has held. */
+  openedAt: number
   /** Market id by venue, in the order the exchange sends its figures. */
   idByVenueIndex: Map<string, string[]>
   /** The last price seen for each market id. */
@@ -63,6 +86,7 @@ function hubFor(network: NetworkId): Hub {
   if (found) return found
   const made: Hub = {
     network,
+    openedAt: 0,
     idByVenueIndex: new Map(),
     prices: new Map(),
     lastMessageAt: 0,
@@ -152,21 +176,36 @@ async function connect(hub: Hub): Promise<void> {
   // Which market sits at which position in the figures the exchange pushes.
   // Asked once per connection: the answer only changes when a market is
   // listed, and a reconnect re-reads it anyway.
-  const info = infoClient(hub.network)
-  const dexs = await info.perpDexs()
-  const metas = await Promise.all(
-    dexs.map((dex) => info.meta({ dex: dex?.name ?? "" }))
-  )
-  if (generation !== hub.generation) return
-  hub.idByVenueIndex = new Map(
-    metas.map((meta, index) => {
-      const name = index === 0 ? "" : (dexs[index]?.name ?? "")
-      return [
-        name,
-        meta.universe.map((asset) => namespaceMarketId(name, asset.name)),
-      ]
-    })
-  )
+  // Read once and kept, rather than re-read on every reconnect.
+  //
+  // Asking each market separately used to cost the same as twenty ordinary
+  // requests apiece — 5,000 weight on the practice network against the 1,200 a
+  // minute the exchange allows. `allPerpMetas` cut that to one call; keeping
+  // the answer cuts it to none, which is what actually breaks the loop where a
+  // rate limit drops the socket and the reconnect spends more of the ration
+  // that was already gone.
+  const held = layouts.get(hub.network)
+  if (held && Date.now() - held.at < LAYOUT_GOOD_FOR_MS) {
+    hub.idByVenueIndex = held.idByVenueIndex
+  } else {
+    const info = infoClient(hub.network)
+    const [dexs, metas] = await Promise.all([
+      info.perpDexs(),
+      info.allPerpMetas(),
+    ])
+    if (generation !== hub.generation) return
+    const idByVenueIndex = new Map(
+      metas.map((meta, index) => {
+        const name = index === 0 ? "" : (dexs[index]?.name ?? "")
+        return [
+          name,
+          meta.universe.map((asset) => namespaceMarketId(name, asset.name)),
+        ]
+      })
+    )
+    layouts.set(hub.network, { at: Date.now(), idByVenueIndex })
+    hub.idByVenueIndex = idByVenueIndex
+  }
 
   const transport = new sdk.WebSocketTransport({
     isTestnet: hub.network === "testnet",
@@ -177,8 +216,14 @@ async function connect(hub: Hub): Promise<void> {
   // One subscription carries every venue's every market, about once a second.
   const subscription = await client.allDexsAssetCtxs((event) => {
     if (generation !== hub.generation) return
+    // Reset only once the connection has plainly held, not on its first
+    // message. Resetting on every message meant a socket that connected, said
+    // one thing and died never backed off at all — it retried a second later,
+    // forever, which is what a reconnect storm is.
+    if (hub.attempts > 0 && Date.now() - hub.openedAt > STEADY_AFTER_MS) {
+      hub.attempts = 0
+    }
     hub.lastMessageAt = Date.now()
-    hub.attempts = 0
     for (const [venue, ctxs] of event.ctxs) {
       const ids = hub.idByVenueIndex.get(venue)
       if (!ids) continue
@@ -197,7 +242,7 @@ async function connect(hub: Hub): Promise<void> {
   }
   hub.unsubscribe = () => void subscription.unsubscribe().catch(() => {})
   hub.lastMessageAt = Date.now()
-  hub.attempts = 0
+  hub.openedAt = Date.now()
 
   if (!hub.watchdog) {
     hub.watchdog = setInterval(() => {

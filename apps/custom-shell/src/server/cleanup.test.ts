@@ -1,5 +1,6 @@
 import { PGlite } from "@electric-sql/pglite"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { eq } from "drizzle-orm"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   CLEANUP_BATCH_LIMIT,
@@ -18,6 +19,7 @@ import {
   customShellRateLimits,
   customShellSessions,
   customShellSystemEmailSends,
+  customShellUsers,
 } from "@/server/schema"
 import { setSessionPolicy } from "@/server/auth/session-policy"
 import { createTestDatabase, insertWorkspace, insertUser } from "@/server/test-support"
@@ -37,6 +39,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await client.close()
 })
 
@@ -137,6 +140,14 @@ async function remaining<T extends { id: unknown }>(
   rows: Promise<T[]>
 ): Promise<unknown[]> {
   return (await rows).map((row) => row.id)
+}
+
+async function reminderSentAt(userId: string) {
+  const [user] = await database
+    .select({ sentAt: customShellUsers.verificationReminderSentAt })
+    .from(customShellUsers)
+    .where(eq(customShellUsers.id, userId))
+  return user?.sentAt ?? null
 }
 
 describe("cleanUpOldData", () => {
@@ -276,18 +287,32 @@ describe("maybeCleanUpOldData", () => {
   it("sweeps once a day and not on every request after that", async () => {
     const user = await insertUser(database)
     await addSession(user.id, { expiresAt: ago(DAY) })
+    const firstReminder = await insertUser(database, {
+      emailVerifiedAt: null,
+      createdAt: ago(4 * DAY),
+    })
+    vi.spyOn(console, "info").mockImplementation(() => undefined)
 
     await maybeCleanUpOldData(database, NOW)
     expect(await database.select().from(customShellSessions)).toEqual([])
+    expect(await reminderSentAt(firstReminder.id)).toEqual(NOW)
 
     // A second expired session on the same day is left for tomorrow's sweep —
-    // that is the whole point of the once-a-day latch.
+    // and so is a reminder that became due after the run. That is the whole
+    // point of the once-a-day latch.
     await addSession(user.id, { expiresAt: ago(DAY) })
+    const secondReminder = await insertUser(database, {
+      emailVerifiedAt: null,
+      createdAt: ago(4 * DAY),
+    })
     await maybeCleanUpOldData(database, NOW)
     expect(await database.select().from(customShellSessions)).toHaveLength(1)
+    expect(await reminderSentAt(secondReminder.id)).toBeNull()
 
-    await maybeCleanUpOldData(database, new Date(NOW.getTime() + DAY))
+    const tomorrow = new Date(NOW.getTime() + DAY)
+    await maybeCleanUpOldData(database, tomorrow)
     expect(await database.select().from(customShellSessions)).toEqual([])
+    expect(await reminderSentAt(secondReminder.id)).toEqual(tomorrow)
   })
 
   it("swallows a failure instead of breaking the page it rode in on", async () => {

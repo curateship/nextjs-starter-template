@@ -200,7 +200,11 @@ export const tradeWalletNode = defineNode({
       if (wallet.capUsd === null) {
         return `${lead}Trades ${wallet.label} — ${money}. Say how much of it this flow may use.`
       }
-      return `${lead}Trades ${wallet.label} — up to ${formatUsd(wallet.capUsd)} of ${money}.`
+      // The cap is a ceiling, never a promise of money. "Up to $10,000 of
+      // real money" on a wallet holding $900 read as the flow having ten
+      // thousand to spend; what it spends is the SMALLER of the cap and what
+      // the wallet actually holds.
+      return `${lead}Trades ${wallet.label} — ${money}, capped at ${formatUsd(wallet.capUsd)}. It can never spend more than the wallet holds.`
     }
     const starting =
       typeof settings.startingUsd === "number" ? settings.startingUsd : null

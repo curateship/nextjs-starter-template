@@ -446,6 +446,7 @@ export function AdminUsersDashboard({
               <SelectContent>
                 <SelectItem value="all">All accounts</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="unverified">Not verified</SelectItem>
                 <SelectItem value="suspended">Suspended</SelectItem>
                 <SelectItem value="pending_deletion">
                   Scheduled for deletion

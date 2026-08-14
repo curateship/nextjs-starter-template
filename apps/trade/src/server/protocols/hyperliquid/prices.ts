@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { namespaceMarketId, num } from "@/lib/protocols/hyperliquid/translate"
+import { isRateLimit } from "@/lib/trade/flow-waiting"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -30,6 +31,32 @@ const MIDS_CACHE_MS = 2_000
 const midsCache = new Map<string, { at: number; answer: Promise<Mids | null> }>()
 
 /**
+ * How long "it was a rate limit" is worth remembering, in ms.
+ *
+ * Only long enough for the caller that asked for the price to still be the one
+ * asking why it did not get one.
+ */
+const WHY_REMEMBERED_MS = 30_000
+
+/** When a venue was last refused for asking too often. */
+const rationedAt = new Map<string, number>()
+
+/**
+ * Whether this venue's last missing price was the exchange rationing us.
+ *
+ * **Why a caller needs to know.** A missing price has two completely different
+ * meanings: the exchange does not price this market — which is permanent and
+ * somebody's problem — or it is asking us to slow down, which is temporary and
+ * nobody's. Both arrived as the same silence, so a rate limit spent an hour on
+ * screen as "the exchange would not give a price for this coin", sending
+ * somebody hunting for a delisted market that was trading perfectly well.
+ */
+export function pricesWereRationed(network: NetworkId, marketId: string): boolean {
+  const at = rationedAt.get(`${network}:${dexOf(marketId)}`)
+  return at !== undefined && Date.now() - at < WHY_REMEMBERED_MS
+}
+
+/**
  * One venue's mids: cached, deduplicated, and given one second chance on a
  * dropped call. The cache holds the PROMISE, so two callers asking in the
  * same cold moment — the practice settle and a real order placing, say —
@@ -43,7 +70,16 @@ function venueMids(network: NetworkId, dex: string): Promise<Mids | null> {
 
   const client = infoClient(network)
   const ask = () =>
-    client.allMids({ dex }).then((response) => midsSchema.parse(response))
+    client
+      .allMids({ dex })
+      .then((response) => midsSchema.parse(response))
+      .catch((error: unknown) => {
+        // Noted before it is turned into silence, so the caller can tell a
+        // rationed answer from a market the exchange does not price.
+        const message = error instanceof Error ? error.message : String(error)
+        if (isRateLimit(message)) rationedAt.set(cacheKey, Date.now())
+        throw error
+      })
 
   const at = Date.now()
   const answer = (async (): Promise<Mids | null> => {

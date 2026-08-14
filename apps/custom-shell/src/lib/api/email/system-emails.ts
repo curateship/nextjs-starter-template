@@ -201,6 +201,7 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ delivered: boolean }> => {
     const sampleTokens: Record<SystemEmailKind, Record<string, string>> = {
       "verify-email": {},
+      "verification-reminder": {},
       "sign-in-link": { minutes: "15" },
       "password-reset": {},
       "email-change": { old_email: context.user.email, hours: "24" },

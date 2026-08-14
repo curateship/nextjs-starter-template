@@ -21,6 +21,10 @@ export function resolveTradeNetwork(
 ): NetworkId {
   const fromMarket = marketKey ? parseMarketKey(marketKey)?.network : undefined
   if (fromMarket) return fromMarket
+  // Either choice is honoured now, not just testnet. Mainnet used to be the
+  // silent default, which meant there was no way to ASK for it — and with the
+  // switch gone from the screen, "no market and no network" fell back to the
+  // remembered coin and carried you straight back to testnet.
   return networkChoice === "testnet" ? "testnet" : "mainnet"
 }
 

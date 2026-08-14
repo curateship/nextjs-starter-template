@@ -95,6 +95,17 @@ export function toCandleBars(
  * slice — what the practice engine uses to catch up on the price it missed
  * while nobody was watching. Without it the chart's own window applies.
  */
+/** How long a candle read stands in for the next. See the note below. */
+const SINCE_CACHE_MS = 30_000
+
+/** Swept past this many entries, so a long-running worker cannot leak. */
+const SINCE_CACHE_MAX = 2_000
+
+const sinceLoads = new Map<
+  string,
+  { at: number; since: number; bars: CandleBar[] }
+>()
+
 export async function fetchHyperliquidCandles(
   network: NetworkId,
   marketId: string,
@@ -102,12 +113,50 @@ export async function fetchHyperliquidCandles(
   since?: number
 ): Promise<CandleBar[]> {
   if (since !== undefined) {
+    // Cached, because the engine asks again every single pass.
+    //
+    // **This was the biggest single spender left.** The ladder worker looks
+    // once a second and asks for each ladder's candles every time — measured
+    // at a hundred and twenty-two candle reads in thirty seconds, which is
+    // several times the request-weight a minute the exchange allows, and it
+    // starved the chart of the candles it needed to draw at all.
+    //
+    // Candles only change when a bar closes, and the bars here are hours long.
+    // Half a minute of staleness cannot move a closed bar, and the worst it
+    // can do is notice a bar closing half a minute late — on a four-hour
+    // candle, nothing.
+    // Keyed on the market, NOT on `since`.
+    //
+    // The caller works `since` out from the clock on every pass — "five
+    // hundred bars before now" — so a key including it never repeated and the
+    // cache never hit once. What actually matters is whether the bars already
+    // in hand reach back far enough and are recent enough, which is a question
+    // about the market, not about the number that was asked for.
+    const key = `${network}:${marketId}:${interval}`
+    const held = sinceLoads.get(key)
+    if (
+      held &&
+      Date.now() - held.at < SINCE_CACHE_MS &&
+      held.since <= since
+    ) {
+      return held.bars
+    }
+
     const response = await infoClient(network).candleSnapshot({
       coin: marketId,
       interval,
       startTime: since,
     })
-    return toCandleBars(candlesSchema.parse(response))
+    const bars = toCandleBars(candlesSchema.parse(response))
+    sinceLoads.set(key, { at: Date.now(), since, bars })
+    // Swept rather than left to grow for the life of the process.
+    if (sinceLoads.size > SINCE_CACHE_MAX) {
+      const cutoff = Date.now() - SINCE_CACHE_MS
+      for (const [old, entry] of sinceLoads) {
+        if (entry.at < cutoff) sinceLoads.delete(old)
+      }
+    }
+    return bars
   }
 
   const key = JSON.stringify([network, marketId, interval])

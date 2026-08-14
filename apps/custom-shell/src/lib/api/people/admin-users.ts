@@ -39,7 +39,14 @@ const listQuerySchema = z.object({
   search: z.string().trim().max(120).default(""),
   role: z.enum(["all", "admin", "member"]).default("all"),
   status: z
-    .enum(["all", "active", "suspended", "pending_deletion", "locked_out"])
+    .enum([
+      "all",
+      "active",
+      "unverified",
+      "suspended",
+      "pending_deletion",
+      "locked_out",
+    ])
     .default("all"),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),

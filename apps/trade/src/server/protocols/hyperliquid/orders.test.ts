@@ -5,6 +5,7 @@ import {
   decimalString,
   fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
+  forgetHyperliquidPortfolios,
   formatPx,
   formatSize,
   orderTimeInForce,
@@ -21,14 +22,25 @@ import {
 const clearinghouseState = vi.fn()
 const frontendOpenOrders = vi.fn()
 const perpDexs = vi.fn()
-const meta = vi.fn()
+// One call for every market's asset list, in the order perpDexs gave them.
+// The per-market `meta` fan-out it replaced cost 249 requests on testnet.
+const allPerpMetas = vi.fn()
 const userFillsByTime = vi.fn()
+/** The funding feed, controllable. Warming = just opened, nothing pushed yet. */
+const feedState = vi.hoisted(() => ({ warming: false }))
+
+vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
+  marketsWalletUses: () => null,
+  walletFeedWarmingUp: () => feedState.warming,
+  dropIdleWalletFeeds: () => {},
+}))
+
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
   infoClient: () => ({
     clearinghouseState,
     frontendOpenOrders,
     perpDexs,
-    meta,
+    allPerpMetas,
     userFillsByTime,
   }),
 }))
@@ -207,14 +219,20 @@ describe("reading order fills", () => {
 
 describe("reading the portfolio", () => {
   beforeEach(() => {
+    // The read is cached for a couple of seconds so the browser poll, the
+    // ladder worker and the reconciler share one answer instead of each
+    // spending its own pair of requests. Tests run inside that window and
+    // would otherwise read the test before them.
+    forgetHyperliquidPortfolios()
+    feedState.warming = false
     clearinghouseState.mockReset()
     frontendOpenOrders.mockReset()
     perpDexs.mockReset()
-    meta.mockReset()
+    allPerpMetas.mockReset()
     // One main venue unless a test says otherwise. The venue list is cached
     // between calls inside the module, so answers must stay consistent.
     perpDexs.mockResolvedValue([null])
-    meta.mockResolvedValue({ universe: [] })
+    allPerpMetas.mockResolvedValue([{ universe: [] }])
   })
 
   it("folds position-protection triggers into their position, lists the rest", async () => {
@@ -331,15 +349,35 @@ describe("reading the portfolio", () => {
     expect(portfolio.orders).toHaveLength(0)
   })
 
+  it("reads only the main venue while the funding feed warms up", async () => {
+    // A fresh server's feed is always cold, and sweeping every venue on boot
+    // was five hundred calls in the first half minute — the app rate-limited
+    // itself on every restart. While the feed's first push is on its way, the
+    // main venue is the whole read.
+    feedState.warming = true
+    perpDexs.mockResolvedValue([null, { name: "xyz" }])
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+      { universe: [{ name: "IBM", szDecimals: 2 }] },
+    ])
+    clearinghouseState.mockResolvedValue({ assetPositions: [] })
+    frontendOpenOrders.mockResolvedValue([])
+
+    await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)
+
+    expect(clearinghouseState).toHaveBeenCalledTimes(1)
+    expect(clearinghouseState.mock.calls[0][0].dex).toBe("")
+  })
+
   it("reads every venue and keeps its markets namespaced", async () => {
     // Testnet on purpose: the venue list is cached per network for a while,
     // and the mainnet tests above have already primed theirs as main-only.
     perpDexs.mockResolvedValue([null, { name: "xyz" }])
-    meta.mockImplementation(async ({ dex }: { dex: string }) =>
-      dex === "xyz"
-        ? { universe: [{ name: "IBM", szDecimals: 2 }] }
-        : { universe: [{ name: "BTC", szDecimals: 5 }] }
-    )
+    // Aligned with perpDexs by position, which is the contract.
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+      { universe: [{ name: "IBM", szDecimals: 2 }] },
+    ])
     clearinghouseState.mockImplementation(async ({ dex }: { dex: string }) =>
       dex === "xyz"
         ? {

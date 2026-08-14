@@ -232,7 +232,10 @@ export default function TradeMarketsFields({
   // Keyed by exchange AND network: the same exchange lists a different set of
   // coins on its practice network, and one list standing in for the other would
   // offer coins the wallet cannot reach.
-  const listKey = `${network}:${protocol}`
+  // The wallet is part of the key, because the list it produces depends on it:
+  // a live wallet is only offered coins on markets its money can actually pay
+  // for, and two wallets can be funded on different ones.
+  const listKey = `${network}:${protocol}:${wallet?.id ?? ""}`
   const answer = fetched?.key === listKey ? fetched : null
   const held = listCache.get(listKey)
   const markets = answer ? answer.rows : (held?.rows ?? null)
@@ -285,7 +288,11 @@ export default function TradeMarketsFields({
       }
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const loaded = await loadTestableMarkets(network, protocol)
+          const loaded = await loadTestableMarkets(
+            network,
+            protocol,
+            wallet?.id ?? null
+          )
           listCache.set(listKey, {
             at: Date.now(),
             rows: loaded.rows,
@@ -320,7 +327,7 @@ export default function TradeMarketsFields({
     return () => {
       alive = false
     }
-  }, [listKey, network, protocol, attemptKey])
+  }, [listKey, network, protocol, wallet?.id, attemptKey])
 
   // The exchanges on offer, asked once. Read from the registry rather than
   // written down here, so adding an exchange never touches this panel.

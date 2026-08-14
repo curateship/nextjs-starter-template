@@ -1,4 +1,4 @@
-import { DUST_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
 import {
   gridLevelSize,
   gridStopPx,
@@ -187,7 +187,7 @@ export async function advanceGrid(
     // once, but a grid level buys back forever, so leftover carried forward
     // would compound on every round trip.
     const sz = gridLevelSize(level, plan.sizeDecimals)
-    if (sz <= 0 || sz * level.buyPx < DUST_ORDER_USD) {
+    if (sz <= 0 || sz * level.buyPx < MIN_ORDER_USD) {
       // Too small to be a trade at this price, and it will not grow.
       level.status = "cancelled"
       changed = true

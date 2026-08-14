@@ -50,6 +50,14 @@ export const customShellUsers = pgTable(
     avatarUrl: text("avatar_url"),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     /**
+     * The one automatic follow-up for a password sign-up that never confirmed
+     * its address. Claimed before delivery so two app processes cannot send it
+     * twice; a failed attempt stays visible in the system-email send history.
+     */
+    verificationReminderSentAt: timestamp("verification_reminder_sent_at", {
+      withTimezone: true,
+    }),
+    /**
      * When this account's first free trial began, and null while it has never
      * had one. Set once by the Stripe webhook the moment a trial actually
      * starts — not at checkout, or an abandoned checkout would burn it — and

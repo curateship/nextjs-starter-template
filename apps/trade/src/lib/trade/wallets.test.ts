@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   cleanAgentKey,
   describeAgentKeyProblem,
+  describeKeyMismatch,
 } from "@/lib/trade/wallets"
 
 describe("cleaning a pasted key", () => {
@@ -93,5 +94,28 @@ describe("how wallets are labelled", () => {
   it("names the venue, and says so out loud on testnet", () => {
     expect(venueLabel("hyperliquid", "mainnet")).toBe("Hyperliquid")
     expect(venueLabel("hyperliquid", "testnet")).toBe("Hyperliquid Testnet")
+  })
+})
+
+describe("why a trading key was not approved", () => {
+  it("names the address the key signs as, and the ones that are approved", () => {
+    const words = describeKeyMismatch(
+      "KEY_NOT_APPROVED:0x1111111111111111111111111111111111111111|0x2222222222222222222222222222222222222222,0x3333333333333333333333333333333333333333"
+    )
+    expect(words).toContain("0x1111…1111")
+    expect(words).toContain("0x2222…2222")
+    expect(words).toContain("0x3333…3333")
+  })
+
+  it("says so plainly when the account has authorised nothing at all", () => {
+    const words = describeKeyMismatch(
+      "KEY_NOT_APPROVED:0x1111111111111111111111111111111111111111|"
+    )
+    expect(words).toContain("no approved keys at all")
+  })
+
+  it("is nothing for a refusal that carried no addresses", () => {
+    expect(describeKeyMismatch("KEY_EXPIRED")).toBeNull()
+    expect(describeKeyMismatch("KEY_NOT_APPROVED")).toBeNull()
   })
 })

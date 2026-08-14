@@ -79,6 +79,16 @@ export type LadderEngineDeps = {
       reduceOnly: boolean
       reason: "order"
       at: number
+      /**
+       * Puts the engine's own bookkeeping back as if this fill never happened.
+       *
+       * Only the live lane ever calls it, and only on `LIVE_ORDER_REFUSED` —
+       * the one error that promises the exchange processed the order and
+       * refused it, so nothing stood. Every other failure keeps the
+       * conservative "assume it filled" state, because acting on a maybe is
+       * how a rung gets bought twice.
+       */
+      undo?: () => void
     }
   ) => void
   dropOrder: (book: WalletBook, orderId: string) => void
@@ -152,6 +162,19 @@ export type LadderAdvanceInput = {
   marks: ReadonlyMap<string, number>
   ladderBars: LadderBars
   now: number
+  /**
+   * The exchange's markets this wallet has money on, when the live feed has
+   * said. Undefined or null means "cannot say" and no buy is filtered —
+   * silence must never read as an empty wallet.
+   *
+   * Hyperliquid keeps each market's money separate, so a buy fired on a
+   * market holding none of the wallet's cash is refused every single time.
+   * The placement paths refuse such coins up front; this is the engine-side
+   * guard for ladders that already exist — without it, one of them sat in a
+   * fire-refused-undone loop, once a second, for as long as price stayed on
+   * a rung.
+   */
+  fundedMarkets?: ReadonlySet<string> | null
   /**
    * The whole market is falling off a cliff right now.
    *

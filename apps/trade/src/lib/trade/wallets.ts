@@ -149,3 +149,34 @@ export function venueLabel(protocol: ProtocolId, network: NetworkId): string {
   const name = protocol.charAt(0).toUpperCase() + protocol.slice(1)
   return network === "testnet" ? `${name} Testnet` : name
 }
+
+/**
+ * The specifics behind "that key is not approved", when the refusal carried
+ * them: which address the pasted key signs as, and which the exchange lists.
+ *
+ * **Why this is worth saying.** Without it the refusal is a wall — a key you
+ * cannot read, checked against a list you cannot see, with nothing to compare.
+ * With it the mismatch is obvious in one glance, and so is the common case of
+ * having generated a key twice and authorised the other one.
+ *
+ * Everything here is public. An agent's address is not a secret; its key is,
+ * and the key never leaves the browser it was typed into.
+ */
+export function describeKeyMismatch(message: string): string | null {
+  const match = /KEY_NOT_APPROVED:(0x[0-9a-f]{40})\|([0-9a-fx,]*)/i.exec(message)
+  if (!match) return null
+  const mine = shortAddress(match[1])
+  const approved = match[2]
+    .split(",")
+    .filter((one) => one !== "")
+    .map(shortAddress)
+  if (approved.length === 0) {
+    return `The key you pasted is for ${mine}, and this account has no approved keys at all — nothing has been authorised on this network yet.`
+  }
+  return `The key you pasted is for ${mine}. Hyperliquid lists ${approved.join(" and ")} as approved, so it is not one of those.`
+}
+
+/** `0x1234…5678` — enough to compare two addresses by eye, short enough to read. */
+function shortAddress(value: string): string {
+  return `${value.slice(0, 6)}…${value.slice(-4)}`
+}
