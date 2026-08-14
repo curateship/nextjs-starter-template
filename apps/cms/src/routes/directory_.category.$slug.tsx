@@ -1,4 +1,4 @@
-import { createFileRoute, Link, notFound } from "@tanstack/react-router"
+import { createFileRoute, notFound } from "@tanstack/react-router"
 
 import {
   DirectoryBreadcrumbs,
@@ -9,7 +9,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
-import { Card, CardContent } from "@/components/ui/card"
+import { SubcategoryGrid } from "@/components/directory/public/subcategory-grid"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -18,7 +18,6 @@ import {
   directoryHead,
   directoryTitle,
 } from "@/lib/directory/public-seo"
-import { focusRing } from "@/lib/layout/focus-ring"
 import { readPage } from "@/lib/nav/list-search"
 
 /**
@@ -123,33 +122,15 @@ function CategoryRoute() {
         ) : null}
       </header>
 
-      {children.length ? (
-        <Card>
-          <CardContent className="grid gap-2">
-            <h2 className="text-sm font-medium">In {category.name}</h2>
-            <ul className="flex flex-wrap gap-1">
-              {children.map((child) => (
-                <li key={child.id}>
-                  <Link
-                    to="/directory/category/$slug"
-                    params={{ slug: child.slug }}
-                    // A plain `border`, no colour named, so the Divider lines
-                    // setting reaches these like every other line.
-                    className={`inline-flex h-8 items-center rounded-md border bg-card px-3 text-sm hover:bg-accent ${focusRing}`}
-                  >
-                    {child.name}
-                    <span className="ml-1 opacity-70">{child.listingCount}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      ) : null}
+      <SubcategoryGrid categoryName={category.name} categories={children} />
 
       <ListingGrid
         listings={listings}
-        emptyMessage={`There is nothing in ${category.name} yet.`}
+        emptyMessage={
+          children.length
+            ? "Choose a subcategory above to see its listings."
+            : `There is nothing in ${category.name} yet.`
+        }
       />
 
       <DirectoryPagination
