@@ -97,6 +97,7 @@ import { useClientPage } from "@/lib/hooks/use-client-page"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { cn } from "@/lib/utils"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 
 type ViewMode = "list" | "gallery"
 
@@ -497,9 +498,15 @@ export function MediaLibraryPage({
     const ids = deleteIds
     await runDelete(async () => {
       const result = await deleteMediaAsAdminAction(ids)
-      toast.success(
-        `Deleted ${result.deletedCount} ${plural(result.deletedCount, "file", "files")}.`
-      )
+      if (result.protectedCount) {
+        toast.warning(
+          `${result.deletedCount} ${plural(result.deletedCount, "file", "files")} deleted. ${result.protectedCount} ${plural(result.protectedCount, "file was", "files were")} kept because ${plural(result.protectedCount, "it appears", "they appear")} in email already sent.`
+        )
+      } else {
+        toast.success(
+          `Deleted ${result.deletedCount} ${plural(result.deletedCount, "file", "files")}.`
+        )
+      }
       selection.setSelected((current) => {
         const next = new Set(current)
         ids.forEach((id) => next.delete(id))
@@ -974,7 +981,7 @@ export function MediaLibraryPage({
           if (!open && !deleting) setDeleteIds(null)
         }}
         title={`Delete ${closingDeleteCount} ${plural(closingDeleteCount, "file", "files")}?`}
-        description="The file is erased from storage and removed from its owner's library. This cannot be undone."
+        description="Unused files are erased from storage and removed from their owner's library. A logo already used in email is kept so old inbox copies do not break."
         confirmLabel={`Delete ${plural(closingDeleteCount, "file", "files")}`}
         loading={deleting}
         onConfirm={() => void handleConfirmDelete()}
@@ -1102,6 +1109,15 @@ function MediaDetailsDialog({
                   </CardContent>
                 </Card>
 
+                {item.email_protected_at ? (
+                  <Card size="sm">
+                    <CardContent className="text-sm leading-relaxed text-muted-foreground">
+                      This logo is kept because it appears in email already sent.
+                      Removing it would break those inbox copies.
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 {editable ? (
                   <Card size="sm">
                     <CardContent className="grid gap-4">
@@ -1136,15 +1152,21 @@ function MediaDetailsDialog({
           {/* Someone else's file opens read-only, so it ends with a single Done
               — there would be nothing for a Cancel to undo. */}
           <DialogFooter>
-            <Button
-              type="button"
-              variant="destructive"
+            <DisabledReason
+              disabled={Boolean(item?.email_protected_at)}
+              reason="This logo appears in email already sent, so it must stay."
               className="mr-auto"
-              disabled={saving}
-              onClick={onDelete}
             >
-              Delete
-            </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="mr-auto"
+                disabled={saving || Boolean(item?.email_protected_at)}
+                onClick={onDelete}
+              >
+                Delete
+              </Button>
+            </DisabledReason>
             {editable ? (
               <>
                 <Button

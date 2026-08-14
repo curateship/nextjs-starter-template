@@ -146,6 +146,7 @@ const uploadMediaFn = createServerFn({ method: "POST" })
       mimeType,
       fileType: getMediaFileType(mimeType),
       storagePath,
+      emailProtectedAt: null,
       createdAt,
       updatedAt: createdAt,
     }

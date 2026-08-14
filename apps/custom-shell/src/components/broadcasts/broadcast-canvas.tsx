@@ -45,6 +45,7 @@ import {
 import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { useAppName } from "@/lib/branding"
 
 /**
  * Whether this block would show a reader nothing at all.
@@ -56,7 +57,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 function blockIsEmpty(block: BroadcastBlock): boolean {
   switch (block.kind) {
     case "header":
-      return !block.content.logoUrl.trim()
+      return false
     case "richText":
       // Tags with nothing between them still count as nothing.
       return !block.content.htmlContent.replace(/<[^>]*>|&nbsp;|\s/g, "")
@@ -112,6 +113,7 @@ export function BroadcastCanvas({
   onDelete: (blockId: string) => void
 }) {
   const sensors = useNavSensors()
+  const appName = useAppName()
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -179,6 +181,7 @@ export function BroadcastCanvas({
                     <SortableBlock
                       key={block.id}
                       block={block}
+                      appName={appName}
                       last={index === blocks.length - 1}
                       selected={block.id === selectedBlockId}
                       disabled={disabled}
@@ -305,6 +308,7 @@ function EmptyEmail({
 
 function SortableBlock({
   block,
+  appName,
   last,
   selected,
   disabled,
@@ -315,6 +319,7 @@ function SortableBlock({
   onDelete,
 }: {
   block: BroadcastBlock
+  appName: string
   last: boolean
   selected: boolean
   disabled?: boolean
@@ -393,7 +398,9 @@ function SortableBlock({
             className="[&_a]:pointer-events-none"
             // The HTML here comes from our own renderer, over content that was
             // cleaned when it was saved — never from raw user markup.
-            dangerouslySetInnerHTML={{ __html: renderBroadcastBlockHtml(block) }}
+            dangerouslySetInnerHTML={{
+              __html: renderBroadcastBlockHtml(block, { appName }),
+            }}
           />
         )}
       </div>

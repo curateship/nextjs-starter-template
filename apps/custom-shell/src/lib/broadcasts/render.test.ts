@@ -53,9 +53,29 @@ describe("renderBroadcastBlockHtml", () => {
     }
   )
 
-  it("renders nothing inside an empty header", () => {
-    const html = renderBroadcastBlockHtml(block("header"))
+  it("shows the app name when a header has no logo", () => {
+    const html = renderBroadcastBlockHtml(block("header"), {
+      appName: "North Star",
+    })
     expect(html).not.toContain("<img")
+    expect(html).toContain("North Star")
+    expect(html).toContain("color:#111827")
+  })
+
+  it("keeps the app name readable on a dark header", () => {
+    const html = renderBroadcastBlockHtml(
+      block("header", { backgroundColor: "#111111" }),
+      { appName: "North Star" }
+    )
+    expect(html).toContain("color:#f9fafb")
+  })
+
+  it("uses the app name as logo alt text when images are unavailable", () => {
+    const html = renderBroadcastBlockHtml(
+      block("header", { logoUrl: "https://example.com/logo.png" }),
+      { appName: "North & Star" }
+    )
+    expect(html).toContain('alt="North &amp; Star"')
   })
 
   it("escapes footer company fields", () => {

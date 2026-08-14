@@ -4,6 +4,7 @@ import {
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
 import { escapeHtml } from "@/lib/email/escape-html"
+import { resolveAppName } from "@/lib/branding"
 
 /**
  * Renders broadcast blocks into table-based, inline-styled email HTML that
@@ -115,7 +116,23 @@ function styleRichTextHtml(htmlContent: string) {
   )
 }
 
-export function renderBroadcastBlockHtml(block: BroadcastBlock): string {
+/** A plain dark or light label that stays readable on the chosen header. */
+function headerTextColor(backgroundColor: string) {
+  const hex = backgroundColor.slice(1)
+  const full = hex.length === 3 ? hex.replace(/(.)/g, "$1$1") : hex
+  const [red, green, blue] = [0, 2, 4].map((offset) =>
+    Number.parseInt(full.slice(offset, offset + 2), 16)
+  )
+  // Weighted brightness is enough for these two high-contrast choices and is
+  // understood by every mail client because the result is a fixed hex value.
+  const brightness = red * 0.299 + green * 0.587 + blue * 0.114
+  return brightness > 150 ? "#111827" : "#f9fafb"
+}
+
+export function renderBroadcastBlockHtml(
+  block: BroadcastBlock,
+  options: { appName?: string } = {}
+): string {
   switch (block.kind) {
     case "header": {
       const {
@@ -132,9 +149,13 @@ export function renderBroadcastBlockHtml(block: BroadcastBlock): string {
       // which is how "right" used to do nothing at all, since it got the same
       // `margin:0 0` as "left". Inline-block hands all three alignments to the
       // one `text-align` below, which is also what Outlook actually honours.
+      const appName = resolveAppName(options.appName)
+      // Alt text carries the same name for inboxes that block images. With no
+      // picture at all, the name is drawn deliberately instead of leaving an
+      // invisible header behind.
       const inner = logoUrl
-        ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
-        : ""
+        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(appName)}" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
+        : `<span style="display:inline-block;font-family:Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:bold;color:${headerTextColor(backgroundColor)};">${escapeHtml(appName)}</span>`
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${paddingTop}px 20px ${paddingBottom}px 20px;text-align:${alignment};">${inner}</td></tr></table>`
     }
 
@@ -189,14 +210,17 @@ export function renderBroadcastBlockHtml(block: BroadcastBlock): string {
 
 export function renderBroadcastEmailHtml(
   blocks: BroadcastBlock[],
-  options: { preheader?: string } = {}
+  options: { preheader?: string; appName?: string } = {}
 ): string {
   const preheader = options.preheader?.trim()
   const preheaderHtml = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(preheader)}</div>`
     : ""
   const wrappedBlocks = blocks
-    .map((block) => `<tr><td>${renderBroadcastBlockHtml(block)}</td></tr>`)
+    .map(
+      (block) =>
+        `<tr><td>${renderBroadcastBlockHtml(block, { appName: options.appName })}</td></tr>`
+    )
     .join("")
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="format-detection" content="address=no"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>@media only screen and (max-width:${EMAIL_MAX_WIDTH + 20}px){.email-container{width:100%!important;}}.unstyle-auto-detected-links a[x-apple-data-detectors],.unstyle-auto-detected-links a{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important;}</style></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;">${preheaderHtml}<center><!--[if mso]><table role="presentation" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" class="email-container" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">${wrappedBlocks}</table><!--[if mso]></td></tr></table><![endif]--></center></body></html>`
