@@ -57,6 +57,7 @@ const ROUTE_TITLES: Record<string, string> = {
     "Automation template",
   "/_authenticated/admin/billing": "Billing",
   "/_authenticated/admin/contacts": "Contacts",
+  "/_authenticated/admin/dev-outbox": "Dev outbox",
   "/_authenticated/admin/feedback": "Feedback",
   "/_authenticated/admin/media": "Media",
   "/_authenticated/admin/membership": "Membership",
@@ -87,7 +88,7 @@ const PUBLIC_ROUTE_DESCRIPTIONS: Record<string, string> = {
 
 function routeTitle(
   matches: ReadonlyArray<{ routeId: string }>,
-  appName: string | null | undefined
+  appName: string | null | undefined,
 ) {
   const routeId = matches.at(-1)?.routeId
   const page = (routeId && ROUTE_TITLES[routeId]) || "Page"
@@ -207,7 +208,9 @@ function UnknownHost() {
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
   const signedInPage = useRouterState({
     select: (state) =>
-      state.matches.some((match) => match.routeId.startsWith("/_authenticated")),
+      state.matches.some((match) =>
+        match.routeId.startsWith("/_authenticated"),
+      ),
   })
 
   return (
