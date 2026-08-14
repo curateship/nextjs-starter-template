@@ -5,7 +5,6 @@ import {
   ArrowLeftIcon,
   LayoutTemplateIcon,
   Loader2Icon,
-  PauseIcon,
   PlayIcon,
   UserIcon,
   WorkflowIcon,
@@ -22,7 +21,6 @@ import { SendEmailEditor } from "@/components/automations/nodes/send-email-edito
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Switch } from "@/components/ui/switch"
 import {
@@ -37,8 +35,6 @@ import { compileAutomationGraph } from "@/lib/automations/compile"
 import type {
   AutomationCanvasStatus,
   AutomationCanvasStatusProps,
-  AutomationRunControl,
-  AutomationRunControlProps,
 } from "@/lib/automations/canvas-panel"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
 import type { BroadcastBlockDefaults } from "@/lib/broadcasts/blocks"
@@ -78,7 +74,7 @@ import {
   appCanvasHeaderStatus,
   appCanvasPanel,
   appOffersMemberTest,
-  appRunControl,
+  appShowsRunButton,
 } from "@/lib/app-options"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { nextNodePosition, type CanvasSize } from "./canvas-model"
@@ -116,12 +112,7 @@ export function AutomationEditor({
   onSaveTemplateGraph?: (graph: AutomationGraph) => Promise<unknown>
 }) {
   const navigate = useNavigate()
-  const {
-    config,
-    automationPauseBusy,
-    onAutomationPauseChange,
-    reportSaveStatus,
-  } = useShellRuntime()
+  const { config, reportSaveStatus } = useShellRuntime()
   // Nothing on this page renames an automation any more, so the name is only
   // ever the one it loaded with — but it still has to ride along on every save,
   // or the record would be written back without it.
@@ -166,7 +157,6 @@ export function AutomationEditor({
   const [preparingTest, setPreparingTest] = React.useState(false)
   const [live, setLive] = React.useState(initial.enabled)
   const [savingLive, setSavingLive] = React.useState(false)
-  const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const templateMode = mode === "template"
   const saveTemplateGraphRef = React.useRef(onSaveTemplateGraph)
   React.useEffect(() => {
@@ -359,11 +349,6 @@ export function AutomationEditor({
     return triggers.length === 1 ? automationNodeName(triggers[0]) : null
   }, [graph.nodes])
   const paused = config.automationPause.enabled
-
-  const handlePauseChange = async (enabled: boolean) => {
-    if (automationPauseBusy) return
-    if (await onAutomationPauseChange(enabled)) setConfirmPauseOpen(false)
-  }
 
   /**
    * The flow's own switch, and the only thing that makes a trigger act.
@@ -647,14 +632,6 @@ export function AutomationEditor({
       }
       title={name}
       meta={templateMode ? "Template" : undefined}
-      centre={
-        templateMode ? undefined : (
-          <CanvasHeaderStatus
-            automationId={initial.id}
-            nodeKinds={nodeKinds}
-          />
-        )
-      }
       action={
         templateMode ? (
           <Button
@@ -699,25 +676,18 @@ export function AutomationEditor({
                 </label>
               </DisabledReason>
             ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={automationPauseBusy}
-              onClick={() =>
-                paused
-                  ? void handlePauseChange(false)
-                  : setConfirmPauseOpen(true)
-              }
-            >
-              {automationPauseBusy ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : paused ? (
-                <PlayIcon className="size-4" />
-              ) : (
-                <PauseIcon className="size-4" />
-              )}
-              {paused ? "Resume all" : "Pause all"}
-            </Button>
+            {/* The app's own controls, and every one of them.
+
+                This strip is the one home an app has in this header: what its
+                flow is right now, and anything a person would press about it.
+                It sits before the shell's own buttons so the app's answer is
+                read first. */}
+            {templateMode ? null : (
+              <CanvasHeaderStatus
+                automationId={initial.id}
+                nodeKinds={nodeKinds}
+              />
+            )}
             {offersMemberTest ? (
               <DisabledReason
                 disabled={paused || !compiled.config}
@@ -742,11 +712,9 @@ export function AutomationEditor({
                 </Button>
               </DisabledReason>
             ) : null}
-            {canRunManually ? (
-              <RunControl
-                automationId={initial.id}
-                nodeKinds={nodeKinds}
-                canRun={!paused && Boolean(compiled.config) && !running}
+            {canRunManually && appShowsRunButton() ? (
+              <DisabledReason
+                disabled={paused || !compiled.config || running}
                 reason={
                   paused
                     ? "Every automation is paused. Resume them to start this flow."
@@ -754,9 +722,20 @@ export function AutomationEditor({
                       ? "Fix the steps marked in red before running this automation."
                       : null
                 }
-                running={running}
-                onRun={handleRunNow}
-              />
+              >
+                <Button
+                  type="button"
+                  disabled={paused || !compiled.config || running}
+                  onClick={() => void handleRunNow()}
+                >
+                  {running ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <PlayIcon className="size-4" />
+                  )}
+                  Run
+                </Button>
+              </DisabledReason>
             ) : null}
           </div>
         )
@@ -931,15 +910,6 @@ export function AutomationEditor({
               })
             }}
           />
-          <ConfirmDialog
-            open={confirmPauseOpen}
-            onOpenChange={setConfirmPauseOpen}
-            title="Pause every automation?"
-            description="Every flow stops as soon as you confirm, and no new one can be started by hand. Runs already in progress hold their place until you resume them."
-            confirmLabel="Pause automations"
-            loading={automationPauseBusy}
-            onConfirm={() => void handlePauseChange(true)}
-          />
         </>
       ) : null}
     </div>
@@ -960,78 +930,6 @@ export function AutomationEditor({
 const lazyCanvasPanels = new Map<
   string,
   React.LazyExoticComponent<ComponentType<AutomationCanvasPanelProps>>
->()
-
-/**
- * The Run button, or the app's own control in place of it.
- *
- * The shell keeps the judgement it is entitled to — paused, unreadable steps, a
- * run already going — and hands it over. An app that has taken the button draws
- * whatever it likes, including nothing; the shell's own Run is exactly what it
- * has always been for every app that has not.
- */
-function RunControl({
-  automationId,
-  nodeKinds,
-  canRun,
-  reason,
-  running,
-  onRun,
-}: {
-  automationId: string
-  nodeKinds: readonly string[]
-  canRun: boolean
-  reason: string | null
-  running: boolean
-  onRun: () => Promise<void>
-}) {
-  const declared = appRunControl()
-  const asked =
-    declared && (declared.appliesTo?.(nodeKinds) ?? true) ? declared : null
-
-  React.useEffect(() => {
-    if (asked) void asked.control()
-  }, [asked])
-
-  if (asked) {
-    let control = lazyRunControls.get(asked)
-    if (!control) {
-      control = React.lazy(asked.control)
-      lazyRunControls.set(asked, control)
-    }
-    return (
-      <React.Suspense fallback={null}>
-        {React.createElement(control, {
-          automationId,
-          canRun,
-          reason,
-          running,
-        })}
-      </React.Suspense>
-    )
-  }
-
-  return (
-    <DisabledReason
-      disabled={!canRun && !running}
-      reason={reason ?? ""}
-    >
-      <Button type="button" disabled={!canRun} onClick={() => void onRun()}>
-        {running ? (
-          <Loader2Icon className="size-4 animate-spin" />
-        ) : (
-          <PlayIcon className="size-4" />
-        )}
-        Run
-      </Button>
-    </DisabledReason>
-  )
-}
-
-/** Kept so the lazy import is made once rather than on every draw. */
-const lazyRunControls = new Map<
-  AutomationRunControl,
-  React.LazyExoticComponent<ComponentType<AutomationRunControlProps>>
 >()
 
 /**

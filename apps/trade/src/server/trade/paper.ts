@@ -933,7 +933,14 @@ export async function settleWallet(
   // transaction, for the same reason the marks are: a network call must never
   // sit inside the lock. Costs nothing when no ladder is watching.
   const ladderBars = new Map<string, { bars: CandleBar[]; barMs: number }>()
-  for (const need of await ladderCandleNeeds(userId, wallet.id, now)) {
+  // One feed per settle, for the same reason the live pass paces itself: a
+  // wallet with a hundred ladders asking for a hundred 4h histories at once
+  // is a burst the exchange refuses wholesale. The rest keep their old
+  // `seenTo`, so the next settle simply picks up where this one stopped.
+  for (const need of (await ladderCandleNeeds(userId, wallet.id, now)).slice(
+    0,
+    1
+  )) {
     ladderBars.set(ladderBarsKey(need.use, need.marketKey), {
       bars: await loadBars(wallet, need.marketKey, need.interval, need.since),
       barMs: need.barMs,

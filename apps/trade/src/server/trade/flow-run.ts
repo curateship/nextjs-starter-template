@@ -9,9 +9,19 @@ import type {
   FlowStopOutcome,
   TradeFlowRunSpec,
 } from "@/lib/trade/flow-run"
+import {
+  flowWaitCode,
+  nextFlowHold,
+  STRIKES_BEFORE_HOLD,
+  type FlowWaitReason,
+} from "@/lib/trade/flow-waiting"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
-import { assertRealOrdersAllowed } from "@/server/protocols/hyperliquid/signing"
+import {
+  assertRealOrdersAllowed,
+  scrubSecrets,
+} from "@/server/protocols/hyperliquid/signing"
+import { awaitMarketsWalletHasMoneyOn } from "@/server/protocols/hyperliquid/user-markets"
 import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
@@ -39,6 +49,21 @@ import { findWallet } from "@/server/trade/wallets"
  */
 const STARTS_PER_PASS = 3
 
+/**
+ * How many coins one pass may even look at.
+ *
+ * Separate from the cap above, because that one counts ladders actually placed
+ * — so a flow whose coins are all refusing (which is the normal state, most of
+ * the time) went round its whole list every single pass. Four hundred coins
+ * meant four hundred goes at the exchange a second, every second, to place
+ * nothing. This counts every look instead, refusals included.
+ *
+ * Coins are taken least-recently-looked-at first, so a long list still gets all
+ * the way round — four hundred coins at twelve a second is under a minute, and
+ * a base takes far longer than that to form.
+ */
+const ATTEMPTS_PER_PASS = 12
+
 /** Why a flow could not be switched on, thrown as a code the API turns into words. */
 export type FlowStartRefusal =
   | "FLOW_NO_WALLET"
@@ -50,6 +75,7 @@ export type FlowStartRefusal =
   | "FLOW_WRONG_EXCHANGE"
   | "FLOW_ALREADY_RUNNING"
   | "FLOW_WALLET_BUSY"
+  | "FLOW_UNFUNDED_MARKET"
   | "FLOW_MAINNET_OFF"
 
 /** The three steps a trading flow is made of, read off its saved drawing. */
@@ -103,6 +129,28 @@ export async function flowRunSpec(
   })
   if (wrong || markets.data.protocol !== wallet.protocol) {
     throw new Error("FLOW_WRONG_EXCHANGE")
+  }
+
+  // Hyperliquid keeps each of its markets' money separate: cash in the main
+  // account does not back a trade on a market somebody else opened, and the
+  // exchange refuses those buys one by one, at fire time, forever. Asked here
+  // — the one moment a human is pressing a button and can fix the list — so
+  // the flow never carries coins it can only ever be refused on. The exchange
+  // is given a moment to answer; silence skips the check rather than treating
+  // no answer as an empty wallet.
+  if (wallet.kind === "live" && wallet.address) {
+    const funded = await awaitMarketsWalletHasMoneyOn(
+      wallet.network,
+      wallet.address
+    )
+    if (funded !== null) {
+      const allowed = new Set([...funded, ""])
+      const unfunded = markets.data.marketKeys.some((key) => {
+        const parts = key.split(":")
+        return !allowed.has(parts.length > 3 ? parts[2] : "")
+      })
+      if (unfunded) throw new Error("FLOW_UNFUNDED_MARKET")
+    }
   }
 
   // Mainnet signing is switched off by an environment variable, and it throws
@@ -321,23 +369,83 @@ export async function advanceFlowRuns(
         )
       )
     const taken = new Set(busy.map((one) => one.marketKey))
-    const free = run.spec.marketKeys.filter((key) => !taken.has(key))
+    // Least recently looked at first, so a long list gets all the way round
+    // rather than the same handful being retried while the tail is never seen.
+    const free = run.spec.marketKeys
+      .filter((key) => !taken.has(key))
+      .sort((a, b) => (run.waiting[a]?.at ?? 0) - (run.waiting[b]?.at ?? 0))
 
     let started = 0
+    let looked = 0
     /** Coins this pass put a ladder on, so a stop knows which are the flow's. */
     const placedNow: string[] = []
+    // Paused: it looks at nothing, and nothing it already placed is touched.
+    // Stopping is the act that cancels; this one only stops it looking.
+    if (run.pausedAt) continue
+
+    let hold = run.hold ?? null
+
+    // Held: the same answer three times running, so it has stopped asking.
+    //
+    // It comes back with ONE coin rather than the whole list. If the answer has
+    // not changed, being wrong about it cost a single call instead of a
+    // hundred; if it has, the next pass is back to normal.
+    const holding = hold !== null && hold.until > now
+    const allowed = holding
+      ? 0
+      : hold !== null && hold.strikes >= STRIKES_BEFORE_HOLD
+        ? 1
+        : ATTEMPTS_PER_PASS
+
+    // Why each coin has nothing yet, carried forward and corrected as we go.
+    const waiting: Record<string, FlowWaitReason> = { ...run.waiting }
+    // A coin that has a ladder now is not waiting for anything. This clears the
+    // entry left by whatever refused it before it finally went through.
+    for (const key of Object.keys(waiting)) {
+      if (taken.has(key)) delete waiting[key]
+    }
+
     for (const marketKey of free) {
-      if (started >= STARTS_PER_PASS) break
+      if (started >= STARTS_PER_PASS || looked >= allowed) break
+      looked += 1
       try {
         await placeLadderForFlow(run.userId, wallet, run.spec, marketKey)
         started += 1
         placedNow.push(marketKey)
-      } catch {
-        // Every refusal here is ordinary and expected: no base confirmed yet,
-        // price below the base, not enough free cash, the order cap reached.
-        // A flow watching four hundred coins refuses most of them most of the
-        // time — that IS the strategy waiting. The engine's own journal records
-        // anything that actually reached the exchange.
+        delete waiting[marketKey]
+        // One that went through clears the count outright. Whatever was
+        // refusing everything has been fixed, and carrying a wait over from
+        // before the fix would leave the flow idle for no reason.
+        hold = null
+      } catch (error) {
+        // Most refusals here are ordinary and expected — no base confirmed
+        // yet, price below the base — and that IS the strategy waiting. But
+        // "not enough money" and "the key was refused" arrive down the same
+        // path and are not ordinary at all, and throwing them all away made
+        // those two indistinguishable from working. The code is kept; the
+        // canvas sorts them into waiting and needs-a-person.
+        const code = flowWaitCode(error)
+        // A refusal nobody has written words for goes to the server log with
+        // its real message, so the next person can give it some.
+        //
+        // The log, and never the row: a stored message is drawn on a screen and
+        // kept forever, and an unexpected error's text can carry whatever was
+        // in scope when it was thrown. Scrubbed even here, because "it is only
+        // a log" is how a key gets written down.
+        if (code === "FLOW_UNKNOWN") {
+          console.warn(
+            `Flow refusal with no words: ${marketKey} — ${scrubSecrets(
+              error instanceof Error ? error.message : String(error)
+            )}`
+          )
+        }
+        waiting[marketKey] = { code, at: now }
+        // Only a needs-a-person answer counts towards stopping. "No base yet"
+        // repeating across a hundred coins is a hundred true answers about a
+        // hundred different coins, and backing off on those would be the flow
+        // switching itself off for working correctly.
+        hold = nextFlowHold(hold, code, now)
+        if (hold && hold.until > now) break
       }
     }
 
@@ -345,6 +453,8 @@ export async function advanceFlowRuns(
       .update(tradeFlowRuns)
       .set({
         updatedAt: new Date(now),
+        waiting,
+        hold,
         ...(placedNow.length > 0
           ? { placed: [...new Set([...run.placed, ...placedNow])] }
           : {}),
@@ -378,4 +488,79 @@ async function placeLadderForFlow(
     return
   }
   await placeDcaLadder(userId, wallet, input)
+}
+
+/**
+ * Stops a flow looking for new coins, or sets it looking again.
+ *
+ * **It touches nothing that is already in the market.** Every ladder it placed
+ * keeps working, every position keeps its stop and its target. That is the
+ * whole difference from stopping, and it is the difference between "hold on a
+ * moment" and "I have changed my mind": a pause somebody meant as the first,
+ * that cancelled orders like the second, would be the worst kind of surprise.
+ */
+export async function pauseFlowRun(
+  userId: string,
+  input: { automationId: string; paused: boolean; now: number },
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: tradeFlowRuns.id })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.automationId, input.automationId),
+        eq(tradeFlowRuns.status, "running")
+      )
+    )
+    .limit(1)
+  if (!row) return false
+
+  await database
+    .update(tradeFlowRuns)
+    .set({
+      pausedAt: input.paused ? new Date(input.now) : null,
+      // Setting off again clears any wait it was serving. Somebody who pauses
+      // and unpauses is telling you to look now, and making them wait out a
+      // back-off they cannot see would read as the button doing nothing.
+      ...(input.paused ? {} : { hold: null }),
+      updatedAt: new Date(input.now),
+    })
+    .where(and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, row.id)))
+  return true
+}
+
+/**
+ * Makes a flow that has stopped asking try again right now.
+ *
+ * **Because only a person knows when something has been fixed.** The wait
+ * doubles on the assumption that nothing has changed, which is right until
+ * money lands in the account or a setting is corrected — and then it is just
+ * the app being stubborn for up to a quarter of an hour. This is the button
+ * that says "I have dealt with it".
+ */
+export async function retryFlowRunNow(
+  userId: string,
+  input: { automationId: string; now: number },
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ id: tradeFlowRuns.id })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.automationId, input.automationId),
+        eq(tradeFlowRuns.status, "running")
+      )
+    )
+    .limit(1)
+  if (!row) return false
+
+  await database
+    .update(tradeFlowRuns)
+    .set({ hold: null, updatedAt: new Date(input.now) })
+    .where(and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, row.id)))
+  return true
 }

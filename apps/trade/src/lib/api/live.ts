@@ -225,7 +225,7 @@ export function getLiveErrorMessage(error: unknown): string {
   if (known) return LIVE_SENTENCES[known]
   // The exchange's own refusal, already scrubbed server-side. Shown because
   // with real money the reason IS the answer.
-  const exchange = message.match(/LIVE_EXCHANGE:(.*)$/s)
+  const exchange = message.match(/LIVE_(?:EXCHANGE|ORDER_REFUSED):(.*)$/s)
   if (exchange) return humanizeExchangeReason(exchange[1].trim())
   const gone = message.match(/LIVE_BRACKETS_GONE:(.*)$/s)
   if (gone) {

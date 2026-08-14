@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
-import { ChevronDownIcon, FlaskConicalIcon, XIcon } from "lucide-react"
+import { FlaskConicalIcon, Loader2Icon, XIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
 import { Button } from "@/components/ui/button"
@@ -13,6 +13,7 @@ import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -74,9 +75,27 @@ export default function BacktestCanvasPanel({
   // over the top of a run that was plainly going, with "Started 2 minutes ago"
   // underneath it.
   const [noneYet, setNoneYet] = React.useState(false)
-  // Folded away by default. The warnings matter, but they are the same three
-  // sentences on most runs and they push the figures off a small panel.
-  const [warningsOpen, setWarningsOpen] = React.useState(false)
+  /**
+   * Pressed, and the run not yet visible in the list.
+   *
+   * **The panel changes on the click, not on the answer.** Starting a run is a
+   * round trip to the server and then a wait for the next read, so the honest
+   * state was already true a second or two before anything on screen said so —
+   * and pressing a button that sits there looking unpressed is how somebody
+   * presses it twice.
+   */
+  const [starting, setStarting] = React.useState(false)
+  /** Bumped to read the list again now, instead of waiting out the timer. */
+  const [readNow, setReadNow] = React.useState(0)
+  /**
+   * Whether the first read of what this flow is has come back, either way.
+   *
+   * **Nothing is drawn before it has.** This panel decides whether it should
+   * exist at all from that answer, and it was drawing itself first and
+   * withdrawing about half a second later — a card that opens and shuts itself
+   * on every visit. Waiting is invisible; flashing is not.
+   */
+  const [flowSettled, setFlowSettled] = React.useState(false)
 
   React.useEffect(() => {
     let stopped = false
@@ -92,8 +111,11 @@ export default function BacktestCanvasPanel({
         // draw eight numbers.
         const list = await loadBacktests({ automationId })
         if (stopped) return
-        setRun(list.runs[0] ?? null)
+        const newest = list.runs[0] ?? null
+        setRun(newest)
         setNoneYet(list.runs.length === 0)
+        // The list has caught up with the click, so stop believing it on faith.
+        if (newest !== null && newest.finishedAt === null) setStarting(false)
       } catch {
         // A read that failed is not "there is no backtest". Whatever was on
         // screen stays there and the next pass, seconds away, tries again —
@@ -128,7 +150,7 @@ export default function BacktestCanvasPanel({
     // the two now sit on the panel together. A saved round trip is not worth a
     // card that never loads.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [automationId, runId])
+  }, [automationId, runId, readNow])
 
   /**
    * What the flow is set up to do, kept up to date while the panel is open.
@@ -155,6 +177,11 @@ export default function BacktestCanvasPanel({
       } catch {
         // A read that failed is not an answer. The panel keeps what it has
         // rather than claiming a mode it could not confirm.
+      } finally {
+        // Settled either way, including on a failure: a panel that never drew
+        // itself because one read did not land would be worse than one that
+        // drew itself on incomplete information.
+        if (!stopped) setFlowSettled(true)
       }
       if (stopped) return
       timer = window.setTimeout(() => void tick(), FLOW_MODE_EVERY_MS)
@@ -168,7 +195,9 @@ export default function BacktestCanvasPanel({
   }, [automationId, runId])
 
   const summary = run?.summary ?? null
-  const running = run !== null && run.finishedAt === null
+  // Believed from the click until the list catches up with it. `starting` is
+  // cleared the moment a running row actually appears, below.
+  const running = starting || (run !== null && run.finishedAt === null)
   const trades = flow?.mode === "trades" ? flow : null
 
   // A flow is the header's business, not this panel's.
@@ -179,6 +208,9 @@ export default function BacktestCanvasPanel({
   // rather than a backtest has nothing for it to show. It carried both for a
   // build and ended up meaning three things at once, with a second way to
   // start a flow that asked its question worse.
+  // Nothing until the answer that decides this has landed. Drawing first and
+  // withdrawing after is the flash somebody sees on every visit.
+  if (!flowSettled) return null
   if (trades && !trades.drawnIsBacktest) return null
 
   return (
@@ -239,7 +271,10 @@ export default function BacktestCanvasPanel({
             Backtest
           </span>
         )}
-        {running ? (
+        {/* `run` can be null here for the moment between the click and the
+            list catching up — the panel believes it is running before there is
+            a row to read a note from. */}
+        {running && run ? (
           <span
             className="min-w-0 truncate text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
             aria-live="polite"
@@ -319,43 +354,6 @@ export default function BacktestCanvasPanel({
                 />
               </div>
 
-              {/* The warnings are the whole reason this is worth reading on the
-                  canvas: a result nobody should believe looks exactly like one
-                  they should, until it says why. */}
-              {summary.warnings.length > 0 ? (
-                <div className="grid gap-1 border-t pt-3">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      setWarningsOpen((open) => !open)
-                    }}
-                    aria-expanded={warningsOpen}
-                    className={cn(
-                      "flex items-center gap-1 rounded-sm text-left text-xs font-medium",
-                      focusRing
-                    )}
-                  >
-                    <ChevronDownIcon
-                      className={cn(
-                        "size-3 transition-transform",
-                        !warningsOpen && "-rotate-90"
-                      )}
-                    />
-                    Read this before you believe it
-                    <span className="text-muted-foreground">
-                      ({summary.warnings.length})
-                    </span>
-                  </button>
-                  {warningsOpen ? (
-                    <ul className="grid list-disc gap-1 pl-5 text-[11px] leading-4 text-muted-foreground">
-                      {summary.warnings.map((warning) => (
-                        <li key={warning}>{warning}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </div>
-              ) : null}
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
@@ -364,11 +362,64 @@ export default function BacktestCanvasPanel({
             </p>
           )}
 
-          {run?.finishedAt ? (
-            <p className="border-t pt-3 text-[11px] text-muted-foreground">
-              Finished {formatRelativeTime(new Date(run.finishedAt))}.
+          {/* Starting a backtest belongs with the last backtest's result, not
+              out in the header beside the buttons that trade real money. It is
+              the same act as reading this panel — run it, read it, adjust,
+              run it again — and out there it sat next to Stop. */}
+          {/* Nothing to press while one is walking, so nothing is drawn — no
+              button, and no spinner standing in for it. A disabled button with
+              a spinner on it is still a button asking to be pressed, and the
+              figures above already change as the run goes. */}
+          <div className="mt-2 flex items-center justify-between gap-3">
+            <p className="text-[11px] leading-4 text-muted-foreground">
+              {run?.finishedAt
+                ? `Finished ${formatRelativeTime(new Date(run.finishedAt))}.`
+                : ""}
             </p>
-          ) : null}
+            {running ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={starting}
+              onClick={(event) => {
+                // The card itself opens the full run page when clicked, and a
+                // button inside it must not do both.
+                event.stopPropagation()
+                setStarting(true)
+                // Nothing is awaited before the panel changes. The request goes
+                // out and the answer only matters if it is a refusal.
+                // Imported at the click. The editor already imports this module
+                // and renders this panel through a lazy import, so a top-level
+                // import here is reached mid-initialisation and its server
+                // functions come back undefined — which stopped every page in
+                // the app rendering on the server once already.
+                void import("@/lib/api/automations/automation-runs").then(
+                  async (runs) => {
+                    try {
+                      await runs.runAutomationNow(automationId)
+                      // Read again at once rather than waiting out the timer,
+                      // so the real run replaces the believed one quickly.
+                      setReadNow((n) => n + 1)
+                    } catch (error) {
+                      // A refusal is the one thing worth saying out loud, and
+                      // the panel goes back to what it was.
+                      setStarting(false)
+                      showErrorToast(runs.getAutomationRunErrorMessage(error))
+                    }
+                  }
+                )
+              }}
+            >
+              {starting ? (
+                <Loader2Icon className="size-4 animate-spin" />
+              ) : (
+                <FlaskConicalIcon className="size-4" />
+              )}
+              Backtest
+            </Button>
+            )}
+          </div>
         </div>
       </ScrollArea>
     </Card>

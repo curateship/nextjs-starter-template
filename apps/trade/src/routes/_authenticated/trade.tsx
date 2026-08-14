@@ -34,7 +34,7 @@ import {
  * wallets are the everyday practice path); the address, and any testnet
  * market's link, are how the door is opened when it is wanted.
  */
-type TradeSearch = { market?: string; network?: "testnet" }
+type TradeSearch = { market?: string; network?: "testnet" | "mainnet" }
 
 function readTradeSearch(search: Record<string, unknown>): TradeSearch {
   return {
@@ -42,7 +42,18 @@ function readTradeSearch(search: Record<string, unknown>): TradeSearch {
       typeof search.market === "string" && search.market.length <= 120
         ? search.market
         : undefined,
-    network: search.network === "testnet" ? "testnet" : undefined,
+    // "mainnet" is kept, not dropped as the default.
+    //
+    // **Because it is the only way home.** With neither a market nor a network
+    // in the address, the page falls back to the remembered last market — and
+    // if that is a testnet coin it lands on testnet again. Saying mainnet out
+    // loud is what lets somebody leave the practice network deliberately.
+    network:
+      search.network === "testnet"
+        ? "testnet"
+        : search.network === "mainnet"
+          ? "mainnet"
+          : undefined,
   }
 }
 

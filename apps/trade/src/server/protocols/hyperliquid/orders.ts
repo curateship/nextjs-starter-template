@@ -21,6 +21,10 @@ import {
 } from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
+  dropIdleWalletFeeds,
+  marketsWalletUses,
+} from "@/server/protocols/hyperliquid/user-markets"
+import {
   agentSigner,
   assertRealOrdersAllowed,
   scrubbedMessage,
@@ -116,21 +120,31 @@ async function exchangeAssets(network: NetworkId) {
   if (cached && Date.now() - cached.at < cached.ttl) return cached
 
   const client = infoClient(network)
-  const dexs = perpDexsSchema.parse(await client.perpDexs())
-  const metas = await Promise.all(
-    dexs.map((dex, index) =>
-      client
-        .meta({ dex: dex?.name ?? "" })
-        .then((response) => ({
-          index,
-          name: dex?.name ?? "",
-          meta: metaSchema.parse(response),
-        }))
-        // A venue that will not answer contributes no assets this round —
-        // its markets resolve to "unlisted" rather than to wrong numbers.
-        .catch(() => null)
-    )
-  )
+  // Every market's asset list in ONE call, not one call per market.
+  //
+  // **This asked each of them in turn and it was ruinous.** Hyperliquid hosts
+  // ten markets on the real network and two hundred and forty-nine on the
+  // practice one, and asking each costs the same as twenty ordinary requests —
+  // so one refresh of this cache spent about 5,000 of the 1,200 requests a
+  // minute the exchange allows, in a single burst. Everything else the app
+  // asked for in that minute came back refused, which read on screen as "the
+  // exchange would not give a price for this coin". `allPerpMetas` returns the
+  // same thing for every market at once and the market list already used it;
+  // this is the same fix in the second place it was needed.
+  const [rawDexs, rawMetas] = await Promise.all([
+    client.perpDexs(),
+    client.allPerpMetas(),
+  ])
+  const dexs = perpDexsSchema.parse(rawDexs)
+  const allMetas = z.array(metaSchema).parse(rawMetas)
+  if (allMetas.length !== dexs.length) {
+    throw new Error("Hyperliquid metadata did not match its markets.")
+  }
+  const metas = dexs.map((dex, index) => ({
+    index,
+    name: dex?.name ?? "",
+    meta: allMetas[index],
+  }))
 
   const byId = new Map<string, { assetId: number; szDecimals: number }>()
   const venues: string[] = []
@@ -267,6 +281,11 @@ export async function placeHyperliquidOrder(
   auth: OrderAuth,
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
+  // Whatever is cached is about to stop being true. The whole map rather than
+  // one wallet, because an order call carries a signing key and not the
+  // account address — and a cache of two entries is not worth being clever
+  // about when the alternative is showing somebody a stale position.
+  forgetHyperliquidPortfolios()
   const client = exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
   const isBuy = params.side === "buy"
@@ -349,7 +368,14 @@ export async function placeHyperliquidOrder(
   const entry = statuses[0]
   const entryError = statusError(entry)
   // The whole group is refused together when the entry is — nothing stood.
-  if (entryError !== null) throw new Error(`LIVE_EXCHANGE:${entryError}`)
+  //
+  // Its own code, distinct from `LIVE_EXCHANGE`, because it carries a promise
+  // the other cannot: the exchange processed our order and its own status for
+  // it was a refusal, so NOTHING was placed or filled. `LIVE_EXCHANGE` also
+  // wraps transport and parse failures, where an order may well have gone
+  // through — acting on those as "nothing happened" is how money gets spent
+  // twice. Only this code may ever be used to undo engine state.
+  if (entryError !== null) throw new Error(`LIVE_ORDER_REFUSED:${entryError}`)
 
   // The entry stood. From here every outcome is reported, never thrown —
   // throwing would read as "nothing happened" over an order that exists.
@@ -402,6 +428,11 @@ export async function cancelHyperliquidOrder(
   auth: OrderAuth,
   params: { marketId: string; orderId: string }
 ): Promise<void> {
+  // Whatever is cached is about to stop being true. The whole map rather than
+  // one wallet, because an order call carries a signing key and not the
+  // account address — and a cache of two entries is not worth being clever
+  // about when the alternative is showing somebody a stale position.
+  forgetHyperliquidPortfolios()
   const client = exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
   const oid = Number(params.orderId)
@@ -702,7 +733,59 @@ const activeVenues = new Map<string, { at: number; names: string[] }>()
  * folded INTO their position as its stop and target rather than listed as
  * orders — that is what they are on screen.
  */
+/**
+ * How long one portfolio read stands in for the next, in ms.
+ *
+ * **Because several things ask the same question at once.** The browser polls
+ * every four seconds, the ladder worker looks every second, and the smart-order
+ * reconciler asks again on top — each making its own pair of calls for the same
+ * wallet. Measured at fifty-one `frontendOpenOrders` in thirty seconds, which
+ * is 1,020 of the 1,200 request-weight a minute the exchange allows, before the
+ * chart had asked for a single candle.
+ *
+ * **Four seconds, matching the screen's own poll.** Nothing here needs to be
+ * fresher than that: the browser already draws positions and orders on a
+ * four-second beat, so this makes no figure staler than it has always been. It
+ * is deliberately not longer — the engine decides real things from these
+ * numbers, and a position closed on the exchange should not stay on screen, or
+ * in the engine's head, for longer than somebody would already expect.
+ *
+ * An order placed or cancelled throws the whole cache away, so the one moment
+ * it certainly matters is never served from memory.
+ */
+const PORTFOLIO_CACHE_MS = 4_000
+
+const portfolioCache = new Map<
+  string,
+  { at: number; answer: Promise<WalletPortfolio> }
+>()
+
 export async function fetchHyperliquidPortfolio(
+  network: NetworkId,
+  address: string
+): Promise<WalletPortfolio> {
+  const cacheKey = `${network}:${address.toLowerCase()}`
+  const cached = portfolioCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < PORTFOLIO_CACHE_MS) {
+    return cached.answer
+  }
+  const at = Date.now()
+  const answer = readHyperliquidPortfolio(network, address)
+  // A failed read is never remembered as an answer — one refusal would
+  // otherwise be repeated to every caller for the next two seconds.
+  answer.catch(() => {
+    if (portfolioCache.get(cacheKey)?.at === at) portfolioCache.delete(cacheKey)
+  })
+  portfolioCache.set(cacheKey, { at, answer })
+  return answer
+}
+
+/** Forget every wallet's figures, because something just changed them. */
+export function forgetHyperliquidPortfolios(): void {
+  portfolioCache.clear()
+}
+
+async function readHyperliquidPortfolio(
   network: NetworkId,
   address: string
 ): Promise<WalletPortfolio> {
@@ -712,11 +795,29 @@ export async function fetchHyperliquidPortfolio(
   const { venues } = await exchangeAssets(network)
   const rememberKey = `${network}:${user}`
   const remembered = activeVenues.get(rememberKey)
-  const sweeping = !remembered || Date.now() - remembered.at >= ACTIVE_VENUES_MS
-  // The main venue is always read; a sweep reads everything.
-  const names = sweeping
-    ? venues
-    : ["", ...remembered.names.filter((name) => name !== "")]
+
+  // What the exchange itself says this wallet is using, pushed over a socket.
+  //
+  // **This is what stops the sweep below being ruinous.** Hyperliquid hosts one
+  // market for coins plus however many others people have opened — ten on the
+  // real network and two hundred and forty-nine on the practice one — and there
+  // is no way to ask all of them at once. Asking each in turn cost about 5,500
+  // of the 1,200 requests a minute the exchange allows, so the app spent its
+  // entire allowance discovering markets this wallet has never touched and had
+  // nothing left to ask a price with. The socket answers the same question for
+  // free, and sooner.
+  const told = marketsWalletUses(network, user)
+
+  const sweeping =
+    told === null &&
+    (!remembered || Date.now() - remembered.at >= ACTIVE_VENUES_MS)
+
+  // Told, remembered, or — only when neither can say — every market there is.
+  const names = told
+    ? [...new Set(["", ...told, ...(remembered?.names ?? [])])]
+    : sweeping
+      ? venues
+      : ["", ...(remembered?.names ?? []).filter((name) => name !== "")]
 
   const reads = await Promise.all(
     names.map(async (dex) => {
@@ -767,9 +868,13 @@ export async function fetchHyperliquidPortfolio(
       openAcrossVenues.push({ dex: read.dex, order })
     }
   }
-  if (sweeping) {
+  if (sweeping || told) {
     activeVenues.set(rememberKey, { at: Date.now(), names: [...used] })
   }
+  // Feeds for wallets nothing is looking at any more are let go here rather
+  // than on a timer of their own, which would keep this module alive in a
+  // process that has finished with it.
+  dropIdleWalletFeeds()
 
   const orders: WalletOpenOrder[] = []
   for (const { dex, order: rawOrder } of openAcrossVenues) {

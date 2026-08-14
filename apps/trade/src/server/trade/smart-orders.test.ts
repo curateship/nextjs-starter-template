@@ -141,8 +141,8 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     compound: true,
     maxOrderVolPct: 0,
     twoGreen: false,
-    // These suites are about rungs that REST on the book, which is still a
-    // mode. The default is now market-on-confirmation, like the old app.
+    // Inert: every ladder watches its rungs now, whatever this says. Still
+    // here only because the saved-settings type carries the field.
     rungEntry: "limit",
     anchor: "base",
     takeProfit: null,
@@ -199,12 +199,58 @@ async function onlyLadder() {
   return { ...rows[0], plan: rows[0].plan as LadderPlan }
 }
 
+/**
+ * Moves the newest ladder ten minutes into the past.
+ *
+ * Every rung is a price the engine watches on CLOSED candles, and a candle
+ * needs a minute to close — so a ladder placed "now" cannot buy anything in a
+ * test without literally waiting one out. Backdating the watch's start is the
+ * same trick the two-green case has always used, applied to every fill here.
+ */
+async function backdate() {
+  const rows = await ladderRows()
+  const row = rows[rows.length - 1]
+  const plan = {
+    ...(row.plan as LadderPlan),
+    startedAt: Date.now() - 10 * MINUTE,
+  }
+  await database
+    .update(tradeSmartLadders)
+    .set({ createdAt: new Date(plan.startedAt), plan })
+    .where(eq(tradeSmartLadders.id, row.id))
+}
+
+/** Scripted candles walk forward one slot per bar inside that window. */
+let dipSlot = 9
+
+/**
+ * Price dips to `px` on a closed one-minute candle and stays there.
+ *
+ * This is how a rung buys now: nothing rests, so a fill is a bar whose low
+ * reaches the rung, read on the next settle. The mark moves with it so the
+ * stops and targets downstream see the same price the old resting fills saw.
+ */
+async function dipTo(px: number, open = 110) {
+  marks.set("BTC", px)
+  candles.push({
+    openTime: Date.now() - dipSlot * MINUTE,
+    open,
+    high: open,
+    low: px,
+    close: px,
+    volume: 1,
+  })
+  dipSlot -= 1
+  await settle()
+}
+
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
   clearMarketRulesCache()
   marks.set("BTC", 100)
+  dipSlot = 9
   // A ladder hangs from the confirmed base, so every test needs one. 100 is
   // the base throughout unless a test swaps the tape, which keeps the rungs
   // at the 95 and 87.4 the rest of this file is written around.
@@ -240,31 +286,23 @@ afterEach(async () => {
 })
 
 describe("placing a ladder", () => {
-  it("rests every rung below the market as its own buy, sized by the ramp", async () => {
+  it("rests nothing — every rung waits as a watched price, sized by the ramp", async () => {
     const placed = await place()
     expect(placed).toEqual({ placed: 2, passed: 0 })
 
-    const resting = (await orders()).sort((a, b) => b.px - a.px)
-    expect(resting).toHaveLength(2)
-    expect(resting[0]).toMatchObject({
-      side: "buy",
-      px: 95,
-      sz: 7.017,
-      leverage: 1,
-      reduceOnly: false,
-    })
-    expect(resting[1].px).toBeCloseTo(87.4, 9)
-    expect(resting[1].sz).toBeCloseTo(15.255, 9)
+    // Nothing on the book. A resting rung ties up the money for a buy that
+    // may never happen, eats the order cap, and draws its level twice.
+    expect(await orders()).toHaveLength(0)
 
     const ladder = await onlyLadder()
     expect(ladder.status).toBe("active")
-    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
-      "waiting",
-      "waiting",
-    ])
-    expect(ladder.plan.rungs.map((rung) => rung.orderId)).toEqual(
-      expect.arrayContaining(resting.map((row) => row.id))
-    )
+    const rungs = ladder.plan.rungs
+    expect(rungs.map((rung) => rung.status)).toEqual(["waiting", "waiting"])
+    expect(rungs.map((rung) => rung.orderId)).toEqual([null, null])
+    expect(rungs[0].px).toBe(95)
+    expect(rungs[0].sz).toBeCloseTo(7.017, 9)
+    expect(rungs[1].px).toBeCloseTo(87.4, 9)
+    expect(rungs[1].sz).toBeCloseTo(15.255, 9)
   })
 
   it("keeps fixed sizing on the wallet's starting balance after a profit", async () => {
@@ -283,8 +321,7 @@ describe("placing a ladder", () => {
 
     await place({ compound: false })
 
-    const resting = (await orders()).sort((a, b) => b.px - a.px)
-    expect(resting[0].sz).toBeCloseTo(7.017, 9)
+    expect((await onlyLadder()).plan.rungs[0].sz).toBeCloseTo(7.017, 9)
   })
 
   it("hangs the ladder from the confirmed base, never from a clicked price", async () => {
@@ -293,10 +330,10 @@ describe("placing a ladder", () => {
     // was clicked reaches this.
     expect(await place()).toEqual({ placed: 2, passed: 0 })
 
-    const resting = (await orders()).sort((a, b) => b.px - a.px)
-    expect(resting[0].px).toBe(95)
-    expect(resting[1].px).toBeCloseTo(87.4, 9)
-    expect((await onlyLadder()).plan.anchorPx).toBe(100)
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].px).toBe(95)
+    expect(ladder.plan.rungs[1].px).toBeCloseTo(87.4, 9)
+    expect(ladder.plan.anchorPx).toBe(100)
   })
 
   it("refuses a market with no confirmed base, writing nothing", async () => {
@@ -349,7 +386,7 @@ describe("placing a ladder", () => {
     expect(await ladderRows()).toHaveLength(1)
   })
 
-  it("counts the whole ladder against the fifty-order cap", async () => {
+  it("ignores the wallet's order cap, because placing rests nothing", async () => {
     await database.insert(tradePaperOrders).values(
       Array.from({ length: 49 }, (_, index) => ({
         userId,
@@ -366,17 +403,19 @@ describe("placing a ladder", () => {
         slPx: null,
       }))
     )
-    await expect(place()).rejects.toThrow("PAPER_ORDER_LIMIT")
-    expect(await ladderRows()).toHaveLength(0)
+    // A resting ladder was refused here. A watching one adds no orders, so a
+    // full book is not its problem.
+    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await ladderRows()).toHaveLength(1)
   })
 })
 
 describe("the ladder at work", () => {
   it("rests each bought rung's sell at the rung above, and ends when all sold", async () => {
     await place({ takeProfit: { mode: "prevRung", pct: 2 } })
+    await backdate()
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
 
     let ladder = await onlyLadder()
     expect(ladder.plan.rungs[0].status).toBe("filled")
@@ -403,35 +442,33 @@ describe("the ladder at work", () => {
 
   it("slides the sell-everything target down as deeper rungs fill", async () => {
     await place({ takeProfit: { mode: "nearestRung", pct: 2 } })
+    await backdate()
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
     expect((await positions())[0].tpPx).toBeCloseTo(100, 9)
 
-    marks.set("BTC", 87.4)
-    await settle()
+    await dipTo(87.4)
     expect((await positions())[0].tpPx).toBeCloseTo(95, 9)
   })
 
   it("re-aims the average-price target after every fill", async () => {
     await place({ takeProfit: { mode: "average", pct: 2 } })
+    await backdate()
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
     let held = (await positions())[0]
     expect(held.tpPx).toBeCloseTo(95 * 1.02, 9)
 
-    marks.set("BTC", 87.4)
-    await settle()
+    await dipTo(87.4)
     held = (await positions())[0]
     expect(held.tpPx).toBeCloseTo(held.entryPx * 1.02, 9)
   })
 
-  it("keeps the stop under the average, takes rungs beneath it off the book, and ends the ladder when it fires", async () => {
+  it("keeps the stop under the average, kills rungs beneath it, and ends the ladder when it fires", async () => {
     await place({ stopLoss: { pct: 1, base: null } })
+    await backdate()
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
 
     const held = (await positions())[0]
     // One buy at 95, so the average is 95 and the stop 1% under it.
@@ -457,9 +494,9 @@ describe("the ladder at work", () => {
 
   it("wakes the rungs under a stop that was cleared by hand", async () => {
     await place({ stopLoss: { pct: 1, base: null } })
-    marks.set("BTC", 95)
-    await settle()
-    expect(await orders()).toHaveLength(0)
+    await backdate()
+    await dipTo(95)
+    expect((await onlyLadder()).plan.rungs[1].dead).toBe(true)
 
     // Clearing the stop by hand: the ladder stops following, the rung wakes.
     await setPaperBrackets(userId, wallet, {
@@ -472,9 +509,11 @@ describe("the ladder at work", () => {
     const ladder = await onlyLadder()
     expect(ladder.plan.stopLoss?.mode).toBe("fixed")
     expect(ladder.plan.rungs[1].dead).toBe(false)
-    const resting = await orders()
-    expect(resting).toHaveLength(1)
-    expect(resting[0].px).toBeCloseTo(87.4, 9)
+
+    // Awake means it buys when price actually gets there — no order rests.
+    expect(await orders()).toHaveLength(0)
+    await dipTo(87.4)
+    expect((await onlyLadder()).plan.rungs[1].status).toBe("filled")
   })
 
   it("watches its candles in two-green mode and buys on the second green close", async () => {
@@ -483,10 +522,7 @@ describe("the ladder at work", () => {
 
     // The ladder was placed ten minutes ago; three one-minute candles have
     // closed since — a red dip that reaches the first rung, then two greens.
-    await database
-      .update(tradeSmartLadders)
-      .set({ createdAt: new Date(Date.now() - 10 * MINUTE) })
-      .where(eq(tradeSmartLadders.userId, userId))
+    await backdate()
     const base = Date.now() - 4 * MINUTE
     candles = [
       { openTime: base, open: 96, high: 96, low: 94.9, close: 94.95, volume: 1 },
@@ -528,8 +564,9 @@ describe("the ladder at work", () => {
     expect(await journal()).toHaveLength(1)
   })
 
-  it("marks a rung that could not afford its buy, rather than losing it", async () => {
+  it("keeps a rung it cannot afford waiting, and never shrinks the ask", async () => {
     await place()
+    await backdate()
 
     // The cash goes somewhere else: a manual position takes nearly all of it,
     // so when price reaches the first rung there is no margin left for it.
@@ -544,13 +581,12 @@ describe("the ladder at work", () => {
       slPx: null,
     })
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
 
     const ladder = await onlyLadder()
-    // Not quietly dropped: the rung says it missed, and the chart draws it.
-    expect(ladder.plan.rungs[0].status).toBe("skipped")
-    expect(ladder.plan.rungs[0].orderId).toBeNull()
+    // Not bought small, and not written off: the rung stays waiting, and the
+    // next dip after cash frees up is still its dip.
+    expect(ladder.plan.rungs[0].status).toBe("waiting")
     expect(ladder.status).toBe("active")
     // Nothing was bought for it — the ladder never shrank the ask.
     expect(
@@ -566,7 +602,7 @@ describe("the ladder at work", () => {
     let after = await onlyLadder()
     expect(after.plan.rungs[0].status).toBe("cancelled")
     expect(after.status).toBe("active")
-    expect(await orders()).toHaveLength(1)
+    expect(await orders()).toHaveLength(0)
 
     await cancelLadderRest(userId, wallet, { ladderId: ladder.id })
     after = await onlyLadder()
@@ -576,8 +612,8 @@ describe("the ladder at work", () => {
 
   it("rewrites the brackets and the sells when the exits change mid-flight", async () => {
     await place({ takeProfit: { mode: "average", pct: 2 } })
-    marks.set("BTC", 95)
-    await settle()
+    await backdate()
+    await dipTo(95)
     expect((await positions())[0].tpPx).toBeCloseTo(96.9, 9)
 
     const ladder = await onlyLadder()
@@ -640,9 +676,9 @@ function baseStop(over: Partial<NonNullable<DcaParams["stopLoss"]>> = {}) {
 describe("a stop that rests under the base", () => {
   it("leaves no stop at all until a base confirms below what is held", async () => {
     await place({ stopLoss: baseStop() })
+    await backdate()
 
-    marks.set("BTC", 95)
-    await settle()
+    await dipTo(95)
 
     // The base in force is 100 — above the buy at 95, so it is a place to take
     // profit rather than one to give up. That leaves the percent, and 100%
@@ -653,11 +689,13 @@ describe("a stop that rests under the base", () => {
 
   it("rests on the base itself, not on a percent from the entry", async () => {
     await place({ stopLoss: baseStop() })
-    // Placed off the 100 base, then a lower one confirms — which is what a
-    // stop can actually rest under.
-    candles = tapeWithBase(90)
+    await backdate()
+    await dipTo(95)
 
-    marks.set("BTC", 95)
+    // Bought off the 100 base, then a lower one confirms — which is what a
+    // stop can actually rest under. The other order re-anchors the still
+    // waiting rungs to the new base first, and the dip never reaches them.
+    candles = tapeWithBase(90)
     await settle()
 
     expect((await positions())[0].slPx).toBeCloseTo(90, 9)
@@ -666,10 +704,10 @@ describe("a stop that rests under the base", () => {
 
   it("rests the chosen percent under the base", async () => {
     await place({ stopLoss: baseStop({ base: { underPct: 2, reclaimDays: 0 } }) })
-    // Placed off the 100 base, then a lower one confirms — which is what a
-    // stop can actually rest under.
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms.
     candles = tapeWithBase(90)
-    marks.set("BTC", 95)
     await settle()
 
     // 2% under a base of 90 is 88.20 — worked out from the level, never from
@@ -677,16 +715,15 @@ describe("a stop that rests under the base", () => {
     expect((await positions())[0].slPx).toBeCloseTo(88.2, 9)
   })
 
-  it("steps the ladder down instead of ending it, and rests only the next rung", async () => {
+  it("steps the ladder down instead of ending it, and the next rung still buys", async () => {
     await place({ stopLoss: baseStop() })
-    // Placed off the 100 base, then a lower one confirms — which is what a
-    // stop can actually rest under.
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
     candles = tapeWithBase(90)
-
-    marks.set("BTC", 95)
     await settle()
     let ladder = await onlyLadder()
-    // The deeper rung sits under the stop, so it is off the book for now.
+    // The deeper rung sits under the stop, so it is asleep for now.
     expect(ladder.plan.rungs[1].dead).toBe(true)
     expect(await orders()).toHaveLength(0)
 
@@ -703,10 +740,10 @@ describe("a stop that rests under the base", () => {
     expect(await positions()).toHaveLength(0)
     expect((await journal()).map((row) => row.reason)).toContain("stop_loss")
 
-    // The next rung is back on the book, on its own, at its own price.
-    const resting = await orders()
-    expect(resting).toHaveLength(1)
-    expect(resting[0].px).toBeCloseTo(87.4, 9)
+    // The next rung waits at its own price, and price reaching it buys it.
+    expect(await orders()).toHaveLength(0)
+    await dipTo(87.4)
+    expect((await onlyLadder()).plan.rungs[1].status).toBe("filled")
   })
 
   it("is over for good once the last rung is stopped out, and arms no buy-back", async () => {
@@ -716,10 +753,11 @@ describe("a stop that rests under the base", () => {
       interval: "1m",
       params: params({ rungs: [{ deviation: 5 }], stopLoss: baseStop() }),
     })
+    await backdate()
+    await dipTo(95)
     candles = tapeWithBase(90)
-
-    marks.set("BTC", 95)
     await settle()
+
     marks.set("BTC", 89)
     await settle()
 
@@ -732,10 +770,10 @@ describe("a stop that rests under the base", () => {
 
   it("puts the rung back when price reclaims the level, for the money it was allowed", async () => {
     await place({ stopLoss: baseStop() })
-    // Placed off the 100 base, then a lower one confirms — which is what a
-    // stop can actually rest under.
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
     candles = tapeWithBase(90, { endsAgoMs: 48 * 3_600_000 })
-    marks.set("BTC", 95)
     await settle()
 
     const budget = (await onlyLadder()).plan.rungs[0].budget
@@ -765,11 +803,12 @@ describe("a stop that rests under the base", () => {
 
   it("starts the buy-back wait again when a candle closes back under the level", async () => {
     await place({ stopLoss: baseStop() })
-    // Placed off the 100 base, then a lower one confirms — which is what a
-    // stop can actually rest under.
+    await backdate()
+    await dipTo(95)
+    // Bought off the 100 base, then the lower one confirms under the buy.
     candles = tapeWithBase(90, { endsAgoMs: 48 * 3_600_000 })
-    marks.set("BTC", 95)
     await settle()
+
     marks.set("BTC", 89)
     await settle()
 
@@ -793,9 +832,9 @@ describe("measuring the rungs from the click instead", () => {
       passed: 0,
     })
 
-    const resting = (await orders()).sort((a, b) => b.px - a.px)
-    expect(resting[0].px).toBe(76)
-    expect((await onlyLadder()).plan.anchorPx).toBe(80)
+    const ladder = await onlyLadder()
+    expect(ladder.plan.rungs[0].px).toBe(76)
+    expect(ladder.plan.anchorPx).toBe(80)
   })
 
   it("needs no confirmed base at all", async () => {
@@ -836,7 +875,7 @@ describe("following the base while nothing has bought", () => {
     await place()
     let ladder = await onlyLadder()
     expect(ladder.plan.anchorPx).toBe(100)
-    expect((await orders()).map((row) => row.px).sort((a, b) => b - a)[0]).toBe(95)
+    expect(ladder.plan.rungs[0].px).toBe(95)
 
     // A lower base confirms, price is still above it, nothing has bought.
     candles = tapeWithBase(90)
@@ -844,16 +883,15 @@ describe("following the base while nothing has bought", () => {
 
     ladder = await onlyLadder()
     expect(ladder.plan.anchorPx).toBe(90)
-    const resting = (await orders()).map((row) => row.px).sort((a, b) => b - a)
     // The shape is untouched: still a 5% step then an 8% step, off 90.
-    expect(resting[0]).toBeCloseTo(85.5, 9)
-    expect(resting[1]).toBeCloseTo(78.66, 9)
+    expect(ladder.plan.rungs[0].px).toBeCloseTo(85.5, 9)
+    expect(ladder.plan.rungs[1].px).toBeCloseTo(78.66, 9)
   })
 
   it("stops following the moment a rung buys", async () => {
     await place()
-    marks.set("BTC", 95)
-    await settle()
+    await backdate()
+    await dipTo(95)
     expect((await onlyLadder()).plan.rungs[0].status).toBe("filled")
 
     candles = tapeWithBase(90)
@@ -891,5 +929,42 @@ describe("two-green mode and rungs above the market", () => {
     ])
     // Nothing rests on the book in this mode.
     expect(await orders()).toHaveLength(0)
+  })
+})
+
+describe("a ladder that waits does not tie up the money for every rung", () => {
+  it("is refused only when it cannot afford the rung it would buy", async () => {
+    // The two rungs cost about $667 and $1,333. Park most of the account in a
+    // manual position so roughly $1,390 is free: the whole ladder is
+    // unaffordable, the biggest single rung is not. Asking for the whole cost
+    // up front — the old rule — refused exactly this ladder.
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 86,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    expect(await place()).toEqual({ placed: 2, passed: 0 })
+  })
+
+  it("still refuses when even one rung is out of reach", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 100,
+      sz: 95,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    await expect(place()).rejects.toThrow("SMART_LADDER_COST")
+    expect(await ladderRows()).toHaveLength(0)
   })
 })

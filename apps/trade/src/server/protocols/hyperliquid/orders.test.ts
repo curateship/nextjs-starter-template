@@ -5,6 +5,7 @@ import {
   decimalString,
   fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
+  forgetHyperliquidPortfolios,
   formatPx,
   formatSize,
   orderTimeInForce,
@@ -21,14 +22,16 @@ import {
 const clearinghouseState = vi.fn()
 const frontendOpenOrders = vi.fn()
 const perpDexs = vi.fn()
-const meta = vi.fn()
+// One call for every market's asset list, in the order perpDexs gave them.
+// The per-market `meta` fan-out it replaced cost 249 requests on testnet.
+const allPerpMetas = vi.fn()
 const userFillsByTime = vi.fn()
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
   infoClient: () => ({
     clearinghouseState,
     frontendOpenOrders,
     perpDexs,
-    meta,
+    allPerpMetas,
     userFillsByTime,
   }),
 }))
@@ -207,14 +210,19 @@ describe("reading order fills", () => {
 
 describe("reading the portfolio", () => {
   beforeEach(() => {
+    // The read is cached for a couple of seconds so the browser poll, the
+    // ladder worker and the reconciler share one answer instead of each
+    // spending its own pair of requests. Tests run inside that window and
+    // would otherwise read the test before them.
+    forgetHyperliquidPortfolios()
     clearinghouseState.mockReset()
     frontendOpenOrders.mockReset()
     perpDexs.mockReset()
-    meta.mockReset()
+    allPerpMetas.mockReset()
     // One main venue unless a test says otherwise. The venue list is cached
     // between calls inside the module, so answers must stay consistent.
     perpDexs.mockResolvedValue([null])
-    meta.mockResolvedValue({ universe: [] })
+    allPerpMetas.mockResolvedValue([{ universe: [] }])
   })
 
   it("folds position-protection triggers into their position, lists the rest", async () => {
@@ -335,11 +343,11 @@ describe("reading the portfolio", () => {
     // Testnet on purpose: the venue list is cached per network for a while,
     // and the mainnet tests above have already primed theirs as main-only.
     perpDexs.mockResolvedValue([null, { name: "xyz" }])
-    meta.mockImplementation(async ({ dex }: { dex: string }) =>
-      dex === "xyz"
-        ? { universe: [{ name: "IBM", szDecimals: 2 }] }
-        : { universe: [{ name: "BTC", szDecimals: 5 }] }
-    )
+    // Aligned with perpDexs by position, which is the contract.
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+      { universe: [{ name: "IBM", szDecimals: 2 }] },
+    ])
     clearinghouseState.mockImplementation(async ({ dex }: { dex: string }) =>
       dex === "xyz"
         ? {

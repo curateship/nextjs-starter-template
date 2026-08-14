@@ -8,7 +8,6 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
-  DUST_ORDER_USD,
   type LadderPlan,
   type LadderRungState,
   type DcaParams,
@@ -48,6 +47,8 @@ import {
   setLiveBrackets,
 } from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
+import { pricesWereRationed } from "@/server/protocols/hyperliquid/prices"
+import { marketsWalletHasMoneyOn } from "@/server/protocols/hyperliquid/user-markets"
 import {
   activeSmartOrderId,
   ladderById,
@@ -76,12 +77,10 @@ import {
   bumpOrders,
   fill as fillPaperBook,
   freeCash,
-  MAX_OPEN_ORDERS,
   type WalletBook,
 } from "@/server/trade/paper"
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
 
-/** Places the live exchange half of a Smart-order ladder atomically. */
 /** The flow's cap when it has one, never more than the account holds. */
 function livePotOf(
   input: { potUsd?: number },
@@ -99,6 +98,66 @@ export async function placeLiveDcaLadder(
   return await serializeLiveWallet(userId, wallet, () =>
     placeLiveDcaLadderOnce(userId, wallet, input)
   )
+}
+
+/**
+ * How long an account read stands in for the next one, in ms.
+ *
+ * Matched to the price cache, and for the same reason: placing a ladder asks
+ * the exchange what the account holds and what is open on it, and neither
+ * answer is about the coin being placed. A flow walking a hundred coins asked
+ * those two questions a hundred times over, per pass, and that is what spent
+ * the account's request allowance until the exchange started refusing
+ * everything with a 429.
+ */
+const ACCOUNT_CACHE_MS = 2_000
+
+/** Inferred rather than named, so it cannot drift from what the adapter returns. */
+type AccountAnswer = Awaited<ReturnType<ReturnType<typeof accountOf>["fetch"]>>
+type OrdersAnswer = Awaited<
+  ReturnType<ReturnType<typeof ordersOf>["portfolio"]>
+>
+
+type AccountSnapshot = {
+  at: number
+  answer: Promise<[AccountAnswer, OrdersAnswer]>
+}
+
+const accountCache = new Map<string, AccountSnapshot>()
+
+/** How often one candle feed may be read, across every wallet. */
+const CANDLE_FEED_EVERY_MS = 2_500
+let lastCandleFeedAt = 0
+
+/**
+ * The account and what is open on it, shared between callers a moment apart.
+ *
+ * Safe to share this briefly because placing a ladder no longer spends
+ * anything: rungs are prices the engine watches, and the engine re-checks the
+ * cash at the moment a rung actually fires. The two seconds only pace how
+ * often a flow walking many coins re-asks the same two questions.
+ */
+async function accountAndOrders(
+  protocol: ReturnType<typeof getProtocol>,
+  network: TradeWallet["network"],
+  address: string
+): Promise<[AccountAnswer, OrdersAnswer]> {
+  const key = `${network}:${address.toLowerCase()}`
+  const cached = accountCache.get(key)
+  if (cached && Date.now() - cached.at < ACCOUNT_CACHE_MS) return cached.answer
+
+  const at = Date.now()
+  const answer = Promise.all([
+    accountOf(protocol).fetch(network, address),
+    ordersOf(protocol).portfolio(network, address),
+  ]) as Promise<[AccountAnswer, OrdersAnswer]>
+  // A failed read must not be remembered as an answer, or one 429 would be
+  // repeated to every caller for the next two seconds.
+  answer.catch(() => {
+    if (accountCache.get(key)?.at === at) accountCache.delete(key)
+  })
+  accountCache.set(key, { at, answer })
+  return answer
 }
 
 async function placeLiveDcaLadderOnce(
@@ -121,18 +180,44 @@ async function placeLiveDcaLadderOnce(
     throw new Error("SMART_LADDER_EXISTS")
   }
 
+  // Hyperliquid keeps each market's money separate, and a rung fired on a
+  // market the wallet holds nothing on is refused every single time. Checked
+  // from the live feed when it has spoken; a feed that has not answered skips
+  // the check rather than reading silence as an empty wallet.
+  const funded = marketsWalletHasMoneyOn(wallet.network, wallet.address)
+  if (funded !== null) {
+    const marketName = ref.marketId.includes(":")
+      ? ref.marketId.slice(0, ref.marketId.indexOf(":"))
+      : ""
+    if (marketName !== "" && !funded.includes(marketName)) {
+      throw new Error("EXCHANGE_NO_MARGIN")
+    }
+  }
+
   const protocol = getProtocol(wallet.protocol)
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("LIVE_MARKET")
   const mark = (
     await protocol.markets.prices(wallet.network, [ref.marketId])
   ).get(ref.marketId)
-  if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+  if (mark === undefined || !(mark > 0)) {
+    // Two different things arrive here as the same silence. "The exchange is
+    // rationing us" clears on its own and is nobody's fault; "this market has
+    // no price" is permanent and worth looking at. Saying the second when it
+    // was the first sent somebody hunting for a delisted coin that was
+    // trading perfectly well.
+    throw new Error(
+      pricesWereRationed(wallet.network, ref.marketId)
+        ? "EXCHANGE_BUSY"
+        : "LIVE_NO_PRICE"
+    )
+  }
 
-  const [account, portfolio] = await Promise.all([
-    accountOf(protocol).fetch(wallet.network, wallet.address),
-    ordersOf(protocol).portfolio(wallet.network, wallet.address),
-  ])
+  const [account, portfolio] = await accountAndOrders(
+    protocol,
+    wallet.network,
+    wallet.address
+  )
   const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
   if (held && held.szi < 0) throw new Error("SMART_SHORT_HELD")
 
@@ -162,17 +247,29 @@ async function placeLiveDcaLadderOnce(
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,
   })
-  let totalCost = 0
+  // There is deliberately no exchange-minimum check here.
+  //
+  // The minimum is about an ORDER, and a waiting rung is not one — it becomes
+  // an order only if price ever reaches it, and whether it clears the minimum
+  // is a question for that moment, when the pot (and so the rung) may be a
+  // different size. Asking at placement refused whole ladders over orders
+  // nobody was sending.
   const priced = drawn.rungs.map((rung, index) => {
     const px = roundPx(rung.px)
     const sz = floorSize(rung.sz, rules.sizeDecimals)
-    if (!(px > 0) || sz <= 0 || px * sz < DUST_ORDER_USD) {
+    if (!(px > 0) || sz <= 0) {
       throw new Error(`SMART_RUNG_TOO_SMALL:${index + 1}`)
     }
-    totalCost += px * sz
     return { px, sz }
   })
-  if (totalCost > account.free + 1e-9) throw new Error("SMART_LADDER_COST")
+  // Only what could actually be committed at once has to be affordable now.
+  //
+  // A watching ladder commits nothing when it is placed: each rung is bought
+  // when price reaches it, and the engine re-checks the cash at that moment.
+  // Demanding the whole ladder's cost up front refused ladders over money they
+  // would never hold at the same time.
+  const committing = Math.max(...priced.map((r) => r.px * r.sz))
+  if (committing > account.free + 1e-9) throw new Error("SMART_LADDER_COST")
 
   const twoGreen = input.params.twoGreen
   const rungs: LadderRungState[] = priced.map((rung) => ({
@@ -188,80 +285,45 @@ async function placeLiveDcaLadderOnce(
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
-  const resting = rungs.filter((rung) => rung.status === "waiting" && !twoGreen)
-  if (portfolio.orders.length + resting.length > MAX_OPEN_ORDERS) {
-    throw new Error("PAPER_ORDER_LIMIT")
-  }
-
-  const accepted: string[] = []
-  try {
-    for (const rung of resting) {
-      const outcome = await placeLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: input.marketKey,
-        side: "buy",
-        px: rung.px,
-        sz: rung.sz,
-        leverage: 1,
-        reduceOnly: false,
-        tpPx: null,
-        slPx: null,
-        restingOnly: true,
-      })
-      if (outcome.status !== "resting" || !outcome.orderId) {
-        throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
-      }
-      rung.orderId = outcome.orderId
-      accepted.push(outcome.orderId)
-    }
-
-    const now = new Date()
-    const plan = ladderPlan(
-      input,
-      rules.sizeDecimals,
-      rules.maxLeverage ?? 1,
-      anchorPx,
-      rungs
-    )
-    await db.transaction(async (tx) => {
-      await tx
-        .select({ id: tradeWallets.id })
-        .from(tradeWallets)
-        .where(
-          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
-        )
-        .for("update")
-      const race = await activeSmartOrderId(
-        userId,
-        wallet.id,
-        input.marketKey,
-        tx
+  // Placing sends NOTHING to the exchange. The ladder is a row the engine
+  // watches — each rung a price, bought at market when price reaches it — so
+  // there are no orders to place here, no order-cap to count against, and no
+  // rollback to carry. Nothing about the account changes until a rung fires.
+  const now = new Date()
+  const plan = ladderPlan(
+    input,
+    rules.sizeDecimals,
+    rules.maxLeverage ?? 1,
+    anchorPx,
+    rungs
+  )
+  await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
       )
-      if (race) throw new Error("SMART_LADDER_EXISTS")
-      await tx.insert(tradeSmartLadders).values({
-        userId,
-        id: randomUUID(),
-        walletId: wallet.id,
-        marketKey: input.marketKey,
-        kind: "dca",
-        status: "active",
-        plan,
-        createdAt: now,
-        updatedAt: now,
-      })
+      .for("update")
+    const race = await activeSmartOrderId(
+      userId,
+      wallet.id,
+      input.marketKey,
+      tx
+    )
+    if (race) throw new Error("SMART_LADDER_EXISTS")
+    await tx.insert(tradeSmartLadders).values({
+      userId,
+      id: randomUUID(),
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "dca",
+      status: "active",
+      plan,
+      createdAt: now,
+      updatedAt: now,
     })
-  } catch (error) {
-    const failures: unknown[] = []
-    for (const orderId of accepted.reverse()) {
-      await rollbackLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: input.marketKey,
-        orderId,
-      }).catch((rollbackError) => failures.push(rollbackError))
-    }
-    if (failures.length > 0) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
-    throw error
-  }
+  })
 
   return {
     placed: rungs.filter((rung) => rung.status === "waiting").length,
@@ -280,7 +342,18 @@ function ladderPlan(
   return {
     anchorPx,
     anchor: input.params.anchor,
-    rungEntry: input.params.rungEntry,
+    // **Forced, never read from the settings.** Nothing this app places on a
+    // real or practice wallet may sit on the book waiting: a resting rung ties
+    // up the money for a buy that may never happen, eats the wallet's cap on
+    // open orders, and gets drawn twice on the chart — once as the order and
+    // once as the ladder's own level. Every rung is a price being watched, and
+    // the order is sent when price actually reaches it.
+    //
+    // A backtest is the one place "limit" still means something, because there
+    // is no book to rest on — it models a fill at the level instead. Forcing it
+    // here rather than in the engine is what keeps those two apart, so this
+    // change does not quietly rewrite what every past run measured.
+    rungEntry: "market" as const,
     startedAt: Date.now(),
     baseDetection: input.params.baseDetection,
     sizeDecimals,
@@ -700,7 +773,19 @@ async function reconcileLiveLaddersOnce(
     addedOrders: [],
   }
 
-  const needs = await ladderCandleNeeds(userId, wallet.id, now)
+  // A few candle feeds per pass, never all of them at once.
+  //
+  // A flow can hold a hundred-plus ladders, and each wants its 4h base
+  // history once every four hours. Reading them all in one pass was three
+  // thousand request-weight in a single second — the whole minute's allowance
+  // and more, spent in a burst that got every call after it refused. Each
+  // read is ~28 weight, so one per pass drains a hundred coins over a couple
+  // of minutes and stays inside the budget; a base that waited two extra
+  // minutes of a four-hour candle has lost nothing.
+  const wanted = await ladderCandleNeeds(userId, wallet.id, now)
+  const needs =
+    now - lastCandleFeedAt < CANDLE_FEED_EVERY_MS ? [] : wanted.slice(0, 1)
+  if (needs.length > 0) lastCandleFeedAt = now
   const ladderBars = new Map<
     string,
     {
@@ -753,7 +838,7 @@ async function reconcileLiveLaddersOnce(
     ? { tpPx: originalPosition.tpPx, slPx: originalPosition.slPx }
     : null
   const pendingPlaces: Array<{ tempId: string; input: LadderOrderInput }> = []
-  const pendingFills: LadderOrderInput[] = []
+  const pendingFills: Array<LadderOrderInput & { undo?: () => void }> = []
   const pendingCancels = new Set<string>()
   await engine(
     {
@@ -761,6 +846,15 @@ async function reconcileLiveLaddersOnce(
       marks,
       ladderBars: ladderBars as LadderBars,
       now,
+      // Which markets this wallet can actually pay on, from the live feed —
+      // null while it has not spoken, which switches the guard off rather
+      // than reading silence as an empty wallet.
+      fundedMarkets: (() => {
+        const funded = wallet.address
+          ? marketsWalletHasMoneyOn(wallet.network, wallet.address)
+          : null
+        return funded === null ? null : new Set(funded)
+      })(),
     },
     {
       fill: (heldBook, input) => {
@@ -771,7 +865,7 @@ async function reconcileLiveLaddersOnce(
         // that SELLS at the market — a grid running out of the top of its
         // range — would then send a plain sell, and in the race where the
         // position has already gone that opens a short with real money.
-        pendingFills.push({ ...input, now: input.at })
+        pendingFills.push({ ...input, now: input.at, undo: input.undo })
         fillPaperBook(heldBook, input)
       },
       dropOrder: (heldBook, orderId) => {
@@ -820,17 +914,36 @@ async function reconcileLiveLaddersOnce(
           for (const input of pendingFills) {
             marketActionStarted = true
             const mark = marks.get(input.marketKey)
-            await placeLiveOrder(userId, {
-              walletId: wallet.id,
-              marketKey: input.marketKey,
-              side: input.side,
-              px: mark ?? input.px,
-              sz: input.sz,
-              leverage: input.leverage,
-              reduceOnly: input.reduceOnly,
-              tpPx: null,
-              slPx: null,
-            })
+            try {
+              await placeLiveOrder(userId, {
+                walletId: wallet.id,
+                marketKey: input.marketKey,
+                side: input.side,
+                px: mark ?? input.px,
+                sz: input.sz,
+                leverage: input.leverage,
+                reduceOnly: input.reduceOnly,
+                tpPx: null,
+                slPx: null,
+              })
+            } catch (error) {
+              // Only the one error that PROMISES nothing stood: the exchange
+              // processed our order and its own status refused it. The engine's
+              // bookkeeping is put back so the rung is not recorded as bought
+              // with nothing behind it — which used to end the ladder and let
+              // the flow place a fresh one into the same refusal, forever.
+              // Anything more ambiguous keeps the conservative advanced state:
+              // a transport error mid-order may still have filled, and undoing
+              // that is how a rung gets bought twice.
+              const message =
+                error instanceof Error ? error.message : String(error)
+              if (!message.startsWith("LIVE_ORDER_REFUSED")) throw error
+              input.undo?.()
+              // The shadow book still holds the phantom fill; keep this pass's
+              // bracket step away from it. The next pass rebuilds the book
+              // from the exchange and sees the truth.
+              book.touchedMarkets.delete(input.marketKey)
+            }
           }
           // The exchange changes and their matching plan are one logical
           // action. A failed save enters the same recovery path as a failed
@@ -1063,13 +1176,38 @@ async function placeLiveGridOrderOnce(
     throw new Error("SMART_LADDER_EXISTS")
   }
 
+  // Hyperliquid keeps each market's money separate, and a rung fired on a
+  // market the wallet holds nothing on is refused every single time. Checked
+  // from the live feed when it has spoken; a feed that has not answered skips
+  // the check rather than reading silence as an empty wallet.
+  const funded = marketsWalletHasMoneyOn(wallet.network, wallet.address)
+  if (funded !== null) {
+    const marketName = ref.marketId.includes(":")
+      ? ref.marketId.slice(0, ref.marketId.indexOf(":"))
+      : ""
+    if (marketName !== "" && !funded.includes(marketName)) {
+      throw new Error("EXCHANGE_NO_MARGIN")
+    }
+  }
+
   const protocol = getProtocol(wallet.protocol)
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("LIVE_MARKET")
   const mark = (
     await protocol.markets.prices(wallet.network, [ref.marketId])
   ).get(ref.marketId)
-  if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+  if (mark === undefined || !(mark > 0)) {
+    // Two different things arrive here as the same silence. "The exchange is
+    // rationing us" clears on its own and is nobody's fault; "this market has
+    // no price" is permanent and worth looking at. Saying the second when it
+    // was the first sent somebody hunting for a delisted coin that was
+    // trading perfectly well.
+    throw new Error(
+      pricesWereRationed(wallet.network, ref.marketId)
+        ? "EXCHANGE_BUSY"
+        : "LIVE_NO_PRICE"
+    )
+  }
 
   const [account, portfolio] = await Promise.all([
     accountOf(protocol).fetch(wallet.network, wallet.address),
@@ -1261,7 +1399,18 @@ export async function reshapeLiveGrid(
     const mark = (
       await protocol.markets.prices(wallet.network, [ref.marketId])
     ).get(ref.marketId)
-    if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+    if (mark === undefined || !(mark > 0)) {
+    // Two different things arrive here as the same silence. "The exchange is
+    // rationing us" clears on its own and is nobody's fault; "this market has
+    // no price" is permanent and worth looking at. Saying the second when it
+    // was the first sent somebody hunting for a delisted coin that was
+    // trading perfectly well.
+    throw new Error(
+      pricesWereRationed(wallet.network, ref.marketId)
+        ? "EXCHANGE_BUSY"
+        : "LIVE_NO_PRICE"
+    )
+  }
 
     const [account, portfolio] = await Promise.all([
       accountOf(protocol).fetch(wallet.network, wallet.address as string),
