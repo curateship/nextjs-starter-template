@@ -53,6 +53,8 @@ type Feed = {
   funded: Set<string>
   /** When a push last arrived. */
   at: number
+  /** When this feed was opened, for telling "warming up" from "gone quiet". */
+  openedAt: number
   /** When anything last asked. */
   askedAt: number
   close: () => void
@@ -99,6 +101,7 @@ async function open(network: NetworkId, address: string): Promise<void> {
     inUse: new Set(),
     funded: new Set(),
     at: 0,
+    openedAt: now,
     askedAt: now,
     close: () => {},
   }
@@ -192,4 +195,23 @@ export async function awaitMarketsWalletHasMoneyOn(
     if (again !== null) return again
   }
   return null
+}
+
+/**
+ * True while a wallet's feed has just been opened and no push has landed yet.
+ *
+ * **The startup burst lived here.** On a fresh server the feed is always
+ * cold, so the portfolio read's fallback swept every market the exchange
+ * hosts — five hundred calls in the first half minute of every boot, and the
+ * first thing a restarted app did was get itself rate-limited. The exchange's
+ * first push arrives within a few seconds; while it is on its way, reading
+ * the main market alone is the right answer, not sweeping.
+ */
+export function walletFeedWarmingUp(
+  network: NetworkId,
+  address: string
+): boolean {
+  const feed = feeds.get(keyFor(network, address))
+  if (!feed || feed.at > 0) return false
+  return Date.now() - feed.openedAt < 15_000
 }

@@ -23,6 +23,7 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
   dropIdleWalletFeeds,
   marketsWalletUses,
+  walletFeedWarmingUp,
 } from "@/server/protocols/hyperliquid/user-markets"
 import {
   agentSigner,
@@ -808,8 +809,14 @@ async function readHyperliquidPortfolio(
   // free, and sooner.
   const told = marketsWalletUses(network, user)
 
+  // Never sweep while the feed is warming up. A fresh server always starts
+  // cold, and sweeping every market the exchange hosts on boot was five
+  // hundred calls in the first half minute — the app rate-limited itself on
+  // every restart. The feed's first push lands within seconds; until it does,
+  // the main market plus whatever was remembered is the honest read.
   const sweeping =
     told === null &&
+    !walletFeedWarmingUp(network, user) &&
     (!remembered || Date.now() - remembered.at >= ACTIVE_VENUES_MS)
 
   // Told, remembered, or — only when neither can say — every market there is.

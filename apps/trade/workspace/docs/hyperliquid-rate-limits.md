@@ -114,6 +114,12 @@ cannot have changed (pace / don't ask).
 - **Ordinary ladders want no candle feed at all now.** Only two-green mode
   reads candles (its trigger is two green closes by definition). A 157-coin
   flow stopped asking for 157 candle feeds. (`dca.ts`)
+- **Booting no longer sweeps.** A fresh server's funding feed is always
+  cold, and the portfolio fallback swept every market on the exchange —
+  five hundred calls in the first half minute of every restart, so the app
+  rate-limited itself on boot. While the feed is warming up (its first push
+  lands within seconds), the read covers the main market only.
+  (`user-markets.ts`, `orders.ts`)
 - **Doomed orders cannot loop.** Hyperliquid keeps each of its markets' money
   separate, so a buy on a market where the wallet holds nothing is refused
   every single time — and a refused rung used to be recorded as bought,

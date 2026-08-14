@@ -26,6 +26,15 @@ const perpDexs = vi.fn()
 // The per-market `meta` fan-out it replaced cost 249 requests on testnet.
 const allPerpMetas = vi.fn()
 const userFillsByTime = vi.fn()
+/** The funding feed, controllable. Warming = just opened, nothing pushed yet. */
+const feedState = vi.hoisted(() => ({ warming: false }))
+
+vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
+  marketsWalletUses: () => null,
+  walletFeedWarmingUp: () => feedState.warming,
+  dropIdleWalletFeeds: () => {},
+}))
+
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
   infoClient: () => ({
     clearinghouseState,
@@ -215,6 +224,7 @@ describe("reading the portfolio", () => {
     // spending its own pair of requests. Tests run inside that window and
     // would otherwise read the test before them.
     forgetHyperliquidPortfolios()
+    feedState.warming = false
     clearinghouseState.mockReset()
     frontendOpenOrders.mockReset()
     perpDexs.mockReset()
@@ -337,6 +347,26 @@ describe("reading the portfolio", () => {
     expect(portfolio.positions[0].slPx).toBe(90_000)
     expect(portfolio.positions[0].slOrderId).toBe("21")
     expect(portfolio.orders).toHaveLength(0)
+  })
+
+  it("reads only the main venue while the funding feed warms up", async () => {
+    // A fresh server's feed is always cold, and sweeping every venue on boot
+    // was five hundred calls in the first half minute — the app rate-limited
+    // itself on every restart. While the feed's first push is on its way, the
+    // main venue is the whole read.
+    feedState.warming = true
+    perpDexs.mockResolvedValue([null, { name: "xyz" }])
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+      { universe: [{ name: "IBM", szDecimals: 2 }] },
+    ])
+    clearinghouseState.mockResolvedValue({ assetPositions: [] })
+    frontendOpenOrders.mockResolvedValue([])
+
+    await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)
+
+    expect(clearinghouseState).toHaveBeenCalledTimes(1)
+    expect(clearinghouseState.mock.calls[0][0].dex).toBe("")
   })
 
   it("reads every venue and keeps its markets namespaced", async () => {
