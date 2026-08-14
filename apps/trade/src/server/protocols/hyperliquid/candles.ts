@@ -26,7 +26,13 @@ const HISTORY_PAUSE_MS = 120
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const chartLoads = new Map<string, Promise<CandleBar[]>>()
+/** How long a chart's answer stands in for the next click. */
+const CHART_CACHE_MS = 15_000
+
+const chartLoads = new Map<
+  string,
+  { at: number; load: Promise<CandleBar[]> }
+>()
 
 /**
  * Historical calls share one polite queue. Backtests may load several markets
@@ -159,13 +165,34 @@ export async function fetchHyperliquidCandles(
     return bars
   }
 
+  // A short memory, not just in-flight dedupe.
+  //
+  // **Clicking between charts was unmetered spend.** Every look at a market
+  // pulls five hundred candles (~28 request-weight), and nothing remembered
+  // the answer — flicking A→B→A→B was four full pulls within seconds. Brisk
+  // browsing on top of the engine's ordinary traffic tipped the minute's
+  // budget, and the refusal landed on the chart's own next pull: "could not
+  // load", caused by the clicking itself. Fifteen seconds changes nothing a
+  // person can see — the forming bar only refreshes on a reload anyway, and
+  // the live price line paints on top — but it makes revisits free.
   const key = JSON.stringify([network, marketId, interval])
-  const running = chartLoads.get(key)
-  if (running) return running
+  const held = chartLoads.get(key)
+  if (held && Date.now() - held.at < CHART_CACHE_MS) return held.load
 
+  const at = Date.now()
   const load = loadRecentCandles(network, marketId, interval)
-    .finally(() => chartLoads.delete(key))
-  chartLoads.set(key, load)
+  // A failure is never remembered as an answer — the next click retries
+  // instead of inheriting the miss for fifteen seconds.
+  load.catch(() => {
+    if (chartLoads.get(key)?.at === at) chartLoads.delete(key)
+  })
+  chartLoads.set(key, { at, load })
+  if (chartLoads.size > 300) {
+    const cutoff = Date.now() - CHART_CACHE_MS
+    for (const [old, entry] of chartLoads) {
+      if (entry.at < cutoff) chartLoads.delete(old)
+    }
+  }
   return load
 }
 

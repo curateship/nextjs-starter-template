@@ -131,8 +131,14 @@ export const categories = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    uniqueIndex("ux_categories_workspace_slug").on(table.workspaceId, table.slug),
-    index("ix_categories_workspace_parent").on(table.workspaceId, table.parentId),
+    uniqueIndex("ux_categories_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_categories_workspace_parent").on(
+      table.workspaceId,
+      table.parentId
+    ),
   ]
 )
 
@@ -296,7 +302,9 @@ export const directoryClaims = pgTable(
      * **A mismatch is not a refusal.** Plenty of real owners use a Gmail
      * address. It is a flag, not a gate.
      */
-    emailDomainMatches: boolean("email_domain_matches").notNull().default(false),
+    emailDomainMatches: boolean("email_domain_matches")
+      .notNull()
+      .default(false),
     status: varchar("status", { length: 30 })
       .notNull()
       .default("pending_verification"),
@@ -394,34 +402,51 @@ export type DirectoryOwnerEditRequestRow =
  * lives in a shell file, and an app that adds a field to it has forked the
  * shell and will conflict on every future merge.
  */
-export const directorySettings = pgTable("directory_settings", {
-  /** One row per site, so the site is the key. */
-  workspaceId: varchar("workspace_id", { length: 36 })
-    .primaryKey()
-    .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
-  /** Whether a visitor is offered the claim button at all. */
-  claimsEnabled: boolean("claims_enabled").notNull().default(true),
-  /** Whether owners may publish this site's listing badge on other websites. */
-  badgesEnabled: boolean("badges_enabled").notNull().default(false),
-  /** Empty means "use the built-in wording", so a cleared box is not a blank page. */
-  claimButtonLabel: varchar("claim_button_label", { length: 80 })
-    .notNull()
-    .default(""),
-  claimPendingMessage: varchar("claim_pending_message", { length: 300 })
-    .notNull()
-    .default(""),
-  claimApprovedMessage: varchar("claim_approved_message", { length: 300 })
-    .notNull()
-    .default(""),
-  /** Null means the reader supplies the current built-in directory default. */
-  pageSize: integer("page_size"),
-  defaultSort: varchar("default_sort", { length: 20 }),
-  browseTitle: varchar("browse_title", { length: 120 }),
-  browseIntro: varchar("browse_intro", { length: 500 }),
-  featuredFirst: boolean("featured_first"),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-})
+export const directorySettings = pgTable(
+  "directory_settings",
+  {
+    /** One row per site, so the site is the key. */
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .primaryKey()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    /** Whether a visitor is offered the claim button at all. */
+    claimsEnabled: boolean("claims_enabled").notNull().default(true),
+    /** Whether owners may publish this site's listing badge on other websites. */
+    badgesEnabled: boolean("badges_enabled").notNull().default(false),
+    /** Empty means "use the built-in wording", so a cleared box is not a blank page. */
+    claimButtonLabel: varchar("claim_button_label", { length: 80 })
+      .notNull()
+      .default(""),
+    claimPendingMessage: varchar("claim_pending_message", { length: 300 })
+      .notNull()
+      .default(""),
+    claimApprovedMessage: varchar("claim_approved_message", { length: 300 })
+      .notNull()
+      .default(""),
+    /** Null means the reader supplies the current built-in directory default. */
+    pageSize: integer("page_size"),
+    defaultSort: varchar("default_sort", { length: 20 }),
+    browseTitle: varchar("browse_title", { length: 120 }),
+    browseIntro: varchar("browse_intro", { length: 500 }),
+    featuredFirst: boolean("featured_first"),
+    frontPageMode: varchar("front_page_mode", { length: 20 })
+      .notNull()
+      .default("off"),
+    frontPageCount: integer("front_page_count").notNull().default(8),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "directory_settings_front_page_mode_check",
+      sql`${table.frontPageMode} IN ('off', 'newest', 'featured')`
+    ),
+    check(
+      "directory_settings_front_page_count_check",
+      sql`${table.frontPageCount} BETWEEN 1 AND 12`
+    ),
+  ]
+)
 
 export type DirectorySettingsRow = typeof directorySettings.$inferSelect
 

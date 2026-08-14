@@ -68,6 +68,12 @@ them:
   costing a price read, an account read and sometimes a doomed order. And
   doomed orders themselves: rungs worth $2 sent to an exchange whose
   minimum is $10, refused one by one, ~13 an hour, forever.
+- **Browsing charts.** Every look at a market pulls five hundred candles
+  (~28 weight) and nothing remembered the answer — flicking between two
+  charts paid full price on every single click. Brisk browsing on top of
+  the engine's ordinary traffic tipped the minute over, and the refusal
+  landed on the chart's own next pull: "could not load", caused by the
+  clicking itself.
 - **118 ladders all asking for base history in the same second.** Each
   ladder wants its 4-hour base candles once per 4 hours (~28 weight each).
   All at once = ~3,300 weight in one second, every 4 hours.
@@ -114,6 +120,17 @@ cannot have changed (pace / don't ask).
 - **Ordinary ladders want no candle feed at all now.** Only two-green mode
   reads candles (its trigger is two green closes by definition). A 157-coin
   flow stopped asking for 157 candle feeds. (`dca.ts`)
+- **Charts are remembered at both ends.** The server keeps each chart's
+  answer for 15 seconds, so flicking between markets stops re-asking the
+  exchange; the browser keeps the last forty charts it drew and paints them
+  the instant you click back — the fresh answer replaces them silently, and
+  a refresh that fails never overwrites bars already on screen. An open
+  chart now refreshes itself only when a bar of its own timeframe closes:
+  once a minute on the 1m chart, every four hours on the 4h — the forming
+  bar is painted live by the price feed either way, and a hidden tab skips
+  its turn. When the chart's own pull is the one refused, it now says so —
+  "Hyperliquid is asking us to slow down" — instead of the generic could-not-
+  load. (`candles.ts`, `api/candles.ts`, `chart-panel.tsx`)
 - **Booting no longer sweeps.** A fresh server's funding feed is always
   cold, and the portfolio fallback swept every market on the exchange —
   five hundred calls in the first half minute of every restart, so the app

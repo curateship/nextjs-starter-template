@@ -4,6 +4,13 @@ import {
   isDirectorySort,
   type DirectorySort,
 } from "@/lib/directory/public-search"
+import {
+  DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
+  DIRECTORY_FRONT_PAGE_COUNT_MAX,
+  DIRECTORY_FRONT_PAGE_COUNT_MIN,
+  isDirectoryFrontPageMode,
+  type DirectoryFrontPageMode,
+} from "@/lib/directory/front-page"
 import { now } from "@/server/auth/security"
 import { db, type CustomShellDb } from "@/server/db"
 import { directorySettings } from "@/server/directory/schema"
@@ -31,6 +38,8 @@ export type DirectorySettings = {
   browseTitle: string
   browseIntro: string
   featuredFirst: boolean
+  frontPageMode: DirectoryFrontPageMode
+  frontPageCount: number
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -47,6 +56,8 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   browseTitle: "Directory",
   browseIntro: "",
   featuredFirst: true,
+  frontPageMode: "off",
+  frontPageCount: DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
 }
 
 /**
@@ -70,7 +81,9 @@ function resolvedBrowseSettings(row: {
 }) {
   return {
     pageSize:
-      Number.isInteger(row.pageSize) && row.pageSize! >= 6 && row.pageSize! <= 48
+      Number.isInteger(row.pageSize) &&
+      row.pageSize! >= 6 &&
+      row.pageSize! <= 48
         ? row.pageSize!
         : DIRECTORY_SETTING_DEFAULTS.pageSize,
     defaultSort: isDirectorySort(row.defaultSort)
@@ -85,6 +98,23 @@ function resolvedBrowseSettings(row: {
       typeof row.featuredFirst === "boolean"
         ? row.featuredFirst
         : DIRECTORY_SETTING_DEFAULTS.featuredFirst,
+  }
+}
+
+function resolvedFrontPageSettings(row: {
+  frontPageMode: string | null
+  frontPageCount: number | null
+}) {
+  return {
+    frontPageMode: isDirectoryFrontPageMode(row.frontPageMode)
+      ? row.frontPageMode
+      : DIRECTORY_SETTING_DEFAULTS.frontPageMode,
+    frontPageCount:
+      Number.isInteger(row.frontPageCount) &&
+      row.frontPageCount! >= DIRECTORY_FRONT_PAGE_COUNT_MIN &&
+      row.frontPageCount! <= DIRECTORY_FRONT_PAGE_COUNT_MAX
+        ? row.frontPageCount!
+        : DIRECTORY_SETTING_DEFAULTS.frontPageCount,
   }
 }
 
@@ -116,6 +146,7 @@ export async function directorySettingsFor(
       DIRECTORY_SETTING_DEFAULTS.claimApprovedMessage
     ),
     ...resolvedBrowseSettings(row),
+    ...resolvedFrontPageSettings(row),
   }
 }
 
@@ -141,6 +172,7 @@ export async function savedDirectorySettings(
         claimPendingMessage: row.claimPendingMessage,
         claimApprovedMessage: row.claimApprovedMessage,
         ...resolvedBrowseSettings(row),
+        ...resolvedFrontPageSettings(row),
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -153,6 +185,8 @@ export async function savedDirectorySettings(
         browseTitle: DIRECTORY_SETTING_DEFAULTS.browseTitle,
         browseIntro: DIRECTORY_SETTING_DEFAULTS.browseIntro,
         featuredFirst: DIRECTORY_SETTING_DEFAULTS.featuredFirst,
+        frontPageMode: DIRECTORY_SETTING_DEFAULTS.frontPageMode,
+        frontPageCount: DIRECTORY_SETTING_DEFAULTS.frontPageCount,
       }
 }
 
@@ -193,11 +227,7 @@ export async function saveDirectorySettings(
 
 export type DirectoryBrowseSettingsInput = Pick<
   DirectorySettings,
-  | "pageSize"
-  | "defaultSort"
-  | "browseTitle"
-  | "browseIntro"
-  | "featuredFirst"
+  "pageSize" | "defaultSort" | "browseTitle" | "browseIntro" | "featuredFirst"
 >
 
 /** Changes the public directory choices without touching claims or badges. */
@@ -229,6 +259,44 @@ export async function saveDirectoryBrowseSettings(
     featuredFirst: input.featuredFirst,
   }
 
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, ...values, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { ...values, updatedAt: at },
+    })
+
+  return directorySettingsFor(workspaceId, database)
+}
+
+export type DirectoryFrontPageSettingsInput = Pick<
+  DirectorySettings,
+  "frontPageMode" | "frontPageCount"
+>
+
+/** Changes the site's front page without touching any other directory choice. */
+export async function saveDirectoryFrontPageSettings(
+  workspaceId: string,
+  input: DirectoryFrontPageSettingsInput,
+  database: CustomShellDb = db
+): Promise<DirectorySettings> {
+  if (!isDirectoryFrontPageMode(input.frontPageMode)) {
+    throw new Error("Choose what the front page should show.")
+  }
+  if (
+    !Number.isInteger(input.frontPageCount) ||
+    input.frontPageCount < DIRECTORY_FRONT_PAGE_COUNT_MIN ||
+    input.frontPageCount > DIRECTORY_FRONT_PAGE_COUNT_MAX
+  ) {
+    throw new Error("Front page listings must be between 1 and 12.")
+  }
+
+  const at = now()
+  const values = {
+    frontPageMode: input.frontPageMode,
+    frontPageCount: input.frontPageCount,
+  }
   await database
     .insert(directorySettings)
     .values({ workspaceId, ...values, createdAt: at, updatedAt: at })

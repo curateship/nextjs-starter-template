@@ -35,6 +35,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "A listing's own page is public. It answers with published listings on the visited site only, so a draft is missing rather than merely hidden.",
   "directory/public.ts:readDirectoryCategoryFn":
     "A category page is public, and it reads the same published listings the browse page does, scoped to the site whose address was typed.",
+  "directory/public.ts:readDirectoryFrontPageFn":
+    "A site's optional listings home page is public, and it returns published cards only for the site whose address the visitor typed.",
   "directory/submissions.ts:readSubmissionFormFn":
     "The add-your-listing form is for people with no account, so the site's name and its list of categories have to be readable without one.",
   "directory/submissions.ts:submitListingFn":

@@ -1,4 +1,43 @@
-import type { AppOptions } from "@/lib/app-options"
+import { lazy } from "react"
+
+import { defineCatchAllPage, type AppOptions } from "@/lib/app-options"
+import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
+
+const DirectoryFrontPageComponent = lazy(() =>
+  import("./directory-front-page").then((module) => ({
+    default: module.DirectoryFrontPage,
+  }))
+)
+
+export async function loadDirectoryFrontPageOverride(
+  path: string,
+  load: () => Promise<DirectoryFrontPageData | null> = async () => {
+    const { loadDirectoryFrontPage } =
+      await import("@/lib/api/directory/public")
+    return loadDirectoryFrontPage()
+  }
+) {
+  if (path !== "/") return null
+  return load()
+}
+
+const directoryFrontPage = defineCatchAllPage<DirectoryFrontPageData>({
+  loader: ({ path }) => loadDirectoryFrontPageOverride(path),
+  head: ({ data }) => ({
+    meta: [
+      { title: `${data.heading} · ${data.siteName}` } as Record<string, string>,
+      ...(data.intro
+        ? [
+            {
+              name: "description",
+              content: data.intro,
+            } as Record<string, string>,
+          ]
+        : []),
+    ],
+  }),
+  Component: DirectoryFrontPageComponent,
+})
 
 /**
  * What this app changes about the shell.
@@ -18,6 +57,7 @@ import type { AppOptions } from "@/lib/app-options"
  * endpoint **inside a loader**, where it is fetched at request time.
  */
 export const appOptions: AppOptions = {
+  pages: { catchAll: directoryFrontPage },
   workspaces: {
     /**
      * This app builds websites, so its containers are sites. The shell says

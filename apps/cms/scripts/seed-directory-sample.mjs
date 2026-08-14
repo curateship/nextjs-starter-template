@@ -27,6 +27,7 @@ const sites = [
   {
     subdomain: "alpha",
     name: "Alpha Guide",
+    frontPageMode: "newest",
     publicSettings: {
       publicNavigation: [
         { label: "Home", href: "/" },
@@ -144,6 +145,7 @@ const sites = [
   {
     subdomain: "beta",
     name: "Beta Directory",
+    frontPageMode: "off",
     publicSettings: {
       publicNavigation: [
         { label: "Browse", href: "/directory" },
@@ -180,7 +182,9 @@ const sites = [
         order: 2,
         address: "12 Fore Street, Exeter",
         links: [{ type: "phone", value: "+44 1392 000000" }],
-        body: ["Twenty years in the trade. Call before nine and you get today."],
+        body: [
+          "Twenty years in the trade. Call before nine and you get today.",
+        ],
       },
     ],
   },
@@ -207,7 +211,10 @@ const fillers = [
 
 sites[1].listings.push(
   ...fillers.map((title, index) => ({
-    slug: title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    slug: title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, ""),
     title,
     meta: "One of the trades on Beta's list.",
     category: "trades",
@@ -246,7 +253,12 @@ async function main() {
     const ownerId = await sampleOwner(client)
     for (const site of sites) {
       const siteId = await upsertSite(client, ownerId, site)
-      const categoryIds = await upsertCategories(client, siteId, site.categories)
+      await upsertDirectorySettings(client, siteId, site.frontPageMode)
+      const categoryIds = await upsertCategories(
+        client,
+        siteId,
+        site.categories
+      )
       const listingIds = await upsertListings(
         client,
         siteId,
@@ -273,12 +285,27 @@ async function main() {
     )
     console.log(
       `\nOpen ${sites
-        .map((site) => `http://${site.subdomain}.localhost:${ports.cms}/directory`)
+        .map(
+          (site) => `http://${site.subdomain}.localhost:${ports.cms}/directory`
+        )
         .join(" and ")}`
     )
   } finally {
     await client.end()
   }
+}
+
+async function upsertDirectorySettings(client, siteId, frontPageMode) {
+  await client.query(
+    `insert into directory_settings
+       (workspace_id, front_page_mode, front_page_count, created_at, updated_at)
+     values ($1, $2, 8, now(), now())
+     on conflict (workspace_id) do update
+       set front_page_mode = excluded.front_page_mode,
+           front_page_count = excluded.front_page_count,
+           updated_at = now()`,
+    [siteId, frontPageMode]
+  )
 }
 
 /**
