@@ -6,6 +6,7 @@ import {
   type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import { escapeHtml } from "@/lib/email/escape-html"
+import { VERIFICATION_REMINDER_DAYS } from "@/lib/email/verification-reminder"
 import { aiLimitNotificationText } from "@/lib/notification-types"
 
 /**
@@ -26,6 +27,7 @@ import { aiLimitNotificationText } from "@/lib/notification-types"
  */
 export const SYSTEM_EMAIL_KINDS = [
   "verify-email",
+  "verification-reminder",
   "sign-in-link",
   "password-reset",
   "email-change",
@@ -124,6 +126,19 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       subject: "Verify your email",
       heading: "Confirm your email address",
       message: "Verify your email to finish setting up your account.",
+      action: "Verify email",
+      closing: IGNORE_LINE,
+    },
+    tokens: RECIPIENT_TOKENS,
+  },
+  "verification-reminder": {
+    kind: "verification-reminder",
+    name: "Verification reminder",
+    whenSent: `Once, when a password sign-up is still unverified ${VERIFICATION_REMINDER_DAYS} days later and an admin next opens the app.`,
+    defaults: {
+      subject: "Finish setting up your account",
+      heading: "You’re one step away",
+      message: "Confirm your email to finish setting up your account.",
       action: "Verify email",
       closing: IGNORE_LINE,
     },

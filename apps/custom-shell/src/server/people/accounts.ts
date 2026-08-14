@@ -57,7 +57,13 @@ export type AccountSort =
 export type AccountListQuery = {
   search: string
   role: "all" | "admin" | "member"
-  status: "all" | "active" | "suspended" | "pending_deletion" | "locked_out"
+  status:
+    | "all"
+    | "active"
+    | "unverified"
+    | "suspended"
+    | "pending_deletion"
+    | "locked_out"
   page: number
   pageSize: number
   sort: AccountSort
@@ -129,6 +135,10 @@ export async function listAccounts(
   }
   if (query.status === "locked_out") {
     filters.push(sql`${customShellUsers.status} = 'active' and ${lockedOut}`)
+  } else if (query.status === "unverified") {
+    filters.push(
+      sql`${customShellUsers.status} = 'active' and ${customShellUsers.emailVerifiedAt} is null`
+    )
   } else if (query.status !== "all") {
     filters.push(eq(customShellUsers.status, query.status))
   }
