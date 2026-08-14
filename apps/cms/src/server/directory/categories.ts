@@ -13,6 +13,7 @@ import {
   LISTING_CONTENT_TYPE,
   type CategoryRow,
 } from "@/server/directory/schema"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 
 /**
  * The category tree listings are browsed by. One flat table with a parent
@@ -196,10 +197,11 @@ async function requireUsableParent(
     throw new Error("A category cannot sit under itself.")
   }
   await requireCategory(workspaceId, parentId, database)
-  if (childId && (await isDescendant(workspaceId, childId, parentId, database))) {
-    throw new Error(
-      "A category cannot sit under one of its own subcategories."
-    )
+  if (
+    childId &&
+    (await isDescendant(workspaceId, childId, parentId, database))
+  ) {
+    throw new Error("A category cannot sit under one of its own subcategories.")
   }
   return parentId
 }
@@ -256,6 +258,7 @@ export async function createCategory(
     .returning()
 
   if (!row) throw new Error("The category was not created.")
+  clearPublicDirectoryCache(workspaceId)
   return toCategory(row, 0)
 }
 
@@ -316,6 +319,7 @@ export async function updateCategory(
         eq(categoryRelationships.contentType, LISTING_CONTENT_TYPE)
       )
     )
+  clearPublicDirectoryCache(workspaceId)
   return toCategory(row, countRow?.count ?? 0)
 }
 
@@ -381,5 +385,6 @@ export async function deleteCategory(
       )
   })
 
+  clearPublicDirectoryCache(workspaceId)
   return { name: row.name }
 }

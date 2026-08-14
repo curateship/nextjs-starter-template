@@ -24,6 +24,7 @@ import {
   featuredPriorityFor,
 } from "@/server/directory/featured"
 import { directorySettingsFor } from "@/server/directory/settings"
+import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
 import {
@@ -285,9 +286,7 @@ function orderFor(
   // When this site asks for it, paid placement leads whatever ordinary order
   // the visitor chooses. Expired placement immediately falls back to the
   // ordinary order below without a cleanup job.
-  const featured = featuredFirst
-    ? [desc(featuredPriorityFor(workspaceId))]
-    : []
+  const featured = featuredFirst ? [desc(featuredPriorityFor(workspaceId))] : []
   // The id breaks every tie, so a page boundary cannot land mid-tie and show
   // the same listing twice or skip one.
   switch (sort) {
@@ -529,9 +528,14 @@ async function listingPage(
 }
 
 /** The browse page: one page of listings and the filters above it. */
-export async function readPublicBrowse(
+async function readPublicBrowseUncached(
   site: VisitorSite,
-  options: { search?: string; category?: string; sort?: DirectorySort; page: number },
+  options: {
+    search?: string
+    category?: string
+    sort?: DirectorySort
+    page: number
+  },
   database: CustomShellDb = db
 ): Promise<PublicBrowse> {
   const [allCategories, settings] = await Promise.all([
@@ -567,6 +571,30 @@ export async function readPublicBrowse(
     browseIntro: settings.browseIntro,
     sort: options.sort ?? settings.defaultSort,
   }
+}
+
+export function readPublicBrowse(
+  site: VisitorSite,
+  options: {
+    search?: string
+    category?: string
+    sort?: DirectorySort
+    page: number
+  },
+  database: CustomShellDb = db
+): Promise<PublicBrowse> {
+  return cachedPublicDirectoryRead(
+    site.id,
+    "browse",
+    {
+      site: { name: site.name, url: site.url },
+      search: options.search ?? "",
+      category: options.category ?? "",
+      sort: options.sort ?? "",
+      page: options.page,
+    },
+    () => readPublicBrowseUncached(site, options, database)
+  )
 }
 
 /**
@@ -619,14 +647,15 @@ async function relatedListings(
  * site's listing — on purpose. A visitor is told the same thing in each case,
  * and so is anybody calling this endpoint directly.
  */
-export async function readPublicListing(
+type CachedPublicListingPage = Omit<PublicListingPage, "claim"> & {
+  claim: Omit<PublicClaimState, "signedIn" | "claimed" | "mine">
+}
+
+async function readPublicListingUncached(
   site: VisitorSite,
   slug: string,
-  // Who is reading, when they are signed in. Only ever used to tell them where
-  // their *own* claim stands; nothing about anybody else's is returned.
-  options: { viewerId?: string | null } = {},
   database: CustomShellDb = db
-): Promise<PublicListingPage | null> {
+): Promise<CachedPublicListingPage | null> {
   const [row] = await database
     .select()
     .from(directoryListings)
@@ -655,9 +684,8 @@ export async function readPublicListing(
 
   const primary = links.find((link) => link.isPrimary) ?? links[0] ?? null
 
-  const [settings, claimState, featured] = await Promise.all([
+  const [settings, featured] = await Promise.all([
     directorySettingsFor(site.id, database),
-    claimStateFor(site.id, row.id, options.viewerId ?? null, database),
     activeFeaturedForListings(site.id, [row.id], database),
   ])
 
@@ -691,12 +719,42 @@ export async function readPublicListing(
     ),
     claim: {
       enabled: settings.claimsEnabled,
-      signedIn: Boolean(options.viewerId),
-      claimed: claimState.claimed,
-      mine: claimState.mine,
       buttonLabel: settings.claimButtonLabel,
       pendingMessage: settings.claimPendingMessage,
       approvedMessage: settings.claimApprovedMessage,
+    },
+  }
+}
+
+export async function readPublicListing(
+  site: VisitorSite,
+  slug: string,
+  // Who is reading is deliberately used only after the shared page cache.
+  // The visitor's own claim status must never be handed to another visitor.
+  options: { viewerId?: string | null } = {},
+  database: CustomShellDb = db
+): Promise<PublicListingPage | null> {
+  const page = await cachedPublicDirectoryRead(
+    site.id,
+    "listing",
+    { site: { name: site.name, url: site.url }, slug },
+    () => readPublicListingUncached(site, slug, database)
+  )
+  if (!page) return null
+
+  const claimState = await claimStateFor(
+    site.id,
+    page.listing.id,
+    options.viewerId ?? null,
+    database
+  )
+  return {
+    ...page,
+    claim: {
+      ...page.claim,
+      signedIn: Boolean(options.viewerId),
+      claimed: claimState.claimed,
+      mine: claimState.mine,
     },
   }
 }
@@ -769,7 +827,7 @@ async function publishedSubtreeCounts(
 }
 
 /** One category's page, or null when this site has no category at that address. */
-export async function readPublicCategory(
+async function readPublicCategoryUncached(
   site: VisitorSite,
   slug: string,
   options: { page: number },
@@ -814,4 +872,18 @@ export async function readPublicCategory(
     pageSize: settings.pageSize,
     browseTitle: settings.browseTitle,
   }
+}
+
+export function readPublicCategory(
+  site: VisitorSite,
+  slug: string,
+  options: { page: number },
+  database: CustomShellDb = db
+): Promise<PublicCategoryPage | null> {
+  return cachedPublicDirectoryRead(
+    site.id,
+    "category",
+    { site: { name: site.name, url: site.url }, slug, page: options.page },
+    () => readPublicCategoryUncached(site, slug, options, database)
+  )
 }

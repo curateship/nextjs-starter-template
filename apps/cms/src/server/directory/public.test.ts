@@ -4,6 +4,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
 import {
+  createClaim,
+  reviewClaim,
+  verifyClaim,
+} from "@/server/directory/claims"
+import {
   createListing,
   setListingCategories,
   updateListing,
@@ -15,8 +20,10 @@ import {
   readPublicCategory,
   readPublicListing,
 } from "@/server/directory/public"
+import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
   createTestDatabase,
+  insertUser,
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
@@ -45,6 +52,7 @@ let alpha: { id: string; name: string; url: string }
 let beta: { id: string; name: string; url: string }
 
 beforeEach(async () => {
+  resetPublicDirectoryCacheForTests()
   const testDb = await createTestDatabase()
   client = testDb.client
   database = testDb.db
@@ -58,6 +66,7 @@ beforeEach(async () => {
 })
 
 afterEach(async () => {
+  resetPublicDirectoryCacheForTests()
   await client.close()
 })
 
@@ -75,8 +84,10 @@ async function publish(
   )
 }
 
-const browse = (site: { id: string; name: string; url: string }, options = {}) =>
-  readPublicBrowse(site, { sort: "order", page: 1, ...options }, database)
+const browse = (
+  site: { id: string; name: string; url: string },
+  options = {}
+) => readPublicBrowse(site, { sort: "order", page: 1, ...options }, database)
 
 function measuredDatabase() {
   let queries = 0
@@ -92,8 +103,42 @@ function measuredDatabase() {
 }
 
 describe("only published listings are readable", () => {
+  it("drops a cached listing as soon as it becomes a draft", async () => {
+    const listing = await publish(alpha, { title: "Open diner", slug: "open" })
+    expect((await browse(alpha)).listings.map((row) => row.slug)).toEqual([
+      "open",
+    ])
+
+    await updateListing(alpha.id, listing.id, { status: "draft" }, database)
+
+    expect((await browse(alpha)).listings).toEqual([])
+    expect(await readPublicListing(alpha, "open", {}, database)).toBeNull()
+  })
+
+  it("shows a saved title on the next public read", async () => {
+    const listing = await publish(alpha, { title: "Old title", slug: "cafe" })
+    expect(
+      (await readPublicListing(alpha, "cafe", {}, database))?.listing.title
+    ).toBe("Old title")
+
+    await updateListing(
+      alpha.id,
+      listing.id,
+      { title: "Fresh title" },
+      database
+    )
+
+    expect(
+      (await readPublicListing(alpha, "cafe", {}, database))?.listing.title
+    ).toBe("Fresh title")
+  })
+
   it("keeps a draft out of the browse list", async () => {
-    await createListing(alpha.id, { title: "Draft diner", slug: "draft" }, database)
+    await createListing(
+      alpha.id,
+      { title: "Draft diner", slug: "draft" },
+      database
+    )
     await publish(alpha, { title: "Open diner", slug: "open" })
 
     const page = await browse(alpha)
@@ -103,7 +148,11 @@ describe("only published listings are readable", () => {
   })
 
   it("answers nothing for a draft's own address", async () => {
-    await createListing(alpha.id, { title: "Draft diner", slug: "draft" }, database)
+    await createListing(
+      alpha.id,
+      { title: "Draft diner", slug: "draft" },
+      database
+    )
 
     // Missing rather than refused: a draft has to be indistinguishable from a
     // listing that was never written, or the address itself gives it away.
@@ -143,20 +192,68 @@ describe("only published listings are readable", () => {
     await setListingCategories(alpha.id, draft.id, [food.id], food.id, database)
 
     // A chip saying "Food 1" that opens an empty page reads as a broken site.
-    expect((await publicCategories(alpha.id, database))[0]?.listingCount).toBe(0)
+    expect((await publicCategories(alpha.id, database))[0]?.listingCount).toBe(
+      0
+    )
     expect((await browse(alpha)).categories).toEqual([])
   })
 })
 
 describe("a site only shows its own", () => {
+  it("reads each visitor's claim after the shared listing page", async () => {
+    const listing = await publish(alpha, {
+      title: "Claimable cafe",
+      slug: "cafe",
+    })
+    const claimant = await insertUser(database, { email: "owner@example.com" })
+    const other = await insertUser(database, { email: "other@example.com" })
+    const made = await createClaim(
+      alpha.id,
+      listing.id,
+      claimant.id,
+      { contactEmail: "cafe@example.com", claimantName: "Cafe Owner" },
+      database
+    )
+
+    const claimantPage = await readPublicListing(
+      alpha,
+      "cafe",
+      { viewerId: claimant.id },
+      database
+    )
+    const otherPage = await readPublicListing(
+      alpha,
+      "cafe",
+      { viewerId: other.id },
+      database
+    )
+
+    expect(claimantPage?.claim.mine).toBe("pending_verification")
+    expect(otherPage?.claim.mine).toBeNull()
+
+    expect((await browse(alpha)).listings[0]?.claimed).toBe(false)
+    await verifyClaim(made.token, database)
+    const admin = await insertUser(database, { role: "admin" })
+    await reviewClaim(
+      alpha.id,
+      made.claim.id,
+      { decision: "approve", reviewerId: admin.id },
+      database
+    )
+    expect((await browse(alpha)).listings[0]?.claimed).toBe(true)
+  })
+
   it("resolves the same address to a different listing on each site", async () => {
     await publish(alpha, { title: "Alpha's diner", slug: "joes-diner" })
     await publish(beta, { title: "Beta's diner", slug: "joes-diner" })
 
-    expect((await readPublicListing(alpha, "joes-diner", {}, database))?.listing.title)
-      .toBe("Alpha's diner")
-    expect((await readPublicListing(beta, "joes-diner", {}, database))?.listing.title)
-      .toBe("Beta's diner")
+    expect(
+      (await readPublicListing(alpha, "joes-diner", {}, database))?.listing
+        .title
+    ).toBe("Alpha's diner")
+    expect(
+      (await readPublicListing(beta, "joes-diner", {}, database))?.listing.title
+    ).toBe("Beta's diner")
   })
 
   it("does not answer with the other site's listing", async () => {
@@ -169,7 +266,9 @@ describe("a site only shows its own", () => {
   it("does not answer with the other site's category", async () => {
     await createCategory(beta.id, { name: "Beta food", slug: "food" }, database)
 
-    expect(await readPublicCategory(alpha, "food", { page: 1 }, database)).toBeNull()
+    expect(
+      await readPublicCategory(alpha, "food", { page: 1 }, database)
+    ).toBeNull()
   })
 
   it("keeps related listings on the same site", async () => {
@@ -185,8 +284,14 @@ describe("a site only shows its own", () => {
       database
     )
 
-    const alphaOne = await publish(alpha, { title: "Alpha one", slug: "alpha-one" })
-    const alphaTwo = await publish(alpha, { title: "Alpha two", slug: "alpha-two" })
+    const alphaOne = await publish(alpha, {
+      title: "Alpha one",
+      slug: "alpha-one",
+    })
+    const alphaTwo = await publish(alpha, {
+      title: "Alpha two",
+      slug: "alpha-two",
+    })
     const betaOne = await publish(beta, { title: "Beta one", slug: "beta-one" })
 
     for (const [site, listing, category] of [
@@ -219,8 +324,9 @@ describe("the browse list", () => {
     await publish(alpha, { title: "Hardware", slug: "roasted-hardware" })
 
     // The description matches, so the cafe comes back...
-    expect((await browse(alpha, { search: "roasted" })).listings.map((r) => r.slug))
-      .toEqual(["cafe"])
+    expect(
+      (await browse(alpha, { search: "roasted" })).listings.map((r) => r.slug)
+    ).toEqual(["cafe"])
   })
 
   it("filters to one category, never its children", async () => {
@@ -245,7 +351,9 @@ describe("the browse list", () => {
 
     // The directory app this is ported from does exactly this. Rolling a child
     // up would put the listing on a page nobody assigned it to.
-    expect((await browse(alpha, { category: "italian" })).listings).toHaveLength(1)
+    expect(
+      (await browse(alpha, { category: "italian" })).listings
+    ).toHaveLength(1)
     expect((await browse(alpha, { category: "food" })).listings).toEqual([])
   })
 
@@ -392,9 +500,17 @@ describe("a category page", () => {
       database
     )
 
-    const page = await readPublicCategory(alpha, "italian", { page: 1 }, database)
+    const page = await readPublicCategory(
+      alpha,
+      "italian",
+      { page: 1 },
+      database
+    )
 
-    expect(page?.ancestors.map((step) => step.slug)).toEqual(["food", "italian"])
+    expect(page?.ancestors.map((step) => step.slug)).toEqual([
+      "food",
+      "italian",
+    ])
     expect(page?.children.map((child) => child.slug)).toEqual(["pizza"])
   })
 

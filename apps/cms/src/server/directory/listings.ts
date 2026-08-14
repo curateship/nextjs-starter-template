@@ -44,6 +44,7 @@ import {
   listingViewJoin,
   listingViewTotal,
 } from "@/server/directory/views"
+import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { customShellTrafficDailyFacts } from "@/server/schema"
 
 /**
@@ -358,6 +359,7 @@ export async function createListing(
     .returning()
 
   if (!row) throw new Error("The listing was not created.")
+  clearPublicDirectoryCache(workspaceId)
   return toListing(row)
 }
 
@@ -411,6 +413,7 @@ export async function updateListing(
     .returning()
 
   if (!row) throw new Error("That listing no longer exists.")
+  clearPublicDirectoryCache(workspaceId)
   return toListing(row)
 }
 
@@ -470,6 +473,7 @@ export async function duplicateListing(
     return created
   })
 
+  clearPublicDirectoryCache(workspaceId)
   return toListing(row)
 }
 
@@ -555,6 +559,7 @@ export async function deleteListings(
   })
 
   const doneSet = new Set(done)
+  if (done.length) clearPublicDirectoryCache(workspaceId)
   return { done, kept: ids.filter((id) => !doneSet.has(id)) }
 }
 
@@ -621,6 +626,7 @@ export async function setListingCategories(
   await database.transaction((tx) =>
     writeListingCategories(workspaceId, listingId, keep, primary, tx)
   )
+  clearPublicDirectoryCache(workspaceId)
 }
 
 /**
