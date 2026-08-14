@@ -69,10 +69,15 @@ async function sendAlert(email: Parameters<typeof sendAuthEmail>[0]) {
  * warning — a full inbox, a weekend — still needs to know the account is gone
  * and that support is now the way back.
  */
-export function alertEmailChanged(previousEmail: string, newEmail: string) {
+export function alertEmailChanged(
+  previousEmail: string,
+  newEmail: string,
+  recipientName: string | null
+) {
   return sendAlert({
     kind: "email-change-done",
     to: previousEmail,
+    recipientName,
     tokens: { new_email: newEmail, when: describeWhen(now()) },
     actionUrl: appUrlFor("/"),
   })
@@ -85,10 +90,15 @@ export function alertEmailChanged(previousEmail: string, newEmail: string) {
  * reset — because to the person receiving it they are the same event, and the
  * one they did not do is the one that matters.
  */
-export function alertPasswordChanged(email: string, origin: SessionOrigin) {
+export function alertPasswordChanged(
+  email: string,
+  origin: SessionOrigin,
+  recipientName: string | null
+) {
   return sendAlert({
     kind: "password-changed",
     to: email,
+    recipientName,
     tokens: {
       when: describeWhen(now()),
       device: describeDevice(origin.userAgent),
@@ -119,7 +129,7 @@ export function alertPasswordChanged(email: string, origin: SessionOrigin) {
  * happened on the browser they are looking at is noise, not safety.
  */
 export async function startSessionWithAlert(
-  user: { id: string; email: string },
+  user: { id: string; email: string; name: string },
   origin: SessionOrigin,
   database: CustomShellDb = db
 ) {
@@ -145,7 +155,7 @@ export async function startSessionWithAlert(
 }
 
 async function noteSignInDevice(
-  user: { id: string; email: string },
+  user: { id: string; email: string; name: string },
   origin: SessionOrigin,
   database: CustomShellDb
 ) {
@@ -200,6 +210,7 @@ async function noteSignInDevice(
   await sendAlert({
     kind: "new-device",
     to: user.email,
+    recipientName: user.name,
     tokens: { device: label, when: describeWhen(timestamp) },
     actionUrl: appUrlFor("/forgot-password"),
   })

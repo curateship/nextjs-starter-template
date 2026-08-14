@@ -192,16 +192,41 @@ describe("what actually gets sent", () => {
   const request = {
     kind: "password-reset" as const,
     to: "ada@example.com",
+    recipientName: null,
     actionUrl: "https://app.dev/reset-password?token=a&b=1",
   }
 
   it("uses the built-in wording when nothing has been saved", () => {
     const { subject, html } = composeSystemEmail(request, null)
     expect(subject).toBe("Reset your password")
+    expect(html).toContain("Hi there,")
     expect(html).toContain("This link expires in one hour.")
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
     )
+  })
+
+  it("addresses a named person without letting their name become markup", () => {
+    const { html } = composeSystemEmail(
+      { ...request, recipientName: "<b>Sarah</b> Jones" },
+      null
+    )
+
+    expect(html).toContain("Hi &lt;b&gt;Sarah&lt;/b&gt;,")
+    expect(html).not.toContain("Hi <b>Sarah</b>")
+    expect(html.indexOf("This link expires in one hour.")).toBeLessThan(
+      html.indexOf("Hi &lt;b&gt;Sarah&lt;/b&gt;,")
+    )
+  })
+
+  it("does not treat an email address stored as a name as a first name", () => {
+    const { html } = composeSystemEmail(
+      { ...request, recipientName: "ADA@EXAMPLE.COM" },
+      null
+    )
+
+    expect(html).toContain("Hi there,")
+    expect(html).not.toContain("Hi ADA@EXAMPLE.COM")
   })
 
   it("falls back when the subject has been emptied", () => {
@@ -228,7 +253,12 @@ describe("what actually gets sent", () => {
 
   it("uses the saved wording once there is some, link and all", () => {
     const { subject, html, fromName } = composeSystemEmail(
-      { ...request, kind: "email-change", tokens: { old_email: "old@x.dev", hours: "24" } },
+      {
+        ...request,
+        kind: "email-change",
+        recipientName: "Ada Lovelace",
+        tokens: { old_email: "old@x.dev", hours: "24" },
+      },
       {
         subject: "Confirm {{email}}",
         preheader: "One click",
@@ -239,6 +269,7 @@ describe("what actually gets sent", () => {
     expect(subject).toBe("Confirm ada@example.com")
     expect(fromName).toBe("Ada")
     expect(html).toContain("old@x.dev")
+    expect(html).toContain("Hi Ada,")
     expect(html).toContain("24 hours")
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
@@ -246,11 +277,26 @@ describe("what actually gets sent", () => {
     expect(html).not.toContain("{{")
   })
 
+  it("uses a customized subject as the preview fallback", () => {
+    const { html } = composeSystemEmail(request, {
+      subject: "Help Ada get back in",
+      preheader: "",
+      fromName: null,
+      blocks: createSystemEmailBlocks("password-reset"),
+    })
+
+    expect(html).toContain("Help Ada get back in")
+    expect(html.indexOf("Help Ada get back in")).toBeLessThan(
+      html.indexOf("Hi there,")
+    )
+  })
+
   it("renders the account closure receipt without leftover placeholders", () => {
     const { subject, html } = composeSystemEmail(
       {
         kind: "account-closed",
         to: "closed@example.com",
+        recipientName: null,
         actionUrl: "https://app.dev/login",
         tokens: {
           deletion_date: "Sep 10, 2026",

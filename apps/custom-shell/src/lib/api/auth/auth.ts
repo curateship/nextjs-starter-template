@@ -339,7 +339,7 @@ const registerFn = createServerFn({ method: "POST" })
     // session exists yet to carry it — verification comes first.
     await notifyAppAuthEvent({ kind: "register", userId: user.id })
 
-    await sendVerificationEmail(data.email, token)
+    await sendVerificationEmail(data.email, token, data.name)
     return { ok: true }
   })
 
@@ -388,7 +388,7 @@ const resendVerificationFn = createServerFn({ method: "POST" })
     // have accounts.
     if (user && !user.emailVerifiedAt) {
       const token = await createAuthToken(user.id, "verify_email")
-      await sendVerificationEmail(user.email, token)
+      await sendVerificationEmail(user.email, token, user.name)
     }
 
     return { ok: true }
@@ -477,6 +477,7 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "sign-in-link",
         to: link.email,
+        recipientName: link.name,
         tokens: { minutes: String(SIGN_IN_LINK_MINUTES) },
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
@@ -539,6 +540,7 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "password-reset",
         to: user.email,
+        recipientName: user.name,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),
@@ -615,7 +617,11 @@ const resetPasswordFn = createServerFn({ method: "POST" })
     // because the one somebody did not do is the one worth hearing about, and
     // a reset is the easier of the two to do to somebody else.
     if (changed) {
-      await alertPasswordChanged(changed.email, describeRequestOrigin())
+      await alertPasswordChanged(
+        changed.email,
+        describeRequestOrigin(),
+        changed.name
+      )
     }
     return { ok: true }
   })
@@ -674,7 +680,7 @@ const changePasswordFn = createServerFn({ method: "POST" })
 
     // Keep this session, drop every other one.
     await deleteOtherSessions(user.id, getSessionToken())
-    await alertPasswordChanged(user.email, describeRequestOrigin())
+    await alertPasswordChanged(user.email, describeRequestOrigin(), user.name)
     return { ok: true }
   })
 
@@ -751,6 +757,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "email-change",
         to: data.newEmail,
+        recipientName: user.name,
         tokens: {
           old_email: user.email,
           hours: String(EMAIL_CHANGE_HOURS),
@@ -766,6 +773,7 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       await sendAuthEmail({
         kind: "email-change-warning",
         to: user.email,
+        recipientName: user.name,
         tokens: {
           new_email: data.newEmail,
           hours: String(EMAIL_CHANGE_HOURS),
@@ -822,7 +830,7 @@ const confirmEmailChangeFn = createServerFn({ method: "POST" })
     // The last thing that address will ever hear from the app, and the reason
     // it is worth sending: somebody who missed the warning still learns the
     // account is gone, and that support is now the only way back.
-    await alertEmailChanged(previousEmail, user.email)
+    await alertEmailChanged(previousEmail, user.email, user.name)
 
     return { email: user.email }
   })
@@ -1094,10 +1102,11 @@ export async function startWorkspaceFor(
   await pointAtWorkspaceForHost(user.id)
 }
 
-function sendVerificationEmail(email: string, token: string) {
+function sendVerificationEmail(email: string, token: string, name: string) {
   return sendAuthEmail({
     kind: "verify-email",
     to: email,
+    recipientName: name,
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }

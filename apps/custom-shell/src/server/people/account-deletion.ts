@@ -52,6 +52,7 @@ export async function closeAccounts(
     .select({
       id: customShellUsers.id,
       email: customShellUsers.email,
+      name: customShellUsers.name,
       passwordHash: customShellUsers.passwordHash,
       deletedAt: customShellUsers.deletedAt,
     })
@@ -65,6 +66,7 @@ export async function closeAccounts(
         await sendAuthEmail(
           accountClosedEmail({
             email: recipient.email,
+            name: recipient.name,
             deletedAt: recipient.deletedAt,
             paidPlanCancelled: paidPlanCancelledUserIds.has(recipient.id),
             canRestoreOwn:
@@ -85,11 +87,13 @@ export async function closeAccounts(
 /** Builds the receipt without reading account state, so its wording is testable. */
 export function accountClosedEmail({
   email,
+  name,
   deletedAt,
   paidPlanCancelled,
   canRestoreOwn,
 }: {
   email: string
+  name?: string | null
   deletedAt: Date
   paidPlanCancelled: boolean
   canRestoreOwn: boolean
@@ -98,6 +102,7 @@ export function accountClosedEmail({
   return {
     kind: "account-closed",
     to: email,
+    recipientName: name ?? null,
     actionUrl: appUrlFor("/login"),
     tokens: {
       deletion_date: deletionDate,

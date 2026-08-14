@@ -45,7 +45,11 @@ export async function createSignInLinkToken(
     return null
   }
 
-  return { email: user.email, token: await createAuthToken(user.id, "login", database) }
+  return {
+    email: user.email,
+    name: user.name,
+    token: await createAuthToken(user.id, "login", database),
+  }
 }
 
 /**

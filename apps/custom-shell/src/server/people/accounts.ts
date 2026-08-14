@@ -359,6 +359,7 @@ export async function createAccountByAdmin(
       await sendAuthEmail({
         kind: "new-account",
         to: email,
+        recipientName: name,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),

@@ -61,6 +61,13 @@ const EMAIL_TOKEN: SystemEmailToken = {
   description: "The address the email is going to",
 }
 
+const FIRST_NAME_TOKEN: SystemEmailToken = {
+  token: "{{firstName}}",
+  description: "The person’s first name, or “there” when no name is available",
+}
+
+const RECIPIENT_TOKENS = [FIRST_NAME_TOKEN, EMAIL_TOKEN]
+
 /**
  * The two an alert needs to be worth reading. "It happened" is not actionable;
  * "it happened at 2am from a Windows PC" is what tells somebody it was not
@@ -116,7 +123,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Verify email",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
   },
   "sign-in-link": {
     kind: "sign-in-link",
@@ -131,7 +138,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing: IGNORE_LINE,
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{minutes}}",
         description: "How many minutes the link lasts",
@@ -149,7 +156,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Reset password",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
   },
   "email-change": {
     kind: "email-change",
@@ -165,7 +172,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing: IGNORE_LINE,
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{old_email}}",
         description: "The address the account is moving away from",
@@ -188,7 +195,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "If this was not you, use the button. It cancels the change and signs every browser out of the account, so you can reset your password and take it back.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{new_email}}",
         description: "The address the account would be moving to",
@@ -211,7 +218,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "If you did not do this, contact support from this address straight away — they can see where the account went and move it back.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{new_email}}",
         description: "The address the account moved to",
@@ -233,7 +240,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing:
         "If this was not you, reset your password now — that is the fastest way to lock whoever did it out.",
     },
-    tokens: [EMAIL_TOKEN, WHEN_TOKEN, DEVICE_TOKEN],
+    tokens: [...RECIPIENT_TOKENS, WHEN_TOKEN, DEVICE_TOKEN],
   },
   "new-device": {
     kind: "new-device",
@@ -249,7 +256,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       closing:
         "If it was not you, reset your password now, then sign the other browsers out under Account → Security.",
     },
-    tokens: [EMAIL_TOKEN, DEVICE_TOKEN, WHEN_TOKEN],
+    tokens: [...RECIPIENT_TOKENS, DEVICE_TOKEN, WHEN_TOKEN],
   },
   "new-account": {
     kind: "new-account",
@@ -263,7 +270,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       action: "Set your password",
       closing: IGNORE_LINE,
     },
-    tokens: [EMAIL_TOKEN],
+    tokens: RECIPIENT_TOKENS,
   },
   "account-closed": {
     kind: "account-closed",
@@ -279,7 +286,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "After {{deletion_date}}, the account cannot be restored.",
     },
     tokens: [
-      EMAIL_TOKEN,
+      ...RECIPIENT_TOKENS,
       {
         token: "{{deletion_date}}",
         description: "The date the account is deleted for good",
@@ -329,7 +336,7 @@ export function createSystemEmailBlocks(
           BroadcastBlock,
           { kind: "richText" }
         >["content"]),
-        htmlContent: `<h1>${escapeHtml(defaults.heading)}</h1><p>${escapeHtml(
+        htmlContent: `<p>Hi {{firstName}},</p><h1>${escapeHtml(defaults.heading)}</h1><p>${escapeHtml(
           defaults.message
         )}</p>`,
       },
