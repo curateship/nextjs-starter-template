@@ -636,6 +636,121 @@ describe("the plan rule reaches the accounts side", () => {
   })
 })
 
+describe("one segment including another", () => {
+  it("matches exactly the people in a rules segment", async () => {
+    await insertContact("ada", { tags: ["vip"] })
+    await insertContact("bob", { tags: ["vip"] })
+    await insertContact("cat")
+
+    const vip = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("VIPs", [
+        { type: "tag", operator: "includes", tags: ["vip"] },
+      ]),
+      db
+    )
+    const combined = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Trusted", [{ type: "in", segmentIds: [vip.id] }]),
+      db
+    )
+
+    const people = await listSegmentContacts(
+      WORKSPACE_ID,
+      readSegment(combined),
+      {},
+      db,
+      TODAY
+    )
+    expect(people.map((person) => person.email)).toEqual([
+      "ada@example.test",
+      "bob@example.test",
+    ])
+  })
+
+  it("matches exactly the people in a hand-picked segment", async () => {
+    await insertContact("ada")
+    await insertContact("bob")
+    await insertContact("cat")
+
+    const picked = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      {
+        name: "Picked",
+        description: "",
+        kind: "static",
+        rules: { conditions: [] },
+        contactIds: ["ada", "cat"],
+      },
+      db
+    )
+
+    expect(
+      await matching([{ type: "in", segmentIds: [picked.id] }])
+    ).toEqual(["ada@example.test", "cat@example.test"])
+  })
+
+  it("matches people in any of the segments named", async () => {
+    await insertContact("ada", { tags: ["vip"] })
+    await insertContact("bob", { tags: ["founder"] })
+    await insertContact("cat")
+
+    const vip = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("VIPs", [
+        { type: "tag", operator: "includes", tags: ["vip"] },
+      ]),
+      db
+    )
+    const founders = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Founders", [
+        { type: "tag", operator: "includes", tags: ["founder"] },
+      ]),
+      db
+    )
+
+    expect(
+      await matching([{ type: "in", segmentIds: [vip.id, founders.id] }])
+    ).toEqual(["ada@example.test", "bob@example.test"])
+  })
+
+  it("matches nobody when a referenced segment is missing", async () => {
+    await insertContact("ada")
+
+    expect(
+      await matching([{ type: "in", segmentIds: ["no-such-segment"] }])
+    ).toEqual([])
+  })
+
+  it("refuses self-reference and loops mixing include and exclude rules", async () => {
+    const a = await createWorkspaceSegment(WORKSPACE_ID, rulesInput("A", []), db)
+
+    await expect(
+      updateWorkspaceSegment(
+        WORKSPACE_ID,
+        a.id,
+        rulesInput("A", [{ type: "in", segmentIds: [a.id] }]),
+        db
+      )
+    ).rejects.toThrow("SEGMENT_LOOP")
+
+    const b = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("B", [{ type: "notIn", segmentIds: [a.id] }]),
+      db
+    )
+    await expect(
+      updateWorkspaceSegment(
+        WORKSPACE_ID,
+        a.id,
+        rulesInput("A", [{ type: "in", segmentIds: [b.id] }]),
+        db
+      )
+    ).rejects.toThrow("SEGMENT_LOOP")
+  })
+})
+
 describe("one segment leaving another out", () => {
   it("takes the other segment's people away", async () => {
     await insertContact("ada", { tags: ["beta"] })
@@ -1431,6 +1546,46 @@ describe("two segments cannot share a name", () => {
 })
 
 describe("deleting a segment something is using", () => {
+  it("refuses a segment another one includes and names the user", async () => {
+    const vip = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("VIPs", []),
+      db
+    )
+    await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Trusted", [{ type: "in", segmentIds: [vip.id] }]),
+      db
+    )
+
+    const result = await deleteWorkspaceSegments(WORKSPACE_ID, [vip.id], db)
+    expect(result.deleted).toEqual([])
+    expect(result.blocked).toEqual([
+      { id: vip.id, name: "VIPs", usedBy: ["Trusted"] },
+    ])
+  })
+
+  it("deletes an included segment when its user is deleted with it", async () => {
+    const vip = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("VIPs", []),
+      db
+    )
+    const trusted = await createWorkspaceSegment(
+      WORKSPACE_ID,
+      rulesInput("Trusted", [{ type: "in", segmentIds: [vip.id] }]),
+      db
+    )
+
+    const result = await deleteWorkspaceSegments(
+      WORKSPACE_ID,
+      [vip.id, trusted.id],
+      db
+    )
+    expect(result.deleted.sort()).toEqual([vip.id, trusted.id].sort())
+    expect(result.blocked).toEqual([])
+  })
+
   it("refuses and says what is using it", async () => {
     const staff = await createWorkspaceSegment(
       WORKSPACE_ID,

@@ -70,7 +70,7 @@ export function SegmentRuleBuilder({
   match: "all" | "any"
   onMatchChange: (match: "all" | "any") => void
   options: SegmentRuleOptions
-  /** The segment being edited, which must not be offered as one to leave out. */
+  /** The segment being edited, which must not be offered as a reference. */
   excludeSegmentId?: string
   /** Keeps the two builders' element ids apart when both are on one page. */
   idPrefix?: string
@@ -93,7 +93,7 @@ export function SegmentRuleBuilder({
     "account",
     ...(options.plans.length ? (["plan"] as const) : []),
     ...(options.segments.some((other) => other.id !== excludeSegmentId)
-      ? (["notIn"] as const)
+      ? (["in", "notIn"] as const)
       : []),
   ]
 
@@ -455,7 +455,7 @@ function ConditionRow({
           </>
         ) : null}
 
-        {condition.type === "notIn" ? (
+        {condition.type === "in" || condition.type === "notIn" ? (
           <div className="grid flex-1 gap-2">
             {options.segments
               .filter((other) => other.id !== excludeSegmentId)

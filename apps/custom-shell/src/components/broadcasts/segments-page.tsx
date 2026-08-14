@@ -140,7 +140,7 @@ export function SegmentsPage({
     if (!openId && !creating) setEditing(null)
   }, [creating, openId])
 
-  /** Names to show wherever one segment leaves another out. */
+  /** Names to show wherever one segment refers to another. */
   const segmentNames = React.useMemo(
     () =>
       Object.fromEntries(
@@ -411,8 +411,8 @@ export function SegmentsPage({
         }
         description={
           deleteTargets.length === 1 && deleteTargets[0]
-            ? `${quoteOneLine(deleteTargets[0].name)} goes for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one leaves out cannot be deleted until that one stops pointing at it.`
-            : "They go for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one leaves out cannot be deleted until that one stops pointing at it."
+            ? `${quoteOneLine(deleteTargets[0].name)} goes for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one uses cannot be deleted until that one stops pointing at it.`
+            : "They go for good. Nobody is deleted — the contacts stay exactly as they are. A segment another one uses cannot be deleted until that one stops pointing at it."
         }
         confirmLabel={
           deleteTargets.length === 1 ? "Delete segment" : "Delete segments"
@@ -435,9 +435,9 @@ function describeBlocked(
   }
   if (blocked.length === 1 && blocked[0]) {
     const entry = blocked[0]
-    return `${quoteOneLine(entry.name)} is still being left out by ${entry.usedBy.join(", ")}, so it cannot be deleted yet.`
+    return `${quoteOneLine(entry.name)} is still being used by ${entry.usedBy.join(", ")}, so it cannot be deleted yet.`
   }
-  return `${blocked.length} segments are still being left out by others, so they cannot be deleted yet: ${blocked
+  return `${blocked.length} segments are still being used by others, so they cannot be deleted yet: ${blocked
     .map((entry) => `${entry.name} (used by ${entry.usedBy.join(", ")})`)
     .join("; ")}.`
 }
