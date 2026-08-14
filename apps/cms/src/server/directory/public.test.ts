@@ -382,6 +382,26 @@ describe("a category page", () => {
     expect(page?.ancestors.map((step) => step.slug)).toEqual(["food", "italian"])
     expect(page?.children.map((child) => child.slug)).toEqual(["pizza"])
   })
+
+  it("returns the category's search description and photo", async () => {
+    await createCategory(
+      alpha.id,
+      {
+        name: "Cafés",
+        slug: "cafes",
+        metaDescription: "Independent coffee shops, reviewed and mapped.",
+        featuredImage: "https://images.example.test/cafes.jpg",
+      },
+      database
+    )
+
+    const page = await readPublicCategory(alpha, "cafes", { page: 1 }, database)
+
+    expect(page?.category).toMatchObject({
+      metaDescription: "Independent coffee shops, reviewed and mapped.",
+      featuredImage: "https://images.example.test/cafes.jpg",
+    })
+  })
 })
 
 describe("each site's public directory settings", () => {

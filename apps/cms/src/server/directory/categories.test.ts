@@ -51,6 +51,46 @@ describe("creating and naming", () => {
       createCategory(site, { name: "Feasts", slug: "food" }, database)
     ).rejects.toThrow("already uses the address food")
   })
+
+  it("round-trips an optional search description and photo", async () => {
+    const created = await createCategory(
+      site,
+      {
+        name: "Cafés",
+        metaDescription: "Independent coffee shops, reviewed and mapped.",
+        featuredImage: "https://images.example.test/cafes.jpg",
+      },
+      database
+    )
+
+    expect(created).toMatchObject({
+      metaDescription: "Independent coffee shops, reviewed and mapped.",
+      featuredImage: "https://images.example.test/cafes.jpg",
+    })
+
+    const updated = await updateCategory(
+      site,
+      created.id,
+      {
+        metaDescription: "Coffee shops across Toronto.",
+        featuredImage: "",
+      },
+      database
+    )
+    expect(updated).toMatchObject({
+      metaDescription: "Coffee shops across Toronto.",
+      featuredImage: "",
+    })
+  })
+
+  it("keeps both new fields empty when they are not supplied", async () => {
+    const category = await createCategory(site, { name: "Plain" }, database)
+
+    expect(category).toMatchObject({
+      metaDescription: "",
+      featuredImage: "",
+    })
+  })
 })
 
 describe("the shape of the tree", () => {

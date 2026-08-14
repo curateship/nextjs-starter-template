@@ -54,9 +54,11 @@ export const Route = createFileRoute("/directory_/category/$slug")({
     return directoryHead(
       directoryTitle(loaderData.category.name, loaderData.site.name),
       directoryDescription(
+        loaderData.category.metaDescription,
         loaderData.category.description,
         `${loaderData.category.name} on ${loaderData.site.name}.`
-      )
+      ),
+      loaderData.category.featuredImage
     )
   },
   component: CategoryRoute,
@@ -96,11 +98,23 @@ function CategoryRoute() {
           siteUrl: site.url,
           name: category.name,
           slug: category.slug,
-          description: category.description,
+          // When a meta description exists, this is the exact sentence in
+          // the page's meta tag. With none, keep today's structured markup.
+          description: category.metaDescription
+            ? directoryDescription(category.metaDescription)
+            : category.description,
         })}
       />
 
       <DirectoryBreadcrumbs crumbs={crumbs} />
+
+      {category.featuredImage ? (
+        <img
+          src={category.featuredImage}
+          alt=""
+          className="aspect-[3/1] w-full rounded-lg object-cover"
+        />
+      ) : null}
 
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold">{category.name}</h1>

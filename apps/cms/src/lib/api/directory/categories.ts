@@ -49,6 +49,8 @@ const categoryInput = z.object({
   name: z.string().min(1).max(MAX_CATEGORY_NAME),
   slug: z.string().max(160).optional(),
   description: z.string().max(500).optional(),
+  metaDescription: z.string().max(300).optional(),
+  featuredImage: z.string().max(600).optional(),
   parentId: z.string().min(1).max(36).nullable().optional(),
 })
 
@@ -63,6 +65,8 @@ export function saveNewCategory(input: {
   name: string
   slug?: string
   description?: string
+  metaDescription?: string
+  featuredImage?: string
   parentId?: string | null
 }) {
   return createCategoryFn({ data: input })
@@ -85,6 +89,8 @@ export function saveCategory(input: {
   name?: string
   slug?: string
   description?: string
+  metaDescription?: string
+  featuredImage?: string
   parentId?: string | null
 }) {
   return updateCategoryFn({ data: input })

@@ -58,7 +58,14 @@ const sites = [
       ["/terms", "Terms", "The terms for using Alpha Guide."],
     ],
     categories: [
-      { slug: "eat", name: "Eat", description: "Places to eat and drink." },
+      {
+        slug: "eat",
+        name: "Eat",
+        description: "Places to eat and drink.",
+        meta: "Independent places to eat and drink, reviewed and mapped.",
+        image:
+          "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=1200&q=80",
+      },
       {
         slug: "italian",
         name: "Italian",
@@ -330,11 +337,14 @@ async function upsertCategories(client, siteId, categories) {
 
       const { rows } = await client.query(
         `insert into categories
-           (id, workspace_id, name, slug, description, parent_id, display_order, created_at, updated_at)
-         values (gen_random_uuid()::text, $1, $2, $3, $4, $5, 0, now(), now())
+           (id, workspace_id, name, slug, description, meta_description,
+            featured_image, parent_id, display_order, created_at, updated_at)
+         values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, 0, now(), now())
          on conflict (workspace_id, slug) do update
            set name = excluded.name,
                description = excluded.description,
+               meta_description = excluded.meta_description,
+               featured_image = excluded.featured_image,
                parent_id = excluded.parent_id,
                updated_at = now()
          returning id`,
@@ -343,6 +353,8 @@ async function upsertCategories(client, siteId, categories) {
           category.name,
           category.slug,
           category.description ?? "",
+          category.meta ?? "",
+          category.image ?? "",
           category.parent ? ids.get(category.parent) : null,
         ]
       )

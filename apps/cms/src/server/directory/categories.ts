@@ -28,6 +28,8 @@ export type Category = {
   name: string
   slug: string
   description: string
+  metaDescription: string
+  featuredImage: string
   parentId: string | null
   displayOrder: number
   /** How many listings sit in this category (its own, not its children's). */
@@ -42,6 +44,8 @@ function toCategory(row: CategoryRow, listingCount: number): Category {
     name: row.name,
     slug: row.slug,
     description: row.description,
+    metaDescription: row.metaDescription,
+    featuredImage: row.featuredImage,
     parentId: row.parentId ?? null,
     displayOrder: row.displayOrder,
     listingCount,
@@ -206,6 +210,8 @@ export async function createCategory(
     name: string
     slug?: string
     description?: string
+    metaDescription?: string
+    featuredImage?: string
     parentId?: string | null
   },
   database: CustomShellDb = db
@@ -241,6 +247,8 @@ export async function createCategory(
       name,
       slug,
       description: input.description?.trim().slice(0, 500) ?? "",
+      metaDescription: input.metaDescription?.trim().slice(0, 300) ?? "",
+      featuredImage: input.featuredImage?.trim().slice(0, 600) ?? "",
       parentId,
       createdAt: at,
       updatedAt: at,
@@ -258,6 +266,8 @@ export async function updateCategory(
     name?: string
     slug?: string
     description?: string
+    metaDescription?: string
+    featuredImage?: string
     parentId?: string | null
   },
   database: CustomShellDb = db
@@ -272,6 +282,12 @@ export async function updateCategory(
   }
   if (input.description !== undefined) {
     values.description = input.description.trim().slice(0, 500)
+  }
+  if (input.metaDescription !== undefined) {
+    values.metaDescription = input.metaDescription.trim().slice(0, 300)
+  }
+  if (input.featuredImage !== undefined) {
+    values.featuredImage = input.featuredImage.trim().slice(0, 600)
   }
   if (input.parentId !== undefined) {
     values.parentId = await requireUsableParent(
