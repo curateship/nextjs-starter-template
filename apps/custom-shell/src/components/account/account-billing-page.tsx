@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ExternalLinkIcon, PauseIcon, PlayIcon } from "lucide-react"
+import { ExternalLinkIcon, Loader2Icon, PauseIcon, PlayIcon } from "lucide-react"
 
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -28,7 +28,17 @@ import {
   TableSurface,
 } from "@/components/ui/table"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  cancelOwnSubscription,
   getBillingErrorMessage,
   openBillingPortal,
   openPlanChange,
@@ -38,6 +48,12 @@ import {
   type CardExpiryWarning,
   type PlanOption,
 } from "@/lib/api/billing/billing"
+import {
+  CANCELLATION_FEEDBACK_MAX_LENGTH,
+  CANCELLATION_REASON_LABELS,
+  CANCELLATION_REASONS,
+  type CancellationReason,
+} from "@/lib/billing/cancellation"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { pauseRefusalCode, pausedPlanLabel } from "@/lib/billing/pause-rules"
 import { describeCode } from "@/lib/format/code-label"
@@ -80,7 +96,16 @@ export function AccountBillingPage({
   const [busyPlanSlug, setBusyPlanSlug] = React.useState<string | null>(null)
   const [openingPortal, setOpeningPortal] = React.useState(false)
   const [confirmingPause, setConfirmingPause] = React.useState(false)
+  const [cancelStep, setCancelStep] = React.useState<"survey" | "confirm" | null>(
+    null
+  )
+  const [cancelReason, setCancelReason] = React.useState<CancellationReason | null>(
+    null
+  )
+  const [cancelFeedback, setCancelFeedback] = React.useState("")
+  const [cancelledEndsAt, setCancelledEndsAt] = React.useState<string | null>(null)
   const [runPause, pausing] = useAsyncAction(getBillingErrorMessage)
+  const [runCancel, cancelling] = useAsyncAction(getBillingErrorMessage)
   // Why pausing is not on offer, if it is not. The button is shown either way
   // and answers the click with this, because a button that is simply missing
   // leaves somebody looking at their own plan with no way to find out why.
@@ -138,6 +163,19 @@ export function AccountBillingPage({
     }
   }, [])
 
+  const handleCancel = React.useCallback(async () => {
+    await runCancel(async () => {
+      const result = await cancelOwnSubscription(
+        cancelReason,
+        cancelFeedback.trim() || null
+      )
+      if (!result.endsAt) throw new Error("SUBSCRIPTION_NOT_FOUND")
+      setCancelledEndsAt(result.endsAt)
+      setCancelStep(null)
+      onChanged()
+    })
+  }, [cancelFeedback, cancelReason, onChanged, runCancel])
+
   return (
     <CardGroup className="w-full">
       {/* First, because it is the only thing on this tab with a deadline. */}
@@ -178,6 +216,16 @@ export function AccountBillingPage({
           {/* Every button on this card in one right-hand group, so adding
               pause did not push "Manage in Stripe" onto its own line. */}
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            {(overview.isPaid || overview.paused) &&
+            overview.source === "stripe" &&
+            !overview.cancelAtPeriodEnd ? (
+              <Button
+                variant="destructive"
+                onClick={() => setCancelStep("survey")}
+              >
+                Cancel my plan
+              </Button>
+            ) : null}
             {overview.paused ? (
               <Button onClick={() => void handlePause(false)} disabled={pausing}>
                 <PlayIcon className="h-4 w-4" />
@@ -211,6 +259,40 @@ export function AccountBillingPage({
           </div>
         </CardContent>
       </Card>
+
+      {cancelStep === "survey" ? (
+        <CancellationSurveyCard
+          reason={cancelReason}
+          feedback={cancelFeedback}
+          busy={cancelling}
+          onReasonChange={setCancelReason}
+          onFeedbackChange={setCancelFeedback}
+          onCancel={() => setCancelStep(null)}
+          onContinue={() => setCancelStep("confirm")}
+        />
+      ) : null}
+
+      {cancelStep === "confirm" ? (
+        <CancellationConfirmCard
+          planName={overview.planName}
+          endsAt={overview.currentPeriodEnd}
+          busy={cancelling}
+          onBack={() => setCancelStep("survey")}
+          onConfirm={() => void handleCancel()}
+        />
+      ) : null}
+
+      {cancelledEndsAt ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Your plan is set to end</CardTitle>
+            <CardDescription>
+              You keep {overview.planName} until {formatDate(cancelledEndsAt)}.
+              It will not renew, and you will not be charged again.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       <ConfirmDialog
         open={confirmingPause}
@@ -247,6 +329,112 @@ export function AccountBillingPage({
 
       <InvoicesCard invoices={invoices} />
     </CardGroup>
+  )
+}
+
+function CancellationSurveyCard({
+  reason,
+  feedback,
+  busy,
+  onReasonChange,
+  onFeedbackChange,
+  onCancel,
+  onContinue,
+}: {
+  reason: CancellationReason | null
+  feedback: string
+  busy: boolean
+  onReasonChange: (reason: CancellationReason) => void
+  onFeedbackChange: (feedback: string) => void
+  onCancel: () => void
+  onContinue: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Why are you leaving?</CardTitle>
+        <CardDescription>
+          This is optional. You can continue without answering.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="cancel-reason">Main reason (optional)</Label>
+          <Select
+            value={reason ?? undefined}
+            onValueChange={(value) =>
+              onReasonChange(value as CancellationReason)
+            }
+            disabled={busy}
+          >
+            <SelectTrigger id="cancel-reason" className="w-full sm:w-fit">
+              <SelectValue placeholder="Choose a reason" />
+            </SelectTrigger>
+            <SelectContent>
+              {CANCELLATION_REASONS.map((value) => (
+                <SelectItem key={value} value={value}>
+                  {CANCELLATION_REASON_LABELS[value]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="cancel-feedback">Anything else? (optional)</Label>
+          <Textarea
+            id="cancel-feedback"
+            value={feedback}
+            maxLength={CANCELLATION_FEEDBACK_MAX_LENGTH}
+            disabled={busy}
+            onChange={(event) => onFeedbackChange(event.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" disabled={busy} onClick={onCancel}>
+            Keep my plan
+          </Button>
+          <Button disabled={busy} onClick={onContinue}>
+            Continue
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function CancellationConfirmCard({
+  planName,
+  endsAt,
+  busy,
+  onBack,
+  onConfirm,
+}: {
+  planName: string
+  endsAt: string | null
+  busy: boolean
+  onBack: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Cancel {planName}?</CardTitle>
+        <CardDescription>
+          You keep your plan until{" "}
+          {endsAt ? formatDate(endsAt) : "the end of the period you paid for"}.
+          It will not renew, and you will not be charged again.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" disabled={busy} onClick={onBack}>
+          Back
+        </Button>
+        <Button variant="destructive" disabled={busy} onClick={onConfirm}>
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          Cancel my plan
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 

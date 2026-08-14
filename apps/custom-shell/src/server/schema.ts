@@ -719,6 +719,37 @@ export const customShellSubscriptions = pgTable(
   ]
 )
 
+/** What members optionally tell us when they stop a paid plan renewing. */
+export const customShellCancellations = pgTable(
+  "cancellations",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    planId: varchar("plan_id", { length: 36 }).references(
+      () => customShellPlans.id,
+      { onDelete: "set null" }
+    ),
+    planName: varchar("plan_name", { length: 120 }),
+    reason: varchar("reason", { length: 40 }),
+    feedback: varchar("feedback", { length: 500 }),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "cancellations_reason_check",
+      sql`${table.reason} is null or ${table.reason} in ('too_expensive', 'missing_features', 'hard_to_use', 'not_using_enough', 'temporary', 'other')`
+    ),
+    index("ix_cancellations_user_created").on(
+      table.userId,
+      table.createdAt.desc()
+    ),
+    index("ix_cancellations_ends_at").on(table.endsAt),
+  ]
+)
+
 export const customShellBillingEvents = pgTable("billing_events", {
   eventId: varchar("event_id", { length: 120 }).primaryKey(),
   type: varchar("type", { length: 120 }).notNull(),

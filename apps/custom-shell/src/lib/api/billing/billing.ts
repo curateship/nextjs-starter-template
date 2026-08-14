@@ -4,7 +4,13 @@ import { z } from "zod"
 import { createErrorMessage } from "../error-message"
 
 import {
+  CANCELLATION_FEEDBACK_MAX_LENGTH,
+  CANCELLATION_REASONS,
+  type CancellationReason,
+} from "@/lib/billing/cancellation"
+import {
   billingEnabled,
+  cancelSubscriptionByMember,
   createCheckoutSession,
   createPortalSession,
   findExpiringCard,
@@ -76,11 +82,13 @@ const billingErrorMessages = {
     "This plan was granted by an admin and is not billed, so there is nothing to pause.",
   CANNOT_PAUSE_TRIAL:
     "You are on a free trial, so nothing is being billed yet. There is nothing to pause.",
+  CANNOT_CANCEL_GRANT:
+    "This plan was granted by an admin and is not billed, so there is no subscription to cancel.",
   ALREADY_ENDING:
     "Your plan is already set to end when the period you paid for runs out.",
   AUTH_REQUIRED: "Please sign in again.",
   RATE_LIMITED:
-    "Too many checkout attempts. Please wait a few minutes and try again.",
+    "Too many billing requests. Please wait a few minutes and try again.",
 }
 
 /**
@@ -205,6 +213,37 @@ const setOwnPauseFn = createServerFn({ method: "POST" })
     return setSubscriptionPaused(context.user.id, data.paused, "member")
   })
 
+const cancelOwnSubscriptionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .validator(
+    z.object({
+      // An outdated or altered answer is treated as a skip. Survey data must
+      // never become the rule that prevents somebody from cancelling.
+      reason: z
+        .string()
+        .nullable()
+        .transform((value): CancellationReason | null =>
+          value && CANCELLATION_REASONS.includes(value as CancellationReason)
+            ? (value as CancellationReason)
+            : null
+        ),
+      feedback: z
+        .string()
+        .nullable()
+        .transform(
+          (value) =>
+            value?.trim().slice(0, CANCELLATION_FEEDBACK_MAX_LENGTH) || null
+        ),
+    })
+  )
+  .handler(async ({ data, context }) => {
+    await enforceRateLimit(`subscription-cancel:${context.user.id}`, {
+      maxAttempts: 5,
+      windowSeconds: 15 * 60,
+    })
+    return cancelSubscriptionByMember(context.user.id, data)
+  })
+
 /**
  * Billing page data in one request: the overview, any Stripe invoices, and a
  * warning when the saved card runs out before the next renewal.
@@ -253,6 +292,13 @@ export function openBillingPortal() {
 
 export function setOwnPlanPaused(paused: boolean) {
   return setOwnPauseFn({ data: { paused } })
+}
+
+export function cancelOwnSubscription(
+  reason: CancellationReason | null,
+  feedback: string | null
+) {
+  return cancelOwnSubscriptionFn({ data: { reason, feedback } })
 }
 
 /**
