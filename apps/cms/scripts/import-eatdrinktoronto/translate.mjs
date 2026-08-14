@@ -156,6 +156,19 @@ export function contactLinksFromCore(coreValue) {
   }
 }
 
+export function ratingFromCore(value) {
+  if (value === undefined || value === null || value === "") return null
+  const text = String(value).trim()
+  if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text)) return null
+  const rating = Number(text)
+  return Number.isFinite(rating) &&
+    rating >= 0 &&
+    rating <= 5 &&
+    (rating * 10) % 1 === 0
+    ? rating
+    : null
+}
+
 function blocksOfType(blocks, type) {
   return Object.values(record(blocks)).filter(
     (block) => record(block).type === type
@@ -231,6 +244,7 @@ export function translateListing(row, mergedBlocks) {
     slug: cleanText(row.slug, 160),
     metaDescription:
       cleanText(row.metaDescription, 300) || bodyText.slice(0, 300),
+    rating: ratingFromCore(core.rating),
     status: row.status === "draft" ? "draft" : "published",
     displayOrder: Number.isFinite(Number(row.displayOrder))
       ? Math.trunc(Number(row.displayOrder))
@@ -258,7 +272,8 @@ export function droppedBlocks(mergedBlocks, row = {}) {
   })
   const coreBlock = blocksOfType(mergedBlocks, "directory-core")[0]
   const coreContent = record(record(coreBlock).content)
-  const unsupportedCore = hasValue(coreContent.rating)
+  const unsupportedCore =
+    hasValue(coreContent.rating) && ratingFromCore(coreContent.rating) === null
     ? [{ type: "directory-core-rating", rating: clone(coreContent.rating) }]
     : []
   const coordinates = []

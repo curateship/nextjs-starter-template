@@ -82,6 +82,7 @@ const sites = [
         slug: "joes-diner",
         title: "Joe's Diner",
         meta: "Breakfast all day, coffee that keeps coming.",
+        rating: 4.5,
         category: "eat",
         order: 1,
         address: "1245 Broadway, New York, NY",
@@ -399,12 +400,13 @@ async function upsertListings(client, siteId, categoryIds, listings) {
   for (const listing of listings) {
     const { rows } = await client.query(
       `insert into directory_listings
-         (id, workspace_id, title, slug, meta_description, status, display_order,
-          featured_image, contact_links, body, created_at, updated_at)
-       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, '', $7::jsonb, $8::jsonb, now(), now())
+         (id, workspace_id, title, slug, meta_description, rating, status,
+          display_order, featured_image, contact_links, body, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '', $8::jsonb, $9::jsonb, now(), now())
        on conflict (workspace_id, slug) do update
          set title = excluded.title,
              meta_description = excluded.meta_description,
+             rating = excluded.rating,
              status = excluded.status,
              display_order = excluded.display_order,
              contact_links = excluded.contact_links,
@@ -416,6 +418,7 @@ async function upsertListings(client, siteId, categoryIds, listings) {
         listing.title,
         listing.slug,
         listing.meta,
+        listing.rating ?? null,
         listing.draft ? "draft" : "published",
         listing.order,
         JSON.stringify(contactLinks(listing)),

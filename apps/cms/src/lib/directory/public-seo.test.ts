@@ -110,6 +110,15 @@ describe("the block a search engine reads", () => {
     expect(graph[1]).not.toHaveProperty("image")
   })
 
+  it("never adds an admin-set rating to search-engine markup", () => {
+    const ratedListing = { ...listing, rating: 4.5 }
+
+    expect(listingJsonLd(ratedListing)).toEqual(listingJsonLd(listing))
+    expect(jsonLdText(listingJsonLd(ratedListing))).not.toContain(
+      "aggregateRating"
+    )
+  })
+
   it("describes a category as the list of things it is", () => {
     const graph = categoryJsonLd({
       ...site,

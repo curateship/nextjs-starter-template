@@ -62,6 +62,7 @@ export async function copyDirectoryWorkspace({
         title: listing.title,
         slug: listing.slug,
         metaDescription: listing.metaDescription,
+        rating: listing.rating,
         status: listing.status,
         displayOrder: listing.displayOrder,
         featuredImage: listing.featuredImage,

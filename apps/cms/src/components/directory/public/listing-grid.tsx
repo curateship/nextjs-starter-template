@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { SaveDropdown } from "@/components/directory/public/save-dropdown"
+import { ListingRating } from "@/components/directory/listing-rating"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { focusRing } from "@/lib/layout/focus-ring"
@@ -87,6 +88,7 @@ function ListingCard({ listing }: { listing: PublicListingCard }) {
             {listing.title}
           </Link>
         </h2>
+        <ListingRating rating={listing.rating} />
         {listing.category || listing.claimed ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             {listing.category ? listing.category.name : null}

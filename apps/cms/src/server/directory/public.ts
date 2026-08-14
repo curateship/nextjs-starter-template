@@ -122,6 +122,7 @@ export type PublicListingCard = {
   title: string
   slug: string
   metaDescription: string
+  rating: number | null
   featuredImage: string
   /** The primary category if it has one, else the first it is in. */
   category: PublicCategoryLink | null
@@ -158,6 +159,7 @@ export type PublicListing = {
   title: string
   slug: string
   metaDescription: string
+  rating: number | null
   featuredImage: string
   contactLinks: ContactLinks
   body: WrittenPageNode
@@ -361,6 +363,7 @@ async function toCards(
     title: string
     slug: string
     metaDescription: string
+    rating: number | null
     featuredImage: string
   }[],
   database: CustomShellDb
@@ -387,6 +390,7 @@ const cardColumns = {
   title: directoryListings.title,
   slug: directoryListings.slug,
   metaDescription: directoryListings.metaDescription,
+  rating: directoryListings.rating,
   featuredImage: directoryListings.featuredImage,
 }
 
@@ -696,6 +700,7 @@ async function readPublicListingUncached(
       title: row.title,
       slug: row.slug,
       metaDescription: row.metaDescription,
+      rating: row.rating,
       featuredImage: row.featuredImage,
       // Cleaned on the way out as well as in, exactly as the admin's read
       // does: a row edited straight in the database is still only allowed to

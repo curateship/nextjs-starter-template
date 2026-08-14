@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   timestamp,
   uniqueIndex,
@@ -39,6 +40,8 @@ export const directoryListings = pgTable(
     metaDescription: varchar("meta_description", { length: 300 })
       .notNull()
       .default(""),
+    /** An optional admin-set score. Null means the listing has no rating. */
+    rating: numeric("rating", { precision: 2, scale: 1, mode: "number" }),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Hand-set ordering for the public list. Ties fall back to newest-first. */
@@ -90,6 +93,10 @@ export const directoryListings = pgTable(
     check(
       "directory_listings_status_check",
       sql`${table.status} IN ('draft', 'published')`
+    ),
+    check(
+      "directory_listings_rating_check",
+      sql`${table.rating} IS NULL OR ${table.rating} BETWEEN 0 AND 5`
     ),
   ]
 )

@@ -25,6 +25,7 @@ export type DirectoryFrontPageData = {
     title: string
     slug: string
     metaDescription: string
+    rating: number | null
     featuredImage: string
     category: { name: string; slug: string } | null
     claimed: boolean

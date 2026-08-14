@@ -107,6 +107,33 @@ describe("creating and addressing", () => {
 })
 
 describe("what a save may contain", () => {
+  it("starts without a rating and stores Directory's decimal values", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+    expect(listing.rating).toBeNull()
+
+    expect(
+      (await updateListing(site, listing.id, { rating: 4.6 }, database)).rating
+    ).toBe(4.6)
+    expect(
+      (await updateListing(site, listing.id, { rating: 0 }, database)).rating
+    ).toBe(0)
+    expect(
+      (await updateListing(site, listing.id, { rating: null }, database)).rating
+    ).toBeNull()
+  })
+
+  it("refuses ratings outside one decimal place from 0 to 5", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+
+    for (const rating of [-0.1, 4.25, 5.1, Number.NaN]) {
+      await expect(
+        updateListing(site, listing.id, { rating }, database)
+      ).rejects.toThrow(
+        "Rating must be a number from 0 to 5 with no more than one decimal place."
+      )
+    }
+  })
+
   it("stores a poisoned link as typed but never makes it followable", async () => {
     const listing = await createListing(site, { title: "Joes" }, database)
     await updateListing(site,

@@ -3,7 +3,8 @@
 This one-off command copies one old Directory site into one CMS site. It reads
 the old database in a read-only transaction, keeps published listings published
 and drafts private, and can be run again safely: source IDs update their existing
-CMS listings, while existing category slugs are reused.
+CMS listings, while existing category slugs are reused. Ratings from the old
+Directory Core block carry into the CMS listing rating field.
 
 Set `DIRECTORY_SOURCE_DATABASE_URL` to a read-only old-app database account.
 The CMS database and media-storage settings continue to come from `.env.local`.
