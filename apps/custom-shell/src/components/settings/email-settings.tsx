@@ -25,7 +25,10 @@ import {
   type EmailSettingsStatus,
 } from "@/lib/api/email/email-settings"
 import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
-import { emailStatusLine } from "@/lib/email/email-delivery"
+import {
+  emailLinkStatusLine,
+  emailStatusLine,
+} from "@/lib/email/email-delivery"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
@@ -341,6 +344,7 @@ export function EmailSettings() {
         ) : (
           <>
             <DeliveryStatusRow status={status} />
+            <LinkAddressStatusRow status={status} />
 
             <div className="grid gap-2">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -582,8 +586,16 @@ export function EmailSettings() {
  * this app's emails just as well.
  */
 function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
-  const { on, line } = emailStatusLine(status)
+  return <EmailStatusRow {...emailStatusLine(status)} />
+}
 
+/** Where the links in system emails lead, kept visible beside sending health. */
+function LinkAddressStatusRow({ status }: { status: EmailSettingsStatus }) {
+  return <EmailStatusRow {...emailLinkStatusLine(status)} />
+}
+
+/** One shared warning shape for sending health and link health. */
+function EmailStatusRow({ on, line }: { on: boolean; line: string }) {
   return (
     <div className="flex items-start gap-2.5">
       <span
@@ -597,7 +609,10 @@ function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
       />
       <p
         role="status"
-        className={cn("text-sm", on ? "text-muted-foreground" : "font-medium")}
+        className={cn(
+          "min-w-0 break-words text-sm",
+          on ? "text-muted-foreground" : "font-medium"
+        )}
       >
         {line}
       </p>
