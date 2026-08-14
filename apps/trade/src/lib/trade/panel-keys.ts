@@ -14,6 +14,8 @@ export const tradePanelLayoutKey = {
   workspaceHorizontal: "trade-workspace-horizontal",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
+  /** The wallets above the Automation list, in the right-hand column. */
+  accountColumn: "trade-account-column",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal",
   /** The backtest workspace above, its coins and trades below. */

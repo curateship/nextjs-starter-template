@@ -281,6 +281,9 @@ export function TradeWorkspace({
   const verticalLayout = useRememberedPanelLayout(
     tradePanelLayoutKey.workspaceVertical
   )
+  const accountColumnLayout = useRememberedPanelLayout(
+    tradePanelLayoutKey.accountColumn
+  )
 
   const toggleMarkets = usePanelToggle(marketsPanelRef)
   const toggleAccount = usePanelToggle(accountPanelRef)
@@ -443,7 +446,13 @@ export function TradeWorkspace({
             gap between it and the next. The automations were tucked inside the
             wallets' card for a build, which put a card inside a card and let
             the list grow to eight thousand pixels instead of scrolling. */}
-        <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+        <ResizablePanelGroup
+          key={accountColumnLayout.layoutKey}
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          defaultLayout={accountColumnLayout.defaultLayout}
+          onLayoutChanged={accountColumnLayout.onLayoutChanged}
+        >
           <ResizablePanel id="wallets" defaultSize="50%" minSize="20%">
             <WorkspacePanel
               collapsed={accountCollapsed}
