@@ -2,11 +2,14 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { DIRECTORY_SORTS } from "@/lib/directory/public-search"
+import { DIRECTORY_FRONT_PAGE_MODES } from "@/lib/directory/front-page"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   directorySettingsFor,
   saveDirectoryBadgesEnabled,
   saveDirectoryBrowseSettings,
+  saveDirectoryFrontPageSettings,
+  type DirectorySettings,
 } from "@/server/directory/settings"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
@@ -20,6 +23,10 @@ export const getDirectorySettingsErrorMessage = createErrorMessage(
       "Choose a listing order from the available options.",
     "Give the directory browse page a title.":
       "Give the directory browse page a title.",
+    "Choose what the front page should show.":
+      "Choose what the front page should show.",
+    "Front page listings must be between 1 and 12.":
+      "Front page listings must be between 1 and 12.",
   },
   "The directory settings could not be saved."
 )
@@ -74,3 +81,28 @@ const saveBrowseSettingsFn = createServerFn({ method: "POST" })
 export function saveBrowseSettings(input: DirectoryBrowseSettingsInput) {
   return saveBrowseSettingsFn({ data: input })
 }
+
+const frontPageSettingsInput = z.object({
+  frontPageMode: z.enum(DIRECTORY_FRONT_PAGE_MODES),
+  frontPageCount: z.number(),
+})
+
+export type DirectoryFrontPageSettingsInput = z.infer<
+  typeof frontPageSettingsInput
+>
+
+const saveFrontPageSettingsFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(frontPageSettingsInput)
+  .handler(async ({ data, context }) =>
+    saveDirectoryFrontPageSettings(
+      await workspaceIdForRequest(context.user.id),
+      data
+    )
+  )
+
+export function saveFrontPageSettings(input: DirectoryFrontPageSettingsInput) {
+  return saveFrontPageSettingsFn({ data: input })
+}
+
+export type { DirectorySettings }

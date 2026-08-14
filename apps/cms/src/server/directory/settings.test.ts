@@ -6,6 +6,7 @@ import {
   DIRECTORY_SETTING_DEFAULTS,
   directorySettingsFor,
   saveDirectoryBrowseSettings,
+  saveDirectoryFrontPageSettings,
 } from "@/server/directory/settings"
 import {
   createTestDatabase,
@@ -97,8 +98,23 @@ describe("directory settings", () => {
       updatedAt: at,
     })
 
-    expect((await directorySettingsFor(workspaceId, database)).defaultSort).toBe(
-      DIRECTORY_SETTING_DEFAULTS.defaultSort
+    expect(
+      (await directorySettingsFor(workspaceId, database)).defaultSort
+    ).toBe(DIRECTORY_SETTING_DEFAULTS.defaultSort)
+  })
+
+  it("saves front-page choices without changing browse or claim choices", async () => {
+    const saved = await saveDirectoryFrontPageSettings(
+      workspaceId,
+      { frontPageMode: "newest", frontPageCount: 6 },
+      database
     )
+
+    expect(saved).toMatchObject({
+      claimsEnabled: true,
+      browseTitle: "Directory",
+      frontPageMode: "newest",
+      frontPageCount: 6,
+    })
   })
 })

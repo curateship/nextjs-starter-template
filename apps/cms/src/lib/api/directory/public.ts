@@ -15,6 +15,9 @@ import {
   type PublicCategoryPage,
   type PublicListingPage,
 } from "@/server/directory/public"
+import { readDirectoryFrontPage } from "@/server/directory/front-page"
+import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
+import { answerForRequest } from "@/server/workspaces/host"
 
 import { createErrorMessage } from "../error-message"
 
@@ -122,6 +125,23 @@ export function loadDirectoryCategory(input: { slug: string; page?: number }) {
   return readDirectoryCategoryFn({ data: input })
 }
 
+const readDirectoryFrontPageFn = createServerFn({ method: "GET" }).handler(
+  async (): Promise<DirectoryFrontPageData | null> => {
+    const answer = await answerForRequest()
+    if (answer.kind !== "workspace") return null
+
+    return readDirectoryFrontPage({
+      id: answer.workspace.id,
+      name: answer.workspace.name,
+    })
+  }
+)
+
+/** The visited site's optional listings home page, never the platform's. */
+export function loadDirectoryFrontPage() {
+  return readDirectoryFrontPageFn()
+}
+
 /**
  * The two shapes a component names out loud. Everything else a page needs is
  * inferred from its loader, so re-exporting the rest would be a list to keep in
@@ -132,3 +152,4 @@ export type {
   PublicClaimState,
   PublicListingCard,
 } from "@/server/directory/public"
+export type { DirectoryFrontPageData } from "@/lib/directory/front-page"
