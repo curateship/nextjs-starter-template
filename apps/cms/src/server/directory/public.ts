@@ -720,6 +720,54 @@ function ancestorsOf(
   return chain
 }
 
+/**
+ * Published listings below each direct child of this category, including all
+ * deeper descendants. One recursive query covers every child, and DISTINCT
+ * keeps a listing assigned at two levels from being counted twice.
+ */
+async function publishedSubtreeCounts(
+  siteId: string,
+  parentId: string,
+  database: CustomShellDb
+): Promise<Map<string, number>> {
+  const result = await database.execute(sql`
+    WITH RECURSIVE category_tree AS (
+      SELECT child.id AS ancestor_id, child.id AS descendant_id
+      FROM categories child
+      WHERE child.workspace_id = ${siteId}
+        AND child.parent_id = ${parentId}
+
+      UNION
+
+      SELECT tree.ancestor_id, child.id
+      FROM category_tree tree
+      INNER JOIN categories child
+        ON child.parent_id = tree.descendant_id
+       AND child.workspace_id = ${siteId}
+    )
+    SELECT
+      tree.ancestor_id AS "categoryId",
+      count(DISTINCT relationship.content_id)::int AS "count"
+    FROM category_tree tree
+    INNER JOIN category_relationships relationship
+      ON relationship.category_id = tree.descendant_id
+     AND relationship.workspace_id = ${siteId}
+     AND relationship.content_type = ${LISTING_CONTENT_TYPE}
+    INNER JOIN directory_listings listing
+      ON listing.id = relationship.content_id
+     AND listing.workspace_id = ${siteId}
+     AND listing.status = 'published'
+    GROUP BY tree.ancestor_id
+  `)
+
+  return new Map(
+    (result.rows as Array<{ categoryId: string; count: number }>).map((row) => [
+      row.categoryId,
+      row.count,
+    ])
+  )
+}
+
 /** One category's page, or null when this site has no category at that address. */
 export async function readPublicCategory(
   site: VisitorSite,
@@ -733,24 +781,33 @@ export async function readPublicCategory(
   ])
   const category = all.find((row) => row.slug === slug)
   if (!category) return null
+  const children = all.filter((row) => row.parentId === category.id)
 
-  const { listings, total, page } = await listingPage(
-    site.id,
-    {
-      categoryId: category.id,
-      sort: settings.defaultSort,
-      page: options.page,
-      pageSize: settings.pageSize,
-      featuredFirst: settings.featuredFirst,
-    },
-    database
-  )
+  const [{ listings, total, page }, childCounts] = await Promise.all([
+    listingPage(
+      site.id,
+      {
+        categoryId: category.id,
+        sort: settings.defaultSort,
+        page: options.page,
+        pageSize: settings.pageSize,
+        featuredFirst: settings.featuredFirst,
+      },
+      database
+    ),
+    children.length
+      ? publishedSubtreeCounts(site.id, category.id, database)
+      : Promise.resolve(new Map<string, number>()),
+  ])
 
   return {
     site: { name: site.name, url: site.url },
     category,
     ancestors: ancestorsOf(category, all),
-    children: all.filter((row) => row.parentId === category.id),
+    children: children.map((row) => ({
+      ...row,
+      listingCount: childCounts.get(row.id) ?? 0,
+    })),
     listings,
     total,
     page,
