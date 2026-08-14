@@ -15,11 +15,13 @@ import {
   updateSystemEmail,
 } from "@/server/email/system-emails"
 import {
+  SYSTEM_EMAIL_KINDS,
   SYSTEM_EMAIL_META,
   applySystemEmailTokens,
   createSystemEmailBlocks,
 } from "@/lib/system-emails/kinds"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
+import { escapeHtml } from "@/lib/email/escape-html"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
 import { composeFromAddress, composeSystemEmail } from "@/server/email/send"
 
@@ -227,6 +229,15 @@ describe("what actually gets sent", () => {
     actionUrl: "https://app.dev/reset-password?token=a&b=1",
   }
 
+  it.each(SYSTEM_EMAIL_KINDS)("renders the %s email", (kind) => {
+    const { subject, html } = composeSystemEmail({ ...request, kind }, null)
+
+    expect(subject.trim()).not.toBe("")
+    expect(html).toContain("<a ")
+    expect(html).toContain(escapeHtml(SYSTEM_EMAIL_META[kind].defaults.action))
+    expect(html).not.toContain("{{")
+  })
+
   it("uses the built-in wording when nothing has been saved", () => {
     const { subject, html } = composeSystemEmail(request, null)
     expect(subject).toBe("Reset your password")
@@ -235,6 +246,15 @@ describe("what actually gets sent", () => {
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
     )
+
+    const encodedHref = html.match(/href="([^"]+)"/)?.[1]
+    expect(encodedHref).toBeDefined()
+    const clickedUrl = new URL(encodedHref!.replaceAll("&amp;", "&"))
+    expect(clickedUrl.href).toBe(
+      "https://app.dev/reset-password?token=a&b=1"
+    )
+    expect(clickedUrl.searchParams.get("token")).toBe("a")
+    expect(clickedUrl.searchParams.get("b")).toBe("1")
   })
 
   it("addresses a named person without letting their name become markup", () => {

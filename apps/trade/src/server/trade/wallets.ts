@@ -269,7 +269,10 @@ export async function loadWalletSummaries(
   const paper = await paperWalletFigures(
     userId,
     wallets.filter((wallet) => wallet.kind === "paper")
-  ).catch(() => new Map<string, WalletAccountFigures>())
+  ).catch((error) => {
+    console.error("Paper wallets could not be settled", error)
+    return new Map<string, WalletAccountFigures>()
+  })
 
   const summaries = await Promise.all(
     wallets.map(async (wallet): Promise<WalletAccountSummary> => {
@@ -283,7 +286,13 @@ export async function loadWalletSummaries(
       }
       const figures = await accountOf(getProtocol(wallet.protocol))
         .fetch(wallet.network, wallet.address ?? "")
-        .catch(() => null)
+        .catch((error: unknown) => {
+          console.error(
+            `Wallet "${wallet.label}" (${wallet.protocol} ${wallet.network}) could not be read`,
+            error
+          )
+          return null
+        })
       if (!figures) return { walletId: wallet.id, state: "unreachable" }
       return summarizeWallet(wallet, figures)
     })
