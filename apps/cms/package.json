@@ -68,6 +68,7 @@
     "db:up": "docker compose up -d postgres",
     "dev": "vite dev",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "import:eatdrinktoronto": "node scripts/import-eatdrinktoronto/index.mjs",
     "lint": "eslint .",
     "predev": "npm run db:setup",
     "preview": "vite preview",

@@ -15,12 +15,12 @@ export function DirectoryPagination({
   page,
   pageSize,
   total,
-  onPageChange,
+  hrefForPage,
 }: {
   page: number
   pageSize: number
   total: number
-  onPageChange: (page: number) => void
+  hrefForPage: (page: number) => string
 }) {
   const pages = Math.max(1, Math.ceil(total / pageSize))
   if (pages <= 1) return null
@@ -32,25 +32,27 @@ export function DirectoryPagination({
       aria-label="Listing pages"
       className="flex items-center justify-center gap-2"
     >
-      <Button
-        type="button"
-        variant="outline"
-        disabled={current === 1}
-        onClick={() => onPageChange(current - 1)}
-      >
-        Previous
-      </Button>
+      {current === 1 ? (
+        <Button type="button" variant="outline" disabled>
+          Previous
+        </Button>
+      ) : (
+        <Button asChild variant="outline">
+          <a href={hrefForPage(current - 1)}>Previous</a>
+        </Button>
+      )}
       <p aria-live="polite" className="text-sm text-muted-foreground">
         Page {current} of {pages}
       </p>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={current === pages}
-        onClick={() => onPageChange(current + 1)}
-      >
-        Next
-      </Button>
+      {current === pages ? (
+        <Button type="button" variant="outline" disabled>
+          Next
+        </Button>
+      ) : (
+        <Button asChild variant="outline">
+          <a href={hrefForPage(current + 1)}>Next</a>
+        </Button>
+      )}
     </nav>
   )
 }

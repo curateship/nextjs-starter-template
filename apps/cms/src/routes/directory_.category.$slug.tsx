@@ -19,7 +19,7 @@ import {
   directoryTitle,
 } from "@/lib/directory/public-seo"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { readPage, useListSearchNavigate } from "@/lib/nav/list-search"
+import { readPage } from "@/lib/nav/list-search"
 
 /**
  * One category: what it is, the categories under it, and its listings.
@@ -67,7 +67,6 @@ export const Route = createFileRoute("/directory_/category/$slug")({
 function CategoryRoute() {
   const { site, category, ancestors, children, listings, total, page, pageSize } =
     Route.useLoaderData()
-  const setListSearch = useListSearchNavigate()
 
   const crumbs: Crumb[] = [
     { label: site.name, home: true },
@@ -134,7 +133,9 @@ function CategoryRoute() {
         page={page}
         pageSize={pageSize}
         total={total}
-        onPageChange={(next) => setListSearch({ page: next > 1 ? next : undefined })}
+        hrefForPage={(next) =>
+          `/directory/category/${encodeURIComponent(category.slug)}${next > 1 ? `?page=${next}` : ""}`
+        }
       />
     </DirectoryFrame>
   )

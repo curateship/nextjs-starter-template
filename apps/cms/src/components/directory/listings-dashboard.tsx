@@ -258,6 +258,8 @@ export function ListingsDashboard({
         title="Listings"
         icon={<StoreIcon className="text-muted-foreground" />}
         count={data.total}
+        fillHeight
+        className="h-auto max-h-full"
         selectedCount={selectedIds.size}
         onClearSelection={selection.clear}
         controls={

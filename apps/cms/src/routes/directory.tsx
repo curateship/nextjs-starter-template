@@ -14,12 +14,7 @@ import {
   type DirectorySort,
 } from "@/lib/directory/public-search"
 import { directoryDescription, directoryHead, directoryTitle } from "@/lib/directory/public-seo"
-import {
-  readOneOf,
-  readPage,
-  readSearchText,
-  useListSearchNavigate,
-} from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
  * The public directory: one page of a site's published listings, with a search
@@ -77,7 +72,13 @@ function DirectoryRoute() {
   const { site, listings, categories, total, page, pageSize } =
     Route.useLoaderData()
   const current = Route.useSearch()
-  const setListSearch = useListSearchNavigate()
+  const navigate = Route.useNavigate()
+  const setListSearch = (patch: Partial<DirectoryBrowseSearch>) => {
+    void navigate({
+      search: (previous) => ({ ...previous, ...patch }),
+      replace: true,
+    })
+  }
 
   return (
     <DirectoryFrame>
@@ -112,10 +113,18 @@ function DirectoryRoute() {
         page={page}
         pageSize={pageSize}
         total={total}
-        // Page 1 is the default, so going back to it clears the address rather
-        // than leaving a `?page=1` behind.
-        onPageChange={(next) => setListSearch({ page: next > 1 ? next : undefined })}
+        hrefForPage={(next) => directoryPageHref(current, next)}
       />
     </DirectoryFrame>
   )
+}
+
+function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
+  const parameters = new URLSearchParams()
+  if (search.q) parameters.set("q", search.q)
+  if (search.category) parameters.set("category", search.category)
+  if (search.sort) parameters.set("sort", search.sort)
+  if (page > 1) parameters.set("page", String(page))
+  const query = parameters.toString()
+  return `/directory${query ? `?${query}` : ""}`
 }
