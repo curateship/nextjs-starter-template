@@ -8,7 +8,6 @@ import type {
 import type {
   AutomationCanvasPanel,
   AutomationCanvasStatus,
-  AutomationRunControl,
 } from "@/lib/automations/canvas-panel"
 import type { AppSettingsTab } from "@/lib/settings-tab"
 
@@ -206,25 +205,29 @@ type AutomationOptions = {
    */
   canvasPanel?: AutomationCanvasPanel
   /**
-   * A small piece of the app's own in the canvas header, beside Pause all.
+   * The app's own controls in the canvas header, on the right beside Run.
    *
-   * For what a flow IS right now rather than what a run produced — the one
-   * strip on the screen that is always visible. Unset means the header is the
-   * shell's alone, which is what every app had before this existed.
+   * **This is where every action of the app's own belongs**, and there is no
+   * second place. For what a flow IS right now rather than what a run produced,
+   * and for anything a person would press about it. Unset means the header is
+   * the shell's alone, which is what every app had before this existed.
    *
    * See the type for why it is a pointer to a file rather than a component.
    */
   canvasHeaderStatus?: AutomationCanvasStatus
   /**
-   * The app's own control in place of the shell's Run button.
+   * Whether the shell's Run button appears on the canvas at all.
    *
-   * For an app whose flows do more than one thing, where no single word on one
-   * button is honest. Unset means the shell's Run, which is what every app had
-   * before this existed.
+   * "shown" is the default and is what every app had before this existed. An
+   * app sets "hidden" when Run is not an honest word for what its flows do —
+   * Trade's are a backtest, or real money being switched on, and it draws both
+   * itself in the header beside this button's place.
    *
-   * See the type for what the shell still decides and what it hands over.
+   * Off, and not replaced in place: a header that is half the shell's buttons
+   * and half the app's has two places to look for an action and no line between
+   * them. What Run does while it is on stays the shell's business.
    */
-  runControl?: AutomationRunControl
+  runButton?: "shown" | "hidden"
   /**
    * Which flows offer "Test with member…". Unset means every flow does, which
    * is what every app did before this existed.
@@ -437,14 +440,13 @@ export function appCanvasHeaderStatus(
 }
 
 /**
- * The app's replacement for the Run button, or null for the shell's own.
+ * Whether the shell's Run button is drawn on the canvas.
  *
- * Null is the default and means the button is exactly what it has always been.
+ * True unless the app says otherwise, so an app that has never heard of this
+ * option behaves exactly as it did before.
  */
-export function appRunControl(
-  options: AppOptions = appOptions
-): AutomationRunControl | null {
-  return options.automations?.runControl ?? null
+export function appShowsRunButton(options: AppOptions = appOptions): boolean {
+  return (options.automations?.runButton ?? "shown") === "shown"
 }
 
 /**

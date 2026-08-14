@@ -40,6 +40,14 @@ vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
 }))
 
+/** What the exchange's feed says the wallet has money on. Null = no answer. */
+const fundedMarkets = vi.hoisted(() => ({ value: null as string[] | null }))
+
+vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
+  awaitMarketsWalletHasMoneyOn: async () => fundedMarkets.value,
+  marketsWalletHasMoneyOn: () => fundedMarkets.value,
+}))
+
 const { flowRunSpec, startFlowRun, stopFlowRun } = await import(
   "@/server/trade/flow-run"
 )
@@ -94,6 +102,7 @@ beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   userId = (await insertUser(db)).id
   walletRow = wallet()
+  fundedMarkets.value = null
 
   // Two real flows to hang the runs off. The table points at `automations` so
   // that deleting a flow stops it looking for coins, which means a test needs
@@ -190,6 +199,45 @@ describe("what a flow is allowed to start with", () => {
         })
       )
     ).rejects.toThrow("FLOW_WRONG_EXCHANGE")
+  })
+
+  it("refuses a coin on a market the wallet has no money on", async () => {
+    // Hyperliquid keeps each market's money separate: a rung fired on a
+    // market holding none of the wallet's cash is refused every time, forever.
+    // Caught here, at the one moment somebody can fix the coin list.
+    walletRow = wallet({ kind: "live", address: "0xabc", hasKey: true })
+    fundedMarkets.value = [""]
+    await expect(
+      flowRunSpec(
+        userId,
+        nodes({
+          markets: {
+            marketKeys: [
+              "hyperliquid:mainnet:BTC",
+              "hyperliquid:mainnet:magm:OBOA4",
+            ],
+          },
+        })
+      )
+    ).rejects.toThrow("FLOW_UNFUNDED_MARKET")
+  })
+
+  it("skips the funded-market check when the exchange has not answered", async () => {
+    // Silence is not an empty wallet. A coin hidden because the feed had not
+    // spoken would be a flow refused over nothing.
+    walletRow = wallet({ kind: "live", address: "0xabc", hasKey: true })
+    fundedMarkets.value = null
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const { spec } = await flowRunSpec(
+      userId,
+      nodes({
+        markets: {
+          marketKeys: ["hyperliquid:mainnet:magm:OBOA4"],
+        },
+      })
+    )
+    delete process.env.TRADE_ENABLE_MAINNET
+    expect(spec.marketKeys).toEqual(["hyperliquid:mainnet:magm:OBOA4"])
   })
 
   it("refuses a flow with no coins", async () => {

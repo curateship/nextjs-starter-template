@@ -1,5 +1,9 @@
 import * as React from "react"
-import { BookOpenIcon, LayersIcon, ScrollTextIcon } from "lucide-react"
+import {
+  BookOpenIcon,
+  LayersIcon,
+  ScrollTextIcon,
+} from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import {

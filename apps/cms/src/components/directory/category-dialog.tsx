@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { ImageUpload } from "@/components/shared/image-upload"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -64,6 +65,8 @@ export function CategoryDialog({
   const [slug, setSlug] = React.useState("")
   const [slugEdited, setSlugEdited] = React.useState(false)
   const [description, setDescription] = React.useState("")
+  const [metaDescription, setMetaDescription] = React.useState("")
+  const [featuredImage, setFeaturedImage] = React.useState("")
   const [parent, setParent] = React.useState<string | null>(null)
   const [saving, setSaving] = React.useState(false)
 
@@ -77,6 +80,8 @@ export function CategoryDialog({
     setSlug(category?.slug ?? "")
     setSlugEdited(Boolean(category))
     setDescription(category?.description ?? "")
+    setMetaDescription(category?.metaDescription ?? "")
+    setFeaturedImage(category?.featuredImage ?? "")
     setParent(category?.parentId ?? parentId ?? null)
   }
 
@@ -84,8 +89,13 @@ export function CategoryDialog({
     ? name !== category.name ||
       slug !== category.slug ||
       description !== category.description ||
+      metaDescription !== category.metaDescription ||
+      featuredImage !== category.featuredImage ||
       parent !== (category.parentId ?? null)
-    : name.trim() !== "" || description.trim() !== ""
+    : name.trim() !== "" ||
+      description.trim() !== "" ||
+      metaDescription.trim() !== "" ||
+      featuredImage.trim() !== ""
 
   /**
    * Where this category may be hung: anywhere except under itself or its own
@@ -116,6 +126,8 @@ export function CategoryDialog({
         name,
         slug: slugEdited && slug.trim() ? slug.trim() : undefined,
         description,
+        metaDescription,
+        featuredImage,
         parentId: parent,
       }
       const saved = category
@@ -187,7 +199,7 @@ export function CategoryDialog({
                     htmlFor="category-description"
                     hint="Shown at the top of the category's public page. Optional."
                   >
-                    Description
+                    Page description
                   </FieldLabel>
                   <Textarea
                     id="category-description"
@@ -195,6 +207,49 @@ export function CategoryDialog({
                     value={description}
                     disabled={saving}
                     onChange={(event) => setDescription(event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel
+                      htmlFor="category-meta-description"
+                      hint="What a search result shows under the category title. Optional."
+                    >
+                      Meta description
+                    </FieldLabel>
+                    <span
+                      aria-live="polite"
+                      className="text-xs text-muted-foreground"
+                    >
+                      {metaDescription.length}/300
+                    </span>
+                  </div>
+                  <Textarea
+                    id="category-meta-description"
+                    rows={1}
+                    maxLength={300}
+                    value={metaDescription}
+                    disabled={saving}
+                    onChange={(event) =>
+                      setMetaDescription(event.target.value)
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  {/* The label stays outside the narrow photo control so it
+                      does not wrap inside the width cap. */}
+                  <FieldLabel hint="Shown above the category heading on its public page.">
+                    Photo
+                  </FieldLabel>
+                  <ImageUpload
+                    label="Category photo"
+                    showLabel={false}
+                    value={featuredImage}
+                    disabled={saving}
+                    onChange={(url) => setFeaturedImage(url)}
+                    aspect="square"
+                    fit="cover"
+                    className="max-w-24"
                   />
                 </div>
                 <div className="grid gap-2">

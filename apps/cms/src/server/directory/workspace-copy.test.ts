@@ -78,6 +78,10 @@ describe("copying CMS site content", () => {
       (category) => category.name === "Restaurants"
     )
     expect(copiedChild?.parentId).toBe(copiedParent?.id)
+    expect(copiedParent).toMatchObject({
+      metaDescription: "Food across Alpha.",
+      featuredImage: "https://images.example.test/food.jpg",
+    })
     expect(copiedCategories.map((category) => category.id)).not.toContain(
       sourceRows.parentId
     )
@@ -158,7 +162,11 @@ async function seedSourceSite() {
 
   const parent = await createCategory(
     workspace.id,
-    { name: "Food" },
+    {
+      name: "Food",
+      metaDescription: "Food across Alpha.",
+      featuredImage: "https://images.example.test/food.jpg",
+    },
     database
   )
   const child = await createCategory(

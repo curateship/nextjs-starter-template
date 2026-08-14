@@ -7,7 +7,7 @@ import {
   BASE_STOP_BARS,
   BASE_STOP_INTERVAL,
   baseStopPx,
-  DUST_ORDER_USD,
+  MIN_ORDER_USD,
   floorSize,
   ladderExitLevels,
   ladderWatchInterval,
@@ -386,12 +386,14 @@ export async function advanceOne(
 
   if (reanchorToBase(plan, input, deps, roundPx)) changed = true
 
-  // ----- Watching the candles, buying on confirmation --------------------
+  // ----- The rungs themselves -------------------------------------------
 
-  // Every ladder whose rungs buy at market watches; two-green is one flavour
-  // of that rather than the only reason to look at candles.
-  if (plan.twoGreen || plan.rungEntry === "market") {
+  // Two-green waits for its confirmation candles; every other ladder's rungs
+  // are triggers, fired off the live price the moment it crosses them.
+  if (plan.twoGreen) {
     if (watchCandles(plan, input, deps, row.marketKey)) changed = true
+  } else if (plan.rungEntry === "market") {
+    if (fireRungsOnMark(plan, input, deps, row.marketKey)) changed = true
   }
 
   // ----- A stop took a rung, not the ladder ------------------------------
@@ -936,11 +938,7 @@ function stepDownAfterStop(
  */
 function reclaimRung(
   plan: LadderPlan,
-  input: {
-    book: WalletBook
-    marks: ReadonlyMap<string, number>
-    now: number
-  },
+  input: Pick<LadderAdvanceInput, "book" | "marks" | "now" | "fundedMarkets">,
   deps: LadderEngineDeps,
   row: LadderRow
 ): boolean {
@@ -956,9 +954,12 @@ function reclaimRung(
   const mark = input.marks.get(row.marketKey) ?? null
   if (mark === null || !(mark > 0)) return false
 
+  // Kept armed, not thrown away: money can be moved onto the market later.
+  if (!marketIsFunded(input, row.marketKey)) return false
+
   const sz = floorSize(reclaim.dollars / mark, plan.sizeDecimals)
   const cost = sz * mark
-  if (sz <= 0 || cost < DUST_ORDER_USD) {
+  if (sz <= 0 || cost < MIN_ORDER_USD) {
     // Too small to be an order at this price, and it will not grow — waiting
     // longer only means checking forever.
     plan.reclaim = null
@@ -968,6 +969,9 @@ function reclaimRung(
   // up when another market's trade closes.
   if (cost > deps.freeCash(input.book) + 1e-9) return false
 
+  const rung = plan.rungs[reclaim.rungIndex]
+  const priorStatus = rung?.status
+  const priorSz = rung?.sz
   deps.fill(input.book, {
     marketKey: row.marketKey,
     side: "buy",
@@ -981,8 +985,14 @@ function reclaimRung(
     reduceOnly: false,
     reason: "order",
     at: input.now,
+    undo: () => {
+      if (rung && priorStatus !== undefined && priorSz !== undefined) {
+        rung.status = priorStatus
+        rung.sz = priorSz
+      }
+      plan.reclaim = reclaim
+    },
   })
-  const rung = plan.rungs[reclaim.rungIndex]
   if (rung) {
     rung.status = "filled"
     rung.sz = sz
@@ -999,37 +1009,28 @@ function reclaimRung(
  */
 function watchCandles(
   plan: LadderPlan,
-  input: {
-    book: WalletBook
-    ladderBars: LadderBars
-    now: number
-  },
+  input: Pick<
+    LadderAdvanceInput,
+    "book" | "ladderBars" | "now" | "fundedMarkets"
+  >,
   deps: LadderEngineDeps,
   marketKey: string
 ): boolean {
   const feed = input.ladderBars.get(barsKey("green", marketKey))
   if (!feed || feed.bars.length === 0) return false
 
-  // A ladder that has never watched starts HERE, not at the beginning of time.
+  // A ladder that has never watched starts from the moment it existed, never
+  // from the start of the feed — without that, the first pass walked every
+  // candle in history and bought rungs on bars from months before it was
+  // placed.
   //
-  // With no mark of where it had read to, the first pass walked every candle
-  // the feed holds — the whole history — and bought a rung on each of the
-  // earliest bars, long before the ladder existed. On a chart that is a column
-  // of buys in one spot, in the wrong order, at prices from months earlier.
-  // The first pass now only writes down where it is; buying starts with the
-  // next candle to close, which is the first one this ladder was alive for.
-  // KNOWN BUG, not yet fixed: with no record of where it has read to, a
-  // ladder's first watching pass walks every candle the feed holds — the whole
-  // history — and buys a rung on each of the earliest bars, months before the
-  // ladder existed. On a chart that is a column of buys in one spot, in the
-  // wrong order, at prices from long ago.
-  //
-  // The fix is to remember WHEN the ladder started and begin from there. That
-  // moment is not on the plan today, and seeding it from the newest candle
-  // instead breaks two-green mode, which needs the two bars before it. See the
-  // hand-over notes.
-  // From the moment this ladder existed, never from the start of the feed.
-  const seenTo = plan.green?.seenTo ?? plan.startedAt
+  // **The minus one millisecond is a replay's arming bar.** A backtest arms a
+  // ladder at the exact close of a bar, and the next bar opens at that same
+  // instant. `firstOpenAfter` is strictly "after", so a ladder armed on the
+  // boundary never read the first bar of its own life and a dip on it was
+  // silently missed. Live placements happen mid-bar, where no bar opens
+  // inside that millisecond, so this changes nothing for them.
+  const seenTo = plan.green?.seenTo ?? plan.startedAt - 1
   let lastGreen = plan.green?.lastGreen ?? false
   let newest = seenTo
   let changed = false
@@ -1056,44 +1057,25 @@ function watchCandles(
     const green = bar.close > bar.open
     const twoGreenNow = lastGreen && green
     lastGreen = green
-    // Two-green mode adds a condition; it is not the condition itself.
-    if (plan.twoGreen && !twoGreenNow) continue
+    // The two green closes ARE the trigger in this mode — a touched rung
+    // waits for them, however far price fell in the meantime.
+    if (!twoGreenNow) continue
 
-    // What triggers a rung is PRICE REACHING IT, not a candle closing there.
-    //
-    // The live app watches the price as it moves and buys the moment it hits
-    // the level. It has no idea what a candle will close at, and waiting for
-    // one would invent a delay that does not exist in real trading — a drop
-    // through the level and back inside four hours really did trade there, and
-    // the live app really would have bought.
-    //
-    // A replay only has the bar's low to see that with, so the low is what it
-    // reads. Two-green mode keeps its own test, where the two green closes are
-    // the confirmation rather than the level itself.
     const next = plan.rungs.find(
-      (rung) =>
-        rung.status === "waiting" &&
-        !rung.dead &&
-        (plan.twoGreen ? rung.touched : bar.low <= rung.px)
+      (rung) => rung.status === "waiting" && !rung.dead && rung.touched
     )
     if (!next) continue
+    if (!marketIsFunded(input, marketKey)) continue
 
-    // Bought at the level, at market — so it pays the spread, where a resting
-    // limit would not have. And it spends the rung's DOLLARS, rather than a
-    // coin count fixed at a price it may not have got.
-    //
-    // **Never better than where the bar opened.** Setting a buy at a level does
-    // not mean getting it: on a dump that gapped clean past the rung, the
-    // first price anyone could actually deal at was the open, well below the
-    // level. Paying the level there would be inventing a fill nobody got, and
-    // it flatters every crash — which is exactly where a ladder does most of
-    // its buying. Inside a bar that traded down THROUGH the level the level is
-    // fair, because price really did pass it on the way.
-    const reached = plan.twoGreen ? bar.close : Math.min(next.px, bar.open)
+    // Bought at the confirming candle's close, at market — so it pays the
+    // spread. And it spends the rung's DOLLARS at that price, rather than a
+    // coin count fixed at a level it never filled at.
+    const reached = bar.close
     const px = slippedPx(reached, "buy", input.book.costs.slippageRate)
     const sz = floorSize(rungBudget(next) / px, plan.sizeDecimals)
     if (sz <= 0) continue
     if (px * sz > deps.freeCash(input.book) + 1e-9) continue
+    const priorSz = next.sz
 
     deps.fill(input.book, {
       marketKey,
@@ -1107,6 +1089,10 @@ function watchCandles(
       reduceOnly: false,
       reason: "order",
       at: bar.openTime + feed.barMs,
+      undo: () => {
+        next.status = "waiting"
+        next.sz = priorSz
+      },
     })
     next.sz = sz
     next.status = "filled"
@@ -1114,6 +1100,87 @@ function watchCandles(
 
   if (changed) {
     plan.green = { seenTo: newest, lastGreen }
+  }
+  return changed
+}
+
+/**
+ * Buys every rung the live price has crossed, at that price, right now.
+ *
+ * **This is the trigger.** A rung is a price being watched, never an order,
+ * and the moment the mark is at or under it the buy goes out — mid-candle,
+ * the same way the grid fires its levels. The candle-close version of this
+ * bought one rung per bar and missed the crash a ladder exists for: a fall
+ * through three rungs inside one four-hour candle is the day the strategy is
+ * about, and it bought once.
+ *
+ * Every crossed rung fires in one pass, shallowest first. Each buys at the
+ * price actually there — at worst the rung, at best the gap below it — and
+ * spends the rung's DOLLARS at that price rather than a coin count fixed at a
+ * price it never saw. A rung it cannot afford stays waiting: the pot moves,
+ * and the next look is seconds away.
+ */
+/**
+ * Whether this coin's market is one the wallet can actually pay on.
+ *
+ * True when nobody can say — the feed being cold is not an empty wallet — and
+ * always true for the main market, where the cash lives.
+ */
+function marketIsFunded(
+  input: Pick<LadderAdvanceInput, "fundedMarkets">,
+  marketKey: string
+): boolean {
+  if (input.fundedMarkets === undefined || input.fundedMarkets === null) {
+    return true
+  }
+  const parts = marketKey.split(":")
+  const market = parts.length > 3 ? parts[2] : ""
+  return market === "" || input.fundedMarkets.has(market)
+}
+
+function fireRungsOnMark(
+  plan: LadderPlan,
+  input: LadderAdvanceInput,
+  deps: LadderEngineDeps,
+  marketKey: string
+): boolean {
+  const mark = input.marks.get(marketKey)
+  if (mark === undefined || !(mark > 0)) return false
+  if (!marketIsFunded(input, marketKey)) return false
+
+  let changed = false
+  for (const rung of plan.rungs) {
+    if (rung.status !== "waiting" || rung.dead || mark > rung.px) continue
+    const px = slippedPx(mark, "buy", input.book.costs.slippageRate)
+    const sz = floorSize(rungBudget(rung) / px, plan.sizeDecimals)
+    if (sz <= 0) continue
+    // Under the exchange's minimum, the order is refused before it exists —
+    // sending it anyway spent a request to be told no, and the refusal path
+    // then recorded the rung as bought with nothing behind it. The rung stays
+    // waiting instead: pots move, and a rung too small today may clear the
+    // bar tomorrow. The buy-back path applies the same rule.
+    if (px * sz < MIN_ORDER_USD) continue
+    if (px * sz > deps.freeCash(input.book) + 1e-9) continue
+    const priorSz = rung.sz
+    deps.fill(input.book, {
+      marketKey,
+      side: "buy",
+      px,
+      sz,
+      feeRate: input.book.costs.takerFeeRate,
+      leverage: 1,
+      maxLeverage: plan.maxLeverage,
+      reduceOnly: false,
+      reason: "order",
+      at: input.now,
+      undo: () => {
+        rung.status = "waiting"
+        rung.sz = priorSz
+      },
+    })
+    rung.sz = sz
+    rung.status = "filled"
+    changed = true
   }
   return changed
 }

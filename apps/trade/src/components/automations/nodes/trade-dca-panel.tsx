@@ -11,7 +11,7 @@ import { cappedHold } from "@/lib/trade/indicators/base"
 import {
   DEFAULT_BACKTEST_START_USD,
   tradeWalletNode,
-  tradeWalletSettingsSchema,
+  chosenWallet,
 } from "@/lib/automations/nodes/trade-wallet"
 import { cn } from "@/lib/utils"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
@@ -96,12 +96,29 @@ export default function TradeDcaFields({
   const walletNode = graph?.nodes.find(
     (one) => one.kind === tradeWalletNode.kind
   )
-  const walletRead = walletNode
-    ? tradeWalletSettingsSchema.safeParse(walletNode.settings)
-    : null
-  const potUsd = walletRead?.success
-    ? walletRead.data.startingUsd
-    : DEFAULT_BACKTEST_START_USD
+  // Read straight off the step, not through a parse of the whole thing.
+  //
+  // A whole-step parse fails if any ONE field is wrong, and every figure below
+  // then quietly falls back to a default — which is exactly how this card came
+  // to say "$10,000 pot" for a flow whose money step said something else.
+  const named = walletNode ? chosenWallet(walletNode.settings) : null
+  const saved = walletNode?.settings as { startingUsd?: unknown } | undefined
+  const pretendUsd =
+    typeof saved?.startingUsd === "number" && saved.startingUsd > 0
+      ? saved.startingUsd
+      : DEFAULT_BACKTEST_START_USD
+
+  /**
+   * The money these sums are a share of.
+   *
+   * **A named wallet's pot is its spend cap, never the pretend figure.** The
+   * two live side by side on the money step: one is what a backtest starts
+   * with, the other is the most of a real wallet this flow may use. Reading
+   * the wrong one told somebody their coin could spend $1,500 when the truth
+   * was $135 — and that figure is what decides whether a rung is even big
+   * enough for the exchange to accept.
+   */
+  const potUsd = named ? (named.capUsd ?? 0) : pretendUsd
   const perCoinUsd = (potUsd * params.maxPositionPct) / 100
   const shares = dcaAllocationPcts(
     params.rungs.length,
@@ -120,7 +137,10 @@ export default function TradeDcaFields({
             </span>
           </div>
           <p className="mt-0.5 text-muted-foreground">
-            {params.maxPositionPct}% of a {formatUsdRounded(potUsd)} pot
+            {params.maxPositionPct}% of{" "}
+            {named
+              ? `the ${formatUsdRounded(potUsd)} this flow may use`
+              : `a ${formatUsdRounded(potUsd)} pot`}
             {walletNode ? "" : ", which is what the money step starts at"}. The
             buys below add up to it. {params.compound
               ? "Later ladders rise or fall with the pot."

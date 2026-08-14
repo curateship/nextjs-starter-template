@@ -2,6 +2,7 @@ import * as React from "react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
+import { AutomationMarketsPanel } from "@/components/trade/automation-markets-view"
 import { ActivityPanel } from "@/components/trade/activity-panel"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
@@ -436,12 +437,31 @@ export function TradeWorkspace({
         maxSize="36%"
         onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel
-          collapsed={accountCollapsed}
-          onDoubleClick={accountDoubleClick}
-        >
-          {accountPanel}
-        </WorkspacePanel>
+        {/* Two panels in this column, not one card inside another.
+
+            A panel IS the card on this screen — its own rounded edges with a
+            gap between it and the next. The automations were tucked inside the
+            wallets' card for a build, which put a card inside a card and let
+            the list grow to eight thousand pixels instead of scrolling. */}
+        <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+          <ResizablePanel id="wallets" defaultSize="50%" minSize="20%">
+            <WorkspacePanel
+              collapsed={accountCollapsed}
+              onDoubleClick={accountDoubleClick}
+            >
+              {accountPanel}
+            </WorkspacePanel>
+          </ResizablePanel>
+          <ResizableHandle gap className={NO_RING} />
+          <ResizablePanel id="automation" defaultSize="50%" minSize="12%">
+            <WorkspacePanel collapsed={accountCollapsed}>
+              <AutomationMarketsPanel
+                network={network}
+                onSelectMarket={onSelectMarket}
+              />
+            </WorkspacePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (

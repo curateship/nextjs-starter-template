@@ -18,10 +18,77 @@ const clients = new Map<NetworkId, InfoClient>()
 export function infoClient(network: NetworkId): InfoClient {
   let existing = clients.get(network)
   if (!existing) {
-    existing = new InfoClient({
-      transport: new HttpTransport({ isTestnet: network === "testnet" }),
-    })
+    existing = counted(
+      new InfoClient({
+        transport: new HttpTransport({ isTestnet: network === "testnet" }),
+      }),
+      network
+    )
     clients.set(network, existing)
+  }
+  return existing
+}
+
+/**
+ * How many requests the app has made, by kind, per network.
+ *
+ * **Because "why are we being rate-limited" was unanswerable.** Hyperliquid
+ * allows 1,200 request-weight a minute per address and refuses everything over
+ * it, and every guess at which call was spending it cost an hour. Counting is
+ * cheap and settles it.
+ *
+ * Reported when `TRADE_COUNT_EXCHANGE_CALLS` is set, and silent otherwise —
+ * this is a thing to switch on while chasing something, not noise in every log.
+ */
+const counts = new Map<string, number>()
+let reportAt = 0
+
+function counted(client: InfoClient, network: NetworkId): InfoClient {
+  if (process.env.TRADE_COUNT_EXCHANGE_CALLS !== "true") return client
+  return new Proxy(client, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver)
+      if (typeof value !== "function" || typeof key !== "string") return value
+      return (...args: unknown[]) => {
+        const name = `${network}:${key}`
+        counts.set(name, (counts.get(name) ?? 0) + 1)
+        report()
+        return (value as (...a: unknown[]) => unknown).apply(target, args)
+      }
+    },
+  })
+}
+
+function report(): void {
+  const now = Date.now()
+  if (reportAt === 0) reportAt = now
+  if (now - reportAt < 30_000) return
+  const seconds = Math.round((now - reportAt) / 1000)
+  const lines = [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, n]) => `${name}=${n}`)
+  console.log(`Hyperliquid calls in ${seconds}s: ${lines.join(" ")}`)
+  counts.clear()
+  reportAt = now
+}
+
+/**
+ * One long-lived subscription client per network, for feeds that stay open.
+ *
+ * Separate from the snapshot below on purpose: that one opens a transport,
+ * takes its single answer and closes it, which is right for a one-off. A feed
+ * the app listens to for hours must not be torn down between messages, and the
+ * exchange allows ten connections — so there is one per network, shared.
+ */
+const subscribers = new Map<NetworkId, SubscriptionClient>()
+
+export function subscriptionClient(network: NetworkId): SubscriptionClient {
+  let existing = subscribers.get(network)
+  if (!existing) {
+    existing = new SubscriptionClient({
+      transport: new WebSocketTransport({ isTestnet: network === "testnet" }),
+    })
+    subscribers.set(network, existing)
   }
   return existing
 }

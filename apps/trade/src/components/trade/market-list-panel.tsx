@@ -1,4 +1,7 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
+
+import { focusRing } from "@/lib/layout/focus-ring"
 import { BellIcon, LayoutGridIcon, StarIcon } from "lucide-react"
 
 import {
@@ -264,10 +267,28 @@ export function MarketListPanel({
           works). While the page IS on testnet, this row says so, always —
           the labelling rule outlives the switch. */}
       {network === "testnet" ? (
-        <div className="shrink-0 border-t bg-amber-500/10 px-3 py-1.5">
-          <span className="block truncate text-xs font-medium text-amber-700 dark:text-amber-400">
+        <div className="flex shrink-0 items-center gap-2 border-t bg-amber-500/10 px-3 py-1.5">
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-amber-700 dark:text-amber-400">
             Testnet — practice network, pretend money.
           </span>
+          {/* The way back, and only here.
+
+              There is deliberately no network switch on this screen (decided
+              9 Aug 2026): flipping spends the exchange's request allowance and
+              paper wallets are the everyday practice path. But the door in was
+              one-way — charting any testnet coin brings you here, and nothing
+              on screen took you home again. This is that door, and it only
+              exists on the side that needs it. */}
+          <Link
+            to="/trade"
+            search={{ network: "mainnet" }}
+            className={cn(
+              "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:bg-amber-500/10 dark:text-amber-400",
+              focusRing
+            )}
+          >
+            Back to Mainnet
+          </Link>
         </div>
       ) : null}
 

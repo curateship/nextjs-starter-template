@@ -113,6 +113,14 @@ export const categories = pgTable(
     /** Unique across this site's tree, so a category page has one address. */
     slug: varchar("slug", { length: 160 }).notNull(),
     description: varchar("description", { length: 500 }).notNull().default(""),
+    /** The sentence search engines show under the category page's title. */
+    metaDescription: varchar("meta_description", { length: 300 })
+      .notNull()
+      .default(""),
+    /** A media-library URL, or empty. */
+    featuredImage: varchar("featured_image", { length: 600 })
+      .notNull()
+      .default(""),
     /**
      * Null for a top-level category. No FK delete action on purpose: the
      * server re-parents children in the same transaction as the delete.

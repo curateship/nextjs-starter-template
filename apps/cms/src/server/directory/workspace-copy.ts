@@ -33,6 +33,8 @@ export async function copyDirectoryWorkspace({
         name: category.name,
         slug: category.slug,
         description: category.description,
+        metaDescription: category.metaDescription,
+        featuredImage: category.featuredImage,
         parentId: category.parentId
           ? (categoryIds.get(category.parentId) ?? null)
           : null,

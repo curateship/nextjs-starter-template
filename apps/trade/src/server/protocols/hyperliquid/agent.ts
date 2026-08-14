@@ -58,7 +58,16 @@ export async function verifyHyperliquidAgentKey(
   }
 
   const listed = agents.find((agent) => agent.address.toLowerCase() === signer)
-  if (!listed) throw new Error("KEY_NOT_APPROVED")
+  if (!listed) {
+    // The addresses go with the refusal, because "not approved" alone leaves
+    // somebody comparing a key they cannot read against a list they cannot
+    // see. Both sides here are public: the address a key signs as, and the
+    // addresses the exchange says are approved. The key itself never travels,
+    // and `scrubSecrets` leaves 40-hex addresses alone precisely so this can
+    // be said out loud.
+    const approved = agents.map((agent) => agent.address.toLowerCase()).join(",")
+    throw new Error(`KEY_NOT_APPROVED:${signer}|${approved}`)
+  }
   if (listed.validUntil !== null && listed.validUntil <= Date.now()) {
     throw new Error("KEY_EXPIRED")
   }

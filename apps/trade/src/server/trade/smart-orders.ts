@@ -11,7 +11,6 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
-  DUST_ORDER_USD,
   type DcaParams,
   type LadderPlan,
   type LadderRungState,
@@ -33,7 +32,6 @@ import {
   exposedMarketKeys,
   freeCash,
   marksForKeys,
-  MAX_OPEN_ORDERS,
   saveBook,
   settleWallet,
 } from "@/server/trade/paper"
@@ -110,34 +108,13 @@ export type LadderDraftInput = {
   freeCash: number
   /** When this ladder is being created, in epoch ms — where its watch starts. */
   startedAt?: number
-  /** How many orders the wallet already has waiting, against the cap. */
-  openOrderCount: number
-  /**
-   * The cap itself, when it is not a hand-driven practice wallet's.
-   *
-   * `MAX_OPEN_ORDERS` is fifty because a wallet somebody clicks around with
-   * should not grow a fleet of forgotten orders. A backtest walking a hundred
-   * coins is not that: fourteen coins with eight rungs each already fill fifty,
-   * and every coin after them was refused for the whole run — which is exactly
-   * what happened, alphabetically, and left a hundred and fifty coins showing
-   * no trades at all. A replay says how many its own run needs.
-   */
-  maxOpenOrders?: number
   /** What is already held in this market, signed, or null when nothing is. */
   heldSzi: number | null
-  /**
-   * Where an order id comes from. Injected so a backtest can count instead of
-   * rolling a dice — nothing inside a replayed run may read a random number,
-   * or two identical runs stop being identical.
-   */
-  nextOrderId: () => string
 }
 
 export type LadderDraft = {
   plan: LadderPlan
   rungs: LadderRungState[]
-  /** What the whole ladder costs if every rung buys, at 1x. */
-  totalCost: number
 }
 
 /**
@@ -187,30 +164,30 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     volume24hUsd: rules.volume24hUsd,
   })
 
-  let totalCost = 0
+  // A rung that rounds away to nothing can never become an order, at any
+  // price, so it is refused here. The exchange's dollar minimum is deliberately
+  // NOT checked here: a rung is a price being watched, not an order, and
+  // whether it clears the minimum is a question for the moment it fires — by
+  // which time the pot, and so the rung, may be a different size.
   const priced = drawn.rungs.map((rung, index) => {
     const px = roundPx(rung.px)
     const sz = floorSize(rung.sz, rules.sizeDecimals)
-    if (!(px > 0) || sz <= 0 || px * sz < DUST_ORDER_USD) {
+    if (!(px > 0) || sz <= 0) {
       throw new Error(`SMART_RUNG_TOO_SMALL:${index + 1}`)
     }
-    totalCost += px * sz
     return { px, sz }
   })
 
-  if (totalCost > input.freeCash + 1e-9) throw new Error("SMART_LADDER_COST")
-
   const twoGreen = params.twoGreen
-  // Rungs that buy at market rest NOTHING on the book: each is a level being
-  // watched, and a candle closing past it is what buys. Two-green mode was
-  // already like this; it is now one case of it rather than the only one.
-  const watching = params.rungEntry === "market" || twoGreen
-  const restingCount = watching
-    ? 0
-    : priced.filter((rung) => !isMarketable("buy", rung.px, mark)).length
-  if (input.openOrderCount + restingCount > (input.maxOpenOrders ?? MAX_OPEN_ORDERS)) {
-    throw new Error("PAPER_ORDER_LIMIT")
-  }
+
+  // Only what could be committed at once has to be affordable now. Placing
+  // commits nothing — each rung is bought when price reaches it, and the cash
+  // is re-checked then — so the whole-ladder cost is not the question, and
+  // asking it refused ladders over money they would never hold at one time.
+  // There is no order-cap check for the same reason: placing puts nothing on
+  // the book.
+  const committing = Math.max(...priced.map((rung) => rung.px * rung.sz))
+  if (committing > input.freeCash + 1e-9) throw new Error("SMART_LADDER_COST")
 
   const maxLeverage = rules.maxLeverage ?? 1
 
@@ -243,12 +220,10 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
       // price has already passed is skipped, exactly as `reviveRungs` skips
       // one that was passed while it sat under a stop.
       //
-      // Two-green mode is exempt because nothing rests there: price being
-      // below a rung is that mode's TRIGGER, not a moment it missed. Skipping
-      // them would throw away the rungs it exists to buy.
+      // Two-green mode is exempt because price being below a rung is that
+      // mode's TRIGGER, not a moment it missed. Skipping them would throw
+      // away the rungs it exists to buy.
       state.status = "skipped"
-    } else if (!watching) {
-      state.orderId = input.nextOrderId()
     }
     return state
   })
@@ -278,11 +253,19 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     aimedTpPx: null,
     aimedSlPx: null,
     twoGreen,
-    rungEntry: params.rungEntry,
+    // **Forced, never read from the settings — everywhere.** Nothing this app
+    // places may sit on the book waiting: a resting rung ties up the money for
+    // a buy that may never happen, eats the wallet's cap on open orders, and
+    // gets drawn twice on the chart. Every rung is a price being watched, and
+    // the order is sent when price actually reaches it. Backtests come through
+    // this same draft on purpose, so the tested strategy and the running one
+    // are one strategy — a replay that modelled resting fills would be testing
+    // behaviour the live wallet no longer has.
+    rungEntry: "market" as const,
     // Where the candle watch starts reading. Anything earlier belongs to a
     // market this ladder was not alive for.
     startedAt: input.startedAt ?? 0,
-    greenInterval: watching ? input.interval : null,
+    greenInterval: input.interval,
     green: null,
     steppedDown: 0,
     awaitingSteppedRung: false,
@@ -295,7 +278,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     cascadeSeenAt: null,
   }
 
-  return { plan, rungs, totalCost }
+  return { plan, rungs }
 }
 
 /**
@@ -369,9 +352,13 @@ export async function placeDcaLadder(
     roundPx,
     equity: potOf(input, input.params.compound ? figures.equity : wallet.startingBalance),
     freeCash: freeCash(book),
-    openOrderCount: book.orders.length,
+    // Where the candle watch starts reading. Without this the plan kept the
+    // draft's zero, and the first settle walked every candle the feed held —
+    // buying rungs on bars from months before the ladder existed. The live
+    // path always passed it; this one only got away with not doing so while
+    // resting rungs were still a mode that never read candles at all.
+    startedAt: Date.now(),
     heldSzi: book.positions.get(input.marketKey)?.szi ?? null,
-    nextOrderId: randomUUID,
   })
 
   const now = Date.now()

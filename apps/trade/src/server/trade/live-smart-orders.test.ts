@@ -26,6 +26,14 @@ const setBrackets = vi.fn()
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
 // call to nothing.
+/** What the exchange's feed says the wallet has money on. Null = no answer. */
+const fundedMarkets = vi.hoisted(() => ({ value: null as string[] | null }))
+
+vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
+  marketsWalletHasMoneyOn: () => fundedMarkets.value,
+  awaitMarketsWalletHasMoneyOn: async () => fundedMarkets.value,
+}))
+
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
@@ -89,8 +97,8 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     compound: true,
     maxOrderVolPct: 0,
     twoGreen: false,
-    // These suites are about rungs that REST on the book, which is still a
-    // mode. The default is now market-on-confirmation, like the old app.
+    // Inert: every ladder watches its rungs now, whatever this says. Still
+    // here only because the saved-settings type carries the field.
     rungEntry: "limit",
     anchor: "click",
     takeProfit: null,
@@ -136,6 +144,7 @@ beforeEach(async () => {
   fills.mockResolvedValue([])
   cancel.mockResolvedValue(undefined)
   setBrackets.mockResolvedValue(undefined)
+  fundedMarkets.value = null
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -169,25 +178,7 @@ afterEach(async () => {
 })
 
 describe("live Smart orders", () => {
-  it("places every waiting rung on the exchange and stores its exchange id", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-
+  it("sends nothing to the exchange when placing — every rung is watched", async () => {
     const result = await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
       clickPx: 100,
@@ -196,10 +187,15 @@ describe("live Smart orders", () => {
     })
 
     expect(result).toEqual({ placed: 2, passed: 0 })
-    expect((await ladder()).rungs.map((rung) => rung.orderId)).toEqual([
-      "101",
-      "102",
+    // Not one order. A resting rung ties up real margin for a buy that may
+    // never happen; the engine sends the order when price reaches the rung.
+    expect(place).not.toHaveBeenCalled()
+    const plan = await ladder()
+    expect(plan.rungs.map((rung) => rung.status)).toEqual([
+      "waiting",
+      "waiting",
     ])
+    expect(plan.rungs.map((rung) => rung.orderId)).toEqual([null, null])
   })
 
   it("keeps fixed sizing on the wallet's starting balance", async () => {
@@ -209,23 +205,6 @@ describe("live Smart orders", () => {
       inTrades: 0,
       openProfit: 0,
     })
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
 
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
@@ -234,132 +213,11 @@ describe("live Smart orders", () => {
       params: params({ compound: false }),
     })
 
-    expect(place.mock.calls[0][2].sz).toBeCloseTo(0.701, 9)
-  })
-
-  it("rolls back accepted rungs when a later rung is refused", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockRejectedValueOnce(new Error("exchange refused"))
-
-    await expect(
-      placeLiveDcaLadder(userId, wallet, {
-        marketKey: MARKET,
-        clickPx: 100,
-        interval: "1m",
-        params: params(),
-      })
-    ).rejects.toThrow("exchange refused")
-    expect(cancel).toHaveBeenCalledTimes(1)
-    expect(await database.select().from(tradeSmartLadders)).toHaveLength(0)
-  })
-
-  it("uses an exchange fill to advance the same rung and bracket rules", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-    await placeLiveDcaLadder(userId, wallet, {
-      marketKey: MARKET,
-      clickPx: 100,
-      interval: "1m",
-      params: params({
-        takeProfit: { mode: "average", pct: 10 },
-        stopLoss: { pct: 10, base: null },
-      }),
-    })
-
-    const first = (await ladder()).rungs[0]
-    portfolio.mockResolvedValue({
-      positions: [
-        {
-          marketId: "BTC",
-          szi: first.sz,
-          entryPx: first.px,
-          leverage: 1,
-          marginUsed: first.px * first.sz,
-          liquidationPx: null,
-          tpPx: null,
-          slPx: null,
-          tpOrderId: null,
-          slOrderId: null,
-        },
-      ],
-      orders: [
-        {
-          orderId: "102",
-          marketId: "BTC",
-          side: "buy",
-          px: (await ladder()).rungs[1].px,
-          sz: (await ladder()).rungs[1].sz,
-          reduceOnly: false,
-          trigger: false,
-        },
-      ],
-    })
-    fills.mockResolvedValue([
-      {
-        fillId: "fill-1",
-        orderId: "101",
-        marketId: "BTC",
-        side: "buy",
-        px: first.px,
-        sz: first.sz,
-        at: Date.now(),
-      },
-    ])
-    await database
-      .update(tradeSmartLadders)
-      .set({ updatedAt: new Date(Date.now() - 3_000) })
-      .where(eq(tradeSmartLadders.userId, userId))
-
-    await reconcileLiveLadders(userId, wallet)
-
-    expect((await ladder()).rungs[0].status).toBe("filled")
-    expect(setBrackets).toHaveBeenCalledTimes(1)
-    const [, , brackets] = setBrackets.mock.calls[0]
-    expect(brackets.tpPx).toBeCloseTo(first.px * 1.1)
-    expect(brackets.slPx).toBeCloseTo(first.px * 0.9)
+    // Sized from the $1,000 the wallet started with, not the $1,500 it holds.
+    expect((await ladder()).rungs[0].sz).toBeCloseTo(0.701, 9)
   })
 
   it("reads fills from the ladder start so a restart cannot lose an old fill", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
       clickPx: 100,
@@ -380,80 +238,35 @@ describe("live Smart orders", () => {
     expect(fills.mock.calls[0][2]).toBe(started - 60_000)
   })
 
-  it("combines partial exchange fills and keeps the amount that really bought", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
+  it("refuses placing on a market the wallet holds no money on", async () => {
+    fundedMarkets.value = [""]
+    await expect(
+      placeLiveDcaLadder(userId, wallet, {
+        marketKey: "hyperliquid:testnet:magm:OBOA4",
+        clickPx: 100,
+        interval: "1m",
+        params: params(),
       })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
+    ).rejects.toThrow("EXCHANGE_NO_MARGIN")
+    expect(
+      await database.select().from(tradeSmartLadders)
+    ).toHaveLength(0)
+  })
+
+  it("puts a rung back when the exchange definitely refused its buy", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
       clickPx: 100,
       interval: "1m",
       params: params(),
     })
-    const plan = await ladder()
-    const first = plan.rungs[0]
-    const bought = first.sz / 2
-    portfolio.mockResolvedValue({
-      positions: [
-        {
-          marketId: "BTC",
-          szi: bought,
-          entryPx: first.px - 1,
-          leverage: 1,
-          marginUsed: bought * (first.px - 1),
-          liquidationPx: null,
-          tpPx: null,
-          slPx: null,
-          tpOrderId: null,
-          slOrderId: null,
-        },
-      ],
-      orders: [
-        {
-          orderId: "102",
-          marketId: "BTC",
-          side: "buy",
-          px: plan.rungs[1].px,
-          sz: plan.rungs[1].sz,
-          reduceOnly: false,
-          trigger: false,
-        },
-      ],
-    })
-    fills.mockResolvedValue([
-      {
-        fillId: "fill-a",
-        orderId: "101",
-        marketId: "BTC",
-        side: "buy",
-        px: first.px - 1,
-        sz: bought / 2,
-        at: Date.now() - 2_000,
-      },
-      {
-        fillId: "fill-b",
-        orderId: "101",
-        marketId: "BTC",
-        side: "buy",
-        px: first.px - 0.5,
-        sz: bought / 2,
-        at: Date.now() - 1_000,
-      },
-    ])
+
+    // Price crosses the first rung; the engine fires it; the exchange
+    // processes the order and refuses it outright — nothing stood.
+    prices.mockResolvedValue(new Map([["BTC", 94]]))
+    place.mockRejectedValue(
+      new Error("LIVE_ORDER_REFUSED:order 0: Insufficient margin to place order.")
+    )
     await database
       .update(tradeSmartLadders)
       .set({ updatedAt: new Date(Date.now() - 3_000) })
@@ -461,29 +274,43 @@ describe("live Smart orders", () => {
 
     await reconcileLiveLadders(userId, wallet)
 
-    const after = await ladder()
-    expect(after.rungs[0].status).toBe("filled")
-    expect(after.rungs[0].sz).toBeCloseTo(bought)
+    const plan = await ladder()
+    // Not recorded as bought with nothing behind it — which used to end the
+    // ladder and let a flow place a fresh one into the same refusal, forever.
+    expect(plan.rungs[0].status).toBe("waiting")
+    expect(place).toHaveBeenCalled()
+    const rows = await database.select().from(tradeSmartLadders)
+    expect(rows[0].status).toBe("active")
+  })
+
+  it("never fires a rung on a market the wallet holds no money on", async () => {
+    // A ladder that already exists on an unfunded market — placed before the
+    // guard, or while the feed was cold. Without this the dip fired it, the
+    // exchange refused it, the undo put it back, and the next pass fired it
+    // again: one refused order a second for as long as price sat there.
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        marketKey: "hyperliquid:testnet:magm:OBOA4",
+        updatedAt: new Date(Date.now() - 3_000),
+      })
+      .where(eq(tradeSmartLadders.userId, userId))
+    fundedMarkets.value = [""]
+    prices.mockResolvedValue(new Map([["magm:OBOA4", 94]]))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).not.toHaveBeenCalled()
+    expect((await ladder()).rungs[0].status).toBe("waiting")
   })
 
   it("does not claim an unrelated manual fill at the same price", async () => {
-    place
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "101",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
-      .mockResolvedValueOnce({
-        status: "resting",
-        orderId: "102",
-        avgPx: null,
-        filledSz: null,
-        protection: null,
-        protectionNote: null,
-      })
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
       clickPx: 100,
@@ -491,20 +318,6 @@ describe("live Smart orders", () => {
       params: params(),
     })
     const plan = await ladder()
-    portfolio.mockResolvedValue({
-      positions: [],
-      orders: [
-        {
-          orderId: "102",
-          marketId: "BTC",
-          side: "buy",
-          px: plan.rungs[1].px,
-          sz: plan.rungs[1].sz,
-          reduceOnly: false,
-          trigger: false,
-        },
-      ],
-    })
     fills.mockResolvedValue([
       {
         fillId: "manual-fill",
@@ -523,6 +336,9 @@ describe("live Smart orders", () => {
 
     await reconcileLiveLadders(userId, wallet)
 
-    expect((await ladder()).rungs[0].status).toBe("skipped")
+    // A watched rung has no order for that fill to belong to. Somebody's
+    // hand-placed buy at the same price is theirs, and the rung keeps waiting
+    // for its own moment.
+    expect((await ladder()).rungs[0].status).toBe("waiting")
   })
 })

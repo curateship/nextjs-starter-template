@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { and, eq } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
-import { DUST_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
@@ -159,7 +159,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     const buyPx = roundPx(level.buyPx)
     const sellPx = roundPx(level.sellPx)
     const sz = level.sz
-    if (!(buyPx > 0) || !(sellPx > buyPx) || sz <= 0 || buyPx * sz < DUST_ORDER_USD) {
+    if (!(buyPx > 0) || !(sellPx > buyPx) || sz <= 0 || buyPx * sz < MIN_ORDER_USD) {
       throw new Error(`SMART_GRID_LEVEL_TOO_SMALL:${index + 1}`)
     }
     totalCost += buyPx * sz

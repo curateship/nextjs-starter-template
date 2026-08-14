@@ -466,11 +466,12 @@ export async function runBacktest(
       })
       if (!outcome.plan) continue
 
-      // The draft names an order id for every rung that is going to wait, and
-      // the real placement writes those orders down straight afterwards. This
-      // is that step: without it the rungs would be waiting on orders that do
-      // not exist, and the next advance would write every one of them off as
-      // never filled.
+      // The arm named an order id for every rung that is going to wait, and
+      // this writes those orders onto the replay's book. They model the live
+      // trigger: a bar's wick trading through a rung is the replay's only way
+      // of seeing "price crossed it", and the order's exit riding along is
+      // what lets the same bar's bounce sell it — the crash-day behaviour
+      // every measured run was measured on.
       const exits = ladderExitLevels(outcome.plan)
       for (const [index, rung] of outcome.plan.rungs.entries()) {
         if (rung.orderId === null) continue
@@ -486,9 +487,6 @@ export async function runBacktest(
           reduceOnly: false,
           tpPx: null,
           slPx: null,
-          // Where this rung sells, riding along with the buy so it rests the
-          // instant the buy fills rather than when the candle finishes.
-          //
           // Withheld while the market is falling off a cliff — see the same
           // decision in `reviveRungs`. A ladder armed INSIDE the crash bar is
           // the common case on a day like this, so the test has to be here as

@@ -7,7 +7,7 @@ import {
   appAutomationNodes,
   appCanvasHeaderStatus,
   appCanvasPanel,
-  appRunControl,
+  appShowsRunButton,
   appOffersMemberTest,
   appPaletteGroups,
   appSettingsTabs,
@@ -250,16 +250,17 @@ describe("the app's own status in the canvas header", () => {
   })
 })
 
-describe("the app's own control in place of Run", () => {
-  it("is nothing unless an app asks for one", () => {
-    // The default has to be the shell's own Run, or every app copied from this
-    // shell would lose its button.
-    expect(appRunControl({})).toBeNull()
+describe("whether the shell's Run button is drawn", () => {
+  it("is shown unless an app says otherwise", () => {
+    // The default has to be shown, or every app copied from this shell would
+    // lose its button.
+    expect(appShowsRunButton({})).toBe(true)
   })
 
-  it("hands back what the app asked for", () => {
-    const runControl = { control: async () => ({ default: () => null }) }
-    expect(appRunControl({ automations: { runControl } })).toBe(runControl)
+  it("is hidden when an app draws its own instead", () => {
+    expect(appShowsRunButton({ automations: { runButton: "hidden" } })).toBe(
+      false
+    )
   })
 })
 

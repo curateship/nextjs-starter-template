@@ -145,6 +145,8 @@ export type PublicCategory = {
   name: string
   slug: string
   description: string
+  metaDescription: string
+  featuredImage: string
   parentId: string | null
   /** Published listings in this category itself, not its children's. */
   listingCount: number
@@ -430,6 +432,8 @@ export async function publicCategories(
     name: row.name,
     slug: row.slug,
     description: row.description,
+    metaDescription: row.metaDescription,
+    featuredImage: row.featuredImage,
     parentId: row.parentId ?? null,
     listingCount: countFor.get(row.id) ?? 0,
   }))

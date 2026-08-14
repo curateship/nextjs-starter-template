@@ -88,7 +88,11 @@ describe("what the step's card says", () => {
         walletKind: "paper",
         spendCapUsd: 500,
       })
-    ).toBe("Trades Practice 2 — up to $500.00 of practice money.")
+    ).toBe(
+      // The cap is a ceiling, never a promise: "up to $10,000 of real money"
+      // on a wallet holding $900 read as ten thousand to spend.
+      "Trades Practice 2 — practice money, capped at $500.00. It can never spend more than the wallet holds."
+    )
   })
 
   it("leads with REAL MONEY so a glance cannot mistake it", () => {

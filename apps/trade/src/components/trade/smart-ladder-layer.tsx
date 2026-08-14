@@ -3,7 +3,7 @@ import { SettingsIcon, XIcon } from "lucide-react"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import { ladderExitLevels } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
-import { formatPrice } from "@/lib/trade/format"
+import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -200,12 +200,14 @@ function LadderLines({
                       ? rung.touched
                         ? "Price has reached this rung — it buys at market once two green candles in a row confirm."
                         : "Watching — nothing rests on the book until price reaches it and two green candles confirm."
-                      : "A resting buy. The price is frozen — the × calls this rung off."
+                      : "A waiting rung — nothing rests on the book. It buys at market the moment price reaches this level. The × calls it off."
               }
             >
+              {/* Dollars, not a coin count. "Rung 1 · 2" read as a range,
+                  and 2 of a coin says nothing about what is at stake. */}
               {missed
                 ? `Rung ${index + 1} · missed`
-                : `Rung ${index + 1} · ${rung.sz}`}
+                : `Rung ${index + 1} · ${formatUsdRounded(rung.px * rung.sz)}`}
               {missed ? null : (
                 <button
                   type="button"
@@ -236,7 +238,7 @@ function LadderLines({
               style={{ backgroundColor: SELL_COLOR, pointerEvents: controls }}
               title="Rung sell — managed by the ladder, so it cannot be dragged. Change the exit rules to move it."
             >
-              Rung {index + 1} sell · {rung.sz}
+              Rung {index + 1} sell · {formatUsdRounded(exits[index] * rung.sz)}
             </span>
           </div>
         )

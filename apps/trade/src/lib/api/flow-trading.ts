@@ -11,6 +11,12 @@ import {
   describeFlowStop,
   type TradeFlowRunSpec,
 } from "@/lib/trade/flow-run"
+import {
+  describeFlowWait,
+  flowHeadline,
+  STRIKES_BEFORE_HOLD,
+  type FlowWaiting,
+} from "@/lib/trade/flow-waiting"
 import { flowStartProblem } from "@/lib/trade/flow-words"
 import { venueLabel } from "@/lib/trade/wallets"
 import { getWorkspaceAutomation } from "@/server/automations/flows"
@@ -19,6 +25,8 @@ import {
   flowNodesOf,
 } from "@/server/trade/flow-start"
 import {
+  pauseFlowRun,
+  retryFlowRunNow,
   startFlowRun,
   stopFlowRun,
   type FlowNodes,
@@ -85,6 +93,30 @@ export type FlowTrading =
        * behind a running flow stops them testing at all.
        */
       drawnIsBacktest: boolean
+      /**
+       * Why each coin has no ladder yet, worst first.
+       *
+       * Empty until the flow is switched on and has looked at its coins. A
+       * flow whose wallet has no free cash and a flow patiently waiting for
+       * the right price both place nothing, and this is the only thing that
+       * tells them apart.
+       */
+      waiting: FlowWaiting[]
+      /**
+       * The one line at the top of the chip: what is wrong, on how many coins,
+       * and when it will look again. Null when there is nothing to say.
+       *
+       * One line because it was three — the hold, a summary and the list all
+       * saying the same thing on a flow where every coin is refused the same
+       * way.
+       */
+      headline: string | null
+      /** True when at least one coin needs a person rather than more time. */
+      needsAttention: boolean
+      /** True while it has given up asking and is waiting to try again. */
+      holding: boolean
+      /** True while it has been told to stop looking for new coins. */
+      paused: boolean
     }
 
 const flowSchema = z.object({ automationId: z.string().max(36) })
@@ -135,6 +167,45 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
     // What is running is described by the copy it is running, not by the
     // drawing beside it — including its wallet and its coin count.
     if (live) {
+      const working = await countWorkingLadders(
+        context.user.id,
+        live.walletId,
+        live.spec.marketKeys
+      )
+      // Coins the flow no longer watches are dropped rather than shown: the
+      // spec is frozen, so an entry outside its list could only be left over
+      // from a bug, and a coin nobody chose is a confusing thing to report.
+      const held = new Set(live.spec.marketKeys)
+      const all = Object.entries(live.waiting)
+        .filter(([marketKey]) => held.has(marketKey))
+        .map(([marketKey, reason]) => describeFlowWait(marketKey, reason))
+      // A paused flow is not waiting on anything — it was told to stop, and
+      // "trying again in 12 minutes" over the top of that is two answers to
+      // one question.
+      const holding =
+        live.pausedAt === null &&
+        live.hold !== null &&
+        live.hold.strikes >= STRIKES_BEFORE_HOLD
+      const head = flowHeadline(
+        all,
+        working,
+        holding ? live.hold : null,
+        Date.now()
+      )
+      // Only the coins the headline does NOT already cover. Listing six coins
+      // under a line that just said a hundred of them were refused the same
+      // way is the repetition this panel kept falling into.
+      const waiting = head?.code
+        ? all.filter((one) => one.code.split(":")[0] !== head.code!.split(":")[0])
+        : all
+        // Anything needing a person first, then whatever was seen most
+        // recently. A list somebody scans from the top should start with the
+        // thing they can actually act on.
+        .sort((a, b) => {
+          if (a.problem !== b.problem) return a.problem ? -1 : 1
+          return b.at - a.at
+        })
+
       return {
         mode: "trades",
         walletLabel: live.spec.walletLabel,
@@ -145,11 +216,12 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
         problem: null,
         running: true,
         startedAt: live.startedAt.getTime(),
-        working: await countWorkingLadders(
-          context.user.id,
-          live.walletId,
-          live.spec.marketKeys
-        ),
+        working,
+        waiting,
+        headline: head?.words ?? null,
+        needsAttention: (head?.problem ?? false) || live.hold !== null,
+        holding,
+        paused: live.pausedAt !== null,
         drawingChanged: drawingMovedOn(
           live.spec,
           live.walletId,
@@ -210,6 +282,13 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       running: false,
       startedAt: null,
       working: 0,
+      // Nothing is being looked at until it is switched on, and an empty list
+      // here means exactly that rather than "everything is fine".
+      waiting: [],
+      headline: null,
+      needsAttention: false,
+      holding: false,
+      paused: false,
       drawingChanged: false,
       drawnIsBacktest: false,
     }
@@ -222,6 +301,9 @@ async function runningFlow(userId: string, automationId: string) {
       startedAt: tradeFlowRuns.startedAt,
       walletId: tradeFlowRuns.walletId,
       spec: tradeFlowRuns.spec,
+      waiting: tradeFlowRuns.waiting,
+      hold: tradeFlowRuns.hold,
+      pausedAt: tradeFlowRuns.pausedAt,
     })
     .from(tradeFlowRuns)
     .where(
@@ -331,6 +413,43 @@ const stopFlowFn = createServerFn({ method: "POST" })
     return { summary: describeFlowStop(outcome) }
   })
 
+const pauseFlowFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(flowSchema.extend({ paused: z.boolean() }))
+  .handler(async ({ data, context }): Promise<{ summary: string }> => {
+    const changed = await pauseFlowRun(context.user.id, {
+      automationId: data.automationId,
+      paused: data.paused,
+      now: Date.now(),
+    })
+    if (!changed) return { summary: "That flow was not switched on." }
+    return {
+      summary: data.paused
+        ? "Paused. Nothing already placed has been touched."
+        : "Looking for coins again.",
+    }
+  })
+
+const retryFlowFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(flowSchema)
+  .handler(async ({ data, context }): Promise<{ summary: string }> => {
+    const changed = await retryFlowRunNow(context.user.id, {
+      automationId: data.automationId,
+      now: Date.now(),
+    })
+    if (!changed) return { summary: "That flow was not switched on." }
+    return { summary: "Trying again now." }
+  })
+
+export function pauseFlow(automationId: string, paused: boolean) {
+  return pauseFlowFn({ data: { automationId, paused } })
+}
+
+export function retryFlowNow(automationId: string) {
+  return retryFlowFn({ data: { automationId } })
+}
+
 export function startFlow(automationId: string) {
   return startFlowFn({ data: { automationId } })
 }
@@ -354,3 +473,106 @@ export const getFlowTradingErrorMessage = createErrorMessage(
   {},
   "Could not read what this flow is set up to do."
 )
+
+/** One coin a switched-on flow is watching, as the account panel reads it. */
+export type AutomationMarket = {
+  marketKey: string
+  /** Just the coin, e.g. `ETH`. */
+  coin: string
+  /** The flow watching it, by name. */
+  flowName: string
+  automationId: string
+  /** The wallet it would trade. */
+  walletLabel: string
+  /** True for real money. */
+  real: boolean
+  /** True when a ladder is working on this coin right now. */
+  working: boolean
+  /** True when the flow has been told to stop looking. */
+  paused: boolean
+  /** Why it has nothing yet, in a few words, or null when it is working. */
+  waiting: string | null
+  /** True when that reason needs a person rather than more time. */
+  problem: boolean
+}
+
+/**
+ * Every coin every switched-on flow is watching, for the account panel.
+ *
+ * **Why the account panel and not the canvas.** A flow's own canvas can only
+ * show that flow. Somebody looking at their wallets wants the other question —
+ * "what is being traded on my behalf right now, by anything?" — and until this
+ * existed the only way to answer it was to open each flow in turn.
+ *
+ * Read-only, and scoped to the person asking: a flow belongs to a workspace,
+ * but a wallet belongs to a person, and this is a list about their money.
+ */
+const automationMarketsFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .handler(async ({ context }): Promise<AutomationMarket[]> => {
+    const runs = await db
+      .select()
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, context.user.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+    if (runs.length === 0) return []
+
+    const names = new Map<string, string>()
+    for (const run of runs) {
+      const row = await getWorkspaceAutomation(
+        await workspaceIdForRequest(context.user.id),
+        run.automationId
+      )
+      if (row) names.set(run.automationId, row.name)
+    }
+
+    const out: AutomationMarket[] = []
+    for (const run of runs) {
+      const busy = await db
+        .select({ marketKey: tradeSmartLadders.marketKey })
+        .from(tradeSmartLadders)
+        .where(
+          and(
+            eq(tradeSmartLadders.userId, context.user.id),
+            eq(tradeSmartLadders.walletId, run.walletId),
+            eq(tradeSmartLadders.status, "active"),
+            inArray(tradeSmartLadders.marketKey, run.spec.marketKeys)
+          )
+        )
+      const working = new Set(busy.map((one) => one.marketKey))
+      for (const marketKey of run.spec.marketKeys) {
+        const reason = run.waiting[marketKey] ?? null
+        const said = reason ? describeFlowWait(marketKey, reason) : null
+        out.push({
+          marketKey,
+          coin: said?.coin ?? marketKey.split(":").at(-1) ?? marketKey,
+          flowName: names.get(run.automationId) ?? "A flow",
+          automationId: run.automationId,
+          walletLabel: run.spec.walletLabel,
+          real: run.spec.real,
+          working: working.has(marketKey),
+          paused: run.pausedAt !== null,
+          // A coin with a ladder on it is not waiting for anything, whatever
+          // the last refusal said before it went through.
+          waiting: working.has(marketKey) ? null : (said?.words ?? null),
+          problem: working.has(marketKey) ? false : (said?.problem ?? false),
+        })
+      }
+    }
+
+    // Working first, then anything needing a person, then the rest — the order
+    // somebody scans it in.
+    return out.sort((a, b) => {
+      if (a.working !== b.working) return a.working ? -1 : 1
+      if (a.problem !== b.problem) return a.problem ? -1 : 1
+      return a.coin.localeCompare(b.coin)
+    })
+  })
+
+export function loadAutomationMarkets() {
+  return automationMarketsFn()
+}

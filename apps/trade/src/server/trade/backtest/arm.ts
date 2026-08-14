@@ -34,12 +34,18 @@ export function armLadder(input: {
   roundPx: (px: number) => number
   equity: number
   freeCash: number
-  openOrderCount: number
   /** The bar this ladder is being armed on — where its candle watch starts. */
   startedAt: number
+  /** How many orders the replay's book already holds, against its own cap. */
+  openOrderCount: number
   /** The run's own order cap — never the practice wallet's fifty. */
   maxOpenOrders: number
   heldSzi: number | null
+  /**
+   * Where an order id comes from. Injected so a replay can count instead of
+   * rolling a dice — nothing inside a run may read a random number, or two
+   * identical runs stop being identical.
+   */
   nextOrderId: () => string
 }): ArmOutcome {
   try {
@@ -56,12 +62,33 @@ export function armLadder(input: {
       roundPx: input.roundPx,
       equity: input.equity,
       freeCash: input.freeCash,
-      openOrderCount: input.openOrderCount,
       startedAt: input.startedAt,
-      maxOpenOrders: input.maxOpenOrders,
       heldSzi: input.heldSzi,
-      nextOrderId: input.nextOrderId,
     })
+
+    // The replay models each rung as an order on its own book — wick fills.
+    //
+    // **Live rungs are triggers; a replay's bars cannot be.** The live engine
+    // watches the actual price and fires a rung the moment it is crossed. A
+    // replay only has candles, and the honest model of "fired when crossed"
+    // inside a bar is the book fill the bar's wick trades through: every
+    // crossed rung buys, at its own level, with its exit able to fill on the
+    // same bar's bounce. That is the model every measured run was measured on.
+    // Two-green keeps its candle watch — confirmation is candle-based in both
+    // worlds, so there is nothing to translate.
+    if (!input.params.twoGreen) {
+      const waiting = draft.plan.rungs.filter(
+        (rung) => rung.status === "waiting"
+      )
+      if (input.openOrderCount + waiting.length > input.maxOpenOrders) {
+        return { plan: null, refusal: "PAPER_ORDER_LIMIT" }
+      }
+      draft.plan.rungEntry = "limit"
+      draft.plan.greenInterval = null
+      for (const rung of waiting) {
+        rung.orderId = input.nextOrderId()
+      }
+    }
     return { plan: draft.plan, refusal: null }
   } catch (error) {
     return {

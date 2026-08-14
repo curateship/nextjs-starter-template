@@ -27,6 +27,7 @@ import type {
   TradeFlowRunSpec,
   TradeFlowRunStatus,
 } from "@/lib/trade/flow-run"
+import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -926,6 +927,41 @@ export const tradeFlowRuns = pgTable(
      * coins belongs to whoever placed it.
      */
     placed: jsonb("placed").$type<string[]>().notNull().default([]),
+    /**
+     * Why each coin has not been given a ladder yet, keyed by market key.
+     *
+     * Replaced each time a coin is looked at, and removed when it finally gets
+     * one. Without it a flow refusing every coin for want of money looks
+     * exactly like a flow waiting for the right price — nothing happens in
+     * both, and only one of them is working.
+     *
+     * Only the app's own codes are stored, never an exception's text: this is
+     * written by a server and drawn on a screen, and a message that carried
+     * something secret would be kept forever.
+     */
+    waiting: jsonb("waiting")
+      .$type<Record<string, FlowWaitReason>>()
+      .notNull()
+      .default({}),
+    /**
+     * Set when the same refusal keeps coming back, so it stops asking.
+     *
+     * A refusal about the setup rather than about one coin — rungs too small,
+     * no free cash, the key refused — answers every coin on the list the same
+     * way. Trying the next one is asking a question the exchange has already
+     * answered, and a flow with a hundred coins did that all day.
+     */
+    hold: jsonb("hold").$type<FlowHold | null>(),
+    /**
+     * Set while this flow has been told to stop looking for new coins.
+     *
+     * **Pause is not a small Stop.** Stopping calls off the waiting ladders
+     * this flow placed; pausing calls off nothing — every ladder and position
+     * stays exactly where it is. It keeps `status = 'running'` so it keeps
+     * holding its wallet, because the indexes that stop two flows trading one
+     * wallet are written on that status.
+     */
+    pausedAt: timestamp("paused_at", { withTimezone: true }),
     startedAt: timestamp("started_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

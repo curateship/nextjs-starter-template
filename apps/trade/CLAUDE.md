@@ -179,6 +179,9 @@ every pass and calls its injected `fill` when one is crossed. There is no
 `insertOrder` for a level, no order id on a level, and nothing to cancel when a
 level is called off — its status changes and that is all.
 
-The DCA ladder still rests its rungs, which is why its levels are drawn twice on
-the chart and why a placed ladder eats the wallet's order cap. It should be
-moved onto triggers too; until then it is the exception, not the pattern.
+The DCA ladder is on triggers too (since 14 Aug 2026): placing one sends
+nothing anywhere, and each rung fires at market the moment the live price
+crosses it — checked every second, like the grid. The one place "resting rung"
+still exists is inside a backtest, where the replay's own book models a trigger
+as an order the bar's wick fills, so crash-day results stay comparable with
+everything measured before. There are no exceptions left on a real book.

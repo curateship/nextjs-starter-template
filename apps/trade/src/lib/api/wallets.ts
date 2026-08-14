@@ -8,6 +8,7 @@ import {
   WALLET_LABEL_MAX,
   type TradeWallet,
   type WalletAccountSummary,
+  describeKeyMismatch,
 } from "@/lib/trade/wallets"
 import { userGet, userPost } from "@/server/guards"
 import { loadLastWalletId, saveLastWalletId } from "@/server/trade/prefs"
@@ -149,7 +150,7 @@ export function pickWallet(id: string) {
   return pickWalletFn({ data: { id } })
 }
 
-export const getWalletErrorMessage = createErrorMessage(
+const baseWalletErrorMessage = createErrorMessage(
   {
     WALLET_LIMIT: "Twenty wallets is the cap — delete one before adding another.",
     WALLET_BALANCE_REQUIRED: "Enter the cash a practice wallet starts with.",
@@ -179,3 +180,22 @@ export const getWalletErrorMessage = createErrorMessage(
   },
   "That did not save. Try it again."
 )
+
+/**
+ * A wallet refusal in words, with the addresses attached when the refusal was
+ * about a key not being approved.
+ *
+ * The generic sentence explains the usual cause; the addresses prove which case
+ * this actually is, which is the difference between acting and guessing.
+ */
+export function getWalletErrorMessage(error: unknown): string {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
+  const detail = describeKeyMismatch(message)
+  const base = baseWalletErrorMessage(error)
+  return detail ? `${base} ${detail}` : base
+}

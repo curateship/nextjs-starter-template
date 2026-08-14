@@ -195,8 +195,22 @@ export const DCA_ANCHOR_HINTS: Record<DcaAnchor, string> = {
   click: "The ladder hangs off the price you right-clicked. Any rung price has already fallen past is skipped, since it can no longer wait for a drop.",
 }
 
-/** Below this many dollars an order is a mistake, not a trade. */
-export const DUST_ORDER_USD = 0.01
+/**
+ * The smallest order the exchange will take, in dollars.
+ *
+ * **Hyperliquid refuses anything under $10.** This was a penny for a long time,
+ * which only checked that an order was not literally nothing — so the app waved
+ * through orders it already knew would come back refused, and a flow with a
+ * hundred coins asked the exchange a hundred times a minute for an answer it
+ * had. Every rung of a six-rung ladder on a $30 account is worth pennies, and
+ * every one of them was sent.
+ *
+ * Practice orders are held to the same number on purpose. A practice wallet
+ * that happily fills seven-cent rungs is not practice — it is a different
+ * strategy that cannot be traded, and finding that out with real money is the
+ * expensive way.
+ */
+export const MIN_ORDER_USD = 10
 
 const dcaRungSchema = z.object({
   deviation: z.number().positive().max(99),
@@ -263,22 +277,12 @@ export const dcaParamsSchema = z.object({
    */
   baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
   /**
-   * How a rung buys.
-   *
-   * **"limit" (the default):** the order is set at the rung's price and fills
-   * there the moment price touches it, wick or not. The rung locks in a price
-   * and a coin count.
-   *
-   * On a 4h replay this is the only assumption that can be stated plainly:
-   * "you got the price you asked for". The alternatives all need to know what
-   * happened INSIDE the candle, which a 4h bar cannot say. Real life pays a
-   * little slippage most of the time and occasionally fills far better on a
-   * violent dump; those two roughly cancel, and neither can be measured until
-   * the replay reads minute candles.
-   *
-   * **"market":** the rung is a level being watched, not an order. When a
-   * candle closes at or below the level it buys at market, so a wick that
-   * stabs through three rungs and springs straight back buys nothing.
+   * INERT as a setting — kept only so saved flows and old backtest snapshots
+   * still parse. Nothing reads it: every placement forces the plan onto
+   * watched triggers ("market"), and a replay overrides its armed plans to
+   * "limit" as its own wick-fill model. The pair of values still means
+   * something on a PLAN (see `LadderPlan.rungEntry`); on the params it is a
+   * leftover.
    */
   rungEntry: z.enum(["market", "limit"]).default("limit"),
   takeProfit: z
@@ -429,7 +433,7 @@ export function sizeOneOrder(input: {
   const capped = input.capUsd !== null && dollars < wanted
   const sz = input.px > 0 ? floorSize(dollars / input.px, input.sizeDecimals) : 0
   const spent = sz * input.px
-  return { dollars: spent, sz, capped, tooSmall: sz <= 0 || spent < DUST_ORDER_USD }
+  return { dollars: spent, sz, capped, tooSmall: sz <= 0 || spent < MIN_ORDER_USD }
 }
 
 export type DcaLadderPlan = {
@@ -590,7 +594,16 @@ export const ladderPlanSchema = z.object({
    * existed was hung on a click, which is what the default says.
    */
   anchor: z.enum(DCA_ANCHORS).default("click"),
-  /** How this ladder's rungs buy — see `rungEntry` on the window's params. */
+  /**
+   * How this plan's rungs buy, decided by whoever built the plan — never by a
+   * setting.
+   *
+   * **"market"** is every real and practice ladder: each rung is a price the
+   * engine watches, fired at market the moment the live price crosses it.
+   * **"limit"** is only ever written by a backtest's arm: the replay models
+   * "fired when crossed" as an order its own book wick-fills, exits able to
+   * sell on the same bar's bounce — the model every measured run used.
+   */
   rungEntry: z.enum(["market", "limit"]).default("limit"),
   /**
    * When this ladder came into existence, in epoch milliseconds.
@@ -729,8 +742,11 @@ export function ladderExitLevels(plan: Pick<LadderPlan, "anchorPx" | "rungs">): 
  * orders on a book, so without bars nothing would ever buy.
  */
 export function ladderWatchInterval(plan: LadderPlan): CandleInterval | null {
-  const watching = plan.twoGreen || plan.rungEntry === "market"
-  if (!watching || !plan.greenInterval) return null
+  // Candles are only for two-green confirmation now. An ordinary ladder's
+  // rungs are triggers fired off the live price mid-candle, so it has no
+  // candle feed to want — and a flow watching hundreds of coins not asking
+  // for hundreds of feeds is most of the exchange's request budget.
+  if (!plan.twoGreen || !plan.greenInterval) return null
   return plan.greenInterval as CandleInterval
 }
 

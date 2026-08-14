@@ -154,7 +154,7 @@ async function refuse(
   await journal(userId, walletId, marketKey, {
     action: "refused",
     side,
-    note: message.replace(/^LIVE_EXCHANGE:/, ""),
+    note: message.replace(/^LIVE_(EXCHANGE|ORDER_REFUSED):/, ""),
   })
   throw error
 }

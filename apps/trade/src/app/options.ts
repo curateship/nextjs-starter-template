@@ -47,16 +47,6 @@ export const appOptions: AppOptions = {
     nodes: [tradeWalletNode, tradeMarketsNode, tradeDcaNode],
     paletteGroups: [TRADE_PALETTE_GROUP],
     /**
-     * The backtest, on the canvas, under Run.
-     *
-     * A backtest's answer is a dozen figures and a list of warnings, which is
-     * more than a shared run row should ever have to carry. This app draws its
-     * own instead, beside the button that started it.
-     *
-     * A pointer, never the component: this file is read on the server, and the
-     * panel reaches the database through `@/lib/api/*`.
-     */
-    /**
      * A trading flow has no member to test against.
      *
      * "Test with member…" runs the flow for one chosen person, which is the
@@ -72,30 +62,36 @@ export const appOptions: AppOptions = {
         ),
     },
     canvasPanel: {
-      // Deliberately not "Previous result".
-      //
-      // This one button reopens two different panels: the last backtest a flow
-      // ran, or — once its Wallet step names a wallet — what that flow trades
-      // and why Run will not test it. "Previous result" is only ever true of
-      // the first, and a flow about to spend real money should not be offering
-      // a button that says backtest. The shell takes a plain string here, so
-      // one wording has to be honest in both; the panel's own heading says the
-      // specific thing.
-      label: "This flow",
+      // The panel is the backtest: its last result, and the button that runs
+      // the next one. It was called "This flow" while it also carried what a
+      // flow trades and why Run would not test it — that moved to the header
+      // chip, so the honest name is the plain one.
+      label: "Backtest",
       // Only on a flow that actually runs one. Every other flow in this app
       // would otherwise carry a button offering a backtest it never ran.
       appliesTo: (kinds) => kinds.includes(tradeDcaNode.kind),
       panel: () => import("@/components/automations/backtest-canvas-panel"),
     },
+    /**
+     * Everything this app puts in the canvas header, in one component.
+     *
+     * What the flow is right now, and the buttons that act on it: Switch on
+     * out on the strip, and Try again, Pause and Stop inside the chip. Running
+     * a backtest is not here — it lives in the Backtest panel beside its last
+     * result, which is the same act.
+     */
     canvasHeaderStatus: {
       appliesTo: (kinds) => kinds.includes(tradeWalletNode.kind),
       status: () => import("@/components/automations/flow-status-header"),
     },
-    runControl: {
-      // Only Trade's own flows. Every other flow in this app keeps the shell's
-      // Run, which is the right word when a flow does one thing.
-      appliesTo: (kinds) => kinds.includes(tradeWalletNode.kind),
-      control: () => import("@/components/automations/flow-run-control"),
-    },
+    /**
+     * Run is not an honest word for anything this app's flows do.
+     *
+     * A flow here is a backtest, or real money being switched on, or already
+     * trading and having nothing to press. The chip and the Backtest panel
+     * draw all three between them; the shell's own button would be a fourth
+     * thing beside them meaning something else again.
+     */
+    runButton: "hidden",
   },
 }
