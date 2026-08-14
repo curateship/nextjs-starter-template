@@ -52,6 +52,14 @@ export function loadCandles(marketKey: string, interval: CandleInterval) {
 }
 
 export const getCandlesErrorMessage = createErrorMessage(
-  {},
+  {
+    // The exchange rations requests, and the chart's own pull is what gets
+    // refused when browsing spends the minute's allowance. Named, because
+    // "could not load" sent people hunting for a broken chart.
+    "429":
+      "Hyperliquid is asking us to slow down — give it a few seconds and try again.",
+    "rate limit":
+      "Hyperliquid is asking us to slow down — give it a few seconds and try again.",
+  },
   "The chart could not load. Nothing is wrong on your side — try again in a moment."
 )

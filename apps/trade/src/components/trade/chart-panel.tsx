@@ -68,6 +68,41 @@ import { cn } from "@/lib/utils"
 const CANDLE_LOAD_SETTLE_MS = 250
 
 /**
+ * The last charts this browser drew, so a revisit paints instantly.
+ *
+ * Clicking back to a market you were just on used to pay the full price
+ * every time — the deliberate settle delay, a server round trip, and the
+ * loading shimmer in between — for bars that were on screen seconds ago.
+ * Now the remembered bars paint at once and the fresh answer replaces them
+ * when it lands. The live feed keeps the forming bar moving either way, so
+ * the hand-off is invisible.
+ */
+const drawnCharts = new Map<string, CandleBar[]>()
+
+/**
+ * How long one bar of each timeframe lasts, for scheduling the refresh that
+ * appends it when it closes.
+ */
+const BAR_MS: Record<CandleInterval, number> = {
+  "1m": 60_000,
+  "5m": 300_000,
+  "15m": 900_000,
+  "1h": 3_600_000,
+  "4h": 14_400_000,
+  "1d": 86_400_000,
+}
+const DRAWN_CHARTS_KEPT = 40
+
+function rememberDrawnChart(key: string, candles: CandleBar[]) {
+  drawnCharts.delete(key)
+  drawnCharts.set(key, candles)
+  if (drawnCharts.size > DRAWN_CHARTS_KEPT) {
+    const oldest = drawnCharts.keys().next().value
+    if (oldest !== undefined) drawnCharts.delete(oldest)
+  }
+}
+
+/**
  * The timeframe row. It draws in the middle panel's header — the workspace
  * owns the remembered choice and hands it to both this picker and the chart's
  * fetch, so the two can never disagree.
@@ -359,7 +394,18 @@ export function ChartPanel({
 
   // The candles on screen right now: an answer whose tag does not match what
   // is wanted belongs to a market that was switched away from, and is not one.
-  const current = answer && answer.key === wanted ? answer : null
+  //
+  // A chart this browser has already drawn stands in until the fresh answer
+  // lands — same render as the click, no shimmer, no settle wait. The live
+  // feed keeps the forming bar moving either way, so the hand-off from
+  // remembered bars to fresh ones is invisible.
+  const current = React.useMemo(() => {
+    if (answer && answer.key === wanted) return answer
+    const remembered = wanted ? drawnCharts.get(wanted) : undefined
+    return remembered
+      ? { key: wanted as string, candles: remembered, error: null }
+      : null
+  }, [answer, wanted])
 
   // The Journal's trade, but only while its own market is the one on screen.
   // A trade drawn over another coin's candles would be nonsense.
@@ -420,10 +466,15 @@ export function ChartPanel({
       loadCandles(selectedKey, interval)
         .then(({ candles }) => {
           if (stale) return
+          rememberDrawnChart(wanted, candles)
           setAnswer({ key: wanted, candles, error: null })
         })
         .catch((error: unknown) => {
           if (stale) return
+          // Bars already on screen beat an error card about fetching newer
+          // ones — the failure is a refresh that missed, not a chart that
+          // could not load.
+          if (drawnCharts.has(wanted)) return
           setAnswer({
             key: wanted,
             candles: [],
@@ -436,6 +487,32 @@ export function ChartPanel({
       clearTimeout(timeout)
     }
   }, [selectedKey, interval, wanted, attempt])
+
+  // Refresh when a bar of this timeframe closes, so the chart appends it by
+  // itself instead of waiting for a click. On the 1m chart that is the
+  // once-a-minute somebody watching it expects; on the 4h chart it is four
+  // hours of silence, because the forming bar is already painted live and
+  // only a close changes history. A couple of seconds' grace lets the
+  // exchange finish writing the bar, and a hidden tab skips its turn rather
+  // than refreshing a chart nobody is looking at.
+  React.useEffect(() => {
+    if (!wanted) return
+    let timer = 0
+    const arm = () => {
+      const barMs = BAR_MS[interval]
+      const untilClose = barMs - (Date.now() % barMs) + 2_000
+      timer = window.setTimeout(() => {
+        // A hidden tab skips the refresh but MUST re-arm itself: bumping
+        // `attempt` is what usually restarts this effect, and a skipped bump
+        // restarts nothing — the first version fell silent forever after one
+        // minute in a background tab.
+        if (document.hidden) arm()
+        else setAttempt((count) => count + 1)
+      }, untilClose)
+    }
+    arm()
+    return () => window.clearTimeout(timer)
+  }, [wanted, interval, attempt])
 
   if (!selectedKey) {
     return (

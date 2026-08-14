@@ -11,6 +11,7 @@ import {
   listSystemEmailSends,
   listSystemEmails,
   recordSystemEmailSend,
+  resetSystemEmail,
   updateSystemEmail,
 } from "@/server/email/system-emails"
 import {
@@ -96,6 +97,36 @@ describe("system email wording", () => {
     expect(JSON.stringify(saved.blocks)).toContain(
       SYSTEM_EMAIL_META["sign-in-link"].defaults.action
     )
+  })
+
+  it("resets only that workspace's saved wording", async () => {
+    const otherSite = (
+      await insertWorkspace(database, { subdomain: "other-site" })
+    ).id
+    await updateSystemEmail(
+      site,
+      "verify-email",
+      { subject: "Confirm for this site" },
+      database
+    )
+    await updateSystemEmail(
+      otherSite,
+      "verify-email",
+      { subject: "Confirm for the other site" },
+      database
+    )
+
+    await resetSystemEmail(site, "verify-email", database)
+
+    expect(await getSystemEmail(site, "verify-email", database)).toBeNull()
+    expect(
+      (await getSystemEmail(otherSite, "verify-email", database))?.subject
+    ).toBe("Confirm for the other site")
+    const listed = await listSystemEmails(site, database)
+    expect(listed.find((item) => item.kind === "verify-email")).toMatchObject({
+      subject: "Verify your email",
+      edited: false,
+    })
   })
 })
 
