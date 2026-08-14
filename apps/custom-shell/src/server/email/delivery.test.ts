@@ -11,6 +11,7 @@ import { customShellEmailSettings, customShellWorkspaces } from "@/server/schema
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   emailIsOff,
+  emailLinkStatusLine,
   emailOffConsequence,
   emailStatusLine,
 } from "@/lib/email/email-delivery"
@@ -94,6 +95,7 @@ describe("whether email is on", () => {
     expect(JSON.stringify(status)).not.toContain("re_saved_key_1234")
     expect(status.maskedKey).toBe("••••1234")
     expect(status.delivery.source).toBe("settings")
+    expect(status.links.address).toBe("http://localhost:3002")
   })
 
   it("says only what a key saved here really covers", async () => {
@@ -128,6 +130,52 @@ describe("whether email is on", () => {
     const { on, line } = emailStatusLine(status)
     expect(on).toBe(false)
     expect(line.startsWith("Email is off.")).toBe(true)
+  })
+})
+
+describe("where email links lead", () => {
+  it("warns when the app is using its local fallback", () => {
+    const { on, line } = emailLinkStatusLine({
+      links: {
+        address: "http://localhost:3002",
+        configured: false,
+        production: false,
+        usableForLinks: false,
+      },
+    })
+
+    expect(on).toBe(false)
+    expect(line).toContain("http://localhost:3002")
+    expect(line).toContain("CUSTOM_SHELL_APP_URL")
+  })
+
+  it("shows a configured public address without a warning", () => {
+    const { on, line } = emailLinkStatusLine({
+      links: {
+        address: "https://app.example.com",
+        configured: true,
+        production: true,
+        usableForLinks: true,
+      },
+    })
+
+    expect(on).toBe(true)
+    expect(line).toBe("Email links point to https://app.example.com.")
+  })
+
+  it("says a live server is refusing links while its address is missing", () => {
+    const { on, line } = emailLinkStatusLine({
+      links: {
+        address: "http://localhost:3002",
+        configured: false,
+        production: true,
+        usableForLinks: false,
+      },
+    })
+
+    expect(on).toBe(false)
+    expect(line).toContain("cannot be built on this live server")
+    expect(line).toContain("CUSTOM_SHELL_APP_URL is missing")
   })
 })
 

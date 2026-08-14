@@ -61,3 +61,30 @@ export function emailStatusLine(status: EmailSettingsStatus): {
         line: "Email is on, using a key saved on another workspace's Email tab. Sign-in links and password resets work; this workspace's newsletters need a key on this tab.",
       }
 }
+
+/** The address in every emailed link, with a warning while it is local-only. */
+export function emailLinkStatusLine(
+  status: Pick<EmailSettingsStatus, "links">
+): {
+  on: boolean
+  line: string
+} {
+  const { address, configured, production, usableForLinks } = status.links
+  if (configured && usableForLinks) {
+    return { on: true, line: `Email links point to ${address}.` }
+  }
+
+  if (!configured) {
+    return {
+      on: false,
+      line: production
+        ? `Email links cannot be built on this live server because CUSTOM_SHELL_APP_URL is missing. Set it to the app's public address.`
+        : `Email links currently point to ${address}. That works only on this computer. Set CUSTOM_SHELL_APP_URL to the app's public address before launch.`,
+    }
+  }
+
+  return {
+    on: false,
+    line: `Email links currently point to ${address}. That cannot be used as the app's public address, so a live server refuses to build links from it.`,
+  }
+}

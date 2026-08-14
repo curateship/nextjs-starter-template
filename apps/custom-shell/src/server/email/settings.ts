@@ -9,6 +9,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { customShellEmailSettings } from "@/server/schema"
 import { now } from "@/server/auth/security"
+import { getAppLinkStatus, type AppLinkStatus } from "@/server/app-url"
 
 /** True in production, where sending without a key must fail loudly. */
 function isProduction() {
@@ -250,6 +251,8 @@ export type EmailSettingsStatus = {
   dripDefaults: DripConfig
   /** Whether email works at all, which this workspace's key alone cannot say. */
   delivery: EmailDeliveryStatus
+  /** Where links in sign-in, reset, and other system emails lead. */
+  links: AppLinkStatus
 }
 
 export async function getEmailSettingsStatus(
@@ -295,6 +298,7 @@ export async function getEmailSettingsStatus(
     webhookUnreadable,
     dripDefaults: parseDripConfig(row?.dripDefaults),
     delivery: await getEmailDeliveryStatus(database),
+    links: getAppLinkStatus(),
   }
 }
 
