@@ -62,9 +62,9 @@ const segmentErrorMessages: Record<string, string> = {
     "One of the rules is not finished. Fill it in or take it out.",
   SEGMENT_PLAN_MISSING: "That plan no longer exists, so the rule cannot be saved.",
   SEGMENT_REFERENCE_MISSING:
-    "One of the segments this one leaves out no longer exists.",
+    "One of the segments this one uses no longer exists.",
   SEGMENT_LOOP:
-    "A segment cannot leave itself out, or leave out a segment that leaves it out.",
+    "A segment cannot use itself, or use another segment that points back to it.",
   SEGMENT_IS_RULES:
     "That segment works itself out from its rules, so people cannot be added to it by hand.",
   SEGMENT_CONTACT_MISSING: "One of the people picked is no longer a contact.",

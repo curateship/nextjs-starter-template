@@ -419,7 +419,7 @@ export function EmailSettings() {
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <FieldLabel
                   htmlFor="email-webhook-secret"
-                  hint="In Resend → Webhooks, add an endpoint pointing at this app's /api/webhooks/resend for the bounced and complained events, then paste its signing secret here. From then on, addresses that bounce or mark the mail as spam come off the contact list by themselves."
+                  hint="In Resend → Webhooks, point an endpoint at this app's /api/webhooks/resend and select delivered, opened, clicked, bounced, and complained. Paste its signing secret here."
                 >
                   Webhook secret
                 </FieldLabel>

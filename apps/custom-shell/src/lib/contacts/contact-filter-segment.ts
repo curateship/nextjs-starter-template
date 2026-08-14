@@ -17,7 +17,7 @@ export function segmentRulesFromContactFilters(
       if (condition.type === "tag") {
         return { ...condition, tags: [...condition.tags] }
       }
-      if (condition.type === "notIn") {
+      if (condition.type === "in" || condition.type === "notIn") {
         return { ...condition, segmentIds: [...condition.segmentIds] }
       }
       return { ...condition }

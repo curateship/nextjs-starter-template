@@ -4,6 +4,7 @@ import {
   LayersIcon,
   LineChartIcon,
   LayoutDashboardIcon,
+  LogOutIcon,
   UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
@@ -69,6 +70,7 @@ import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDate } from "@/lib/format/format-time"
 import { formatSharePercent } from "@/lib/format/format-number"
 import { buildMembershipFigures } from "@/lib/billing/membership-figures"
+import { cancellationReasonLabel } from "@/lib/billing/cancellation"
 import { percentChange } from "@/lib/format/percent-change"
 import { plural } from "@/lib/format/plural"
 import { cn } from "@/lib/utils"
@@ -252,7 +254,7 @@ const joiningConfig: ChartConfig = {
   previous: { label: "Last month", color: shade(70) },
 }
 
-type PeopleTab = "joining" | "members" | "plans"
+type PeopleTab = "joining" | "members" | "plans" | "leaving"
 
 const PEOPLE_TABS: {
   value: PeopleTab
@@ -263,6 +265,7 @@ const PEOPLE_TABS: {
   { value: "joining", tab: "Joining", icon: LineChartIcon, title: "People joining" },
   { value: "members", tab: "Newest", icon: UsersIcon, title: "Newest members" },
   { value: "plans", tab: "Plans", icon: LayersIcon, title: "Membership" },
+  { value: "leaving", tab: "Leaving", icon: LogOutIcon, title: "People leaving" },
 ]
 
 function PeopleCard({
@@ -293,6 +296,8 @@ function PeopleCard({
           meta={
             tab === "joining"
               ? `${membership.newLastMonth.toLocaleString()} last month`
+              : tab === "leaving"
+                ? `${overview.scheduledCancellations.length.toLocaleString()} shown`
               : `${everyone.toLocaleString()} ${plural(everyone, "account")} in all`
           }
         >
@@ -318,8 +323,72 @@ function PeopleCard({
         <TabsContent value="plans" className="flex min-h-0 flex-col">
           <PlanMembership overview={overview} />
         </TabsContent>
+        <TabsContent value="leaving" className="flex min-h-0 flex-col">
+          <LeavingMembers overview={overview} />
+        </TabsContent>
       </Tabs>
     </FeedCard>
+  )
+}
+
+function LeavingMembers({ overview }: { overview: AdminOverview }) {
+  const leaving = overview.scheduledCancellations
+
+  if (!leaving.length) {
+    return <EmptyRow>Nobody is scheduled to leave.</EmptyRow>
+  }
+
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead column="main">Person</TableHead>
+            <TableHead column="meta">Why</TableHead>
+            <TableHead column="meta">Ends</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {leaving.map((member) => (
+            <TableRow key={member.userId}>
+              <TableCell column="main">
+                <Link
+                  to="/admin/users"
+                  search={{ open: member.userId }}
+                  className="block max-w-64 truncate font-medium hover:underline"
+                  title={member.name}
+                >
+                  {member.name}
+                </Link>
+                <span
+                  className="block max-w-64 truncate text-xs text-muted-foreground"
+                  title={member.email}
+                >
+                  {member.email}
+                </span>
+              </TableCell>
+              <TableCell column="meta">
+                <span
+                  className="block max-w-56 truncate"
+                  title={cancellationReasonLabel(member.reason)}
+                >
+                  {cancellationReasonLabel(member.reason)}
+                </span>
+                {member.feedback ? (
+                  <span
+                    className="block max-w-56 truncate text-xs text-muted-foreground"
+                    title={member.feedback}
+                  >
+                    {member.feedback}
+                  </span>
+                ) : null}
+              </TableCell>
+              <TableCell column="meta">{formatDate(member.endsAt)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </ScrollArea>
   )
 }
 

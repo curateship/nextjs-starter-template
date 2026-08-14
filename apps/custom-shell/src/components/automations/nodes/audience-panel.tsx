@@ -8,6 +8,7 @@ import {
 } from "@/components/automations/inspector-card"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -39,6 +40,7 @@ import {
 } from "@/lib/automations/nodes/audience"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast } from "@/lib/toast/error-toast"
+import { MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 
 /**
  * Who the rest of the flow is about.
@@ -62,6 +64,7 @@ export default function AudienceFields({
     typeof node.settings.segmentName === "string"
       ? node.settings.segmentName
       : ""
+  const tag = typeof node.settings.tag === "string" ? node.settings.tag : ""
 
   // The plans to choose between. Advisory only, like the AI step's key check —
   // a failed load leaves the saved plan showing rather than blocking the panel.
@@ -131,6 +134,7 @@ export default function AudienceFields({
               planSlug: value === "plan" ? planSlug : "",
               segmentId: value === "segment" ? segmentId : "",
               segmentName: value === "segment" ? segmentName : "",
+              tag: value === "tag" ? tag : "",
             })
           }}
         >
@@ -259,10 +263,30 @@ export default function AudienceFields({
         </div>
       ) : null}
 
+      {audience === "tag" ? (
+        <div className="grid gap-2">
+          <FieldLabel
+            htmlFor={`audience-${node.id}-tag`}
+            className="text-xs"
+            hint="Matches the account label exactly. Tags are stored in lowercase."
+          >
+            Member tag
+          </FieldLabel>
+          <Input
+            id={`audience-${node.id}-tag`}
+            value={tag}
+            maxLength={MEMBER_TAG_MAX_LENGTH}
+            placeholder="beta"
+            onChange={(event) => setSettings({ tag: event.target.value })}
+          />
+        </div>
+      ) : null}
+
       <AudiencePreviewNote
         audience={audience}
         planSlug={planSlug}
         segmentId={segmentId}
+        tag={tag}
       />
 
       {/* One note rather than a helper line under each field, matching the
@@ -311,10 +335,12 @@ function AudiencePreviewNote({
   audience,
   planSlug,
   segmentId,
+  tag,
 }: {
   audience: AutomationAudienceKind
   planSlug: string
   segmentId: string
+  tag: string
 }) {
   // A choice that has not been finished has nothing to count yet — asking would
   // only get the refusal the run gives, which is not news while somebody is
@@ -324,20 +350,22 @@ function AudiencePreviewNote({
       ? planSlug !== ""
       : audience === "segment"
         ? segmentId !== ""
-        : true
+        : audience === "tag"
+          ? tag.trim() !== ""
+          : true
 
   const [attempt, setAttempt] = React.useState(0)
   const [answer, setAnswer] = React.useState<PreviewAnswer | null>(null)
   // `attempt` is part of the choice so that pressing "Try again" makes the
   // answer on screen stale and asks once more.
-  const key = `${audience}|${planSlug}|${segmentId}|${attempt}`
+  const key = `${audience}|${planSlug}|${segmentId}|${tag}|${attempt}`
 
   React.useEffect(() => {
     if (!ready) return
 
     let cancelled = false
     const timer = setTimeout(() => {
-      loadAudiencePreview({ audience, planSlug, segmentId })
+      loadAudiencePreview({ audience, planSlug, segmentId, tag })
         .then((preview) => {
           if (!cancelled) setAnswer({ key, preview, error: "" })
         })
@@ -355,7 +383,7 @@ function AudiencePreviewNote({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [ready, key, audience, planSlug, segmentId])
+  }, [ready, key, audience, planSlug, segmentId, tag])
 
   const current = answer?.key === key ? answer : null
   const preview = current?.preview ?? null
@@ -427,14 +455,16 @@ function AudiencePreviewNote({
                 </li>
               ))}
               {preview.total > preview.sample.length ? (
-                <li>
-                  and {preview.total - preview.sample.length} more
-                </li>
+                <li>and {preview.total - preview.sample.length} more</li>
               ) : null}
             </ul>
           ) : null}
 
-          {audienceIsMostOfTheList(audience, preview.total, preview.everyone) ? (
+          {audienceIsMostOfTheList(
+            audience,
+            preview.total,
+            preview.everyone
+          ) ? (
             <p>
               That is most of your contact list — {preview.everyone}{" "}
               {plural(preview.everyone, "person", "people")} in all.
@@ -445,10 +475,10 @@ function AudiencePreviewNote({
             Counted just now. A run works it out again every time it goes, so
             this is what it would match if it went this moment.{" "}
             <Link
-              to="/admin/contacts"
+              to={audience === "tag" ? "/admin/users" : "/admin/contacts"}
               className="underline underline-offset-2 hover:text-foreground"
             >
-              Look people up in Contacts
+              Look people up in {audience === "tag" ? "Accounts" : "Contacts"}
             </Link>
             .
           </p>

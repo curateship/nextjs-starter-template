@@ -228,6 +228,7 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
     return sendAuthEmail({
       kind: data.kind,
       to: context.user.email,
+      recipientName: context.user.name,
       tokens: sampleTokens[data.kind],
       actionUrl: appUrlFor("/"),
     })

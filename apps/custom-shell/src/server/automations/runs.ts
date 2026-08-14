@@ -9,6 +9,7 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { currentWorkspaceId } from "@/server/people/workspaces"
 import {
+  customShellAutomationDeliveries,
   customShellAutomationRuns,
   customShellAutomationRunSteps,
   customShellAutomations,
@@ -27,6 +28,7 @@ import {
 
 /** One panel's worth of history. More is a "Load more" away. */
 const RUNS_PAGE_SIZE = 25
+const DELIVERIES_PAGE_SIZE = 25
 
 /**
  * The most decisions one person can be shown at once. A queue longer than this
@@ -76,6 +78,30 @@ export type AutomationRunDetail = AutomationRunRow & {
   approvalDecidedByName: string | null
   error: string | null
   steps: AutomationRunStepRow[]
+}
+
+export type AutomationDeliveryState =
+  | "sent"
+  | "delivered"
+  | "opened"
+  | "clicked"
+  | "failed"
+
+export type AutomationRunDeliveryRow = {
+  id: string
+  toEmail: string
+  state: AutomationDeliveryState
+  occurredAt: Date
+}
+
+export type AutomationRunDeliveryPage = {
+  deliveries: AutomationRunDeliveryRow[]
+  total: number
+  sent: number
+  failed: number
+  delivered: number
+  opened: number
+  clicked: number
 }
 
 /** How many steps each run has, counted by the database rather than fetched. */
@@ -270,6 +296,90 @@ export async function getAutomationRun(
       startedAt: step.startedAt,
       finishedAt: step.finishedAt,
     })),
+  }
+}
+
+/**
+ * One Send Email step's recipients and current Resend state.
+ *
+ * Ownership is checked against the run before the client-supplied node id is
+ * used. The page is bounded, while the totals cover the complete send.
+ */
+export async function listAutomationRunDeliveries(
+  workspaceId: string,
+  runId: string,
+  nodeId: string,
+  offset = 0,
+  database: CustomShellDb = db
+): Promise<AutomationRunDeliveryPage | null> {
+  const [run] = await database
+    .select({ id: customShellAutomationRuns.id })
+    .from(customShellAutomationRuns)
+    .where(
+      and(
+        eq(customShellAutomationRuns.id, runId),
+        eq(customShellAutomationRuns.workspaceId, workspaceId)
+      )
+    )
+    .limit(1)
+  if (!run) return null
+
+  const filter = and(
+    eq(customShellAutomationDeliveries.runId, runId),
+    eq(customShellAutomationDeliveries.nodeId, nodeId)
+  )
+  const [[totals], rows] = await Promise.all([
+    database
+      .select({
+        total: sql<number>`count(*)::int`,
+        sent: sql<number>`count(*) filter (where ${customShellAutomationDeliveries.status} = 'sent')::int`,
+        failed: sql<number>`count(*) filter (where ${customShellAutomationDeliveries.status} = 'failed')::int`,
+        delivered: sql<number>`count(*) filter (where ${customShellAutomationDeliveries.deliveredAt} is not null)::int`,
+        opened: sql<number>`count(*) filter (where ${customShellAutomationDeliveries.openedAt} is not null)::int`,
+        clicked: sql<number>`count(*) filter (where ${customShellAutomationDeliveries.clickedAt} is not null)::int`,
+      })
+      .from(customShellAutomationDeliveries)
+      .where(filter),
+    database
+      .select()
+      .from(customShellAutomationDeliveries)
+      .where(filter)
+      .orderBy(
+        asc(customShellAutomationDeliveries.toEmail),
+        asc(customShellAutomationDeliveries.id)
+      )
+      .limit(DELIVERIES_PAGE_SIZE)
+      .offset(Math.max(0, offset)),
+  ])
+
+  return {
+    deliveries: rows.map((row) => {
+      const state: AutomationDeliveryState = row.status === "failed"
+        ? "failed"
+        : row.clickedAt
+          ? "clicked"
+          : row.openedAt
+            ? "opened"
+            : row.deliveredAt
+              ? "delivered"
+              : "sent"
+      return {
+        id: row.id,
+        toEmail: row.toEmail,
+        state,
+        occurredAt:
+          row.clickedAt ??
+          row.openedAt ??
+          row.deliveredAt ??
+          row.createdAt,
+      }
+    }),
+    total: totals?.total ?? 0,
+    sent: totals?.sent ?? 0,
+    failed: totals?.failed ?? 0,
+    delivered: totals?.delivered ?? 0,
+    opened: totals?.opened ?? 0,
+    clicked: totals?.clicked ?? 0,
   }
 }
 

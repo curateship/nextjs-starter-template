@@ -44,14 +44,10 @@ import {
   uuid,
 } from "@/server/auth/security"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
+import { listMemberTags } from "@/server/people/member-tags"
 
 export type AccountSort =
-  | "name"
-  | "email"
-  | "role"
-  | "status"
-  | "plan"
-  | "created"
+  "name" | "email" | "role" | "status" | "plan" | "created"
 
 export type AccountListQuery = {
   search: string
@@ -67,6 +63,7 @@ export type AccountRow = {
   id: string
   email: string
   name: string
+  tags: string[]
   role: string
   status: string
   /** When this account was marked for deletion, and null when it was not. */
@@ -126,9 +123,7 @@ export async function listAccounts(
     filters.push(eq(customShellUsers.role, query.role))
   }
   if (query.status === "locked_out") {
-    filters.push(
-      sql`${customShellUsers.status} = 'active' and ${lockedOut}`
-    )
+    filters.push(sql`${customShellUsers.status} = 'active' and ${lockedOut}`)
   } else if (query.status !== "all") {
     filters.push(eq(customShellUsers.status, query.status))
   }
@@ -188,8 +183,18 @@ export async function listAccounts(
   const defaultPlan = await getDefaultPlan(database)
   const timestamp = now()
 
+  const tagsByUser = await listMemberTags(
+    rows.map((row) => row.user.id),
+    database
+  )
   const accounts = rows.map((row) =>
-    toAccountRow(row, defaultPlan, timestamp, Boolean(row.lockedOut))
+    toAccountRow(
+      row,
+      defaultPlan,
+      timestamp,
+      Boolean(row.lockedOut),
+      tagsByUser.get(row.user.id) ?? []
+    )
   )
 
   return { accounts, total: totals?.total ?? 0 }
@@ -213,20 +218,23 @@ function toAccountRow(
   row: AccountJoin,
   defaultPlan: { name: string; slug: string } | null | undefined,
   timestamp: Date,
-  lockedOut = false
+  lockedOut = false,
+  tags: string[] = []
 ): AccountRow {
   const paid =
     Boolean(row.plan) && subscriptionIsActive(row.subscription, timestamp)
   // Not "paid but on hold" — a paused plan is not paid, which is exactly why
   // the row needs a second word for it or it reads as a plain free account.
   const paused = Boolean(
-    row.subscription?.pausedAt && subscriptionIsLive(row.subscription, timestamp)
+    row.subscription?.pausedAt &&
+    subscriptionIsLive(row.subscription, timestamp)
   )
 
   return {
     id: row.user.id,
     email: row.user.email,
     name: row.user.name,
+    tags,
     role: row.user.role,
     status: row.user.status,
     deletedAt: row.user.deletedAt?.toISOString() ?? null,
@@ -284,7 +292,19 @@ export async function loadNewestAccounts(
     .limit(limit)
 
   const timestamp = now()
-  return rows.map((row) => toAccountRow(row, defaultPlan, timestamp))
+  const tagsByUser = await listMemberTags(
+    rows.map((row) => row.user.id),
+    database
+  )
+  return rows.map((row) =>
+    toAccountRow(
+      row,
+      defaultPlan,
+      timestamp,
+      false,
+      tagsByUser.get(row.user.id) ?? []
+    )
+  )
 }
 
 /**
@@ -339,7 +359,10 @@ export async function createAccountByAdmin(
       await sendAuthEmail({
         kind: "new-account",
         to: email,
-        actionUrl: appUrlFor(`/reset-password?token=${encodeURIComponent(token)}`),
+        recipientName: name,
+        actionUrl: appUrlFor(
+          `/reset-password?token=${encodeURIComponent(token)}`
+        ),
       })
     ).delivered
   } catch (deliveryError) {

@@ -17,6 +17,7 @@ import {
   type CustomShellUser,
 } from "@/server/schema"
 import { startSessionWithAlert } from "@/server/auth/security-alerts"
+import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   findUserByEmail,
   now,
@@ -406,13 +407,15 @@ async function confirmEmail(
     return account
   }
 
-  const [updated] = await database
-    .update(customShellUsers)
-    .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
-    .where(eq(customShellUsers.id, account.id))
-    .returning()
-
-  return updated
+  return database.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(customShellUsers)
+      .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
+      .where(eq(customShellUsers.id, account.id))
+      .returning()
+    await emitMemberEvent("verified", updated, tx)
+    return updated
+  })
 }
 
 /**
@@ -425,25 +428,31 @@ async function createGoogleUser(
   timestamp: Date,
   database: CustomShellDb
 ) {
-  const [created] = await database
-    .insert(customShellUsers)
-    .values({
-      id: uuid(),
-      email: identity.email,
-      name: identity.name ?? identity.email.split("@")[0],
-      role: "member",
-      status: "active",
-      passwordHash: null,
-      emailVerifiedAt: timestamp,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    })
-    // Two first sign-ins racing each other: the loser reads the row the winner
-    // wrote instead of failing on the email's unique index.
-    .onConflictDoNothing()
-    .returning()
+  return database.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(customShellUsers)
+      .values({
+        id: uuid(),
+        email: identity.email,
+        name: identity.name ?? identity.email.split("@")[0],
+        role: "member",
+        status: "active",
+        passwordHash: null,
+        emailVerifiedAt: timestamp,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })
+      // Two first sign-ins from the same address: the loser reads the row the
+      // winner wrote instead of failing on the email's unique index.
+      .onConflictDoNothing()
+      .returning()
 
-  return created ?? (await requireUserByEmail(identity.email, database))
+    if (!created) return requireUserByEmail(identity.email, tx)
+
+    await emitMemberEvent("registered", created, tx)
+    await emitMemberEvent("verified", created, tx)
+    return created
+  })
 }
 
 async function requireUserByEmail(email: string, database: CustomShellDb) {

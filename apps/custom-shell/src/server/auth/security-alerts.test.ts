@@ -156,7 +156,11 @@ describe("security alerts", () => {
   })
 
   it("tells the address an account left where it went", async () => {
-    await alertEmailChanged("old@internal.dev", "new@internal.dev")
+    await alertEmailChanged(
+      "old@internal.dev",
+      "new@internal.dev",
+      "Owner Example"
+    )
 
     const [sent] = await database.select().from(customShellSystemEmailSends)
     expect(sent.kind).toBe("email-change-done")
@@ -165,10 +169,14 @@ describe("security alerts", () => {
   })
 
   it("confirms a password change to the account's own address", async () => {
-    await alertPasswordChanged("owner@internal.dev", {
-      userAgent: CHROME_MAC,
-      ipAddress: null,
-    })
+    await alertPasswordChanged(
+      "owner@internal.dev",
+      {
+        userAgent: CHROME_MAC,
+        ipAddress: null,
+      },
+      "Owner Example"
+    )
 
     const [sent] = await database.select().from(customShellSystemEmailSends)
     expect(sent.kind).toBe("password-changed")

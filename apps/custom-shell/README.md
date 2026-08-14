@@ -80,6 +80,28 @@ An account created this way has no password. Account → Security offers to set
 one, and asks for the account's own email address rather than a password when
 it is time to delete the account.
 
+## Resend delivery, open, and click tracking
+
+Automation run history can show whether each email was delivered, opened, or
+clicked. Resend supplies these updates through its signed webhook.
+
+1. In Resend, enable open and click tracking for the sending domain and verify
+   its tracking subdomain. Resend leaves both kinds of tracking off by default.
+2. Add a Resend webhook pointing to
+   `https://your-app.example/api/webhooks/resend` and select `email.delivered`,
+   `email.opened`, `email.clicked`, `email.bounced`, and `email.complained`.
+3. Copy that endpoint's signing secret into Settings → Email → Webhook secret
+   for the matching workspace.
+
+For local testing, expose port 3002 through a secure tunnel or use Resend's
+webhook listener, then forward the same `/api/webhooks/resend` path. A test send
+must use a real Resend key and a verified sending domain; the local logging
+provider cannot produce delivery events.
+
+Open counts are estimates. Some inboxes hide the tracking image while privacy
+services load it automatically, so run history never treats an open as proof
+that somebody read the message.
+
 ## Adding components
 
 To add components to your app, run the following command:

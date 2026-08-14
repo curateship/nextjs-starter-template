@@ -81,8 +81,6 @@ const usersRoute = getRouteApi("/_authenticated/admin/users")
  */
 type SortColumn = (typeof USER_SORT_COLUMNS)[number]
 
-
-
 /**
  * What deleting these accounts did, said plainly. The same button both marks an
  * account and, on a second press, removes one for good, so a mixed selection
@@ -217,7 +215,9 @@ export function AdminUsersDashboard({
   const [error, setError] = React.useState<string | null>(null)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
   const [adding, setAdding] = React.useState(false)
-  const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(null)
+  const [deleteTarget, setDeleteTarget] = React.useState<AccountRow | null>(
+    null
+  )
   const [deleting, setDeleting] = React.useState(false)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [massDeleting, setMassDeleting] = React.useState(false)
@@ -228,7 +228,9 @@ export function AdminUsersDashboard({
   // restore are separate actions, so neither may grey the other out.
   const [restoring, setRestoring] = React.useState(false)
   const [massRestoring, setMassRestoring] = React.useState(false)
-  const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(null)
+  const [viewAsTarget, setViewAsTarget] = React.useState<AccountRow | null>(
+    null
+  )
   const [startingViewAs, setStartingViewAs] = React.useState(false)
 
   const refresh = React.useCallback(async () => {
@@ -269,9 +271,8 @@ export function AdminUsersDashboard({
     `${search}|${role}|${status}|${sort}|${direction}|${page}|${pageSize}`
   )
 
-  const toggleSort = useListSort<SortColumn>(
-    { sort, direction },
-    (column) => (column === "created" ? "desc" : "asc")
+  const toggleSort = useListSort<SortColumn>({ sort, direction }, (column) =>
+    column === "created" ? "desc" : "asc"
   )
 
   const runAction = React.useCallback(
@@ -421,9 +422,7 @@ export function AdminUsersDashboard({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Filter by role"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Filter by role">
                 <SelectValue placeholder="Role" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -441,9 +440,7 @@ export function AdminUsersDashboard({
                 })
               }
             >
-              <DashboardToolbarSelectTrigger
-                aria-label="Filter by status"
-              >
+              <DashboardToolbarSelectTrigger aria-label="Filter by status">
                 <SelectValue placeholder="Status" />
               </DashboardToolbarSelectTrigger>
               <SelectContent>
@@ -456,7 +453,10 @@ export function AdminUsersDashboard({
                 <SelectItem value="locked_out">Locked out</SelectItem>
               </SelectContent>
             </Select>
-            <DashboardToolbarButton type="button" onClick={() => setAdding(true)}>
+            <DashboardToolbarButton
+              type="button"
+              onClick={() => setAdding(true)}
+            >
               <PlusIcon className="size-4" />
               Add account
             </DashboardToolbarButton>
@@ -501,6 +501,9 @@ export function AdminUsersDashboard({
                   Role
                 </TableSortButton>
               </TableHead>
+              <TableHead column="meta" className="hidden xl:table-cell">
+                Tags
+              </TableHead>
               <TableHead column="meta">
                 <TableSortButton
                   active={sort === "status"}
@@ -534,7 +537,7 @@ export function AdminUsersDashboard({
         }
         isEmpty={!loading && accounts.length === 0}
         emptyText="No accounts match those filters."
-        emptyColSpan={8}
+        emptyColSpan={9}
         footer={{
           type: "pagination",
           page,
@@ -584,6 +587,25 @@ export function AdminUsersDashboard({
             </TableCell>
             <TableCell column="meta">
               <AccountStatusBadge account={account} />
+            </TableCell>
+            <TableCell column="meta" className="hidden max-w-56 xl:table-cell">
+              {account.tags.length ? (
+                <div
+                  className="flex flex-wrap gap-1"
+                  title={account.tags.join(", ")}
+                >
+                  {account.tags.slice(0, 2).map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                  {account.tags.length > 2 ? (
+                    <Badge variant="outline">+{account.tags.length - 2}</Badge>
+                  ) : null}
+                </div>
+              ) : (
+                <span className="text-muted-foreground">—</span>
+              )}
             </TableCell>
             {/* Just the plan's name: whether it was granted or is already
                 ending lives in the account window, not as extra badges. A
@@ -706,7 +728,9 @@ export function AdminUsersDashboard({
             ? "Delete this account for good?"
             : "Delete this account?"
         }
-        description={deleteTarget ? describeAccountDeletion(deleteTarget) : null}
+        description={
+          deleteTarget ? describeAccountDeletion(deleteTarget) : null
+        }
         confirmLabel="Delete account"
         loading={deleting}
         onConfirm={async () => {
