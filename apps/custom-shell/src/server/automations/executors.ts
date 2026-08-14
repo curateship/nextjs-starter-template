@@ -16,6 +16,11 @@ import {
   readMemberEvent,
 } from "@/lib/automations/nodes/member-event"
 import { webhookNode } from "@/lib/automations/nodes/webhook"
+import {
+  MEMBER_TAG_MODES,
+  memberTagNode,
+  type MemberTagMode,
+} from "@/lib/automations/nodes/member-tag"
 import type { AutomationRunOutput } from "@/lib/automations/node-descriptor"
 import { appAutomationExecutors } from "@/server/app-options"
 import {
@@ -37,6 +42,8 @@ import {
 } from "@/lib/automations/schedule"
 import { executeSendEmailNode } from "@/server/automations/send-email"
 import { executeWebhookNode } from "@/server/automations/webhook"
+import { changeMemberTag } from "@/server/people/member-tags"
+import { normalizeMemberTag } from "@/lib/member-tags"
 
 /**
  * What a step is handed, and what it may answer with.
@@ -171,6 +178,52 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     }
   },
 
+  [memberTagNode.kind]: async ({ database, run, settings, testRun }) => {
+    const mode = settings.mode
+    const tag =
+      typeof settings.tag === "string" ? normalizeMemberTag(settings.tag) : ""
+    const who = run.subjectLabel?.trim() || "the flow's member"
+    if (!MEMBER_TAG_MODES.includes(mode as MemberTagMode) || !tag) {
+      throw new Error(
+        "This tag step has incomplete settings, so it cannot continue."
+      )
+    }
+    if (!run.subjectUserId) {
+      throw new Error(
+        "This run has no member for the tag step to change, so it cannot continue."
+      )
+    }
+    if (testRun) {
+      return {
+        type: "next",
+        summary: `Would ${mode} the '${tag}' tag on ${who}. No tag was changed in this test.`,
+      }
+    }
+
+    const change = await changeMemberTag(
+      run.subjectUserId,
+      mode as MemberTagMode,
+      tag,
+      database
+    )
+    if (change === "unchanged") {
+      return {
+        type: "next",
+        summary:
+          mode === "add"
+            ? `${who} already had the '${tag}' tag. Nothing changed.`
+            : `${who} did not have the '${tag}' tag. Nothing changed.`,
+      }
+    }
+    return {
+      type: "next",
+      summary:
+        mode === "add"
+          ? `Tagged ${who} with '${tag}'.`
+          : `Removed the '${tag}' tag from ${who}.`,
+    }
+  },
+
   /**
    * Works out who the rest of the flow is about and writes the answer into the
    * run's history — the choice and the number it matched, never the names.
@@ -230,7 +283,8 @@ export const automationExecutors: Record<string, AutomationExecutor> = {
     const who = audienceWording(
       audience.kind,
       audience.planSlug,
-      segment?.name ?? ""
+      segment?.name ?? "",
+      audience.tag
     )
 
     if (subjectMatched !== null) {
@@ -279,6 +333,7 @@ const TEST_RUN_SAFE_KINDS = new Set([
   "placeholder",
   billingMomentNode.kind,
   memberEventNode.kind,
+  memberTagNode.kind,
   timeActivateNode.kind,
   audienceNode.kind,
   sendEmailNode.kind,
@@ -382,9 +437,7 @@ function checkedAppExecutors(): Record<string, AutomationExecutor> {
  * says it is, and `automationExecutors["constructor"]` would otherwise hand
  * back something off `Object`'s prototype and the engine would try to run it.
  */
-export function automationExecutorFor(
-  kind: string
-): AutomationExecutor | null {
+export function automationExecutorFor(kind: string): AutomationExecutor | null {
   if (Object.hasOwn(automationExecutors, kind)) return automationExecutors[kind]
   const supplied = checkedAppExecutors()
   return Object.hasOwn(supplied, kind) ? supplied[kind] : null

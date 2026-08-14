@@ -14,6 +14,11 @@ import {
 import { syncContactsFromUsers } from "@/server/people/contacts"
 import { adminGet } from "@/server/guards"
 import { requireCurrentWorkspace } from "@/server/people/workspaces"
+import {
+  MEMBER_TAG_MAX_LENGTH,
+  MEMBER_TAG_SEPARATOR,
+  normalizeMemberTag,
+} from "@/lib/member-tags"
 
 import { createErrorMessage } from "../error-message"
 
@@ -55,6 +60,13 @@ const loadAudiencePreviewFn = createServerFn({ method: "GET" })
       audience: z.enum(AUDIENCE_KINDS),
       planSlug: z.string().trim().max(50).default(""),
       segmentId: z.string().trim().max(36).default(""),
+      tag: z
+        .string()
+        .trim()
+        .max(MEMBER_TAG_MAX_LENGTH)
+        .refine((tag) => !tag.includes(MEMBER_TAG_SEPARATOR))
+        .transform(normalizeMemberTag)
+        .default(""),
     })
   )
   .handler(async ({ data, context }): Promise<AudiencePreview> => {
@@ -67,6 +79,7 @@ const loadAudiencePreviewFn = createServerFn({ method: "GET" })
           kind: data.audience,
           planSlug: data.audience === "plan" ? data.planSlug : "",
           segmentId: data.audience === "segment" ? data.segmentId : "",
+          tag: data.audience === "tag" ? data.tag : "",
         },
         workspace.id
       )
@@ -85,6 +98,7 @@ export function loadAudiencePreview(input: {
   audience: AutomationAudienceKind
   planSlug: string
   segmentId: string
+  tag: string
 }) {
   return loadAudiencePreviewFn({ data: input })
 }

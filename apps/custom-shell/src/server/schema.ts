@@ -99,6 +99,34 @@ export const customShellUsers = pgTable(
   ]
 )
 
+/**
+ * Small, searchable labels admins and automations attach to accounts.
+ *
+ * One row per label keeps exact audience lookups indexed and lets the user
+ * foreign key remove every label when the account itself is removed.
+ */
+export const customShellMemberTags = pgTable(
+  "member_tags",
+  {
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tag: varchar("tag", { length: 100 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "member_tags_pk",
+      columns: [table.userId, table.tag],
+    }),
+    check(
+      "member_tags_normalized_check",
+      sql`${table.tag} = lower(trim(${table.tag})) and length(${table.tag}) between 1 and 100 and position(',' in ${table.tag}) = 0`
+    ),
+    index("ix_member_tags_tag_user").on(table.tag, table.userId),
+  ]
+)
+
 export const customShellSessions = pgTable(
   "sessions",
   {
@@ -157,9 +185,7 @@ export const customShellSettings = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [
-    check("settings_default_key", sql`${table.key} = 'default'`),
-  ]
+  (table) => [check("settings_default_key", sql`${table.key} = 'default'`)]
 )
 
 export const customShellWorkspaces = pgTable(
@@ -244,10 +270,9 @@ export const customShellFeedback = pgTable(
      * Deleting that media row only clears this — the feedback survives its
      * picture — while deleting the feedback takes the file with it.
      */
-    attachmentMediaId: varchar("attachment_media_id", { length: 36 }).references(
-      () => customShellMedia.id,
-      { onDelete: "set null" }
-    ),
+    attachmentMediaId: varchar("attachment_media_id", {
+      length: 36,
+    }).references(() => customShellMedia.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -265,7 +290,10 @@ export const customShellFeedback = pgTable(
       sql`${table.tags} <@ ARRAY['dashboard','media','automations','account','billing','performance','design']::text[] AND cardinality(${table.tags}) <= 3`
     ),
     index("ix_feedback_user_id").on(table.userId),
-    index("ix_feedback_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_feedback_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
     index("ix_feedback_workspace_type").on(table.workspaceId, table.type),
     index("ix_feedback_attachment_media_id").on(table.attachmentMediaId),
   ]
@@ -284,10 +312,7 @@ export const customShellFeedbackVotes = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    unique("feedback_votes_unique_user").on(
-      table.feedbackId,
-      table.userId
-    ),
+    unique("feedback_votes_unique_user").on(table.feedbackId, table.userId),
     index("ix_feedback_votes_feedback_id").on(table.feedbackId),
     index("ix_feedback_votes_user_id").on(table.userId),
   ]
@@ -378,9 +403,7 @@ export const customShellNotifications = pgTable(
     ),
     index("ix_notifications_feedback_id").on(table.feedbackId),
     index("ix_notifications_vote_id").on(table.feedbackVoteId),
-    index("ix_notifications_comment_id").on(
-      table.feedbackCommentId
-    ),
+    index("ix_notifications_comment_id").on(table.feedbackCommentId),
     index("ix_notifications_changelog_entry_id").on(table.changelogEntryId),
     index("ix_notifications_automation_run_id").on(table.automationRunId),
     // One notice per person per announcement, so a second tab loading at the
@@ -594,7 +617,10 @@ export const customShellOauthAccounts = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("oauth_accounts_provider_check", sql`${table.provider} in ('google')`),
+    check(
+      "oauth_accounts_provider_check",
+      sql`${table.provider} in ('google')`
+    ),
     unique("oauth_accounts_provider_account_unique").on(
       table.provider,
       table.providerAccountId
@@ -627,10 +653,7 @@ export const customShellPlans = pgTable(
     stripePriceIdYearly: varchar("stripe_price_id_yearly", { length: 120 }),
     trialDays: integer("trial_days").notNull().default(0),
     /** Free-form per-product limits and flags, read through entitlements. */
-    features: jsonb("features")
-      .$type<PlanFeatures>()
-      .notNull()
-      .default({}),
+    features: jsonb("features").$type<PlanFeatures>().notNull().default({}),
     /** The plan everyone without a paid subscription falls back to. */
     isDefault: boolean("is_default").notNull().default(false),
     isPublic: boolean("is_public").notNull().default(true),
@@ -923,15 +946,14 @@ export const customShellAutomationRuns = pgTable(
     approvalDeadlineAt: timestamp("approval_deadline_at", {
       withTimezone: true,
     }),
-    approvalDecision: varchar("approval_decision", { length: 20 }).$type<
-      AutomationApprovalDecision
-    >(),
+    approvalDecision: varchar("approval_decision", {
+      length: 20,
+    }).$type<AutomationApprovalDecision>(),
     approvalDecidedAt: timestamp("approval_decided_at", { withTimezone: true }),
     /** Null when the deadline decided it rather than a person. */
-    approvalDecidedBy: varchar("approval_decided_by", { length: 36 }).references(
-      () => customShellUsers.id,
-      { onDelete: "set null" }
-    ),
+    approvalDecidedBy: varchar("approval_decided_by", {
+      length: 36,
+    }).references(() => customShellUsers.id, { onDelete: "set null" }),
     /**
      * Who the run is about — never the same person as `userId`, which is the
      * admin who owns the flow. Null for a run somebody started by hand.
@@ -1463,7 +1485,10 @@ export const customShellContacts = pgTable(
     uniqueIndex("ux_contacts_workspace_user")
       .on(table.workspaceId, table.userId)
       .where(sql`${table.userId} is not null`),
-    index("ix_contacts_workspace_created").on(table.workspaceId, table.createdAt),
+    index("ix_contacts_workspace_created").on(
+      table.workspaceId,
+      table.createdAt
+    ),
   ]
 )
 
@@ -1715,7 +1740,10 @@ export const customShellBroadcasts = pgTable(
       sql`${table.status} in ('draft', 'scheduled', 'sending', 'paused', 'sent')`
     ),
     index("ix_broadcasts_workspace_status").on(table.workspaceId, table.status),
-    index("ix_broadcasts_status_next_batch").on(table.status, table.nextBatchAt),
+    index("ix_broadcasts_status_next_batch").on(
+      table.status,
+      table.nextBatchAt
+    ),
   ]
 )
 
@@ -1785,7 +1813,10 @@ export const customShellDeliveries = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check("deliveries_status_check", sql`${table.status} in ('sent', 'failed')`),
+    check(
+      "deliveries_status_check",
+      sql`${table.status} in ('sent', 'failed')`
+    ),
     index("ix_deliveries_workspace_created").on(
       table.workspaceId,
       table.createdAt
