@@ -232,6 +232,8 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         changed_when: "Jan 1, 2026, 9:00 AM UTC",
         practical_effect: "You can now open the admin area and manage the app.",
       },
+      "ai-limit-warning": {},
+      "ai-limit-reached": {},
     }
     return sendAuthEmail({
       kind: data.kind,
