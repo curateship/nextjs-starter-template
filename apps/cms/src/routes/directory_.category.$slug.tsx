@@ -65,12 +65,21 @@ export const Route = createFileRoute("/directory_/category/$slug")({
 })
 
 function CategoryRoute() {
-  const { site, category, ancestors, children, listings, total, page, pageSize } =
-    Route.useLoaderData()
+  const {
+    site,
+    category,
+    ancestors,
+    children,
+    listings,
+    total,
+    page,
+    pageSize,
+    browseTitle,
+  } = Route.useLoaderData()
 
   const crumbs: Crumb[] = [
     { label: site.name, home: true },
-    { label: "Directory" },
+    { label: browseTitle },
     // `ancestors` ends with this category itself, so the last one is the page
     // you are on and the breadcrumb draws it as plain text.
     ...ancestors.map((step) => ({

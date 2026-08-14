@@ -405,6 +405,12 @@ export const directorySettings = pgTable("directory_settings", {
   claimApprovedMessage: varchar("claim_approved_message", { length: 300 })
     .notNull()
     .default(""),
+  /** Null means the reader supplies the current built-in directory default. */
+  pageSize: integer("page_size"),
+  defaultSort: varchar("default_sort", { length: 20 }),
+  browseTitle: varchar("browse_title", { length: 120 }),
+  browseIntro: varchar("browse_intro", { length: 500 }),
+  featuredFirst: boolean("featured_first"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 })

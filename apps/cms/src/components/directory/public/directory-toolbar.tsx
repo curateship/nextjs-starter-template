@@ -32,12 +32,14 @@ import { cn } from "@/lib/utils"
  */
 export function DirectoryToolbar({
   current,
+  sort,
   categories,
   onSearchChange,
   onSortChange,
 }: {
   /** The address as it stands, so a chip can keep everything it is not changing. */
   current: DirectoryBrowseSearch
+  sort: DirectorySort
   categories: PublicCategory[]
   onSearchChange: (value: string) => void
   onSortChange: (value: DirectorySort) => void
@@ -62,7 +64,7 @@ export function DirectoryToolbar({
             without it the row squeezes it down to the arrow alone. */}
         <div className="shrink-0 sm:ml-auto">
           <Select
-            value={current.sort ?? DIRECTORY_SORTS[0]}
+            value={sort}
             onValueChange={(value) => onSortChange(value as DirectorySort)}
           >
             <SelectTrigger aria-label="Order listings by">

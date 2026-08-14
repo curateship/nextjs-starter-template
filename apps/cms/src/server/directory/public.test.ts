@@ -19,6 +19,7 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
+import { saveDirectoryBrowseSettings } from "@/server/directory/settings"
 
 /**
  * What a visitor may read.
@@ -380,5 +381,120 @@ describe("a category page", () => {
 
     expect(page?.ancestors.map((step) => step.slug)).toEqual(["food", "italian"])
     expect(page?.children.map((child) => child.slug)).toEqual(["pizza"])
+  })
+})
+
+describe("each site's public directory settings", () => {
+  it("uses each site's page size, words, and default order", async () => {
+    const alphaListings = []
+    const betaListings = []
+    for (let index = 1; index <= 8; index += 1) {
+      alphaListings.push(
+        await publish(alpha, {
+          title: `Alpha ${String(index).padStart(2, "0")}`,
+          slug: `alpha-${index}`,
+        })
+      )
+      betaListings.push(
+        await publish(beta, {
+          title: `Beta ${String(index).padStart(2, "0")}`,
+          slug: `beta-${index}`,
+        })
+      )
+    }
+
+    const alphaCategory = await createCategory(
+      alpha.id,
+      { name: "Alpha category", slug: "alpha-category" },
+      database
+    )
+    const betaCategory = await createCategory(
+      beta.id,
+      { name: "Beta category", slug: "beta-category" },
+      database
+    )
+    for (const listing of alphaListings) {
+      await setListingCategories(
+        alpha.id,
+        listing.id,
+        [alphaCategory.id],
+        alphaCategory.id,
+        database
+      )
+    }
+    for (const listing of betaListings) {
+      await setListingCategories(
+        beta.id,
+        listing.id,
+        [betaCategory.id],
+        betaCategory.id,
+        database
+      )
+    }
+
+    await saveDirectoryBrowseSettings(
+      alpha.id,
+      {
+        pageSize: 6,
+        defaultSort: "title",
+        browseTitle: "Alpha places",
+        browseIntro: "Alpha introduction",
+        featuredFirst: false,
+      },
+      database
+    )
+    await saveDirectoryBrowseSettings(
+      beta.id,
+      {
+        pageSize: 7,
+        defaultSort: "newest",
+        browseTitle: "Beta places",
+        browseIntro: "Beta introduction",
+        featuredFirst: true,
+      },
+      database
+    )
+
+    const alphaPage = await readPublicBrowse(alpha, { page: 1 }, database)
+    const betaPage = await readPublicBrowse(beta, { page: 1 }, database)
+    const alphaCategoryPage = await readPublicCategory(
+      alpha,
+      alphaCategory.slug,
+      { page: 1 },
+      database
+    )
+    const betaCategoryPage = await readPublicCategory(
+      beta,
+      betaCategory.slug,
+      { page: 1 },
+      database
+    )
+
+    expect(alphaPage).toMatchObject({
+      pageSize: 6,
+      browseTitle: "Alpha places",
+      browseIntro: "Alpha introduction",
+      sort: "title",
+    })
+    expect(alphaPage.listings).toHaveLength(6)
+    expect(betaPage).toMatchObject({
+      pageSize: 7,
+      browseTitle: "Beta places",
+      browseIntro: "Beta introduction",
+      sort: "newest",
+    })
+    expect(betaPage.listings).toHaveLength(7)
+    expect(alphaCategoryPage).toMatchObject({
+      pageSize: 6,
+      browseTitle: "Alpha places",
+    })
+    expect(alphaCategoryPage?.listings).toHaveLength(6)
+    expect(alphaCategoryPage?.listings[0]?.title).toBe("Alpha 01")
+    expect(betaCategoryPage).toMatchObject({
+      pageSize: 7,
+      browseTitle: "Beta places",
+    })
+    expect(betaCategoryPage?.listings).toHaveLength(7)
+    expect(betaCategoryPage?.listings[0]?.title).toBe("Beta 08")
   })
 })

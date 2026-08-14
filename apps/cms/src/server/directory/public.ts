@@ -4,7 +4,6 @@ import { getRequestHeader } from "@tanstack/react-start/server"
 import type { ContactLinks } from "@/lib/directory/contact-links"
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import {
-  DIRECTORY_PAGE_SIZE,
   RELATED_LISTING_COUNT,
   type DirectorySort,
 } from "@/lib/directory/public-search"
@@ -172,6 +171,9 @@ export type PublicBrowse = {
   page: number
   pageSize: number
   categories: PublicCategory[]
+  browseTitle: string
+  browseIntro: string
+  sort: DirectorySort
 }
 
 /**
@@ -220,6 +222,7 @@ export type PublicCategoryPage = {
   total: number
   page: number
   pageSize: number
+  browseTitle: string
 }
 
 /** Published, on this site. The whole of what a visitor may see. */
@@ -272,21 +275,35 @@ export async function directorySearchResults(
   }))
 }
 
-function orderFor(sort: DirectorySort, workspaceId: string) {
-  // Paid placement leads every public list, whatever ordering the visitor
-  // chooses. Expired placement yields the minimum value and immediately falls
-  // back to the ordinary order below without a cleanup job.
-  const featured = desc(featuredPriorityFor(workspaceId))
+function orderFor(
+  sort: DirectorySort,
+  workspaceId: string,
+  featuredFirst: boolean
+) {
+  // When this site asks for it, paid placement leads whatever ordinary order
+  // the visitor chooses. Expired placement immediately falls back to the
+  // ordinary order below without a cleanup job.
+  const featured = featuredFirst
+    ? [desc(featuredPriorityFor(workspaceId))]
+    : []
   // The id breaks every tie, so a page boundary cannot land mid-tie and show
   // the same listing twice or skip one.
   switch (sort) {
     case "newest":
-      return [featured, desc(directoryListings.createdAt), asc(directoryListings.id)]
+      return [
+        ...featured,
+        desc(directoryListings.createdAt),
+        asc(directoryListings.id),
+      ]
     case "title":
-      return [featured, asc(directoryListings.title), asc(directoryListings.id)]
+      return [
+        ...featured,
+        asc(directoryListings.title),
+        asc(directoryListings.id),
+      ]
     case "order":
       return [
-        featured,
+        ...featured,
         asc(directoryListings.displayOrder),
         desc(directoryListings.createdAt),
         asc(directoryListings.id),
@@ -450,11 +467,13 @@ async function listingPage(
     categoryId?: string
     sort: DirectorySort
     page: number
+    pageSize: number
+    featuredFirst: boolean
   },
   database: CustomShellDb
 ): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
   const page = Math.max(1, Math.trunc(options.page))
-  const offset = (page - 1) * DIRECTORY_PAGE_SIZE
+  const offset = (page - 1) * options.pageSize
 
   const filters = [publishedOnSite(siteId)]
 
@@ -489,8 +508,8 @@ async function listingPage(
       .select(cardColumns)
       .from(directoryListings)
       .where(where)
-      .orderBy(...orderFor(options.sort, siteId))
-      .limit(DIRECTORY_PAGE_SIZE)
+      .orderBy(...orderFor(options.sort, siteId, options.featuredFirst))
+      .limit(options.pageSize)
       .offset(offset),
     database
       .select({ total: sql<number>`count(*)::int` })
@@ -508,10 +527,13 @@ async function listingPage(
 /** The browse page: one page of listings and the filters above it. */
 export async function readPublicBrowse(
   site: VisitorSite,
-  options: { search?: string; category?: string; sort: DirectorySort; page: number },
+  options: { search?: string; category?: string; sort?: DirectorySort; page: number },
   database: CustomShellDb = db
 ): Promise<PublicBrowse> {
-  const allCategories = await publicCategories(site.id, database)
+  const [allCategories, settings] = await Promise.all([
+    publicCategories(site.id, database),
+    directorySettingsFor(site.id, database),
+  ])
   const chosen = options.category
     ? allCategories.find((category) => category.slug === options.category)
     : undefined
@@ -520,7 +542,13 @@ export async function readPublicBrowse(
   // error: a stale link should still show the directory.
   const { listings, total, page } = await listingPage(
     site.id,
-    { ...options, categoryId: chosen?.id },
+    {
+      ...options,
+      sort: options.sort ?? settings.defaultSort,
+      categoryId: chosen?.id,
+      pageSize: settings.pageSize,
+      featuredFirst: settings.featuredFirst,
+    },
     database
   )
 
@@ -529,8 +557,11 @@ export async function readPublicBrowse(
     listings,
     total,
     page,
-    pageSize: DIRECTORY_PAGE_SIZE,
+    pageSize: settings.pageSize,
     categories: allCategories.filter((category) => category.listingCount > 0),
+    browseTitle: settings.browseTitle,
+    browseIntro: settings.browseIntro,
+    sort: options.sort ?? settings.defaultSort,
   }
 }
 
@@ -545,6 +576,7 @@ async function relatedListings(
   siteId: string,
   listingId: string,
   categoryIds: string[],
+  featuredFirst: boolean,
   database: CustomShellDb
 ): Promise<PublicListingCard[]> {
   if (categoryIds.length === 0) return []
@@ -570,7 +602,7 @@ async function relatedListings(
         inArray(directoryListings.id, siblings)
       )
     )
-    .orderBy(...orderFor("order", siteId))
+    .orderBy(...orderFor("order", siteId, featuredFirst))
     .limit(RELATED_LISTING_COUNT)
 
   return toCards(siteId, rows, database)
@@ -650,6 +682,7 @@ export async function readPublicListing(
       site.id,
       row.id,
       links.map((link) => link.id),
+      settings.featuredFirst,
       database
     ),
     claim: {
@@ -690,15 +723,22 @@ export async function readPublicCategory(
   options: { page: number },
   database: CustomShellDb = db
 ): Promise<PublicCategoryPage | null> {
-  const all = await publicCategories(site.id, database)
+  const [all, settings] = await Promise.all([
+    publicCategories(site.id, database),
+    directorySettingsFor(site.id, database),
+  ])
   const category = all.find((row) => row.slug === slug)
   if (!category) return null
 
-  // Always the hand-set order. A category page is one shelf and an admin
-  // arranged it; there is no control on the page to say otherwise.
   const { listings, total, page } = await listingPage(
     site.id,
-    { categoryId: category.id, sort: "order", page: options.page },
+    {
+      categoryId: category.id,
+      sort: settings.defaultSort,
+      page: options.page,
+      pageSize: settings.pageSize,
+      featuredFirst: settings.featuredFirst,
+    },
     database
   )
 
@@ -710,6 +750,7 @@ export async function readPublicCategory(
     listings,
     total,
     page,
-    pageSize: DIRECTORY_PAGE_SIZE,
+    pageSize: settings.pageSize,
+    browseTitle: settings.browseTitle,
   }
 }

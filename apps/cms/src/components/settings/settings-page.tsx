@@ -6,6 +6,7 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { EmailSettings } from "@/components/settings/email-settings"
 import { GeneralSettings } from "@/components/settings/general-settings"
 import { CmsSettings } from "@/components/settings/cms-settings"
+import { DirectorySettings } from "@/components/settings/directory-settings"
 import { ListingBadgeSettings } from "@/components/settings/listing-badge-settings"
 import { MemberSettings } from "@/components/settings/member-settings"
 import { NotificationSettings } from "@/components/settings/notification-settings"
@@ -45,6 +46,7 @@ const settingsTabs = [
 /** Settings owned by CMS rather than the shared platform shell. */
 const cmsSettingsTabs = [
   { id: "site-identity", label: "Site identity" },
+  { id: "directory", label: "Directory" },
   { id: "listing-badges", label: "Listing badges" },
 ] as const
 
@@ -173,6 +175,7 @@ export function SettingsPage({
           <CmsSettings config={config} onConfigChange={onConfigChange} />
         ) : null}
         {activeTab === "listing-badges" ? <ListingBadgeSettings /> : null}
+        {activeTab === "directory" ? <DirectorySettings /> : null}
         {activeTab === "general" ? (
           <GeneralSettings
             config={config}

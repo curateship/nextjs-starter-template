@@ -59,8 +59,11 @@ export const Route = createFileRoute("/directory")({
   head: ({ loaderData }) => {
     if (!loaderData) return {}
     return directoryHead(
-      directoryTitle("Directory", loaderData.site.name),
-      directoryDescription(`Browse listings on ${loaderData.site.name}.`)
+      directoryTitle(loaderData.browseTitle, loaderData.site.name),
+      directoryDescription(
+        loaderData.browseIntro,
+        `Browse listings on ${loaderData.site.name}.`
+      )
     )
   },
   component: DirectoryRoute,
@@ -69,8 +72,17 @@ export const Route = createFileRoute("/directory")({
 })
 
 function DirectoryRoute() {
-  const { site, listings, categories, total, page, pageSize } =
-    Route.useLoaderData()
+  const {
+    site,
+    listings,
+    categories,
+    total,
+    page,
+    pageSize,
+    browseTitle,
+    browseIntro,
+    sort,
+  } = Route.useLoaderData()
   const current = Route.useSearch()
   const navigate = Route.useNavigate()
   const setListSearch = (patch: Partial<DirectoryBrowseSearch>) => {
@@ -83,7 +95,10 @@ function DirectoryRoute() {
   return (
     <DirectoryFrame>
       <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">Directory</h1>
+        <h1 className="text-2xl font-semibold">{browseTitle}</h1>
+        {browseIntro ? (
+          <p className="text-sm text-muted-foreground">{browseIntro}</p>
+        ) : null}
         <p className="text-sm text-muted-foreground">
           {total} {plural(total, "listing", "listings")} on {site.name}
         </p>
@@ -91,6 +106,7 @@ function DirectoryRoute() {
 
       <DirectoryToolbar
         current={current}
+        sort={sort}
         categories={categories}
         // A new search or a new order starts at the beginning: page 4 of the
         // old list is nowhere in the new one.
