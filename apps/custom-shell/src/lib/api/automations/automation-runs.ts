@@ -10,8 +10,10 @@ import {
 } from "@/server/automations/engine"
 import {
   getAutomationRun as readAutomationRun,
+  listAutomationRunDeliveries as readAutomationRunDeliveries,
   listRunsAwaitingApproval as readRunsAwaitingApproval,
   listRunsForAutomation as readRunsForAutomation,
+  type AutomationDeliveryState,
   type AutomationRunRow,
 } from "@/server/automations/runs"
 import { adminGet, adminPost } from "@/server/guards"
@@ -71,6 +73,23 @@ export type AutomationRunDetailItem = AutomationRunItem & {
   steps: AutomationRunStepItem[]
 }
 
+export type AutomationRunDeliveryItem = {
+  id: string
+  to_email: string
+  state: AutomationDeliveryState
+  occurred_at: string
+}
+
+export type AutomationRunDeliveryPageItem = {
+  deliveries: AutomationRunDeliveryItem[]
+  total: number
+  sent: number
+  failed: number
+  delivered: number
+  opened: number
+  clicked: number
+}
+
 /** What the editor's bottom panel opens with: both tabs, in one round trip. */
 export type AutomationRunsPanelData = {
   runs: AutomationRunItem[]
@@ -83,6 +102,10 @@ const automationIdSchema = z.object({
   automationId: z.string().min(1).max(36),
 })
 const runIdSchema = z.object({ runId: z.string().min(1).max(36) })
+const deliveryListSchema = runIdSchema.extend({
+  nodeId: z.string().min(1).max(64),
+  offset: z.number().int().min(0).max(100_000).default(0),
+})
 const testRunSchema = automationIdSchema.extend({
   memberId: z.string().min(1).max(36),
 })
@@ -192,6 +215,28 @@ const getAutomationRunFn = createServerFn({ method: "GET" })
     }
   })
 
+const listAutomationRunDeliveriesFn = createServerFn({ method: "GET" })
+  .middleware([adminGet])
+  .validator(deliveryListSchema)
+  .handler(async ({ data, context }): Promise<AutomationRunDeliveryPageItem> => {
+    const page = await readAutomationRunDeliveries(
+      await workspaceIdForRequest(context.user.id),
+      data.runId,
+      data.nodeId,
+      data.offset
+    )
+    if (!page) throw new Error("NOT_FOUND")
+    return {
+      ...page,
+      deliveries: page.deliveries.map((delivery) => ({
+        id: delivery.id,
+        to_email: delivery.toEmail,
+        state: delivery.state,
+        occurred_at: delivery.occurredAt.toISOString(),
+      })),
+    }
+  })
+
 /**
  * Sets a flow going, then walks it once before answering. Waiting the extra
  * moment is what lets the panel say what actually happened — a run that parked
@@ -295,6 +340,14 @@ export function listWaitingRuns() {
 
 export function getAutomationRun(runId: string) {
   return getAutomationRunFn({ data: { runId } })
+}
+
+export function listAutomationRunDeliveries(
+  runId: string,
+  nodeId: string,
+  offset: number
+) {
+  return listAutomationRunDeliveriesFn({ data: { runId, nodeId, offset } })
 }
 
 export function runAutomationNow(automationId: string) {

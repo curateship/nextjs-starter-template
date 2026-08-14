@@ -1519,10 +1519,16 @@ export const customShellAutomationDeliveries = pgTable(
     ),
     toEmail: varchar("to_email", { length: 255 }).notNull(),
     subject: text("subject").notNull(),
-    /** Resend's id, retained for the later open/click tracking task. */
+    /** Resend's id, used to match later delivery, open and click events. */
     providerMessageId: varchar("provider_message_id", { length: 255 }),
     status: varchar("status", { length: 20 }).notNull(),
     error: text("error"),
+    /** When Resend says the recipient's mail server accepted the message. */
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    /** First open Resend reported. This is an estimate, not proof of reading. */
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    /** First link click Resend reported. */
+    clickedAt: timestamp("clicked_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
   },
   (table) => [
@@ -1533,6 +1539,9 @@ export const customShellAutomationDeliveries = pgTable(
     index("ix_automation_deliveries_run").on(table.runId, table.createdAt),
     index("ix_automation_deliveries_contact").on(table.contactId),
     index("ix_automation_deliveries_user").on(table.userId),
+    index("ix_automation_deliveries_provider_message").on(
+      table.providerMessageId
+    ),
     uniqueIndex("ux_automation_deliveries_run_node_contact")
       .on(table.runId, table.nodeId, table.contactId)
       .where(sql`${table.contactId} is not null`),

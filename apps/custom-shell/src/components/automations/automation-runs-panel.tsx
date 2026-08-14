@@ -46,6 +46,7 @@ import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
+import { AutomationDeliveryHistory } from "@/components/automations/automation-delivery-history"
 
 type PanelTab = "runs" | "waiting"
 
@@ -382,10 +383,11 @@ function RunRow({
 
   const waiting = current.status === "waiting_approval"
   const finished = !waiting && current.status !== "active"
+  const latestDeliveryStepIds = latestSendEmailStepIds(detail?.steps ?? [])
 
   return (
-    <div className="rounded-lg border border-foreground/10 bg-muted/20">
-      <div className="flex items-center gap-2 pr-2">
+    <div className="min-w-0 rounded-lg border border-foreground/10 bg-muted/20">
+      <div className="flex min-w-0 items-center gap-2 pr-2">
         <button
           type="button"
           aria-expanded={expanded}
@@ -458,7 +460,7 @@ function RunRow({
       </div>
 
       {expanded ? (
-        <div className="grid gap-3 border-t border-foreground/10 p-3">
+        <div className="grid min-w-0 gap-3 border-t border-foreground/10 p-3">
           {detailError ? (
             <ErrorBanner message={detailError} onRetry={() => void load()} />
           ) : !detail ? (
@@ -502,9 +504,9 @@ function RunRow({
                   The first step has not finished yet.
                 </p>
               ) : (
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   {detail.steps.map((step) => (
-                    <div key={step.id} className="grid gap-0.5 text-xs">
+                    <div key={step.id} className="grid min-w-0 gap-0.5 text-xs">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">{step.step_name}</span>
                         <Badge
@@ -524,6 +526,12 @@ function RunRow({
                       <p className="text-muted-foreground">{step.summary}</p>
                       {step.error ? (
                         <p className="text-destructive">{step.error}</p>
+                      ) : null}
+                      {latestDeliveryStepIds.has(step.id) ? (
+                        <AutomationDeliveryHistory
+                          runId={detail.id}
+                          nodeId={step.node_id}
+                        />
                       ) : null}
                       <StepRunResult runId={detail.id} step={step} />
                     </div>
@@ -547,6 +555,17 @@ function RunRow({
       ) : null}
     </div>
   )
+}
+
+/** A retried Send Email step shares one delivery set across every attempt. */
+function latestSendEmailStepIds(
+  steps: AutomationRunStepItem[]
+): Set<string> {
+  const latestByNode = new Map<string, string>()
+  for (const step of steps) {
+    if (step.kind === "sendEmail") latestByNode.set(step.node_id, step.id)
+  }
+  return new Set(latestByNode.values())
 }
 
 /** The node's own result UI, kept inside the shell's status and error frame. */

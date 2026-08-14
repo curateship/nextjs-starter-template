@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router"
 import { handleResendWebhook } from "@/server/email/resend-webhook"
 
 /**
- * Resend webhook receiver: bounces and spam complaints come in here and take
- * the affected address off the contact list.
+ * Resend webhook receiver: delivery, open and click events update automation
+ * history; bounces and spam complaints take the address off the contact list.
  *
  * Deliberately no origin check, like the Stripe receiver beside it: Resend is
  * a server, not a browser, so the signature over the raw body is what proves
