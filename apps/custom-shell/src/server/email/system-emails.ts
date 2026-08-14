@@ -146,6 +146,22 @@ export async function updateSystemEmail(
   return updated ?? existing
 }
 
+/** Removes one saved version so the built-in wording takes over again. */
+export async function resetSystemEmail(
+  workspaceId: string,
+  kind: SystemEmailKind,
+  database: CustomShellDb = db
+) {
+  await database
+    .delete(customShellSystemEmails)
+    .where(
+      and(
+        eq(customShellSystemEmails.workspaceId, workspaceId),
+        eq(customShellSystemEmails.kind, kind)
+      )
+    )
+}
+
 /** One attempt at one of these emails, written whether it worked or not. */
 export async function recordSystemEmailSend(
   entry: {

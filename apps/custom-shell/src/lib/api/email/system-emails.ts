@@ -5,6 +5,7 @@ import {
   broadcastBlocksSchema,
   parseStoredBlocks,
   type BroadcastBlock,
+  type BroadcastBlockDefaults,
 } from "@/lib/broadcasts/blocks"
 import {
   SYSTEM_EMAIL_META,
@@ -19,6 +20,7 @@ import {
   getSystemEmail as getSystemEmailRow,
   listSystemEmailSends as listSends,
   listSystemEmails,
+  resetSystemEmail as removeSystemEmail,
   updateSystemEmail as saveSystemEmail,
 } from "@/server/email/system-emails"
 import {
@@ -132,17 +134,12 @@ const getSystemEmailFn = createServerFn({ method: "GET" })
     // An email nobody has saved starts from the workspace's saved block
     // setups, so its header and footer open already carrying the logo and
     // company lines every other email uses.
-    const workspace = await requireCurrentWorkspace(context.user.id)
-    return {
-      kind: data.kind,
-      subject: SYSTEM_EMAIL_META[data.kind].defaults.subject,
-      preheader: "",
-      fromName: null,
-      blocks: createSystemEmailBlocks(
-        data.kind,
-        parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults,
-      ),
-    }
+    return builtInSystemEmail(
+      data.kind,
+      parseWorkspaceSettings(
+        (await requireCurrentWorkspace(context.user.id)).settings,
+      ).broadcastBlockDefaults,
+    )
   })
 
 const updateSystemEmailFn = createServerFn({ method: "POST" })
@@ -164,6 +161,18 @@ const updateSystemEmailFn = createServerFn({ method: "POST" })
         kind,
         fields,
       ),
+    )
+  })
+
+const resetSystemEmailFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(kindSchema)
+  .handler(async ({ data, context }): Promise<SystemEmailDetail> => {
+    const workspace = await requireCurrentWorkspace(context.user.id)
+    await removeSystemEmail(workspace.id, data.kind)
+    return builtInSystemEmail(
+      data.kind,
+      parseWorkspaceSettings(workspace.settings).broadcastBlockDefaults,
     )
   })
 
@@ -274,6 +283,19 @@ function toDetail(
   }
 }
 
+function builtInSystemEmail(
+  kind: SystemEmailKind,
+  blockDefaults: BroadcastBlockDefaults,
+): SystemEmailDetail {
+  return {
+    kind,
+    subject: SYSTEM_EMAIL_META[kind].defaults.subject,
+    preheader: "",
+    fromName: null,
+    blocks: createSystemEmailBlocks(kind, blockDefaults),
+  }
+}
+
 export function loadSystemEmailsPage() {
   return loadSystemEmailsPageFn()
 }
@@ -290,6 +312,10 @@ export function updateSystemEmail(input: {
   blocks?: BroadcastBlock[]
 }) {
   return updateSystemEmailFn({ data: input })
+}
+
+export function resetSystemEmail(kind: SystemEmailKind) {
+  return resetSystemEmailFn({ data: { kind } })
 }
 
 export function loadSystemEmailSends(

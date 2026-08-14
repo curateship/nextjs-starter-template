@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite"
+import { drizzle } from "drizzle-orm/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createCategory } from "@/server/directory/categories"
@@ -20,6 +21,7 @@ import {
   type TestDatabase,
 } from "@/server/test-support"
 import { saveDirectoryBrowseSettings } from "@/server/directory/settings"
+import * as schema from "@/server/schema"
 
 /**
  * What a visitor may read.
@@ -75,6 +77,19 @@ async function publish(
 
 const browse = (site: { id: string; name: string; url: string }, options = {}) =>
   readPublicBrowse(site, { sort: "order", page: 1, ...options }, database)
+
+function measuredDatabase() {
+  let queries = 0
+  const measured = drizzle(client, {
+    schema,
+    logger: {
+      logQuery: () => {
+        queries += 1
+      },
+    },
+  }) as unknown as TestDatabase
+  return { database: measured, queryCount: () => queries }
+}
 
 describe("only published listings are readable", () => {
   it("keeps a draft out of the browse list", async () => {
@@ -401,6 +416,124 @@ describe("a category page", () => {
       metaDescription: "Independent coffee shops, reviewed and mapped.",
       featuredImage: "https://images.example.test/cafes.jpg",
     })
+  })
+
+  it("counts published listings through every child level without crossing sites", async () => {
+    const food = await createCategory(
+      alpha.id,
+      { name: "Food", slug: "food" },
+      database
+    )
+    const cafes = await createCategory(
+      alpha.id,
+      {
+        name: "Cafés",
+        slug: "cafes",
+        parentId: food.id,
+        featuredImage: "https://images.example.test/cafes.jpg",
+      },
+      database
+    )
+    const espresso = await createCategory(
+      alpha.id,
+      { name: "Espresso", slug: "espresso", parentId: cafes.id },
+      database
+    )
+    const cafe = await publish(alpha, { title: "Corner Café", slug: "corner" })
+    const bar = await publish(alpha, {
+      title: "Espresso Bar",
+      slug: "espresso-bar",
+    })
+    const draft = await createListing(
+      alpha.id,
+      { title: "Draft Café", slug: "draft-cafe" },
+      database
+    )
+    await setListingCategories(
+      alpha.id,
+      cafe.id,
+      [cafes.id],
+      cafes.id,
+      database
+    )
+    await setListingCategories(
+      alpha.id,
+      bar.id,
+      [espresso.id],
+      espresso.id,
+      database
+    )
+    await setListingCategories(
+      alpha.id,
+      draft.id,
+      [espresso.id],
+      espresso.id,
+      database
+    )
+
+    const betaFood = await createCategory(
+      beta.id,
+      { name: "Food", slug: "food" },
+      database
+    )
+    const betaCafe = await createCategory(
+      beta.id,
+      { name: "Cafés", slug: "cafes", parentId: betaFood.id },
+      database
+    )
+    const otherSite = await publish(beta, {
+      title: "Beta Café",
+      slug: "beta-cafe",
+    })
+    await setListingCategories(
+      beta.id,
+      otherSite.id,
+      [betaCafe.id],
+      betaCafe.id,
+      database
+    )
+
+    const page = await readPublicCategory(alpha, "food", { page: 1 }, database)
+
+    expect(page?.children).toEqual([
+      expect.objectContaining({
+        slug: "cafes",
+        featuredImage: "https://images.example.test/cafes.jpg",
+        listingCount: 2,
+      }),
+    ])
+  })
+
+  it("uses the same number of queries for two children and thirty", async () => {
+    const parent = await createCategory(
+      alpha.id,
+      { name: "Places", slug: "places" },
+      database
+    )
+    for (let index = 1; index <= 2; index += 1) {
+      await createCategory(
+        alpha.id,
+        { name: `Child ${index}`, parentId: parent.id },
+        database
+      )
+    }
+
+    const first = measuredDatabase()
+    await readPublicCategory(alpha, "places", { page: 1 }, first.database)
+
+    for (let index = 3; index <= 30; index += 1) {
+      await createCategory(
+        alpha.id,
+        { name: `Child ${index}`, parentId: parent.id },
+        database
+      )
+    }
+
+    const second = measuredDatabase()
+    await readPublicCategory(alpha, "places", { page: 1 }, second.database)
+
+    expect(first.queryCount()).toBeGreaterThan(0)
+    expect(second.queryCount()).toBe(first.queryCount())
   })
 })
 
