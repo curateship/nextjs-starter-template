@@ -48,6 +48,13 @@ vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
   marketsWalletHasMoneyOn: () => fundedMarkets.value,
 }))
 
+// The real-money Settings toggle reads the app database, which these tests
+// replace with their own. The gate's own behaviour is pinned down in
+// `workers.test.ts`; here it only has to not stand in the way.
+vi.mock("@/server/trade/workers", () => ({
+  assertRealMoneySwitchOn: async () => {},
+}))
+
 const { flowRunSpec, startFlowRun, stopFlowRun } = await import(
   "@/server/trade/flow-run"
 )

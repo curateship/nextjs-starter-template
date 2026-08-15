@@ -26,6 +26,7 @@ import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
+import { assertRealMoneySwitchOn } from "@/server/trade/workers"
 
 /**
  * Switching a flow on, off, and the pass that gives it something to do.
@@ -153,10 +154,14 @@ export async function flowRunSpec(
     }
   }
 
-  // Mainnet signing is switched off by an environment variable, and it throws
-  // at the moment of an order. Asking it here turns that into a refusal
-  // somebody can act on before anything is switched on.
-  if (wallet.kind === "live") assertRealOrdersAllowed(wallet.network)
+  // Mainnet signing is gated twice — the environment master lock and the
+  // Settings toggle — and both throw at the moment of an order. Asking here
+  // turns that into a refusal somebody can act on before anything is
+  // switched on.
+  if (wallet.kind === "live") {
+    assertRealOrdersAllowed(wallet.network)
+    if (wallet.network !== "testnet") await assertRealMoneySwitchOn()
+  }
 
   return {
     wallet,

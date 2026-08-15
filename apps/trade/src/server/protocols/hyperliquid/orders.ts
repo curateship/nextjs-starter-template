@@ -31,6 +31,7 @@ import {
   scrubbedMessage,
 } from "@/server/protocols/hyperliquid/signing"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
+import { assertRealMoneySwitchOn } from "@/server/trade/workers"
 
 /**
  * Real orders against Hyperliquid — the one file that signs.
@@ -246,8 +247,13 @@ export function orderTimeInForce(
  * Built per call and released with it — never cached, so the decrypted key's
  * life is the length of one request. See `signing.ts` for why.
  */
-function exchangeClient(network: NetworkId, auth: OrderAuth) {
+async function exchangeClient(network: NetworkId, auth: OrderAuth) {
   assertRealOrdersAllowed(network)
+  // The Settings toggle sits behind that master lock: real money also has to
+  // be switched on in the app itself. Checked here on the one path that
+  // signs, so no screen and no future endpoint can route around it. Testnet
+  // skips both layers, exactly as before.
+  if (network !== "testnet") await assertRealMoneySwitchOn()
   const signer = agentSigner(auth.agentKey)
   return new ExchangeClient({
     transport: new HttpTransport({ isTestnet: network === "testnet" }),
@@ -287,7 +293,7 @@ export async function placeHyperliquidOrder(
   // account address — and a cache of two entries is not worth being clever
   // about when the alternative is showing somebody a stale position.
   forgetHyperliquidPortfolios()
-  const client = exchangeClient(network, auth)
+  const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
   const isBuy = params.side === "buy"
 
@@ -434,7 +440,7 @@ export async function cancelHyperliquidOrder(
   // account address — and a cache of two entries is not worth being clever
   // about when the alternative is showing somebody a stale position.
   forgetHyperliquidPortfolios()
-  const client = exchangeClient(network, auth)
+  const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
   const oid = Number(params.orderId)
   if (!Number.isSafeInteger(oid) || oid <= 0) throw new Error("LIVE_ORDER_ID")
@@ -499,7 +505,7 @@ export async function setHyperliquidBrackets(
     slPx: number | null
   }
 ): Promise<void> {
-  const client = exchangeClient(network, auth)
+  const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
 
   const oldLegs = [params.position.tpOrderId, params.position.slOrderId]

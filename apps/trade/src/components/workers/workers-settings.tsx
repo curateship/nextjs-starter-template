@@ -1,10 +1,11 @@
 import * as React from "react"
-import { CpuIcon } from "lucide-react"
+import { BanknoteIcon, CpuIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  changeRealMoneySwitch,
   changeWorkerSwitch,
   getWorkersErrorMessage,
   loadWorkers,
@@ -76,6 +77,17 @@ export default function WorkersSettings() {
     setBusy(true)
     try {
       setData(await changeWorkerSwitch({ kind: worker.kind, change }))
+    } catch (thrown) {
+      showErrorToast(getWorkersErrorMessage(thrown))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const flipRealMoney = async (on: boolean) => {
+    setBusy(true)
+    try {
+      setData(await changeRealMoneySwitch(on))
     } catch (thrown) {
       showErrorToast(getWorkersErrorMessage(thrown))
     } finally {
@@ -181,6 +193,66 @@ export default function WorkersSettings() {
           </CardContent>
         </Card>
       ))}
+
+      <Card>
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div className="grid gap-1">
+            <CardTitle className="flex items-center gap-2">
+              <BanknoteIcon className="size-4" />
+              Real-money trading
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Whether this install may place orders with real money. Paper and
+              practice trading always work.
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn(
+              "shrink-0",
+              data.realMoney.masterAllowed && data.realMoney.enabled
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground"
+            )}
+          >
+            {!data.realMoney.masterAllowed
+              ? "Locked off"
+              : data.realMoney.enabled
+                ? "On"
+                : "Off"}
+          </Badge>
+        </CardHeader>
+
+        <CardContent className="grid gap-4">
+          {data.realMoney.masterAllowed ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={data.realMoney.enabled ? "outline" : "default"}
+                disabled={busy}
+                onClick={() => void flipRealMoney(!data.realMoney.enabled)}
+              >
+                {data.realMoney.enabled
+                  ? "Switch real money off"
+                  : "Switch real money on"}
+              </Button>
+              <p className="w-full text-xs text-muted-foreground">
+                Off refuses every real-money order the moment it would be
+                signed — ladders, flows and hand-placed ones alike. Practice
+                and testnet orders are never blocked. Only ever switch this on
+                in ONE place: two installs trading the same wallets would buy
+                everything twice.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              This install is not allowed to touch real money at all. The lock
+              is a server setting (<code>TRADE_ENABLE_MAINNET</code>) that only
+              a deploy can change, so nothing clicked here — by anyone — can
+              arm it.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       <p className="text-xs text-muted-foreground">
         Read {formatRelativeTime(data.checkedAt)}.

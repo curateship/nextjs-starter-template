@@ -82,6 +82,70 @@ export async function setWorkerSwitch(
 }
 
 /**
+ * The row the real-money permission is kept under. Same table as the worker
+ * switches — it is a switch — but not a worker kind, so the dashboard's
+ * per-worker loop never mistakes it for an engine.
+ */
+const REAL_MONEY_KIND = "real-money"
+
+export type RealMoneySwitch = {
+  /**
+   * Whether this install is allowed to touch real money at all. This is the
+   * `TRADE_ENABLE_MAINNET` environment setting — the master lock. It can only
+   * be changed by a deploy, so nothing clicked in a browser can arm an
+   * install that was never meant to trade for real.
+   */
+  masterAllowed: boolean
+  /** The Settings toggle behind the lock. No row yet means off — opt-in. */
+  enabled: boolean
+}
+
+export async function realMoneySwitch(
+  database: CustomShellDb = db
+): Promise<RealMoneySwitch> {
+  const rows = await database
+    .select()
+    .from(tradeWorkerControls)
+    .where(eq(tradeWorkerControls.kind, REAL_MONEY_KIND))
+    .limit(1)
+  return {
+    masterAllowed: process.env.TRADE_ENABLE_MAINNET === "true",
+    // Deliberately NOT seeded like workerControl: a missing row must mean
+    // off. Real money is the one thing a fresh database should never allow
+    // until somebody switches it on out loud.
+    enabled: rows[0]?.enabled === true,
+  }
+}
+
+export async function setRealMoneySwitch(
+  on: boolean,
+  database: CustomShellDb = db
+): Promise<void> {
+  await database
+    .insert(tradeWorkerControls)
+    .values({ kind: REAL_MONEY_KIND, enabled: on, paused: false })
+    .onConflictDoUpdate({
+      target: tradeWorkerControls.kind,
+      set: { enabled: on, updatedAt: new Date() },
+    })
+}
+
+/**
+ * Refuses real-money signing unless BOTH layers say yes: the environment
+ * master lock and the Settings toggle. Thrown with the same code the env-only
+ * gate uses, so every screen's "switched off on this server" wording stays
+ * true whichever layer said no.
+ */
+export async function assertRealMoneySwitchOn(
+  database: CustomShellDb = db
+): Promise<void> {
+  const real = await realMoneySwitch(database)
+  if (!real.masterAllowed || !real.enabled) {
+    throw new Error("LIVE_MAINNET_OFF")
+  }
+}
+
+/**
  * A running copy saying it is alive. Called by the worker itself every few
  * seconds, and by nothing else.
  */
@@ -122,7 +186,7 @@ export async function workersDashboard(
   database: CustomShellDb = db
 ): Promise<WorkersDashboard> {
   const checkedAt = new Date()
-  const [controls, beats, waiting] = await Promise.all([
+  const [controls, beats, waiting, realMoney] = await Promise.all([
     listWorkerControls(database),
     database
       .select()
@@ -133,6 +197,7 @@ export async function workersDashboard(
       .select({ count: sql<number>`count(*)::int` })
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.status, "active")),
+    realMoneySwitch(database),
   ])
 
   const ladderCount = waiting[0]?.count ?? 0
@@ -195,5 +260,5 @@ export async function workersDashboard(
     }
   })
 
-  return { checkedAt: checkedAt.toISOString(), canControl, workers }
+  return { checkedAt: checkedAt.toISOString(), canControl, workers, realMoney }
 }

@@ -3,7 +3,11 @@ import { z } from "zod"
 
 import { WORKER_KINDS } from "@/lib/trade/workers"
 import { adminGet, adminPost } from "@/server/guards"
-import { setWorkerSwitch, workersDashboard } from "@/server/trade/workers"
+import {
+  setRealMoneySwitch,
+  setWorkerSwitch,
+  workersDashboard,
+} from "@/server/trade/workers"
 
 import { createErrorMessage } from "./error-message"
 
@@ -40,12 +44,29 @@ const setWorkerSwitchFn = createServerFn({ method: "POST" })
     return workersDashboard(true)
   })
 
+/**
+ * The Settings toggle for real money. The environment master lock is not
+ * reachable from here on purpose — an install that was never allowed real
+ * money cannot be armed by any request, admin or not.
+ */
+const setRealMoneyFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ on: z.boolean() }))
+  .handler(async ({ data }) => {
+    await setRealMoneySwitch(data.on)
+    return workersDashboard(true)
+  })
+
 export function loadWorkers() {
   return readWorkersFn()
 }
 
 export function changeWorkerSwitch(input: z.infer<typeof switchSchema>) {
   return setWorkerSwitchFn({ data: input })
+}
+
+export function changeRealMoneySwitch(on: boolean) {
+  return setRealMoneyFn({ data: { on } })
 }
 
 export const getWorkersErrorMessage = createErrorMessage(

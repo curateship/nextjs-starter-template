@@ -57,6 +57,12 @@ export type WorkersDashboard = {
   checkedAt: string
   canControl: boolean
   workers: WorkerStatus[]
+  /**
+   * The real-money permission, two layers deep: `masterAllowed` is the
+   * server's own lock (changed only by a deploy), `enabled` is the Settings
+   * toggle behind it. Orders for real money go out only when both are true.
+   */
+  realMoney: { masterAllowed: boolean; enabled: boolean }
 }
 
 /**
