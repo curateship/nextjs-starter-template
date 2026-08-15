@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { loadBacktests } from "@/lib/api/backtests"
+import { loadBacktests, loadLastBacktestAttempt } from "@/lib/api/backtests"
 import { loadFlowTrading, type FlowTrading } from "@/lib/api/flow-trading"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
@@ -51,6 +51,7 @@ const WHEN_IDLE_MS = 15_000
 const FLOW_MODE_EVERY_MS = 3_000
 
 type Run = Awaited<ReturnType<typeof loadBacktests>>["runs"][number]
+type Attempt = Awaited<ReturnType<typeof loadLastBacktestAttempt>>["attempt"]
 
 export default function BacktestCanvasPanel({
   automationId,
@@ -85,6 +86,32 @@ export default function BacktestCanvasPanel({
    * presses it twice.
    */
   const [starting, setStarting] = React.useState(false)
+  /**
+   * The run that was newest when Backtest was pressed.
+   *
+   * **This is how the panel knows the click landed.** It used to wait to see a
+   * row with no finish time on it, which only works if a read happens to fall
+   * between the run starting and the run ending. A backtest that finished
+   * before the next read never showed one — so the panel believed it was still
+   * starting forever, drew the running layout over a finished run, and the card
+   * stayed unclickable with "Done" and "Finished 40 minutes ago" on it.
+   *
+   * A different newest run means the click landed, whether or not it is still
+   * going.
+   */
+  const runIdWhenPressed = React.useRef<string | null>(null)
+  /**
+   * The last press of Run, and what came of it.
+   *
+   * Read alongside the list because a press can finish without producing a
+   * backtest at all — the settings are refused, the run ends in milliseconds,
+   * and the only record is a sentence on a step in the run history. Without
+   * this the panel has no way to tell "still starting" from "it already
+   * refused, an hour ago".
+   */
+  const [attempt, setAttempt] = React.useState<Attempt>(null)
+  /** The press that was newest when Backtest was pressed, same idea as above. */
+  const attemptIdWhenPressed = React.useRef<string | null>(null)
   /** Bumped to read the list again now, instead of waiting out the timer. */
   const [readNow, setReadNow] = React.useState(0)
   /**
@@ -101,7 +128,9 @@ export default function BacktestCanvasPanel({
     let stopped = false
     let timer = 0
 
-    const read = async () => {
+    // Whether the last read found anything moving — a backtest walking, or a
+    // press that has not finished. Either one means look again shortly.
+    const read = async (): Promise<boolean> => {
       try {
         // Newest first, so the run this canvas just started is the first row —
         // and after a reload it is still the right one to be looking at.
@@ -109,26 +138,60 @@ export default function BacktestCanvasPanel({
         // this is one call rather than two — and it avoids asking for the run's
         // heavy half (the equity curve and every coin) every three seconds to
         // draw eight numbers.
-        const list = await loadBacktests({ automationId })
-        if (stopped) return
+        // Both together, because the answer to "is it still starting?" needs
+        // both: a backtest may have appeared, or the press may have finished
+        // without producing one.
+        const [list, last] = await Promise.all([
+          loadBacktests({ automationId }),
+          loadLastBacktestAttempt(automationId),
+        ])
+        if (stopped) return false
         const newest = list.runs[0] ?? null
         setRun(newest)
         setNoneYet(list.runs.length === 0)
-        // The list has caught up with the click, so stop believing it on faith.
-        if (newest !== null && newest.finishedAt === null) setStarting(false)
+        setAttempt(last.attempt)
+        // The click has landed, so stop believing it on faith. Any of three
+        // things proves it, and the panel used to look for only the first:
+        //
+        // - a backtest is plainly walking;
+        // - the newest backtest is not the one that was there when the button
+        //   was pressed, which is the only sign a short run leaves behind;
+        // - the press itself has finished without producing a backtest, which
+        //   is what a refused one does. That case left the panel starting
+        //   forever, drawing the running layout — progress bar, no link, no
+        //   button — over a result from an hour before.
+        if (
+          (newest !== null &&
+            (newest.finishedAt === null ||
+              newest.id !== runIdWhenPressed.current)) ||
+          (last.attempt !== null &&
+            last.attempt.finishedAt !== null &&
+            last.attempt.runId !== attemptIdWhenPressed.current)
+        ) {
+          setStarting(false)
+        }
+        return (
+          (newest !== null && newest.finishedAt === null) ||
+          (last.attempt !== null && last.attempt.finishedAt === null)
+        )
       } catch {
         // A read that failed is not "there is no backtest". Whatever was on
         // screen stays there and the next pass, seconds away, tries again —
         // the Backtests page is the record either way.
+        return false
       }
     }
 
     const tick = async () => {
-      await read()
+      // Paced on what this read just found, not on what `run` held when the
+      // effect was set up. That stale value kept the panel on the slow idle
+      // pace right through a freshly started run, which is how a run could
+      // begin and end between two reads.
+      const busy = await read()
       if (stopped) return
       timer = window.setTimeout(
         () => void tick(),
-        run?.finishedAt === null ? WHILE_RUNNING_MS : WHEN_IDLE_MS
+        busy ? WHILE_RUNNING_MS : WHEN_IDLE_MS
       )
     }
 
@@ -141,15 +204,13 @@ export default function BacktestCanvasPanel({
     // panel sat on the last result until its own timer came round, which on a
     // finished run is fifteen seconds of showing the wrong answer.
     //
-    // `run` is deliberately out: the pace is read from the value the last pass
-    // set, and adding it here would tear down and rebuild the timer on every
-    // single refresh.
+    // `run` is deliberately out: the pace comes from what each read returned,
+    // so the timer never has to be torn down and rebuilt on every refresh.
     // The read is never skipped for a flow that trades. It was, once, to save
     // a query every fifteen seconds — and that turned the backtest card into
     // "Reading the run…" forever the moment a flow was switched on, because
     // the two now sit on the panel together. A saved round trip is not worth a
     // card that never loads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [automationId, runId, readNow])
 
   /**
@@ -198,6 +259,21 @@ export default function BacktestCanvasPanel({
   // Believed from the click until the list catches up with it. `starting` is
   // cleared the moment a running row actually appears, below.
   const running = starting || (run !== null && run.finishedAt === null)
+  /**
+   * Why the last press tested nothing, when that is what happened.
+   *
+   * Drawn over whatever result is on the card, because it is newer than that
+   * result and it is the answer to the question somebody is asking: they
+   * pressed the button and the figures did not change.
+   */
+  const refused = !running ? (attempt?.problem ?? null) : null
+  /**
+   * Pressed, and the backtest it started is not on the list yet.
+   *
+   * Kept apart from `running` because the run on the card in this moment is the
+   * *previous* one, so none of its numbers describe what was just pressed.
+   */
+  const startingOnly = starting && (run === null || run.finishedAt !== null)
   const trades = flow?.mode === "trades" ? flow : null
 
   // A flow is the header's business, not this panel's.
@@ -271,10 +347,12 @@ export default function BacktestCanvasPanel({
             Backtest
           </span>
         )}
-        {/* `run` can be null here for the moment between the click and the
-            list catching up — the panel believes it is running before there is
-            a row to read a note from. */}
-        {running && run ? (
+        {/* Only ever the note off a run that is actually walking. While a press
+            is still on its way the newest run is the previous one, and its note
+            says "Done" — which beside a progress bar reads as this run having
+            finished the instant it was asked for. That is the state somebody
+            reported as "finished but not clickable". */}
+        {running && run && !startingOnly ? (
           <span
             className="min-w-0 truncate text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
             aria-live="polite"
@@ -299,11 +377,30 @@ export default function BacktestCanvasPanel({
 
       <ScrollArea className="max-h-[60vh]">
         <div className="grid gap-3 p-3">
+          {refused ? (
+            // Said before anything else on the card, because it is newer than
+            // everything else on the card. The figures below it, if there are
+            // any, belong to an earlier run and saying so is the whole point.
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs leading-4 text-destructive">
+              <p className="font-medium">That last press tested nothing.</p>
+              <p className="mt-1">{refused}</p>
+            </div>
+          ) : null}
+
           {!run ? (
+            refused ? null : (
+              <p className="text-xs text-muted-foreground">
+                {noneYet
+                  ? "This flow has not run a backtest yet. Press Run above."
+                  : "Reading the run…"}
+              </p>
+            )
+          ) : startingOnly ? (
+            // The old run's own progress is not this run's progress. Drawing it
+            // put a finished bar at 100% under the word "Done" on a press that
+            // had only just left, which read as a run that had ended.
             <p className="text-xs text-muted-foreground">
-              {noneYet
-                ? "This flow has not run a backtest yet. Press Run above."
-                : "Reading the run…"}
+              Starting the backtest…
             </p>
           ) : running ? (
             <div className="grid gap-2">
@@ -372,7 +469,10 @@ export default function BacktestCanvasPanel({
               figures above already change as the run goes. */}
           <div className="mt-2 flex items-center justify-between gap-3">
             <p className="text-[11px] leading-4 text-muted-foreground">
-              {run?.finishedAt
+              {/* Left off while a press is on its way: it is the previous
+                  run's finish time, and beside "Starting…" it says the wrong
+                  thing about the wrong run. */}
+              {run?.finishedAt && !startingOnly
                 ? `Finished ${formatRelativeTime(new Date(run.finishedAt))}.`
                 : ""}
             </p>
@@ -386,6 +486,10 @@ export default function BacktestCanvasPanel({
                 // The card itself opens the full run page when clicked, and a
                 // button inside it must not do both.
                 event.stopPropagation()
+                // Remembered before the request goes out, so the next read can
+                // tell a new run from the one already on screen.
+                runIdWhenPressed.current = run?.id ?? null
+                attemptIdWhenPressed.current = attempt?.runId ?? null
                 setStarting(true)
                 // Nothing is awaited before the panel changes. The request goes
                 // out and the answer only matters if it is a refusal.

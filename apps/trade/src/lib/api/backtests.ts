@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start"
-import { and, eq } from "drizzle-orm"
+import { and, desc, eq } from "drizzle-orm"
 import { z } from "zod"
 
 import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
@@ -10,6 +10,10 @@ import type {
 import { fillMarksFromStored } from "@/lib/trade/backtest/result"
 import { userGet, userPost } from "@/server/guards"
 import { db } from "@/server/db"
+import {
+  customShellAutomationRuns,
+  customShellAutomationRunSteps,
+} from "@/server/schema"
 import { loadStoredCandles } from "@/server/trade/candle-store"
 import {
   listBacktests,
@@ -161,6 +165,122 @@ const listBacktestsFn = createServerFn({ method: "GET" })
       }),
     }
   })
+
+/**
+ * The last time this flow was run, and whether it produced a backtest at all.
+ *
+ * **Why this exists.** Pressing Run on a flow whose settings the backtest
+ * refuses — 406 coins when 384 is the most that fits in memory, say — finishes
+ * the run in a few milliseconds, writes the reason on the step's row in the run
+ * history, and creates no backtest. The canvas panel is watching the list of
+ * backtests, so from where it sits absolutely nothing happened: it kept showing
+ * the run from an hour ago, over a spinner that never stopped, and the sentence
+ * explaining why was three screens away.
+ *
+ * So the panel asks this as well. A press that produced no run comes back with
+ * the reason on it, in the same words the run history uses.
+ */
+const lastBacktestAttemptFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ automationId: z.string().max(36) }))
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      /** Null when this flow has never been run. */
+      attempt: {
+        runId: string
+        startedAt: number
+        /** Null while it is still going. */
+        finishedAt: number | null
+        /**
+         * Why nothing was tested, or null when a backtest did come out of it.
+         *
+         * Taken off the DCA ladder step, which is the step that starts the run
+         * and therefore the step that refuses it.
+         */
+        problem: string | null
+      } | null
+    }> => {
+      const [run] = await db
+        .select({
+          id: customShellAutomationRuns.id,
+          startedAt: customShellAutomationRuns.startedAt,
+          finishedAt: customShellAutomationRuns.finishedAt,
+        })
+        .from(customShellAutomationRuns)
+        .where(
+          and(
+            eq(customShellAutomationRuns.automationId, data.automationId),
+            eq(customShellAutomationRuns.userId, context.user.id)
+          )
+        )
+        .orderBy(desc(customShellAutomationRuns.startedAt))
+        .limit(1)
+      if (!run) return { attempt: null }
+
+      // A run still going has not refused anything yet, so there is nothing to
+      // report and nothing to read.
+      if (run.finishedAt === null) {
+        return {
+          attempt: {
+            runId: run.id,
+            startedAt: run.startedAt.getTime(),
+            finishedAt: null,
+            problem: null,
+          },
+        }
+      }
+
+      // A backtest carries the run that made it, so this is the whole test of
+      // whether the press landed. It is one row either way.
+      const [group] = await db
+        .select({ id: tradeBacktestGroups.id })
+        .from(tradeBacktestGroups)
+        .where(eq(tradeBacktestGroups.automationRunId, run.id))
+        .limit(1)
+
+      if (group) {
+        return {
+          attempt: {
+            runId: run.id,
+            startedAt: run.startedAt.getTime(),
+            finishedAt: run.finishedAt.getTime(),
+            problem: null,
+          },
+        }
+      }
+
+      const [step] = await db
+        .select({ summary: customShellAutomationRunSteps.summary })
+        .from(customShellAutomationRunSteps)
+        .where(
+          and(
+            eq(customShellAutomationRunSteps.runId, run.id),
+            eq(customShellAutomationRunSteps.kind, "tradeDca")
+          )
+        )
+        .limit(1)
+
+      return {
+        attempt: {
+          runId: run.id,
+          startedAt: run.startedAt.getTime(),
+          finishedAt: run.finishedAt.getTime(),
+          // The step's own words, or a plain fallback if the run never reached
+          // it — a flow missing one of the three steps stops earlier than this.
+          problem:
+            step?.summary ??
+            "That run did not reach the DCA ladder step, so nothing was tested.",
+        },
+      }
+    }
+  )
+
+export function loadLastBacktestAttempt(automationId: string) {
+  return lastBacktestAttemptFn({ data: { automationId } })
+}
 
 const readBacktestFn = createServerFn({ method: "GET" })
   .middleware([userGet])
