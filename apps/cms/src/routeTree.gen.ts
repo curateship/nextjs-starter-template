@@ -70,6 +70,7 @@ import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
+import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
@@ -411,6 +412,11 @@ const DirectoryCategorySlugRoute = DirectoryCategorySlugRouteImport.update({
   path: '/directory/category/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DirectoryShareImageSlugRoute = DirectoryShareImageSlugRouteImport.update({
+  id: '/directory_/share-image/$slug',
+  path: '/directory/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
   id: '/embed/listing/$listingId',
   path: '/embed/listing/$listingId',
@@ -539,6 +545,7 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -611,6 +618,7 @@ export interface FileRoutesByTo {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
@@ -687,6 +695,7 @@ export interface FileRoutesById {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -763,6 +772,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/admin/'
     | '/changelog/'
@@ -835,6 +845,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/admin'
     | '/changelog'
@@ -910,6 +921,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory_/category/$slug'
+    | '/directory_/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
@@ -953,6 +965,7 @@ export interface RootRouteChildren {
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
+  DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
   EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1389,6 +1402,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DirectoryCategorySlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/directory_/share-image/$slug': {
+      id: '/directory_/share-image/$slug'
+      path: '/directory/share-image/$slug'
+      fullPath: '/directory/share-image/$slug'
+      preLoaderRoute: typeof DirectoryShareImageSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/embed/listing/$listingId': {
       id: '/embed/listing/$listingId'
       path: '/embed/listing/$listingId'
@@ -1648,6 +1668,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
+  DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
   EmbedListingListingIdRoute: EmbedListingListingIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

@@ -22,6 +22,7 @@ import {
   directoryHead,
   directoryTitle,
   listingJsonLd,
+  listingPageShareImage,
 } from "@/lib/directory/public-seo"
 
 /**
@@ -67,7 +68,12 @@ export const Route = createFileRoute("/directory_/$slug")({
         loaderData.listing.metaDescription,
         `${loaderData.listing.title} on ${loaderData.site.name}.`
       ),
-      loaderData.listing.featuredImage
+      listingPageShareImage({
+        featuredImage: loaderData.listing.featuredImage,
+        siteUrl: loaderData.site.url,
+        slug: loaderData.listing.slug,
+        version: loaderData.shareImageVersion,
+      })
     )
   },
   component: ListingRoute,

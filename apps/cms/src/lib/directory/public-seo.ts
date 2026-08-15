@@ -1,3 +1,10 @@
+import {
+  LISTING_SHARE_IMAGE_HEIGHT,
+  LISTING_SHARE_IMAGE_TYPE,
+  LISTING_SHARE_IMAGE_WIDTH,
+  listingShareImageUrl,
+} from "@/lib/directory/listing-share-image"
+
 /**
  * What a public directory page tells a browser and a search engine about
  * itself: the tab title, the description under it in a result, and the JSON-LD
@@ -46,8 +53,38 @@ export function directoryDescription(
     : chosen
 }
 
+type DirectoryHeadImage =
+  | string
+  | {
+      url: string
+      type?: string
+      width?: number
+      height?: number
+    }
+
+/** A listing photo first, otherwise its versioned drawn card. */
+export function listingPageShareImage(input: {
+  featuredImage: string
+  siteUrl: string
+  slug: string
+  version: string
+}): DirectoryHeadImage {
+  if (input.featuredImage) return input.featuredImage
+  return {
+    url: listingShareImageUrl(input.siteUrl, input.slug, input.version),
+    type: LISTING_SHARE_IMAGE_TYPE,
+    width: LISTING_SHARE_IMAGE_WIDTH,
+    height: LISTING_SHARE_IMAGE_HEIGHT,
+  }
+}
+
 /** The meta tags a public page adds, in the shape a route's `head` wants. */
-export function directoryHead(title: string, description: string, image = "") {
+export function directoryHead(
+  title: string,
+  description: string,
+  image: DirectoryHeadImage = ""
+) {
+  const imageUrl = typeof image === "string" ? image : image.url
   return {
     meta: [
       { title },
@@ -58,11 +95,30 @@ export function directoryHead(title: string, description: string, image = "") {
             { property: "og:description", content: description },
             {
               name: "twitter:card",
-              content: image ? "summary_large_image" : "summary",
+              content: imageUrl ? "summary_large_image" : "summary",
             },
           ]
         : []),
-      ...(image ? [{ property: "og:image", content: image }] : []),
+      ...(imageUrl
+        ? [
+            { property: "og:image", content: imageUrl },
+            ...(typeof image === "string" || !image.type
+              ? []
+              : [{ property: "og:image:type", content: image.type }]),
+            ...(typeof image === "string" || image.width === undefined
+              ? []
+              : [{ property: "og:image:width", content: String(image.width) }]),
+            ...(typeof image === "string" || image.height === undefined
+              ? []
+              : [
+                  {
+                    property: "og:image:height",
+                    content: String(image.height),
+                  },
+                ]),
+            { name: "twitter:image", content: imageUrl },
+          ]
+        : []),
     ],
   }
 }
