@@ -84,7 +84,9 @@ export async function getOrCreateSystemEmail(
       preheader: "",
       fromName: null,
       blocks,
-      renderedHtml: renderBroadcastEmailHtml(blocks),
+      renderedHtml: renderBroadcastEmailHtml(blocks, {
+        renderStyle: "system",
+      }),
       createdAt: timestamp,
       updatedAt: timestamp,
     })
@@ -130,6 +132,7 @@ export async function updateSystemEmail(
         : parseStoredBlocks(existing.blocks)
     values.renderedHtml = renderBroadcastEmailHtml(blocks, {
       preheader: input.preheader ?? existing.preheader,
+      renderStyle: "system",
     })
   }
 

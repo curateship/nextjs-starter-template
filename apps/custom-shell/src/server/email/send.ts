@@ -10,6 +10,7 @@ import { resolveAppName } from "@/lib/branding"
 import {
   SYSTEM_EMAIL_META,
   applySystemEmailTokens,
+  createSystemEmailBlocks,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
@@ -93,6 +94,7 @@ export function composeSystemEmail(
             html: false,
           }),
       appName: options.appName,
+      renderStyle: "system",
     })
     return {
       subject: applySystemEmailTokens(subject, values, { html: false }),
@@ -101,29 +103,24 @@ export function composeSystemEmail(
     }
   }
 
+  const builtInHtml = renderBroadcastEmailHtml(
+    withUnwantedRequestLink(
+      createSystemEmailBlocks(email.kind),
+      email.reportUrl
+    ),
+    {
+      preheader: applySystemEmailTokens(meta.defaults.message, values, {
+        html: false,
+      }),
+      appName: resolveAppName(options.appName),
+      renderStyle: "system",
+    }
+  )
   return {
     subject: applySystemEmailTokens(meta.defaults.subject, values, {
       html: false,
     }),
-    html: renderBuiltInEmail({
-      preheader: applySystemEmailTokens(meta.defaults.message, values, {
-        html: false,
-      }),
-      firstName: values.firstName,
-      heading: applySystemEmailTokens(meta.defaults.heading, values, {
-        html: false,
-      }),
-      message: applySystemEmailTokens(meta.defaults.message, values, {
-        html: false,
-      }),
-      action: meta.defaults.action,
-      actionUrl: email.actionUrl,
-      reportUrl: email.reportUrl,
-      appName: resolveAppName(options.appName),
-      closing: applySystemEmailTokens(meta.defaults.closing, values, {
-        html: false,
-      }),
-    }),
+    html: applySystemEmailTokens(builtInHtml, values, { html: true }),
     fromName: null,
   }
 }
@@ -335,32 +332,4 @@ async function logSend(
   } catch {
     // Nothing to do about it here, and nothing worth stopping for.
   }
-}
-
-/**
- * The email as it was before any of this was editable.
- *
- * Still the last word: this is what goes out when nobody has touched the
- * wording, and what goes out again if somebody empties it.
- */
-function renderBuiltInEmail(email: {
-  preheader: string
-  firstName: string
-  heading: string
-  message: string
-  action: string
-  actionUrl: string
-  reportUrl?: string
-  appName: string
-  closing: string
-}) {
-  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b;background:#ffffff">
-  <p style="font-size:18px;line-height:1.4;font-weight:700;margin:0 0 24px">${escapeHtml(email.appName)}</p>
-  <p style="font-size:14px;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(email.firstName)},</p>
-  <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
-  <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>
-  <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>
-  ${email.reportUrl ? `<p style="font-size:14px;line-height:1.6;margin:0 0 24px"><a href="${escapeHtml(email.reportUrl)}" style="color:#18181b;text-decoration:underline">I didn&#39;t ask for this</a></p>` : ""}
-  <p style="font-size:12px;color:#71717a;margin:0">${escapeHtml(email.closing)}</p>
-</div>`
 }

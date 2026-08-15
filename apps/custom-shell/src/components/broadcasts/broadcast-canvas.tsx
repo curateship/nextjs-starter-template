@@ -42,7 +42,10 @@ import {
   PREVIEW_WIDTHS,
   type PreviewWidth,
 } from "@/lib/broadcasts/preview-width"
-import { renderBroadcastBlockHtml } from "@/lib/broadcasts/render"
+import {
+  renderBroadcastBlockHtml,
+  type EmailRenderStyle,
+} from "@/lib/broadcasts/render"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useAppName } from "@/lib/branding"
@@ -91,6 +94,7 @@ export function BroadcastCanvas({
   width,
   selectedBlockId,
   disabled,
+  renderStyle = "standard",
   onSelect,
   onOpenSettings,
   onReorder,
@@ -104,6 +108,7 @@ export function BroadcastCanvas({
   width: PreviewWidth
   selectedBlockId: string | null
   disabled?: boolean
+  renderStyle?: EmailRenderStyle
   onSelect: (blockId: string | null) => void
   /** Clears the selection, which puts the email's settings in the right panel. */
   onOpenSettings: () => void
@@ -182,6 +187,7 @@ export function BroadcastCanvas({
                       key={block.id}
                       block={block}
                       appName={appName}
+                      renderStyle={renderStyle}
                       last={index === blocks.length - 1}
                       selected={block.id === selectedBlockId}
                       disabled={disabled}
@@ -309,6 +315,7 @@ function EmptyEmail({
 function SortableBlock({
   block,
   appName,
+  renderStyle,
   last,
   selected,
   disabled,
@@ -320,6 +327,7 @@ function SortableBlock({
 }: {
   block: BroadcastBlock
   appName: string
+  renderStyle: EmailRenderStyle
   last: boolean
   selected: boolean
   disabled?: boolean
@@ -399,7 +407,10 @@ function SortableBlock({
             // The HTML here comes from our own renderer, over content that was
             // cleaned when it was saved — never from raw user markup.
             dangerouslySetInnerHTML={{
-              __html: renderBroadcastBlockHtml(block, { appName }),
+              __html: renderBroadcastBlockHtml(block, {
+                appName,
+                renderStyle,
+              }),
             }}
           />
         )}

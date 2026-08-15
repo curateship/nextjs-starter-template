@@ -42,6 +42,18 @@ afterEach(async () => {
 })
 
 describe("system email wording", () => {
+  it.each(SYSTEM_EMAIL_KINDS)("starts the %s email aligned left", (kind) => {
+    const blocks = createSystemEmailBlocks(kind)
+    const alignments = blocks.flatMap((block) =>
+      "alignment" in block.content ? [block.content.alignment] : []
+    )
+    const button = blocks.find((block) => block.kind === "button")
+
+    expect(alignments.length).toBeGreaterThan(0)
+    expect(alignments.every((alignment) => alignment === "left")).toBe(true)
+    expect(button?.content.padding).toBe(20)
+  })
+
   it("has no row until somebody saves a change", async () => {
     expect(await getSystemEmail(site, "password-reset", database)).toBeNull()
 
@@ -83,7 +95,9 @@ describe("system email wording", () => {
     )
 
     expect(saved.subject).toBe("Please confirm")
-    expect(saved.renderedHtml).toBe(renderBroadcastEmailHtml(blocks))
+    expect(saved.renderedHtml).toBe(
+      renderBroadcastEmailHtml(blocks, { renderStyle: "system" })
+    )
   })
 
   it("creates the row on a save for an email nobody had opened", async () => {
@@ -246,6 +260,7 @@ describe("what actually gets sent", () => {
     expect(html).toContain("North &amp; Star")
     expect(html).toContain("Hi there,")
     expect(html).toContain("This link expires in one hour.")
+    expect(html).toContain("text-align:left")
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
     )

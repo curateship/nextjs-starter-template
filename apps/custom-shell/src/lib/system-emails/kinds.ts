@@ -383,13 +383,13 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
  * The blocks an email starts with: today's wording, laid out as blocks.
  *
  * One pattern for every email the app sends: the header, a heading and the
- * sentence, the button in the middle, the closing line, then the footer. The
+ * sentence, the button, the closing line, then the footer. The
  * saved per-workspace block setups fill the header's logo and the footer's
  * company lines in, so a new email opens already looking like the rest. Two
- * things the pattern pins regardless of any saved setup: the button sits in
- * the middle, and the footer's unsubscribe link is off. These are account
- * messages rather than newsletters, so there is no unsubscribe address to
- * fill in.
+ * things the pattern pins regardless of any saved setup: every part is aligned
+ * left like the built-in email, and the footer's unsubscribe link is off.
+ * These are account messages rather than newsletters, so there is no
+ * unsubscribe address to fill in.
  */
 export function createSystemEmailBlocks(
   kind: SystemEmailKind,
@@ -403,7 +403,17 @@ export function createSystemEmailBlocks(
   const footer = createBroadcastBlock("footer", blockDefaults)
 
   const blocks: BroadcastBlock[] = [
-    header,
+    {
+      ...header,
+      kind: "header",
+      content: {
+        ...(header.content as Extract<
+          BroadcastBlock,
+          { kind: "header" }
+        >["content"]),
+        alignment: "left",
+      },
+    },
     {
       ...copy,
       kind: "richText",
@@ -428,8 +438,8 @@ export function createSystemEmailBlocks(
         label: defaults.action,
         // Blank on purpose: the send fills in the one-use link.
         url: "",
-        padding: 0,
-        alignment: "center",
+        padding: 20,
+        alignment: "left",
       },
     },
     {
@@ -451,6 +461,7 @@ export function createSystemEmailBlocks(
           BroadcastBlock,
           { kind: "footer" }
         >["content"]),
+        alignment: "left",
         showUnsubscribe: false,
       },
     },
