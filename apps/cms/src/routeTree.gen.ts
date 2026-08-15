@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
+import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
@@ -111,6 +112,11 @@ const ChangeEmailRoute = ChangeEmailRouteImport.update({
 const DirectoryRoute = DirectoryRouteImport.update({
   id: '/directory',
   path: '/directory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
+  id: '/feed.xml',
+  path: '/feed.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -492,6 +498,7 @@ export interface FileRoutesByFullPath {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -567,6 +574,7 @@ export interface FileRoutesByTo {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -642,6 +650,7 @@ export interface FileRoutesById {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -719,6 +728,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -794,6 +804,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -868,6 +879,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -945,6 +957,7 @@ export interface RootRouteChildren {
   AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
+  FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
@@ -1015,6 +1028,13 @@ declare module '@tanstack/react-router' {
       path: '/directory'
       fullPath: '/directory'
       preLoaderRoute: typeof DirectoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed.xml': {
+      id: '/feed.xml'
+      path: '/feed.xml'
+      fullPath: '/feed.xml'
+      preLoaderRoute: typeof FeedDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1648,6 +1668,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,
+  FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,

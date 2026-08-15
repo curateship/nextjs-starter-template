@@ -44,8 +44,14 @@ describe("titles and descriptions", () => {
   })
 
   it("adds no description tags at all when there is nothing to say", () => {
-    expect(directoryHead("Directory · Alpha", "")).toEqual({
-      meta: [{ title: "Directory · Alpha" }],
+    const head = directoryHead("Directory · Alpha", "")
+
+    expect(head.meta).toEqual([{ title: "Directory · Alpha" }])
+    expect(head.links).toContainEqual({
+      rel: "alternate",
+      type: "application/rss+xml",
+      title: "New listings",
+      href: "/feed.xml",
     })
   })
 
