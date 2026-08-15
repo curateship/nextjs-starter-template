@@ -27,6 +27,8 @@ import { directorySettingsFor } from "@/server/directory/settings"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
+import { parseWorkspaceSettings } from "@/server/people/workspaces"
+import { listingShareImageVersion } from "@/lib/directory/listing-share-image"
 import {
   categories,
   categoryRelationships,
@@ -53,6 +55,8 @@ import { visitorWorkspaceId } from "@/server/workspaces/for-request"
 export type VisitorSite = {
   id: string
   name: string
+  /** The site's public accent, used when a listing needs a drawn share card. */
+  accentColor?: string
   /**
    * Where this site lives, built from the address actually being answered —
    * `https://alpha.example.com`, never the deployment's own address.
@@ -105,12 +109,22 @@ export async function visitorSite(
   if (!id) return null
 
   const [row] = await database
-    .select({ id: customShellWorkspaces.id, name: customShellWorkspaces.name })
+    .select({
+      id: customShellWorkspaces.id,
+      name: customShellWorkspaces.name,
+      settings: customShellWorkspaces.settings,
+    })
     .from(customShellWorkspaces)
     .where(eq(customShellWorkspaces.id, id))
     .limit(1)
 
-  return row ? { id: row.id, name: row.name, url: requestOrigin() } : null
+  if (!row) return null
+  return {
+    id: row.id,
+    name: row.name,
+    accentColor: parseWorkspaceSettings(row.settings).accentColor,
+    url: requestOrigin(),
+  }
 }
 
 /** What a page is told about the site it is drawing. Never its id. */
@@ -211,6 +225,7 @@ export type PublicClaimState = {
 export type PublicListingPage = {
   site: PublicSite
   listing: PublicListing
+  shareImageVersion: string
   categories: PublicCategoryLink[]
   primaryCategory: PublicCategoryLink | null
   related: PublicListingCard[]
@@ -711,6 +726,13 @@ async function readPublicListingUncached(
       updatedAt: row.updatedAt,
       featured: featured.has(row.id),
     },
+    shareImageVersion: listingShareImageVersion({
+      title: row.title,
+      category: primary?.name ?? null,
+      siteName: site.name,
+      accentColor: site.accentColor ?? "",
+      updatedAt: row.updatedAt,
+    }),
     categories: links.map((link) => ({ name: link.name, slug: link.slug })),
     primaryCategory: primary
       ? { name: primary.name, slug: primary.slug }
@@ -742,7 +764,14 @@ export async function readPublicListing(
   const page = await cachedPublicDirectoryRead(
     site.id,
     "listing",
-    { site: { name: site.name, url: site.url }, slug },
+    {
+      site: {
+        name: site.name,
+        url: site.url,
+        accentColor: site.accentColor ?? "",
+      },
+      slug,
+    },
     () => readPublicListingUncached(site, slug, database)
   )
   if (!page) return null

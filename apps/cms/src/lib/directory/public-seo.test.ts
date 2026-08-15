@@ -7,6 +7,7 @@ import {
   directoryTitle,
   jsonLdText,
   listingJsonLd,
+  listingPageShareImage,
   siteUrlFor,
 } from "@/lib/directory/public-seo"
 
@@ -60,13 +61,61 @@ describe("titles and descriptions", () => {
       content: "https://images.example.com/joe.jpg",
     })
   })
+
+  it("uses a listing photo before a drawn picture", () => {
+    expect(
+      listingPageShareImage({
+        featuredImage: "https://images.example.com/joe.jpg",
+        siteUrl: "https://alpha.example.com",
+        slug: "joes-diner",
+        version: "1-old",
+      })
+    ).toBe("https://images.example.com/joe.jpg")
+  })
+
+  it("describes a drawn listing picture at its exact size and type", () => {
+    const image = listingPageShareImage({
+      featuredImage: "",
+      siteUrl: "https://alpha.example.com",
+      slug: "joes-diner",
+      version: "1-card",
+    })
+    const meta = directoryHead(
+      "Joe's Diner · Alpha",
+      "Breakfast all day",
+      image
+    ).meta
+
+    expect(meta).toContainEqual({
+      property: "og:image",
+      content:
+        "https://alpha.example.com/directory/share-image/joes-diner?v=1-card",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:type",
+      content: "image/svg+xml",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:width",
+      content: "1200",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:height",
+      content: "630",
+    })
+    expect(meta).toContainEqual({
+      name: "twitter:image",
+      content:
+        "https://alpha.example.com/directory/share-image/joes-diner?v=1-card",
+    })
+  })
 })
 
 describe("addresses", () => {
   it("builds one on the site being visited, with no doubled slash", () => {
-    expect(siteUrlFor("https://alpha.example.com/", "/directory/joes-diner")).toBe(
-      "https://alpha.example.com/directory/joes-diner"
-    )
+    expect(
+      siteUrlFor("https://alpha.example.com/", "/directory/joes-diner")
+    ).toBe("https://alpha.example.com/directory/joes-diner")
   })
 })
 
