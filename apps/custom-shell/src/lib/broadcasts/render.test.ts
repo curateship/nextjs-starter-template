@@ -135,6 +135,24 @@ describe("renderBroadcastBlockHtml", () => {
     expect(html).toContain("color:#2563eb")
   })
 
+  it("matches the compact type and button used by system emails", () => {
+    const copy = renderBroadcastBlockHtml(
+      block("richText", { htmlContent: "<h1>Heading</h1><p>Body</p>" }),
+      { renderStyle: "system" }
+    )
+    const buttonHtml = renderBroadcastBlockHtml(block("button"), {
+      renderStyle: "system",
+    })
+
+    expect(copy).toContain("font-size:14px")
+    expect(copy).toContain("font-size:20px")
+    expect(copy).not.toContain("font-size:32px")
+    expect(copy).toContain("padding:0 20px")
+    expect(buttonHtml).toContain("padding:10px 18px")
+    expect(buttonHtml).toContain("font-size:14px")
+    expect(buttonHtml).toContain("padding:0 20px 24px 20px")
+  })
+
   it("renders divider settings", () => {
     const html = renderBroadcastBlockHtml(
       block("divider", { color: "#ff0000", thickness: 3, width: 50, spacing: 8 })
