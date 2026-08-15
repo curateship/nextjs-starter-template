@@ -36,6 +36,7 @@ import { enforceDeliverableEmail } from "@/server/email/deliverability"
 import { mayHaveWorkspace } from "@/lib/app-options"
 import { isOwnedImageUrl } from "@/server/media/library"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
+import { enforceLoginRateLimit } from "@/server/auth/login-lockout"
 import { googleSignInEnabled } from "@/server/auth/google"
 import {
   customShellSessions,
@@ -440,11 +441,10 @@ const loginFn = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     requireAppOrigin()
 
-    const rateLimitKey = `login:${requestIp()}:${data.email}`
-    await enforceRateLimit(rateLimitKey, {
-      maxAttempts: 5,
-      windowSeconds: 15 * 60,
-    })
+    const origin = describeRequestOrigin()
+    const visitorIp = requestIp()
+    const rateLimitKey = `login:${visitorIp}:${data.email}`
+    await enforceLoginRateLimit(data.email, visitorIp, origin)
 
     const found = await findUserByEmail(data.email)
     if (!found || !(await verifyPassword(found.passwordHash, data.password))) {
@@ -475,7 +475,7 @@ const loginFn = createServerFn({ method: "POST" })
     // the two places it happens; there is no background job in this app.
     await purgeExpiredDeletions()
 
-    const token = await startSessionWithAlert(user, describeRequestOrigin())
+    const token = await startSessionWithAlert(user, origin)
     await startWorkspaceFor(user)
 
     setSessionCookie(token)

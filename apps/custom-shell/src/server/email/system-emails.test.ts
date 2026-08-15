@@ -337,6 +337,28 @@ describe("what actually gets sent", () => {
     )
   })
 
+  it("explains a password lockout and links to password reset", () => {
+    const { subject, html } = composeSystemEmail(
+      {
+        ...request,
+        kind: "account-locked",
+        actionUrl: "https://app.dev/forgot-password",
+        tokens: {
+          device: "Chrome on macOS",
+          when: "Jan 1, 2026, 9:00 AM UTC",
+          lockout_duration: "15 minutes",
+        },
+      },
+      null
+    )
+
+    expect(subject).toBe("Your account has been temporarily locked")
+    expect(html).toContain("Chrome on macOS")
+    expect(html).toContain("15 minutes")
+    expect(html).toContain("Password reset still works")
+    expect(html).toContain('href="https://app.dev/forgot-password"')
+  })
+
   it("addresses a named person without letting their name become markup", () => {
     const { html } = composeSystemEmail(
       { ...request, recipientName: "<b>Sarah</b> Jones" },

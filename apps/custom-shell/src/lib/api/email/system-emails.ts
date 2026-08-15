@@ -253,6 +253,11 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
         device: "Chrome on macOS",
         when: "Jan 1, 2026, 9:00 AM UTC",
       },
+      "account-locked": {
+        device: "Chrome on macOS",
+        when: "Jan 1, 2026, 9:00 AM UTC",
+        lockout_duration: "15 minutes",
+      },
       "new-account": {},
       "account-closed": {
         deletion_date: "Jan 31, 2026",

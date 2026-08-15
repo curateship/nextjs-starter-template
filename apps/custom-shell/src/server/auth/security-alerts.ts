@@ -107,6 +107,26 @@ export function alertPasswordChanged(
   })
 }
 
+/** Warns once when repeated password attempts cross into a lockout. */
+export function alertAccountLocked(
+  email: string,
+  origin: SessionOrigin,
+  recipientName: string | null,
+  lockoutDuration: string
+) {
+  return sendAlert({
+    kind: "account-locked",
+    to: email,
+    recipientName,
+    tokens: {
+      device: describeDevice(origin.userAgent),
+      when: describeWhen(now()),
+      lockout_duration: lockoutDuration,
+    },
+    actionUrl: appUrlFor("/forgot-password"),
+  })
+}
+
 /**
  * Starts a session and, when the browser is one this account has never used,
  * says so by email.

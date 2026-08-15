@@ -35,6 +35,7 @@ export const SYSTEM_EMAIL_KINDS = [
   "email-change-done",
   "password-changed",
   "new-device",
+  "account-locked",
   "new-account",
   "account-closed",
   "account-updated",
@@ -279,6 +280,30 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         "If it was not you, reset your password now, then sign the other browsers out under Account → Security.",
     },
     tokens: [...RECIPIENT_TOKENS, DEVICE_TOKEN, WHEN_TOKEN],
+  },
+  "account-locked": {
+    kind: "account-locked",
+    name: "Account temporarily locked",
+    whenSent:
+      "Once, when repeated password attempts temporarily lock an account.",
+    defaults: {
+      subject: "Your account has been temporarily locked",
+      heading: "Your account is temporarily locked",
+      message:
+        "Too many failed sign-in attempts from {{device}} on {{when}} locked password sign-in for about {{lockout_duration}}. You can wait and try again, or reset your password now.",
+      action: "Reset your password",
+      closing:
+        "Password reset still works while password sign-in is locked. If these attempts were not yours, reset your password before signing in again.",
+    },
+    tokens: [
+      ...RECIPIENT_TOKENS,
+      DEVICE_TOKEN,
+      WHEN_TOKEN,
+      {
+        token: "{{lockout_duration}}",
+        description: "Roughly how long password sign-in remains locked",
+      },
+    ],
   },
   "new-account": {
     kind: "new-account",
