@@ -5,6 +5,7 @@ import {
   InspectorNote,
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/automations/nodes/trade-number-field"
+import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -24,18 +25,26 @@ import {
   loadTestableMarkets,
 } from "@/lib/api/backtests"
 import { getMarketsErrorMessage } from "@/lib/api/markets"
+import type { AutomationNode } from "@/lib/automations/graph"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   candlesPerCoin,
+  coinsAllowedFor,
   dateFromDay,
   dayFromDate,
   MAX_BACKTEST_DAYS,
   MAX_BACKTEST_MARKETS,
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
+  trimMarketsToFit,
   windowDays,
   windowProblem,
 } from "@/lib/automations/nodes/trade-markets"
+import {
+  DEFAULT_BACKTEST_INTERVAL,
+  tradeDcaNode,
+} from "@/lib/automations/nodes/trade-dca"
+import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import {
   chosenWallet,
   tradeWalletNode,
@@ -123,6 +132,22 @@ export default function TradeMarketsFields({
     (one) => one.kind === tradeWalletNode.kind
   )
   const wallet = walletStep ? chosenWallet(walletStep.settings) : null
+
+  /**
+   * The candle size the run will read, which lives on the DCA ladder step.
+   *
+   * Read here because how many coins fit is arithmetic on the candle size and
+   * the window together, and this step owns only half of it. It used to assume
+   * 4h for the count it printed, which was right for most flows and quietly
+   * wrong for the rest.
+   */
+  const dcaStep = graph?.nodes.find((one) => one.kind === tradeDcaNode.kind)
+  const intervalSetting = dcaStep?.settings.interval
+  const interval =
+    typeof intervalSetting === "string" &&
+    (CANDLE_INTERVALS as readonly string[]).includes(intervalSetting)
+      ? intervalSetting
+      : DEFAULT_BACKTEST_INTERVAL
 
   const parsedSettings = tradeMarketsSettingsSchema
     .partial()
@@ -345,30 +370,65 @@ export default function TradeMarketsFields({
 
   const chosen = React.useMemo(() => new Set(marketKeys), [marketKeys])
 
-  const setKeys = React.useCallback(
-    (keys: readonly string[]) =>
-      onChange({
-        ...node,
-        settings: {
-          ...node.settings,
-          marketKeys: [...new Set(keys)].slice(0, MAX_BACKTEST_MARKETS),
-        },
-      }),
-    [node, onChange]
-  )
+  /**
+   * How many coins this step may hold, worked out rather than typed in.
+   *
+   * **This is the step's job, not the run's.** A run costs its window of
+   * candles for every coin, so the window and the candle size decide between
+   * them how many coins fit in memory — and the step that picks the coins is
+   * the one place that can hand out the answer while somebody is still
+   * choosing. It did not, and picking 406 coins was allowed right up until the
+   * moment Run was pressed, at which point the backtest refused in 30
+   * milliseconds and the canvas showed the result of an hour before.
+   *
+   * With a wallet named there is no history to walk and nothing to hold, so the
+   * only limit left is the one on the length of the list.
+   */
+  const allowed = wallet
+    ? MAX_BACKTEST_MARKETS
+    : coinsAllowedFor(interval, windowLength)
+
+  /**
+   * Saves any change on this step, with the coins cut to what still fits.
+   *
+   * Every write goes through here, not only the ones that touch the coin list.
+   * Lengthening the window buys fewer coins — that is the trade this step is
+   * built around — so stretching 1000 days to 2000 has to take the tail off the
+   * list as it goes. It did not, and the run refused instead.
+   */
+  // A plain function, not a `useCallback`: it is only ever called from a
+  // handler written inline in the JSX below, so there is nothing for a stable
+  // identity to save — and React Compiler refuses to optimise the whole
+  // component when it finds a hand-written memo it can see no use for.
+  function commit(settings: Record<string, unknown>) {
+    onChange({
+      ...node,
+      settings: trimMarketsToFit(
+        settings,
+        interval,
+        wallet !== null
+      ) as AutomationNode["settings"],
+    })
+  }
+
+  /** Saves a coin list, through the same one rule as everything else. */
+  function setKeys(keys: readonly string[]) {
+    commit({ ...node.settings, marketKeys: [...keys] })
+  }
 
   /**
    * Turning one coin on or off, without every other row redrawing.
    *
-   * Held steady between renders so `CoinRow` below can skip the rows that did
-   * not change. Three hundred checkboxes all redrawing on every click is what
-   * made choosing a long list feel like the machine had stopped.
+   * Left to React Compiler to hold steady rather than wrapped by hand. It gives
+   * `CoinRow` below the same stable identity a `useCallback` did — but a
+   * hand-written memo here now reaches an imported function it cannot see
+   * through, and rather than keep it the compiler gives up on the whole
+   * component, which costs far more than this one callback was buying. Three
+   * hundred checkboxes redrawing on every click is what this is avoiding.
    */
-  const toggle = React.useCallback(
-    (key: string, on: boolean) =>
-      setKeys(on ? [...marketKeys, key] : marketKeys.filter((one) => one !== key)),
-    [marketKeys, setKeys]
-  )
+  function toggle(key: string, on: boolean) {
+    setKeys(on ? [...marketKeys, key] : marketKeys.filter((one) => one !== key))
+  }
 
   // Filtered and ordered on the spot. There are only a few hundred coins, and
   // market volume can change whenever the cached catalogue is refreshed.
@@ -393,7 +453,28 @@ export default function TradeMarketsFields({
 
   const visibleKeys = visible.map((row) => row.key)
   const visibleChosen = visibleKeys.filter((key) => chosen.has(key)).length
-  const allVisibleChosen = visible.length > 0 && visibleChosen === visible.length
+  /** The most of the shown coins that can be held at once. */
+  const takeable = Math.min(visible.length, allowed)
+  /** Ticked once there is no room for another, not only once every row is on. */
+  const allVisibleChosen = takeable > 0 && visibleChosen >= takeable
+  /** More coins are shown than will fit, so the busiest are what get taken. */
+  const moreShownThanFit = visible.length > allowed
+  /** No room for another coin. */
+  const full = marketKeys.length >= allowed
+  /**
+   * More coins are already saved than now fit.
+   *
+   * Only reachable from outside this panel — the candle size is on the DCA
+   * step, and making it smaller shrinks what fits here without this panel ever
+   * being opened. Flows saved before the step handed out the limit at all land
+   * here too, which is what a 406-coin flow that refused every run turned out
+   * to be.
+   *
+   * Not trimmed on sight. Rewriting somebody's coin list because they opened a
+   * panel is a change they never asked for, and they would have no way of
+   * knowing it happened. It is said out loud with one button instead.
+   */
+  const over = !wallet && marketKeys.length > allowed
 
   function toggleVisible(on: boolean) {
     setKeys(changeVisibleMarketSelection(marketKeys, visibleKeys, on))
@@ -432,17 +513,15 @@ export default function TradeMarketsFields({
           <Select
             value={betweenDates ? "between" : "recent"}
             onValueChange={(next) =>
-              onChange({
-                ...node,
-                settings:
-                  next === "between"
-                    ? // Filled in rather than left blank, so the panel never
-                      // sits in a half-chosen state: the dates start as the
-                      // same stretch the day count was already describing, and
-                      // moving either end from there is one click.
-                      { ...node.settings, ...recentDaysAsDates(days) }
-                    : { ...node.settings, from: null, to: null },
-              })
+              commit(
+                next === "between"
+                  ? // Filled in rather than left blank, so the panel never
+                    // sits in a half-chosen state: the dates start as the
+                    // same stretch the day count was already describing, and
+                    // moving either end from there is one click.
+                    { ...node.settings, ...recentDaysAsDates(days) }
+                  : { ...node.settings, from: null, to: null }
+              )
             }
           >
             <SelectTrigger
@@ -476,12 +555,9 @@ export default function TradeMarketsFields({
                   id={`markets-${node.id}-from`}
                   value={dateFromDay(from)}
                   onChange={(picked) =>
-                    onChange({
-                      ...node,
-                      settings: {
-                        ...node.settings,
-                        from: picked ? dayFromDate(picked) : null,
-                      },
+                    commit({
+                      ...node.settings,
+                      from: picked ? dayFromDate(picked) : null,
                     })
                   }
                 />
@@ -497,12 +573,9 @@ export default function TradeMarketsFields({
                   id={`markets-${node.id}-to`}
                   value={dateFromDay(to)}
                   onChange={(picked) =>
-                    onChange({
-                      ...node,
-                      settings: {
-                        ...node.settings,
-                        to: picked ? dayFromDate(picked) : null,
-                      },
+                    commit({
+                      ...node.settings,
+                      to: picked ? dayFromDate(picked) : null,
                     })
                   }
                 />
@@ -528,9 +601,7 @@ export default function TradeMarketsFields({
             min={1}
             max={MAX_BACKTEST_DAYS}
             suffix="days"
-            onChange={(next) =>
-              onChange({ ...node, settings: { ...node.settings, days: next } })
-            }
+            onChange={(next) => commit({ ...node.settings, days: next })}
           />
         )}
       </InspectorCard>
@@ -706,7 +777,13 @@ export default function TradeMarketsFields({
                   onCheckedChange={(next) => toggleVisible(next === true)}
                 />
                 <span className="min-w-0 flex-1 text-xs font-medium">
-                  Select all {visible.length.toLocaleString()} shown
+                  {/* Says what it will actually do. Ticking this used to read
+                      "Select all 406 shown" and then save 406, which the run
+                      refused; now it takes as many as fit and says so before
+                      it is pressed. */}
+                  {moreShownThanFit
+                    ? `Select the busiest ${allowed.toLocaleString()} of ${visible.length.toLocaleString()} shown`
+                    : `Select all ${visible.length.toLocaleString()} shown`}
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   24h volume
@@ -729,6 +806,7 @@ export default function TradeMarketsFields({
                       symbol={row.symbol}
                       volume24hUsd={row.volume24hUsd}
                       checked={chosen.has(row.key)}
+                      full={full}
                       onToggle={toggle}
                     />
                   ))
@@ -737,24 +815,51 @@ export default function TradeMarketsFields({
             </ScrollArea>
 
             {/* What the list comes to, counted in whatever the step is for.
-                A backtest is bounded by reading: the candle size lives on the
-                DCA step, so the sum is only exact once both are set — this
-                says it at 4h, which is what nearly every run uses, and the run
-                itself refuses a choice that would not fit in memory. A flow
-                trading forward reads no history in bulk at all; what bounds it
-                is the money, so that is what it counts. */}
+                A backtest is bounded by reading, and the candle size lives on
+                the DCA step — so this reads that step rather than assuming 4h,
+                which is what it did before and what made the printed sum wrong
+                on any flow using a different candle. A flow trading forward
+                reads no history in bulk at all; what bounds it is the money, so
+                that is what it counts. */}
             <p className="text-xs text-muted-foreground">
               {marketKeys.length === 0
                 ? "No coins chosen yet."
                 : wallet
                   ? `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, all sharing ${wallet.capUsd === null ? "the money this flow may use" : formatUsd(wallet.capUsd)}.`
-                  : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin("4h", windowLength)).toLocaleString()} candles to read at 4h.`}
+                  : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin(interval, windowLength)).toLocaleString()} candles to read at ${interval}.`}
+              {/* Said whenever the ceiling is in play, so nobody hunts for the
+                  coins that would not go in. */}
+              {!wallet && full && !over
+                ? ` That is as many as fit at ${interval} over ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} — shorten the window to hold more.`
+                : ""}
               {tradeable
                 ? ""
                 : wallet
                   ? " These cannot be traded — this exchange gives prices, not orders."
                   : " These can be tested but not traded yet — this one gives prices, not orders."}
             </p>
+
+            {over ? (
+              <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs leading-4 text-destructive">
+                <p>
+                  This list is longer than one run can hold:{" "}
+                  {marketKeys.length.toLocaleString()} coins of {interval}{" "}
+                  candles over {windowLength.toLocaleString()}{" "}
+                  {plural(windowLength, "day", "days")}, when{" "}
+                  {allowed.toLocaleString()} is the most that fits. Nothing will
+                  be tested until it comes down.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setKeys(marketKeys)}
+                >
+                  Keep the busiest {allowed.toLocaleString()}
+                </Button>
+              </div>
+            ) : null}
           </>
         ) : null}
       </InspectorCard>
@@ -781,18 +886,36 @@ const CoinRow = React.memo(function CoinRow({
   symbol,
   volume24hUsd,
   checked,
+  full,
   onToggle,
 }: {
   marketKey: string
   symbol: string
   volume24hUsd: number
   checked: boolean
+  /**
+   * The list is already as long as this window and candle size allow.
+   *
+   * Only ever stops an unticked row being ticked — unticking is how somebody
+   * makes room, so a chosen row stays live. Refusing the click is the honest
+   * end of it: the alternative was accepting the tick and silently dropping it
+   * on save, which is a checkbox that does not stay ticked.
+   */
+  full: boolean
   onToggle: (key: string, on: boolean) => void
 }) {
+  const blocked = full && !checked
   return (
-    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60">
+    <label
+      className={
+        blocked
+          ? "flex items-center gap-2 rounded-md px-2 py-1.5 opacity-50"
+          : "flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/60"
+      }
+    >
       <Checkbox
         checked={checked}
+        disabled={blocked}
         onCheckedChange={(next) => onToggle(marketKey, next === true)}
       />
       <span className="min-w-0 flex-1 truncate text-xs font-medium">

@@ -79,7 +79,10 @@
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "build:worker": "node scripts/build-worker.mjs",
-    "worker": "node worker/dist/trade.mjs"
+    "db:migrate": "node scripts/migrate-database.mjs",
+    "worker": "node worker/dist/worker.mjs",
+    "worker:health": "node worker/dist/health.mjs",
+    "engine": "node worker/dist/trade.mjs"
   },
   "type": "module",
   "version": "0.0.1"

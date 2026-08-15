@@ -13,6 +13,7 @@ import {
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
+import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 import {
@@ -921,12 +922,7 @@ export function TradesTable({
               </span>
             </Cell>
             <Cell className="text-muted-foreground">
-              {new Date(trade.openedAt).toLocaleString(undefined, {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
+              {formatDateTime(new Date(trade.openedAt))}
             </Cell>
             <Cell className="text-muted-foreground">
               {formatHeld(trade.heldMs)}

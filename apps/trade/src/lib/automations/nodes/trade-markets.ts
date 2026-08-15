@@ -199,6 +199,50 @@ export function windowDays(settings: { days: number } & MarketWindowDates): numb
 }
 
 /**
+ * A Markets step's settings with its coin list cut down to what will fit.
+ *
+ * **The step hands out the limit; the run does not discover it.** Every coin
+ * costs its whole window of candles and a run holds them all at once, so the
+ * window and the candle size decide between them how many coins there is room
+ * for. That was only ever checked when Run was pressed, which meant a list
+ * could be built, saved and left sitting there for an hour while every press
+ * refused in thirty milliseconds and nothing on screen said why.
+ *
+ * It is the *window* that most often does this, not the coin list. Picking 400
+ * coins over a year is fine; stretching that same year to three years is what
+ * puts it over. So this runs on any change to the step, not only on the ones
+ * that touch the coins.
+ *
+ * The list is ordered busiest-first by everything that writes it in bulk, so
+ * cutting the tail keeps the coins somebody meant to have.
+ *
+ * With a wallet named there is no history to walk and nothing held in memory,
+ * so the only limit left is the one on the length of the list itself.
+ */
+export function trimMarketsToFit<T extends Record<string, unknown>>(
+  settings: T,
+  /** The candle size the run will read, off the DCA ladder step. */
+  interval: string,
+  /** True when a wallet is named, so the flow trades rather than tests. */
+  trading: boolean
+): T {
+  const keys = Array.isArray(settings.marketKeys)
+    ? (settings.marketKeys as string[])
+    : []
+  const allowed = trading
+    ? MAX_BACKTEST_MARKETS
+    : coinsAllowedFor(
+        interval,
+        windowDays({
+          days: typeof settings.days === "number" ? settings.days : 1,
+          from: typeof settings.from === "string" ? settings.from : null,
+          to: typeof settings.to === "string" ? settings.to : null,
+        })
+      )
+  return { ...settings, marketKeys: [...new Set(keys)].slice(0, allowed) }
+}
+
+/**
  * What is wrong with the two chosen dates, in words somebody can act on, or
  * null when nothing is.
  *

@@ -13,6 +13,7 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
+import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import type { BacktestTrade } from "@/lib/trade/backtest/result"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
@@ -31,6 +32,10 @@ import { cn } from "@/lib/utils"
  * The cycle still open is pinned after the sorted rows rather than sorted among
  * them: it has no exit, no return and no place in a running total, and letting
  * it float would put a row of dashes in the middle of the numbers.
+ *
+ * Entry and Exit use the app's one date formatter, not a private one. These
+ * rows get read beside real fills in the Journal, and that comparison should
+ * not start with translating two ways of writing the same minute.
  */
 type Column =
   | "n"
@@ -40,18 +45,6 @@ type Column =
   | "pnl"
   | "returnPct"
   | "cumPnl"
-
-/** The old app's `fmtTradeDate` — 24-hour, so a list of them lines up. */
-function tradeDate(ms: number): string {
-  return new Date(ms).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  })
-}
 
 export function BacktestTradesPanel({
   symbol,
@@ -224,10 +217,10 @@ function Row({
         Long
       </TableCell>
       <TableCell column="meta" className="tabular-nums">
-        {tradeDate(trade.entryAt)}
+        {formatDateTime(new Date(trade.entryAt))}
       </TableCell>
       <TableCell column="meta" className="tabular-nums">
-        {open ? "still open" : tradeDate(trade.exitAt!)}
+        {open ? "still open" : formatDateTime(new Date(trade.exitAt!))}
       </TableCell>
       <TableCell column="meta" className="text-right tabular-nums">
         {formatUsd(trade.amountUsd)}
