@@ -91,18 +91,118 @@ const browse = (
 
 function measuredDatabase() {
   let queries = 0
+  const statements: string[] = []
   const measured = drizzle(client, {
     schema,
     logger: {
-      logQuery: () => {
+      logQuery: (query) => {
         queries += 1
+        statements.push(query)
       },
     },
   }) as unknown as TestDatabase
-  return { database: measured, queryCount: () => queries }
+  return {
+    database: measured,
+    queryCount: () => queries,
+    statements: () => statements,
+  }
 }
 
 describe("only published listings are readable", () => {
+  it("orders nearby listings by database distance and keeps unpinned listings last", async () => {
+    const near = await publish(alpha, { title: "Near", slug: "near" })
+    const far = await publish(alpha, { title: "Far", slug: "far" })
+    await publish(alpha, { title: "No pin", slug: "no-pin" })
+    await updateListing(
+      alpha.id,
+      near.id,
+      { latitude: 43.653, longitude: -79.383 },
+      database
+    )
+    await updateListing(
+      alpha.id,
+      far.id,
+      { latitude: 43.753, longitude: -79.383 },
+      database
+    )
+
+    const result = await browse(alpha, {
+      near: { latitude: 43.653, longitude: -79.383 },
+      radius: 5,
+      sort: "distance",
+    })
+
+    expect(result.sort).toBe("distance")
+    expect(result.listings.map((listing) => listing.slug)).toEqual([
+      "near",
+      "no-pin",
+    ])
+    expect(result.listings[0]?.distanceKm).toBeLessThan(0.1)
+    expect(result.listings[1]?.distanceKm).toBeNull()
+
+    const titled = await browse(alpha, {
+      near: { latitude: 43.653, longitude: -79.383 },
+      radius: 50,
+      sort: "title",
+    })
+    expect(titled.listings.map((listing) => listing.slug)).toEqual([
+      "far",
+      "near",
+      "no-pin",
+    ])
+
+    const defaultRadius = await browse(alpha, {
+      near: { latitude: 43.653, longitude: -79.383 },
+      sort: "distance",
+    })
+    expect(defaultRadius.listings.map((listing) => listing.slug)).toEqual([
+      "near",
+      "no-pin",
+    ])
+  })
+
+  it("orders a thousand mapped listings with a fixed number of queries", async () => {
+    await client.query(
+      `insert into directory_listings (
+        id, workspace_id, title, slug, meta_description, rating, status,
+        display_order, featured_image, gallery, hours, latitude, longitude,
+        contact_links, body, created_at, updated_at
+      )
+      select
+        'bulk-' || value,
+        $1,
+        'Place ' || lpad(value::text, 4, '0'),
+        'place-' || value,
+        '', null, 'published', 0, '', '[]'::jsonb, '{}'::jsonb,
+        43.653 + value * 0.00001, -79.383,
+        '{"address":"","menuLinks":[],"socialLinks":[]}'::jsonb,
+        '{"type":"doc","content":[]}'::jsonb,
+        now(), now()
+      from generate_series(1, 1000) as value`,
+      [alpha.id]
+    )
+
+    const measured = measuredDatabase()
+    const result = await readPublicBrowse(
+      alpha,
+      {
+        near: { latitude: 43.653, longitude: -79.383 },
+        radius: 5,
+        sort: "distance",
+        page: 1,
+      },
+      measured.database
+    )
+
+    expect(result.total).toBe(1000)
+    expect(result.listings[0]?.title).toBe("Place 0001")
+    expect(result.listings[11]?.title).toBe("Place 0012")
+    expect(measured.queryCount()).toBeLessThan(10)
+    expect(
+      measured.statements().filter((query) => query.includes("asin")).length
+    ).toBe(1)
+  })
+
   it("drops a cached listing as soon as it becomes a draft", async () => {
     const listing = await publish(alpha, { title: "Open diner", slug: "open" })
     expect((await browse(alpha)).listings.map((row) => row.slug)).toEqual([

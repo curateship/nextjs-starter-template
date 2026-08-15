@@ -11,7 +11,9 @@ import {
 } from "@/lib/directory/listing-details"
 import {
   RELATED_LISTING_COUNT,
+  DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
   type DirectorySort,
+  type DirectoryNearPoint,
 } from "@/lib/directory/public-search"
 import {
   cleanWrittenPageBody,
@@ -153,6 +155,8 @@ export type PublicListingCard = {
   claimed: boolean
   /** A paid placement that is active at the moment this row is read. */
   featured: boolean
+  /** Present only while the visitor has asked for nearby listings. */
+  distanceKm?: number | null
 }
 
 /** A category as a link: the two fields anything pointing at one needs. */
@@ -336,6 +340,8 @@ function orderFor(
         desc(directoryListings.createdAt),
         asc(directoryListings.id),
       ]
+    case "distance":
+      return [asc(directoryListings.id)]
   }
 }
 
@@ -390,6 +396,7 @@ async function toCards(
     metaDescription: string
     rating: number | null
     featuredImage: string
+    distanceKm?: number | null
   }[],
   database: CustomShellDb
 ): Promise<PublicListingCard[]> {
@@ -525,6 +532,8 @@ async function listingPage(
     page: number
     pageSize: number
     featuredFirst: boolean
+    near?: DirectoryNearPoint
+    radius?: number
   },
   database: CustomShellDb
 ): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
@@ -558,24 +567,65 @@ async function listingPage(
   }
 
   const where = and(...filters)
+  const distanceKm = options.near
+    ? sql<
+        number | null
+      >`case when ${directoryListings.latitude} is null or ${directoryListings.longitude} is null then null else 6371 * 2 * asin(least(1, sqrt(
+        power(sin(radians(${directoryListings.latitude} - ${options.near.latitude}) / 2), 2)
+        + cos(radians(${options.near.latitude})) * cos(radians(${directoryListings.latitude}))
+        * power(sin(radians(${directoryListings.longitude} - ${options.near.longitude}) / 2), 2)
+      ))) end`
+    : undefined
+  const nearWhere =
+    options.near && options.radius && distanceKm
+      ? and(
+          where,
+          or(
+            sql`${distanceKm} <= ${options.radius}`,
+            sql`${directoryListings.latitude} is null`
+          )
+        )
+      : where
+  const ordinaryOrder = orderFor(
+    options.sort === "distance" ? "order" : options.sort,
+    siteId,
+    options.featuredFirst
+  )
+  const ordered =
+    options.sort === "distance" && distanceKm
+      ? [sql`${distanceKm} asc nulls last`, ...ordinaryOrder]
+      : options.near
+        ? [sql`${directoryListings.latitude} is null`, ...ordinaryOrder]
+        : ordinaryOrder
 
-  const [rows, [countRow]] = await Promise.all([
-    database
-      .select(cardColumns)
-      .from(directoryListings)
-      .where(where)
-      .orderBy(...orderFor(options.sort, siteId, options.featuredFirst))
-      .limit(options.pageSize)
-      .offset(offset),
-    database
+  const rows = await database
+    .select({
+      ...cardColumns,
+      ...(distanceKm ? { distanceKm } : {}),
+      total: sql<number>`count(*) over()::int`,
+    })
+    .from(directoryListings)
+    .where(nearWhere)
+    .orderBy(...ordered)
+    .limit(options.pageSize)
+    .offset(offset)
+
+  // A stale address may ask for a page beyond the end. The window count has
+  // no row to ride on then, so that rare case does one count-only fallback.
+  let total = rows[0]?.total
+  if (total === undefined && offset > 0) {
+    const [countRow] = await database
       .select({ total: sql<number>`count(*)::int` })
       .from(directoryListings)
-      .where(where),
-  ])
+      .where(nearWhere)
+    total = countRow?.total ?? 0
+  }
+
+  const cardRows = rows.map(({ total: _total, ...row }) => row)
 
   return {
-    listings: await toCards(siteId, rows, database),
-    total: countRow?.total ?? 0,
+    listings: await toCards(siteId, cardRows, database),
+    total: total ?? 0,
     page,
   }
 }
@@ -588,6 +638,8 @@ async function readPublicBrowseUncached(
     category?: string
     sort?: DirectorySort
     page: number
+    near?: DirectoryNearPoint
+    radius?: number
   },
   database: CustomShellDb = db
 ): Promise<PublicBrowse> {
@@ -598,6 +650,8 @@ async function readPublicBrowseUncached(
   const chosen = options.category
     ? allCategories.find((category) => category.slug === options.category)
     : undefined
+  const resolvedSort =
+    options.sort ?? (options.near ? "distance" : settings.defaultSort)
 
   // A category address nobody has is treated as no filter rather than as an
   // error: a stale link should still show the directory.
@@ -605,10 +659,12 @@ async function readPublicBrowseUncached(
     site.id,
     {
       ...options,
-      sort: options.sort ?? settings.defaultSort,
+      sort: resolvedSort,
       categoryId: chosen?.id,
       pageSize: settings.pageSize,
       featuredFirst: settings.featuredFirst,
+      near: options.near,
+      radius: options.radius,
     },
     database
   )
@@ -622,7 +678,7 @@ async function readPublicBrowseUncached(
     categories: allCategories.filter((category) => category.listingCount > 0),
     browseTitle: settings.browseTitle,
     browseIntro: settings.browseIntro,
-    sort: options.sort ?? settings.defaultSort,
+    sort: resolvedSort,
   }
 }
 
@@ -633,20 +689,30 @@ export function readPublicBrowse(
     category?: string
     sort?: DirectorySort
     page: number
+    near?: DirectoryNearPoint
+    radius?: number
   },
   database: CustomShellDb = db
 ): Promise<PublicBrowse> {
+  const resolvedOptions = {
+    ...options,
+    radius: options.near
+      ? (options.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM)
+      : undefined,
+  }
   return cachedPublicDirectoryRead(
     site.id,
     "browse",
     {
       site: { name: site.name, url: site.url },
-      search: options.search ?? "",
-      category: options.category ?? "",
-      sort: options.sort ?? "",
-      page: options.page,
+      search: resolvedOptions.search ?? "",
+      category: resolvedOptions.category ?? "",
+      sort: resolvedOptions.sort ?? "",
+      page: resolvedOptions.page,
+      near: resolvedOptions.near ?? null,
+      radius: resolvedOptions.radius ?? null,
     },
-    () => readPublicBrowseUncached(site, options, database)
+    () => readPublicBrowseUncached(site, resolvedOptions, database)
   )
 }
 

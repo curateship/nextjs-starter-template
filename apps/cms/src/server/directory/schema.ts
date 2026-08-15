@@ -461,6 +461,9 @@ export const directorySettings = pgTable(
       .notNull()
       .default("off"),
     frontPageCount: integer("front_page_count").notNull().default(8),
+    geocodingApiKeyEncrypted: varchar("geocoding_api_key_encrypted", {
+      length: 700,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
