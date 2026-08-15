@@ -133,6 +133,30 @@ describe("only published listings are readable", () => {
     ).toBe("Fresh title")
   })
 
+  it("returns cleaned gallery, hours and coordinates on the public page", async () => {
+    const listing = await publish(alpha, { title: "Mapped cafe", slug: "cafe" })
+    await updateListing(
+      alpha.id,
+      listing.id,
+      {
+        gallery: ["https://images.example/inside.jpg"],
+        hours: { monday: { open: "09:00", close: "17:00" } },
+        latitude: 43.6532,
+        longitude: -79.3832,
+      },
+      database
+    )
+
+    expect(
+      (await readPublicListing(alpha, "cafe", {}, database))?.listing
+    ).toMatchObject({
+      gallery: ["https://images.example/inside.jpg"],
+      hours: { monday: { open: "09:00", close: "17:00" } },
+      latitude: 43.6532,
+      longitude: -79.3832,
+    })
+  })
+
   it("keeps a draft out of the browse list", async () => {
     await createListing(
       alpha.id,

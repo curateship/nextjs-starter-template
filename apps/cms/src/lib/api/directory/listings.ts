@@ -183,6 +183,10 @@ const updateListingFn = createServerFn({ method: "POST" })
       status: z.enum(["draft", "published"]).optional(),
       displayOrder: z.number().int().min(-1_000_000).max(1_000_000).optional(),
       featuredImage: z.string().max(600).optional(),
+      gallery: z.unknown().optional(),
+      hours: z.unknown().optional(),
+      latitude: z.number().nullable().optional(),
+      longitude: z.number().nullable().optional(),
       // Checked by their own cleaners on the server — these are trees whose
       // rule is "keep only what is allowed", which a cleaner says better than
       // a schema. Anything may arrive; only the allowed shapes survive.
@@ -216,6 +220,10 @@ export function saveListing(input: {
   status?: "draft" | "published"
   displayOrder?: number
   featuredImage?: string
+  gallery?: unknown
+  hours?: unknown
+  latitude?: number | null
+  longitude?: number | null
   contactLinks?: unknown
   body?: unknown
   categoryIds?: string[]

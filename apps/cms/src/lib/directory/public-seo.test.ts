@@ -165,6 +165,49 @@ describe("the block a search engine reads", () => {
     expect(graph[1]).not.toHaveProperty("image")
   })
 
+  it("upgrades a pinned listing to LocalBusiness with hours and photos", () => {
+    const graph = listingJsonLd({
+      ...listing,
+      gallery: ["https://images.example.com/inside.jpg"],
+      hours: { monday: { open: "09:00", close: "17:00" } },
+      address: "12 Queen Street",
+      latitude: 43.6532,
+      longitude: -79.3832,
+    })["@graph"] as Record<string, unknown>[]
+
+    expect(graph[1]).toMatchObject({
+      "@type": "LocalBusiness",
+      address: "12 Queen Street",
+      image: [
+        "https://images.example.com/joe.jpg",
+        "https://images.example.com/inside.jpg",
+      ],
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: 43.6532,
+        longitude: -79.3832,
+      },
+      openingHoursSpecification: [
+        {
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: "https://schema.org/Monday",
+          opens: "09:00",
+          closes: "17:00",
+        },
+      ],
+    })
+  })
+
+  it("keeps the exact WebPage shape without coordinates", () => {
+    expect(
+      listingJsonLd({
+        ...listing,
+        gallery: ["https://images.example.com/inside.jpg"],
+        hours: { monday: { open: "09:00", close: "17:00" } },
+      })
+    ).toEqual(listingJsonLd(listing))
+  })
+
   it("never adds an admin-set rating to search-engine markup", () => {
     const ratedListing = { ...listing, rating: 4.5 }
 
