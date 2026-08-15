@@ -22,6 +22,11 @@ import {
 } from "@/lib/system-emails/kinds"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import { escapeHtml } from "@/lib/email/escape-html"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenExpiryText,
+  formatAuthTokenExpiry,
+} from "@/lib/email/auth-token-expiry"
 import { sanitizeBlocks } from "@/server/email/broadcasts"
 import { composeFromAddress, composeSystemEmail } from "@/server/email/send"
 
@@ -66,7 +71,11 @@ describe("system email wording", () => {
   })
 
   it("writes the built-in wording out on the first save", async () => {
-    const created = await getOrCreateSystemEmail(site, "password-reset", database)
+    const created = await getOrCreateSystemEmail(
+      site,
+      "password-reset",
+      database
+    )
 
     expect(created.subject).toBe("Reset your password")
     // The words that were going out a second ago, so opening the editor
@@ -88,7 +97,8 @@ describe("system email wording", () => {
     await getOrCreateSystemEmail(site, "verify-email", database)
     const blocks = createSystemEmailBlocks("verify-email")
 
-    const saved = await updateSystemEmail(site,
+    const saved = await updateSystemEmail(
+      site,
       "verify-email",
       { subject: "Please confirm", blocks },
       database
@@ -103,7 +113,8 @@ describe("system email wording", () => {
   it("creates the row on a save for an email nobody had opened", async () => {
     // A save is allowed to be the first thing that ever touches an email, so
     // nothing is lost by a tab that was open before the row existed.
-    const saved = await updateSystemEmail(site,
+    const saved = await updateSystemEmail(
+      site,
       "sign-in-link",
       { subject: "Something else entirely" },
       database
@@ -217,7 +228,9 @@ describe("system email placeholders", () => {
   })
 
   it("puts the link into the button the send fills in", () => {
-    const html = renderBroadcastEmailHtml(createSystemEmailBlocks("verify-email"))
+    const html = renderBroadcastEmailHtml(
+      createSystemEmailBlocks("verify-email")
+    )
     const filled = applySystemEmailTokens(
       html,
       { action_url: "https://app.dev/verify-email?token=a&b=1" },
@@ -227,6 +240,22 @@ describe("system email placeholders", () => {
       'href="https://app.dev/verify-email?token=a&amp;b=1"'
     )
     expect(filled).not.toContain("{{action_url}}")
+  })
+
+  it("writes exact link lifetimes in plain English", () => {
+    expect(formatAuthTokenExpiry(60 * 60 * 1000)).toBe("one hour")
+    expect(formatAuthTokenExpiry(24 * 60 * 60 * 1000)).toBe("24 hours")
+    expect(formatAuthTokenExpiry(60 * 1000)).toBe("one minute")
+    expect(formatAuthTokenExpiry(15 * 60 * 1000)).toBe("15 minutes")
+  })
+
+  it("changes the wording when the token lifetime changes", () => {
+    expect(
+      authTokenExpiryText("verify_email", {
+        ...DEFAULT_AUTH_LINK_EXPIRY,
+        verificationHours: 48,
+      })
+    ).toBe("48 hours")
   })
 })
 
@@ -268,11 +297,33 @@ describe("what actually gets sent", () => {
     const encodedHref = html.match(/href="([^"]+)"/)?.[1]
     expect(encodedHref).toBeDefined()
     const clickedUrl = new URL(encodedHref!.replaceAll("&amp;", "&"))
-    expect(clickedUrl.href).toBe(
-      "https://app.dev/reset-password?token=a&b=1"
-    )
+    expect(clickedUrl.href).toBe("https://app.dev/reset-password?token=a&b=1")
     expect(clickedUrl.searchParams.get("token")).toBe("a")
     expect(clickedUrl.searchParams.get("b")).toBe("1")
+  })
+
+  it("states the real limit in verification emails", () => {
+    const { html } = composeSystemEmail(
+      { ...request, kind: "verify-email" },
+      null
+    )
+
+    expect(html).toContain("This link expires in 24 hours.")
+  })
+
+  it("uses a workspace's saved limit in the email wording", () => {
+    const { html } = composeSystemEmail(
+      { ...request, kind: "verify-email" },
+      null,
+      {
+        linkExpiry: {
+          ...DEFAULT_AUTH_LINK_EXPIRY,
+          verificationHours: 48,
+        },
+      }
+    )
+
+    expect(html).toContain("This link expires in 48 hours.")
   })
 
   it("adds an escaped unwanted-request link to a built-in email", () => {
@@ -337,7 +388,7 @@ describe("what actually gets sent", () => {
         ...request,
         kind: "email-change",
         recipientName: "Ada Lovelace",
-        tokens: { old_email: "old@x.dev", hours: "24" },
+        tokens: { old_email: "old@x.dev", expires_in: "forever" },
       },
       {
         subject: "Confirm {{email}}",
@@ -351,6 +402,7 @@ describe("what actually gets sent", () => {
     expect(html).toContain("old@x.dev")
     expect(html).toContain("Hi Ada,")
     expect(html).toContain("24 hours")
+    expect(html).not.toContain("forever")
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
     )
@@ -451,7 +503,12 @@ describe("the record of what went out", () => {
       database
     )
 
-    const page = await listSystemEmailSends(site, "password-reset", {}, database)
+    const page = await listSystemEmailSends(
+      site,
+      "password-reset",
+      {},
+      database
+    )
     expect(page.sends).toHaveLength(2)
     expect(page.hasMore).toBe(false)
     // The same person can ask for as many reset links as they like — the whole
@@ -481,11 +538,17 @@ describe("the record of what went out", () => {
       )
     }
 
-    const first = await listSystemEmailSends(site, "new-account", { limit: 2 }, database)
+    const first = await listSystemEmailSends(
+      site,
+      "new-account",
+      { limit: 2 },
+      database
+    )
     expect(first.sends).toHaveLength(2)
     expect(first.hasMore).toBe(true)
 
-    const last = await listSystemEmailSends(site,
+    const last = await listSystemEmailSends(
+      site,
       "new-account",
       { limit: 2, offset: 2 },
       database

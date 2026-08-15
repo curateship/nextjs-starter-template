@@ -25,7 +25,6 @@ import {
   updateProfile,
   type EmailChangeState,
 } from "@/lib/api/auth/auth"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { formatDateTime } from "@/lib/format/format-time"
@@ -239,7 +238,9 @@ function EmailCard({
 
     try {
       await cancelPendingEmailChange()
-      setChange({ pendingEmail: null, expiresAt: null })
+      setChange((current) =>
+        current ? { ...current, pendingEmail: null, expiresAt: null } : current
+      )
     } catch (cancelError) {
       showErrorToast(getAuthErrorMessage(cancelError))
     } finally {
@@ -297,7 +298,7 @@ function EmailCard({
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="new-email"
-                  hint={`We email a confirmation link to the new address. Nothing changes until you open it, and the link expires after ${EMAIL_CHANGE_HOURS} hours.`}
+                  hint={`We email a confirmation link to the new address. Nothing changes until you open it, and the link expires after ${change.expiresIn}.`}
                 >
                   New email
                 </FieldLabel>

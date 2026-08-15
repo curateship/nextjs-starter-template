@@ -7,11 +7,14 @@ import { startSessionWithAlert } from "@/server/auth/security-alerts"
 import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   consumeAuthToken,
-  createAuthToken,
   findUserByEmail,
   now,
   type SessionOrigin,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 
 /**
  * Magic-link sign-in: a one-time link, emailed to the address on the account,
@@ -38,7 +41,8 @@ import {
  */
 export async function createSignInLinkToken(
   email: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext
 ) {
   const user = await findUserByEmail(email, database)
   if (!user || user.status !== "active") {
@@ -48,7 +52,9 @@ export async function createSignInLinkToken(
   return {
     email: user.email,
     name: user.name,
-    token: await createAuthToken(user.id, "login", database),
+    token: await createWorkspaceAuthToken(user.id, "login", database, {
+      context: linkContext,
+    }),
   }
 }
 

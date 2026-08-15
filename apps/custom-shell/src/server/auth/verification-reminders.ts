@@ -2,7 +2,11 @@ import { and, asc, eq, inArray, isNotNull, isNull, lte } from "drizzle-orm"
 
 import { VERIFICATION_REMINDER_DAYS } from "@/lib/email/verification-reminder"
 import { appUrlFor } from "@/server/app-url"
-import { createAuthToken, now } from "@/server/auth/security"
+import { now } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  getAuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { db, type CustomShellDb } from "@/server/db"
 import { sendAuthEmail } from "@/server/email/send"
 import { customShellUsers } from "@/server/schema"
@@ -23,6 +27,7 @@ export async function sendDueVerificationReminders(
   at: Date = now()
 ) {
   const cutoff = new Date(at.getTime() - VERIFICATION_REMINDER_DAYS * DAY_MS)
+  const linkContext = await getAuthLinkContext(database)
 
   const reminders = await database.transaction(async (tx) => {
     const due = tx
@@ -62,7 +67,9 @@ export async function sendDueVerificationReminders(
     for (const user of claimed) {
       reminders.push({
         ...user,
-        token: await createAuthToken(user.id, "verify_email", tx),
+        token: await createWorkspaceAuthToken(user.id, "verify_email", tx, {
+          context: linkContext,
+        }),
       })
     }
     return reminders
@@ -74,6 +81,8 @@ export async function sendDueVerificationReminders(
         kind: "verification-reminder",
         to: reminder.email,
         recipientName: reminder.name,
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
         actionUrl: appUrlFor(
           `/verify-email?token=${encodeURIComponent(reminder.token)}`
         ),
