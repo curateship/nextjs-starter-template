@@ -86,6 +86,14 @@ export function directoryHead(
 ) {
   const imageUrl = typeof image === "string" ? image : image.url
   return {
+    links: [
+      {
+        rel: "alternate",
+        type: "application/rss+xml",
+        title: "New listings",
+        href: "/feed.xml",
+      },
+    ],
     meta: [
       { title },
       ...(description
