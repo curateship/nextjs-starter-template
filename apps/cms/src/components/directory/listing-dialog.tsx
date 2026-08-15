@@ -6,6 +6,7 @@ import {
   MenuLinksFields,
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
+import { ListingDetailsFields } from "@/components/directory/listing-details-fields"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +56,11 @@ import {
   listingRatingFromText,
   LISTING_RATING_ERROR,
 } from "@/lib/directory/listing-rating"
+import {
+  blankListingHours,
+  requireListingCoordinates,
+  type ListingHours,
+} from "@/lib/directory/listing-details"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 
@@ -202,6 +208,10 @@ export function ListingDialog({
   const [status, setStatus] = React.useState<"draft" | "published">("draft")
   const [displayOrder, setDisplayOrder] = React.useState("0")
   const [featuredImage, setFeaturedImage] = React.useState("")
+  const [gallery, setGallery] = React.useState<string[]>([])
+  const [hours, setHours] = React.useState<ListingHours>(blankListingHours)
+  const [latitude, setLatitude] = React.useState("")
+  const [longitude, setLongitude] = React.useState("")
   const [address, setAddress] = React.useState("")
   const [menuLinks, setMenuLinks] = React.useState<MenuLink[]>([])
   const [socialLinks, setSocialLinks] = React.useState<SocialLink[]>([])
@@ -239,6 +249,10 @@ export function ListingDialog({
       setStatus(record.status)
       setDisplayOrder(String(record.displayOrder))
       setFeaturedImage(record.featuredImage)
+      setGallery(record.gallery)
+      setHours(record.hours)
+      setLatitude(record.latitude === null ? "" : String(record.latitude))
+      setLongitude(record.longitude === null ? "" : String(record.longitude))
       setAddress(record.contactLinks.address)
       setMenuLinks(record.contactLinks.menuLinks)
       setSocialLinks(record.contactLinks.socialLinks)
@@ -255,6 +269,10 @@ export function ListingDialog({
       setStatus(blank.status)
       setDisplayOrder(String(blank.displayOrder))
       setFeaturedImage(blank.featuredImage)
+      setGallery(blank.gallery)
+      setHours(blank.hours)
+      setLatitude(blank.latitude)
+      setLongitude(blank.longitude)
       setAddress(blank.contactLinks.address)
       setMenuLinks(blank.contactLinks.menuLinks)
       setSocialLinks(blank.contactLinks.socialLinks)
@@ -272,6 +290,10 @@ export function ListingDialog({
     status,
     displayOrder: Number.parseInt(displayOrder, 10) || 0,
     featuredImage,
+    gallery,
+    hours,
+    latitude,
+    longitude,
     contactLinks: { address, menuLinks, socialLinks },
     body,
     // Sorted so ticking a box off and on again is not read as an edit.
@@ -295,17 +317,31 @@ export function ListingDialog({
   async function save() {
     dismissErrorToast()
     let parsedRating: number | null
+    let coordinates: ReturnType<typeof requireListingCoordinates>
     try {
       parsedRating = listingRatingFromText(rating)
-    } catch {
-      setRatingTouched(true)
-      showErrorToast(LISTING_RATING_ERROR)
+      coordinates = requireListingCoordinates(latitude, longitude)
+    } catch (error) {
+      if (ratingTextIsInvalid(rating)) setRatingTouched(true)
+      showErrorToast(
+        error instanceof Error ? error.message : LISTING_RATING_ERROR
+      )
       return
     }
     setSaving(true)
     try {
-      const { rating: _rating, ...values } = payload()
-      const next = { ...values, rating: parsedRating }
+      const {
+        rating: _rating,
+        latitude: _latitude,
+        longitude: _longitude,
+        ...values
+      } = payload()
+      const next = {
+        ...values,
+        rating: parsedRating,
+        latitude: coordinates?.latitude ?? null,
+        longitude: coordinates?.longitude ?? null,
+      }
       let id = listingId ?? createdId
       if (!id) {
         // Creating is two of the same guarded doors the edit path uses: make
@@ -537,6 +573,18 @@ export function ListingDialog({
                   </CardContent>
                 </Card>
 
+                <ListingDetailsFields
+                  gallery={gallery}
+                  hours={hours}
+                  latitude={latitude}
+                  longitude={longitude}
+                  disabled={saving}
+                  onGalleryChange={setGallery}
+                  onHoursChange={setHours}
+                  onLatitudeChange={setLatitude}
+                  onLongitudeChange={setLongitude}
+                />
+
                 <Card size="sm">
                   <CardHeader>
                     <CardTitle>Categories</CardTitle>
@@ -741,6 +789,10 @@ function blankSnapshot() {
     status: "draft" as const,
     displayOrder: 0,
     featuredImage: "",
+    gallery: [] as string[],
+    hours: blankListingHours(),
+    latitude: "",
+    longitude: "",
     contactLinks: { address: "", menuLinks: [], socialLinks: [] },
     body: { type: "doc" as const, content: [] },
     categoryIds: [] as string[],
@@ -759,6 +811,10 @@ function openedSnapshot(data: ListingForEdit) {
     status: listing.status,
     displayOrder: listing.displayOrder,
     featuredImage: listing.featuredImage,
+    gallery: listing.gallery,
+    hours: listing.hours,
+    latitude: listing.latitude === null ? "" : String(listing.latitude),
+    longitude: listing.longitude === null ? "" : String(listing.longitude),
     contactLinks: listing.contactLinks,
     body: listing.body,
     categoryIds: [...data.categoryIds].sort(),

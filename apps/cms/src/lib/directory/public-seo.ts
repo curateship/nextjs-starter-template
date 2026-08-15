@@ -4,6 +4,13 @@ import {
   LISTING_SHARE_IMAGE_WIDTH,
   listingShareImageUrl,
 } from "@/lib/directory/listing-share-image"
+import {
+  cleanListingCoordinates,
+  cleanListingGallery,
+  cleanListingHours,
+  LISTING_WEEKDAYS,
+  LISTING_WEEKDAY_LABELS,
+} from "@/lib/directory/listing-details"
 
 /**
  * What a public directory page tells a browser and a search engine about
@@ -141,12 +148,10 @@ type JsonLdNode = Record<string, unknown>
 /**
  * The JSON-LD for one listing: who runs the site, and what this page is.
  *
- * Two things rather than one, matching the directory app — the Organization
- * block is what ties every page on a site together, and the WebPage block is
- * this page. A listing is described as a WebPage rather than a LocalBusiness
- * because a listing here is a plain record: it has no opening hours, no
- * geographic coordinates and no price, and claiming a business schema without
- * them describes the page worse, not better.
+ * Two things rather than one: the Organization ties every page on a site
+ * together, and the second node describes this listing. A map pin supplies the
+ * concrete location needed for LocalBusiness; without one the exact old
+ * WebPage shape remains, so a listing never claims facts it cannot support.
  */
 export function listingJsonLd(input: {
   siteName: string
@@ -155,20 +160,57 @@ export function listingJsonLd(input: {
   slug: string
   description: string
   image: string
+  gallery?: unknown
+  hours?: unknown
+  address?: string
+  latitude?: number | null
+  longitude?: number | null
   createdAt: Date | string
   updatedAt: Date | string
 }): JsonLdNode {
+  const coordinates = cleanListingCoordinates(input.latitude, input.longitude)
   const page: JsonLdNode = {
-    "@type": "WebPage",
+    "@type": coordinates ? "LocalBusiness" : "WebPage",
     name: input.title,
     url: siteUrlFor(input.siteUrl, `/directory/${input.slug}`),
   }
   if (input.description) page.description = input.description
-  if (input.image) page.image = input.image
+  const images = cleanListingGallery([
+    input.image,
+    ...cleanListingGallery(input.gallery),
+  ])
+  if (images.length) page.image = coordinates ? images : images[0]
+  if (coordinates) {
+    page.geo = {
+      "@type": "GeoCoordinates",
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+    }
+    if (input.address?.trim()) page.address = input.address.trim()
+    const specifications = openingHoursSpecifications(input.hours)
+    if (specifications.length) page.openingHoursSpecification = specifications
+  }
   page.datePublished = asDate(input.createdAt)
   page.dateModified = asDate(input.updatedAt)
 
   return graph([organisationJsonLd(input.siteName, input.siteUrl), page])
+}
+
+function openingHoursSpecifications(hours: unknown) {
+  const cleaned = cleanListingHours(hours)
+  return LISTING_WEEKDAYS.flatMap((day) => {
+    const value = cleaned[day]
+    return value
+      ? [
+          {
+            "@type": "OpeningHoursSpecification",
+            dayOfWeek: `https://schema.org/${LISTING_WEEKDAY_LABELS[day]}`,
+            opens: value.open,
+            closes: value.close,
+          },
+        ]
+      : []
+  })
 }
 
 /** The same for a category page: the site, and the list this page is. */

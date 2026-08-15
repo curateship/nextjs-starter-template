@@ -4,6 +4,12 @@ import { getRequestHeader } from "@tanstack/react-start/server"
 import type { ContactLinks } from "@/lib/directory/contact-links"
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import {
+  cleanListingCoordinates,
+  cleanListingGallery,
+  cleanListingHours,
+  type ListingHours,
+} from "@/lib/directory/listing-details"
+import {
   RELATED_LISTING_COUNT,
   type DirectorySort,
 } from "@/lib/directory/public-search"
@@ -175,6 +181,10 @@ export type PublicListing = {
   metaDescription: string
   rating: number | null
   featuredImage: string
+  gallery: string[]
+  hours: ListingHours
+  latitude: number | null
+  longitude: number | null
   contactLinks: ContactLinks
   body: WrittenPageNode
   updatedAt: Date
@@ -706,6 +716,7 @@ async function readPublicListingUncached(
     .limit(1)
 
   if (!row) return null
+  const coordinates = cleanListingCoordinates(row.latitude, row.longitude)
 
   const links = await database
     .select({
@@ -741,6 +752,10 @@ async function readPublicListingUncached(
       metaDescription: row.metaDescription,
       rating: row.rating,
       featuredImage: row.featuredImage,
+      gallery: cleanListingGallery(row.gallery),
+      hours: cleanListingHours(row.hours),
+      latitude: coordinates?.latitude ?? null,
+      longitude: coordinates?.longitude ?? null,
       // Cleaned on the way out as well as in, exactly as the admin's read
       // does: a row edited straight in the database is still only allowed to
       // hand a page shapes it knows are safe.

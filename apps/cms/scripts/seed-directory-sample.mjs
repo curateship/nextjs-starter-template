@@ -85,6 +85,20 @@ const sites = [
         rating: 4.5,
         category: "eat",
         order: 1,
+        featuredImage:
+          "https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1200&q=80",
+        gallery: [
+          "https://images.unsplash.com/photo-1515003197210-e0cd71810b5f?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?auto=format&fit=crop&w=1200&q=80",
+          "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?auto=format&fit=crop&w=1200&q=80",
+        ],
+        hours: weekdayHours("07:00", "21:00", {
+          saturday: { open: "08:00", close: "22:00" },
+          sunday: { open: "08:00", close: "20:00" },
+        }),
+        latitude: 40.7473,
+        longitude: -73.9887,
         address: "1245 Broadway, New York, NY",
         links: [
           { type: "phone", value: "+1 607 247 8870" },
@@ -101,6 +115,15 @@ const sites = [
         meta: "A small Italian kitchen with eleven tables.",
         category: "italian",
         order: 2,
+        gallery: [
+          "https://images.unsplash.com/photo-1579684947550-22e945225d9a?auto=format&fit=crop&w=1200&q=80",
+        ],
+        hours: weekdayHours("17:00", "23:00", {
+          monday: null,
+          sunday: null,
+        }),
+        latitude: 40.7203,
+        longitude: -74.0011,
         address: "9 Mercer Street, New York, NY",
         links: [{ type: "email", value: "hello@lapentola.example.com" }],
         body: [
@@ -401,14 +424,22 @@ async function upsertListings(client, siteId, categoryIds, listings) {
     const { rows } = await client.query(
       `insert into directory_listings
          (id, workspace_id, title, slug, meta_description, rating, status,
-          display_order, featured_image, contact_links, body, created_at, updated_at)
-       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, '', $8::jsonb, $9::jsonb, now(), now())
+          display_order, featured_image, gallery, hours, latitude, longitude,
+          contact_links, body, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8,
+               $9::jsonb, $10::jsonb, $11, $12, $13::jsonb, $14::jsonb,
+               now(), now())
        on conflict (workspace_id, slug) do update
          set title = excluded.title,
              meta_description = excluded.meta_description,
              rating = excluded.rating,
              status = excluded.status,
              display_order = excluded.display_order,
+             featured_image = excluded.featured_image,
+             gallery = excluded.gallery,
+             hours = excluded.hours,
+             latitude = excluded.latitude,
+             longitude = excluded.longitude,
              contact_links = excluded.contact_links,
              body = excluded.body,
              updated_at = now()
@@ -421,6 +452,11 @@ async function upsertListings(client, siteId, categoryIds, listings) {
         listing.rating ?? null,
         listing.draft ? "draft" : "published",
         listing.order,
+        listing.featuredImage ?? "",
+        JSON.stringify(listing.gallery ?? []),
+        JSON.stringify(listing.hours ?? {}),
+        listing.latitude ?? null,
+        listing.longitude ?? null,
         JSON.stringify(contactLinks(listing)),
         JSON.stringify(body(listing.body)),
       ]
@@ -440,6 +476,19 @@ async function upsertListings(client, siteId, categoryIds, listings) {
     )
   }
   return ids
+}
+
+function weekdayHours(open, close, overrides = {}) {
+  return {
+    monday: { open, close },
+    tuesday: { open, close },
+    wednesday: { open, close },
+    thursday: { open, close },
+    friday: { open, close },
+    saturday: { open, close },
+    sunday: { open, close },
+    ...overrides,
+  }
 }
 
 /** One real-looking active placement makes its badge and sorting inspectable. */
