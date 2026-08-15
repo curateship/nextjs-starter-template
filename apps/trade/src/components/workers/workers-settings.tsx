@@ -3,7 +3,14 @@ import { BanknoteIcon, CpuIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import {
   changeRealMoneySwitch,
   changeWorkerSwitch,
@@ -21,7 +28,8 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Is the trading engine running, and the two switches for it.
+ * Is the trading engine running, the two switches for it, and the real-money
+ * permission.
  *
  * The engine is a separate program from the website, so "is it up?" is a real
  * question with a real answer, and until this existed there was nowhere to ask
@@ -34,6 +42,10 @@ import { cn } from "@/lib/utils"
  * It fetches its own answer instead of taking one from a loader: the tab is
  * only drawn when it is opened, and the answer changes without anybody
  * clicking.
+ *
+ * The panel caps its own width: the settings page hands a tab the whole
+ * remaining screen, and switch cards stretched across an ultrawide put the
+ * label and its badge half a metre apart.
  */
 
 /** Often enough that a stopped engine is noticed, rarely enough to be cheap. */
@@ -102,25 +114,23 @@ export default function WorkersSettings() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="grid max-w-3xl gap-4">
       {data.workers.map((worker) => (
         <Card key={worker.kind}>
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div className="grid gap-1">
-              <CardTitle className="flex items-center gap-2">
-                <CpuIcon className="size-4" />
-                {worker.label}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {worker.description}
-              </p>
-            </div>
-            <Badge
-              variant="outline"
-              className={cn("shrink-0", STATE_TONE[worker.state])}
-            >
-              {WORKER_STATE_LABELS[worker.state]}
-            </Badge>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CpuIcon className="size-4" />
+              {worker.label}
+            </CardTitle>
+            <CardDescription>{worker.description}</CardDescription>
+            <CardAction>
+              <Badge
+                variant="outline"
+                className={STATE_TONE[worker.state]}
+              >
+                {WORKER_STATE_LABELS[worker.state]}
+              </Badge>
+            </CardAction>
           </CardHeader>
 
           <CardContent className="grid gap-4">
@@ -195,32 +205,31 @@ export default function WorkersSettings() {
       ))}
 
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div className="grid gap-1">
-            <CardTitle className="flex items-center gap-2">
-              <BanknoteIcon className="size-4" />
-              Real-money trading
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Whether this install may place orders with real money. Paper and
-              practice trading always work.
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className={cn(
-              "shrink-0",
-              data.realMoney.masterAllowed && data.realMoney.enabled
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-muted-foreground"
-            )}
-          >
-            {!data.realMoney.masterAllowed
-              ? "Locked off"
-              : data.realMoney.enabled
-                ? "On"
-                : "Off"}
-          </Badge>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <BanknoteIcon className="size-4" />
+            Real-money trading
+          </CardTitle>
+          <CardDescription>
+            Whether this install may place orders with real money. Paper and
+            practice trading always work.
+          </CardDescription>
+          <CardAction>
+            <Badge
+              variant="outline"
+              className={cn(
+                data.realMoney.masterAllowed && data.realMoney.enabled
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : "text-muted-foreground"
+              )}
+            >
+              {!data.realMoney.masterAllowed
+                ? "Locked off"
+                : data.realMoney.enabled
+                  ? "On"
+                  : "Off"}
+            </Badge>
+          </CardAction>
         </CardHeader>
 
         <CardContent className="grid gap-4">
