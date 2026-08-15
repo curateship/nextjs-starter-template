@@ -257,6 +257,17 @@ describe("what actually gets sent", () => {
     expect(clickedUrl.searchParams.get("b")).toBe("1")
   })
 
+  it("adds an escaped unwanted-request link to a built-in email", () => {
+    const reportUrl =
+      "https://app.dev/report-unwanted-sign-in?token=a&purpose=reset_password"
+    const { html } = composeSystemEmail({ ...request, reportUrl }, null)
+
+    expect(html).toContain("I didn&#39;t ask for this")
+    expect(html).toContain(
+      'href="https://app.dev/report-unwanted-sign-in?token=a&amp;purpose=reset_password"'
+    )
+  })
+
   it("addresses a named person without letting their name become markup", () => {
     const { html } = composeSystemEmail(
       { ...request, recipientName: "<b>Sarah</b> Jones" },
@@ -326,6 +337,25 @@ describe("what actually gets sent", () => {
       'href="https://app.dev/reset-password?token=a&amp;b=1"'
     )
     expect(html).not.toContain("{{")
+  })
+
+  it("keeps the unwanted-request link in a customized email", () => {
+    const reportUrl =
+      "https://app.dev/report-unwanted-sign-in?token=a&purpose=login"
+    const { html } = composeSystemEmail(
+      { ...request, kind: "sign-in-link", reportUrl },
+      {
+        subject: "Your secure link",
+        preheader: "Use it once",
+        fromName: null,
+        blocks: createSystemEmailBlocks("sign-in-link"),
+      }
+    )
+
+    expect(html).toContain("I didn&#39;t ask for this")
+    expect(html).toContain(
+      'href="https://app.dev/report-unwanted-sign-in?token=a&amp;purpose=login"'
+    )
   })
 
   it("uses a customized subject as the preview fallback", () => {

@@ -42,6 +42,10 @@ import {
 import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
 import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
 import {
+  REPORTABLE_AUTH_PURPOSES,
+  reportUnwantedAuthRequest,
+} from "@/server/auth/unwanted-request"
+import {
   clearSessionCookie,
   consumeAuthToken,
   createAuthToken,
@@ -482,6 +486,9 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
         ),
+        reportUrl: appUrlFor(
+          `/report-unwanted-sign-in?token=${encodeURIComponent(link.token)}&purpose=login`
+        ),
       })
     }
 
@@ -543,6 +550,9 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
         recipientName: user.name,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
+        ),
+        reportUrl: appUrlFor(
+          `/report-unwanted-sign-in?token=${encodeURIComponent(token)}&purpose=reset_password`
         ),
       })
     }
@@ -863,6 +873,43 @@ const revokeEmailChangeFn = createServerFn({ method: "POST" })
     return result
   })
 
+/**
+ * Stops one unwanted reset or sign-in link without changing the account.
+ *
+ * An invalid, expired or already-used token gets the same answer as a real
+ * report. That keeps this public endpoint from confirming whether the token or
+ * its account ever existed.
+ */
+const reportUnwantedAuthRequestFn = createServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      token: tokenSchema,
+      purpose: z.enum(REPORTABLE_AUTH_PURPOSES),
+    })
+  )
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const rateLimitKey = `unwanted-auth-request:${requestIp()}`
+    await enforceRateLimit(rateLimitKey, {
+      maxAttempts: 10,
+      windowSeconds: 60 * 60,
+    })
+
+    try {
+      await reportUnwantedAuthRequest(data.token, data.purpose)
+      await clearRateLimit(rateLimitKey)
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "INVALID_OR_EXPIRED_TOKEN"
+      ) {
+        throw error
+      }
+    }
+
+    return { ok: true }
+  })
+
 /** The devices signed in to this account, for the Security tab's list. */
 const loadSessionsFn = createServerFn({ method: "GET" }).handler(async () => {
   const owner = await requireSessionOwner()
@@ -1009,6 +1056,13 @@ export function confirmEmailChange(token: string) {
 
 export function revokePendingEmailChange(token: string) {
   return revokeEmailChangeFn({ data: { token } })
+}
+
+export function reportUnwantedSignIn(
+  token: string,
+  purpose: (typeof REPORTABLE_AUTH_PURPOSES)[number]
+) {
+  return reportUnwantedAuthRequestFn({ data: { token, purpose } })
 }
 
 export function loadSessions() {
