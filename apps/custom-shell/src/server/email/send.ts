@@ -14,6 +14,7 @@ import {
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
+import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import {
   captureDevEmail,
   devOutboxIsAvailable,
@@ -172,12 +173,12 @@ export function composeFromAddress(
   return `${safeName} <${address}>`
 }
 
-function fromAddress(fromName: string | null) {
-  return composeFromAddress(
-    fromName,
-    process.env.CUSTOM_SHELL_EMAIL_FROM ||
-      "Custom Shell <onboarding@resend.dev>",
-  )
+async function fromAddress(
+  fromName: string | null,
+  workspaceId: string | null,
+) {
+  const sender = await getWorkspaceSystemEmailSender(workspaceId)
+  return composeFromAddress(fromName, sender.from)
 }
 
 /**
@@ -258,7 +259,7 @@ export async function sendAuthEmail(email: AuthEmail) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: fromAddress(fromName),
+        from: await fromAddress(fromName, workspaceId),
         to: [email.to],
         subject,
         html,

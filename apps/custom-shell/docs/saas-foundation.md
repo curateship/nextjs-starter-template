@@ -379,7 +379,7 @@ If you add a data migration, follow the same pattern: guard it on a
 | `CUSTOM_SHELL_GOOGLE_CLIENT_ID` | Google OAuth client. Absent = no "Continue with Google" button. |
 | `CUSTOM_SHELL_GOOGLE_CLIENT_SECRET` | Server-only half of the same pair. |
 | `CUSTOM_SHELL_RESEND_API_KEY` | Sends auth email. Absent in dev = links logged to the console. |
-| `CUSTOM_SHELL_EMAIL_FROM` | From address for auth email. |
+| `CUSTOM_SHELL_EMAIL_FROM` | Default sender for sign-in, verification, reset, and security email. It must use a domain verified in Resend. A workspace can replace it in Settings → Email. |
 | `CUSTOM_SHELL_SESSION_TTL_HOURS` | Session lifetime. Defaults to ten years. |
 | `CUSTOM_SHELL_API_ENV` | `"production"` tightens the email fallback and origin allowlist. |
 

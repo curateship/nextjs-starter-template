@@ -2034,6 +2034,8 @@ export const customShellEmailSettings = pgTable("email_settings", {
    * complaints back to `/api/webhooks/resend`. Encrypted like the key above.
    */
   resendWebhookSecretEncrypted: text("resend_webhook_secret_encrypted"),
+  /** Sender address for this workspace's sign-in, reset, and security mail. */
+  systemFromEmail: varchar("system_from_email", { length: 255 }),
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
   /**

@@ -20,6 +20,7 @@ import {
   saveEmailSenderSettings,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
+  saveSystemEmailSenderSetting,
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
@@ -42,9 +43,9 @@ const SAVE_DELAY_MS = 1200
 const SAVED_SENTINEL = "••••••••••••"
 
 /**
- * Settings → Email. The Resend key every email in the app sends with, and the
- * name and address they come from. The key is saved encrypted through
- * server/email/settings.ts and the browser only ever sees a masked tail.
+ * Settings → Email. The Resend key every email in the app sends with, the
+ * system sender, and this workspace's newsletter sender. The key is saved
+ * encrypted and the browser only ever sees a masked tail.
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button.
  */
@@ -56,6 +57,7 @@ export function EmailSettings() {
 
   // The sender fields as typed; null until the load fills them in.
   const [sender, setSender] = React.useState<{
+    systemFromEmail: string
     fromEmail: string
     fromName: string
   } | null>(null)
@@ -74,7 +76,7 @@ export function EmailSettings() {
   // "Test this key" right after typing blurs the field, the blur starts the
   // save, and a save that disabled the buttons would swallow that very click.
   const [saving, setSaving] = React.useState<
-    "sender" | "key" | "webhook" | "drip" | null
+    "systemSender" | "sender" | "key" | "webhook" | "drip" | null
   >(null)
   // The last test's verdict, already worded for the user.
   const [testResult, setTestResult] = React.useState("")
@@ -116,7 +118,11 @@ export function EmailSettings() {
         if (cancelled) return
         setStatus(next)
         setSender((prev) =>
-          prev ?? { fromEmail: next.fromEmail, fromName: next.fromName }
+          prev ?? {
+            systemFromEmail: next.systemFromEmail,
+            fromEmail: next.fromEmail,
+            fromName: next.fromName,
+          }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
         setLoadError(null)
@@ -130,6 +136,21 @@ export function EmailSettings() {
   }, [reloads])
 
   const busy = runningId !== null
+
+  const saveSystemSender = async (systemFromEmail: string) => {
+    setSaving("systemSender")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveSystemEmailSenderSetting(systemFromEmail))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
 
   // `values` ride in as arguments, not read from state: the timer's closure
   // must save exactly what was typed when it was scheduled.
@@ -236,6 +257,24 @@ export function EmailSettings() {
     )
   }
 
+  const scheduleSystemSenderSave = (systemFromEmail: string) => {
+    clearTimeout(timers.current.systemSender)
+    timers.current.systemSender = setTimeout(
+      () => void saveSystemSender(systemFromEmail),
+      SAVE_DELAY_MS,
+    )
+  }
+
+  const flushSystemSenderSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.systemSender)
+    if (saving !== null) {
+      scheduleSystemSenderSave(sender.systemFromEmail)
+      return
+    }
+    void saveSystemSender(sender.systemFromEmail)
+  }
+
   const flushSenderSave = () => {
     if (!sender) return
     clearTimeout(timers.current.sender)
@@ -329,7 +368,7 @@ export function EmailSettings() {
       <CollapsibleSettingsCard
         storageId="email-sending"
         title="Sending emails"
-        description="Every email this app sends — sign-in links, newsletters, automations — goes out through Resend with this key, from this name and address."
+        description="Every email goes through Resend with this key. Choose one sender for sign-in, reset, and security emails, and another for this workspace's newsletters and automation emails."
         contentClassName="space-y-6"
       >
         {loadError ? (
@@ -345,6 +384,35 @@ export function EmailSettings() {
           <>
             <DeliveryStatusRow status={status} />
             <LinkAddressStatusRow status={status} />
+            <SystemSenderStatusRow status={status} />
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-system-from-address"
+                hint="Used for this workspace's sign-in, verification, password-reset, and security emails. It must be on a domain verified inside Resend."
+              >
+                System email address
+              </FieldLabel>
+              <Input
+                id="email-system-from-address"
+                type="email"
+                autoComplete="off"
+                placeholder="e.g. notifications@yourdomain.com"
+                value={sender.systemFromEmail}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    systemFromEmail: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleSystemSenderSave(next.systemFromEmail)
+                }}
+                onBlur={flushSystemSenderSave}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") flushSystemSenderSave()
+                }}
+              />
+            </div>
 
             <div className="grid gap-2">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -469,9 +537,9 @@ export function EmailSettings() {
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="email-from-name"
-                hint="The name in the recipient's inbox, in front of the address — like a return address label."
+                hint="The name this workspace's newsletters and automation emails show in the recipient's inbox."
               >
-                From name
+                Newsletter from name
               </FieldLabel>
               <Input
                 id="email-from-name"
@@ -493,9 +561,9 @@ export function EmailSettings() {
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="email-from-address"
-                hint="Must be an address on a domain you have verified inside Resend, or Resend refuses to send."
+                hint="Used only by this workspace's newsletters and automation emails. It must be on a domain verified inside Resend."
               >
-                From address
+                Newsletter from address
               </FieldLabel>
               <Input
                 id="email-from-address"
@@ -592,6 +660,26 @@ function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
 /** Where the links in system emails lead, kept visible beside sending health. */
 function LinkAddressStatusRow({ status }: { status: EmailSettingsStatus }) {
   return <EmailStatusRow {...emailLinkStatusLine(status)} />
+}
+
+/** The active sender for account and security messages. */
+function SystemSenderStatusRow({ status }: { status: EmailSettingsStatus }) {
+  return (
+    <EmailStatusRow
+      on={status.systemSender.configured}
+      line={systemSenderStatusLine(status)}
+    />
+  )
+}
+
+function systemSenderStatusLine(status: EmailSettingsStatus) {
+  if (status.systemSender.source === "settings") {
+    return `System emails come from ${status.systemSender.from}. This workspace controls the address below.`
+  }
+  if (status.systemSender.configured) {
+    return `System emails come from ${status.systemSender.from}. Save a different verified address below to replace the deployment default.`
+  }
+  return `System emails are using Resend's testing sender, ${status.systemSender.from}. It only delivers to the Resend account owner; set CUSTOM_SHELL_EMAIL_FROM to an address on a verified domain.`
 }
 
 /** One shared warning shape for sending health and link health. */

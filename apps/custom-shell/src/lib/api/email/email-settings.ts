@@ -8,6 +8,7 @@ import {
   getEmailSettingsStatus,
   saveDripDefaults,
   saveEmailSender,
+  saveSystemEmailSender,
   setEmailApiKey,
   setResendWebhookSecret,
   testEmailApiKey,
@@ -70,6 +71,25 @@ const saveEmailSenderFn = createServerFn({ method: "POST" })
 export function saveEmailSenderSettings(fromEmail: string, fromName: string) {
   return saveEmailSenderFn({
     data: { fromEmail: fromEmail.trim(), fromName },
+  })
+}
+
+const saveSystemEmailSenderFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(
+    z.object({
+      systemFromEmail: z.union([z.literal(""), z.string().email().max(255)]),
+    }),
+  )
+  .handler(async ({ data, context }): Promise<EmailSettingsStatus> => {
+    const workspaceId = await currentWorkspaceId(context.user.id)
+    await saveSystemEmailSender(workspaceId, data.systemFromEmail)
+    return getEmailSettingsStatus(workspaceId)
+  })
+
+export function saveSystemEmailSenderSetting(systemFromEmail: string) {
+  return saveSystemEmailSenderFn({
+    data: { systemFromEmail: systemFromEmail.trim() },
   })
 }
 

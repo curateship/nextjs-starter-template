@@ -5,8 +5,10 @@ import { type CustomShellDb } from "@/server/db"
 import {
   getEmailDeliveryStatus,
   getEmailSettingsStatus,
+  saveSystemEmailSender,
   setEmailApiKey,
 } from "@/server/email/settings"
+import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import { customShellEmailSettings, customShellWorkspaces } from "@/server/schema"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -25,8 +27,10 @@ import {
 
 const ENV_KEY = "CUSTOM_SHELL_RESEND_API_KEY"
 const ENV_MODE = "CUSTOM_SHELL_API_ENV"
+const ENV_FROM = "CUSTOM_SHELL_EMAIL_FROM"
 const originalKey = process.env[ENV_KEY]
 const originalMode = process.env[ENV_MODE]
+const originalFrom = process.env[ENV_FROM]
 
 describe("whether email is on", () => {
   let db: CustomShellDb
@@ -36,6 +40,7 @@ describe("whether email is on", () => {
     process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "test-encryption-key"
     delete process.env[ENV_KEY]
     delete process.env[ENV_MODE]
+    delete process.env[ENV_FROM]
 
     db = (await createTestDatabase()).db as unknown as CustomShellDb
     const user = await insertUser(db, { email: "owner@example.com" })
@@ -54,6 +59,7 @@ describe("whether email is on", () => {
   afterEach(() => {
     restore(ENV_KEY, originalKey)
     restore(ENV_MODE, originalMode)
+    restore(ENV_FROM, originalFrom)
   })
 
   it("says nothing can send when there is no key anywhere", async () => {
@@ -96,6 +102,44 @@ describe("whether email is on", () => {
     expect(status.maskedKey).toBe("••••1234")
     expect(status.delivery.source).toBe("settings")
     expect(status.links.address).toBe("http://localhost:3002")
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <onboarding@resend.dev>",
+      address: "onboarding@resend.dev",
+      configured: false,
+      source: "resend-test",
+    })
+    expect(status.systemFromEmail).toBe("onboarding@resend.dev")
+  })
+
+  it("shows the deployment sender without exposing a secret", async () => {
+    process.env[ENV_FROM] =
+      "Custom Shell <notifications@systemeverything.com>"
+
+    const status = await getEmailSettingsStatus(workspaceId, db)
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <notifications@systemeverything.com>",
+      address: "notifications@systemeverything.com",
+      configured: true,
+      source: "environment",
+    })
+  })
+
+  it("lets the workspace replace the deployment's system sender", async () => {
+    process.env[ENV_FROM] =
+      "Custom Shell <notifications@systemeverything.com>"
+    await saveSystemEmailSender(workspaceId, "accounts@example.com", db)
+
+    const status = await getEmailSettingsStatus(workspaceId, db)
+    expect(status.systemFromEmail).toBe("accounts@example.com")
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <accounts@example.com>",
+      address: "accounts@example.com",
+      configured: true,
+      source: "settings",
+    })
+    await expect(getWorkspaceSystemEmailSender(workspaceId, db)).resolves.toEqual(
+      status.systemSender,
+    )
   })
 
   it("says only what a key saved here really covers", async () => {
