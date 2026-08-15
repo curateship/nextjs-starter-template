@@ -399,6 +399,30 @@ async function toCards(
   }))
 }
 
+/** Published cards from this site, returned in the caller's requested order. */
+export async function publicListingCardsByIds(
+  siteId: string,
+  listingIds: string[],
+  database: CustomShellDb = db
+): Promise<PublicListingCard[]> {
+  const uniqueIds = [...new Set(listingIds)]
+  if (uniqueIds.length === 0) return []
+
+  const rows = await database
+    .select(cardColumns)
+    .from(directoryListings)
+    .where(
+      and(publishedOnSite(siteId), inArray(directoryListings.id, uniqueIds))
+    )
+  const cards = await toCards(siteId, rows, database)
+  const byId = new Map(cards.map((card) => [card.id, card]))
+
+  return uniqueIds.flatMap((id) => {
+    const card = byId.get(id)
+    return card ? [card] : []
+  })
+}
+
 /** The columns a card needs, so a grid never fetches a listing's whole body. */
 const cardColumns = {
   id: directoryListings.id,

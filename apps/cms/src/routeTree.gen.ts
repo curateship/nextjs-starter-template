@@ -39,6 +39,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
@@ -234,6 +235,11 @@ const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
 const DirectorySlugRoute = DirectorySlugRouteImport.update({
   id: '/directory_/$slug',
   path: '/directory/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileProfileIdRoute = ProfileProfileIdRouteImport.update({
+  id: '/profile_/$profileId',
+  path: '/profile/$profileId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -522,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -596,6 +603,7 @@ export interface FileRoutesByTo {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -674,6 +682,7 @@ export interface FileRoutesById {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory_/$slug': typeof DirectorySlugRoute
+  '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -752,6 +761,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
+    | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -826,6 +836,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
+    | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -903,6 +914,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory_/$slug'
+    | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
@@ -974,6 +986,7 @@ export interface RootRouteChildren {
   ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
+  ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
@@ -1196,6 +1209,13 @@ declare module '@tanstack/react-router' {
       path: '/directory/$slug'
       fullPath: '/directory/$slug'
       preLoaderRoute: typeof DirectorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile_/$profileId': {
+      id: '/profile_/$profileId'
+      path: '/profile/$profileId'
+      fullPath: '/profile/$profileId'
+      preLoaderRoute: typeof ProfileProfileIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1685,6 +1705,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   DirectorySlugRoute: DirectorySlugRoute,
+  ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
