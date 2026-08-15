@@ -10,10 +10,17 @@ import { plural } from "@/lib/format/plural"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
   DIRECTORY_SORTS,
+  formatDirectoryNearPoint,
+  parseDirectoryNearPoint,
+  readDirectoryNearRadius,
   type DirectoryBrowseSearch,
   type DirectorySort,
 } from "@/lib/directory/public-search"
-import { directoryDescription, directoryHead, directoryTitle } from "@/lib/directory/public-seo"
+import {
+  directoryDescription,
+  directoryHead,
+  directoryTitle,
+} from "@/lib/directory/public-seo"
 import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 /**
@@ -29,14 +36,22 @@ import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
  * dead link rather than an empty directory.
  */
 export const Route = createFileRoute("/directory")({
-  validateSearch: (search: Record<string, unknown>): DirectoryBrowseSearch => ({
-    // Every value is checked against a fixed list or a range, so a hand-edited
-    // address can only ever fall back to the default.
-    q: readSearchText(search.q),
-    category: readSearchText(search.category),
-    sort: readOneOf(search.sort, DIRECTORY_SORTS),
-    page: readPage(search.page),
-  }),
+  validateSearch: (search: Record<string, unknown>): DirectoryBrowseSearch => {
+    const point = parseDirectoryNearPoint(search.near)
+    const near = point ? formatDirectoryNearPoint(point) : undefined
+    const sort = readOneOf(search.sort, DIRECTORY_SORTS)
+    return {
+      // Every value is checked against a fixed list or a range, so a hand-edited
+      // address can only ever fall back to the default.
+      q: readSearchText(search.q),
+      category: readSearchText(search.category),
+      sort: sort === "distance" && !near ? undefined : sort,
+      page: readPage(search.page),
+      near,
+      place: readSearchText(search.place),
+      radius: readDirectoryNearRadius(search.radius),
+    }
+  },
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     // An admin can switch the directory off or make it members-only, the same
@@ -50,6 +65,9 @@ export const Route = createFileRoute("/directory")({
         category: deps.category,
         sort: deps.sort,
         page: deps.page,
+        near: deps.near,
+        place: deps.place,
+        radius: deps.radius,
       }),
     ])
 
@@ -114,14 +132,35 @@ function DirectoryRoute() {
         onSortChange={(value: DirectorySort) =>
           setListSearch({ sort: value, page: undefined })
         }
+        onNearChange={(near, place, radius) =>
+          setListSearch({
+            near,
+            place,
+            radius,
+            sort: "distance",
+            page: undefined,
+          })
+        }
+        onRadiusChange={(radius) => setListSearch({ radius, page: undefined })}
+        onNearClear={() =>
+          setListSearch({
+            near: undefined,
+            place: undefined,
+            radius: undefined,
+            sort: undefined,
+            page: undefined,
+          })
+        }
       />
 
       <ListingGrid
         listings={listings}
         emptyMessage={
-          current.q || current.category
-            ? "Nothing matches that. Try a different search or category."
-            : "There is nothing in this directory yet."
+          current.near
+            ? "Nothing is within that distance. Try a wider distance or a different location."
+            : current.q || current.category
+              ? "Nothing matches that. Try a different search or category."
+              : "There is nothing in this directory yet."
         }
       />
 
@@ -140,6 +179,9 @@ function directoryPageHref(search: DirectoryBrowseSearch, page: number) {
   if (search.q) parameters.set("q", search.q)
   if (search.category) parameters.set("category", search.category)
   if (search.sort) parameters.set("sort", search.sort)
+  if (search.near) parameters.set("near", search.near)
+  if (search.place) parameters.set("place", search.place)
+  if (search.radius) parameters.set("radius", String(search.radius))
   if (page > 1) parameters.set("page", String(page))
   const query = parameters.toString()
   return `/directory${query ? `?${query}` : ""}`

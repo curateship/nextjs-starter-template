@@ -37,6 +37,8 @@ export const appOpenEndpoints: Record<string, string> = {
     "A category page is public, and it reads the same published listings the browse page does, scoped to the site whose address was typed.",
   "directory/public.ts:readDirectoryFrontPageFn":
     "A site's optional listings home page is public, and it returns published cards only for the site whose address the visitor typed.",
+  "directory/public.ts:geocodeDirectoryPlaceFn":
+    "A visitor may type a town when browser location is unavailable; this lookup is rate limited, cached, and returns no private site data.",
   "directory/public-profile.ts:readPublicSavedProfileFn":
     "A person can share the saved lists they explicitly made public, and this returns only those lists and published listings on the visited site.",
   "directory/submissions.ts:readSubmissionFormFn":

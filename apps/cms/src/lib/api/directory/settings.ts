@@ -1,8 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { DIRECTORY_SORTS } from "@/lib/directory/public-search"
 import { DIRECTORY_FRONT_PAGE_MODES } from "@/lib/directory/front-page"
+import { DIRECTORY_DEFAULT_SORTS } from "@/lib/directory/public-search"
 import { adminGet, adminPost } from "@/server/guards"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
@@ -10,6 +10,7 @@ import {
   saveDirectoryBadgesEnabled,
   saveDirectoryBrowseSettings,
   saveDirectoryFrontPageSettings,
+  directoryGeocodingKeyStatus,
   type DirectorySettings,
 } from "@/server/directory/settings"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -40,10 +41,12 @@ export const getClearPublicPagesErrorMessage = createErrorMessage(
 const loadDirectorySettingsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
-    const settings = await directorySettingsFor(
-      await workspaceIdForRequest(context.user.id)
-    )
-    return settings
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    const [settings, geocodingKeyStatus] = await Promise.all([
+      directorySettingsFor(workspaceId),
+      directoryGeocodingKeyStatus(workspaceId),
+    ])
+    return { ...settings, geocodingKeyStatus }
   })
 
 export function loadDirectorySettings() {
@@ -78,7 +81,7 @@ export function saveBadgeSettings(badgesEnabled: boolean) {
 
 const browseSettingsInput = z.object({
   pageSize: z.number(),
-  defaultSort: z.enum(DIRECTORY_SORTS),
+  defaultSort: z.enum(DIRECTORY_DEFAULT_SORTS),
   browseTitle: z.string().max(120),
   browseIntro: z.string().max(500),
   featuredFirst: z.boolean(),
