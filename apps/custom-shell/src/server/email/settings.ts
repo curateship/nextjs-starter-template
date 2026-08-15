@@ -348,7 +348,7 @@ export async function getEmailSettingsStatus(
 
 export type EmailKeyTestResult =
   | { result: "ok" }
-  | { result: "rejected" }
+  | { result: "rejected"; reason: string }
   | { result: "unreachable" }
   | { result: "error"; status: number }
 
@@ -385,10 +385,30 @@ export async function testEmailApiKey(
   }
 
   if (response.ok) return { result: "ok" }
+  const body = (await response.json().catch(() => null)) as {
+    name?: string
+    type?: string
+    message?: string
+    error?: { name?: string; type?: string; message?: string }
+  } | null
+  // A sending-only key proves it is genuine by reaching Resend's permission
+  // check. It cannot list domains, but it can do the one job this app needs.
+  const name = body?.name ?? body?.type ?? body?.error?.name ?? body?.error?.type
+  const reason =
+    (body?.message ?? body?.error?.message ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500) || "Resend rejected it."
+  if (
+    name === "restricted_api_key" ||
+    /restricted to (only )?send emails/i.test(reason)
+  ) {
+    return { result: "ok" }
+  }
   // 400 included: this GET carries no body, so a 400 can only mean Resend
   // looked at the key itself and turned it away as malformed.
   if ([400, 401, 403].includes(response.status)) {
-    return { result: "rejected" }
+    return { result: "rejected", reason }
   }
   return { result: "error", status: response.status }
 }

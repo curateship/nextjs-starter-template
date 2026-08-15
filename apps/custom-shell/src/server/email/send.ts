@@ -1,6 +1,11 @@
 import { escapeHtml } from "@/lib/email/escape-html"
 import { emailFirstName } from "@/lib/email/recipient-name"
 import {
+  describeResendFailure,
+  emailDeliveryError,
+  unreachableEmailServiceFailure,
+} from "@/lib/email/delivery-failure"
+import {
   DEFAULT_AUTH_LINK_EXPIRY,
   authTokenExpiryText,
   type AuthLinkExpiry,
@@ -48,6 +53,8 @@ export type AuthEmail = {
   workspaceId?: string
   /** The lifetime snapshot used when this email's token was created. */
   linkExpiry?: AuthLinkExpiry
+  /** Only authenticated admin actions may receive Resend's exact reason. */
+  showFailureReasonToAdmin?: boolean
   /**
    * Values for the placeholders this kind of email offers, over and above the
    * address and the link, which are filled in for every one of them.
@@ -298,41 +305,42 @@ export async function sendAuthEmail(email: AuthEmail) {
   } catch {
     // Network errors have no provider response to quote. Keep the useful fact
     // without logging a low-level error that could contain request details.
+    const failure = unreachableEmailServiceFailure()
     await logSend(workspaceId, email, subject, {
       status: "failed",
-      error: "The email service could not be reached.",
+      error: failure.reason,
     })
-    throw new Error("EMAIL_DELIVERY_FAILED")
+    throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
+  const body = (await response.json().catch(() => null)) as unknown
   if (!response.ok) {
     // Resend's own words, not just the number. Its refusals are the useful
     // kind — "the domain is not verified", "you can only send to your own
     // address" — and a bare 403 sends somebody hunting for a bug in the app
     // when the answer was sitting in the response all along.
-    const reason = await response
-      .json()
-      .then((body: { message?: string }) => body?.message ?? "")
-      .catch(() => "")
+    const failure = describeResendFailure(response.status, body)
 
     await logSend(workspaceId, email, subject, {
       status: "failed",
-      error: reason
-        ? `The email service refused it (${response.status}): ${reason}`
-        : `The email service refused it (${response.status}).`,
+      error: failure.reason,
     })
-    throw new Error("EMAIL_DELIVERY_FAILED")
+    throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
-  const body = (await response.json().catch(() => null)) as {
-    id?: string
-  } | null
+  const messageId =
+    body &&
+    typeof body === "object" &&
+    "id" in body &&
+    typeof body.id === "string"
+      ? body.id
+      : null
   await logSend(workspaceId, email, subject, {
     status: "sent",
-    providerMessageId: body?.id ?? null,
+    providerMessageId: messageId,
   })
 
-  return { delivered: true }
+  return { delivered: true, messageId }
 }
 
 /**

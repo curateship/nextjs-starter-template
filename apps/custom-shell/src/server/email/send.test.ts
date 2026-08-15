@@ -24,6 +24,11 @@ vi.mock("@/server/email/branding", () => ({
   emailBrandName: vi.fn(),
   protectSentEmailLogos: vi.fn(),
 }))
+vi.mock("@/server/email/app-sender", () => ({
+  getWorkspaceSystemEmailSender: vi.fn().mockResolvedValue({
+    from: "Custom Shell <onboarding@resend.dev>",
+  }),
+}))
 
 import { sendAuthEmail } from "@/server/email/send"
 
@@ -40,6 +45,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   vi.restoreAllMocks()
   emailSettings.getAppEmailApiKey.mockReset()
   sends.recordSystemEmailSend.mockReset()
@@ -79,6 +85,113 @@ describe("an unconfigured system-email sender", () => {
         status: "failed",
         error: "No Resend key is saved under Settings → Email.",
       }),
+    )
+  })
+})
+
+describe("a configured system-email sender", () => {
+  beforeEach(() => {
+    emailSettings.getAppEmailApiKey.mockResolvedValue("re_test")
+  })
+
+  it("returns and records Resend's message id", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(Response.json({ id: "email-123" }, { status: 200 }))
+    )
+
+    await expect(sendAuthEmail(request)).resolves.toEqual({
+      delivered: true,
+      messageId: "email-123",
+    })
+    expect(sends.recordSystemEmailSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "sent",
+        providerMessageId: "email-123",
+      })
+    )
+  })
+
+  it("tells an admin when the key needs attention", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json(
+            { name: "invalid_api_key", message: "API key is invalid." },
+            { status: 403 }
+          )
+        )
+    )
+
+    await expect(
+      sendAuthEmail({ ...request, showFailureReasonToAdmin: true })
+    ).rejects.toThrow("EMAIL_DELIVERY_NEEDS_ATTENTION: API key is invalid.")
+    expect(sends.recordSystemEmailSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error: "API key is invalid.",
+      })
+    )
+  })
+
+  it("tells an admin when the failure is temporary", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            name: "rate_limit_exceeded",
+            message: "Too many requests.",
+          },
+          { status: 429 }
+        )
+      )
+    )
+
+    await expect(
+      sendAuthEmail({ ...request, showFailureReasonToAdmin: true })
+    ).rejects.toThrow("EMAIL_DELIVERY_RETRYABLE: Too many requests.")
+  })
+
+  it("does not expose Resend's reason to a signed-out flow", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            name: "invalid_api_key",
+            message: "Secret account configuration detail.",
+          },
+          { status: 403 }
+        )
+      )
+    )
+
+    await expect(sendAuthEmail(request)).rejects.toThrow(
+      /^EMAIL_DELIVERY_NEEDS_ATTENTION$/
+    )
+  })
+
+  it("treats a network failure as temporary without logging its details", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("socket secret"))
+    )
+
+    await expect(
+      sendAuthEmail({ ...request, showFailureReasonToAdmin: true })
+    ).rejects.toThrow(
+      "EMAIL_DELIVERY_RETRYABLE: The email service could not be reached."
+    )
+    expect(sends.recordSystemEmailSend).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        error: "The email service could not be reached.",
+      })
     )
   })
 })

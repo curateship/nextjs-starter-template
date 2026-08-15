@@ -87,8 +87,6 @@ export function EmailSettings() {
     | "linkExpiry"
     | null
   >(null)
-  // The last test's verdict, already worded for the user.
-  const [testResult, setTestResult] = React.useState("")
   // Which secret's Remove is waiting on its confirmation, if any.
   const [removing, setRemoving] = React.useState<"key" | "webhook" | null>(
     null
@@ -370,9 +368,11 @@ export function EmailSettings() {
   const test = async () => {
     setRunningId("test")
     dismissErrorToast()
-    setTestResult("")
     try {
-      setTestResult(testMessage(await testEmailKey(keyDraft)))
+      const verdict = await testEmailKey(keyDraft)
+      const message = testMessage(verdict)
+      if (verdict.result === "ok") toast.success(message)
+      else showErrorToast(message)
     } catch (error) {
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -383,7 +383,6 @@ export function EmailSettings() {
   const remove = async (what: "key" | "webhook") => {
     setRunningId("remove")
     dismissErrorToast()
-    if (what === "key") setTestResult("")
     try {
       setStatus(
         await (what === "key" ? removeEmailApiKey() : removeResendWebhookSecret())
@@ -484,9 +483,6 @@ export function EmailSettings() {
                   }}
                   onChange={(event) => {
                     setKeyDraft(event.target.value)
-                    // A verdict is about one exact key; edited text is
-                    // another key, so the old verdict comes down.
-                    setTestResult("")
                     scheduleKeySave(event.target.value)
                   }}
                   onKeyDown={(event) => {
@@ -523,11 +519,6 @@ export function EmailSettings() {
                   ) : null}
                 </div>
               </div>
-              {testResult ? (
-                <p role="status" className="text-sm text-muted-foreground">
-                  {testResult}
-                </p>
-              ) : null}
             </div>
 
             <div className="grid gap-2">
@@ -922,7 +913,7 @@ function testMessage(verdict: EmailKeyTestResult) {
     case "ok":
       return "It works — Resend accepted the key."
     case "rejected":
-      return "Resend rejected this key. Check it was copied in full."
+      return `Resend rejected this key: ${verdict.reason}`
     case "unreachable":
       return "Resend could not be reached. Check the server's internet connection and try again."
     case "error":

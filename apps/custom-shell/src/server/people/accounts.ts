@@ -379,6 +379,7 @@ export async function createAccountByAdmin(
         recipientName: name,
         workspaceId: linkContext?.workspaceId ?? undefined,
         linkExpiry: linkContext?.expiry,
+        showFailureReasonToAdmin: true,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),

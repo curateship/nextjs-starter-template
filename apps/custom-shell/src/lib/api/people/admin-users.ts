@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
+import {
+  describeAdminEmailDeliveryError,
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
 
 import {
   loadAccountDetail,
@@ -61,13 +66,15 @@ const listQuerySchema = z.object({
 
 export type AccountListQueryInput = z.input<typeof listQuerySchema>
 
-export const getAdminUserErrorMessage = createErrorMessage(
+const getBaseAdminUserErrorMessage = createErrorMessage(
   {
     USER_NOT_FOUND: "That account no longer exists.",
     ACCOUNT_EXISTS: "An account already exists for this email.",
     EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-    EMAIL_DELIVERY_FAILED:
-      "We could not send the set-password email, so the account was not created. Please try again.",
+    [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+      "The set-password email could not be sent, so the account was not created. Email delivery needs attention.",
+    [EMAIL_DELIVERY_RETRYABLE]:
+      "The set-password email could not be sent, so the account was not created. Please try again shortly.",
     LAST_ADMIN: "You cannot remove the last admin.",
     CANNOT_DELETE_SELF: "You cannot delete your own account here.",
     PLAN_NOT_FOUND: "That plan no longer exists.",
@@ -94,6 +101,13 @@ export const getAdminUserErrorMessage = createErrorMessage(
   },
   "We could not update that account. Please try again."
 )
+
+export function getAdminUserErrorMessage(error: unknown) {
+  return (
+    describeAdminEmailDeliveryError(error, "The account was not created.") ??
+    getBaseAdminUserErrorMessage(error)
+  )
+}
 
 const listAccountsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])

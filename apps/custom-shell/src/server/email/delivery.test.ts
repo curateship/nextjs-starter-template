@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
 import {
@@ -8,6 +8,7 @@ import {
   saveAuthLinkExpiry,
   saveSystemEmailSender,
   setEmailApiKey,
+  testEmailApiKey,
 } from "@/server/email/settings"
 import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import {
@@ -66,6 +67,7 @@ describe("whether email is on", () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     restore(ENV_KEY, originalKey)
     restore(ENV_MODE, originalMode)
     restore(ENV_FROM, originalFrom)
@@ -83,6 +85,44 @@ describe("whether email is on", () => {
     const status = await getEmailDeliveryStatus(db)
     expect(status.source).toBe("settings")
     expect(emailIsOff(status)).toBe(false)
+  })
+
+  it("accepts a genuine sending-only Resend key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            type: "restricted_api_key",
+            message: "This API key is restricted to only send emails.",
+          },
+          { status: 401 }
+        )
+      )
+    )
+
+    await expect(
+      testEmailApiKey(workspaceId, "re_sending_only", db)
+    ).resolves.toEqual({ result: "ok" })
+  })
+
+  it("still rejects an invalid Resend key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          { name: "invalid_api_key", message: "API key is invalid." },
+          { status: 403 }
+        )
+      )
+    )
+
+    await expect(
+      testEmailApiKey(workspaceId, "re_invalid", db)
+    ).resolves.toEqual({
+      result: "rejected",
+      reason: "API key is invalid.",
+    })
   })
 
   it("falls back to the server's own key, the way sending does", async () => {

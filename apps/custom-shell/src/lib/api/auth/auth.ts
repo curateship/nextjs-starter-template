@@ -5,6 +5,10 @@ import { z } from "zod"
 import { ACCOUNT_RESTORE_DAYS, isPendingDeletion } from "@/lib/account-deletion"
 import { describeDevice } from "@/lib/format/device-label"
 import {
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
+import {
   authTokenExpiryText,
   type AuthLinkExpiry,
 } from "@/lib/email/auth-token-expiry"
@@ -202,7 +206,9 @@ const authErrorMessages: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in again.",
   FORBIDDEN: "You do not have access to that.",
   EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-  EMAIL_DELIVERY_FAILED: "We could not send that email. Please try again.",
+  [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+    "We could not send that email. Please try again.",
+  [EMAIL_DELIVERY_RETRYABLE]: "We could not send that email. Please try again.",
   LAST_ADMIN: "There has to be at least one other admin first.",
   SESSION_NOT_FOUND: "That device is already signed out.",
   PASSWORD_BREACHED:
