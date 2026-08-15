@@ -262,6 +262,10 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       workspaceId,
       tokens: sampleTokens[data.kind],
       actionUrl: appUrlFor("/"),
+      reportUrl:
+        data.kind === "sign-in-link" || data.kind === "password-reset"
+          ? "#"
+          : undefined,
     })
   })
 

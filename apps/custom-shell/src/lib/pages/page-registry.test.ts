@@ -24,6 +24,7 @@ const SIGN_IN_FAMILY = [
   "/verify-email",
   "/change-email",
   "/revoke-email-change",
+  "/report-unwanted-sign-in",
 ]
 
 describe("the registry finds every public page", () => {

@@ -37,6 +37,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/verify-email": "Verify email",
   "/change-email": "Confirm email change",
   "/revoke-email-change": "Revoke email change",
+  "/report-unwanted-sign-in": "Report unwanted sign-in",
   "/pricing": "Pricing",
   "/maintenance": "Maintenance",
   "/_authenticated/home": "Home",
@@ -84,6 +85,8 @@ const PUBLIC_ROUTE_DESCRIPTIONS: Record<string, string> = {
   "/reset-password": "Choose a new password for your account.",
   "/sign-in-link": "Use an email link to sign in securely.",
   "/verify-email": "Confirm your email address.",
+  "/report-unwanted-sign-in":
+    "Stop and report an unwanted password-reset or sign-in link.",
 }
 
 function routeTitle(

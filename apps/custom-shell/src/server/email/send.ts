@@ -1,6 +1,10 @@
 import { escapeHtml } from "@/lib/email/escape-html"
 import { emailFirstName } from "@/lib/email/recipient-name"
-import { parseStoredBlocks } from "@/lib/broadcasts/blocks"
+import {
+  createBroadcastBlock,
+  parseStoredBlocks,
+  type BroadcastBlock,
+} from "@/lib/broadcasts/blocks"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
 import {
   SYSTEM_EMAIL_META,
@@ -28,6 +32,8 @@ export type AuthEmail = {
   /** The stored account name. It is never inferred from the email address. */
   recipientName: string | null
   actionUrl: string
+  /** Stops this one action link and records that the email was unwanted. */
+  reportUrl?: string
   /** The site is explicit for admin test sends; visitor flows resolve it by host. */
   workspaceId?: string
   /**
@@ -73,7 +79,9 @@ export function composeSystemEmail(
     action_url: email.actionUrl,
   }
 
-  const blocks = saved ? parseStoredBlocks(saved.blocks) : []
+  const blocks = saved
+    ? withUnwantedRequestLink(parseStoredBlocks(saved.blocks), email.reportUrl)
+    : []
   const subject = saved?.subject.trim() ? saved.subject : null
 
   if (subject && blocks.length > 0) {
@@ -109,12 +117,33 @@ export function composeSystemEmail(
       }),
       action: meta.defaults.action,
       actionUrl: email.actionUrl,
+      reportUrl: email.reportUrl,
       closing: applySystemEmailTokens(meta.defaults.closing, values, {
         html: false,
       }),
     }),
     fromName: null,
   }
+}
+
+/** Adds the fixed security action before the editable email's footer. */
+function withUnwantedRequestLink(
+  blocks: BroadcastBlock[],
+  reportUrl: string | undefined
+) {
+  if (!reportUrl) return blocks
+
+  const report = createBroadcastBlock("richText")
+  if (report.kind !== "richText") return blocks
+  report.content.htmlContent = `<p><a href="${escapeHtml(reportUrl)}">I didn&#39;t ask for this</a></p>`
+
+  const footerIndex = blocks.findIndex((block) => block.kind === "footer")
+  if (footerIndex < 0) return [...blocks, report]
+  return [
+    ...blocks.slice(0, footerIndex),
+    report,
+    ...blocks.slice(footerIndex),
+  ]
 }
 
 /**
@@ -315,6 +344,7 @@ function renderBuiltInEmail(email: {
   message: string
   action: string
   actionUrl: string
+  reportUrl?: string
   closing: string
 }) {
   return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
@@ -322,6 +352,7 @@ function renderBuiltInEmail(email: {
   <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>
   <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>
+  ${email.reportUrl ? `<p style="font-size:14px;line-height:1.6;margin:0 0 24px"><a href="${escapeHtml(email.reportUrl)}" style="color:#18181b;text-decoration:underline">I didn&#39;t ask for this</a></p>` : ""}
   <p style="font-size:12px;color:#71717a;margin:0">${escapeHtml(email.closing)}</p>
 </div>`
 }

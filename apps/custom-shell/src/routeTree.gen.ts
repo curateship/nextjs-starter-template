@@ -18,6 +18,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ReportUnwantedSignInRouteImport } from './routes/report-unwanted-sign-in'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RevokeEmailChangeRouteImport } from './routes/revoke-email-change'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
@@ -111,6 +112,11 @@ const PricingRoute = PricingRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportUnwantedSignInRoute = ReportUnwantedSignInRouteImport.update({
+  id: '/report-unwanted-sign-in',
+  path: '/report-unwanted-sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -397,6 +403,7 @@ export interface FileRoutesByFullPath {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByTo {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -517,6 +525,7 @@ export interface FileRoutesById {
   '/maintenance': typeof MaintenanceRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/report-unwanted-sign-in': typeof ReportUnwantedSignInRoute
   '/reset-password': typeof ResetPasswordRoute
   '/revoke-email-change': typeof RevokeEmailChangeRoute
   '/robots.txt': typeof RobotsDottxtRoute
@@ -579,6 +588,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
     | '/robots.txt'
@@ -639,6 +649,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
     | '/robots.txt'
@@ -698,6 +709,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/pricing'
     | '/register'
+    | '/report-unwanted-sign-in'
     | '/reset-password'
     | '/revoke-email-change'
     | '/robots.txt'
@@ -760,6 +772,7 @@ export interface RootRouteChildren {
   MaintenanceRoute: typeof MaintenanceRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
+  ReportUnwantedSignInRoute: typeof ReportUnwantedSignInRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   RevokeEmailChangeRoute: typeof RevokeEmailChangeRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
@@ -841,6 +854,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/report-unwanted-sign-in': {
+      id: '/report-unwanted-sign-in'
+      path: '/report-unwanted-sign-in'
+      fullPath: '/report-unwanted-sign-in'
+      preLoaderRoute: typeof ReportUnwantedSignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1332,6 +1352,7 @@ const rootRouteChildren: RootRouteChildren = {
   MaintenanceRoute: MaintenanceRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
+  ReportUnwantedSignInRoute: ReportUnwantedSignInRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   RevokeEmailChangeRoute: RevokeEmailChangeRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,

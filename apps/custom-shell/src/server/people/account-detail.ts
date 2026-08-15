@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import { aiAllowanceCentsFromFeatures } from "@/lib/ai/ai-models"
 import type { SubscriptionEvent } from "@/lib/billing/subscription-events"
@@ -7,6 +7,7 @@ import { loadEntitlements } from "@/server/billing/entitlements"
 import { loadAccountStorage, type AccountStorage } from "@/server/media/library"
 import {
   customShellAiAllowanceOverrides,
+  customShellAuthSecurityReports,
   customShellUsers,
 } from "@/server/schema"
 import { listSubscriptionEvents } from "@/server/billing/subscription-events"
@@ -63,6 +64,10 @@ export type AccountDetail = {
   storage: AccountStorage
   /** What has happened to their plan since the app started recording it. */
   billingHistory: SubscriptionEvent[]
+  securityReports: {
+    count: number
+    latestAt: string | null
+  }
 }
 
 export async function loadAccountDetail(
@@ -109,7 +114,19 @@ export async function loadAccountDetail(
       .limit(1),
     listSubscriptionEvents(userId, database),
   ])
-  const tags = (await listMemberTags([userId], database)).get(userId) ?? []
+  const [tagsByUser, [securityReports]] = await Promise.all([
+    listMemberTags([userId], database),
+    database
+      .select({
+        count: sql<number>`count(*)::int`,
+        latestAt: sql<Date | null>`max(${customShellAuthSecurityReports.createdAt})`.mapWith(
+          customShellAuthSecurityReports.createdAt
+        ),
+      })
+      .from(customShellAuthSecurityReports)
+      .where(eq(customShellAuthSecurityReports.userId, userId)),
+  ])
+  const tags = tagsByUser.get(userId) ?? []
 
   return {
     profile: {
@@ -143,5 +160,9 @@ export async function loadAccountDetail(
     },
     storage,
     billingHistory,
+    securityReports: {
+      count: securityReports?.count ?? 0,
+      latestAt: securityReports?.latestAt?.toISOString() ?? null,
+    },
   }
 }
