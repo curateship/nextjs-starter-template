@@ -70,12 +70,37 @@ describe("renderBroadcastBlockHtml", () => {
     expect(html).toContain("color:#f9fafb")
   })
 
-  it("uses the app name as logo alt text when images are unavailable", () => {
+  it("keeps the app name as text before a labelled logo", () => {
     const html = renderBroadcastBlockHtml(
       block("header", { logoUrl: "https://example.com/logo.png" }),
       { appName: "North & Star" }
     )
-    expect(html).toContain('alt="North &amp; Star"')
+    expect(html).toContain("North &amp; Star")
+    expect(html).toContain('alt="Logo"')
+    expect(html.indexOf("North &amp; Star")).toBeLessThan(
+      html.indexOf("<img")
+    )
+  })
+
+  it("adds useful fallback text to rich-text images without a description", () => {
+    const missing = renderBroadcastBlockHtml(
+      block("richText", { htmlContent: '<img src="https://x.dev/photo.png">' })
+    )
+    const blank = renderBroadcastBlockHtml(
+      block("richText", {
+        htmlContent: '<img src="https://x.dev/photo.png" alt="">',
+      })
+    )
+    const described = renderBroadcastBlockHtml(
+      block("richText", {
+        htmlContent:
+          '<img src="https://x.dev/photo.png" alt="Two people talking">',
+      })
+    )
+
+    expect(missing).toContain('alt="Email image"')
+    expect(blank).toContain('alt="Email image"')
+    expect(described).toContain('alt="Two people talking"')
   })
 
   it("escapes footer company fields", () => {
@@ -205,6 +230,14 @@ describe("renderBroadcastEmailHtml", () => {
     })
     expect(html).toContain("display:none")
     expect(html).toContain("Deals &lt;today&gt;")
+  })
+
+  it("identifies the sender in text when an email has no header block", () => {
+    const html = renderBroadcastEmailHtml([block("richText")], {
+      appName: "North & Star",
+    })
+
+    expect(html).toContain("North &amp; Star")
   })
 })
 
