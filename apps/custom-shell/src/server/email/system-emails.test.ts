@@ -239,8 +239,11 @@ describe("what actually gets sent", () => {
   })
 
   it("uses the built-in wording when nothing has been saved", () => {
-    const { subject, html } = composeSystemEmail(request, null)
+    const { subject, html } = composeSystemEmail(request, null, {
+      appName: "North & Star",
+    })
     expect(subject).toBe("Reset your password")
+    expect(html).toContain("North &amp; Star")
     expect(html).toContain("Hi there,")
     expect(html).toContain("This link expires in one hour.")
     expect(html).toContain(

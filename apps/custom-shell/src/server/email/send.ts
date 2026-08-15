@@ -6,6 +6,7 @@ import {
   type BroadcastBlock,
 } from "@/lib/broadcasts/blocks"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
+import { resolveAppName } from "@/lib/branding"
 import {
   SYSTEM_EMAIL_META,
   applySystemEmailTokens,
@@ -118,6 +119,7 @@ export function composeSystemEmail(
       action: meta.defaults.action,
       actionUrl: email.actionUrl,
       reportUrl: email.reportUrl,
+      appName: resolveAppName(options.appName),
       closing: applySystemEmailTokens(meta.defaults.closing, values, {
         html: false,
       }),
@@ -204,14 +206,18 @@ export async function sendAuthEmail(email: AuthEmail) {
   let appName: string | undefined
   if (workspaceId && saved) {
     try {
-      await protectSentEmailLogos(workspaceId, parseStoredBlocks(saved.blocks))
       appName = await emailBrandName(workspaceId)
+      await protectSentEmailLogos(workspaceId, parseStoredBlocks(saved.blocks))
     } catch {
       // Authentication email must still go out. If the database cannot make
       // its custom logo permanent, the safe answer is the built-in email with
       // no image rather than a custom email whose logo may later break.
       saved = null
     }
+  } else if (workspaceId) {
+    // Built-in wording has no saved header to resolve this for it, but it still
+    // needs to say which site sent it when every picture is unavailable.
+    appName = await emailBrandName(workspaceId).catch(() => undefined)
   }
   const { subject, html, fromName } = composeSystemEmail(email, saved, {
     appName,
@@ -345,9 +351,11 @@ function renderBuiltInEmail(email: {
   action: string
   actionUrl: string
   reportUrl?: string
+  appName: string
   closing: string
 }) {
-  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
+  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b;background:#ffffff">
+  <p style="font-size:18px;line-height:1.4;font-weight:700;margin:0 0 24px">${escapeHtml(email.appName)}</p>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(email.firstName)},</p>
   <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
   <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>

@@ -100,8 +100,20 @@ function normalizeRichTextHtml(htmlContent: string) {
     .trim()
 }
 
+/** Gives older and pasted images a useful label when their editor did not. */
+function ensureImageAltText(htmlContent: string) {
+  return htmlContent.replace(/<img\b[^>]*>/gi, (openingTag) => {
+    const alt = openingTag.match(/\salt\s*=\s*(["'])(.*?)\1/i)
+    if (alt?.[2].trim()) return openingTag
+    if (alt) return openingTag.replace(alt[0], ' alt="Email image"')
+    return openingTag.replace(/\s*\/?>$/, (ending) =>
+      ` alt="Email image"${ending}`
+    )
+  })
+}
+
 function styleRichTextHtml(htmlContent: string) {
-  let styled = normalizeRichTextHtml(htmlContent)
+  let styled = ensureImageAltText(normalizeRichTextHtml(htmlContent))
   for (const [tag, styles] of RICH_TEXT_TAG_STYLES) {
     styled = styleOpeningTags(styled, tag, styles)
   }
@@ -114,6 +126,10 @@ function styleRichTextHtml(htmlContent: string) {
         (paragraphTag) => mergeInlineStyles(paragraphTag, "margin:0;")
       )
   )
+}
+
+function renderAppName(appName: string, color: string, hasLogo = false) {
+  return `<p style="margin:0${hasLogo ? " 0 12px 0" : ""};font-family:Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:bold;color:${color};">${escapeHtml(appName)}</p>`
 }
 
 /** A plain dark or light label that stays readable on the chosen header. */
@@ -150,12 +166,14 @@ export function renderBroadcastBlockHtml(
       // `margin:0 0` as "left". Inline-block hands all three alignments to the
       // one `text-align` below, which is also what Outlook actually honours.
       const appName = resolveAppName(options.appName)
-      // Alt text carries the same name for inboxes that block images. With no
-      // picture at all, the name is drawn deliberately instead of leaving an
-      // invisible header behind.
-      const inner = logoUrl
-        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(appName)}" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
-        : `<span style="display:inline-block;font-family:Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:bold;color:${headerTextColor(backgroundColor)};">${escapeHtml(appName)}</span>`
+      // The name is real text and comes first, so blocking the decorative logo
+      // never leaves a nameless message. A short image label avoids making a
+      // screen reader repeat the app name twice.
+      const inner = `${renderAppName(appName, headerTextColor(backgroundColor), Boolean(logoUrl))}${
+        logoUrl
+          ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
+          : ""
+      }`
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${paddingTop}px 20px ${paddingBottom}px 20px;text-align:${alignment};">${inner}</td></tr></table>`
     }
 
@@ -216,12 +234,20 @@ export function renderBroadcastEmailHtml(
   const preheaderHtml = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(preheader)}</div>`
     : ""
-  const wrappedBlocks = blocks
-    .map(
-      (block) =>
-        `<tr><td>${renderBroadcastBlockHtml(block, { appName: options.appName })}</td></tr>`
-    )
-    .join("")
+  const appName = resolveAppName(options.appName)
+  // A header block carries this identity itself. An email without one still
+  // names its sender before any optional pictures in its written content.
+  const identityRow = blocks.some((block) => block.kind === "header")
+    ? ""
+    : `<tr><td><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;"><tr><td style="padding:20px 20px 0 20px;">${renderAppName(appName, "#111827")}</td></tr></table></td></tr>`
+  const wrappedBlocks =
+    identityRow +
+    blocks
+      .map(
+        (block) =>
+          `<tr><td>${renderBroadcastBlockHtml(block, { appName })}</td></tr>`
+      )
+      .join("")
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="format-detection" content="address=no"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>@media only screen and (max-width:${EMAIL_MAX_WIDTH + 20}px){.email-container{width:100%!important;}}.unstyle-auto-detected-links a[x-apple-data-detectors],.unstyle-auto-detected-links a{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important;}</style></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;">${preheaderHtml}<center><!--[if mso]><table role="presentation" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" class="email-container" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">${wrappedBlocks}</table><!--[if mso]></td></tr></table><![endif]--></center></body></html>`
 }
