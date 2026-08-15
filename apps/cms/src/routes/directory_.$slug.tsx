@@ -12,6 +12,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingContactLinks } from "@/components/directory/public/listing-contact-links"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
+import { ListingRating } from "@/components/directory/listing-rating"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { loadDirectoryListing } from "@/lib/api/directory/public"
@@ -131,6 +132,7 @@ function ListingRoute() {
                 <SaveDropdown listingId={listing.id} />
               ) : null}
             </div>
+            <ListingRating rating={listing.rating} />
             {listing.metaDescription ? (
               <p className="text-sm text-muted-foreground">
                 {listing.metaDescription}

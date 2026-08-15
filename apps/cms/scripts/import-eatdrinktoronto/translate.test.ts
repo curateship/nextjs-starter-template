@@ -7,6 +7,7 @@ import {
   imageUrlsFromListing,
   isPrivateAddress,
   mergeDirectoryBlocks,
+  ratingFromCore,
   safeSlug,
   stableJson,
   translateListing,
@@ -84,7 +85,7 @@ describe("eatdrinktoronto import translation", () => {
     const blocks = {
       core: {
         type: "directory-core",
-        content: { name: "Cafe", address: "Toronto", rating: 4.5 },
+        content: { name: "Cafe", address: "Toronto", rating: 4.6 },
       },
       body: {
         type: "directory-rich-text",
@@ -115,6 +116,7 @@ describe("eatdrinktoronto import translation", () => {
     ).toMatchObject({
       title: "Cafe",
       metaDescription: "Good coffee.",
+      rating: 4.6,
       status: "published",
     })
     expect(
@@ -131,9 +133,7 @@ describe("eatdrinktoronto import translation", () => {
     expect(droppedBlocks(blocks, { latitude: 43.6 }).coordinates).toHaveLength(
       2
     )
-    expect(droppedBlocks(blocks).unsupportedCore).toEqual([
-      { type: "directory-core-rating", rating: 4.5 },
-    ])
+    expect(droppedBlocks(blocks).unsupportedCore).toEqual([])
     expect(droppedBlocks(blocks).custom).toHaveLength(2)
     expect(
       imageUrlsFromListing(
@@ -149,6 +149,18 @@ describe("eatdrinktoronto import translation", () => {
       "https://old.example/cover.jpg",
       "https://old.example/other.png",
     ])
+  })
+
+  it("ports valid Directory ratings and reports invalid source values", () => {
+    expect(ratingFromCore(4.8)).toBe(4.8)
+    expect(ratingFromCore("4.6")).toBe(4.6)
+    expect(ratingFromCore(0)).toBe(0)
+    expect(ratingFromCore(6)).toBeNull()
+    expect(
+      droppedBlocks({
+        core: { type: "directory-core", content: { rating: "six" } },
+      }).unsupportedCore
+    ).toEqual([{ type: "directory-core-rating", rating: "six" }])
   })
 
   it("refuses broken category trees and private download addresses", () => {

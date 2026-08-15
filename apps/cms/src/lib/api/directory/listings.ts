@@ -31,6 +31,10 @@ import {
   type DirectoryListing,
   type ListingSummary,
 } from "@/server/directory/listings"
+import {
+  isListingRating,
+  LISTING_RATING_ERROR,
+} from "@/lib/directory/listing-rating"
 
 import { describeAuthError } from "../error-message"
 
@@ -169,6 +173,13 @@ const updateListingFn = createServerFn({ method: "POST" })
       title: z.string().min(1).max(MAX_LISTING_TITLE).optional(),
       slug: z.string().max(160).optional(),
       metaDescription: z.string().max(300).optional(),
+      rating: z
+        .number()
+        .nullable()
+        .refine((value) => value === null || isListingRating(value), {
+          message: LISTING_RATING_ERROR,
+        })
+        .optional(),
       status: z.enum(["draft", "published"]).optional(),
       displayOrder: z.number().int().min(-1_000_000).max(1_000_000).optional(),
       featuredImage: z.string().max(600).optional(),
@@ -201,6 +212,7 @@ export function saveListing(input: {
   title?: string
   slug?: string
   metaDescription?: string
+  rating?: number | null
   status?: "draft" | "published"
   displayOrder?: number
   featuredImage?: string

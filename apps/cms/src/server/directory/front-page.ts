@@ -11,6 +11,7 @@ type FrontPageRow = {
   title: string | null
   slug: string | null
   metaDescription: string | null
+  rating: number | string | null
   featuredImage: string | null
   categoryName: string | null
   categorySlug: string | null
@@ -65,6 +66,7 @@ export async function readDirectoryFrontPage(
         listing.title,
         listing.slug,
         listing.meta_description AS "metaDescription",
+        listing.rating,
         listing.featured_image AS "featuredImage",
         category.name AS "categoryName",
         category.slug AS "categorySlug",
@@ -108,6 +110,7 @@ export async function readDirectoryFrontPage(
       chosen.title,
       chosen.slug,
       chosen."metaDescription",
+      chosen.rating,
       chosen."featuredImage",
       chosen."categoryName",
       chosen."categorySlug",
@@ -136,6 +139,7 @@ export async function readDirectoryFrontPage(
               title: row.title,
               slug: row.slug,
               metaDescription: row.metaDescription ?? "",
+              rating: row.rating === null ? null : Number(row.rating),
               featuredImage: row.featuredImage ?? "",
               category:
                 row.categoryName && row.categorySlug

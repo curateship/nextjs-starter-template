@@ -315,6 +315,22 @@ describe("a site only shows its own", () => {
 })
 
 describe("the browse list", () => {
+  it("carries a rating on cards and the listing page while leaving it optional", async () => {
+    const rated = await publish(alpha, { title: "Rated", slug: "rated" })
+    await publish(alpha, { title: "Unrated", slug: "unrated" })
+    await updateListing(alpha.id, rated.id, { rating: 4.5 }, database)
+
+    const page = await browse(alpha)
+
+    expect(page.listings.find((row) => row.slug === "rated")?.rating).toBe(4.5)
+    expect(
+      page.listings.find((row) => row.slug === "unrated")?.rating
+    ).toBeNull()
+    expect(
+      (await readPublicListing(alpha, "rated", {}, database))?.listing.rating
+    ).toBe(4.5)
+  })
+
   it("searches the title and the line under it, not the address", async () => {
     await publish(alpha, {
       title: "Corner cafe",

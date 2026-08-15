@@ -18,6 +18,10 @@ import {
 } from "@/lib/directory/contact-links"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
+  isListingRating,
+  LISTING_RATING_ERROR,
+} from "@/lib/directory/listing-rating"
+import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
@@ -63,6 +67,7 @@ export type DirectoryListing = {
   title: string
   slug: string
   metaDescription: string
+  rating: number | null
   status: ListingStatus
   displayOrder: number
   featuredImage: string
@@ -84,6 +89,7 @@ function toListing(row: DirectoryListingRow): DirectoryListing {
     title: row.title,
     slug: row.slug,
     metaDescription: row.metaDescription,
+    rating: row.rating,
     status: row.status === "published" ? "published" : "draft",
     displayOrder: row.displayOrder,
     featuredImage: row.featuredImage,
@@ -370,6 +376,7 @@ export async function updateListing(
     title?: string
     slug?: string
     metaDescription?: string
+    rating?: number | null
     status?: ListingStatus
     displayOrder?: number
     featuredImage?: string
@@ -388,6 +395,12 @@ export async function updateListing(
   }
   if (input.metaDescription !== undefined) {
     values.metaDescription = input.metaDescription.trim().slice(0, 300)
+  }
+  if (input.rating !== undefined) {
+    if (input.rating !== null && !isListingRating(input.rating)) {
+      throw new Error(LISTING_RATING_ERROR)
+    }
+    values.rating = input.rating
   }
   if (input.status !== undefined) values.status = input.status
   if (input.displayOrder !== undefined) {
@@ -445,6 +458,7 @@ export async function duplicateListing(
         title,
         slug,
         metaDescription: source.metaDescription,
+        rating: source.rating,
         status: "draft",
         displayOrder: source.displayOrder,
         featuredImage: source.featuredImage,

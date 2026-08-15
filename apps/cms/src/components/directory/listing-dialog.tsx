@@ -51,6 +51,10 @@ import {
 } from "@/lib/directory/listing-cache"
 import type { MenuLink, SocialLink } from "@/lib/directory/contact-links"
 import { slugFromTitle } from "@/lib/directory/slugs"
+import {
+  listingRatingFromText,
+  LISTING_RATING_ERROR,
+} from "@/lib/directory/listing-rating"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { WrittenPageNode } from "@/lib/pages/written-page-body"
 
@@ -193,6 +197,8 @@ export function ListingDialog({
   const [title, setTitle] = React.useState("")
   const [slug, setSlug] = React.useState("")
   const [metaDescription, setMetaDescription] = React.useState("")
+  const [rating, setRating] = React.useState("")
+  const [ratingTouched, setRatingTouched] = React.useState(false)
   const [status, setStatus] = React.useState<"draft" | "published">("draft")
   const [displayOrder, setDisplayOrder] = React.useState("0")
   const [featuredImage, setFeaturedImage] = React.useState("")
@@ -228,6 +234,8 @@ export function ListingDialog({
       setTitle(record.title)
       setSlug(record.slug)
       setMetaDescription(record.metaDescription)
+      setRating(record.rating === null ? "" : String(record.rating))
+      setRatingTouched(false)
       setStatus(record.status)
       setDisplayOrder(String(record.displayOrder))
       setFeaturedImage(record.featuredImage)
@@ -242,6 +250,8 @@ export function ListingDialog({
       setTitle(blank.title)
       setSlug(blank.slug)
       setMetaDescription(blank.metaDescription)
+      setRating(blank.rating)
+      setRatingTouched(false)
       setStatus(blank.status)
       setDisplayOrder(String(blank.displayOrder))
       setFeaturedImage(blank.featuredImage)
@@ -258,6 +268,7 @@ export function ListingDialog({
     title,
     slug,
     metaDescription,
+    rating,
     status,
     displayOrder: Number.parseInt(displayOrder, 10) || 0,
     featuredImage,
@@ -283,9 +294,18 @@ export function ListingDialog({
 
   async function save() {
     dismissErrorToast()
+    let parsedRating: number | null
+    try {
+      parsedRating = listingRatingFromText(rating)
+    } catch {
+      setRatingTouched(true)
+      showErrorToast(LISTING_RATING_ERROR)
+      return
+    }
     setSaving(true)
     try {
-      const next = payload()
+      const { rating: _rating, ...values } = payload()
+      const next = { ...values, rating: parsedRating }
       let id = listingId ?? createdId
       if (!id) {
         // Creating is two of the same guarded doors the edit path uses: make
@@ -468,6 +488,31 @@ export function ListingDialog({
                           onChange={(event) =>
                             setDisplayOrder(event.target.value)
                           }
+                        />
+                      </div>
+                      <div className="grid gap-2 sm:max-w-40">
+                        <FieldLabel
+                          htmlFor="listing-rating"
+                          hint="Use a rating from a trusted editorial source. This is not a visitor review score."
+                        >
+                          Rating
+                        </FieldLabel>
+                        <Input
+                          id="listing-rating"
+                          inputMode="decimal"
+                          placeholder="4.3"
+                          value={rating}
+                          disabled={saving}
+                          aria-invalid={
+                            ratingTouched && ratingTextIsInvalid(rating)
+                          }
+                          onChange={(event) => setRating(event.target.value)}
+                          onBlur={() => {
+                            setRatingTouched(true)
+                            if (ratingTextIsInvalid(rating)) {
+                              showErrorToast(LISTING_RATING_ERROR)
+                            }
+                          }}
                         />
                       </div>
                     </div>
@@ -692,6 +737,7 @@ function blankSnapshot() {
     title: "",
     slug: "",
     metaDescription: "",
+    rating: "",
     status: "draft" as const,
     displayOrder: 0,
     featuredImage: "",
@@ -709,6 +755,7 @@ function openedSnapshot(data: ListingForEdit) {
     title: listing.title,
     slug: listing.slug,
     metaDescription: listing.metaDescription,
+    rating: listing.rating === null ? "" : String(listing.rating),
     status: listing.status,
     displayOrder: listing.displayOrder,
     featuredImage: listing.featuredImage,
@@ -716,5 +763,14 @@ function openedSnapshot(data: ListingForEdit) {
     body: listing.body,
     categoryIds: [...data.categoryIds].sort(),
     primaryCategoryId: data.primaryCategoryId,
+  }
+}
+
+function ratingTextIsInvalid(value: string) {
+  try {
+    listingRatingFromText(value)
+    return false
+  } catch {
+    return true
   }
 }
