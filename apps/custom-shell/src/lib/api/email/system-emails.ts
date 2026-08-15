@@ -221,12 +221,11 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
     const sampleTokens: Record<SystemEmailKind, Record<string, string>> = {
       "verify-email": {},
       "verification-reminder": {},
-      "sign-in-link": { minutes: "15" },
+      "sign-in-link": {},
       "password-reset": {},
-      "email-change": { old_email: context.user.email, hours: "24" },
+      "email-change": { old_email: context.user.email },
       "email-change-warning": {
         new_email: "new-address@example.com",
-        hours: "24",
       },
       "email-change-done": {
         new_email: "new-address@example.com",

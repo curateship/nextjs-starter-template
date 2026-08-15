@@ -38,12 +38,11 @@ import {
   customShellSubscriptions,
   customShellUsers,
 } from "@/server/schema"
+import { findUserByEmail, now, uuid } from "@/server/auth/security"
 import {
-  createAuthToken,
-  findUserByEmail,
-  now,
-  uuid,
-} from "@/server/auth/security"
+  createWorkspaceAuthToken,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { recordSubscriptionEvent } from "@/server/billing/subscription-events"
 import { listMemberTags } from "@/server/people/member-tags"
 import {
@@ -335,7 +334,8 @@ export async function createAccountByAdmin(
   email: string,
   name: string,
   role: "admin" | "member",
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  linkContext?: AuthLinkContext
 ) {
   // An address stays taken while a deleted account holding it can still be
   // restored, and frees up the moment that account is really gone — the same
@@ -364,7 +364,9 @@ export async function createAccountByAdmin(
 
     return {
       userId: user.id,
-      token: await createAuthToken(user.id, "reset_password", tx),
+      token: await createWorkspaceAuthToken(user.id, "reset_password", tx, {
+        context: linkContext,
+      }),
     }
   })
 
@@ -375,6 +377,8 @@ export async function createAccountByAdmin(
         kind: "new-account",
         to: email,
         recipientName: name,
+        workspaceId: linkContext?.workspaceId ?? undefined,
+        linkExpiry: linkContext?.expiry,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),

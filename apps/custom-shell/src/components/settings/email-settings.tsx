@@ -17,6 +17,7 @@ import {
   removeEmailApiKey,
   removeResendWebhookSecret,
   saveEmailApiKey,
+  saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
@@ -26,6 +27,7 @@ import {
   type EmailSettingsStatus,
 } from "@/lib/api/email/email-settings"
 import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
+import type { AuthLinkExpiry } from "@/lib/email/auth-token-expiry"
 import {
   emailLinkStatusLine,
   emailStatusLine,
@@ -63,6 +65,7 @@ export function EmailSettings() {
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
+  const [linkExpiry, setLinkExpiry] = React.useState<AuthLinkExpiry | null>(null)
   // The key and webhook secret as typed but not yet saved.
   const [keyDraft, setKeyDraft] = React.useState("")
   const [webhookDraft, setWebhookDraft] = React.useState("")
@@ -76,7 +79,13 @@ export function EmailSettings() {
   // "Test this key" right after typing blurs the field, the blur starts the
   // save, and a save that disabled the buttons would swallow that very click.
   const [saving, setSaving] = React.useState<
-    "systemSender" | "sender" | "key" | "webhook" | "drip" | null
+    | "systemSender"
+    | "sender"
+    | "key"
+    | "webhook"
+    | "drip"
+    | "linkExpiry"
+    | null
   >(null)
   // The last test's verdict, already worded for the user.
   const [testResult, setTestResult] = React.useState("")
@@ -125,6 +134,7 @@ export function EmailSettings() {
           }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
+        setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
         setLoadError(null)
       })
       .catch((error) => {
@@ -225,6 +235,39 @@ export function EmailSettings() {
     } finally {
       setSaving(null)
     }
+  }
+
+  const saveLinkExpiry = async (next: AuthLinkExpiry) => {
+    setSaving("linkExpiry")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveAuthLinkExpirySetting(next))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const scheduleLinkExpirySave = (next: AuthLinkExpiry) => {
+    clearTimeout(timers.current.linkExpiry)
+    timers.current.linkExpiry = setTimeout(
+      () => void saveLinkExpiry(next),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushLinkExpirySave = () => {
+    if (!linkExpiry) return
+    clearTimeout(timers.current.linkExpiry)
+    if (saving !== null) {
+      scheduleLinkExpirySave(linkExpiry)
+      return
+    }
+    void saveLinkExpiry(linkExpiry)
   }
 
   const scheduleDripSave = (next: DripConfig) => {
@@ -587,6 +630,83 @@ export function EmailSettings() {
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard
+        storageId="system-email-link-expiry"
+        title="System email link expiry"
+        description="Choose how long each sign-in or account link remains usable. The email wording updates from these same values automatically."
+      >
+        {status && linkExpiry ? (
+          <div
+            className="grid gap-4 sm:grid-cols-2"
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return
+              flushLinkExpirySave()
+            }}
+          >
+            <ExpiryField
+              id="verification-link-expiry"
+              label="Email verification (hours)"
+              hint="From 1 hour to 7 days. This also controls verification reminder links."
+              value={linkExpiry.verificationHours}
+              min={1}
+              max={168}
+              onChange={(verificationHours) => {
+                const next = { ...linkExpiry, verificationHours }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="password-reset-link-expiry"
+              label="Password reset (minutes)"
+              hint="From 5 minutes to 24 hours. This also controls links for accounts created by an admin."
+              value={linkExpiry.passwordResetMinutes}
+              min={5}
+              max={1440}
+              onChange={(passwordResetMinutes) => {
+                const next = { ...linkExpiry, passwordResetMinutes }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="sign-in-link-expiry"
+              label="Sign-in link (minutes)"
+              hint="From 5 to 60 minutes. Shorter is safer because this link signs somebody straight in."
+              value={linkExpiry.signInMinutes}
+              min={5}
+              max={60}
+              onChange={(signInMinutes) => {
+                const next = { ...linkExpiry, signInMinutes }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="email-change-link-expiry"
+              label="Email change (hours)"
+              hint="From 1 hour to 7 days. The confirmation and cancellation links use the same limit."
+              value={linkExpiry.emailChangeHours}
+              min={1}
+              max={168}
+              onChange={(emailChangeHours) => {
+                const next = { ...linkExpiry, emailChangeHours }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+          </div>
+        ) : loadError ? null : (
+          <div className="flex justify-center p-6">
+            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
         storageId="newsletter-drip"
         title="How fast newsletters go out"
         description="Sending a big list all at once is what a spam machine looks like to a mail server. These settings let a newsletter out a few hundred at a time instead. They are the starting point for every new newsletter — each one can still be changed on its own before it is sent."
@@ -642,6 +762,81 @@ export function EmailSettings() {
         }}
       />
     </CardGroup>
+  )
+}
+
+function ExpiryField({
+  id,
+  label,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+  onCommit,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: number
+  min: number
+  max: number
+  onChange: (value: number) => void
+  onCommit: () => void
+}) {
+  const [savedValue, setSavedValue] = React.useState(value)
+  const [draft, setDraft] = React.useState(String(value))
+
+  if (savedValue !== value) {
+    setSavedValue(value)
+    setDraft(String(value))
+  }
+
+  const parsed = Number(draft)
+  const valid =
+    draft.trim() !== "" &&
+    Number.isInteger(parsed) &&
+    parsed >= min &&
+    parsed <= max
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={id} hint={hint}>
+        {label}
+      </FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={draft}
+        aria-invalid={!valid || undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          const number = Number(next)
+          if (
+            next.trim() !== "" &&
+            Number.isInteger(number) &&
+            number >= min &&
+            number <= max
+          ) {
+            onChange(number)
+          }
+        }}
+        onBlur={() => {
+          if (!valid) {
+            showErrorToast(
+              `Enter a whole number from ${min} to ${max}. The last valid value is still in use.`
+            )
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && valid) onCommit()
+        }}
+      />
+    </div>
   )
 }
 

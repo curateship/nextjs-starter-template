@@ -27,6 +27,9 @@ import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 import { replaceMemberTags } from "@/server/people/member-tags"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { db } from "@/server/db"
+import { getAuthLinkContext } from "@/server/auth/link-expiry"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
@@ -152,8 +155,15 @@ const createAccountFn = createServerFn({ method: "POST" })
       role: z.enum(["admin", "member"]),
     })
   )
-  .handler(async ({ data }) => {
-    return createAccountByAdmin(data.email, data.name, data.role)
+  .handler(async ({ data, context }) => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    return createAccountByAdmin(
+      data.email,
+      data.name,
+      data.role,
+      db,
+      await getAuthLinkContext(db, workspaceId)
+    )
   })
 
 const updateRoleFn = createServerFn({ method: "POST" })

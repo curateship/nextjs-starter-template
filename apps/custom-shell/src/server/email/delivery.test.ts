@@ -5,11 +5,20 @@ import { type CustomShellDb } from "@/server/db"
 import {
   getEmailDeliveryStatus,
   getEmailSettingsStatus,
+  saveAuthLinkExpiry,
   saveSystemEmailSender,
   setEmailApiKey,
 } from "@/server/email/settings"
 import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
-import { customShellEmailSettings, customShellWorkspaces } from "@/server/schema"
+import {
+  customShellAuthTokens,
+  customShellEmailSettings,
+  customShellWorkspaces,
+} from "@/server/schema"
+import {
+  createWorkspaceAuthToken,
+  getAuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   emailIsOff,
@@ -112,8 +121,7 @@ describe("whether email is on", () => {
   })
 
   it("shows the deployment sender without exposing a secret", async () => {
-    process.env[ENV_FROM] =
-      "Custom Shell <notifications@systemeverything.com>"
+    process.env[ENV_FROM] = "Custom Shell <notifications@systemeverything.com>"
 
     const status = await getEmailSettingsStatus(workspaceId, db)
     expect(status.systemSender).toEqual({
@@ -125,8 +133,7 @@ describe("whether email is on", () => {
   })
 
   it("lets the workspace replace the deployment's system sender", async () => {
-    process.env[ENV_FROM] =
-      "Custom Shell <notifications@systemeverything.com>"
+    process.env[ENV_FROM] = "Custom Shell <notifications@systemeverything.com>"
     await saveSystemEmailSender(workspaceId, "accounts@example.com", db)
 
     const status = await getEmailSettingsStatus(workspaceId, db)
@@ -137,8 +144,43 @@ describe("whether email is on", () => {
       configured: true,
       source: "settings",
     })
-    await expect(getWorkspaceSystemEmailSender(workspaceId, db)).resolves.toEqual(
-      status.systemSender,
+    await expect(
+      getWorkspaceSystemEmailSender(workspaceId, db)
+    ).resolves.toEqual(status.systemSender)
+  })
+
+  it("saves link expiry settings and uses them for real tokens", async () => {
+    const expiry = {
+      verificationHours: 48,
+      passwordResetMinutes: 30,
+      signInMinutes: 10,
+      emailChangeHours: 72,
+    }
+    await saveAuthLinkExpiry(workspaceId, expiry, db)
+    expect(
+      (await getEmailSettingsStatus(workspaceId, db)).authLinkExpiry
+    ).toEqual(expiry)
+
+    const user = await insertUser(db, { email: "expiry@example.com" })
+    const linkContext = await getAuthLinkContext(db, workspaceId)
+    await saveAuthLinkExpiry(
+      workspaceId,
+      { ...expiry, verificationHours: 24 },
+      db
+    )
+    await createWorkspaceAuthToken(user.id, "verify_email", db, {
+      context: linkContext,
+    })
+    const [token] = await db
+      .select({
+        createdAt: customShellAuthTokens.createdAt,
+        expiresAt: customShellAuthTokens.expiresAt,
+      })
+      .from(customShellAuthTokens)
+      .where(eq(customShellAuthTokens.userId, user.id))
+
+    expect(token.expiresAt.getTime() - token.createdAt.getTime()).toBe(
+      48 * 60 * 60 * 1000
     )
   })
 
@@ -225,9 +267,9 @@ describe("where email links lead", () => {
 
 describe("what being off costs", () => {
   it("says sign-ups fail on a live server", () => {
-    expect(emailOffConsequence({ source: null, failsWithoutKey: true })).toContain(
-      "Nobody can sign up"
-    )
+    expect(
+      emailOffConsequence({ source: null, failsWithoutKey: true })
+    ).toContain("Nobody can sign up")
   })
 
   it("says links go to the log anywhere else", () => {

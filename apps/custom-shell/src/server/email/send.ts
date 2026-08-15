@@ -1,6 +1,12 @@
 import { escapeHtml } from "@/lib/email/escape-html"
 import { emailFirstName } from "@/lib/email/recipient-name"
 import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenExpiryText,
+  type AuthLinkExpiry,
+  type AuthTokenPurpose,
+} from "@/lib/email/auth-token-expiry"
+import {
   createBroadcastBlock,
   parseStoredBlocks,
   type BroadcastBlock,
@@ -14,6 +20,7 @@ import {
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
+import { getAuthLinkExpiry } from "@/server/auth/link-expiry"
 import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import {
   captureDevEmail,
@@ -39,6 +46,8 @@ export type AuthEmail = {
   reportUrl?: string
   /** The site is explicit for admin test sends; visitor flows resolve it by host. */
   workspaceId?: string
+  /** The lifetime snapshot used when this email's token was created. */
+  linkExpiry?: AuthLinkExpiry
   /**
    * Values for the placeholders this kind of email offers, over and above the
    * address and the link, which are filled in for every one of them.
@@ -57,6 +66,23 @@ export type SavedSystemEmail = {
   blocks: unknown
 } | null
 
+const EMAIL_TOKEN_PURPOSE: Partial<Record<SystemEmailKind, AuthTokenPurpose>> =
+  {
+    "verify-email": "verify_email",
+    "verification-reminder": "verify_email",
+    "sign-in-link": "login",
+    "password-reset": "reset_password",
+    "email-change": "change_email",
+    "email-change-warning": "revoke_email_change",
+    "new-account": "reset_password",
+  }
+
+function expiryTokenValues(purpose: AuthTokenPurpose, expiry: AuthLinkExpiry) {
+  return {
+    expires_in: authTokenExpiryText(purpose, expiry),
+  }
+}
+
 /**
  * The subject and the HTML for one of the app's own emails.
  *
@@ -72,14 +98,21 @@ export type SavedSystemEmail = {
 export function composeSystemEmail(
   email: AuthEmail,
   saved: SavedSystemEmail,
-  options: { appName?: string } = {}
+  options: { appName?: string; linkExpiry?: AuthLinkExpiry } = {}
 ) {
   const meta = SYSTEM_EMAIL_META[email.kind]
+  const tokenPurpose = EMAIL_TOKEN_PURPOSE[email.kind]
   const values: Record<string, string> = {
     ...email.tokens,
     email: email.to,
     firstName: emailFirstName(email.recipientName, email.to),
     action_url: email.actionUrl,
+    ...(tokenPurpose
+      ? expiryTokenValues(
+          tokenPurpose,
+          options.linkExpiry ?? DEFAULT_AUTH_LINK_EXPIRY
+        )
+      : {}),
   }
 
   const blocks = saved
@@ -139,11 +172,7 @@ function withUnwantedRequestLink(
 
   const footerIndex = blocks.findIndex((block) => block.kind === "footer")
   if (footerIndex < 0) return [...blocks, report]
-  return [
-    ...blocks.slice(0, footerIndex),
-    report,
-    ...blocks.slice(footerIndex),
-  ]
+  return [...blocks.slice(0, footerIndex), report, ...blocks.slice(footerIndex)]
 }
 
 /**
@@ -157,7 +186,7 @@ function withUnwantedRequestLink(
  */
 export function composeFromAddress(
   fromName: string | null,
-  configured: string,
+  configured: string
 ) {
   // A From line is one line. Anything that could end it or start a second
   // header — a line break, angle brackets, quotes, a comma splitting it into
@@ -175,7 +204,7 @@ export function composeFromAddress(
 
 async function fromAddress(
   fromName: string | null,
-  workspaceId: string | null,
+  workspaceId: string | null
 ) {
   const sender = await getWorkspaceSystemEmailSender(workspaceId)
   return composeFromAddress(fromName, sender.from)
@@ -219,6 +248,7 @@ export async function sendAuthEmail(email: AuthEmail) {
   }
   const { subject, html, fromName } = composeSystemEmail(email, saved, {
     appName,
+    linkExpiry: email.linkExpiry ?? (await getAuthLinkExpiry(workspaceId)),
   })
 
   captureDevEmail({ workspaceId, toEmail: email.to, subject, html })
@@ -228,7 +258,7 @@ export async function sendAuthEmail(email: AuthEmail) {
   // this quietly do nothing on a server where somebody had filled the tab in.
   const apiKey =
     (await getAppEmailApiKey(undefined, workspaceId ?? undefined).catch(
-      () => null,
+      () => null
     )) || process.env.CUSTOM_SHELL_RESEND_API_KEY
 
   if (!apiKey) {
@@ -241,7 +271,7 @@ export async function sendAuthEmail(email: AuthEmail) {
     }
 
     console.info(
-      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`,
+      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
     )
     await logSend(workspaceId, email, subject, {
       status: "failed",
@@ -320,7 +350,7 @@ async function logSend(
     status: "sent" | "failed"
     providerMessageId?: string | null
     error?: string | null
-  },
+  }
 ) {
   try {
     await recordSystemEmailSend({

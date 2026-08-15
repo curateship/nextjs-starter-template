@@ -126,8 +126,10 @@ import {
   createSignInLinkToken,
 } from "@/server/auth/sign-in-link"
 import { describeDevice } from "@/lib/format/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenTtlMs,
+} from "@/lib/email/auth-token-expiry"
 import {
   addAutomationTemplatesLink,
   addNewsletterLink,
@@ -297,7 +299,7 @@ describe("magic-link sign-in", () => {
     expect(row.tokenHash).toBe(hashToken(link!.token))
     expect(row.tokenHash).not.toBe(link!.token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      SIGN_IN_LINK_MINUTES * 60 * 1000
+      authTokenTtlMs("login", DEFAULT_AUTH_LINK_EXPIRY)
     )
   })
 
@@ -740,7 +742,7 @@ describe("self-serve email change", () => {
     expect(row.tokenHash).toBe(hashToken(token))
     expect(row.tokenHash).not.toBe(token)
     expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(
-      EMAIL_CHANGE_HOURS * 60 * 60 * 1000
+      authTokenTtlMs("change_email", DEFAULT_AUTH_LINK_EXPIRY)
     )
 
     // Nothing about the account moves until the link is opened.

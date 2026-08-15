@@ -2,13 +2,12 @@ import { createServerFn } from "@tanstack/react-start"
 import { eq, sql } from "drizzle-orm"
 import { z } from "zod"
 
-import {
-  ACCOUNT_RESTORE_DAYS,
-  isPendingDeletion,
-} from "@/lib/account-deletion"
+import { ACCOUNT_RESTORE_DAYS, isPendingDeletion } from "@/lib/account-deletion"
 import { describeDevice } from "@/lib/format/device-label"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  authTokenExpiryText,
+  type AuthLinkExpiry,
+} from "@/lib/email/auth-token-expiry"
 import {
   closeAccounts,
   purgeExpiredDeletions,
@@ -39,8 +38,14 @@ import {
   customShellUsers,
   type CustomShellUser,
 } from "@/server/schema"
-import { consumeSignInLink, createSignInLinkToken } from "@/server/auth/sign-in-link"
-import { enforceHumanCheck, getHumanCheckSiteKey } from "@/server/auth/turnstile"
+import {
+  consumeSignInLink,
+  createSignInLinkToken,
+} from "@/server/auth/sign-in-link"
+import {
+  enforceHumanCheck,
+  getHumanCheckSiteKey,
+} from "@/server/auth/turnstile"
 import {
   REPORTABLE_AUTH_PURPOSES,
   reportUnwantedAuthRequest,
@@ -48,7 +53,6 @@ import {
 import {
   clearSessionCookie,
   consumeAuthToken,
-  createAuthToken,
   deleteOtherSessions,
   deleteUserSession,
   describeRequestOrigin,
@@ -67,7 +71,17 @@ import {
   uuid,
   verifyPassword,
 } from "@/server/auth/security"
+import {
+  createWorkspaceAuthToken,
+  getAuthLinkContext,
+  getAuthLinkExpiry,
+  type AuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { requestIp, requireAppOrigin } from "@/server/auth/origin"
+import {
+  visitorWorkspaceId,
+  workspaceIdForRequest,
+} from "@/server/workspaces/for-request"
 import {
   alertEmailChanged,
   alertPasswordChanged,
@@ -273,6 +287,7 @@ const loadSignInOptionsFn = createServerFn({ method: "GET" }).handler(
   async () => ({
     siteKey: getHumanCheckSiteKey(),
     google: googleSignInEnabled(),
+    linkExpiry: await getAuthLinkExpiry(await visitorWorkspaceId()),
   })
 )
 
@@ -309,6 +324,7 @@ const registerFn = createServerFn({ method: "POST" })
     }
 
     await enforcePasswordNotBreached(data.password)
+    const linkContext = await getAuthLinkContext()
 
     const createdAt = now()
     const passwordHash = await hashPassword(data.password)
@@ -332,7 +348,14 @@ const registerFn = createServerFn({ method: "POST" })
           currentWorkspaceId: customShellUsers.currentWorkspaceId,
         })
 
-      const token = await createAuthToken(user.id, "verify_email", tx)
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "verify_email",
+        tx,
+        {
+          context: linkContext,
+        }
+      )
       await emitMemberEvent("registered", user, tx)
 
       return { user, token }
@@ -343,7 +366,7 @@ const registerFn = createServerFn({ method: "POST" })
     // session exists yet to carry it — verification comes first.
     await notifyAppAuthEvent({ kind: "register", userId: user.id })
 
-    await sendVerificationEmail(data.email, token, data.name)
+    await sendVerificationEmail(data.email, token, data.name, linkContext)
     return { ok: true }
   })
 
@@ -391,8 +414,16 @@ const resendVerificationFn = createServerFn({ method: "POST" })
     // Always reports success so this cannot be used to discover which emails
     // have accounts.
     if (user && !user.emailVerifiedAt) {
-      const token = await createAuthToken(user.id, "verify_email")
-      await sendVerificationEmail(user.email, token, user.name)
+      const linkContext = await getAuthLinkContext()
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "verify_email",
+        db,
+        {
+          context: linkContext,
+        }
+      )
+      await sendVerificationEmail(user.email, token, user.name, linkContext)
     }
 
     return { ok: true }
@@ -474,7 +505,8 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
     // other people's inboxes.
     await enforceHumanCheck(data.humanCheckToken)
 
-    const link = await createSignInLinkToken(data.email)
+    const linkContext = await getAuthLinkContext()
+    const link = await createSignInLinkToken(data.email, db, linkContext)
     // Always reports success so this cannot be used to discover which emails
     // have accounts.
     if (link) {
@@ -482,7 +514,8 @@ const requestSignInLinkFn = createServerFn({ method: "POST" })
         kind: "sign-in-link",
         to: link.email,
         recipientName: link.name,
-        tokens: { minutes: String(SIGN_IN_LINK_MINUTES) },
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
         actionUrl: appUrlFor(
           `/sign-in-link?token=${encodeURIComponent(link.token)}`
         ),
@@ -543,11 +576,19 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
 
     const user = await findUserByEmail(data.email)
     if (user) {
-      const token = await createAuthToken(user.id, "reset_password")
+      const linkContext = await getAuthLinkContext()
+      const token = await createWorkspaceAuthToken(
+        user.id,
+        "reset_password",
+        db,
+        { context: linkContext }
+      )
       await sendAuthEmail({
         kind: "password-reset",
         to: user.email,
         recipientName: user.name,
+        workspaceId: linkContext.workspaceId ?? undefined,
+        linkExpiry: linkContext.expiry,
         actionUrl: appUrlFor(
           `/reset-password?token=${encodeURIComponent(token)}`
         ),
@@ -698,14 +739,17 @@ const changePasswordFn = createServerFn({ method: "POST" })
 export type EmailChangeState = {
   pendingEmail: string | null
   expiresAt: string | null
+  expiresIn: string
 }
 
 function describePendingChange(
-  pending: PendingEmailChange | null
+  pending: PendingEmailChange | null,
+  expiry: AuthLinkExpiry
 ): EmailChangeState {
   return {
     pendingEmail: pending?.newEmail ?? null,
     expiresAt: pending?.expiresAt.toISOString() ?? null,
+    expiresIn: authTokenExpiryText("change_email", expiry),
   }
 }
 
@@ -716,7 +760,11 @@ function describePendingChange(
 const loadEmailChangeFn = createServerFn({ method: "GET" }).handler(
   async (): Promise<EmailChangeState> => {
     const user = await requireUser()
-    return describePendingChange(await findPendingEmailChange(user.id))
+    const workspaceId = await workspaceIdForRequest(user.id)
+    return describePendingChange(
+      await findPendingEmailChange(user.id),
+      await getAuthLinkExpiry(workspaceId)
+    )
   }
 )
 
@@ -733,6 +781,8 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<EmailChangeState> => {
     requireAppOrigin()
     const user = await requireOwnAccount()
+    const workspaceId = await workspaceIdForRequest(user.id)
+    const linkContext = await getAuthLinkContext(db, workspaceId)
 
     // Keyed on the account rather than the address: what this endpoint can be
     // abused for is mailing strangers, and the account is who would be doing it.
@@ -760,19 +810,31 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
       throw new Error("INVALID_CREDENTIALS")
     }
 
-    const token = await createEmailChangeToken(user, data.newEmail)
-    const revokeToken = await createEmailChangeRevokeToken(user.id)
+    const token = await createEmailChangeToken(
+      user,
+      data.newEmail,
+      db,
+      linkContext
+    )
+    const revokeToken = await createEmailChangeRevokeToken(
+      user.id,
+      db,
+      linkContext
+    )
 
     try {
       await sendAuthEmail({
         kind: "email-change",
         to: data.newEmail,
         recipientName: user.name,
+        workspaceId,
+        linkExpiry: linkContext.expiry,
         tokens: {
           old_email: user.email,
-          hours: String(EMAIL_CHANGE_HOURS),
         },
-        actionUrl: appUrlFor(`/change-email?token=${encodeURIComponent(token)}`),
+        actionUrl: appUrlFor(
+          `/change-email?token=${encodeURIComponent(token)}`
+        ),
       })
 
       // The old address hears about it too, and gets the one thing it needs:
@@ -784,9 +846,10 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
         kind: "email-change-warning",
         to: user.email,
         recipientName: user.name,
+        workspaceId,
+        linkExpiry: linkContext.expiry,
         tokens: {
           new_email: data.newEmail,
-          hours: String(EMAIL_CHANGE_HOURS),
         },
         actionUrl: appUrlFor(
           `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
@@ -804,7 +867,10 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
 
     // Read back rather than assembled here, so the tab shows the row the
     // server actually holds — including its exact expiry.
-    return describePendingChange(await findPendingEmailChange(user.id))
+    return describePendingChange(
+      await findPendingEmailChange(user.id),
+      await getAuthLinkExpiry(workspaceId)
+    )
   })
 
 const cancelEmailChangeFn = createServerFn({ method: "POST" }).handler(
@@ -913,7 +979,10 @@ const reportUnwantedAuthRequestFn = createServerFn({ method: "POST" })
 /** The devices signed in to this account, for the Security tab's list. */
 const loadSessionsFn = createServerFn({ method: "GET" }).handler(async () => {
   const owner = await requireSessionOwner()
-  const { sessions, total } = await listUserSessions(owner.id, getSessionToken())
+  const { sessions, total } = await listUserSessions(
+    owner.id,
+    getSessionToken()
+  )
 
   return {
     total,
@@ -1144,9 +1213,8 @@ export async function startWorkspaceFor(
   // Inside a handler it would be stripped; out here it is not.
   if (!mayHaveWorkspace(user)) return
 
-  const { startWorkspaceFor: start, pointAtWorkspaceForHost } = await import(
-    "@/server/people/workspaces"
-  )
+  const { startWorkspaceFor: start, pointAtWorkspaceForHost } =
+    await import("@/server/people/workspaces")
   await start(user.id)
 
   // Signing in on a workspace's own domain puts you in that workspace. Somebody
@@ -1156,11 +1224,18 @@ export async function startWorkspaceFor(
   await pointAtWorkspaceForHost(user.id)
 }
 
-function sendVerificationEmail(email: string, token: string, name: string) {
+function sendVerificationEmail(
+  email: string,
+  token: string,
+  name: string,
+  linkContext: AuthLinkContext
+) {
   return sendAuthEmail({
     kind: "verify-email",
     to: email,
     recipientName: name,
+    workspaceId: linkContext.workspaceId ?? undefined,
+    linkExpiry: linkContext.expiry,
     actionUrl: appUrlFor(`/verify-email?token=${encodeURIComponent(token)}`),
   })
 }

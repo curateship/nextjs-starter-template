@@ -5,10 +5,14 @@ import {
   validateDripConfig,
   type DripConfig,
 } from "@/lib/broadcasts/drip"
+import {
+  authLinkExpirySchema,
+  parseAuthLinkExpiry,
+  type AuthLinkExpiry,
+} from "@/lib/email/auth-token-expiry"
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { customShellEmailSettings } from "@/server/schema"
-import { now } from "@/server/auth/security"
 import { getAppLinkStatus, type AppLinkStatus } from "@/server/app-url"
 import {
   resolveSystemEmailSender,
@@ -43,6 +47,7 @@ async function upsertEmailSettings(
     fromEmail: string | null
     fromName: string | null
     systemFromEmail: string | null
+    authLinkExpiry: AuthLinkExpiry
     resendApiKeyEncrypted: string | null
     resendWebhookSecretEncrypted: string | null
     dripDefaults: DripConfig
@@ -50,7 +55,7 @@ async function upsertEmailSettings(
   database: CustomShellDb = db
 ) {
   const existing = await getEmailSettings(workspaceId, database)
-  const timestamp = now()
+  const timestamp = new Date()
 
   if (existing) {
     const [updated] = await database
@@ -87,6 +92,18 @@ export async function saveSystemEmailSender(
     workspaceId,
     { systemFromEmail: systemFromEmail.trim() || null },
     database,
+  )
+}
+
+export async function saveAuthLinkExpiry(
+  workspaceId: string,
+  expiry: AuthLinkExpiry,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { authLinkExpiry: authLinkExpirySchema.parse(expiry) },
+    database
   )
 }
 
@@ -268,6 +285,8 @@ export type EmailSettingsStatus = {
   webhookUnreadable: boolean
   /** The pace a newly created newsletter starts from. */
   dripDefaults: DripConfig
+  /** How long each kind of authentication link remains usable. */
+  authLinkExpiry: AuthLinkExpiry
   /** Whether email works at all, which this workspace's key alone cannot say. */
   delivery: EmailDeliveryStatus
   /** Where links in sign-in, reset, and other system emails lead. */
@@ -320,6 +339,7 @@ export async function getEmailSettingsStatus(
     maskedWebhookSecret,
     webhookUnreadable,
     dripDefaults: parseDripConfig(row?.dripDefaults),
+    authLinkExpiry: parseAuthLinkExpiry(row?.authLinkExpiry),
     delivery: await getEmailDeliveryStatus(database),
     links: getAppLinkStatus(),
     systemSender,
