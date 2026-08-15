@@ -494,6 +494,7 @@ export function EmailBlockEditor({
       width={previewWidth}
       selectedBlockId={previewBlock ? null : selectedBlockId}
       disabled={!editable}
+      renderStyle={layout === "systemEmail" ? "system" : "standard"}
       onSelect={selectBlock}
       onOpenSettings={() => selectBlock(null)}
       onReorder={(blocks) =>

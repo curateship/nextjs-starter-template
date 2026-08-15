@@ -15,6 +15,8 @@ import { resolveAppName } from "@/lib/branding"
 
 const EMAIL_MAX_WIDTH = 600
 
+export type EmailRenderStyle = "standard" | "system"
+
 function mergeStyleStrings(currentStyles: string, extraStyles: string) {
   const styles = new Map<string, string>()
   for (const styleString of [currentStyles, extraStyles]) {
@@ -100,9 +102,35 @@ function normalizeRichTextHtml(htmlContent: string) {
     .trim()
 }
 
-function styleRichTextHtml(htmlContent: string) {
-  let styled = normalizeRichTextHtml(htmlContent)
-  for (const [tag, styles] of RICH_TEXT_TAG_STYLES) {
+/** Gives older and pasted images a useful label when their editor did not. */
+function ensureImageAltText(htmlContent: string) {
+  return htmlContent.replace(/<img\b[^>]*>/gi, (openingTag) => {
+    const alt = openingTag.match(/\salt\s*=\s*(["'])(.*?)\1/i)
+    if (alt?.[2].trim()) return openingTag
+    if (alt) return openingTag.replace(alt[0], ' alt="Email image"')
+    return openingTag.replace(/\s*\/?>$/, (ending) =>
+      ` alt="Email image"${ending}`
+    )
+  })
+}
+
+function styleRichTextHtml(
+  htmlContent: string,
+  renderStyle: EmailRenderStyle
+) {
+  let styled = ensureImageAltText(normalizeRichTextHtml(htmlContent))
+  const tagStyles = RICH_TEXT_TAG_STYLES.map(([tag, styles]) => {
+    if (renderStyle !== "system") return [tag, styles] as const
+    if (tag === "h1") {
+      return [
+        tag,
+        "margin:0 0 12px 0;padding-top:0;font-size:20px;line-height:1.2;font-weight:700;color:#111827;font-family:Arial,sans-serif;",
+      ] as const
+    }
+    if (tag === "p") return [tag, "margin:0 0 24px 0;"] as const
+    return [tag, styles] as const
+  })
+  for (const [tag, styles] of tagStyles) {
     styled = styleOpeningTags(styled, tag, styles)
   }
   // Paragraphs nested in list items keep the list compact.
@@ -114,6 +142,16 @@ function styleRichTextHtml(htmlContent: string) {
         (paragraphTag) => mergeInlineStyles(paragraphTag, "margin:0;")
       )
   )
+}
+
+function renderAppName(
+  appName: string,
+  color: string,
+  hasLogo = false,
+  renderStyle: EmailRenderStyle = "standard"
+) {
+  const fontSize = renderStyle === "system" ? 18 : 20
+  return `<p style="margin:0${hasLogo ? " 0 12px 0" : ""};font-family:Arial,sans-serif;font-size:${fontSize}px;line-height:1.25;font-weight:bold;color:${color};">${escapeHtml(appName)}</p>`
 }
 
 /** A plain dark or light label that stays readable on the chosen header. */
@@ -131,8 +169,9 @@ function headerTextColor(backgroundColor: string) {
 
 export function renderBroadcastBlockHtml(
   block: BroadcastBlock,
-  options: { appName?: string } = {}
+  options: { appName?: string; renderStyle?: EmailRenderStyle } = {}
 ): string {
+  const renderStyle = options.renderStyle ?? "standard"
   switch (block.kind) {
     case "header": {
       const {
@@ -150,18 +189,23 @@ export function renderBroadcastBlockHtml(
       // `margin:0 0` as "left". Inline-block hands all three alignments to the
       // one `text-align` below, which is also what Outlook actually honours.
       const appName = resolveAppName(options.appName)
-      // Alt text carries the same name for inboxes that block images. With no
-      // picture at all, the name is drawn deliberately instead of leaving an
-      // invisible header behind.
-      const inner = logoUrl
-        ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(appName)}" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
-        : `<span style="display:inline-block;font-family:Arial,sans-serif;font-size:20px;line-height:1.25;font-weight:bold;color:${headerTextColor(backgroundColor)};">${escapeHtml(appName)}</span>`
+      // The name is real text and comes first, so blocking the decorative logo
+      // never leaves a nameless message. A short image label avoids making a
+      // screen reader repeat the app name twice.
+      const inner = `${renderAppName(appName, headerTextColor(backgroundColor), Boolean(logoUrl), renderStyle)}${
+        logoUrl
+          ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" width="${logoWidth}" style="width:${logoWidth}px;height:${logoHeight ? `${logoHeight}px` : "auto"};display:inline-block;vertical-align:middle;border:0;outline:none;" />`
+          : ""
+      }`
       return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${paddingTop}px 20px ${paddingBottom}px 20px;text-align:${alignment};">${inner}</td></tr></table>`
     }
 
     case "richText": {
       const { htmlContent, backgroundColor, padding } = block.content
-      return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${padding}px;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#333333;">${styleRichTextHtml(htmlContent)}</td></tr></table>`
+      const fontSize = renderStyle === "system" ? 14 : 16
+      const cellPadding =
+        renderStyle === "system" ? `0 ${padding}px` : `${padding}px`
+      return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${escapeHtml(backgroundColor)};"><tr><td style="padding:${cellPadding};font-family:Arial,sans-serif;font-size:${fontSize}px;line-height:1.6;color:#333333;">${styleRichTextHtml(htmlContent, renderStyle)}</td></tr></table>`
     }
 
     case "button": {
@@ -181,8 +225,14 @@ export function renderBroadcastBlockHtml(
       // editor draws every keystroke through this and an address is unusable
       // for most of the time it is being typed.
       const href = safeLinkUrl(url) || ACTION_URL_TOKEN
-      const inner = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;border-collapse:separate;"><tr><td style="background-color:${escapeHtml(backgroundColor)};border-radius:${borderRadius}px;text-align:center;"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 24px;font-family:Arial,sans-serif;font-size:16px;font-weight:bold;line-height:1.2;color:${escapeHtml(textColor)};text-decoration:none;border-radius:${borderRadius}px;">${escapeHtml(label)}</a></td></tr></table>`
-      return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${padding}px;text-align:${alignment};">${inner}</td></tr></table>`
+      const buttonPadding = renderStyle === "system" ? "10px 18px" : "12px 24px"
+      const fontSize = renderStyle === "system" ? 14 : 16
+      const inner = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="display:inline-table;border-collapse:separate;"><tr><td style="background-color:${escapeHtml(backgroundColor)};border-radius:${borderRadius}px;text-align:center;"><a href="${escapeHtml(href)}" style="display:inline-block;padding:${buttonPadding};font-family:Arial,sans-serif;font-size:${fontSize}px;font-weight:bold;line-height:1.2;color:${escapeHtml(textColor)};text-decoration:none;border-radius:${borderRadius}px;">${escapeHtml(label)}</a></td></tr></table>`
+      const cellPadding =
+        renderStyle === "system"
+          ? `0 ${padding}px 24px ${padding}px`
+          : `${padding}px`
+      return `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:${cellPadding};text-align:${alignment};">${inner}</td></tr></table>`
     }
 
     case "divider": {
@@ -210,18 +260,30 @@ export function renderBroadcastBlockHtml(
 
 export function renderBroadcastEmailHtml(
   blocks: BroadcastBlock[],
-  options: { preheader?: string; appName?: string } = {}
+  options: {
+    preheader?: string
+    appName?: string
+    renderStyle?: EmailRenderStyle
+  } = {}
 ): string {
   const preheader = options.preheader?.trim()
   const preheaderHtml = preheader
     ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${escapeHtml(preheader)}</div>`
     : ""
-  const wrappedBlocks = blocks
-    .map(
-      (block) =>
-        `<tr><td>${renderBroadcastBlockHtml(block, { appName: options.appName })}</td></tr>`
-    )
-    .join("")
+  const appName = resolveAppName(options.appName)
+  // A header block carries this identity itself. An email without one still
+  // names its sender before any optional pictures in its written content.
+  const identityRow = blocks.some((block) => block.kind === "header")
+    ? ""
+    : `<tr><td><table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#ffffff;"><tr><td style="padding:20px 20px 0 20px;">${renderAppName(appName, "#111827", false, options.renderStyle)}</td></tr></table></td></tr>`
+  const wrappedBlocks =
+    identityRow +
+    blocks
+      .map(
+        (block) =>
+          `<tr><td>${renderBroadcastBlockHtml(block, { appName, renderStyle: options.renderStyle })}</td></tr>`
+      )
+      .join("")
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="format-detection" content="address=no"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><style>@media only screen and (max-width:${EMAIL_MAX_WIDTH + 20}px){.email-container{width:100%!important;}}.unstyle-auto-detected-links a[x-apple-data-detectors],.unstyle-auto-detected-links a{color:inherit!important;text-decoration:none!important;font-size:inherit!important;font-family:inherit!important;font-weight:inherit!important;line-height:inherit!important;}</style></head><body style="margin:0;padding:0;font-family:Arial,sans-serif;">${preheaderHtml}<center><!--[if mso]><table role="presentation" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]--><table role="presentation" class="email-container" width="${EMAIL_MAX_WIDTH}" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">${wrappedBlocks}</table><!--[if mso]></td></tr></table><![endif]--></center></body></html>`
 }

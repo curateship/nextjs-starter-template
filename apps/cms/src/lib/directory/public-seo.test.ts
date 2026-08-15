@@ -7,6 +7,7 @@ import {
   directoryTitle,
   jsonLdText,
   listingJsonLd,
+  listingPageShareImage,
   siteUrlFor,
 } from "@/lib/directory/public-seo"
 
@@ -43,8 +44,14 @@ describe("titles and descriptions", () => {
   })
 
   it("adds no description tags at all when there is nothing to say", () => {
-    expect(directoryHead("Directory · Alpha", "")).toEqual({
-      meta: [{ title: "Directory · Alpha" }],
+    const head = directoryHead("Directory · Alpha", "")
+
+    expect(head.meta).toEqual([{ title: "Directory · Alpha" }])
+    expect(head.links).toContainEqual({
+      rel: "alternate",
+      type: "application/rss+xml",
+      title: "New listings",
+      href: "/feed.xml",
     })
   })
 
@@ -60,13 +67,61 @@ describe("titles and descriptions", () => {
       content: "https://images.example.com/joe.jpg",
     })
   })
+
+  it("uses a listing photo before a drawn picture", () => {
+    expect(
+      listingPageShareImage({
+        featuredImage: "https://images.example.com/joe.jpg",
+        siteUrl: "https://alpha.example.com",
+        slug: "joes-diner",
+        version: "1-old",
+      })
+    ).toBe("https://images.example.com/joe.jpg")
+  })
+
+  it("describes a drawn listing picture at its exact size and type", () => {
+    const image = listingPageShareImage({
+      featuredImage: "",
+      siteUrl: "https://alpha.example.com",
+      slug: "joes-diner",
+      version: "1-card",
+    })
+    const meta = directoryHead(
+      "Joe's Diner · Alpha",
+      "Breakfast all day",
+      image
+    ).meta
+
+    expect(meta).toContainEqual({
+      property: "og:image",
+      content:
+        "https://alpha.example.com/directory/share-image/joes-diner?v=1-card",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:type",
+      content: "image/svg+xml",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:width",
+      content: "1200",
+    })
+    expect(meta).toContainEqual({
+      property: "og:image:height",
+      content: "630",
+    })
+    expect(meta).toContainEqual({
+      name: "twitter:image",
+      content:
+        "https://alpha.example.com/directory/share-image/joes-diner?v=1-card",
+    })
+  })
 })
 
 describe("addresses", () => {
   it("builds one on the site being visited, with no doubled slash", () => {
-    expect(siteUrlFor("https://alpha.example.com/", "/directory/joes-diner")).toBe(
-      "https://alpha.example.com/directory/joes-diner"
-    )
+    expect(
+      siteUrlFor("https://alpha.example.com/", "/directory/joes-diner")
+    ).toBe("https://alpha.example.com/directory/joes-diner")
   })
 })
 
@@ -108,6 +163,58 @@ describe("the block a search engine reads", () => {
 
     expect(graph[1]).not.toHaveProperty("description")
     expect(graph[1]).not.toHaveProperty("image")
+  })
+
+  it("upgrades a pinned listing to LocalBusiness with hours and photos", () => {
+    const graph = listingJsonLd({
+      ...listing,
+      gallery: ["https://images.example.com/inside.jpg"],
+      hours: { monday: { open: "09:00", close: "17:00" } },
+      address: "12 Queen Street",
+      latitude: 43.6532,
+      longitude: -79.3832,
+    })["@graph"] as Record<string, unknown>[]
+
+    expect(graph[1]).toMatchObject({
+      "@type": "LocalBusiness",
+      address: "12 Queen Street",
+      image: [
+        "https://images.example.com/joe.jpg",
+        "https://images.example.com/inside.jpg",
+      ],
+      geo: {
+        "@type": "GeoCoordinates",
+        latitude: 43.6532,
+        longitude: -79.3832,
+      },
+      openingHoursSpecification: [
+        {
+          "@type": "OpeningHoursSpecification",
+          dayOfWeek: "https://schema.org/Monday",
+          opens: "09:00",
+          closes: "17:00",
+        },
+      ],
+    })
+  })
+
+  it("keeps the exact WebPage shape without coordinates", () => {
+    expect(
+      listingJsonLd({
+        ...listing,
+        gallery: ["https://images.example.com/inside.jpg"],
+        hours: { monday: { open: "09:00", close: "17:00" } },
+      })
+    ).toEqual(listingJsonLd(listing))
+  })
+
+  it("never adds an admin-set rating to search-engine markup", () => {
+    const ratedListing = { ...listing, rating: 4.5 }
+
+    expect(listingJsonLd(ratedListing)).toEqual(listingJsonLd(listing))
+    expect(jsonLdText(listingJsonLd(ratedListing))).not.toContain(
+      "aggregateRating"
+    )
   })
 
   it("describes a category as the list of things it is", () => {

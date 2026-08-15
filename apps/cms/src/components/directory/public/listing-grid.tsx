@@ -3,9 +3,11 @@ import { Link } from "@tanstack/react-router"
 import { ClaimedBadge } from "@/components/directory/public/claimed-badge"
 import { FeaturedBadge } from "@/components/directory/public/featured-badge"
 import { SaveDropdown } from "@/components/directory/public/save-dropdown"
+import { ListingRating } from "@/components/directory/listing-rating"
 import { Card, CardContent } from "@/components/ui/card"
 import type { PublicListingCard } from "@/lib/api/directory/public"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { formatDirectoryDistance } from "@/lib/directory/public-search"
 
 /**
  * The card grid every public directory list uses: browse, a category page, and
@@ -56,13 +58,13 @@ function ListingCard({ listing }: { listing: PublicListingCard }) {
           <SaveDropdown
             listingId={listing.id}
             overlay
-            className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100"
+            className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-focus-within/card:opacity-100 md:group-hover/card:opacity-100"
           />
         </div>
       ) : (
         <SaveDropdown
           listingId={listing.id}
-          className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100"
+          className="absolute top-2 right-2 transition-opacity md:opacity-0 md:group-focus-within/card:opacity-100 md:group-hover/card:opacity-100"
         />
       )}
       <CardContent className="grid gap-1">
@@ -87,6 +89,13 @@ function ListingCard({ listing }: { listing: PublicListingCard }) {
             {listing.title}
           </Link>
         </h2>
+        <ListingRating rating={listing.rating} />
+        {listing.distanceKm !== undefined ? (
+          <p className="text-xs text-muted-foreground">
+            {formatDirectoryDistance(listing.distanceKm) ||
+              "Map location unavailable"}
+          </p>
+        ) : null}
         {listing.category || listing.claimed ? (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             {listing.category ? listing.category.name : null}

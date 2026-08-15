@@ -372,7 +372,7 @@ export function AdminAccountDialog({
 
 /** The whole account read back, in the order a support question asks it. */
 function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
-  const { profile, subscription, storage } = detail
+  const { profile, subscription, storage, securityReports } = detail
 
   return (
     <div className="grid gap-[var(--shell-modal-padding,1.5rem)]">
@@ -445,6 +445,29 @@ function AccountDetailsPanel({ detail }: { detail: AccountDetail }) {
           />
         </CardContent>
       </Card>
+
+      {securityReports.count > 0 ? (
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Security reports</CardTitle>
+            <CardDescription>
+              They marked a password-reset or sign-in email as unwanted. The
+              report stopped only that link and did not lock the account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            <DetailRow label="Reported emails" value={securityReports.count} />
+            <DetailRow
+              label="Most recent"
+              value={
+                securityReports.latestAt
+                  ? formatDateTime(securityReports.latestAt)
+                  : "—"
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card size="sm">
         <CardHeader>

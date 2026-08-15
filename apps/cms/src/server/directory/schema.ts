@@ -6,6 +6,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   timestamp,
   uniqueIndex,
@@ -16,7 +17,8 @@ import {
  * The directory content type's tables. This file belongs to the app, not the
  * shell — the shell's own tables live in `@/server/schema`, which an app never
  * edits, so the app's tables get a schema module of their own. The matching
- * SQL is `drizzle/0044_cms_directory_listings.sql`.
+ * base SQL is `drizzle/0044_cms_directory_listings.sql`; later columns stay in
+ * their numbered migrations, including the rich listing fields in `0067`.
  *
  * A listing is a plain record: fixed columns, contact links and one written
  * body. There is deliberately no template or block table — that layer of the
@@ -39,6 +41,8 @@ export const directoryListings = pgTable(
     metaDescription: varchar("meta_description", { length: 300 })
       .notNull()
       .default(""),
+    /** An optional admin-set score. Null means the listing has no rating. */
+    rating: numeric("rating", { precision: 2, scale: 1, mode: "number" }),
     /** 'draft' or 'published'. Drafts never reach a visitor. */
     status: varchar("status", { length: 20 }).notNull().default("draft"),
     /** Hand-set ordering for the public list. Ties fall back to newest-first. */
@@ -47,6 +51,17 @@ export const directoryListings = pgTable(
     featuredImage: varchar("featured_image", { length: 600 })
       .notNull()
       .default(""),
+    /** Additional media-library photos, cleaned and capped at twelve. */
+    gallery: jsonb("gallery").notNull().default([]),
+    /** One optional open/close pair per weekday; missing means closed. */
+    hours: jsonb("hours").notNull().default({}),
+    /** A map pin is a complete pair or null, never a made-up 0,0 default. */
+    latitude: numeric("latitude", { precision: 9, scale: 6, mode: "number" }),
+    longitude: numeric("longitude", {
+      precision: 10,
+      scale: 6,
+      mode: "number",
+    }),
     /**
      * { address, menuLinks, socialLinks } — the checked shape from
      * `lib/directory/contact-links.ts`. Every href is sanitized before it is
@@ -91,6 +106,19 @@ export const directoryListings = pgTable(
       "directory_listings_status_check",
       sql`${table.status} IN ('draft', 'published')`
     ),
+    check(
+      "directory_listings_rating_check",
+      sql`${table.rating} IS NULL OR ${table.rating} BETWEEN 0 AND 5`
+    ),
+    check(
+      "directory_listings_coordinates_check",
+      sql`(${table.latitude} IS NULL AND ${table.longitude} IS NULL) OR (${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL AND ${table.latitude} BETWEEN -90 AND 90 AND ${table.longitude} BETWEEN -180 AND 180)`
+    ),
+    index("ix_directory_listings_workspace_coordinates")
+      .on(table.workspaceId, table.latitude, table.longitude)
+      .where(
+        sql`${table.latitude} IS NOT NULL AND ${table.longitude} IS NOT NULL`
+      ),
   ]
 )
 
@@ -433,6 +461,9 @@ export const directorySettings = pgTable(
       .notNull()
       .default("off"),
     frontPageCount: integer("front_page_count").notNull().default(8),
+    geocodingApiKeyEncrypted: varchar("geocoding_api_key_encrypted", {
+      length: 700,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
@@ -462,6 +493,8 @@ export const directorySaveCollections = pgTable(
       .notNull()
       .references(() => customShellUsers.id, { onDelete: "cascade" }),
     name: varchar("name", { length: 80 }).notNull(),
+    /** Private until its owner explicitly shares this one list. */
+    isPublic: boolean("is_public").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

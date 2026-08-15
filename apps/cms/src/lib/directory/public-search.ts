@@ -10,7 +10,8 @@
  */
 
 /** How a visitor may order the list. The first one is the default. */
-export const DIRECTORY_SORTS = ["order", "newest", "title"] as const
+export const DIRECTORY_SORTS = ["order", "newest", "title", "distance"] as const
+export const DIRECTORY_DEFAULT_SORTS = ["order", "newest", "title"] as const
 
 export type DirectorySort = (typeof DIRECTORY_SORTS)[number]
 
@@ -18,6 +19,17 @@ export function isDirectorySort(value: unknown): value is DirectorySort {
   return (
     typeof value === "string" &&
     DIRECTORY_SORTS.includes(value as DirectorySort)
+  )
+}
+
+export type DirectoryDefaultSort = (typeof DIRECTORY_DEFAULT_SORTS)[number]
+
+export function isDirectoryDefaultSort(
+  value: unknown
+): value is DirectoryDefaultSort {
+  return (
+    typeof value === "string" &&
+    DIRECTORY_DEFAULT_SORTS.includes(value as DirectoryDefaultSort)
   )
 }
 
@@ -31,6 +43,7 @@ export const DIRECTORY_SORT_LABELS: Record<DirectorySort, string> = {
   order: "Recommended",
   newest: "Newest",
   title: "A to Z",
+  distance: "Nearest",
 }
 
 /**
@@ -46,6 +59,61 @@ export type DirectoryBrowseSearch = {
   category?: string
   sort?: DirectorySort
   page?: number
+  /** Rounded browser location only; never a precise position. */
+  near?: string
+  /** A human-readable place name, when the visitor typed one. */
+  place?: string
+  radius?: number
+}
+
+export const DIRECTORY_NEAR_RADII_KM = [5, 10, 25, 50] as const
+export const DEFAULT_DIRECTORY_NEAR_RADIUS_KM = 10
+
+export type DirectoryNearPoint = { latitude: number; longitude: number }
+
+/** Three decimals is about 110 metres: useful nearby without sharing a doorstep. */
+export function parseDirectoryNearPoint(
+  value: unknown
+): DirectoryNearPoint | null {
+  if (typeof value !== "string") return null
+  const [rawLatitude, rawLongitude, ...rest] = value.split(",")
+  if (rest.length || rawLatitude === undefined || rawLongitude === undefined)
+    return null
+  const latitude = Number(rawLatitude)
+  const longitude = Number(rawLongitude)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+    return null
+  return {
+    latitude: roundNearCoordinate(latitude),
+    longitude: roundNearCoordinate(longitude),
+  }
+}
+
+export function formatDirectoryNearPoint(point: DirectoryNearPoint) {
+  return `${roundNearCoordinate(point.latitude)},${roundNearCoordinate(point.longitude)}`
+}
+
+export function readDirectoryNearRadius(value: unknown) {
+  const radius = typeof value === "number" ? value : Number(value)
+  return DIRECTORY_NEAR_RADII_KM.includes(
+    radius as (typeof DIRECTORY_NEAR_RADII_KM)[number]
+  )
+    ? radius
+    : undefined
+}
+
+function roundNearCoordinate(value: number) {
+  return Math.round(value * 1_000) / 1_000
+}
+
+export function formatDirectoryDistance(distanceKm: number | null | undefined) {
+  if (distanceKm == null || !Number.isFinite(distanceKm) || distanceKm < 0)
+    return ""
+  if (distanceKm < 0.1) return "Nearby"
+  if (distanceKm < 1) return `${Math.round(distanceKm * 10) * 100} m away`
+  if (distanceKm < 10) return `${distanceKm.toFixed(1)} km away`
+  return `${Math.round(distanceKm)} km away`
 }
 
 /** How many "you might also like" listings a detail page shows. */

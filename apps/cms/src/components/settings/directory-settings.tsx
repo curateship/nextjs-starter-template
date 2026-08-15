@@ -4,9 +4,10 @@ import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
+import { Card, CardContent, CardGroup } from "@/components/ui/card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Select,
   SelectContent,
@@ -27,6 +28,7 @@ import {
   type DirectoryFrontPageSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
 } from "@/lib/api/directory/settings"
+import { saveGeocodingKey } from "@/lib/api/directory/geocoding-settings"
 import {
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   DIRECTORY_FRONT_PAGE_COUNT_MIN,
@@ -37,7 +39,7 @@ import {
 import {
   DIRECTORY_SORTS,
   DIRECTORY_SORT_LABELS,
-  type DirectorySort,
+  type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -48,6 +50,10 @@ export function DirectorySettings() {
   )
   const [pageSize, setPageSize] = React.useState("")
   const [frontPageCount, setFrontPageCount] = React.useState("")
+  const [geocodingKey, setGeocodingKey] = React.useState("")
+  const [savedGeocodingKey, setSavedGeocodingKey] = React.useState<
+    string | null
+  >(null)
   const [save, saving] = useAsyncAction(getDirectorySettingsErrorMessage)
   const [clearCache, clearingCache] = useAsyncAction(
     getClearPublicPagesErrorMessage
@@ -60,6 +66,7 @@ export function DirectorySettings() {
         setSettings(loadedSettings)
         setPageSize(String(loadedSettings.pageSize))
         setFrontPageCount(String(loadedSettings.frontPageCount))
+        setSavedGeocodingKey(loadedSettings.geocodingKeyStatus)
       })
       .catch(() =>
         showErrorToast("The directory settings could not be loaded.")
@@ -99,8 +106,66 @@ export function DirectorySettings() {
       frontPageNumber < DIRECTORY_FRONT_PAGE_COUNT_MIN ||
       frontPageNumber > DIRECTORY_FRONT_PAGE_COUNT_MAX)
 
+  if (!settings) {
+    return (
+      <CardGroup>
+        <Card>
+          <CardContent>
+            <LoadingRow label="Loading directory settings…" />
+          </CardContent>
+        </Card>
+      </CardGroup>
+    )
+  }
+
   return (
     <CardGroup>
+      <CollapsibleSettingsCard
+        storageId="directory-near-me"
+        title="Near me search"
+        description="Let visitors find listings around a town, city, or postcode."
+      >
+        <div className="grid max-w-md gap-2">
+          <FieldLabel
+            htmlFor="directory-geocoding-key"
+            hint="Enable Google Geocoding API and billing in Google Cloud first. This key is encrypted and only its last four characters are shown again."
+          >
+            Google Maps API key
+          </FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id="directory-geocoding-key"
+              type="password"
+              value={geocodingKey}
+              onChange={(event) => setGeocodingKey(event.target.value)}
+              placeholder={
+                savedGeocodingKey ?? "Paste your Google Maps API key"
+              }
+            />
+            <Button
+              type="button"
+              disabled={!settings || !geocodingKey.trim() || saving}
+              onClick={() => {
+                if (!settings) return
+                const key = geocodingKey.trim()
+                void save(() => saveGeocodingKey(key)).then((saved) => {
+                  if (!saved) return
+                  setSavedGeocodingKey(`••••${key.slice(-4)}`)
+                  setGeocodingKey("")
+                  toast.success("Google Maps key saved.")
+                })
+              }}
+            >
+              Save key
+            </Button>
+          </div>
+          {savedGeocodingKey ? (
+            <p className="text-sm text-muted-foreground">
+              Saved key: {savedGeocodingKey}
+            </p>
+          ) : null}
+        </div>
+      </CollapsibleSettingsCard>
       <CollapsibleSettingsCard
         storageId="directory-front-page"
         title="Front page"
@@ -277,7 +342,10 @@ export function DirectorySettings() {
             onValueChange={(value) => {
               if (!settings) return
               const previous = settings
-              const next = { ...settings, defaultSort: value as DirectorySort }
+              const next = {
+                ...settings,
+                defaultSort: value as DirectoryDefaultSort,
+              }
               setSettings(next)
               void persist(next).then((saved) => {
                 if (!saved) {
@@ -294,11 +362,13 @@ export function DirectorySettings() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {DIRECTORY_SORTS.map((sort) => (
-                <SelectItem key={sort} value={sort}>
-                  {DIRECTORY_SORT_LABELS[sort]}
-                </SelectItem>
-              ))}
+              {DIRECTORY_SORTS.filter((sort) => sort !== "distance").map(
+                (sort) => (
+                  <SelectItem key={sort} value={sort}>
+                    {DIRECTORY_SORT_LABELS[sort]}
+                  </SelectItem>
+                )
+              )}
             </SelectContent>
           </Select>
         </div>

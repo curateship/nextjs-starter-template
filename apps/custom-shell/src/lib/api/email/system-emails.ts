@@ -31,6 +31,11 @@ import { appUrlFor } from "@/server/app-url"
 import { devOutboxIsAvailable } from "@/server/email/dev-outbox"
 
 import { createErrorMessage } from "../error-message"
+import {
+  describeAdminEmailDeliveryError,
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
 
 export type SystemEmailListItem = {
   kind: SystemEmailKind
@@ -80,14 +85,23 @@ const systemEmailErrorMessages: Record<string, string> = {
   CREATE_FAILED: "We could not open that email. Please try again.",
   EMAIL_NOT_CONFIGURED:
     "Email is not set up on this server, so nothing can go out.",
-  EMAIL_DELIVERY_FAILED:
-    "The email service would not take it. Please try again.",
+  [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+    "The email service needs attention before this can be sent.",
+  [EMAIL_DELIVERY_RETRYABLE]:
+    "The email service had a temporary problem. Please try again shortly.",
 }
 
-export const getSystemEmailErrorMessage = createErrorMessage(
+const getBaseSystemEmailErrorMessage = createErrorMessage(
   systemEmailErrorMessages,
   "We could not save that change. Please try again.",
 )
+
+export function getSystemEmailErrorMessage(error: unknown) {
+  return (
+    describeAdminEmailDeliveryError(error, "The test email was not sent.") ??
+    getBaseSystemEmailErrorMessage(error)
+  )
+}
 
 /** The same codes, said the way a page that would not open needs them said. */
 export const getSystemEmailLoadErrorMessage = createErrorMessage(
@@ -221,12 +235,11 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
     const sampleTokens: Record<SystemEmailKind, Record<string, string>> = {
       "verify-email": {},
       "verification-reminder": {},
-      "sign-in-link": { minutes: "15" },
+      "sign-in-link": {},
       "password-reset": {},
-      "email-change": { old_email: context.user.email, hours: "24" },
+      "email-change": { old_email: context.user.email },
       "email-change-warning": {
         new_email: "new-address@example.com",
-        hours: "24",
       },
       "email-change-done": {
         new_email: "new-address@example.com",
@@ -260,8 +273,13 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       to: context.user.email,
       recipientName: context.user.name,
       workspaceId,
+      showFailureReasonToAdmin: true,
       tokens: sampleTokens[data.kind],
       actionUrl: appUrlFor("/"),
+      reportUrl:
+        data.kind === "sign-in-link" || data.kind === "password-reset"
+          ? "#"
+          : undefined,
     })
   })
 

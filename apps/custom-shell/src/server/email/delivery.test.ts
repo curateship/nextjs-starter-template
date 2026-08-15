@@ -1,13 +1,25 @@
 import { eq } from "drizzle-orm"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
 import {
   getEmailDeliveryStatus,
   getEmailSettingsStatus,
+  saveAuthLinkExpiry,
+  saveSystemEmailSender,
   setEmailApiKey,
+  testEmailApiKey,
 } from "@/server/email/settings"
-import { customShellEmailSettings, customShellWorkspaces } from "@/server/schema"
+import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
+import {
+  customShellAuthTokens,
+  customShellEmailSettings,
+  customShellWorkspaces,
+} from "@/server/schema"
+import {
+  createWorkspaceAuthToken,
+  getAuthLinkContext,
+} from "@/server/auth/link-expiry"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   emailIsOff,
@@ -25,8 +37,10 @@ import {
 
 const ENV_KEY = "CUSTOM_SHELL_RESEND_API_KEY"
 const ENV_MODE = "CUSTOM_SHELL_API_ENV"
+const ENV_FROM = "CUSTOM_SHELL_EMAIL_FROM"
 const originalKey = process.env[ENV_KEY]
 const originalMode = process.env[ENV_MODE]
+const originalFrom = process.env[ENV_FROM]
 
 describe("whether email is on", () => {
   let db: CustomShellDb
@@ -36,6 +50,7 @@ describe("whether email is on", () => {
     process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "test-encryption-key"
     delete process.env[ENV_KEY]
     delete process.env[ENV_MODE]
+    delete process.env[ENV_FROM]
 
     db = (await createTestDatabase()).db as unknown as CustomShellDb
     const user = await insertUser(db, { email: "owner@example.com" })
@@ -52,8 +67,10 @@ describe("whether email is on", () => {
   })
 
   afterEach(() => {
+    vi.unstubAllGlobals()
     restore(ENV_KEY, originalKey)
     restore(ENV_MODE, originalMode)
+    restore(ENV_FROM, originalFrom)
   })
 
   it("says nothing can send when there is no key anywhere", async () => {
@@ -68,6 +85,44 @@ describe("whether email is on", () => {
     const status = await getEmailDeliveryStatus(db)
     expect(status.source).toBe("settings")
     expect(emailIsOff(status)).toBe(false)
+  })
+
+  it("accepts a genuine sending-only Resend key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          {
+            type: "restricted_api_key",
+            message: "This API key is restricted to only send emails.",
+          },
+          { status: 401 }
+        )
+      )
+    )
+
+    await expect(
+      testEmailApiKey(workspaceId, "re_sending_only", db)
+    ).resolves.toEqual({ result: "ok" })
+  })
+
+  it("still rejects an invalid Resend key", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json(
+          { name: "invalid_api_key", message: "API key is invalid." },
+          { status: 403 }
+        )
+      )
+    )
+
+    await expect(
+      testEmailApiKey(workspaceId, "re_invalid", db)
+    ).resolves.toEqual({
+      result: "rejected",
+      reason: "API key is invalid.",
+    })
   })
 
   it("falls back to the server's own key, the way sending does", async () => {
@@ -96,6 +151,77 @@ describe("whether email is on", () => {
     expect(status.maskedKey).toBe("••••1234")
     expect(status.delivery.source).toBe("settings")
     expect(status.links.address).toBe("http://localhost:3002")
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <onboarding@resend.dev>",
+      address: "onboarding@resend.dev",
+      configured: false,
+      source: "resend-test",
+    })
+    expect(status.systemFromEmail).toBe("onboarding@resend.dev")
+  })
+
+  it("shows the deployment sender without exposing a secret", async () => {
+    process.env[ENV_FROM] = "Custom Shell <notifications@systemeverything.com>"
+
+    const status = await getEmailSettingsStatus(workspaceId, db)
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <notifications@systemeverything.com>",
+      address: "notifications@systemeverything.com",
+      configured: true,
+      source: "environment",
+    })
+  })
+
+  it("lets the workspace replace the deployment's system sender", async () => {
+    process.env[ENV_FROM] = "Custom Shell <notifications@systemeverything.com>"
+    await saveSystemEmailSender(workspaceId, "accounts@example.com", db)
+
+    const status = await getEmailSettingsStatus(workspaceId, db)
+    expect(status.systemFromEmail).toBe("accounts@example.com")
+    expect(status.systemSender).toEqual({
+      from: "Custom Shell <accounts@example.com>",
+      address: "accounts@example.com",
+      configured: true,
+      source: "settings",
+    })
+    await expect(
+      getWorkspaceSystemEmailSender(workspaceId, db)
+    ).resolves.toEqual(status.systemSender)
+  })
+
+  it("saves link expiry settings and uses them for real tokens", async () => {
+    const expiry = {
+      verificationHours: 48,
+      passwordResetMinutes: 30,
+      signInMinutes: 10,
+      emailChangeHours: 72,
+    }
+    await saveAuthLinkExpiry(workspaceId, expiry, db)
+    expect(
+      (await getEmailSettingsStatus(workspaceId, db)).authLinkExpiry
+    ).toEqual(expiry)
+
+    const user = await insertUser(db, { email: "expiry@example.com" })
+    const linkContext = await getAuthLinkContext(db, workspaceId)
+    await saveAuthLinkExpiry(
+      workspaceId,
+      { ...expiry, verificationHours: 24 },
+      db
+    )
+    await createWorkspaceAuthToken(user.id, "verify_email", db, {
+      context: linkContext,
+    })
+    const [token] = await db
+      .select({
+        createdAt: customShellAuthTokens.createdAt,
+        expiresAt: customShellAuthTokens.expiresAt,
+      })
+      .from(customShellAuthTokens)
+      .where(eq(customShellAuthTokens.userId, user.id))
+
+    expect(token.expiresAt.getTime() - token.createdAt.getTime()).toBe(
+      48 * 60 * 60 * 1000
+    )
   })
 
   it("says only what a key saved here really covers", async () => {
@@ -181,9 +307,9 @@ describe("where email links lead", () => {
 
 describe("what being off costs", () => {
   it("says sign-ups fail on a live server", () => {
-    expect(emailOffConsequence({ source: null, failsWithoutKey: true })).toContain(
-      "Nobody can sign up"
-    )
+    expect(
+      emailOffConsequence({ source: null, failsWithoutKey: true })
+    ).toContain("Nobody can sign up")
   })
 
   it("says links go to the log anywhere else", () => {

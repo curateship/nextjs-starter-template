@@ -13,8 +13,12 @@ import { eq, and, count, desc, gt, inArray, isNull, lte, ne, or, sql } from "dri
 import appPackage from "../../../package.json"
 
 import { normalizeSessionPolicy } from "@/lib/custom-shell"
-import { EMAIL_CHANGE_HOURS } from "@/lib/email/email-change"
-import { SIGN_IN_LINK_MINUTES } from "@/lib/email/sign-in-link"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenTtlMs,
+  type AuthLinkExpiry,
+  type AuthTokenPurpose,
+} from "@/lib/email/auth-token-expiry"
 import { db, type CustomShellDb } from "@/server/db"
 import {
   customShellAuthTokens,
@@ -103,24 +107,6 @@ export async function verifyPassword(
   }
 }
 
-export const AUTH_TOKEN_TTL_MS = {
-  verify_email: 24 * 60 * 60 * 1000,
-  reset_password: 60 * 60 * 1000,
-  // A sign-in link is the shortest-lived of them all: it hands over an account
-  // outright, where the others still ask for something afterwards.
-  login: SIGN_IN_LINK_MINUTES * 60 * 1000,
-  // Same day-long life as a verification link, and for the same reason: it is
-  // an address being proved, and somebody may not read that inbox until later.
-  change_email: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
-  // The "this wasn't me" link, and exactly as long-lived as the change it
-  // stops. A minute less would leave a window where the change can still be
-  // confirmed and no longer stopped; a minute more would be a link that can
-  // only ever report that it is too late.
-  revoke_email_change: EMAIL_CHANGE_HOURS * 60 * 60 * 1000,
-} as const
-
-export type AuthTokenPurpose = keyof typeof AUTH_TOKEN_TTL_MS
-
 type AuthTokenDatabase = Pick<CustomShellDb, "insert" | "update">
 
 /**
@@ -135,7 +121,10 @@ export async function createAuthToken(
   userId: string,
   purpose: AuthTokenPurpose,
   database: AuthTokenDatabase = db,
-  newEmail: string | null = null
+  options: {
+    newEmail?: string | null
+    expiry?: AuthLinkExpiry
+  } = {}
 ) {
   const token = createSecretToken()
   const createdAt = now()
@@ -145,8 +134,11 @@ export async function createAuthToken(
     userId,
     tokenHash: hashToken(token),
     purpose,
-    newEmail,
-    expiresAt: new Date(createdAt.getTime() + AUTH_TOKEN_TTL_MS[purpose]),
+    newEmail: options.newEmail ?? null,
+    expiresAt: new Date(
+      createdAt.getTime() +
+        authTokenTtlMs(purpose, options.expiry ?? DEFAULT_AUTH_LINK_EXPIRY)
+    ),
     createdAt,
   })
 

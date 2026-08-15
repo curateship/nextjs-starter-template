@@ -4,6 +4,8 @@ import { z } from "zod"
 import {
   DIRECTORY_SORTS,
   type DirectorySort,
+  parseDirectoryNearPoint,
+  readDirectoryNearRadius,
 } from "@/lib/directory/public-search"
 import { findCurrentUser } from "@/server/auth/security"
 import {
@@ -18,6 +20,8 @@ import {
 import { readDirectoryFrontPage } from "@/server/directory/front-page"
 import type { DirectoryFrontPageData } from "@/lib/directory/front-page"
 import { answerForRequest } from "@/server/workspaces/host"
+import { geocodeDirectoryPlace } from "@/server/directory/geocode"
+import { requireAppOrigin } from "@/server/auth/origin"
 
 import { createErrorMessage } from "../error-message"
 
@@ -67,6 +71,9 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       category: z.string().max(160).optional(),
       sort: sortInput,
       page: pageInput,
+      near: z.string().max(40).optional(),
+      place: z.string().max(120).optional(),
+      radius: z.number().int().optional(),
     })
   )
   .handler(async ({ data }): Promise<PublicBrowse | null> => {
@@ -78,6 +85,8 @@ const readDirectoryBrowseFn = createServerFn({ method: "GET" })
       category: data.category,
       sort: data.sort,
       page: data.page ?? 1,
+      near: parseDirectoryNearPoint(data.near) ?? undefined,
+      radius: readDirectoryNearRadius(data.radius),
     })
   })
 
@@ -87,8 +96,31 @@ export function loadDirectoryBrowse(input: {
   category?: string
   sort?: DirectorySort
   page?: number
+  near?: string
+  place?: string
+  radius?: number
 }) {
   return readDirectoryBrowseFn({ data: input })
+}
+
+const geocodeDirectoryPlaceFn = createServerFn({ method: "POST" })
+  .inputValidator(z.object({ query: z.string().max(120) }))
+  .handler(async ({ data }) => {
+    requireAppOrigin()
+    const site = await visitorSite()
+    if (!site) {
+      return {
+        place: null,
+        error:
+          "Place search is not available on this site yet. Use your location instead.",
+      }
+    }
+    return geocodeDirectoryPlace(site.id, data.query)
+  })
+
+/** The typed fallback when a visitor does not share browser location. */
+export function findDirectoryPlace(query: string) {
+  return geocodeDirectoryPlaceFn({ data: { query } })
 }
 
 const readDirectoryListingFn = createServerFn({ method: "GET" })

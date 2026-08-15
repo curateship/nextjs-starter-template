@@ -74,6 +74,13 @@ const FIRST_NAME_TOKEN: SystemEmailToken = {
 
 const RECIPIENT_TOKENS = [FIRST_NAME_TOKEN, EMAIL_TOKEN]
 
+const EXPIRY_TOKEN: SystemEmailToken = {
+  token: "{{expires_in}}",
+  description: "How long the link remains usable, taken from its real limit",
+}
+
+const LINK_TOKENS = [...RECIPIENT_TOKENS, EXPIRY_TOKEN]
+
 /**
  * The two an alert needs to be worth reading. "It happened" is not actionable;
  * "it happened at 2am from a Windows PC" is what tells somebody it was not
@@ -125,11 +132,12 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
     defaults: {
       subject: "Verify your email",
       heading: "Confirm your email address",
-      message: "Verify your email to finish setting up your account.",
+      message:
+        "Verify your email to finish setting up your account. This link expires in {{expires_in}}.",
       action: "Verify email",
       closing: IGNORE_LINE,
     },
-    tokens: RECIPIENT_TOKENS,
+    tokens: LINK_TOKENS,
   },
   "verification-reminder": {
     kind: "verification-reminder",
@@ -138,11 +146,12 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
     defaults: {
       subject: "Finish setting up your account",
       heading: "You’re one step away",
-      message: "Confirm your email to finish setting up your account.",
+      message:
+        "Confirm your email to finish setting up your account. This link expires in {{expires_in}}.",
       action: "Verify email",
       closing: IGNORE_LINE,
     },
-    tokens: RECIPIENT_TOKENS,
+    tokens: LINK_TOKENS,
   },
   "sign-in-link": {
     kind: "sign-in-link",
@@ -152,18 +161,11 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
     defaults: {
       subject: "Your sign-in link",
       heading: "Sign in",
-      message:
-        "This link signs you in once and expires in {{minutes}} minutes.",
+      message: "This link signs you in once and expires in {{expires_in}}.",
       action: "Sign in",
       closing: IGNORE_LINE,
     },
-    tokens: [
-      ...RECIPIENT_TOKENS,
-      {
-        token: "{{minutes}}",
-        description: "How many minutes the link lasts",
-      },
-    ],
+    tokens: LINK_TOKENS,
   },
   "password-reset": {
     kind: "password-reset",
@@ -172,11 +174,11 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
     defaults: {
       subject: "Reset your password",
       heading: "Reset your password",
-      message: "This link expires in one hour.",
+      message: "This link expires in {{expires_in}}.",
       action: "Reset password",
       closing: IGNORE_LINE,
     },
-    tokens: RECIPIENT_TOKENS,
+    tokens: LINK_TOKENS,
   },
   "email-change": {
     kind: "email-change",
@@ -187,7 +189,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       subject: "Confirm your new email address",
       heading: "Confirm your new email address",
       message:
-        "Opening this link moves the account at {{old_email}} to this address. It expires in {{hours}} hours.",
+        "Opening this link moves the account at {{old_email}} to this address. It expires in {{expires_in}}.",
       action: "Confirm email address",
       closing: IGNORE_LINE,
     },
@@ -197,7 +199,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         token: "{{old_email}}",
         description: "The address the account is moving away from",
       },
-      { token: "{{hours}}", description: "How many hours the link lasts" },
+      EXPIRY_TOKEN,
     ],
   },
   "email-change-warning": {
@@ -209,7 +211,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       subject: "Your email address is being changed",
       heading: "Is this you?",
       message:
-        "Somebody asked to move this account to {{new_email}}. Nothing has changed yet — it only moves once that address confirms it, and the request expires in {{hours}} hours. If that was you, there is nothing to do.",
+        "Somebody asked to move this account to {{new_email}}. Nothing has changed yet — it only moves once that address confirms it, and the request expires in {{expires_in}}. If that was you, there is nothing to do.",
       action: "This wasn't me",
       closing:
         "If this was not you, use the button. It cancels the change and signs every browser out of the account, so you can reset your password and take it back.",
@@ -220,7 +222,7 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
         token: "{{new_email}}",
         description: "The address the account would be moving to",
       },
-      { token: "{{hours}}", description: "How many hours the request lasts" },
+      EXPIRY_TOKEN,
     ],
   },
   "email-change-done": {
@@ -286,11 +288,11 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
       subject: "Set your password",
       heading: "An account was created for you",
       message:
-        "Set a password to start using it. This link expires in one hour — if it has, use “Forgot your password?” on the sign-in page to get a fresh one.",
+        "Set a password to start using it. This link expires in {{expires_in}} — if it has, use “Forgot your password?” on the sign-in page to get a fresh one.",
       action: "Set your password",
       closing: IGNORE_LINE,
     },
-    tokens: RECIPIENT_TOKENS,
+    tokens: LINK_TOKENS,
   },
   "account-closed": {
     kind: "account-closed",
@@ -383,13 +385,13 @@ export const SYSTEM_EMAIL_META: Record<SystemEmailKind, SystemEmailMeta> = {
  * The blocks an email starts with: today's wording, laid out as blocks.
  *
  * One pattern for every email the app sends: the header, a heading and the
- * sentence, the button in the middle, the closing line, then the footer. The
+ * sentence, the button, the closing line, then the footer. The
  * saved per-workspace block setups fill the header's logo and the footer's
  * company lines in, so a new email opens already looking like the rest. Two
- * things the pattern pins regardless of any saved setup: the button sits in
- * the middle, and the footer's unsubscribe link is off. These are account
- * messages rather than newsletters, so there is no unsubscribe address to
- * fill in.
+ * things the pattern pins regardless of any saved setup: every part is aligned
+ * left like the built-in email, and the footer's unsubscribe link is off.
+ * These are account messages rather than newsletters, so there is no
+ * unsubscribe address to fill in.
  */
 export function createSystemEmailBlocks(
   kind: SystemEmailKind,
@@ -403,7 +405,17 @@ export function createSystemEmailBlocks(
   const footer = createBroadcastBlock("footer", blockDefaults)
 
   const blocks: BroadcastBlock[] = [
-    header,
+    {
+      ...header,
+      kind: "header",
+      content: {
+        ...(header.content as Extract<
+          BroadcastBlock,
+          { kind: "header" }
+        >["content"]),
+        alignment: "left",
+      },
+    },
     {
       ...copy,
       kind: "richText",
@@ -428,8 +440,8 @@ export function createSystemEmailBlocks(
         label: defaults.action,
         // Blank on purpose: the send fills in the one-use link.
         url: "",
-        padding: 0,
-        alignment: "center",
+        padding: 20,
+        alignment: "left",
       },
     },
     {
@@ -451,6 +463,7 @@ export function createSystemEmailBlocks(
           BroadcastBlock,
           { kind: "footer" }
         >["content"]),
+        alignment: "left",
         showUnsubscribe: false,
       },
     },

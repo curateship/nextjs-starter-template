@@ -18,6 +18,17 @@ import {
 } from "@/lib/directory/contact-links"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
+  isListingRating,
+  LISTING_RATING_ERROR,
+} from "@/lib/directory/listing-rating"
+import {
+  cleanListingCoordinates,
+  cleanListingGallery,
+  cleanListingHours,
+  requireListingCoordinates,
+  type ListingHours,
+} from "@/lib/directory/listing-details"
+import {
   firstFreeSlug as firstFreeSlugRule,
   requireFreeSlug as requireFreeSlugRule,
 } from "@/server/directory/slug-rules"
@@ -63,9 +74,14 @@ export type DirectoryListing = {
   title: string
   slug: string
   metaDescription: string
+  rating: number | null
   status: ListingStatus
   displayOrder: number
   featuredImage: string
+  gallery: string[]
+  hours: ListingHours
+  latitude: number | null
+  longitude: number | null
   contactLinks: ContactLinks
   body: WrittenPageNode
   createdAt: Date
@@ -73,20 +89,26 @@ export type DirectoryListing = {
 }
 
 /** A dashboard row: the listing without its body, plus its category names. */
-export type ListingSummary = Omit<DirectoryListing, "body" | "contactLinks"> & {
-  categories: string[]
-  views: number
-}
+export type ListingSummary = Omit<
+  DirectoryListing,
+  "body" | "contactLinks" | "gallery" | "hours" | "latitude" | "longitude"
+> & { categories: string[]; views: number }
 
 function toListing(row: DirectoryListingRow): DirectoryListing {
+  const coordinates = cleanListingCoordinates(row.latitude, row.longitude)
   return {
     id: row.id,
     title: row.title,
     slug: row.slug,
     metaDescription: row.metaDescription,
+    rating: row.rating,
     status: row.status === "published" ? "published" : "draft",
     displayOrder: row.displayOrder,
     featuredImage: row.featuredImage,
+    gallery: cleanListingGallery(row.gallery),
+    hours: cleanListingHours(row.hours),
+    latitude: coordinates?.latitude ?? null,
+    longitude: coordinates?.longitude ?? null,
     // Cleaned on the way out as well as in: a row edited straight in the
     // database is still only allowed to hand a page safe shapes.
     contactLinks: cleanContactLinks(row.contactLinks),
@@ -283,7 +305,15 @@ export async function listListings(
 
   return {
     listings: rows.map((row) => {
-      const { body: _body, contactLinks: _links, ...rest } = toListing(row)
+      const {
+        body: _body,
+        contactLinks: _links,
+        gallery: _gallery,
+        hours: _hours,
+        latitude: _latitude,
+        longitude: _longitude,
+        ...rest
+      } = toListing(row)
       return {
         ...rest,
         categories: names.get(row.id) ?? [],
@@ -370,9 +400,14 @@ export async function updateListing(
     title?: string
     slug?: string
     metaDescription?: string
+    rating?: number | null
     status?: ListingStatus
     displayOrder?: number
     featuredImage?: string
+    gallery?: unknown
+    hours?: unknown
+    latitude?: number | null
+    longitude?: number | null
     contactLinks?: unknown
     body?: unknown
   },
@@ -389,12 +424,30 @@ export async function updateListing(
   if (input.metaDescription !== undefined) {
     values.metaDescription = input.metaDescription.trim().slice(0, 300)
   }
+  if (input.rating !== undefined) {
+    if (input.rating !== null && !isListingRating(input.rating)) {
+      throw new Error(LISTING_RATING_ERROR)
+    }
+    values.rating = input.rating
+  }
   if (input.status !== undefined) values.status = input.status
   if (input.displayOrder !== undefined) {
     values.displayOrder = Math.trunc(input.displayOrder)
   }
   if (input.featuredImage !== undefined) {
     values.featuredImage = input.featuredImage.trim().slice(0, 600)
+  }
+  if (input.gallery !== undefined) {
+    values.gallery = cleanListingGallery(input.gallery)
+  }
+  if (input.hours !== undefined) values.hours = cleanListingHours(input.hours)
+  if (input.latitude !== undefined || input.longitude !== undefined) {
+    const coordinates = requireListingCoordinates(
+      input.latitude,
+      input.longitude
+    )
+    values.latitude = coordinates?.latitude ?? null
+    values.longitude = coordinates?.longitude ?? null
   }
   if (input.contactLinks !== undefined) {
     values.contactLinks = cleanContactLinks(input.contactLinks)
@@ -445,9 +498,14 @@ export async function duplicateListing(
         title,
         slug,
         metaDescription: source.metaDescription,
+        rating: source.rating,
         status: "draft",
         displayOrder: source.displayOrder,
         featuredImage: source.featuredImage,
+        gallery: source.gallery,
+        hours: source.hours,
+        latitude: source.latitude,
+        longitude: source.longitude,
         contactLinks: source.contactLinks,
         body: source.body,
         createdAt: at,

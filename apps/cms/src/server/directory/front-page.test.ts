@@ -36,7 +36,11 @@ afterEach(async () => {
 async function insertListing(
   title: string,
   createdAt: Date,
-  overrides: { workspaceId?: string; status?: "draft" | "published" } = {}
+  overrides: {
+    workspaceId?: string
+    status?: "draft" | "published"
+    rating?: number | null
+  } = {}
 ) {
   const id = uuid()
   await database.insert(directoryListings).values({
@@ -45,6 +49,7 @@ async function insertListing(
     title,
     slug: title.toLowerCase().replaceAll(" ", "-"),
     status: overrides.status ?? "published",
+    rating: overrides.rating,
     contactLinks: { address: "", menuLinks: [], socialLinks: [] },
     body: { type: "doc", content: [] },
     createdAt,
@@ -71,7 +76,7 @@ describe("directory listings front page", () => {
       updatedAt: at,
     })
     await insertListing("Old", new Date("2026-01-01"))
-    await insertListing("Middle", new Date("2026-02-01"))
+    await insertListing("Middle", new Date("2026-02-01"), { rating: 4.5 })
     await insertListing("New", new Date("2026-03-01"))
     await insertListing("Unpublished", new Date("2026-04-01"), {
       status: "draft",
@@ -106,6 +111,9 @@ describe("directory listings front page", () => {
       "New",
       "Middle",
     ])
+    expect(
+      page?.listings.find((listing) => listing.title === "Middle")?.rating
+    ).toBe(4.5)
   })
 
   it("falls back to newest when featured listings are unavailable", async () => {

@@ -107,6 +107,92 @@ describe("creating and addressing", () => {
 })
 
 describe("what a save may contain", () => {
+  it("round-trips gallery, hours and a complete map pin", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+    const saved = await updateListing(
+      site,
+      listing.id,
+      {
+        gallery: [
+          "https://images.example/one.jpg",
+          "javascript:alert(1)",
+          "https://images.example/two.jpg",
+        ],
+        hours: {
+          monday: { open: "09:00", close: "17:00" },
+          tuesday: { open: "bad", close: "17:00" },
+        },
+        latitude: 43.6532,
+        longitude: -79.3832,
+      },
+      database
+    )
+
+    expect(saved.gallery).toEqual([
+      "https://images.example/one.jpg",
+      "https://images.example/two.jpg",
+    ])
+    expect(saved.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(saved.hours.tuesday).toBeNull()
+    expect(saved.latitude).toBe(43.6532)
+    expect(saved.longitude).toBe(-79.3832)
+  })
+
+  it("refuses incomplete or impossible map pins", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+
+    await expect(
+      updateListing(
+        site,
+        listing.id,
+        { latitude: 43.65, longitude: null },
+        database
+      )
+    ).rejects.toThrow("Add both coordinates")
+    await expect(
+      updateListing(
+        site,
+        listing.id,
+        { latitude: 43.65, longitude: -181 },
+        database
+      )
+    ).rejects.toThrow("Add both coordinates")
+
+    await expect(
+      client.query(
+        "UPDATE directory_listings SET latitude = 43.65, longitude = NULL WHERE id = $1",
+        [listing.id]
+      )
+    ).rejects.toThrow("directory_listings_coordinates_check")
+  })
+
+  it("starts without a rating and stores Directory's decimal values", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+    expect(listing.rating).toBeNull()
+
+    expect(
+      (await updateListing(site, listing.id, { rating: 4.6 }, database)).rating
+    ).toBe(4.6)
+    expect(
+      (await updateListing(site, listing.id, { rating: 0 }, database)).rating
+    ).toBe(0)
+    expect(
+      (await updateListing(site, listing.id, { rating: null }, database)).rating
+    ).toBeNull()
+  })
+
+  it("refuses ratings outside one decimal place from 0 to 5", async () => {
+    const listing = await createListing(site, { title: "Joes" }, database)
+
+    for (const rating of [-0.1, 4.25, 5.1, Number.NaN]) {
+      await expect(
+        updateListing(site, listing.id, { rating }, database)
+      ).rejects.toThrow(
+        "Rating must be a number from 0 to 5 with no more than one decimal place."
+      )
+    }
+  })
+
   it("stores a poisoned link as typed but never makes it followable", async () => {
     const listing = await createListing(site, { title: "Joes" }, database)
     await updateListing(site,
@@ -259,13 +345,27 @@ describe("copying and deleting", () => {
   it("duplicates as a draft with a fresh address and the same categories", async () => {
     const listing = await createListing(site, { title: "Joes" }, database)
     const food = await createCategory(site, { name: "Food" }, database)
-    await updateListing(site, listing.id, { status: "published" }, database)
+    await updateListing(
+      site,
+      listing.id,
+      {
+        status: "published",
+        gallery: ["https://images.example/one.jpg"],
+        hours: { monday: { open: "09:00", close: "17:00" } },
+        latitude: 43.6532,
+        longitude: -79.3832,
+      },
+      database
+    )
     await setListingCategories(site, listing.id, [food.id], food.id, database)
 
     const copy = await duplicateListing(site, listing.id, database)
     expect(copy.title).toBe("Copy of Joes")
     expect(copy.status).toBe("draft")
     expect(copy.slug).not.toBe(listing.slug)
+    expect(copy.gallery).toEqual(["https://images.example/one.jpg"])
+    expect(copy.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(copy.latitude).toBe(43.6532)
     const links = await categoriesForListing(site, copy.id, database)
     expect(links.map((link) => link.categoryId)).toEqual([food.id])
   })

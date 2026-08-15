@@ -1,15 +1,25 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { createListing } from "@/server/directory/listings"
+import {
+  createClaim,
+  reviewClaim,
+  verifyClaim,
+} from "@/server/directory/claims"
+import { createListing, updateListing } from "@/server/directory/listings"
 import { uuid } from "@/server/auth/security"
-import { listingViewCounts } from "@/server/directory/views"
+import {
+  listingViewCounts,
+  readOwnerListingViews,
+} from "@/server/directory/views"
 import {
   createTestDatabase,
+  insertUser,
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
 import { loadTrafficSummary, recordVisit } from "@/server/traffic"
+import { customShellTrafficDailyFacts } from "@/server/schema"
 
 const AT = new Date("2026-08-13T12:00:00.000Z")
 
@@ -131,5 +141,99 @@ describe("listing view counts", () => {
       key: "/directory/current",
       views: 2,
     })
+  })
+})
+
+describe("the owner's daily listing views", () => {
+  async function approvedListing() {
+    const owner = await insertUser(database)
+    const other = await insertUser(database)
+    const admin = await insertUser(database, { role: "admin" })
+    const listing = await createListing(
+      alpha,
+      { title: "Owner's diner", slug: "owners-diner" },
+      database
+    )
+    await updateListing(alpha, listing.id, { status: "published" }, database)
+    const made = await createClaim(
+      alpha,
+      listing.id,
+      owner.id,
+      { contactEmail: owner.email, claimantName: owner.name },
+      database
+    )
+    await verifyClaim(made.token, database)
+    await reviewClaim(
+      alpha,
+      made.claim.id,
+      { decision: "approve", reviewerId: admin.id },
+      database
+    )
+    return { listing, owner, other }
+  }
+
+  async function dailyFact(
+    workspaceId: string,
+    slug: string,
+    day: string,
+    views: number
+  ) {
+    await database.insert(customShellTrafficDailyFacts).values({
+      workspaceId,
+      day,
+      dimension: "path",
+      key: `/directory/${slug}`,
+      views,
+    })
+  }
+
+  it("refuses somebody who does not own the approved claim", async () => {
+    const { listing, other } = await approvedListing()
+
+    await expect(
+      readOwnerListingViews(other.id, listing.id, 30, database, AT)
+    ).rejects.toThrow("You do not look after that listing.")
+  })
+
+  it("falls back to thirty days for an unknown range", async () => {
+    const { listing, owner } = await approvedListing()
+    await dailyFact(alpha, listing.slug, "2026-07-24", 4)
+    await dailyFact(alpha, listing.slug, "2026-07-04", 7)
+
+    const analytics = await readOwnerListingViews(
+      owner.id,
+      listing.id,
+      "60",
+      database,
+      AT
+    )
+
+    expect(analytics).toMatchObject({
+      days: 30,
+      total: 4,
+      previousTotal: 7,
+    })
+  })
+
+  it("keeps uncounted days absent and reports the busiest recorded day", async () => {
+    const { listing, owner } = await approvedListing()
+    await dailyFact(alpha, listing.slug, "2026-08-01", 2)
+    await dailyFact(alpha, listing.slug, "2026-08-08", 9)
+    await dailyFact(beta, listing.slug, "2026-08-08", 50)
+
+    const analytics = await readOwnerListingViews(
+      owner.id,
+      listing.id,
+      30,
+      database,
+      AT
+    )
+
+    expect(analytics.daily).toEqual([
+      { day: "2026-08-01", views: 2 },
+      { day: "2026-08-08", views: 9 },
+    ])
+    expect(analytics.total).toBe(11)
+    expect(analytics.busiestDay).toEqual({ day: "2026-08-08", views: 9 })
   })
 })

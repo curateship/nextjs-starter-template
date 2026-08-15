@@ -590,6 +590,35 @@ export const customShellAuthTokens = pgTable(
 )
 
 /**
+ * A person saying an emailed reset or sign-in link was not theirs.
+ *
+ * The report outlives the one-use token it stopped, so support can still see
+ * the pattern after spent auth links are cleaned up. It deliberately stores no
+ * IP address or raw token; the account, kind and time are enough to act on.
+ */
+export const customShellAuthSecurityReports = pgTable(
+  "auth_security_reports",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    tokenPurpose: varchar("token_purpose", { length: 20 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "auth_security_reports_purpose_check",
+      sql`${table.tokenPurpose} in ('reset_password', 'login')`
+    ),
+    index("ix_auth_security_reports_user_created").on(
+      table.userId,
+      table.createdAt
+    ),
+  ]
+)
+
+/**
  * One sign-in provider account linked to one account here.
  *
  * Keyed on the provider's own permanent id for the person rather than their
@@ -2005,6 +2034,9 @@ export const customShellEmailSettings = pgTable("email_settings", {
    * complaints back to `/api/webhooks/resend`. Encrypted like the key above.
    */
   resendWebhookSecretEncrypted: text("resend_webhook_secret_encrypted"),
+  /** Sender address for this workspace's sign-in, reset, and security mail. */
+  systemFromEmail: varchar("system_from_email", { length: 255 }),
+  authLinkExpiry: jsonb("auth_link_expiry"),
   fromEmail: varchar("from_email", { length: 255 }),
   fromName: varchar("from_name", { length: 255 }),
   /**

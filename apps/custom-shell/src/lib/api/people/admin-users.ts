@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { createErrorMessage } from "../error-message"
 import { z } from "zod"
+import {
+  describeAdminEmailDeliveryError,
+  EMAIL_DELIVERY_NEEDS_ATTENTION,
+  EMAIL_DELIVERY_RETRYABLE,
+} from "@/lib/email/delivery-failure"
 
 import {
   loadAccountDetail,
@@ -27,6 +32,9 @@ import { adminGet, adminPost } from "@/server/guards"
 import { readDashboardRowsPerPage } from "@/server/shell-settings"
 import { MEMBER_TAG_LIMIT, MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 import { replaceMemberTags } from "@/server/people/member-tags"
+import { workspaceIdForRequest } from "@/server/workspaces/for-request"
+import { db } from "@/server/db"
+import { getAuthLinkContext } from "@/server/auth/link-expiry"
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
@@ -58,13 +66,15 @@ const listQuerySchema = z.object({
 
 export type AccountListQueryInput = z.input<typeof listQuerySchema>
 
-export const getAdminUserErrorMessage = createErrorMessage(
+const getBaseAdminUserErrorMessage = createErrorMessage(
   {
     USER_NOT_FOUND: "That account no longer exists.",
     ACCOUNT_EXISTS: "An account already exists for this email.",
     EMAIL_NOT_CONFIGURED: "Email delivery is not configured yet.",
-    EMAIL_DELIVERY_FAILED:
-      "We could not send the set-password email, so the account was not created. Please try again.",
+    [EMAIL_DELIVERY_NEEDS_ATTENTION]:
+      "The set-password email could not be sent, so the account was not created. Email delivery needs attention.",
+    [EMAIL_DELIVERY_RETRYABLE]:
+      "The set-password email could not be sent, so the account was not created. Please try again shortly.",
     LAST_ADMIN: "You cannot remove the last admin.",
     CANNOT_DELETE_SELF: "You cannot delete your own account here.",
     PLAN_NOT_FOUND: "That plan no longer exists.",
@@ -91,6 +101,13 @@ export const getAdminUserErrorMessage = createErrorMessage(
   },
   "We could not update that account. Please try again."
 )
+
+export function getAdminUserErrorMessage(error: unknown) {
+  return (
+    describeAdminEmailDeliveryError(error, "The account was not created.") ??
+    getBaseAdminUserErrorMessage(error)
+  )
+}
 
 const listAccountsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
@@ -152,8 +169,15 @@ const createAccountFn = createServerFn({ method: "POST" })
       role: z.enum(["admin", "member"]),
     })
   )
-  .handler(async ({ data }) => {
-    return createAccountByAdmin(data.email, data.name, data.role)
+  .handler(async ({ data, context }) => {
+    const workspaceId = await workspaceIdForRequest(context.user.id)
+    return createAccountByAdmin(
+      data.email,
+      data.name,
+      data.role,
+      db,
+      await getAuthLinkContext(db, workspaceId)
+    )
   })
 
 const updateRoleFn = createServerFn({ method: "POST" })

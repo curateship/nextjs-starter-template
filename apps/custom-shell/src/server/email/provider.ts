@@ -1,3 +1,9 @@
+import {
+  describeResendFailure,
+  unreachableEmailServiceFailure,
+  type EmailDeliveryFailureKind,
+} from "@/lib/email/delivery-failure"
+
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
 export type SendEmailParams = {
@@ -13,6 +19,7 @@ export type SendEmailResult = {
   success: boolean
   messageId?: string
   error?: string
+  failureKind?: EmailDeliveryFailureKind
 }
 
 export type EmailProvider = {
@@ -51,29 +58,38 @@ class ResendProvider implements EmailProvider {
           ...(params.headers ? { headers: params.headers } : {}),
         }),
       })
-    } catch (error) {
+    } catch {
+      const failure = unreachableEmailServiceFailure()
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Could not reach Resend",
+        error: failure.reason,
+        failureKind: failure.kind,
       }
     }
 
     const body = (await response.json().catch(() => null)) as {
       id?: string
+      name?: string
+      type?: string
       message?: string
-      error?: { message?: string }
+      error?: { name?: string; type?: string; message?: string }
     } | null
 
     if (!response.ok) {
+      const failure = describeResendFailure(response.status, body)
       return {
         success: false,
-        error:
-          body?.error?.message || body?.message || `Resend said ${response.status}`,
+        error: failure.reason,
+        failureKind: failure.kind,
       }
     }
 
     if (!body?.id) {
-      return { success: false, error: "Resend accepted it but gave no id back" }
+      return {
+        success: false,
+        error: "Resend accepted it but gave no id back",
+        failureKind: "retryable",
+      }
     }
 
     return { success: true, messageId: body.id }

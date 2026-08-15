@@ -5,11 +5,19 @@ import {
   validateDripConfig,
   type DripConfig,
 } from "@/lib/broadcasts/drip"
+import {
+  authLinkExpirySchema,
+  parseAuthLinkExpiry,
+  type AuthLinkExpiry,
+} from "@/lib/email/auth-token-expiry"
 import { db, type CustomShellDb } from "@/server/db"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { customShellEmailSettings } from "@/server/schema"
-import { now } from "@/server/auth/security"
 import { getAppLinkStatus, type AppLinkStatus } from "@/server/app-url"
+import {
+  resolveSystemEmailSender,
+  type SystemEmailSender,
+} from "@/server/email/app-sender"
 
 /** True in production, where sending without a key must fail loudly. */
 function isProduction() {
@@ -38,6 +46,8 @@ async function upsertEmailSettings(
   patch: Partial<{
     fromEmail: string | null
     fromName: string | null
+    systemFromEmail: string | null
+    authLinkExpiry: AuthLinkExpiry
     resendApiKeyEncrypted: string | null
     resendWebhookSecretEncrypted: string | null
     dripDefaults: DripConfig
@@ -45,7 +55,7 @@ async function upsertEmailSettings(
   database: CustomShellDb = db
 ) {
   const existing = await getEmailSettings(workspaceId, database)
-  const timestamp = now()
+  const timestamp = new Date()
 
   if (existing) {
     const [updated] = await database
@@ -62,6 +72,7 @@ async function upsertEmailSettings(
       workspaceId,
       fromEmail: null,
       fromName: null,
+      systemFromEmail: null,
       resendApiKeyEncrypted: null,
       resendWebhookSecretEncrypted: null,
       ...patch,
@@ -70,6 +81,30 @@ async function upsertEmailSettings(
     })
     .returning()
   return created
+}
+
+export async function saveSystemEmailSender(
+  workspaceId: string,
+  systemFromEmail: string,
+  database: CustomShellDb = db,
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { systemFromEmail: systemFromEmail.trim() || null },
+    database,
+  )
+}
+
+export async function saveAuthLinkExpiry(
+  workspaceId: string,
+  expiry: AuthLinkExpiry,
+  database: CustomShellDb = db
+) {
+  return upsertEmailSettings(
+    workspaceId,
+    { authLinkExpiry: authLinkExpirySchema.parse(expiry) },
+    database
+  )
 }
 
 export async function saveEmailSender(
@@ -238,6 +273,7 @@ export async function getEmailDeliveryStatus(
 
 /** What the settings page may see: never a secret itself, only masked tails. */
 export type EmailSettingsStatus = {
+  systemFromEmail: string
   fromEmail: string
   fromName: string
   keyConfigured: boolean
@@ -249,10 +285,14 @@ export type EmailSettingsStatus = {
   webhookUnreadable: boolean
   /** The pace a newly created newsletter starts from. */
   dripDefaults: DripConfig
+  /** How long each kind of authentication link remains usable. */
+  authLinkExpiry: AuthLinkExpiry
   /** Whether email works at all, which this workspace's key alone cannot say. */
   delivery: EmailDeliveryStatus
   /** Where links in sign-in, reset, and other system emails lead. */
   links: AppLinkStatus
+  /** The active sender for this workspace's sign-in and security emails. */
+  systemSender: SystemEmailSender
 }
 
 export async function getEmailSettingsStatus(
@@ -260,6 +300,7 @@ export async function getEmailSettingsStatus(
   database: CustomShellDb = db
 ): Promise<EmailSettingsStatus> {
   const row = await getEmailSettings(workspaceId, database)
+  const systemSender = resolveSystemEmailSender(row?.systemFromEmail)
 
   let keyConfigured = false
   let maskedKey: string | null = null
@@ -288,6 +329,7 @@ export async function getEmailSettingsStatus(
   }
 
   return {
+    systemFromEmail: systemSender.address,
     fromEmail: row?.fromEmail ?? "",
     fromName: row?.fromName ?? "",
     keyConfigured,
@@ -297,14 +339,16 @@ export async function getEmailSettingsStatus(
     maskedWebhookSecret,
     webhookUnreadable,
     dripDefaults: parseDripConfig(row?.dripDefaults),
+    authLinkExpiry: parseAuthLinkExpiry(row?.authLinkExpiry),
     delivery: await getEmailDeliveryStatus(database),
     links: getAppLinkStatus(),
+    systemSender,
   }
 }
 
 export type EmailKeyTestResult =
   | { result: "ok" }
-  | { result: "rejected" }
+  | { result: "rejected"; reason: string }
   | { result: "unreachable" }
   | { result: "error"; status: number }
 
@@ -341,10 +385,30 @@ export async function testEmailApiKey(
   }
 
   if (response.ok) return { result: "ok" }
+  const body = (await response.json().catch(() => null)) as {
+    name?: string
+    type?: string
+    message?: string
+    error?: { name?: string; type?: string; message?: string }
+  } | null
+  // A sending-only key proves it is genuine by reaching Resend's permission
+  // check. It cannot list domains, but it can do the one job this app needs.
+  const name = body?.name ?? body?.type ?? body?.error?.name ?? body?.error?.type
+  const reason =
+    (body?.message ?? body?.error?.message ?? "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 500) || "Resend rejected it."
+  if (
+    name === "restricted_api_key" ||
+    /restricted to (only )?send emails/i.test(reason)
+  ) {
+    return { result: "ok" }
+  }
   // 400 included: this GET carries no body, so a 400 can only mean Resend
   // looked at the key itself and turned it away as malformed.
   if ([400, 401, 403].includes(response.status)) {
-    return { result: "rejected" }
+    return { result: "rejected", reason }
   }
   return { result: "error", status: response.status }
 }

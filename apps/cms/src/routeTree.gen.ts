@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AddListingRouteImport } from './routes/add-listing'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as DirectoryRouteImport } from './routes/directory'
+import { Route as FeedDotxmlRouteImport } from './routes/feed[.]xml'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MaintenanceRouteImport } from './routes/maintenance'
@@ -38,6 +39,7 @@ import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authentic
 import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
+import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
@@ -70,6 +72,7 @@ import { Route as ApiAuthGoogleRouteImport } from './routes/api/auth/google'
 import { Route as ApiWebhooksResendRouteImport } from './routes/api/webhooks/resend'
 import { Route as ApiWebhooksStripeRouteImport } from './routes/api/webhooks/stripe'
 import { Route as DirectoryCategorySlugRouteImport } from './routes/directory_.category.$slug'
+import { Route as DirectoryShareImageSlugRouteImport } from './routes/directory_.share-image.$slug'
 import { Route as EmbedListingListingIdRouteImport } from './routes/embed/listing/$listingId'
 import { Route as AuthenticatedAccountBillingSuccessRouteImport } from './routes/_authenticated/account/billing_.success'
 import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from './routes/_authenticated/admin/automations_.$automationId'
@@ -110,6 +113,11 @@ const ChangeEmailRoute = ChangeEmailRouteImport.update({
 const DirectoryRoute = DirectoryRouteImport.update({
   id: '/directory',
   path: '/directory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedDotxmlRoute = FeedDotxmlRouteImport.update({
+  id: '/feed.xml',
+  path: '/feed.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -227,6 +235,11 @@ const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
 const DirectorySlugRoute = DirectorySlugRouteImport.update({
   id: '/directory_/$slug',
   path: '/directory/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProfileProfileIdRoute = ProfileProfileIdRouteImport.update({
+  id: '/profile_/$profileId',
+  path: '/profile/$profileId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
@@ -411,6 +424,11 @@ const DirectoryCategorySlugRoute = DirectoryCategorySlugRouteImport.update({
   path: '/directory/category/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DirectoryShareImageSlugRoute = DirectoryShareImageSlugRouteImport.update({
+  id: '/directory_/share-image/$slug',
+  path: '/directory/share-image/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EmbedListingListingIdRoute = EmbedListingListingIdRouteImport.update({
   id: '/embed/listing/$listingId',
   path: '/embed/listing/$listingId',
@@ -486,6 +504,7 @@ export interface FileRoutesByFullPath {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -509,6 +528,7 @@ export interface FileRoutesByFullPath {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -539,6 +559,7 @@ export interface FileRoutesByFullPath {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -560,6 +581,7 @@ export interface FileRoutesByTo {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -581,6 +603,7 @@ export interface FileRoutesByTo {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory/$slug': typeof DirectorySlugRoute
+  '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -611,6 +634,7 @@ export interface FileRoutesByTo {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/changelog': typeof AuthenticatedChangelogIndexRoute
@@ -634,6 +658,7 @@ export interface FileRoutesById {
   '/add-listing': typeof AddListingRoute
   '/change-email': typeof ChangeEmailRoute
   '/directory': typeof DirectoryRoute
+  '/feed.xml': typeof FeedDotxmlRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/maintenance': typeof MaintenanceRoute
@@ -657,6 +682,7 @@ export interface FileRoutesById {
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
   '/directory_/$slug': typeof DirectorySlugRoute
+  '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
@@ -687,6 +713,7 @@ export interface FileRoutesById {
   '/api/webhooks/resend': typeof ApiWebhooksResendRoute
   '/api/webhooks/stripe': typeof ApiWebhooksStripeRoute
   '/directory_/category/$slug': typeof DirectoryCategorySlugRoute
+  '/directory_/share-image/$slug': typeof DirectoryShareImageSlugRoute
   '/embed/listing/$listingId': typeof EmbedListingListingIdRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/changelog/': typeof AuthenticatedChangelogIndexRoute
@@ -710,6 +737,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -733,6 +761,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
+    | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -763,6 +792,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/admin/'
     | '/changelog/'
@@ -784,6 +814,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -805,6 +836,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory/$slug'
+    | '/profile/$profileId'
     | '/admin/ai'
     | '/admin/announcements'
     | '/admin/automations'
@@ -835,6 +867,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory/category/$slug'
+    | '/directory/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/admin'
     | '/changelog'
@@ -857,6 +890,7 @@ export interface FileRouteTypes {
     | '/add-listing'
     | '/change-email'
     | '/directory'
+    | '/feed.xml'
     | '/forgot-password'
     | '/login'
     | '/maintenance'
@@ -880,6 +914,7 @@ export interface FileRouteTypes {
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
     | '/directory_/$slug'
+    | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
     | '/_authenticated/admin/automations'
@@ -910,6 +945,7 @@ export interface FileRouteTypes {
     | '/api/webhooks/resend'
     | '/api/webhooks/stripe'
     | '/directory_/category/$slug'
+    | '/directory_/share-image/$slug'
     | '/embed/listing/$listingId'
     | '/_authenticated/admin/'
     | '/_authenticated/changelog/'
@@ -933,6 +969,7 @@ export interface RootRouteChildren {
   AddListingRoute: typeof AddListingRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
   DirectoryRoute: typeof DirectoryRoute
+  FeedDotxmlRoute: typeof FeedDotxmlRoute
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   MaintenanceRoute: typeof MaintenanceRoute
@@ -949,10 +986,12 @@ export interface RootRouteChildren {
   ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
+  ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
   ApiWebhooksResendRoute: typeof ApiWebhooksResendRoute
   ApiWebhooksStripeRoute: typeof ApiWebhooksStripeRoute
   DirectoryCategorySlugRoute: typeof DirectoryCategorySlugRoute
+  DirectoryShareImageSlugRoute: typeof DirectoryShareImageSlugRoute
   EmbedListingListingIdRoute: typeof EmbedListingListingIdRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiV1NotificationsStreamRoute: typeof ApiV1NotificationsStreamRoute
@@ -1002,6 +1041,13 @@ declare module '@tanstack/react-router' {
       path: '/directory'
       fullPath: '/directory'
       preLoaderRoute: typeof DirectoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed.xml': {
+      id: '/feed.xml'
+      path: '/feed.xml'
+      fullPath: '/feed.xml'
+      preLoaderRoute: typeof FeedDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -1163,6 +1209,13 @@ declare module '@tanstack/react-router' {
       path: '/directory/$slug'
       fullPath: '/directory/$slug'
       preLoaderRoute: typeof DirectorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/profile_/$profileId': {
+      id: '/profile_/$profileId'
+      path: '/profile/$profileId'
+      fullPath: '/profile/$profileId'
+      preLoaderRoute: typeof ProfileProfileIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/': {
@@ -1387,6 +1440,13 @@ declare module '@tanstack/react-router' {
       path: '/directory/category/$slug'
       fullPath: '/directory/category/$slug'
       preLoaderRoute: typeof DirectoryCategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory_/share-image/$slug': {
+      id: '/directory_/share-image/$slug'
+      path: '/directory/share-image/$slug'
+      fullPath: '/directory/share-image/$slug'
+      preLoaderRoute: typeof DirectoryShareImageSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/embed/listing/$listingId': {
@@ -1628,6 +1688,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddListingRoute: AddListingRoute,
   ChangeEmailRoute: ChangeEmailRoute,
   DirectoryRoute: DirectoryRoute,
+  FeedDotxmlRoute: FeedDotxmlRoute,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   MaintenanceRoute: MaintenanceRoute,
@@ -1644,10 +1705,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
   DirectorySlugRoute: DirectorySlugRoute,
+  ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,
   ApiWebhooksResendRoute: ApiWebhooksResendRoute,
   ApiWebhooksStripeRoute: ApiWebhooksStripeRoute,
   DirectoryCategorySlugRoute: DirectoryCategorySlugRoute,
+  DirectoryShareImageSlugRoute: DirectoryShareImageSlugRoute,
   EmbedListingListingIdRoute: EmbedListingListingIdRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiV1NotificationsStreamRoute: ApiV1NotificationsStreamRoute,

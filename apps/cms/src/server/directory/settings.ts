@@ -1,8 +1,8 @@
 import { eq } from "drizzle-orm"
 
 import {
-  isDirectorySort,
-  type DirectorySort,
+  isDirectoryDefaultSort,
+  type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
 import {
   DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
@@ -12,6 +12,7 @@ import {
   type DirectoryFrontPageMode,
 } from "@/lib/directory/front-page"
 import { now } from "@/server/auth/security"
+import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { directorySettings } from "@/server/directory/schema"
@@ -35,7 +36,7 @@ export type DirectorySettings = {
   claimPendingMessage: string
   claimApprovedMessage: string
   pageSize: number
-  defaultSort: DirectorySort
+  defaultSort: DirectoryDefaultSort
   browseTitle: string
   browseIntro: string
   featuredFirst: boolean
@@ -87,7 +88,7 @@ function resolvedBrowseSettings(row: {
       row.pageSize! <= 48
         ? row.pageSize!
         : DIRECTORY_SETTING_DEFAULTS.pageSize,
-    defaultSort: isDirectorySort(row.defaultSort)
+    defaultSort: isDirectoryDefaultSort(row.defaultSort)
       ? row.defaultSort
       : DIRECTORY_SETTING_DEFAULTS.defaultSort,
     browseTitle: orDefault(
@@ -149,6 +150,58 @@ export async function directorySettingsFor(
     ...resolvedBrowseSettings(row),
     ...resolvedFrontPageSettings(row),
   }
+}
+
+export async function directoryGeocodingKey(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  const [row] = await database
+    .select({ key: directorySettings.geocodingApiKeyEncrypted })
+    .from(directorySettings)
+    .where(eq(directorySettings.workspaceId, workspaceId))
+    .limit(1)
+  return row?.key
+    ? decryptSecret(row.key)
+    : process.env.GOOGLE_MAPS_GEOCODING_API_KEY || null
+}
+
+export async function directoryGeocodingKeyStatus(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  try {
+    const key = await directoryGeocodingKey(workspaceId, database)
+    return key ? `••••${key.slice(-4)}` : null
+  } catch {
+    // A changed encryption secret must not block the settings page. Pasting a
+    // new key replaces the unreadable value.
+    return null
+  }
+}
+
+export async function saveDirectoryGeocodingKey(
+  workspaceId: string,
+  key: string,
+  database: CustomShellDb = db
+) {
+  const value = key.trim()
+  if (!value) throw new Error("Paste a Google Maps key.")
+  const at = now()
+  const encrypted = encryptSecret(value)
+  await database
+    .insert(directorySettings)
+    .values({
+      workspaceId,
+      geocodingApiKeyEncrypted: encrypted,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { geocodingApiKeyEncrypted: encrypted, updatedAt: at },
+    })
+  return directoryGeocodingKeyStatus(workspaceId, database)
 }
 
 /**
@@ -245,7 +298,7 @@ export async function saveDirectoryBrowseSettings(
   ) {
     throw new Error("Listings per page must be between 6 and 48.")
   }
-  if (!isDirectorySort(input.defaultSort)) {
+  if (!isDirectoryDefaultSort(input.defaultSort)) {
     throw new Error("Choose a listing order from the available options.")
   }
 

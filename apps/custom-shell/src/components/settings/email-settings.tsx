@@ -17,14 +17,17 @@ import {
   removeEmailApiKey,
   removeResendWebhookSecret,
   saveEmailApiKey,
+  saveAuthLinkExpirySetting,
   saveEmailSenderSettings,
   saveNewsletterDripDefaults,
   saveResendWebhookSecret,
+  saveSystemEmailSenderSetting,
   testEmailKey,
   type EmailKeyTestResult,
   type EmailSettingsStatus,
 } from "@/lib/api/email/email-settings"
 import { validateDripConfig, type DripConfig } from "@/lib/broadcasts/drip"
+import type { AuthLinkExpiry } from "@/lib/email/auth-token-expiry"
 import {
   emailLinkStatusLine,
   emailStatusLine,
@@ -42,9 +45,9 @@ const SAVE_DELAY_MS = 1200
 const SAVED_SENTINEL = "••••••••••••"
 
 /**
- * Settings → Email. The Resend key every email in the app sends with, and the
- * name and address they come from. The key is saved encrypted through
- * server/email/settings.ts and the browser only ever sees a masked tail.
+ * Settings → Email. The Resend key every email in the app sends with, the
+ * system sender, and this workspace's newsletter sender. The key is saved
+ * encrypted and the browser only ever sees a masked tail.
  * Saving is automatic and reports through the sticky header's Saving…/Saved
  * indicator, like every other auto-save in the app — no Save button.
  */
@@ -56,11 +59,13 @@ export function EmailSettings() {
 
   // The sender fields as typed; null until the load fills them in.
   const [sender, setSender] = React.useState<{
+    systemFromEmail: string
     fromEmail: string
     fromName: string
   } | null>(null)
   // The pace a new newsletter starts from, as edited; null until the load.
   const [drip, setDrip] = React.useState<DripConfig | null>(null)
+  const [linkExpiry, setLinkExpiry] = React.useState<AuthLinkExpiry | null>(null)
   // The key and webhook secret as typed but not yet saved.
   const [keyDraft, setKeyDraft] = React.useState("")
   const [webhookDraft, setWebhookDraft] = React.useState("")
@@ -74,10 +79,14 @@ export function EmailSettings() {
   // "Test this key" right after typing blurs the field, the blur starts the
   // save, and a save that disabled the buttons would swallow that very click.
   const [saving, setSaving] = React.useState<
-    "sender" | "key" | "webhook" | "drip" | null
+    | "systemSender"
+    | "sender"
+    | "key"
+    | "webhook"
+    | "drip"
+    | "linkExpiry"
+    | null
   >(null)
-  // The last test's verdict, already worded for the user.
-  const [testResult, setTestResult] = React.useState("")
   // Which secret's Remove is waiting on its confirmation, if any.
   const [removing, setRemoving] = React.useState<"key" | "webhook" | null>(
     null
@@ -116,9 +125,14 @@ export function EmailSettings() {
         if (cancelled) return
         setStatus(next)
         setSender((prev) =>
-          prev ?? { fromEmail: next.fromEmail, fromName: next.fromName }
+          prev ?? {
+            systemFromEmail: next.systemFromEmail,
+            fromEmail: next.fromEmail,
+            fromName: next.fromName,
+          }
         )
         setDrip((prev) => prev ?? next.dripDefaults)
+        setLinkExpiry((prev) => prev ?? next.authLinkExpiry)
         setLoadError(null)
       })
       .catch((error) => {
@@ -130,6 +144,21 @@ export function EmailSettings() {
   }, [reloads])
 
   const busy = runningId !== null
+
+  const saveSystemSender = async (systemFromEmail: string) => {
+    setSaving("systemSender")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveSystemEmailSenderSetting(systemFromEmail))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
 
   // `values` ride in as arguments, not read from state: the timer's closure
   // must save exactly what was typed when it was scheduled.
@@ -206,6 +235,39 @@ export function EmailSettings() {
     }
   }
 
+  const saveLinkExpiry = async (next: AuthLinkExpiry) => {
+    setSaving("linkExpiry")
+    setSaveStatus("saving")
+    dismissErrorToast()
+    try {
+      setStatus(await saveAuthLinkExpirySetting(next))
+      setSaveStatus("saved")
+    } catch (error) {
+      setSaveStatus("idle")
+      showErrorToast(getEmailSettingsErrorMessage(error))
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const scheduleLinkExpirySave = (next: AuthLinkExpiry) => {
+    clearTimeout(timers.current.linkExpiry)
+    timers.current.linkExpiry = setTimeout(
+      () => void saveLinkExpiry(next),
+      SAVE_DELAY_MS
+    )
+  }
+
+  const flushLinkExpirySave = () => {
+    if (!linkExpiry) return
+    clearTimeout(timers.current.linkExpiry)
+    if (saving !== null) {
+      scheduleLinkExpirySave(linkExpiry)
+      return
+    }
+    void saveLinkExpiry(linkExpiry)
+  }
+
   const scheduleDripSave = (next: DripConfig) => {
     clearTimeout(timers.current.drip)
     timers.current.drip = setTimeout(() => void saveDrip(next), SAVE_DELAY_MS)
@@ -234,6 +296,24 @@ export function EmailSettings() {
       () => void saveSender(fromEmail, fromName),
       SAVE_DELAY_MS
     )
+  }
+
+  const scheduleSystemSenderSave = (systemFromEmail: string) => {
+    clearTimeout(timers.current.systemSender)
+    timers.current.systemSender = setTimeout(
+      () => void saveSystemSender(systemFromEmail),
+      SAVE_DELAY_MS,
+    )
+  }
+
+  const flushSystemSenderSave = () => {
+    if (!sender) return
+    clearTimeout(timers.current.systemSender)
+    if (saving !== null) {
+      scheduleSystemSenderSave(sender.systemFromEmail)
+      return
+    }
+    void saveSystemSender(sender.systemFromEmail)
   }
 
   const flushSenderSave = () => {
@@ -288,9 +368,11 @@ export function EmailSettings() {
   const test = async () => {
     setRunningId("test")
     dismissErrorToast()
-    setTestResult("")
     try {
-      setTestResult(testMessage(await testEmailKey(keyDraft)))
+      const verdict = await testEmailKey(keyDraft)
+      const message = testMessage(verdict)
+      if (verdict.result === "ok") toast.success(message)
+      else showErrorToast(message)
     } catch (error) {
       showErrorToast(getEmailSettingsErrorMessage(error))
     } finally {
@@ -301,7 +383,6 @@ export function EmailSettings() {
   const remove = async (what: "key" | "webhook") => {
     setRunningId("remove")
     dismissErrorToast()
-    if (what === "key") setTestResult("")
     try {
       setStatus(
         await (what === "key" ? removeEmailApiKey() : removeResendWebhookSecret())
@@ -329,7 +410,7 @@ export function EmailSettings() {
       <CollapsibleSettingsCard
         storageId="email-sending"
         title="Sending emails"
-        description="Every email this app sends — sign-in links, newsletters, automations — goes out through Resend with this key, from this name and address."
+        description="Every email goes through Resend with this key. Choose one sender for sign-in, reset, and security emails, and another for this workspace's newsletters and automation emails."
         contentClassName="space-y-6"
       >
         {loadError ? (
@@ -345,6 +426,35 @@ export function EmailSettings() {
           <>
             <DeliveryStatusRow status={status} />
             <LinkAddressStatusRow status={status} />
+            <SystemSenderStatusRow status={status} />
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="email-system-from-address"
+                hint="Used for this workspace's sign-in, verification, password-reset, and security emails. It must be on a domain verified inside Resend."
+              >
+                System email address
+              </FieldLabel>
+              <Input
+                id="email-system-from-address"
+                type="email"
+                autoComplete="off"
+                placeholder="e.g. notifications@yourdomain.com"
+                value={sender.systemFromEmail}
+                onChange={(event) => {
+                  const next = {
+                    ...sender,
+                    systemFromEmail: event.target.value,
+                  }
+                  setSender(next)
+                  scheduleSystemSenderSave(next.systemFromEmail)
+                }}
+                onBlur={flushSystemSenderSave}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") flushSystemSenderSave()
+                }}
+              />
+            </div>
 
             <div className="grid gap-2">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -373,9 +483,6 @@ export function EmailSettings() {
                   }}
                   onChange={(event) => {
                     setKeyDraft(event.target.value)
-                    // A verdict is about one exact key; edited text is
-                    // another key, so the old verdict comes down.
-                    setTestResult("")
                     scheduleKeySave(event.target.value)
                   }}
                   onKeyDown={(event) => {
@@ -412,11 +519,6 @@ export function EmailSettings() {
                   ) : null}
                 </div>
               </div>
-              {testResult ? (
-                <p role="status" className="text-sm text-muted-foreground">
-                  {testResult}
-                </p>
-              ) : null}
             </div>
 
             <div className="grid gap-2">
@@ -469,9 +571,9 @@ export function EmailSettings() {
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="email-from-name"
-                hint="The name in the recipient's inbox, in front of the address — like a return address label."
+                hint="The name this workspace's newsletters and automation emails show in the recipient's inbox."
               >
-                From name
+                Newsletter from name
               </FieldLabel>
               <Input
                 id="email-from-name"
@@ -493,9 +595,9 @@ export function EmailSettings() {
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="email-from-address"
-                hint="Must be an address on a domain you have verified inside Resend, or Resend refuses to send."
+                hint="Used only by this workspace's newsletters and automation emails. It must be on a domain verified inside Resend."
               >
-                From address
+                Newsletter from address
               </FieldLabel>
               <Input
                 id="email-from-address"
@@ -515,6 +617,83 @@ export function EmailSettings() {
               />
             </div>
           </>
+        )}
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="system-email-link-expiry"
+        title="System email link expiry"
+        description="Choose how long each sign-in or account link remains usable. The email wording updates from these same values automatically."
+      >
+        {status && linkExpiry ? (
+          <div
+            className="grid gap-4 sm:grid-cols-2"
+            onBlur={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget)) return
+              flushLinkExpirySave()
+            }}
+          >
+            <ExpiryField
+              id="verification-link-expiry"
+              label="Email verification (hours)"
+              hint="From 1 hour to 7 days. This also controls verification reminder links."
+              value={linkExpiry.verificationHours}
+              min={1}
+              max={168}
+              onChange={(verificationHours) => {
+                const next = { ...linkExpiry, verificationHours }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="password-reset-link-expiry"
+              label="Password reset (minutes)"
+              hint="From 5 minutes to 24 hours. This also controls links for accounts created by an admin."
+              value={linkExpiry.passwordResetMinutes}
+              min={5}
+              max={1440}
+              onChange={(passwordResetMinutes) => {
+                const next = { ...linkExpiry, passwordResetMinutes }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="sign-in-link-expiry"
+              label="Sign-in link (minutes)"
+              hint="From 5 to 60 minutes. Shorter is safer because this link signs somebody straight in."
+              value={linkExpiry.signInMinutes}
+              min={5}
+              max={60}
+              onChange={(signInMinutes) => {
+                const next = { ...linkExpiry, signInMinutes }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+            <ExpiryField
+              id="email-change-link-expiry"
+              label="Email change (hours)"
+              hint="From 1 hour to 7 days. The confirmation and cancellation links use the same limit."
+              value={linkExpiry.emailChangeHours}
+              min={1}
+              max={168}
+              onChange={(emailChangeHours) => {
+                const next = { ...linkExpiry, emailChangeHours }
+                setLinkExpiry(next)
+                scheduleLinkExpirySave(next)
+              }}
+              onCommit={flushLinkExpirySave}
+            />
+          </div>
+        ) : loadError ? null : (
+          <div className="flex justify-center p-6">
+            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+          </div>
         )}
       </CollapsibleSettingsCard>
 
@@ -577,6 +756,81 @@ export function EmailSettings() {
   )
 }
 
+function ExpiryField({
+  id,
+  label,
+  hint,
+  value,
+  min,
+  max,
+  onChange,
+  onCommit,
+}: {
+  id: string
+  label: string
+  hint: string
+  value: number
+  min: number
+  max: number
+  onChange: (value: number) => void
+  onCommit: () => void
+}) {
+  const [savedValue, setSavedValue] = React.useState(value)
+  const [draft, setDraft] = React.useState(String(value))
+
+  if (savedValue !== value) {
+    setSavedValue(value)
+    setDraft(String(value))
+  }
+
+  const parsed = Number(draft)
+  const valid =
+    draft.trim() !== "" &&
+    Number.isInteger(parsed) &&
+    parsed >= min &&
+    parsed <= max
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel htmlFor={id} hint={hint}>
+        {label}
+      </FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={min}
+        max={max}
+        value={draft}
+        aria-invalid={!valid || undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          const number = Number(next)
+          if (
+            next.trim() !== "" &&
+            Number.isInteger(number) &&
+            number >= min &&
+            number <= max
+          ) {
+            onChange(number)
+          }
+        }}
+        onBlur={() => {
+          if (!valid) {
+            showErrorToast(
+              `Enter a whole number from ${min} to ${max}. The last valid value is still in use.`
+            )
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && valid) onCommit()
+        }}
+      />
+    </div>
+  )
+}
+
 /**
  * Whether email works at all, said before any of the fields.
  *
@@ -592,6 +846,26 @@ function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
 /** Where the links in system emails lead, kept visible beside sending health. */
 function LinkAddressStatusRow({ status }: { status: EmailSettingsStatus }) {
   return <EmailStatusRow {...emailLinkStatusLine(status)} />
+}
+
+/** The active sender for account and security messages. */
+function SystemSenderStatusRow({ status }: { status: EmailSettingsStatus }) {
+  return (
+    <EmailStatusRow
+      on={status.systemSender.configured}
+      line={systemSenderStatusLine(status)}
+    />
+  )
+}
+
+function systemSenderStatusLine(status: EmailSettingsStatus) {
+  if (status.systemSender.source === "settings") {
+    return `System emails come from ${status.systemSender.from}. This workspace controls the address below.`
+  }
+  if (status.systemSender.configured) {
+    return `System emails come from ${status.systemSender.from}. Save a different verified address below to replace the deployment default.`
+  }
+  return `System emails are using Resend's testing sender, ${status.systemSender.from}. It only delivers to the Resend account owner; set CUSTOM_SHELL_EMAIL_FROM to an address on a verified domain.`
 }
 
 /** One shared warning shape for sending health and link health. */
@@ -639,7 +913,7 @@ function testMessage(verdict: EmailKeyTestResult) {
     case "ok":
       return "It works — Resend accepted the key."
     case "rejected":
-      return "Resend rejected this key. Check it was copied in full."
+      return `Resend rejected this key: ${verdict.reason}`
     case "unreachable":
       return "Resend could not be reached. Check the server's internet connection and try again."
     case "error":

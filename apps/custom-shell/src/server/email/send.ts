@@ -1,13 +1,32 @@
 import { escapeHtml } from "@/lib/email/escape-html"
 import { emailFirstName } from "@/lib/email/recipient-name"
-import { parseStoredBlocks } from "@/lib/broadcasts/blocks"
+import {
+  describeResendFailure,
+  emailDeliveryError,
+  unreachableEmailServiceFailure,
+} from "@/lib/email/delivery-failure"
+import {
+  DEFAULT_AUTH_LINK_EXPIRY,
+  authTokenExpiryText,
+  type AuthLinkExpiry,
+  type AuthTokenPurpose,
+} from "@/lib/email/auth-token-expiry"
+import {
+  createBroadcastBlock,
+  parseStoredBlocks,
+  type BroadcastBlock,
+} from "@/lib/broadcasts/blocks"
 import { renderBroadcastEmailHtml } from "@/lib/broadcasts/render"
+import { resolveAppName } from "@/lib/branding"
 import {
   SYSTEM_EMAIL_META,
   applySystemEmailTokens,
+  createSystemEmailBlocks,
   type SystemEmailKind,
 } from "@/lib/system-emails/kinds"
 import { getAppEmailApiKey } from "@/server/email/settings"
+import { getAuthLinkExpiry } from "@/server/auth/link-expiry"
+import { getWorkspaceSystemEmailSender } from "@/server/email/app-sender"
 import {
   captureDevEmail,
   devOutboxIsAvailable,
@@ -28,8 +47,14 @@ export type AuthEmail = {
   /** The stored account name. It is never inferred from the email address. */
   recipientName: string | null
   actionUrl: string
+  /** Stops this one action link and records that the email was unwanted. */
+  reportUrl?: string
   /** The site is explicit for admin test sends; visitor flows resolve it by host. */
   workspaceId?: string
+  /** The lifetime snapshot used when this email's token was created. */
+  linkExpiry?: AuthLinkExpiry
+  /** Only authenticated admin actions may receive Resend's exact reason. */
+  showFailureReasonToAdmin?: boolean
   /**
    * Values for the placeholders this kind of email offers, over and above the
    * address and the link, which are filled in for every one of them.
@@ -48,6 +73,23 @@ export type SavedSystemEmail = {
   blocks: unknown
 } | null
 
+const EMAIL_TOKEN_PURPOSE: Partial<Record<SystemEmailKind, AuthTokenPurpose>> =
+  {
+    "verify-email": "verify_email",
+    "verification-reminder": "verify_email",
+    "sign-in-link": "login",
+    "password-reset": "reset_password",
+    "email-change": "change_email",
+    "email-change-warning": "revoke_email_change",
+    "new-account": "reset_password",
+  }
+
+function expiryTokenValues(purpose: AuthTokenPurpose, expiry: AuthLinkExpiry) {
+  return {
+    expires_in: authTokenExpiryText(purpose, expiry),
+  }
+}
+
 /**
  * The subject and the HTML for one of the app's own emails.
  *
@@ -63,17 +105,26 @@ export type SavedSystemEmail = {
 export function composeSystemEmail(
   email: AuthEmail,
   saved: SavedSystemEmail,
-  options: { appName?: string } = {}
+  options: { appName?: string; linkExpiry?: AuthLinkExpiry } = {}
 ) {
   const meta = SYSTEM_EMAIL_META[email.kind]
+  const tokenPurpose = EMAIL_TOKEN_PURPOSE[email.kind]
   const values: Record<string, string> = {
     ...email.tokens,
     email: email.to,
     firstName: emailFirstName(email.recipientName, email.to),
     action_url: email.actionUrl,
+    ...(tokenPurpose
+      ? expiryTokenValues(
+          tokenPurpose,
+          options.linkExpiry ?? DEFAULT_AUTH_LINK_EXPIRY
+        )
+      : {}),
   }
 
-  const blocks = saved ? parseStoredBlocks(saved.blocks) : []
+  const blocks = saved
+    ? withUnwantedRequestLink(parseStoredBlocks(saved.blocks), email.reportUrl)
+    : []
   const subject = saved?.subject.trim() ? saved.subject : null
 
   if (subject && blocks.length > 0) {
@@ -84,6 +135,7 @@ export function composeSystemEmail(
             html: false,
           }),
       appName: options.appName,
+      renderStyle: "system",
     })
     return {
       subject: applySystemEmailTokens(subject, values, { html: false }),
@@ -92,29 +144,42 @@ export function composeSystemEmail(
     }
   }
 
+  const builtInHtml = renderBroadcastEmailHtml(
+    withUnwantedRequestLink(
+      createSystemEmailBlocks(email.kind),
+      email.reportUrl
+    ),
+    {
+      preheader: applySystemEmailTokens(meta.defaults.message, values, {
+        html: false,
+      }),
+      appName: resolveAppName(options.appName),
+      renderStyle: "system",
+    }
+  )
   return {
     subject: applySystemEmailTokens(meta.defaults.subject, values, {
       html: false,
     }),
-    html: renderBuiltInEmail({
-      preheader: applySystemEmailTokens(meta.defaults.message, values, {
-        html: false,
-      }),
-      firstName: values.firstName,
-      heading: applySystemEmailTokens(meta.defaults.heading, values, {
-        html: false,
-      }),
-      message: applySystemEmailTokens(meta.defaults.message, values, {
-        html: false,
-      }),
-      action: meta.defaults.action,
-      actionUrl: email.actionUrl,
-      closing: applySystemEmailTokens(meta.defaults.closing, values, {
-        html: false,
-      }),
-    }),
+    html: applySystemEmailTokens(builtInHtml, values, { html: true }),
     fromName: null,
   }
+}
+
+/** Adds the fixed security action before the editable email's footer. */
+function withUnwantedRequestLink(
+  blocks: BroadcastBlock[],
+  reportUrl: string | undefined
+) {
+  if (!reportUrl) return blocks
+
+  const report = createBroadcastBlock("richText")
+  if (report.kind !== "richText") return blocks
+  report.content.htmlContent = `<p><a href="${escapeHtml(reportUrl)}">I didn&#39;t ask for this</a></p>`
+
+  const footerIndex = blocks.findIndex((block) => block.kind === "footer")
+  if (footerIndex < 0) return [...blocks, report]
+  return [...blocks.slice(0, footerIndex), report, ...blocks.slice(footerIndex)]
 }
 
 /**
@@ -128,7 +193,7 @@ export function composeSystemEmail(
  */
 export function composeFromAddress(
   fromName: string | null,
-  configured: string,
+  configured: string
 ) {
   // A From line is one line. Anything that could end it or start a second
   // header — a line break, angle brackets, quotes, a comma splitting it into
@@ -144,12 +209,12 @@ export function composeFromAddress(
   return `${safeName} <${address}>`
 }
 
-function fromAddress(fromName: string | null) {
-  return composeFromAddress(
-    fromName,
-    process.env.CUSTOM_SHELL_EMAIL_FROM ||
-      "Custom Shell <onboarding@resend.dev>",
-  )
+async function fromAddress(
+  fromName: string | null,
+  workspaceId: string | null
+) {
+  const sender = await getWorkspaceSystemEmailSender(workspaceId)
+  return composeFromAddress(fromName, sender.from)
 }
 
 /**
@@ -175,17 +240,22 @@ export async function sendAuthEmail(email: AuthEmail) {
   let appName: string | undefined
   if (workspaceId && saved) {
     try {
-      await protectSentEmailLogos(workspaceId, parseStoredBlocks(saved.blocks))
       appName = await emailBrandName(workspaceId)
+      await protectSentEmailLogos(workspaceId, parseStoredBlocks(saved.blocks))
     } catch {
       // Authentication email must still go out. If the database cannot make
       // its custom logo permanent, the safe answer is the built-in email with
       // no image rather than a custom email whose logo may later break.
       saved = null
     }
+  } else if (workspaceId) {
+    // Built-in wording has no saved header to resolve this for it, but it still
+    // needs to say which site sent it when every picture is unavailable.
+    appName = await emailBrandName(workspaceId).catch(() => undefined)
   }
   const { subject, html, fromName } = composeSystemEmail(email, saved, {
     appName,
+    linkExpiry: email.linkExpiry ?? (await getAuthLinkExpiry(workspaceId)),
   })
 
   captureDevEmail({ workspaceId, toEmail: email.to, subject, html })
@@ -195,7 +265,7 @@ export async function sendAuthEmail(email: AuthEmail) {
   // this quietly do nothing on a server where somebody had filled the tab in.
   const apiKey =
     (await getAppEmailApiKey(undefined, workspaceId ?? undefined).catch(
-      () => null,
+      () => null
     )) || process.env.CUSTOM_SHELL_RESEND_API_KEY
 
   if (!apiKey) {
@@ -208,7 +278,7 @@ export async function sendAuthEmail(email: AuthEmail) {
     }
 
     console.info(
-      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`,
+      `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
     )
     await logSend(workspaceId, email, subject, {
       status: "failed",
@@ -226,7 +296,7 @@ export async function sendAuthEmail(email: AuthEmail) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: fromAddress(fromName),
+        from: await fromAddress(fromName, workspaceId),
         to: [email.to],
         subject,
         html,
@@ -235,41 +305,42 @@ export async function sendAuthEmail(email: AuthEmail) {
   } catch {
     // Network errors have no provider response to quote. Keep the useful fact
     // without logging a low-level error that could contain request details.
+    const failure = unreachableEmailServiceFailure()
     await logSend(workspaceId, email, subject, {
       status: "failed",
-      error: "The email service could not be reached.",
+      error: failure.reason,
     })
-    throw new Error("EMAIL_DELIVERY_FAILED")
+    throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
+  const body = (await response.json().catch(() => null)) as unknown
   if (!response.ok) {
     // Resend's own words, not just the number. Its refusals are the useful
     // kind — "the domain is not verified", "you can only send to your own
     // address" — and a bare 403 sends somebody hunting for a bug in the app
     // when the answer was sitting in the response all along.
-    const reason = await response
-      .json()
-      .then((body: { message?: string }) => body?.message ?? "")
-      .catch(() => "")
+    const failure = describeResendFailure(response.status, body)
 
     await logSend(workspaceId, email, subject, {
       status: "failed",
-      error: reason
-        ? `The email service refused it (${response.status}): ${reason}`
-        : `The email service refused it (${response.status}).`,
+      error: failure.reason,
     })
-    throw new Error("EMAIL_DELIVERY_FAILED")
+    throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
-  const body = (await response.json().catch(() => null)) as {
-    id?: string
-  } | null
+  const messageId =
+    body &&
+    typeof body === "object" &&
+    "id" in body &&
+    typeof body.id === "string"
+      ? body.id
+      : null
   await logSend(workspaceId, email, subject, {
     status: "sent",
-    providerMessageId: body?.id ?? null,
+    providerMessageId: messageId,
   })
 
-  return { delivered: true }
+  return { delivered: true, messageId }
 }
 
 /**
@@ -287,7 +358,7 @@ async function logSend(
     status: "sent" | "failed"
     providerMessageId?: string | null
     error?: string | null
-  },
+  }
 ) {
   try {
     await recordSystemEmailSend({
@@ -300,28 +371,4 @@ async function logSend(
   } catch {
     // Nothing to do about it here, and nothing worth stopping for.
   }
-}
-
-/**
- * The email as it was before any of this was editable.
- *
- * Still the last word: this is what goes out when nobody has touched the
- * wording, and what goes out again if somebody empties it.
- */
-function renderBuiltInEmail(email: {
-  preheader: string
-  firstName: string
-  heading: string
-  message: string
-  action: string
-  actionUrl: string
-  closing: string
-}) {
-  return `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeHtml(email.preheader)}</div><div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;padding:32px;color:#18181b">
-  <p style="font-size:14px;line-height:1.6;margin:0 0 24px">Hi ${escapeHtml(email.firstName)},</p>
-  <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(email.heading)}</h1>
-  <p style="font-size:14px;line-height:1.6;margin:0 0 24px">${escapeHtml(email.message)}</p>
-  <p style="margin:0 0 24px"><a href="${escapeHtml(email.actionUrl)}" style="display:inline-block;background:#18181b;color:#fafafa;padding:10px 18px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600">${escapeHtml(email.action)}</a></p>
-  <p style="font-size:12px;color:#71717a;margin:0">${escapeHtml(email.closing)}</p>
-</div>`
 }

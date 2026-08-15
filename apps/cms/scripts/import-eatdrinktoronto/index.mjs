@@ -478,7 +478,7 @@ async function importListing({
   categoryLinks = normalizedCategoryLinks(categoryLinks)
   const existingResult = await target.query(
     `
-    SELECT id, title, slug, meta_description, status, display_order, featured_image,
+    SELECT id, title, slug, meta_description, rating, status, display_order, featured_image,
            contact_links, body
     FROM directory_listings
     WHERE workspace_id = $1 AND source_type = $2 AND source_id = $3
@@ -508,9 +508,10 @@ async function importListing({
         await target.query(
           `
           INSERT INTO directory_listings
-            (id, workspace_id, title, slug, meta_description, status, display_order,
-             featured_image, contact_links, body, source_type, source_id, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11, $12, NOW(), NOW())
+            (id, workspace_id, title, slug, meta_description, rating, status,
+             display_order, featured_image, contact_links, body, source_type,
+             source_id, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, NOW(), NOW())
         `,
           [
             id,
@@ -518,6 +519,7 @@ async function importListing({
             values.title,
             slug,
             values.metaDescription,
+            values.rating,
             values.status,
             values.displayOrder,
             values.featuredImage,
@@ -531,14 +533,15 @@ async function importListing({
         await target.query(
           `
           UPDATE directory_listings SET title = $1, slug = $2, meta_description = $3,
-            status = $4, display_order = $5, featured_image = $6,
-            contact_links = $7::jsonb, body = $8::jsonb, updated_at = NOW()
-          WHERE id = $9 AND workspace_id = $10
+            rating = $4, status = $5, display_order = $6, featured_image = $7,
+            contact_links = $8::jsonb, body = $9::jsonb, updated_at = NOW()
+          WHERE id = $10 AND workspace_id = $11
         `,
           [
             values.title,
             slug,
             values.metaDescription,
+            values.rating,
             values.status,
             values.displayOrder,
             values.featuredImage,
@@ -600,6 +603,7 @@ function sameListing(row, listing, ignoreFeaturedImage = false) {
     row.title === listing.title &&
     row.slug === listing.slug &&
     row.meta_description === listing.metaDescription &&
+    (row.rating === null ? null : Number(row.rating)) === listing.rating &&
     row.status === listing.status &&
     Number(row.display_order) === listing.displayOrder &&
     (ignoreFeaturedImage || row.featured_image === listing.featuredImage) &&

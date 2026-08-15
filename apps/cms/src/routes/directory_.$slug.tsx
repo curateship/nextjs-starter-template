@@ -12,6 +12,11 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingContactLinks } from "@/components/directory/public/listing-contact-links"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
+import { ListingRating } from "@/components/directory/listing-rating"
+import {
+  ListingGallery,
+  ListingHoursAndLocation,
+} from "@/components/directory/public/listing-rich-details"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent } from "@/components/ui/card"
 import { loadDirectoryListing } from "@/lib/api/directory/public"
@@ -21,6 +26,7 @@ import {
   directoryHead,
   directoryTitle,
   listingJsonLd,
+  listingPageShareImage,
 } from "@/lib/directory/public-seo"
 
 /**
@@ -66,7 +72,12 @@ export const Route = createFileRoute("/directory_/$slug")({
         loaderData.listing.metaDescription,
         `${loaderData.listing.title} on ${loaderData.site.name}.`
       ),
-      loaderData.listing.featuredImage
+      listingPageShareImage({
+        featuredImage: loaderData.listing.featuredImage,
+        siteUrl: loaderData.site.url,
+        slug: loaderData.listing.slug,
+        version: loaderData.shareImageVersion,
+      })
     )
   },
   component: ListingRoute,
@@ -98,6 +109,11 @@ function ListingRoute() {
           slug: listing.slug,
           description: listing.metaDescription,
           image: listing.featuredImage,
+          gallery: listing.gallery,
+          hours: listing.hours,
+          address: listing.contactLinks.address,
+          latitude: listing.latitude,
+          longitude: listing.longitude,
           createdAt: listing.createdAt,
           updatedAt: listing.updatedAt,
         })}
@@ -120,6 +136,7 @@ function ListingRoute() {
             />
           </div>
         ) : null}
+        <ListingGallery title={listing.title} images={listing.gallery} />
         <CardContent className="grid gap-4">
           <div className="grid gap-1">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -131,6 +148,7 @@ function ListingRoute() {
                 <SaveDropdown listingId={listing.id} />
               ) : null}
             </div>
+            <ListingRating rating={listing.rating} />
             {listing.metaDescription ? (
               <p className="text-sm text-muted-foreground">
                 {listing.metaDescription}
@@ -145,6 +163,18 @@ function ListingRoute() {
           ) : null}
 
           <ListingContactLinks links={listing.contactLinks} />
+
+          <ListingHoursAndLocation
+            hours={listing.hours}
+            coordinates={
+              listing.latitude !== null && listing.longitude !== null
+                ? {
+                    latitude: listing.latitude,
+                    longitude: listing.longitude,
+                  }
+                : null
+            }
+          />
 
           {/* Between the facts and the story: somebody deciding whether this is
               their business has read enough by here, and it stays above the

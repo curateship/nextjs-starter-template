@@ -25,6 +25,7 @@ import {
 } from "@/lib/api/auth/auth"
 import { carriedEmail } from "@/lib/email/carried-email"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 
 export const Route = createFileRoute("/forgot-password")({
   loader: async () => {
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/forgot-password")({
 })
 
 function ForgotPasswordRoute() {
-  const { siteKey } = Route.useLoaderData()
+  const { siteKey, linkExpiry } = Route.useLoaderData()
   // Whatever the sign-in page had typed, checked again here because history
   // state can be hand-edited. Read once as the field's starting value so it
   // stays an ordinary editable field afterwards.
@@ -89,7 +90,7 @@ function ForgotPasswordRoute() {
       description="We will email you a link to set a new one."
       notice={
         sent
-          ? "If that email has an account, a reset link is on its way. The link expires in one hour."
+          ? `If that email has an account, a reset link is on its way. The link expires in ${authTokenExpiryText("reset_password", linkExpiry)}.`
           : null
       }
       onSubmit={handleSubmit}
