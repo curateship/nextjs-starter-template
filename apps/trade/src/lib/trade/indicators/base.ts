@@ -28,7 +28,9 @@ import {
  * level is now there. That is why the old app's crack settings are not here.
  *
  * Ported from `apps/trading`'s Base indicator, same six settings and the same
- * arithmetic. Two notes carried over from what went wrong there:
+ * arithmetic, plus two switches of our own that hide the arrows on one side
+ * without changing anything the indicator found. Two notes carried over from
+ * what went wrong there:
  *  - The with-the-trend rule compares LEVELS, never the candles the arrows sit
  *    on. A confirming candle can close higher while its level is lower, which
  *    drew arrows walking down a staircase.
@@ -79,6 +81,20 @@ export const BASE_FIELDS: IndicatorField[] = [
     hint: "The prices it keeps getting turned away from — a red dash, and a red arrow over the candle that confirmed it. A ceiling is where a base is usually the place to take profit.",
   },
   {
+    key: "showLongArrows",
+    label: "Show long arrows",
+    kind: "switch",
+    fallback: true,
+    hint: "The green arrows under the candle that confirmed a base. Off hides just the arrows — the teal dashes stay, and a step trading these still buys.",
+  },
+  {
+    key: "showShortArrows",
+    label: "Show short arrows",
+    kind: "switch",
+    fallback: true,
+    hint: "The red arrows over the candle that confirmed a ceiling. Off hides just the arrows — the red dashes stay, and a step trading these still sells.",
+  },
+  {
     key: "minBarsApart",
     label: "Fewest candles between arrows",
     kind: "number",
@@ -97,6 +113,8 @@ type BaseSettings = {
   withTrendOnly: boolean
   showBases: boolean
   showCeilings: boolean
+  showLongArrows: boolean
+  showShortArrows: boolean
 }
 
 function baseSettings(params: IndicatorParams): BaseSettings {
@@ -110,6 +128,8 @@ function baseSettings(params: IndicatorParams): BaseSettings {
     withTrendOnly: read.withTrendOnly as boolean,
     showBases: read.showBases as boolean,
     showCeilings: read.showCeilings as boolean,
+    showLongArrows: read.showLongArrows as boolean,
+    showShortArrows: read.showShortArrows as boolean,
   }
 }
 
@@ -438,7 +458,7 @@ export const baseIndicator: IndicatorModule = {
     "Marks the floors price keeps bouncing off and the ceilings it keeps getting turned away from.",
   fields: BASE_FIELDS,
   // Two cards, split by what the setting actually changes. The first two decide
-  // where the levels ARE; the other four only decide which of them you are
+  // where the levels ARE; the other six only decide which of them you are
   // shown, and none of them can move a level or invent one. That is the line
   // somebody needs when a level has a dash but no arrow — the answer is always
   // on the second card.
@@ -446,10 +466,17 @@ export const baseIndicator: IndicatorModule = {
     { title: "Settings", keys: ["searchBars", "holdBars"] },
     {
       title: "Visibility",
-      keys: ["showBases", "showCeilings", "withTrendOnly", "minBarsApart"],
+      keys: [
+        "showBases",
+        "showCeilings",
+        "showLongArrows",
+        "showShortArrows",
+        "withTrendOnly",
+        "minBarsApart",
+      ],
     },
   ],
-  // The one way these six settings can quietly disagree with each other. Said
+  // The one way these settings can quietly disagree with each other. Said
   // out loud rather than refused, because the number it acts as is a perfectly
   // good answer — it is only being silent about it that would be wrong.
   note: (params) => {
@@ -459,25 +486,26 @@ export const baseIndicator: IndicatorModule = {
       ? null
       : `The wait has to be shorter than the search, so it is acting as ${held} candles.`
   },
-  compute: basePaint,
   /**
-   * Every arrow, read as an instruction: a confirmed base is a buy and a
-   * confirmed ceiling is a sell.
+   * What the chart draws — everything `basePaint` found, minus whichever
+   * arrows have been switched off.
    *
-   * **The same list `compute` draws, mapped.** Not a second walk over the
-   * candles that follows the same rule — the actual arrows, so a signal that
-   * has no arrow, or an arrow with no signal, is not a bug that can happen.
-   *
-   * That makes "Show bases" and "Show ceilings" mean something sharper on a
-   * step that trades these than on a chart that draws them: switching ceilings
-   * off is switching the sell side off. It is the honest reading — a side you
-   * are not being shown is a side you are not acting on — and the panel that
-   * offers them says so in those words.
-   *
-   * Late by design, and worth knowing before trusting one: the arrow prints on
-   * the candle that FINISHED the wait, which is `holdBars` candles after the
-   * low that made the level. A buy here is a buy some way above the floor.
+   * **The arrow switches are about the picture and nothing else.** They hide an
+   * arrow; they do not call off a base. That is why they are applied here and
+   * not inside `basePaint` — `signals` reads the same pass, so hiding the sell
+   * arrows on a chart must not quietly stop a step selling. "Show ceilings" is
+   * the switch that means the side itself is off.
    */
+  compute: (candles, params) => {
+    const settings = baseSettings(params)
+    const paint = basePaint(candles, params)
+    return {
+      dashes: paint.dashes,
+      marks: paint.marks.filter((mark) =>
+        mark.side === "up" ? settings.showLongArrows : settings.showShortArrows
+      ),
+    }
+  },
   /**
    * The search window plus the wait — the first candle that could possibly
    * confirm a level.
@@ -492,6 +520,29 @@ export const baseIndicator: IndicatorModule = {
     const settings = baseSettings(params)
     return settings.searchBars + cappedHold(settings.searchBars, settings.holdBars)
   },
+  /**
+   * Every arrow, read as an instruction: a confirmed base is a buy and a
+   * confirmed ceiling is a sell.
+   *
+   * **The same pass the arrows come out of, mapped.** Not a second walk over
+   * the candles that follows the same rule — the actual arrows, so a signal
+   * that has no arrow, or an arrow with no signal, is not a bug that can
+   * happen.
+   *
+   * The two arrow switches are the one thing it does not read, and that is the
+   * point of them: they hide an arrow that has already happened. `compute`
+   * applies them; a hidden arrow is still traded.
+   *
+   * "Show bases" and "Show ceilings" are the opposite, and mean something
+   * sharper on a step that trades these than on a chart that draws them:
+   * switching ceilings off is switching the sell side off. It is the honest
+   * reading — a side you are not looking for is a side you are not acting on —
+   * and the panel that offers them says so in those words.
+   *
+   * Late by design, and worth knowing before trusting one: the arrow prints on
+   * the candle that FINISHED the wait, which is `holdBars` candles after the
+   * low that made the level. A buy here is a buy some way above the floor.
+   */
   signals: (candles, params) =>
     basePaint(candles, params).marks.map((mark) => ({
       time: mark.time,

@@ -111,6 +111,24 @@ describe("the base indicator", () => {
     expect(spaced.dashes).toHaveLength(2)
   })
 
+  it("hides an arrow on its own without touching the dash under it", () => {
+    const candles = bars(ONE_BASE)
+    const hidden = baseIndicator.compute(
+      candles,
+      settings({ showLongArrows: false })
+    )
+    const shown = baseIndicator.compute(candles, settings())
+    expect(hidden.marks).toEqual([])
+    expect(hidden.dashes).toEqual(shown.dashes)
+  })
+
+  it("still calls the buy when the arrow is hidden, because hiding is only drawing", () => {
+    const candles = bars(ONE_BASE)
+    expect(
+      baseIndicator.signals?.(candles, settings({ showLongArrows: false }))
+    ).toEqual([{ time: 5 * HOUR, side: "buy" }])
+  })
+
   it("says nothing about a chart with less history than the search needs", () => {
     expect(baseIndicator.compute(bars([10, 9, 8]), settings())).toEqual({
       dashes: [],
@@ -147,6 +165,8 @@ describe("reading an indicator's settings", () => {
       withTrendOnly: true,
       showBases: true,
       showCeilings: true,
+      showLongArrows: true,
+      showShortArrows: true,
     })
   })
 
