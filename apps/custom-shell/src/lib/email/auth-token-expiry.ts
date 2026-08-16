@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { plural } from "@/lib/format/plural"
+
 export const authLinkExpirySchema = z.object({
   verificationHours: z.number().int().min(1).max(168),
   passwordResetMinutes: z.number().int().min(5).max(1440),
@@ -53,8 +55,14 @@ export function authTokenTtlMs(
 
 /** Writes an exact token lifetime in the plain words used in an email. */
 export function formatAuthTokenExpiry(durationMs: number) {
+  const dayMs = 24 * 60 * 60 * 1000
   const hourMs = 60 * 60 * 1000
   const minuteMs = 60 * 1000
+
+  if (durationMs % dayMs === 0) {
+    const days = durationMs / dayMs
+    return days === 1 ? "one day" : `${days} ${plural(days, "day")}`
+  }
 
   if (durationMs % hourMs === 0) {
     const hours = durationMs / hourMs

@@ -14,8 +14,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatMoney } from "@/lib/format/money"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import { describePlanFeatures } from "@/lib/billing/plan-features"
-
-export type BillingInterval = "monthly" | "yearly"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
+import { cn } from "@/lib/utils"
 
 /**
  * Plan cards shared by the public pricing page and the billing page.
@@ -26,6 +26,7 @@ export type BillingInterval = "monthly" | "yearly"
 export function PricingTable({
   plans,
   currentPlanSlug,
+  selectedPlanSlug,
   currentInterval,
   interval,
   onIntervalChange,
@@ -36,6 +37,8 @@ export function PricingTable({
 }: {
   plans: PlanOption[]
   currentPlanSlug?: string
+  /** The card chosen on the previous page, distinct from the plan they own. */
+  selectedPlanSlug?: string | null
   /**
    * How the person already pays. A plan is only theirs on the period they are
    * actually on, so a monthly subscriber's yearly card stays buyable.
@@ -79,6 +82,7 @@ export function PricingTable({
             plan={plan}
             interval={interval}
             currentPlanSlug={currentPlanSlug}
+            selected={plan.slug === selectedPlanSlug}
             currentInterval={currentInterval}
             busy={busyPlanSlug === plan.slug}
             actionLabel={actionLabel}
@@ -95,6 +99,7 @@ function PlanCard({
   plan,
   interval,
   currentPlanSlug,
+  selected,
   currentInterval,
   busy,
   actionLabel,
@@ -104,6 +109,7 @@ function PlanCard({
   plan: PlanOption
   interval: BillingInterval
   currentPlanSlug?: string
+  selected: boolean
   currentInterval?: BillingInterval | null
   busy?: boolean
   actionLabel: string
@@ -135,11 +141,15 @@ function PlanCard({
     onThisPlan && (free || currentInterval == null || interval === currentInterval)
 
   return (
-    <Card className="flex flex-col">
+    <Card className={cn("flex flex-col", selected && "ring-2 ring-primary")}>
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>{plan.name}</CardTitle>
-          {current ? (
+          {selected ? (
+            <Badge variant="secondary" className="shrink-0">
+              Selected
+            </Badge>
+          ) : current ? (
             <Badge variant="secondary" className="shrink-0">
               Current plan
             </Badge>

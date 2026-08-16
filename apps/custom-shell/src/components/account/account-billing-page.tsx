@@ -6,7 +6,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
-import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
+import { PricingTable } from "@/components/shared/pricing-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -60,6 +60,7 @@ import { describeCode } from "@/lib/format/code-label"
 import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
 import { planSummary } from "@/lib/billing/plan-summary"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
@@ -228,7 +229,11 @@ export function AccountBillingPage({
             ) : null}
             {overview.paused ? (
               <Button onClick={() => void handlePause(false)} disabled={pausing}>
-                <PlayIcon className="h-4 w-4" />
+                {pausing ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PlayIcon className="size-4" />
+                )}
                 Start my plan again
               </Button>
             ) : null}
@@ -242,7 +247,11 @@ export function AccountBillingPage({
                 }
                 disabled={pausing}
               >
-                <PauseIcon className="h-4 w-4" />
+                {pausing ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <PauseIcon className="size-4" />
+                )}
                 Pause my plan
               </Button>
             ) : null}
@@ -252,7 +261,11 @@ export function AccountBillingPage({
                 onClick={handlePortal}
                 disabled={openingPortal}
               >
-                <ExternalLinkIcon className="h-4 w-4" />
+                {openingPortal ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLinkIcon className="size-4" />
+                )}
                 Manage in Stripe
               </Button>
             ) : null}
@@ -500,7 +513,11 @@ function CardExpiryCard({
           onClick={onUpdateCard}
           disabled={busy}
         >
-          <ExternalLinkIcon className="h-4 w-4" />
+          {busy ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : (
+            <ExternalLinkIcon className="size-4" />
+          )}
           Update card in Stripe
         </Button>
       </CardContent>
@@ -587,14 +604,17 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
                       </TableCell>
                       <TableCell column="meta" className="text-right">
                         {invoice.hostedInvoiceUrl ? (
-                          <a
-                            className="font-medium underline-offset-4 hover:underline"
-                            href={invoice.hostedInvoiceUrl}
-                            target="_blank"
-                            rel="noreferrer noopener"
-                          >
-                            View
-                          </a>
+                          <Button asChild variant="ghost" size="sm">
+                            <a
+                              href={invoice.hostedInvoiceUrl}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              aria-label={`Open the ${formatMoney(invoice.amountPaid, invoice.currency)} receipt from ${formatDate(invoice.createdAt)} in a new tab`}
+                            >
+                              Receipt
+                              <ExternalLinkIcon className="size-4" />
+                            </a>
+                          </Button>
                         ) : (
                           "—"
                         )}

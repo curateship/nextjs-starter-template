@@ -33,6 +33,7 @@ function ResetPasswordRoute() {
   const [password, setPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [done, setDone] = React.useState(false)
 
@@ -47,6 +48,7 @@ function ResetPasswordRoute() {
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       dismissErrorToast()
+      setAttempted(true)
 
       if (!password) {
         showErrorToast("New password is required.")
@@ -122,7 +124,7 @@ function ResetPasswordRoute() {
           minLength={8}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          aria-invalid={!password || undefined}
+          aria-invalid={(attempted && !password) || undefined}
         />
       </div>
       <div className="grid gap-2">
@@ -144,7 +146,9 @@ function ResetPasswordRoute() {
             // every character typed would be unreadable.
             if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
           }}
-          aria-invalid={!confirmPassword || mismatch || undefined}
+          aria-invalid={
+            (attempted && !confirmPassword) || mismatch || undefined
+          }
         />
       </div>
       <Button type="submit" className="w-full" disabled={loading}>

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "@tanstack/react-router"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
-import { PricingTable, type BillingInterval } from "@/components/shared/pricing-table"
+import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
 import { definePublicPage } from "@/lib/app-options"
 import { loadCurrentUser } from "@/lib/api/auth/auth"
@@ -13,6 +13,7 @@ import {
   type PlanOption,
 } from "@/lib/api/billing/billing"
 import { useAppName } from "@/lib/branding"
+import type { BillingInterval } from "@/lib/billing/pricing-choice"
 
 type LandingData = {
   signedIn: boolean
@@ -85,9 +86,15 @@ function PricingLanding({ data }: { data: LandingData }) {
   // Picking a plan never checks out from here. A visitor has no account to bill
   // yet, and a member's own plan and the Stripe portal both live on /pricing,
   // so this hands off rather than keeping a second copy of that logic.
-  const handleSelect = React.useCallback(async () => {
-    await navigate({ to: signedIn ? "/pricing" : "/register" })
-  }, [navigate, signedIn])
+  const handleSelect = React.useCallback(
+    async (plan: PlanOption, selectedInterval: BillingInterval) => {
+      await navigate({
+        to: signedIn ? "/pricing" : "/register",
+        search: { plan: plan.slug, interval: selectedInterval },
+      })
+    },
+    [navigate, signedIn]
+  )
 
   return (
     <PublicPageFrame>

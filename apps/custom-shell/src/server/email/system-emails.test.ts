@@ -244,7 +244,9 @@ describe("system email placeholders", () => {
 
   it("writes exact link lifetimes in plain English", () => {
     expect(formatAuthTokenExpiry(60 * 60 * 1000)).toBe("one hour")
-    expect(formatAuthTokenExpiry(24 * 60 * 60 * 1000)).toBe("24 hours")
+    expect(formatAuthTokenExpiry(24 * 60 * 60 * 1000)).toBe("one day")
+    expect(formatAuthTokenExpiry(168 * 60 * 60 * 1000)).toBe("7 days")
+    expect(formatAuthTokenExpiry(36 * 60 * 60 * 1000)).toBe("36 hours")
     expect(formatAuthTokenExpiry(60 * 1000)).toBe("one minute")
     expect(formatAuthTokenExpiry(15 * 60 * 1000)).toBe("15 minutes")
   })
@@ -255,7 +257,7 @@ describe("system email placeholders", () => {
         ...DEFAULT_AUTH_LINK_EXPIRY,
         verificationHours: 48,
       })
-    ).toBe("48 hours")
+    ).toBe("2 days")
   })
 })
 
@@ -308,7 +310,7 @@ describe("what actually gets sent", () => {
       null
     )
 
-    expect(html).toContain("This link expires in 24 hours.")
+    expect(html).toContain("This link expires in one day.")
   })
 
   it("uses a workspace's saved limit in the email wording", () => {
@@ -323,7 +325,7 @@ describe("what actually gets sent", () => {
       }
     )
 
-    expect(html).toContain("This link expires in 48 hours.")
+    expect(html).toContain("This link expires in 2 days.")
   })
 
   it("adds an escaped unwanted-request link to a built-in email", () => {
@@ -423,7 +425,7 @@ describe("what actually gets sent", () => {
     expect(fromName).toBe("Ada")
     expect(html).toContain("old@x.dev")
     expect(html).toContain("Hi Ada,")
-    expect(html).toContain("24 hours")
+    expect(html).toContain("one day")
     expect(html).not.toContain("forever")
     expect(html).toContain(
       'href="https://app.dev/reset-password?token=a&amp;b=1"'

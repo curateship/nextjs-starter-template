@@ -22,16 +22,32 @@ import {
   PASSWORD_RULE_HINT,
   register,
 } from "@/lib/api/auth/auth"
+import { loadPublicPricing } from "@/lib/api/billing/billing"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { readPricingChoice } from "@/lib/billing/pricing-choice"
+import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 
 export const Route = createFileRoute("/register")({
-  loader: async () => {
-    const [user, options] = await Promise.all([
+  validateSearch: readPricingChoice,
+  loaderDeps: ({ search }) => search,
+  loader: async ({ deps }) => {
+    const [user, options, pricing] = await Promise.all([
       loadCurrentUser(),
       loadSignInOptions(),
+      deps.plan ? loadPublicPricing() : null,
     ])
     if (user) {
       throw redirect({ to: "/home", replace: true })
+    }
+    if (
+      deps.plan &&
+      !pricing?.plans.some((plan) => plan.slug === deps.plan)
+    ) {
+      throw redirect({
+        to: "/register",
+        search: { interval: deps.interval },
+        replace: true,
+      })
     }
     return options
   },
@@ -39,7 +55,7 @@ export const Route = createFileRoute("/register")({
 })
 
 function RegisterRoute() {
-  const { siteKey, google } = Route.useLoaderData()
+  const { siteKey, google, linkExpiry } = Route.useLoaderData()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -98,8 +114,9 @@ function RegisterRoute() {
         }
       >
         <p className="text-sm text-muted-foreground">
-          The link expires in 24 hours. If it does not arrive, you can request a
-          new one from the sign-in page.
+          The link expires in {authTokenExpiryText("verify_email", linkExpiry)}.
+          If it does not arrive, you can request a new one from the sign-in
+          page.
         </p>
       </AuthShell>
     )

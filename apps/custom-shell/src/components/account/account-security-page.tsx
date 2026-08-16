@@ -110,6 +110,7 @@ function ChangePasswordCard({
   const [newPassword, setNewPassword] = React.useState("")
   const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
   const [run, saving] = useAsyncAction(getAuthErrorMessage)
 
@@ -124,6 +125,7 @@ function ChangePasswordCard({
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       setSaved(false)
+      setAttempted(true)
 
       if (hasPassword && !currentPassword) {
         showErrorToast("Current password is required.")
@@ -153,6 +155,7 @@ function ChangePasswordCard({
           setNewPassword("")
           setConfirmPassword("")
           setConfirmTouched(false)
+          setAttempted(false)
           onPasswordChanged()
         })
       )
@@ -192,7 +195,7 @@ function ChangePasswordCard({
                   setSaved(false)
                   setCurrentPassword(event.target.value)
                 }}
-                aria-invalid={!currentPassword || undefined}
+                aria-invalid={(attempted && !currentPassword) || undefined}
               />
             </div>
           ) : null}
@@ -209,7 +212,7 @@ function ChangePasswordCard({
                 setSaved(false)
                 setNewPassword(event.target.value)
               }}
-              aria-invalid={!newPassword || undefined}
+              aria-invalid={(attempted && !newPassword) || undefined}
             />
           </div>
           <div className="grid gap-2">
@@ -234,7 +237,9 @@ function ChangePasswordCard({
                 // every character typed would be unreadable.
                 if (confirmMismatches) showErrorToast(MISMATCH_MESSAGE)
               }}
-              aria-invalid={!confirmPassword || mismatch || undefined}
+              aria-invalid={
+                (attempted && !confirmPassword) || mismatch || undefined
+              }
             />
           </div>
           <div className="flex flex-wrap items-center gap-3">
@@ -717,10 +722,12 @@ function DeleteAccountCard({
 }) {
   const [open, setOpen] = React.useState(false)
   const [confirmation, setConfirmation] = React.useState("")
+  const [attempted, setAttempted] = React.useState(false)
   const [deleting, setDeleting] = React.useState(false)
 
   const handleDelete = React.useCallback(async () => {
     dismissErrorToast()
+    setAttempted(true)
     if (!confirmation) {
       showErrorToast(
         hasPassword ? "Password is required." : "Email address is required."
@@ -748,7 +755,13 @@ function DeleteAccountCard({
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Button variant="destructive" onClick={() => setOpen(true)}>
+        <Button
+          variant="destructive"
+          onClick={() => {
+            setAttempted(false)
+            setOpen(true)
+          }}
+        >
           Delete my account
         </Button>
       </CardContent>
@@ -778,7 +791,7 @@ function DeleteAccountCard({
                     autoComplete="current-password"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
-                    aria-invalid={!confirmation || undefined}
+                    aria-invalid={(attempted && !confirmation) || undefined}
                   />
                 </>
               ) : (
@@ -795,7 +808,7 @@ function DeleteAccountCard({
                     autoComplete="email"
                     value={confirmation}
                     onChange={(event) => setConfirmation(event.target.value)}
-                    aria-invalid={!confirmation || undefined}
+                    aria-invalid={(attempted && !confirmation) || undefined}
                   />
                 </>
               )}
