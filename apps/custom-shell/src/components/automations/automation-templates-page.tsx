@@ -205,7 +205,6 @@ export function AutomationTemplatesPage({
               {template.updated_at ? formatDate(template.updated_at) : "—"}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center justify-end gap-1">
                 {template.isCustomized ? (
                   <Button
                     type="button"
@@ -240,7 +239,6 @@ export function AutomationTemplatesPage({
                 >
                   <SettingsIcon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

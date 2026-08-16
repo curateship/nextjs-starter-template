@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -279,13 +280,7 @@ export function WorkspacesDashboard({
             direction={sortDirection}
             onSort={toggleSort}
             leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label={`Select visible ${word.many}`}
-                />
-              </TableHead>
+              <SelectAllTableHead noun={word.many} checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
             }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
@@ -347,7 +342,6 @@ export function WorkspacesDashboard({
               </Badge>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 {/*
                  * Going into a workspace, from the one screen that lists them
                  * all. The sidebar switcher used to be the only way, so this
@@ -400,7 +394,6 @@ export function WorkspacesDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}

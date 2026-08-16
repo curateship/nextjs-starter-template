@@ -53,6 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -227,6 +228,7 @@ export function MediaLibraryPage({
   const navigate = useNavigate()
   const [data, setData] = React.useState(initialData)
   const [error, setError] = React.useState<string | null>(null)
+  const [refreshCount, setRefreshCount] = React.useState(0)
   const [search, setSearch] = React.useState("")
   const [ownerId, setOwnerId] = React.useState(initialOwnerId)
   const [typeFilter, setTypeFilter] = React.useState<MediaViewFilter>("all")
@@ -302,6 +304,7 @@ export function MediaLibraryPage({
   )
 
   const refresh = React.useCallback(async () => {
+    setRefreshCount((count) => count + 1)
     try {
       const next = await loadAdminMediaPage(query)
       setData(next)
@@ -317,6 +320,8 @@ export function MediaLibraryPage({
       }
     } catch (loadError) {
       setError(getAdminMediaErrorMessage(loadError))
+    } finally {
+      setRefreshCount((count) => Math.max(0, count - 1))
     }
   }, [query])
 
@@ -820,6 +825,7 @@ export function MediaLibraryPage({
 
       {viewMode === "gallery" ? (
         <DashboardTable
+          busy={refreshCount > 0}
           title={title}
           icon={icon}
           count={count}
@@ -874,6 +880,7 @@ export function MediaLibraryPage({
         />
       ) : (
         <DashboardTable
+          busy={refreshCount > 0}
           title={title}
           icon={icon}
           count={count}
@@ -888,18 +895,8 @@ export function MediaLibraryPage({
                 sort={orphanSort}
                 direction={orphanDirection}
                 onSort={toggleOrphanSort}
-                withAriaSort
                 leading={
-                  <TableHead column="select">
-                    <Checkbox
-                      checked={selection.selectAllState(visibleOrphanKeys)}
-                      onCheckedChange={() =>
-                        selection.toggleVisible(visibleOrphanKeys)
-                      }
-                      disabled={visibleOrphans.length === 0}
-                      aria-label="Select visible orphans"
-                    />
-                  </TableHead>
+                  <SelectAllTableHead noun="orphans" checked={selection.selectAllState(visibleOrphanKeys)} onCheckedChange={() => selection.toggleVisible(visibleOrphanKeys)} disabled={visibleOrphans.length === 0} />
                 }
                 trailing={<TableHead column="meta">Actions</TableHead>}
               />
@@ -909,16 +906,8 @@ export function MediaLibraryPage({
                 sort={sort}
                 direction={direction}
                 onSort={toggleSort}
-                withAriaSort
                 leading={
-                  <TableHead column="select">
-                    <Checkbox
-                      checked={selection.selectAllState(visibleIds)}
-                      onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                      disabled={media.length === 0}
-                      aria-label="Select visible media"
-                    />
-                  </TableHead>
+                  <SelectAllTableHead noun="media" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} disabled={media.length === 0} />
                 }
                 trailing={<TableHead column="meta">Actions</TableHead>}
               />
@@ -1269,7 +1258,6 @@ function MediaTableRow({
         {formatDate(item.created_at)}
       </TableCell>
       <TableCell column="actions">
-        <div className="flex items-center">
           <Button
             type="button"
             variant="ghost"
@@ -1290,7 +1278,6 @@ function MediaTableRow({
           >
             <Trash2Icon className="size-4" />
           </Button>
-        </div>
       </TableCell>
     </TableRow>
   )

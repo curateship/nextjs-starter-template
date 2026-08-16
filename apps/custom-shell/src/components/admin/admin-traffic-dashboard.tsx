@@ -59,6 +59,7 @@ export function AdminTrafficDashboard({
   range: TrafficRange
 }) {
   const navigate = useListSearchNavigate()
+  const rangeLabel = TRAFFIC_RANGE_LABELS[range]
 
   const figures: StatFigure[] = [
     {
@@ -77,7 +78,7 @@ export function AdminTrafficDashboard({
       label: "Unique visitors",
       value: data.totals.uniqueVisitors.toLocaleString(),
       // Shared and rotating internet connections blur the count either way.
-      footer: "approximate — each day counted on its own",
+      footer: `approximate — each day counted on its own · ${rangeLabel}`,
     },
     {
       key: "today",
@@ -89,7 +90,7 @@ export function AdminTrafficDashboard({
       key: "memberShare",
       label: "Member share",
       value: formatSharePercent(data.totals.memberViews, data.totals.views),
-      footer: "of views by signed-in members",
+      footer: `of views by signed-in members · ${rangeLabel}`,
     },
   ]
 
@@ -135,7 +136,7 @@ export function AdminTrafficDashboard({
           )}
         </ChartCard>
 
-        <DeviceCard devices={data.devices} totalViews={data.totals.views} />
+        <DeviceCard devices={data.devices} totalViews={data.totals.views} rangeLabel={rangeLabel} />
       </div>
 
       <div
@@ -149,6 +150,7 @@ export function AdminTrafficDashboard({
           countLabel="pages"
           rows={data.topPages}
           emptyText="No pages have been viewed yet."
+          rangeLabel={rangeLabel}
         />
         <TopTable
           title="Top referrers"
@@ -157,6 +159,7 @@ export function AdminTrafficDashboard({
           countLabel="referrer sites"
           rows={data.topReferrers}
           emptyText="No visits have been counted yet."
+          rangeLabel={rangeLabel}
         />
       </div>
     </div>
@@ -224,9 +227,11 @@ const DEVICE_LABELS: Record<string, string> = {
 function DeviceCard({
   devices,
   totalViews,
+  rangeLabel,
 }: {
   devices: TrafficKeyCount[]
   totalViews: number
+  rangeLabel: string
 }) {
   const config: ChartConfig = {
     views: { label: "Views", color: "var(--primary)" },
@@ -237,7 +242,7 @@ function DeviceCard({
   }))
 
   return (
-    <ChartCard icon={MonitorSmartphoneIcon} title="Devices">
+    <ChartCard icon={MonitorSmartphoneIcon} title="Devices" meta={rangeLabel}>
       {totalViews === 0 ? (
         <EmptyChart message="No visits have been counted yet." />
       ) : (
@@ -292,6 +297,7 @@ function TopTable({
   countLabel,
   rows,
   emptyText,
+  rangeLabel,
 }: {
   title: string
   icon: React.ReactNode
@@ -299,6 +305,7 @@ function TopTable({
   countLabel: string
   rows: TrafficKeyCount[]
   emptyText: string
+  rangeLabel: string
 }) {
   const { sort, direction, toggleSort } = useTableSort<TopSort>(
     "views",
@@ -322,7 +329,7 @@ function TopTable({
 
   return (
     <DashboardTable
-      title={title}
+      title={`${title} (${rangeLabel})`}
       icon={icon}
       count={sorted.length}
       header={
@@ -331,7 +338,6 @@ function TopTable({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
         />
       }
       isEmpty={sorted.length === 0}

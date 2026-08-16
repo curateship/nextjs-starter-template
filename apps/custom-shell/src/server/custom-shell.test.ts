@@ -5419,7 +5419,7 @@ describe("custom shell feedback notifications", () => {
         workspaceId,
         userId: recipientId,
         type: "suggestion",
-        message: `Feedback ${index}`,
+        message: ["Zulu feedback", "Feedback 1", "Alpha feedback"][index],
         createdAt,
         updatedAt: createdAt,
       }))
@@ -5469,11 +5469,11 @@ describe("custom shell feedback notifications", () => {
       notificationIds[1],
     ])
 
-    const byActor = await list({ sort: "activity", direction: "asc" })
-    expect(byActor.notifications.map((item) => item.actor_name)).toEqual([
-      "Buried Person",
-      "Middle Person",
-      "Recent Person",
+    const byActivity = await list({ sort: "activity", direction: "asc" })
+    expect(byActivity.notifications.map((item) => item.id)).toEqual([
+      notificationIds[2],
+      notificationIds[1],
+      notificationIds[0],
     ])
 
     // Type sorts by the words on screen: "Comment" before "Thumbs up".
@@ -6577,6 +6577,10 @@ describe("custom shell announcements", () => {
     await createAnnouncement(
       workspaceId,
       baseInput({ audience: "everyone", startsOn: dayField(7) }),
+      db
+    )
+    await createAnnouncement(workspaceId,
+      baseInput({ audience: "everyone", showBanner: false, notify: true }),
       db
     )
     await createAnnouncement(

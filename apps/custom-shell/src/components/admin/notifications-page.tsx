@@ -34,12 +34,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
 import {
   TableCell,
-  TableHead,
   TableRow,
   type TableSortDirection,
 } from "@/components/ui/table"
@@ -72,11 +72,10 @@ const notificationsRoute = getRouteApi("/_authenticated/admin/notifications")
 type ReadFilter = "all" | "unread" | "read"
 type TypeFilter = "all" | NotificationType
 type NotificationSortColumn =
-  "activity" | "feedback" | "recipient" | "type" | "status" | "created"
+  "activity" | "recipient" | "type" | "status" | "created"
 
 const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
   { key: "activity", label: "Activity", column: "main" },
-  { key: "feedback", label: "Feedback", column: "preview" },
   { key: "recipient", label: "Recipient", column: "meta" },
   { key: "type", label: "Type", column: "meta" },
   { key: "status", label: "Status", column: "meta" },
@@ -446,22 +445,12 @@ export function NotificationsPage({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleNotificationIds)}
-                  onCheckedChange={() =>
-                    selection.toggleVisible(visibleNotificationIds)
-                  }
-                  aria-label="Select visible notifications"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="notifications" checked={selection.selectAllState(visibleNotificationIds)} onCheckedChange={() => selection.toggleVisible(visibleNotificationIds)} />}
           />
         }
         isEmpty={!loading && notifications.length === 0}
         emptyText="No notifications match those filters."
-        emptyColSpan={7}
+        emptyColSpan={6}
         footer={{
           type: "pagination",
           page,
@@ -477,29 +466,14 @@ export function NotificationsPage({
       >
         {notifications.map((item) => {
           const opens = notificationDestination(item) !== null
+          const subject = notificationSubject(item)
           return (
             <TableRow
               key={item.id}
-              role={opens ? "button" : undefined}
-              tabIndex={opens ? 0 : undefined}
-              className={opens ? "cursor-pointer" : undefined}
-              onClick={opens ? () => openNotification(item) : undefined}
-              onKeyDown={
-                opens
-                  ? (event) => {
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault()
-                        openNotification(item)
-                      }
-                    }
-                  : undefined
-              }
+              className="group"
+              rowAction={opens ? () => openNotification(item) : undefined}
             >
-              <TableCell
-                column="select"
-                onClick={(event) => event.stopPropagation()}
-                onKeyDown={(event) => event.stopPropagation()}
-              >
+              <TableCell column="select">
                 <Checkbox
                   checked={selectedIds.has(item.id)}
                   onCheckedChange={() => selection.toggle(item.id)}
@@ -525,10 +499,14 @@ export function NotificationsPage({
                   ) : (
                     <MessageSquareIcon className="size-4 text-muted-foreground" />
                   )}
-                  <div>
-                    <p className="text-sm font-medium">
-                      {notificationTypeLabels[item.type]}
-                    </p>
+                  <div className="min-w-0">
+                    {opens ? (
+                      <button type="button" className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline" title={notificationSubjectDetail(item)} onClick={() => openNotification(item)}>
+                        {subject}
+                      </button>
+                    ) : (
+                      <p className="max-w-96 truncate text-sm font-medium" title={notificationSubjectDetail(item)}>{subject}</p>
+                    )}
                     <p
                       className="max-w-96 truncate text-xs text-muted-foreground"
                       title={notificationActor(item)}
@@ -537,14 +515,6 @@ export function NotificationsPage({
                     </p>
                   </div>
                 </div>
-              </TableCell>
-              <TableCell column="preview">
-                <span
-                  className="block truncate"
-                  title={notificationSubjectDetail(item)}
-                >
-                  {notificationSubject(item)}
-                </span>
               </TableCell>
               <TableCell column="mutedMeta">{item.recipient_name}</TableCell>
               <TableCell column="meta">

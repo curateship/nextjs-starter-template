@@ -13,6 +13,7 @@ import { plural } from "@/lib/format/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -226,13 +227,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select the newsletters on this page"
-                />
-              </TableHead>
+              <SelectAllTableHead noun="newsletters" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
               <TableHead column="main">
                 <TableSortButton
                   active={sort === "name"}
@@ -254,7 +249,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
               <TableHead column="meta" className="hidden md:table-cell">
                 <TableSortButton active={sort === "sent"} direction={direction} onClick={() => toggleSort("sent")}>Sent</TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden lg:table-cell">
                 <TableSortButton
                   active={sort === "updated"}
                   direction={direction}
@@ -319,7 +314,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
             <TableCell column="mutedMeta" className="hidden md:table-cell">{progressText(item)}</TableCell>
             <TableCell column="mutedMeta" className="hidden lg:table-cell">{formatDate(item.updated_at)}</TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -352,7 +346,6 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

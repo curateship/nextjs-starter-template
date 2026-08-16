@@ -57,7 +57,7 @@ export type AdminNotificationQuery = {
   type: "all" | NotificationType
   page: number
   pageSize: number
-  sort: "activity" | "feedback" | "recipient" | "type" | "status" | "created"
+  sort: "activity" | "recipient" | "type" | "status" | "created"
   direction: "asc" | "desc"
 }
 
@@ -150,8 +150,7 @@ export async function listAdminNotifications(
   const where = filters.length ? and(...filters) : undefined
   const direction = query.direction === "asc" ? asc : desc
   const sortExpression = {
-    activity: sql`coalesce(${actorUsers.name}, '')`,
-    feedback: subjectExpression,
+    activity: subjectExpression,
     recipient: recipientUsers.name,
     type: typeLabelExpression,
     status: sql`case when ${customShellNotifications.readAt} is null then 0 else 1 end`,

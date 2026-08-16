@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { InfoIcon, Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
@@ -11,6 +11,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   getEmailSettingsErrorMessage,
   loadEmailSettings,
@@ -32,6 +37,7 @@ import {
   emailLinkStatusLine,
   emailStatusLine,
 } from "@/lib/email/email-delivery"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
@@ -424,9 +430,7 @@ export function EmailSettings() {
           </div>
         ) : (
           <>
-            <DeliveryStatusRow status={status} />
-            <LinkAddressStatusRow status={status} />
-            <SystemSenderStatusRow status={status} />
+            <EmailStatusHeader status={status} />
 
             <div className="grid gap-2">
               <FieldLabel
@@ -839,22 +843,60 @@ function ExpiryField({
  * key in this box", because a key on the server or on another workspace sends
  * this app's emails just as well.
  */
-function DeliveryStatusRow({ status }: { status: EmailSettingsStatus }) {
-  return <EmailStatusRow {...emailStatusLine(status)} />
-}
+function EmailStatusHeader({ status }: { status: EmailSettingsStatus }) {
+  const [open, setOpen] = React.useState(false)
+  const lines = [
+    emailStatusLine(status),
+    emailLinkStatusLine(status),
+    {
+      on: status.systemSender.configured,
+      line: systemSenderStatusLine(status),
+    },
+  ]
+  const ready = lines.every(({ on }) => on)
 
-/** Where the links in system emails lead, kept visible beside sending health. */
-function LinkAddressStatusRow({ status }: { status: EmailSettingsStatus }) {
-  return <EmailStatusRow {...emailLinkStatusLine(status)} />
-}
-
-/** The active sender for account and security messages. */
-function SystemSenderStatusRow({ status }: { status: EmailSettingsStatus }) {
   return (
-    <EmailStatusRow
-      on={status.systemSender.configured}
-      line={systemSenderStatusLine(status)}
-    />
+    <div className="flex items-center gap-1.5">
+      <h3 className="text-sm font-medium">Email status</h3>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label="About email status"
+            onClick={() => setOpen((shown) => !shown)}
+            className={cn(
+              "rounded-sm text-muted-foreground transition-colors hover:text-foreground",
+              focusRing
+            )}
+          >
+            <InfoIcon className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent className="grid max-w-md gap-3 p-3">
+          {lines.map((line) => (
+            <EmailStatusRow key={line.line} {...line} />
+          ))}
+        </TooltipContent>
+      </Tooltip>
+      <span
+        className={cn(
+          "ml-1 size-2 shrink-0 rounded-full",
+          ready
+            ? "bg-emerald-500 dark:bg-emerald-400"
+            : "bg-amber-500 dark:bg-amber-400"
+        )}
+        aria-hidden
+      />
+      <span
+        role="status"
+        className={cn(
+          "text-sm",
+          ready ? "text-muted-foreground" : "font-medium"
+        )}
+      >
+        {ready ? "Ready" : "Needs attention"}
+      </span>
+    </div>
   )
 }
 
@@ -882,9 +924,8 @@ function EmailStatusRow({ on, line }: { on: boolean; line: string }) {
         aria-hidden
       />
       <p
-        role="status"
         className={cn(
-          "min-w-0 break-words text-sm",
+          "min-w-0 break-words text-xs",
           on ? "text-muted-foreground" : "font-medium"
         )}
       >

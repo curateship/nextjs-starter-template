@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -246,15 +247,7 @@ export function ChangelogAdminDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select updates on this page"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="updates" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -305,7 +298,6 @@ export function ChangelogAdminDashboard({
             {/* A draft has no date; `formatDate` writes the em dash for it. */}
             <TableCell column="meta">{formatDate(entry.publishedAt)}</TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -336,7 +328,6 @@ export function ChangelogAdminDashboard({
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

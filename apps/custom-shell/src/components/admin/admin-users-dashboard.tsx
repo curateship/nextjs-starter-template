@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -466,15 +467,7 @@ export function AdminUsersDashboard({
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={
-                    allSelected ? true : someSelected ? "indeterminate" : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
-                  aria-label="Select visible accounts"
-                />
-              </TableHead>
+              <SelectAllTableHead noun="accounts" checked={allSelected ? true : someSelected ? "indeterminate" : false} onCheckedChange={toggleVisibleSelection} />
               <TableHead column="main">
                 <TableSortButton
                   active={sort === "name"}
@@ -622,7 +615,6 @@ export function AdminUsersDashboard({
               {formatDate(account.createdAt)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <DisabledReason
                   disabled={
                     account.role === "admin" || account.status !== "active"
@@ -688,7 +680,6 @@ export function AdminUsersDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}

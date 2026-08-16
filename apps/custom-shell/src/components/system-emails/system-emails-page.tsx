@@ -192,7 +192,6 @@ export function SystemEmailsPage({
             )}
           </TableCell>
           <TableCell column="actions">
-            <div className="flex items-center gap-1">
               <Button
                 type="button"
                 variant="ghost"
@@ -202,7 +201,6 @@ export function SystemEmailsPage({
               >
                 <SettingsIcon className="size-4" />
               </Button>
-            </div>
           </TableCell>
         </TableRow>
       ))}

@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -425,19 +426,7 @@ export function FeedbackDashboard({
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={
-                    visibleSelected
-                      ? true
-                      : visiblePartiallySelected
-                        ? "indeterminate"
-                        : false
-                  }
-                  onCheckedChange={toggleVisibleSelection}
-                  aria-label="Select visible feedback"
-                />
-              </TableHead>
+              <SelectAllTableHead noun="feedback" checked={visibleSelected ? true : visiblePartiallySelected ? "indeterminate" : false} onCheckedChange={toggleVisibleSelection} />
               <TableHead column="main">
                 <TableSortButton
                   active={sortColumn === "message"}
@@ -598,7 +587,6 @@ export function FeedbackDashboard({
               </Badge>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -632,7 +620,6 @@ export function FeedbackDashboard({
                   <Trash2Icon className="h-4 w-4" />
                   <span className="sr-only">Delete feedback</span>
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

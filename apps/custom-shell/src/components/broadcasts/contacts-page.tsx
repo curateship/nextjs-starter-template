@@ -1,5 +1,5 @@
 import * as React from "react"
-import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
+import { getRouteApi, useNavigate, useRouter, useRouterState } from "@tanstack/react-router"
 import {
   ListFilterIcon,
   Loader2Icon,
@@ -13,6 +13,7 @@ import { toast } from "sonner"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import {
   DashboardToolbarButton,
@@ -113,6 +114,7 @@ function fullName(contact: ContactItem) {
  */
 export function ContactsPage({ data }: { data: ContactsPageData }) {
   const router = useRouter()
+  const routeLoading = useRouterState({ select: (state) => state.isLoading })
   const navigate = useNavigate()
   const listSearch = contactsRoute.useSearch()
   const setListSearch = useListSearchNavigate()
@@ -460,6 +462,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
   return (
     <>
       <DashboardTable
+        busy={routeLoading}
         title="Contacts"
         icon={<UsersIcon />}
         count={data.total}
@@ -601,18 +604,10 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => {
-                    // Same rule as a single row: touching the ticks is what
-                    // ends "everyone matching".
-                    setMatchingList(null)
-                    selection.toggleVisible(visibleIds)
-                  }}
-                  aria-label="Select the contacts on this page"
-                />
-              </TableHead>
+              <SelectAllTableHead noun="contacts" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => {
+                setMatchingList(null)
+                selection.toggleVisible(visibleIds)
+              }} />
               <TableHead column="main">
                 <TableSortButton
                   active={sort === "email"}
@@ -771,7 +766,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               {formatDate(contact.created_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"
@@ -789,7 +783,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

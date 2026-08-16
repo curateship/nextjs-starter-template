@@ -48,7 +48,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -347,15 +349,7 @@ export function AdminAnnouncementsDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select announcements on this page"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="announcements" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -433,7 +427,6 @@ export function AdminAnnouncementsDashboard({
                 </span>
               </TableCell>
               <TableCell column="actions">
-                <div className="flex items-center">
                   <DisabledReason
                     disabled={status === "ended"}
                     reason="This announcement has already ended, so there is nothing to take down."
@@ -471,7 +464,6 @@ export function AdminAnnouncementsDashboard({
                   >
                     <Trash2Icon className="size-4" />
                   </Button>
-                </div>
               </TableCell>
             </TableRow>
           )
@@ -606,7 +598,7 @@ function AnnouncementDialog({
   )
   const [notify, setNotify] = React.useState(announcement?.notify ?? false)
   const [showToVisitors, setShowToVisitors] = React.useState(
-    announcement?.audience === "everyone"
+    announcement?.showBanner === true && announcement.audience === "everyone"
   )
   const [startsOn, setStartsOn] = React.useState(
     toDateField(announcement?.startsAt ?? null)
@@ -651,7 +643,7 @@ function AnnouncementDialog({
       title,
       body,
       level,
-      audience: showToVisitors ? ("everyone" as const) : ("app" as const),
+      audience: showBanner && showToVisitors ? ("everyone" as const) : ("app" as const),
       showBanner,
       notify,
       startsOn,
@@ -818,7 +810,11 @@ function AnnouncementDialog({
                 <Checkbox
                   id="announcement-banner"
                   checked={showBanner}
-                  onCheckedChange={(value) => setShowBanner(value === true)}
+                  onCheckedChange={(value) => {
+                    const next = value === true
+                    setShowBanner(next)
+                    if (!next) setShowToVisitors(false)
+                  }}
                 />
                 <Label htmlFor="announcement-banner" className="font-normal">
                   Banner across the top of the app
@@ -834,15 +830,13 @@ function AnnouncementDialog({
                   Notice in the notification tray
                 </Label>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="announcement-visitors"
-                  checked={showToVisitors}
-                  onCheckedChange={(value) => setShowToVisitors(value === true)}
-                />
-                <Label htmlFor="announcement-visitors" className="font-normal">
+              <div className={cn("flex items-center gap-2", !showBanner && "text-muted-foreground")}>
+                <DisabledReason disabled={!showBanner} reason="Turn on the banner before showing it to visitors.">
+                  <Checkbox id="announcement-visitors" checked={showToVisitors} disabled={!showBanner} onCheckedChange={(value) => setShowToVisitors(value === true)} />
+                </DisabledReason>
+                <FieldLabel htmlFor="announcement-visitors" className="font-normal" hint="Visitors do not have a notification tray, so they only ever see the banner.">
                   Also show to visitors
-                </Label>
+                </FieldLabel>
               </div>
             </CardContent>
           </Card>

@@ -42,6 +42,7 @@ import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -317,15 +318,7 @@ export function AdminPlansDashboard({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(archivableIds)}
-                  onCheckedChange={() => selection.toggleVisible(archivableIds)}
-                  aria-label="Select archivable plans"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="plans" checked={selection.selectAllState(archivableIds)} onCheckedChange={() => selection.toggleVisible(archivableIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -409,7 +402,6 @@ export function AdminPlansDashboard({
               </div>
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -440,7 +432,6 @@ export function AdminPlansDashboard({
                     <Trash2Icon className="size-4" />
                   </Button>
                 </DisabledReason>
-              </div>
             </TableCell>
           </TableRow>
         ))}

@@ -214,7 +214,6 @@ export function AdminPagesDashboard({
           sort={sort}
           direction={direction}
           onSort={toggleSort}
-          withAriaSort
           trailing={<TableHead column="meta">Open</TableHead>}
         />
       }
@@ -288,7 +287,6 @@ export function AdminPagesDashboard({
           </TableCell>
           <TableCell column="meta">{row.visits.toLocaleString()}</TableCell>
           <TableCell column="actions">
-            <div className="flex items-center">
               <Button asChild variant="ghost" size="icon">
                 <a
                   href={row.path}
@@ -325,7 +323,6 @@ export function AdminPagesDashboard({
                   </Button>
                 </>
               ) : null}
-            </div>
           </TableCell>
         </TableRow>
       ))}

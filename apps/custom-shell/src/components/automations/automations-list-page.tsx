@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
 import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import {
   DashboardToolbarButton,
@@ -425,13 +426,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         header={
           <TableHeader>
             <TableRow>
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select automations on this page"
-                />
-              </TableHead>
+              <SelectAllTableHead noun="automations" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
               <TableHead column="main">
                 <TableSortButton
                   active={sort === "name"}
@@ -468,7 +463,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   Next run
                 </TableSortButton>
               </TableHead>
-              <TableHead column="meta">
+              <TableHead column="meta" className="hidden md:table-cell">
                 <TableSortButton
                   active={sort === "updated"}
                   direction={direction}
@@ -535,7 +530,6 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               {formatDate(automation.updated_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center gap-1">
                 {automation.can_run_manually ? (
                   <DisabledReason
                     disabled={paused || !automation.isValid}
@@ -620,7 +614,6 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

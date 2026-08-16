@@ -39,6 +39,7 @@ import {
   type SegmentConditionType,
   type SegmentRuleOptions,
 } from "@/lib/contacts/contact-segments"
+import { MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 
 /**
  * The rule builder, in one place because there are two screens that build the
@@ -194,6 +195,24 @@ export function SegmentRuleBuilder({
  * The card's title is the rule's visible name; each control inside carries its
  * own accessible name, since "is" and "On the list" mean nothing read alone.
  */
+function TagConditionInput({ condition, index, incomplete, onChange, placeholder }: {
+  condition: Extract<SegmentCondition, { type: "tag" }>
+  index: number
+  incomplete: boolean
+  onChange: (condition: SegmentCondition) => void
+  placeholder: string
+}) {
+  const serializedTags = condition.tags.join(", ")
+  const [draft, setDraft] = React.useState(serializedTags)
+
+  return <Input className="sm:flex-1" value={draft} maxLength={MEMBER_TAG_MAX_LENGTH} placeholder={placeholder} aria-label={`Tags for rule ${index + 1}`} aria-invalid={incomplete || undefined} onChange={(event) => {
+    const nextDraft = event.target.value
+    const tags = nextDraft.split(",").map((tag) => tag.trim()).filter(Boolean)
+    setDraft(nextDraft)
+    onChange({ ...condition, tags })
+  }} />
+}
+
 function ConditionRow({
   index,
   idPrefix,
@@ -249,22 +268,7 @@ function ConditionRow({
                 onChange({ ...condition, operator: operator as "includes" | "excludes" })
               }
             />
-            <Input
-              className="sm:flex-1"
-              value={condition.tags.join(", ")}
-              placeholder={options.tags.slice(0, 2).join(", ")}
-              aria-label={`Tags for rule ${index + 1}`}
-              aria-invalid={incomplete || undefined}
-              onChange={(event) =>
-                onChange({
-                  ...condition,
-                  tags: event.target.value
-                    .split(",")
-                    .map((tag) => tag.trim())
-                    .filter(Boolean),
-                })
-              }
-            />
+            <TagConditionInput condition={condition} index={index} placeholder={options.tags.slice(0, 2).join(", ")} incomplete={incomplete} onChange={onChange} />
           </>
         ) : null}
 

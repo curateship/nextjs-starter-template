@@ -11,6 +11,7 @@ import {
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
 import {
+  SelectAllTableHead,
   SortableTableHeader,
   type SortableColumn,
 } from "@/components/shared/sortable-table-header"
@@ -271,15 +272,7 @@ export function SegmentsPage({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={
-              <TableHead column="select">
-                <Checkbox
-                  checked={selection.selectAllState(visibleIds)}
-                  onCheckedChange={() => selection.toggleVisible(visibleIds)}
-                  aria-label="Select the segments on this page"
-                />
-              </TableHead>
-            }
+            leading={<SelectAllTableHead noun="segments" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -354,7 +347,6 @@ export function SegmentsPage({
               {formatDate(segment.updated_at)}
             </TableCell>
             <TableCell column="actions">
-              <div className="flex items-center">
                 <Button
                   type="button"
                   variant="ghost"
@@ -375,7 +367,6 @@ export function SegmentsPage({
                 >
                   <Trash2Icon className="size-4" />
                 </Button>
-              </div>
             </TableCell>
           </TableRow>
         ))}

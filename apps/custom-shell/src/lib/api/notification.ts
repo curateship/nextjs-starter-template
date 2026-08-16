@@ -93,7 +93,7 @@ const adminListQuerySchema = z.object({
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(5).max(100).default(25),
   sort: z
-    .enum(["activity", "feedback", "recipient", "type", "status", "created"])
+    .enum(["activity", "recipient", "type", "status", "created"])
     .default("created"),
   direction: z.enum(["asc", "desc"]).default("desc"),
 })
