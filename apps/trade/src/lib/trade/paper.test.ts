@@ -220,6 +220,15 @@ describe("what a position is worth", () => {
     expect(liquidationAway(core({ leverage: 0 }), 100)).toBeNull()
   })
 
+  it("never closes a cash position out on a market that gave no limit", () => {
+    // A max of 1 is the fallback used when the exchange did not say, and read
+    // as maintenance it would put the line at exactly half the entry price —
+    // $100 in, closed at $50, with nothing borrowed. Every replay coin on
+    // Binance candles arrives this way.
+    expect(liquidationPx(core({ leverage: 1, maxLeverage: 1 }))).toBeNull()
+    expect(liquidationAway(core({ leverage: 1, maxLeverage: 1 }), 100)).toBeNull()
+  })
+
   it("says how far away liquidation is as a share of today's price", () => {
     const away = liquidationAway(core({ leverage: 5 }), 100)
     expect(away).toBeCloseTo(0.19, 10)

@@ -349,15 +349,34 @@ export function projectedProfit(
  * that, the position goes. This is the estimate the old app showed, and it is
  * exact for the isolated model this engine actually runs.
  *
- * Null only when the figures cannot answer: no entry price, no leverage, or a
- * stake already thinner than the maintenance the exchange keeps — which for a
- * position opened within the market's own limit cannot happen.
+ * Null only when the figures cannot answer: no entry price, no leverage, a max
+ * leverage the exchange never gave us, or a stake already thinner than the
+ * maintenance the exchange keeps — which for a position opened within the
+ * market's own limit cannot happen.
+ *
+ * **A max leverage of 1 is not a market rule; it is a missing answer.** No
+ * exchange this app trades caps a coin at 1x — Hyperliquid's lowest is 3 — and
+ * Binance, whose candles every replay runs on, reports no limit at all. So the
+ * `?? 1` that every placement path falls back to means "the exchange did not
+ * say", and it means it for a good reason: 1 is the safe answer to the OTHER
+ * question that number answers, which is how much leverage anyone may ask for.
+ *
+ * Read as maintenance instead, that same 1 says the exchange holds back half
+ * the position — which draws the liquidation line at exactly half the entry
+ * price. That is not a small error. A replay of 500 coins closed 208 trades at
+ * precisely -50.06% each, $9,989 of a $10,000 pot, on positions that had
+ * borrowed nothing at all; a real 3x market would not have touched them until
+ * about -83%. Answering null leaves a cash position to rise or fall on its own,
+ * which is what actually happens to one.
+ *
+ * Live positions are unaffected either way: their screens read the liquidation
+ * price the exchange itself publishes and never this.
  */
 export function liquidationPx(
   position: Pick<PaperPosition, "szi" | "entryPx" | "leverage" | "maxLeverage">
 ): number | null {
   const { entryPx, leverage, maxLeverage } = position
-  if (!(entryPx > 0) || !(leverage > 0) || !(maxLeverage > 0)) return null
+  if (!(entryPx > 0) || !(leverage > 0) || !(maxLeverage > 1)) return null
   const buffer = 1 / leverage - 1 / (2 * maxLeverage)
   if (buffer <= 0) return null
   const px = position.szi > 0 ? entryPx * (1 - buffer) : entryPx * (1 + buffer)
