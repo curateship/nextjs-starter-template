@@ -7,8 +7,14 @@ import {
   listCategories,
 } from "@/server/directory/categories"
 import {
+  createCustomSection,
+  listCustomSections,
+  updateCustomSection,
+} from "@/server/directory/custom-sections"
+import {
   categoriesForListing,
   createListing,
+  findListing,
   listListings,
   setListingCategories,
   updateListing,
@@ -136,6 +142,34 @@ describe("copying CMS site content", () => {
     )).toBe(true)
     expect(links.filter((link) => link.isPrimary)).toHaveLength(1)
   })
+
+  it("carries the invented fields and everything a listing holds", async () => {
+    const { ownerId, sourceId } = await seedSourceSite()
+
+    const copied = await copyUserWorkspace(
+      ownerId,
+      sourceId,
+      "Gamma with fields",
+      {},
+      database,
+      undefined,
+      { choices: ["listings"] }
+    )
+
+    const sections = await listCustomSections(copied.id, database)
+    expect(sections).toHaveLength(1)
+    expect(sections[0]?.name).toBe("The wine")
+
+    const { listings } = await listListings(copied.id, {}, database)
+    const listing = await findListing(copied.id, listings[0]!.id, database)
+    expect(listing?.customValues).toEqual({
+      [sections[0]!.slug]: { grape: "Nebbiolo" },
+    })
+    expect(listing?.gallery).toEqual(["https://images.example.test/one.jpg"])
+    expect(listing?.hours.monday).toEqual({ open: "09:00", close: "17:00" })
+    expect(listing?.latitude).toBe(40.7)
+    expect(listing?.longitude).toBe(-74)
+  })
 })
 
 async function seedSourceSite() {
@@ -174,6 +208,18 @@ async function seedSourceSite() {
     { name: "Restaurants", parentId: parent.id },
     database
   )
+  const section = await createCustomSection(
+    workspace.id,
+    { name: "The wine" },
+    database
+  )
+  const wine = await updateCustomSection(
+    workspace.id,
+    section.id,
+    { fields: [{ label: "Grape", type: "text" }] },
+    database
+  )
+
   const listing = await createListing(
     workspace.id,
     { title: "Joe's Diner" },
@@ -182,7 +228,16 @@ async function seedSourceSite() {
   await updateListing(
     workspace.id,
     listing.id,
-    { status: "published" },
+    {
+      status: "published",
+      // The rich fields as well, because a copy that quietly dropped them
+      // used to look like a listing somebody had emptied on purpose.
+      gallery: ["https://images.example.test/one.jpg"],
+      hours: { monday: { open: "09:00", close: "17:00" } },
+      latitude: 40.7,
+      longitude: -74,
+      customValues: { [wine.slug]: { grape: "Nebbiolo" } },
+    },
     database
   )
   await setListingCategories(

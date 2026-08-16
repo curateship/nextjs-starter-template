@@ -24,6 +24,10 @@ import {
  * body. There is deliberately no template or block table — that layer of the
  * directory app was cut on purpose, and a listing that needs more gets a
  * column, not a block system.
+ *
+ * `directory_custom_sections` is not that layer coming back. It lets a site
+ * name extra *fields* for its listings; it decides nothing about where they
+ * are drawn, which stays fixed in the page.
  */
 
 export const directoryListings = pgTable(
@@ -73,6 +77,13 @@ export const directoryListings = pgTable(
      * the same `lib/pages/written-page-body.ts` the shell's written pages use.
      */
     body: jsonb("body").notNull(),
+    /**
+     * Answers to the fields this site invented, as
+     * `{ [section slug]: { [field key]: value } }`. Cleaned against the site's
+     * own section definitions every way in and out, so a field the site no
+     * longer defines has no value — see `lib/directory/custom-fields.ts`.
+     */
+    customValues: jsonb("custom_values").notNull().default({}),
     /** The one-off importer uses these to update the same old listing on reruns. */
     sourceType: varchar("source_type", { length: 60 }),
     sourceId: varchar("source_id", { length: 255 }),
@@ -123,6 +134,55 @@ export const directoryListings = pgTable(
 )
 
 export type DirectoryListingRow = typeof directoryListings.$inferSelect
+
+/**
+ * Extra fields a site invented for its own listings, one row per section.
+ *
+ * The fields live in the row's own jsonb rather than a table of their own:
+ * they are only ever read as a whole section, never queried across sections,
+ * and a table would buy nothing but a join. What they may contain is decided
+ * in one place, `lib/directory/custom-fields.ts`.
+ */
+export const directoryCustomSections = pgTable(
+  "directory_custom_sections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 80 }).notNull(),
+    /**
+     * Set once, from the name, and never changed after that. Every listing's
+     * answers are stored under it, so a slug that moved would orphan them —
+     * which is exactly what renaming a section must not do.
+     */
+    slug: varchar("slug", { length: 80 }).notNull(),
+    /** 'stack', 'card' or 'two-column' — how this section's fields sit. */
+    layout: varchar("layout", { length: 20 }).notNull().default("stack"),
+    /** The section's field definitions. Cleaned on the way in and out. */
+    fields: jsonb("fields").notNull().default([]),
+    displayOrder: integer("display_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("ux_directory_custom_sections_workspace_slug").on(
+      table.workspaceId,
+      table.slug
+    ),
+    index("ix_directory_custom_sections_workspace_order").on(
+      table.workspaceId,
+      table.displayOrder
+    ),
+    check(
+      "directory_custom_sections_layout_check",
+      sql`${table.layout} IN ('stack', 'card', 'two-column')`
+    ),
+  ]
+)
+
+export type DirectoryCustomSectionRow =
+  typeof directoryCustomSections.$inferSelect
 
 /**
  * Categories organise listings for browsing and filtering. One tree: a

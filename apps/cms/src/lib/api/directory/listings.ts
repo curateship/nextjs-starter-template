@@ -192,6 +192,7 @@ const updateListingFn = createServerFn({ method: "POST" })
       // a schema. Anything may arrive; only the allowed shapes survive.
       contactLinks: z.unknown().optional(),
       body: z.unknown().optional(),
+      customValues: z.unknown().optional(),
       categoryIds: z.array(z.string().min(1).max(36)).max(50).optional(),
       primaryCategoryId: z.string().min(1).max(36).nullable().optional(),
     })
@@ -226,6 +227,7 @@ export function saveListing(input: {
   longitude?: number | null
   contactLinks?: unknown
   body?: unknown
+  customValues?: unknown
   categoryIds?: string[]
   primaryCategoryId?: string | null
 }) {

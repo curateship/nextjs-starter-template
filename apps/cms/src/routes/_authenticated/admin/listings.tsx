@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { ListingsDashboard } from "@/components/directory/listings-dashboard"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadCategories } from "@/lib/api/directory/categories"
+import { loadCustomSections } from "@/lib/api/directory/custom-sections"
 import {
   getListingErrorMessage,
   loadListingsPage,
@@ -61,10 +62,12 @@ export const Route = createFileRoute("/_authenticated/admin/listings")({
   // Everything except `open`: the edit window loads its own record, so
   // opening and closing it must not refetch the list underneath.
   loaderDeps: ({ search: { open: _open, ...rest } }) => rest,
-  // The list and the category tree together: the edit window needs the tree
-  // the moment it opens, and fetching it then is what made opening feel slow.
+  // The list, the category tree and the site's own invented fields together:
+  // the edit window needs all three the moment it opens, and fetching them
+  // then is what made opening feel slow. A new listing has no record to load
+  // them from at all, so this is the only place they can come from.
   loader: async ({ deps }) => {
-    const [page, categories] = await Promise.all([
+    const [page, categories, customSections] = await Promise.all([
       loadListingsPage({
         search: deps.q,
         status: deps.status,
@@ -75,8 +78,9 @@ export const Route = createFileRoute("/_authenticated/admin/listings")({
         limit: deps.size,
       }),
       loadCategories(),
+      loadCustomSections(),
     ])
-    return { page, categories }
+    return { page, categories, customSections }
   },
   component: AdminListingsRoute,
   errorComponent: routeErrorComponent(getListingErrorMessage),
@@ -84,6 +88,13 @@ export const Route = createFileRoute("/_authenticated/admin/listings")({
 
 function AdminListingsRoute() {
   const search = Route.useSearch()
-  const { page, categories } = Route.useLoaderData()
-  return <ListingsDashboard data={page} categories={categories} search={search} />
+  const { page, categories, customSections } = Route.useLoaderData()
+  return (
+    <ListingsDashboard
+      data={page}
+      categories={categories}
+      customSections={customSections}
+      search={search}
+    />
+  )
 }

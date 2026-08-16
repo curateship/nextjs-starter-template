@@ -5,6 +5,7 @@ import { now, uuid } from "@/server/auth/security"
 import {
   categories,
   categoryRelationships,
+  directoryCustomSections,
   directoryListings,
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
@@ -45,6 +46,32 @@ export async function copyDirectoryWorkspace({
     )
   }
 
+  // The invented fields come across whether or not the listings do: they are
+  // part of what the site *is*, and a copy made to start a second site from
+  // wants the same shape of listing waiting for it.
+  const sourceSections = await database
+    .select()
+    .from(directoryCustomSections)
+    .where(eq(directoryCustomSections.workspaceId, sourceWorkspaceId))
+  if (sourceSections.length) {
+    await database.insert(directoryCustomSections).values(
+      sourceSections.map((section) => ({
+        id: uuid(),
+        workspaceId: newWorkspaceId,
+        name: section.name,
+        // The slug is copied rather than made afresh: it is the key each
+        // listing's answers are filed under, so a new one would arrive at a
+        // copy whose listings all point at a section that no longer exists.
+        slug: section.slug,
+        layout: section.layout,
+        fields: section.fields,
+        displayOrder: section.displayOrder,
+        createdAt: at,
+        updatedAt: at,
+      }))
+    )
+  }
+
   if (!choices.includes("listings")) return
 
   const sourceListings = await database
@@ -66,8 +93,16 @@ export async function copyDirectoryWorkspace({
         status: listing.status,
         displayOrder: listing.displayOrder,
         featuredImage: listing.featuredImage,
+        // The rich fields were added after this copier was written and were
+        // quietly being left behind: a copied site's listings lost their
+        // photos, their opening hours and their map pin.
+        gallery: listing.gallery,
+        hours: listing.hours,
+        latitude: listing.latitude,
+        longitude: listing.longitude,
         contactLinks: listing.contactLinks,
         body: listing.body,
+        customValues: listing.customValues,
         createdAt: at,
         updatedAt: at,
       }))

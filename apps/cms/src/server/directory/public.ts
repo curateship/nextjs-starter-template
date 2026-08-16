@@ -10,6 +10,11 @@ import {
   type ListingHours,
 } from "@/lib/directory/listing-details"
 import {
+  cleanCustomValues,
+  customSectionsForDisplay,
+  type CustomSectionView,
+} from "@/lib/directory/custom-fields"
+import {
   RELATED_LISTING_COUNT,
   DEFAULT_DIRECTORY_NEAR_RADIUS_KM,
   type DirectorySort,
@@ -31,6 +36,7 @@ import {
   activeFeaturedForListings,
   featuredPriorityFor,
 } from "@/server/directory/featured"
+import { listCustomSections } from "@/server/directory/custom-sections"
 import { directorySettingsFor } from "@/server/directory/settings"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import type { ReviewStatus } from "@/lib/directory/review-status"
@@ -191,6 +197,12 @@ export type PublicListing = {
   longitude: number | null
   contactLinks: ContactLinks
   body: WrittenPageNode
+  /**
+   * The fields this site invented, already put together with this listing's
+   * answers and with everything blank left out — so the page has nothing to
+   * decide and nothing empty to draw.
+   */
+  customSections: CustomSectionView[]
   updatedAt: Date
   createdAt: Date
   featured: boolean
@@ -804,9 +816,10 @@ async function readPublicListingUncached(
 
   const primary = links.find((link) => link.isPrimary) ?? links[0] ?? null
 
-  const [settings, featured] = await Promise.all([
+  const [settings, featured, sections] = await Promise.all([
     directorySettingsFor(site.id, database),
     activeFeaturedForListings(site.id, [row.id], database),
+    listCustomSections(site.id, database),
   ])
 
   return {
@@ -827,6 +840,13 @@ async function readPublicListingUncached(
       // hand a page shapes it knows are safe.
       contactLinks: cleanContactLinks(row.contactLinks),
       body: cleanWrittenPageBody(row.body),
+      // Cleaned against the site's definitions here too, for the same reason
+      // the links and the body are: a row edited straight in the database
+      // only ever hands a page shapes this app knows.
+      customSections: customSectionsForDisplay(
+        sections,
+        cleanCustomValues(sections, row.customValues)
+      ),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       featured: featured.has(row.id),
