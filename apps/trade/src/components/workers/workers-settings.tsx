@@ -2,15 +2,17 @@ import * as React from "react"
 import { BanknoteIcon, CpuIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import {
   Card,
   CardAction,
   CardContent,
   CardDescription,
+  CardGroup,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import {
   changeRealMoneySwitch,
   changeWorkerSwitch,
@@ -42,10 +44,6 @@ import { cn } from "@/lib/utils"
  * It fetches its own answer instead of taking one from a loader: the tab is
  * only drawn when it is opened, and the answer changes without anybody
  * clicking.
- *
- * The panel caps its own width: the settings page hands a tab the whole
- * remaining screen, and switch cards stretched across an ultrawide put the
- * label and its badge half a metre apart.
  */
 
 /** Often enough that a stopped engine is noticed, rarely enough to be cheap. */
@@ -114,7 +112,7 @@ export default function WorkersSettings() {
   }
 
   return (
-    <div className="grid max-w-3xl gap-4">
+    <CardGroup>
       {data.workers.map((worker) => (
         <Card key={worker.kind}>
           <CardHeader>
@@ -124,10 +122,7 @@ export default function WorkersSettings() {
             </CardTitle>
             <CardDescription>{worker.description}</CardDescription>
             <CardAction>
-              <Badge
-                variant="outline"
-                className={STATE_TONE[worker.state]}
-              >
+              <Badge variant="outline" className={STATE_TONE[worker.state]}>
                 {WORKER_STATE_LABELS[worker.state]}
               </Badge>
             </CardAction>
@@ -176,29 +171,21 @@ export default function WorkersSettings() {
               ))}
             </dl>
 
-            <div className="flex flex-wrap gap-2 border-t pt-4">
-              {/* Pause is the one to reach for. It leaves every ladder exactly
-                  where it is and stops anything else happening, which is what
-                  you want while you look at something that seems wrong. */}
-              <Button
-                variant="outline"
-                disabled={busy || !worker.enabled}
-                onClick={() => void flip(worker, { paused: !worker.paused })}
-              >
-                {worker.paused ? "Carry on trading" : "Pause trading"}
-              </Button>
-              <Button
-                variant={worker.enabled ? "outline" : "default"}
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t pt-4">
+              <SwitchRow
+                id={`${worker.kind}-enabled`}
+                label="Engine"
+                checked={worker.enabled}
                 disabled={busy}
-                onClick={() => void flip(worker, { enabled: !worker.enabled })}
-              >
-                {worker.enabled ? "Switch off" : "Switch on"}
-              </Button>
-              <p className="w-full text-xs text-muted-foreground">
-                Pausing leaves your ladders where they are and stops anything new
-                happening. Switching off is the same, but it stays off through a
-                restart.
-              </p>
+                onChange={(on) => void flip(worker, { enabled: on })}
+              />
+              <SwitchRow
+                id={`${worker.kind}-trading`}
+                label="Trading"
+                checked={worker.enabled && !worker.paused}
+                disabled={busy || !worker.enabled}
+                onChange={(on) => void flip(worker, { paused: !on })}
+              />
             </div>
           </CardContent>
         </Card>
@@ -211,8 +198,7 @@ export default function WorkersSettings() {
             Real-money trading
           </CardTitle>
           <CardDescription>
-            Whether this install may place orders with real money. Paper and
-            practice trading always work.
+            Off refuses every real order. Practice and testnet always work.
           </CardDescription>
           <CardAction>
             <Badge
@@ -232,32 +218,24 @@ export default function WorkersSettings() {
           </CardAction>
         </CardHeader>
 
-        <CardContent className="grid gap-4">
+        <CardContent>
           {data.realMoney.masterAllowed ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={data.realMoney.enabled ? "outline" : "default"}
+            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+              <SwitchRow
+                id="real-money"
+                label="Real money"
+                checked={data.realMoney.enabled}
                 disabled={busy}
-                onClick={() => void flipRealMoney(!data.realMoney.enabled)}
-              >
-                {data.realMoney.enabled
-                  ? "Switch real money off"
-                  : "Switch real money on"}
-              </Button>
-              <p className="w-full text-xs text-muted-foreground">
-                Off refuses every real-money order the moment it would be
-                signed — ladders, flows and hand-placed ones alike. Practice
-                and testnet orders are never blocked. Only ever switch this on
-                in ONE place: two installs trading the same wallets would buy
-                everything twice.
+                onChange={(on) => void flipRealMoney(on)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Only ever on in one place at a time.
               </p>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              This install is not allowed to touch real money at all. The lock
-              is a server setting (<code>TRADE_ENABLE_MAINNET</code>) that only
-              a deploy can change, so nothing clicked here — by anyone — can
-              arm it.
+              Locked off by the server — only a deploy can allow real money
+              here.
             </p>
           )}
         </CardContent>
@@ -266,6 +244,32 @@ export default function WorkersSettings() {
       <p className="text-xs text-muted-foreground">
         Read {formatRelativeTime(data.checkedAt)}.
       </p>
+    </CardGroup>
+  )
+}
+
+function SwitchRow({
+  id,
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  checked: boolean
+  disabled: boolean
+  onChange: (on: boolean) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onChange}
+      />
+      <Label htmlFor={id}>{label}</Label>
     </div>
   )
 }
