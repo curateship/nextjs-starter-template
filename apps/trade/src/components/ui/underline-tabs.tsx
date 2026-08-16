@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { workspacePanelTabClassName } from "@/components/shared/workspace-panel-header"
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
@@ -47,7 +48,8 @@ export function UnderlineTab({
       className={cn(
         // The line is drawn on the tab's own bottom edge, so the strip has to
         // pull itself down over the card's hairline for the two to meet.
-        "h-full flex-none rounded-none border-b-2 border-transparent px-0.5 font-medium text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        "h-full flex-none rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        workspacePanelTabClassName,
         className
       )}
       {...props}

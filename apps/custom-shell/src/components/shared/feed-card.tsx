@@ -1,6 +1,9 @@
 import * as React from "react"
 
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import {
+  WorkspacePanelHeader,
+  workspacePanelHeadingClassName,
+} from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -115,7 +118,12 @@ export function CardHeaderRow({
       >
         <Icon className="size-4" />
       </span>
-      <h2 className="font-heading flex min-w-0 items-center truncate text-[0.99rem] leading-snug font-medium">
+      <h2
+        className={cn(
+          "flex min-w-0 items-center truncate",
+          workspacePanelHeadingClassName
+        )}
+      >
         {title}
       </h2>
       {meta ? (

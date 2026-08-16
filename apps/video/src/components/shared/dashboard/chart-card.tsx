@@ -7,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { workspacePanelHeadingClassName } from "@/components/shared/workspace-panel-header"
 import { cn } from "@/lib/utils"
 
 export const chartHeightClassName = "h-[200px] w-full min-w-0 sm:h-[240px]"
@@ -39,7 +40,12 @@ export function ChartCard({
   return (
     <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
       <CardHeader className="min-h-14 items-center gap-2 border-b pt-4 has-data-[slot=card-action]:grid-cols-1 sm:px-5 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
-        <CardTitle className="flex min-w-0 items-center gap-2.5">
+        <CardTitle
+          className={cn(
+            "flex min-w-0 items-center gap-2.5",
+            workspacePanelHeadingClassName
+          )}
+        >
           <span
             className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted/40"
             aria-hidden
