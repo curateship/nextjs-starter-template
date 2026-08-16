@@ -233,3 +233,43 @@ describe("a submission belongs to the site it was made on", () => {
     expect(submission.categoryIds).toEqual([])
   })
 })
+
+/**
+ * The queue has a search box now. These are here because a search is a filter
+ * that runs *inside* the site boundary — write it as `where name ilike ...` in
+ * place of the site filter rather than beside it and one site's admin is
+ * searching every other site's queue, which is the one thing multisite cannot
+ * allow.
+ */
+describe("searching the queue", () => {
+  it("matches the business name and the contact email", async () => {
+    const first = await send(alpha, { businessName: "Joe's Diner" })
+    const second = await send(alpha, {
+      businessName: "Sam's Bar",
+      contactEmail: "sam@sams.test",
+    })
+    await verifySubmission(first.token, database)
+    await verifySubmission(second.token, database)
+
+    const byName = await listSubmissions(alpha, { search: "diner" }, database)
+    const byEmail = await listSubmissions(alpha, { search: "sam@" }, database)
+
+    expect(byName.submissions.map((row) => row.businessName)).toEqual([
+      "Joe's Diner",
+    ])
+    expect(byName.total).toBe(1)
+    expect(byEmail.submissions.map((row) => row.businessName)).toEqual([
+      "Sam's Bar",
+    ])
+  })
+
+  it("cannot reach another site's submissions", async () => {
+    const theirs = await send(beta, { businessName: "Beta Diner" })
+    await verifySubmission(theirs.token, database)
+
+    const found = await listSubmissions(alpha, { search: "diner" }, database)
+
+    expect(found.submissions).toEqual([])
+    expect(found.total).toBe(0)
+  })
+})

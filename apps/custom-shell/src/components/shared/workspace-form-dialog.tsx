@@ -39,6 +39,7 @@ import {
   type WorkspaceItem,
   type WorkspaceCopyChoice,
 } from "@/lib/api/people/workspaces"
+import { capitalise, workspaceWord } from "@/lib/app-options"
 import { iconMeta, renderShellIcon, type IconKey } from "@/lib/custom-shell"
 import {
   customDomainProblem,
@@ -124,6 +125,9 @@ export function WorkspaceFormDialog({
   onClose: () => void
 }) {
   const router = useRouter()
+  // Read here rather than at the top of the module: an app's options file can
+  // import its way back to this one.
+  const word = workspaceWord()
   const [draft, setDraft] = React.useState<WorkspaceDraft>(() =>
     draftFor(editing)
   )
@@ -177,7 +181,7 @@ export function WorkspaceFormDialog({
     if (!name) {
       setNameInvalid(true)
       showErrorToast(
-        "Add a workspace name — settings can't be saved without one."
+        `Add a ${word.one} name — settings can't be saved without one.`
       )
       return
     }
@@ -207,10 +211,10 @@ export function WorkspaceFormDialog({
       await router.invalidate()
       toast.success(
         editing
-          ? "Workspace updated."
+          ? `${capitalise(word.one)} updated.`
           : draft.copySourceId === "blank"
-            ? "Workspace created."
-            : "Workspace copied."
+            ? `${capitalise(word.one)} created.`
+            : `${capitalise(word.one)} copied.`
       )
       onClose()
     })
@@ -232,10 +236,10 @@ export function WorkspaceFormDialog({
         >
           <DialogHeader>
             <DialogTitle>
-              {editing ? "Edit workspace" : "New workspace"}
+              {editing ? `Edit ${word.one}` : `New ${word.one}`}
             </DialogTitle>
             <DialogDescription>
-              Choose the name and icon shown in the workspace switcher.
+              Choose the name and icon shown in the {word.one} switcher.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -248,7 +252,7 @@ export function WorkspaceFormDialog({
             <DialogBody>
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle>Workspace</CardTitle>
+                  <CardTitle>{capitalise(word.one)}</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -285,7 +289,7 @@ export function WorkspaceFormDialog({
                     <div className="grid gap-2 sm:flex-1">
                       <FieldLabel
                         htmlFor={nameId}
-                        hint="What this workspace is called everywhere in the app."
+                        hint={`What this ${word.one} is called everywhere in the app.`}
                       >
                         Name
                       </FieldLabel>
@@ -428,7 +432,11 @@ export function WorkspaceFormDialog({
                     >
                       {addressProblem ??
                         (baseDomain
-                          ? workspaceAddress(draft.subdomain, baseDomain)
+                          ? workspaceAddress(
+                              draft.subdomain,
+                              baseDomain,
+                              `your-${word.one}`
+                            )
                           : "No base domain is configured, so this is not reachable yet.")}
                     </p>
                   </div>
@@ -504,7 +512,7 @@ export function WorkspaceFormDialog({
               </Button>
               <Button type="submit" disabled={saving}>
                 {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
-                {editing ? "Save changes" : "Create workspace"}
+                {editing ? "Save changes" : `Create ${word.one}`}
               </Button>
             </DialogFooter>
           </form>

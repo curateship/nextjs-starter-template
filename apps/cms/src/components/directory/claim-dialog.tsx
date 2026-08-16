@@ -18,6 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CharacterCount } from "@/components/shared/character-count"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Textarea } from "@/components/ui/textarea"
@@ -170,7 +171,10 @@ export function ClaimDialog({
                 </CardHeader>
                 <CardContent className="grid gap-4">
                   <div className="grid gap-2">
-                    <FieldLabel htmlFor="claim-review-note">Note</FieldLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <FieldLabel htmlFor="claim-review-note">Note</FieldLabel>
+                      <CharacterCount value={note} max={500} />
+                    </div>
                     <Textarea
                       id="claim-review-note"
                       rows={1}

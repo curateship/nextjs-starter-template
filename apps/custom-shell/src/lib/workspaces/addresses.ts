@@ -95,7 +95,47 @@ export function customDomainProblem(value: string): string | null {
   return null
 }
 
-/** The address a workspace answers on, for showing beside the field as it is typed. */
-export function workspaceAddress(subdomain: string, baseDomain: string) {
-  return `${cleanSubdomain(subdomain) || "your-workspace"}.${baseDomain}`
+/**
+ * What a workspace answers on, worked out once for everything that shows it.
+ *
+ * The sidebar switcher and the workspaces table both print this, and they used
+ * to each work it out themselves — so changing the rule meant remembering to
+ * change it twice. `kind` is here because the two cases are not the same thing:
+ * a domain of its own is the real address, and the subdomain is what it falls
+ * back to until somebody sets one.
+ *
+ * `name` is the last resort. Where the deployment has no base domain there is
+ * no address to print at all, and repeating the workspace's own name reads
+ * better than an empty cell.
+ */
+export type WorkspaceListedAddress = {
+  kind: "domain" | "subdomain" | "name"
+  text: string
+}
+
+export function workspaceListedAddress(
+  workspace: { name: string; subdomain: string; customDomain: string },
+  baseDomain: string
+): WorkspaceListedAddress {
+  const domain = workspace.customDomain.trim()
+  if (domain) return { kind: "domain", text: domain }
+  if (baseDomain) {
+    return { kind: "subdomain", text: `${workspace.subdomain}.${baseDomain}` }
+  }
+  return { kind: "name", text: workspace.name }
+}
+
+/**
+ * The address a workspace answers on, for showing beside the field as it is typed.
+ *
+ * `standIn` is what fills the gap before anything is typed. It is a parameter
+ * rather than a fixed word so an app that calls a workspace something else can
+ * hand its own word in; the default keeps the shell reading as it always has.
+ */
+export function workspaceAddress(
+  subdomain: string,
+  baseDomain: string,
+  standIn = "your-workspace"
+) {
+  return `${cleanSubdomain(subdomain) || standIn}.${baseDomain}`
 }

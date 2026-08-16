@@ -37,6 +37,7 @@ import type {
 import { useSwitchWorkspace } from "@/lib/hooks/use-switch-workspace"
 import { renderShellIcon } from "@/lib/custom-shell"
 import { capitalise, workspaceWord } from "@/lib/app-options"
+import { workspaceListedAddress } from "@/lib/workspaces/addresses"
 
 const subscribeToBrowserOrigin = () => () => {}
 
@@ -76,18 +77,10 @@ export function WorkspaceSwitcher({
     () => ""
   )
 
-  /**
-   * What a site answers on. Its own domain when it has one, otherwise its name
-   * in front of the deployment's base domain — the same wording the address
-   * field previews while it is being typed.
-   *
-   * Falls back to the site's name where no base domain is configured, because
-   * on an app that is one site there is no address to show and repeating the
-   * name reads better than an empty line.
-   */
+  // The rule for what a workspace answers on lives in one place, because the
+  // workspaces table prints the same thing.
   const addressOf = (workspace: WorkspaceItem) =>
-    workspace.customDomain ||
-    (baseDomain ? `${workspace.subdomain}.${baseDomain}` : workspace.name)
+    workspaceListedAddress(workspace, baseDomain).text
   const publicUrlOf = (workspace: WorkspaceItem) => {
     const address = addressOf(workspace)
     if (!baseDomain && !workspace.customDomain) return "/"
@@ -227,7 +220,7 @@ export function WorkspaceSwitcher({
                         {renderShellIcon("settings")}
                       </div>
                       <div className="font-medium text-muted-foreground">
-                        Manage workspaces
+                        Manage {word.many}
                       </div>
                     </Link>
                   </DropdownMenuItem>

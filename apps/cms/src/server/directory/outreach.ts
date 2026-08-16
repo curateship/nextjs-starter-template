@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto"
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 
 import { cleanContactLinks } from "@/lib/directory/contact-links"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
@@ -43,99 +43,263 @@ function contactEmail(value: unknown) {
   return looksLikeEmail(email) ? email : null
 }
 
+/**
+ * The rule for pulling a listing's contact address out of its links, written
+ * once in SQL so the page, the count and the search all agree.
+ *
+ * It is a translation of `contactEmail` above, line for line: the first link
+ * whose type is `email`, among the first twenty (`cleanContactLinks` keeps no
+ * more), trimmed, with any `mailto:` taken off, lowercased, and then held to
+ * exactly the pattern `looksLikeEmail` uses. `[.]` rather than `\.` only so
+ * the rule survives being written inside a JavaScript string unchanged.
+ *
+ * It has to be SQL and not JavaScript because this table pages. Working the
+ * address out after the rows arrive would mean fetching every listing on the
+ * site to draw fifty of them, which on a directory of three thousand is the
+ * whole problem this paging exists to fix.
+ */
+const contactEmailSql = sql`(
+  select lower(btrim(regexp_replace(btrim(link.value ->> 'value'), '^mailto:', '', 'i')))
+  from jsonb_array_elements(
+    case
+      when jsonb_typeof(l.contact_links -> 'menuLinks') = 'array'
+      then l.contact_links -> 'menuLinks'
+      else '[]'::jsonb
+    end
+  ) with ordinality as link(value, ord)
+  where link.ord <= 20 and link.value ->> 'type' = 'email'
+  order by link.ord
+  limit 1
+)`
+
+/** The same shape `looksLikeEmail` insists on, in Postgres' own regex dialect. */
+const EMAIL_SHAPE = "^[^[:space:]@]+@[^[:space:]@.]+[.][^[:space:]@]+$"
+
+/** One row of the ready list, as Postgres hands it back. */
+type ReadyRow = {
+  id: string
+  title: string
+  slug: string
+  email: string
+  sent_at: string | Date | null
+  send_status: string | null
+  error: string
+  opted_out: boolean
+  total: number
+}
+
+/** The most rows any one page may ask for, so a hand-edited address cannot ask for everything. */
+const MAX_PAGE_SIZE = 200
+
+function pageBounds(options: { limit?: number; offset?: number }) {
+  return {
+    limit: Math.min(Math.max(options.limit ?? 50, 1), MAX_PAGE_SIZE),
+    offset: Math.max(options.offset ?? 0, 0),
+  }
+}
+
+/**
+ * Published listings on this site that nobody owns yet and that can be written
+ * to, one page at a time.
+ *
+ * This used to hand back every one of them at once — on a site imported with
+ * three thousand listings that is three thousand rows in one screen, under a
+ * "select all" checkbox. It pages on the server now, and the count beside the
+ * page controls is the real total rather than the size of the page.
+ */
 export async function outreachListings(
   workspaceId: string,
+  options: {
+    /** Matches the listing's title or its contact address. */
+    search?: string
+    limit?: number
+    offset?: number
+  } = {},
   database: CustomShellDb = db
-): Promise<OutreachListing[]> {
-  const rows = await database
-    .select({
-      id: directoryListings.id,
-      title: directoryListings.title,
-      slug: directoryListings.slug,
-      contactLinks: directoryListings.contactLinks,
-    })
-    .from(directoryListings)
-    .where(
-      and(
-        eq(directoryListings.workspaceId, workspaceId),
-        eq(directoryListings.status, "published"),
-        sql`not exists (
+): Promise<{ listings: OutreachListing[]; total: number }> {
+  const { limit, offset } = pageBounds(options)
+  const search = options.search?.trim()
+  const pattern = search ? `%${search}%` : null
+
+  // Written out rather than built with the query builder because of the
+  // lateral join: the builder renders a bare `${column}` without its table in
+  // a single-table select, which silently matches the wrong column. Every name
+  // below carries its alias, so there is nothing to get wrong.
+  const result = await database.execute(sql`
+    with candidate as (
+      select l.id, l.title, l.slug, ${contactEmailSql} as email
+      from directory_listings l
+      where l.workspace_id = ${workspaceId}
+        and l.status = 'published'
+        and not exists (
           select 1 from directory_claims c
-          where c.listing_id = ${directoryListings.id}
+          where c.listing_id = l.id
             and c.workspace_id = ${workspaceId}
             and c.status = 'approved'
-        )`
-      )
+        )
+    ),
+    reachable as (
+      select c.* from candidate c
+      where c.email is not null and c.email ~ ${EMAIL_SHAPE}
     )
-    .orderBy(asc(directoryListings.title))
-    .limit(500)
+    select
+      r.id, r.title, r.slug, r.email,
+      o.created_at as sent_at,
+      o.status as send_status,
+      coalesce(o.error, '') as error,
+      exists (
+        select 1 from directory_claim_outreach_opt_outs x
+        where lower(x.email) = r.email
+      ) as opted_out,
+      count(*) over () as total
+    from reachable r
+    left join lateral (
+      select h.created_at, h.status, h.error
+      from directory_claim_outreach h
+      where h.workspace_id = ${workspaceId}
+        and h.listing_id = r.id
+        and h.to_email = r.email
+      order by h.created_at desc
+      limit 1
+    ) o on true
+    where ${pattern}::text is null
+       or r.title ilike ${pattern}
+       or r.email ilike ${pattern}
+    order by r.title asc, r.id asc
+    limit ${limit} offset ${offset}
+  `)
 
-  const candidates = rows
-    .map((row) => ({ ...row, email: contactEmail(row.contactLinks) }))
-    .filter((row): row is typeof row & { email: string } => Boolean(row.email))
-  if (candidates.length === 0) return []
+  // Both drivers this app runs on — node-postgres in the app, PGlite in the
+  // tests — hand a raw query back as `{ rows, fields, affectedRows }`.
+  const list = result.rows as ReadyRow[]
 
-  const [history, optedOut] = await Promise.all([
-    database
-      .select()
-      .from(directoryClaimOutreach)
-      .where(
-        and(
-          eq(directoryClaimOutreach.workspaceId, workspaceId),
-          inArray(
-            directoryClaimOutreach.listingId,
-            candidates.map((row) => row.id)
-          )
-        )
-      ),
-    database
-      .select({ email: directoryClaimOutreachOptOuts.email })
-      .from(directoryClaimOutreachOptOuts)
-      .where(
-        inArray(
-          directoryClaimOutreachOptOuts.email,
-          [...new Set(candidates.map((row) => row.email))]
-        )
-      ),
-  ])
-  const historyByPair = new Map(history.map((row) => [`${row.listingId}:${row.toEmail}`, row]))
-  const optedOutEmails = new Set(optedOut.map((row) => row.email.toLowerCase()))
+  // The total rides along on each row, which costs nothing — except on a page
+  // that came back empty, where there is no row to read it off. That happens
+  // when somebody edits `?page=` past the end, and without this the footer
+  // would say "0 of 0" and offer no way back to page 1.
+  const total =
+    list.length > 0
+      ? Number(list[0]!.total)
+      : offset > 0
+        ? await countReachable(workspaceId, pattern, database)
+        : 0
 
-  return candidates.map((row) => {
-    const sent = historyByPair.get(`${row.id}:${row.email}`)
-    return {
+  return {
+    listings: list.map((row) => ({
       id: row.id,
       title: row.title,
       slug: row.slug,
       email: row.email,
-      status: optedOutEmails.has(row.email) ? "opted_out" : sent ? "sent" : "ready",
-      sentAt: sent?.createdAt ?? null,
-      sendStatus: sent?.status as OutreachListing["sendStatus"] ?? null,
-      error: sent?.error ?? "",
-    }
-  })
+      status: row.opted_out ? "opted_out" : row.send_status ? "sent" : "ready",
+      sentAt: row.sent_at ? new Date(row.sent_at) : null,
+      sendStatus: (row.send_status ?? null) as OutreachListing["sendStatus"],
+      error: row.error,
+    })),
+    total,
+  }
 }
 
-/** The durable send record, including listings that have since been claimed. */
+/**
+ * How many listings the ready list has in all, for the rare page that came back
+ * empty. Deliberately the same `reachable` set as the query above it.
+ */
+async function countReachable(
+  workspaceId: string,
+  pattern: string | null,
+  database: CustomShellDb
+): Promise<number> {
+  const result = await database.execute(sql`
+    with candidate as (
+      select l.id, l.title, ${contactEmailSql} as email
+      from directory_listings l
+      where l.workspace_id = ${workspaceId}
+        and l.status = 'published'
+        and not exists (
+          select 1 from directory_claims c
+          where c.listing_id = l.id
+            and c.workspace_id = ${workspaceId}
+            and c.status = 'approved'
+        )
+    )
+    select count(*)::int as total
+    from candidate c
+    where c.email is not null
+      and c.email ~ ${EMAIL_SHAPE}
+      and (${pattern}::text is null or c.title ilike ${pattern} or c.email ilike ${pattern})
+  `)
+
+  return Number((result.rows as { total: number }[])[0]?.total ?? 0)
+}
+
+
+/**
+ * The durable send record, one page at a time, including listings that have
+ * since been claimed.
+ */
 export async function outreachHistory(
   workspaceId: string,
+  options: {
+    /** Matches the listing's title or the address written to. */
+    search?: string
+    limit?: number
+    offset?: number
+  } = {},
   database: CustomShellDb = db
-): Promise<OutreachHistoryItem[]> {
-  const rows = await database
-    .select({
-      id: directoryClaimOutreach.id,
-      listingTitle: directoryListings.title,
-      email: directoryClaimOutreach.toEmail,
-      status: directoryClaimOutreach.status,
-      error: directoryClaimOutreach.error,
-      createdAt: directoryClaimOutreach.createdAt,
-    })
-    .from(directoryClaimOutreach)
-    .innerJoin(directoryListings, eq(directoryListings.id, directoryClaimOutreach.listingId))
-    .where(eq(directoryClaimOutreach.workspaceId, workspaceId))
-    .orderBy(desc(directoryClaimOutreach.createdAt))
-    .limit(200)
-  return rows as OutreachHistoryItem[]
+): Promise<{ history: OutreachHistoryItem[]; total: number }> {
+  const { limit, offset } = pageBounds(options)
+  const search = options.search?.trim()
+
+  // The site's own attempts, always; the search narrows what is inside that.
+  const filters = [eq(directoryClaimOutreach.workspaceId, workspaceId)]
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(directoryListings.title, pattern),
+      ilike(directoryClaimOutreach.toEmail, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+  const where = and(...filters)
+
+  const [rows, [countRow]] = await Promise.all([
+    database
+      .select({
+        id: directoryClaimOutreach.id,
+        listingTitle: directoryListings.title,
+        email: directoryClaimOutreach.toEmail,
+        status: directoryClaimOutreach.status,
+        error: directoryClaimOutreach.error,
+        createdAt: directoryClaimOutreach.createdAt,
+      })
+      .from(directoryClaimOutreach)
+      .innerJoin(
+        directoryListings,
+        eq(directoryListings.id, directoryClaimOutreach.listingId)
+      )
+      .where(where)
+      .orderBy(
+        desc(directoryClaimOutreach.createdAt),
+        asc(directoryClaimOutreach.id)
+      )
+      .limit(limit)
+      .offset(offset),
+    // The same join as the page above it, because the search reaches the
+    // listing's title. Count without it and the footer counts a different set
+    // from the one on screen.
+    database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(directoryClaimOutreach)
+      .innerJoin(
+        directoryListings,
+        eq(directoryListings.id, directoryClaimOutreach.listingId)
+      )
+      .where(where),
+  ])
+
+  return {
+    history: rows as OutreachHistoryItem[],
+    total: countRow?.total ?? 0,
+  }
 }
 
 function signingKey() {

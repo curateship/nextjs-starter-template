@@ -46,6 +46,7 @@ export function DirectoryToolbar({
   onNearChange,
   onRadiusChange,
   onNearClear,
+  onClearAll,
 }: {
   /** The address as it stands, so a chip can keep everything it is not changing. */
   current: DirectoryBrowseSearch
@@ -56,6 +57,8 @@ export function DirectoryToolbar({
   onNearChange: (near: string, place: string, radius: number) => void
   onRadiusChange: (radius: number) => void
   onNearClear: () => void
+  /** Back to the plain browse page: search, category and location all dropped. */
+  onClearAll: () => void
 }) {
   // The shell's own search-box behaviour, not a second copy of it: the box
   // keeps what is being typed, the address catches up once typing pauses, and
@@ -68,6 +71,7 @@ export function DirectoryToolbar({
   const radius =
     readDirectoryNearRadius(current.radius) ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM
   const nearActive = Boolean(current.near)
+  const anythingApplied = Boolean(current.q || current.category || current.near)
 
   const useMyLocation = () => {
     if (!navigator.geolocation) {
@@ -213,6 +217,22 @@ export function DirectoryToolbar({
         {nearActive ? (
           <Button type="button" variant="ghost" onClick={onNearClear}>
             Clear location
+          </Button>
+        ) : null}
+        {/* One way back to the whole directory. Without it the only route was
+            emptying the search box by hand, which on a phone means finding the
+            box again first. Absent on a clean page, because there is nothing
+            to clear. */}
+        {anythingApplied ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setText("")
+              onClearAll()
+            }}
+          >
+            Clear search
           </Button>
         ) : null}
       </div>

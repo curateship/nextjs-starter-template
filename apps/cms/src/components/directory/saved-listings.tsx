@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
+import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -156,7 +157,7 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                   </label>
                   <Button
                     type="button"
-                    size="icon-sm"
+                    size="icon"
                     variant="ghost"
                     disabled={busy}
                     aria-label={`Edit ${collection.name}`}
@@ -166,7 +167,7 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                   </Button>
                   <Button
                     type="button"
-                    size="icon-sm"
+                    size="icon"
                     variant="ghost"
                     disabled={busy}
                     aria-label={`Delete ${collection.name}`}
@@ -200,7 +201,7 @@ export function SavedListings({ initial }: { initial: SavedCollection[] }) {
                         </div>
                         <Button
                           type="button"
-                          size="icon-sm"
+                          size="icon"
                           variant="ghost"
                           disabled={busy}
                           aria-label={`Remove ${item.title} from ${collection.name}`}
@@ -328,7 +329,10 @@ function SavedListNameDialog({
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="saved-list-name">Name</FieldLabel>
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel htmlFor="saved-list-name">Name</FieldLabel>
+                    <CharacterCount value={name} max={80} />
+                  </div>
                   <Input
                     id="saved-list-name"
                     value={name}

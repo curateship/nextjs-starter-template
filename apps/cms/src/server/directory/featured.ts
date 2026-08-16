@@ -4,6 +4,7 @@ import {
   desc,
   eq,
   gt,
+  ilike,
   inArray,
   isNull,
   lt,
@@ -268,11 +269,45 @@ const derivedStatus = sql<"active" | "expired" | "revoked">`
   end
 `
 
+/**
+ * Everything the admin screen draws: the plans, one page of placements, and
+ * the money.
+ *
+ * **The plans come back whole and the placements come back a page at a time**,
+ * and the difference is how they grow. A site offers a handful of plans and an
+ * admin creates them by hand, so paging that in the browser costs nothing and
+ * keeps the counts above it honest. Placements are one row per purchase, for
+ * as long as the site sells them, so they have to page on the server or the
+ * screen eventually draws every sale the site has ever made.
+ */
 export async function featuredAdminOverview(
   workspaceId: string,
+  options: {
+    /** Matches the listing's title or the buyer's email. */
+    search?: string
+    limit?: number
+    offset?: number
+  } = {},
   database: CustomShellDb = db
 ) {
-  const [plans, rows, revenueRows] = await Promise.all([
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
+  const offset = Math.max(options.offset ?? 0, 0)
+  const search = options.search?.trim()
+
+  // The site's own placements, always. The search narrows what is already
+  // inside that boundary — it never replaces it.
+  const filters = [eq(directoryFeaturedEntitlements.workspaceId, workspaceId)]
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(directoryListings.title, pattern),
+      ilike(customShellUsers.email, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+  const where = and(...filters)
+
+  const [plans, rows, [countRow], [activeRow], revenueRows] = await Promise.all([
     listFeaturedPlans(workspaceId, {}, database),
     database
       .select({
@@ -292,9 +327,32 @@ export async function featuredAdminOverview(
       .innerJoin(directoryListings, eq(directoryListings.id, directoryFeaturedEntitlements.listingId))
       .innerJoin(customShellUsers, eq(customShellUsers.id, directoryFeaturedEntitlements.buyerUserId))
       .innerJoin(directoryFeaturedPlans, eq(directoryFeaturedPlans.id, directoryFeaturedEntitlements.planId))
-      .where(eq(directoryFeaturedEntitlements.workspaceId, workspaceId))
-      .orderBy(desc(directoryFeaturedEntitlements.createdAt))
-      .limit(100),
+      .where(where)
+      // The id breaks ties so a page boundary cannot land mid-tie and show the
+      // same placement twice or skip one.
+      .orderBy(
+        desc(directoryFeaturedEntitlements.createdAt),
+        asc(directoryFeaturedEntitlements.id)
+      )
+      .limit(limit)
+      .offset(offset),
+    // The same joins as the page above it, because the search reaches the
+    // listing's title and the buyer's email. Count without them and the footer
+    // counts a different set from the one on screen.
+    database
+      .select({ total: sql<number>`count(*)::int` })
+      .from(directoryFeaturedEntitlements)
+      .innerJoin(directoryListings, eq(directoryListings.id, directoryFeaturedEntitlements.listingId))
+      .innerJoin(customShellUsers, eq(customShellUsers.id, directoryFeaturedEntitlements.buyerUserId))
+      .where(where),
+    // "Active now" is the whole site's figure, not this page's. Counting the
+    // rows on screen would have made the card fall as somebody paged.
+    database
+      .select({
+        active: sql<number>`count(*) filter (where ${directoryFeaturedEntitlements.status} <> 'revoked' and ${directoryFeaturedEntitlements.endsAt} > now())::int`,
+      })
+      .from(directoryFeaturedEntitlements)
+      .where(eq(directoryFeaturedEntitlements.workspaceId, workspaceId)),
     database
       .select({
         currency: directoryFeaturedEntitlements.currency,
@@ -305,7 +363,13 @@ export async function featuredAdminOverview(
       .where(eq(directoryFeaturedEntitlements.workspaceId, workspaceId))
       .groupBy(directoryFeaturedEntitlements.currency),
   ])
-  return { plans, entitlements: rows as FeaturedEntitlement[], revenue: revenueRows }
+  return {
+    plans,
+    entitlements: rows as FeaturedEntitlement[],
+    entitlementsTotal: countRow?.total ?? 0,
+    activeCount: activeRow?.active ?? 0,
+    revenue: revenueRows,
+  }
 }
 
 export async function revokeFeaturedEntitlement(

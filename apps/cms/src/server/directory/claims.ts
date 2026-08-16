@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 
 import {
   cleanContactLinks,
@@ -10,6 +10,7 @@ import type {
   EditRequestStatus,
   ReviewStatus,
 } from "@/lib/directory/review-status"
+import { CLAIM_MESSAGE_MAX } from "@/lib/directory/field-lengths"
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import {
   cleanWrittenPageBody,
@@ -301,7 +302,7 @@ export async function createClaim(
       claimantName,
       roleTitle: (input.roleTitle ?? "").trim().slice(0, 120),
       phone: (input.phone ?? "").trim().slice(0, 60),
-      message: (input.message ?? "").trim().slice(0, 1000),
+      message: (input.message ?? "").trim().slice(0, CLAIM_MESSAGE_MAX),
       // Sanitized, not merely trimmed: this is a link an admin will click from
       // their own screen, so `javascript:` is dropped rather than stored.
       proofUrl: sanitizeContactHref(input.proofUrl ?? "").slice(0, 2000),
@@ -364,13 +365,21 @@ export async function verifyClaim(
 /** The claims queue. Same rule as submissions: unverified ones are not work. */
 export async function listClaims(
   workspaceId: string,
-  options: { status?: ReviewStatus; limit?: number; offset?: number } = {},
+  options: {
+    status?: ReviewStatus
+    /** Matches the listing's title, the claimant's name or their email. */
+    search?: string
+    limit?: number
+    offset?: number
+  } = {},
   database: CustomShellDb = db
 ): Promise<{ claims: ClaimSummary[]; total: number }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
 
-  const where = and(
+  // The site's own claims, always. The search narrows what is already inside
+  // that boundary — it never replaces it.
+  const filters = [
     eq(directoryClaims.workspaceId, workspaceId),
     options.status
       ? eq(directoryClaims.status, options.status)
@@ -378,8 +387,19 @@ export async function listClaims(
           "pending_review",
           "approved",
           "rejected",
-        ])
-  )
+        ]),
+  ]
+  const search = options.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(directoryListings.title, pattern),
+      ilike(directoryClaims.claimantName, pattern),
+      ilike(directoryClaims.contactEmail, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
+  const where = and(...filters)
 
   const [rows, [countRow]] = await Promise.all([
     database
@@ -400,9 +420,16 @@ export async function listClaims(
       .orderBy(desc(directoryClaims.createdAt), asc(directoryClaims.id))
       .limit(limit)
       .offset(offset),
+    // The same join as the page above it, because the search reaches the
+    // listing's title — count without it and "1-50 of N" counts a different
+    // set from the one on screen.
     database
       .select({ total: sql<number>`count(*)::int` })
       .from(directoryClaims)
+      .innerJoin(
+        directoryListings,
+        eq(directoryListings.id, directoryClaims.listingId)
+      )
       .where(where),
   ])
 

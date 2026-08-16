@@ -27,6 +27,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CharacterCount } from "@/components/shared/character-count"
+import { LISTING_META_DESCRIPTION_MAX } from "@/lib/directory/field-lengths"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -471,15 +473,22 @@ export function ListingDialog({
                       </div>
                     </div>
                     <div className="grid gap-2">
-                      <FieldLabel
-                        htmlFor="listing-meta"
-                        hint="What a search result shows under the title. A sentence or two."
-                      >
-                        Search description
-                      </FieldLabel>
+                      <div className="flex items-center justify-between gap-2">
+                        <FieldLabel
+                          htmlFor="listing-meta"
+                          hint="What a search result shows under the title. A sentence or two."
+                        >
+                          Search description
+                        </FieldLabel>
+                        <CharacterCount
+                          value={metaDescription}
+                          max={LISTING_META_DESCRIPTION_MAX}
+                        />
+                      </div>
                       <Textarea
                         id="listing-meta"
                         rows={1}
+                        maxLength={LISTING_META_DESCRIPTION_MAX}
                         value={metaDescription}
                         disabled={saving}
                         onChange={(event) =>

@@ -23,6 +23,7 @@ import { NOTIFICATION_TYPES } from "@/lib/notification-types"
 import { MAX_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH } from "@/lib/layout/sidebar-width"
 import { MAX_TOAST_SECONDS, MIN_TOAST_SECONDS } from "@/lib/toast/toast-seconds"
 import { db } from "@/server/db"
+import { dropWorkspaceCache } from "@/server/workspaces/host"
 import { isOwnedImageUrl } from "@/server/media/library"
 import {
   customShellSettings,
@@ -316,6 +317,13 @@ const saveShellSettingsFn = createServerFn({ method: "POST" })
       }
     })
 
+    // The public pages, the feed and the sitemap all read a site's name and
+    // navigation out of the host cache, which has no expiry — so without this
+    // a rename saved here would not reach a signed-out visitor until the
+    // server restarted. After the commit, never before: a failed write must
+    // not throw away a cache that still matches the database.
+    dropWorkspaceCache()
+
     return { settings: data }
   })
 
@@ -326,6 +334,13 @@ export function saveShellSettings(settings: ShellConfig) {
 // Lightweight, per-user save for the draggable sidebar width. Unlike the full
 // shell save this is not admin-gated — any signed-in user can persist their own
 // workspace's sidebar width by dragging the rail.
+//
+// No `dropWorkspaceCache()` here, on purpose. This writes the same `settings`
+// column the save above does, but the only thing the host cache serves out of
+// it is what a signed-out visitor sees — the site's name, its public menu and
+// its footer. Nothing reads `sidebarWidth` through the cache, and dropping it
+// on every drag of the rail would rebuild it dozens of times a minute for no
+// visible difference.
 const saveSidebarWidthFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(

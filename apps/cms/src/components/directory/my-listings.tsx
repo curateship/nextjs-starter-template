@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { CharacterCount } from "@/components/shared/character-count"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -206,7 +207,12 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
       </CardHeader>
       <CardContent className="grid gap-4">
         <div className="grid gap-2">
-          <FieldLabel htmlFor={`owner-title-${listing.claimId}`}>Name</FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor={`owner-title-${listing.claimId}`}>
+              Name
+            </FieldLabel>
+            <CharacterCount value={title} max={200} />
+          </div>
           <Input
             id={`owner-title-${listing.claimId}`}
             maxLength={200}
@@ -217,12 +223,15 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
         </div>
 
         <div className="grid gap-2">
-          <FieldLabel
-            htmlFor={`owner-summary-${listing.claimId}`}
-            hint="The line under your name in search results and on listing cards."
-          >
-            Short description
-          </FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel
+              htmlFor={`owner-summary-${listing.claimId}`}
+              hint="The line under your name in search results and on listing cards."
+            >
+              Short description
+            </FieldLabel>
+            <CharacterCount value={metaDescription} max={300} />
+          </div>
           <Textarea
             id={`owner-summary-${listing.claimId}`}
             rows={1}
@@ -249,9 +258,12 @@ function OwnedListingCard({ listing }: { listing: OwnedListing }) {
         </div>
 
         <div className="grid gap-2">
-          <FieldLabel htmlFor={`owner-address-${listing.claimId}`}>
-            Address
-          </FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor={`owner-address-${listing.claimId}`}>
+              Address
+            </FieldLabel>
+            <CharacterCount value={contactLinks.address} max={300} />
+          </div>
           <Input
             id={`owner-address-${listing.claimId}`}
             maxLength={300}

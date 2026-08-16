@@ -394,3 +394,45 @@ describe("claims stay on their own site", () => {
     expect(await listingsOwnedBy(sam, database)).toHaveLength(0)
   })
 })
+
+/**
+ * The claims screen has a search box now. As with the submissions queue, the
+ * point of these is that the search narrows what is already inside the site
+ * boundary rather than replacing it.
+ */
+describe("searching the claims", () => {
+  it("matches the listing title, the claimant's name and their email", async () => {
+    // Confirmed first: an unverified claim is invisible to the queue, so a
+    // search over unverified ones would find nothing and prove nothing.
+    await verifyClaim(
+      (await claim(joe, { claimantName: "Joe Bloggs", contactEmail: "joe@joesdiner.test" })).token,
+      database
+    )
+    await verifyClaim(
+      (await claim(sam, { claimantName: "Sam Smith", contactEmail: "sam@example.test" })).token,
+      database
+    )
+
+    const byName = await listClaims(alpha, { search: "bloggs" }, database)
+    const byEmail = await listClaims(alpha, { search: "sam@example" }, database)
+    const byListing = await listClaims(alpha, { search: "joe's diner" }, database)
+
+    expect(byName.claims.map((row) => row.claimantName)).toEqual(["Joe Bloggs"])
+    expect(byName.total).toBe(1)
+    expect(byEmail.claims.map((row) => row.claimantName)).toEqual(["Sam Smith"])
+    // Both claims are on the same listing, so a title search finds both.
+    expect(byListing.total).toBe(2)
+  })
+
+  it("cannot reach another site's claims", async () => {
+    await verifyClaim(
+      (await claim(joe, { claimantName: "Joe Bloggs" })).token,
+      database
+    )
+
+    const found = await listClaims(beta, { search: "bloggs" }, database)
+
+    expect(found.claims).toEqual([])
+    expect(found.total).toBe(0)
+  })
+})

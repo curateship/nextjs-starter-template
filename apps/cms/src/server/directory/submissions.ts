@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, asc, desc, eq, ilike, inArray, or, sql } from "drizzle-orm"
 
 import { looksLikeEmail } from "@/lib/directory/submission-fields"
 import type { ReviewStatus } from "@/lib/directory/review-status"
@@ -256,12 +256,21 @@ export async function resendSubmissionVerification(
  */
 export async function listSubmissions(
   workspaceId: string,
-  options: { status?: ReviewStatus; limit?: number; offset?: number } = {},
+  options: {
+    status?: ReviewStatus
+    /** Matches the business name or the contact email. */
+    search?: string
+    limit?: number
+    offset?: number
+  } = {},
   database: CustomShellDb = db
 ): Promise<{ submissions: SubmissionSummary[]; total: number }> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 200)
   const offset = Math.max(options.offset ?? 0, 0)
 
+  // The site's own submissions, always. The search narrows what is already
+  // inside that boundary — it never replaces it, or one site's admin would be
+  // searching every other site's queue.
   const filters = [
     eq(directorySubmissions.workspaceId, workspaceId),
     options.status
@@ -272,6 +281,15 @@ export async function listSubmissions(
           "rejected",
         ]),
   ]
+  const search = options.search?.trim()
+  if (search) {
+    const pattern = `%${search}%`
+    const searchFilter = or(
+      ilike(directorySubmissions.businessName, pattern),
+      ilike(directorySubmissions.contactEmail, pattern)
+    )
+    if (searchFilter) filters.push(searchFilter)
+  }
   const where = and(...filters)
 
   const [rows, [countRow]] = await Promise.all([

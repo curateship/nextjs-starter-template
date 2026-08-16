@@ -36,12 +36,31 @@ const id = z.string().uuid()
 
 const loadFeaturedAdminFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }) =>
-    featuredAdminOverview(await workspaceIdForRequest(context.user.id))
+  .inputValidator(
+    z.object({
+      search: z.string().max(120).optional(),
+      page: z.number().int().min(1).max(10_000).optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+    })
   )
+  .handler(async ({ data, context }) => {
+    const pageSize = data.limit ?? 50
+    const page = data.page ?? 1
+    const overview = await featuredAdminOverview(
+      await workspaceIdForRequest(context.user.id),
+      {
+        search: data.search,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }
+    )
+    return { ...overview, page, pageSize }
+  })
 
-export function loadFeaturedAdmin() {
-  return loadFeaturedAdminFn()
+export function loadFeaturedAdmin(
+  input: { search?: string; page?: number; limit?: number } = {}
+) {
+  return loadFeaturedAdminFn({ data: input })
 }
 
 const saveFeaturedPlanFn = createServerFn({ method: "POST" })
