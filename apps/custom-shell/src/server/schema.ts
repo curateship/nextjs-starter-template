@@ -704,6 +704,8 @@ export const customShellPlans = pgTable(
     isDefault: boolean("is_default").notNull().default(false),
     isPublic: boolean("is_public").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
+    highlightBadgeText: varchar("highlight_badge_text", { length: 50 }),
+    checkoutButtonText: varchar("checkout_button_text", { length: 60 }),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -715,6 +717,9 @@ export const customShellPlans = pgTable(
     ),
     check("plans_trial_days_check", sql`${table.trialDays} >= 0`),
     index("ix_plans_sort_order").on(table.sortOrder),
+    uniqueIndex("ux_plans_single_highlight")
+      .on(sql`(true)`)
+      .where(sql`${table.highlightBadgeText} is not null`),
   ]
 )
 

@@ -38,6 +38,8 @@ export type PlanOption = {
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   canCheckoutMonthly: boolean
   canCheckoutYearly: boolean
 }
@@ -342,6 +344,8 @@ function toPlanOption(plan: {
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
 }): PlanOption {
@@ -356,6 +360,8 @@ function toPlanOption(plan: {
     trialDays: plan.trialDays,
     features: plan.features ?? {},
     isDefault: plan.isDefault,
+    highlightBadgeText: plan.highlightBadgeText,
+    checkoutButtonText: plan.checkoutButtonText,
     canCheckoutMonthly:
       plan.priceMonthlyCents > 0 && Boolean(plan.stripePriceIdMonthly),
     canCheckoutYearly:

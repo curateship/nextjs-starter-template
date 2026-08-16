@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, or } from "drizzle-orm"
+import { and, asc, eq, inArray, isNotNull, ne, or } from "drizzle-orm"
 
 import type { PlanFeatures } from "@/lib/billing/plan-features"
 import { db, type CustomShellDb } from "@/server/db"
@@ -19,6 +19,8 @@ export type PlanInput = {
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
+  highlightBadgeText?: string | null
+  checkoutButtonText?: string | null
   active: boolean
 }
 
@@ -107,6 +109,9 @@ export async function createPlan(
   validatePlanInput(input)
 
   return database.transaction(async (tx) => {
+    const values = normalizePlanInput(input)
+    await ensureHighlightIsAvailable(values.highlightBadgeText, tx)
+
     if (input.isDefault) {
       await clearDefaultPlan(tx)
     }
@@ -114,7 +119,7 @@ export async function createPlan(
     const createdAt = now()
     const [plan] = await tx
       .insert(customShellPlans)
-      .values({ id: uuid(), ...normalizePlanInput(input), createdAt, updatedAt: createdAt })
+      .values({ id: uuid(), ...values, createdAt, updatedAt: createdAt })
       .returning()
 
     return plan
@@ -135,11 +140,13 @@ export async function updatePlan(
       throw new Error("PLAN_NOT_FOUND")
     }
 
+    const values = normalizePlanInput(input)
+    await ensureHighlightIsAvailable(values.highlightBadgeText, tx, planId)
+
     if (input.isDefault) {
       await clearDefaultPlan(tx)
     }
 
-    const values = normalizePlanInput(input)
     const [plan] = await tx
       .update(customShellPlans)
       .set({ ...values, updatedAt: now() })
@@ -244,13 +251,36 @@ function normalizePlanInput(input: PlanInput) {
     isDefault: input.isDefault,
     isPublic: input.isPublic,
     sortOrder: input.sortOrder,
+    highlightBadgeText: emptyToNull(input.highlightBadgeText, 50),
+    checkoutButtonText: emptyToNull(input.checkoutButtonText, 60),
     active: input.active,
   }
 }
 
-function emptyToNull(value: string | null) {
+function emptyToNull(value: string | null | undefined, maxLength = 120) {
   const trimmed = (value ?? "").trim()
-  return trimmed ? trimmed.slice(0, 120) : null
+  return trimmed ? trimmed.slice(0, maxLength) : null
+}
+
+async function ensureHighlightIsAvailable(
+  highlightBadgeText: string | null,
+  database: CustomShellDb,
+  planId?: string
+) {
+  if (!highlightBadgeText) return
+
+  const conditions = [isNotNull(customShellPlans.highlightBadgeText)]
+  if (planId) conditions.push(ne(customShellPlans.id, planId))
+
+  const [highlightedPlan] = await database
+    .select({ name: customShellPlans.name })
+    .from(customShellPlans)
+    .where(and(...conditions))
+    .limit(1)
+
+  if (highlightedPlan) {
+    throw new Error(`PLAN_HIGHLIGHT_ALREADY_SET:${highlightedPlan.name}`)
+  }
 }
 
 async function clearDefaultPlan(database: Pick<CustomShellDb, "update">) {

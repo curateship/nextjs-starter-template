@@ -120,6 +120,8 @@ type PlanDraft = {
   isDefault: boolean
   isPublic: boolean
   sortOrder: string
+  highlightBadgeText: string
+  checkoutButtonText: string
   active: boolean
 }
 
@@ -138,6 +140,8 @@ const emptyDraft: PlanDraft = {
   isDefault: false,
   isPublic: true,
   sortOrder: "0",
+  highlightBadgeText: "",
+  checkoutButtonText: "",
   active: true,
 }
 
@@ -584,6 +588,8 @@ function PlanDialog({
       isDefault: draft.isDefault,
       isPublic: draft.isPublic,
       sortOrder: Number.parseInt(draft.sortOrder || "0", 10) || 0,
+      highlightBadgeText: draft.highlightBadgeText.trim() || null,
+      checkoutButtonText: draft.checkoutButtonText.trim() || null,
       active: draft.active,
     }
 
@@ -637,6 +643,48 @@ function PlanDialog({
             }}
           >
           <DialogBody>
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Pricing page</CardTitle>
+                <CardDescription>
+                  Highlight one plan to help people choose. Leave either field empty
+                  to keep the usual pricing card.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4 sm:grid-cols-2">
+                <Field
+                  label="Highlight badge"
+                  htmlFor="plan-highlight-badge"
+                  help="Only one plan can have a badge at a time. For example: Most popular."
+                >
+                  <Input
+                    id="plan-highlight-badge"
+                    maxLength={50}
+                    placeholder="Most popular"
+                    value={draft.highlightBadgeText}
+                    onChange={(event) =>
+                      update("highlightBadgeText", event.target.value)
+                    }
+                  />
+                </Field>
+                <Field
+                  label="Checkout button text"
+                  htmlFor="plan-checkout-button-text"
+                  help="Shown only on this plan's available checkout button."
+                >
+                  <Input
+                    id="plan-checkout-button-text"
+                    maxLength={60}
+                    placeholder="Use the usual button text"
+                    value={draft.checkoutButtonText}
+                    onChange={(event) =>
+                      update("checkoutButtonText", event.target.value)
+                    }
+                  />
+                </Field>
+              </CardContent>
+            </Card>
+
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Basics</CardTitle>
@@ -917,6 +965,8 @@ function toDraft(plan: AdminPlan): PlanDraft {
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder.toString(),
+    highlightBadgeText: plan.highlightBadgeText ?? "",
+    checkoutButtonText: plan.checkoutButtonText ?? "",
     active: plan.active,
   }
 }

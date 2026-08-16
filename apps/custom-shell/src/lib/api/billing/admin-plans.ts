@@ -27,11 +27,13 @@ export type AdminPlan = {
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   active: boolean
   createdAt: string
 }
 
-export const getPlanErrorMessage = createErrorMessage(
+const getPlanErrorMessageForCode = createErrorMessage(
   {
     PLAN_NOT_FOUND: "That plan no longer exists.",
     PLAN_SLUG_REQUIRED: "Give the plan a short id, like `pro`.",
@@ -45,10 +47,19 @@ export const getPlanErrorMessage = createErrorMessage(
     PLAN_YEARLY_PRICE_REQUIRED:
       "Add the Stripe price id for the yearly price, or set the yearly price to 0.",
     FEATURES_INVALID: "Features must be valid JSON, like {\"seats\": 3}.",
-    duplicate: "Another plan already uses that id or Stripe price.",
+    duplicate: "Another plan already uses that id, Stripe price, or pricing-page highlight.",
   },
   "We could not save that plan. Please try again."
 )
+
+export function getPlanErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const match = message.match(/^PLAN_HIGHLIGHT_ALREADY_SET:(.+)$/)
+
+  return match
+    ? `${match[1]} is already highlighted on the pricing page. Clear its badge before highlighting another plan.`
+    : getPlanErrorMessageForCode(error)
+}
 
 const planInputSchema = z.object({
   slug: z
@@ -74,6 +85,8 @@ const planInputSchema = z.object({
   isDefault: z.boolean().default(false),
   isPublic: z.boolean().default(true),
   sortOrder: z.number().int().min(0).max(999).default(0),
+  highlightBadgeText: z.string().trim().max(50).nullable().default(null),
+  checkoutButtonText: z.string().trim().max(60).nullable().default(null),
   active: z.boolean().default(true),
 })
 
@@ -156,6 +169,8 @@ function serializePlan(plan: {
   isDefault: boolean
   isPublic: boolean
   sortOrder: number
+  highlightBadgeText: string | null
+  checkoutButtonText: string | null
   active: boolean
   createdAt: Date
 }): AdminPlan {
@@ -174,6 +189,8 @@ function serializePlan(plan: {
     isDefault: plan.isDefault,
     isPublic: plan.isPublic,
     sortOrder: plan.sortOrder,
+    highlightBadgeText: plan.highlightBadgeText,
+    checkoutButtonText: plan.checkoutButtonText,
     active: plan.active,
     createdAt: plan.createdAt.toISOString(),
   }
