@@ -51,7 +51,11 @@ export const automationScheduleSchema = z.discriminatedUnion("frequency", [
     frequency: z.literal("monthly"),
     time: timeSchema,
     timezone: timezoneSchema,
-    dayOfMonth: z.number().int().min(1).max(31),
+    dayOfMonth: z
+      .number()
+      .int("Day of month must be a whole number from 1 to 31.")
+      .min(1, "Day of month must be a whole number from 1 to 31.")
+      .max(31, "Day of month must be a whole number from 1 to 31."),
   }),
 ])
 

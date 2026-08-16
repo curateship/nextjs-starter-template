@@ -18,7 +18,10 @@ import {
 import { toast } from "sonner"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+} from "@/components/shared/sortable-table-header"
 import { TestWithMemberDialog } from "@/components/automations/test-with-member-dialog"
 import {
   DashboardToolbarButton,
@@ -41,13 +44,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-} from "@/components/ui/table"
+import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import {
   getAutomationRunErrorMessage,
   runAutomationNow,
@@ -76,6 +73,7 @@ import { useShellRuntime } from "@/components/shell/shell-layout"
 import { cn } from "@/lib/utils"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type { AutomationTemplateKey } from "@/lib/automations/templates"
+import { compareAutomationSteps } from "@/lib/automations/list-sort"
 
 type CreateChoice = "blank" | AutomationTemplateKey
 
@@ -85,14 +83,41 @@ const TEMPLATE_ICONS = {
   "payment-recovery": CreditCardIcon,
 } satisfies Record<AutomationTemplateKey, typeof MailIcon>
 
-type SortColumn = "name" | "trigger" | "status" | "nextRun" | "updated"
+type SortColumn = "name" | "live" | "steps" | "nextRun" | "updated"
+
+const AUTOMATION_COLUMNS = [
+  { key: "name", label: "Name", column: "main" },
+  { key: "live", label: "Live", column: "meta" },
+  {
+    key: "steps",
+    label: "Steps",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "nextRun",
+    label: "Next run",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+  {
+    key: "updated",
+    label: "Updated",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+] satisfies Array<{
+  key: SortColumn
+  label: string
+  column: "main" | "meta"
+  className?: string
+}>
 
 /**
- * How the Trigger column sorts: the flows that act on their own first when you
- * ask for it, then the ones that could, then the ones that only ever wait for
- * somebody to press Run.
+ * How the Live column sorts: enabled flows, flows that could be enabled, then
+ * flows that only run when somebody presses Run.
  */
-function triggerRank(automation: AutomationListItem): number {
+function liveRank(automation: AutomationListItem): number {
   if (automation.enabled) return 2
   return automation.trigger_name ? 1 : 0
 }
@@ -148,14 +173,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
       )
       .sort((left, right) => {
         if (sort === "name") return factor * left.name.localeCompare(right.name)
-        if (sort === "trigger") {
+        if (sort === "live") {
           return (
             factor *
-            (triggerRank(left) - triggerRank(right) ||
+            (liveRank(left) - liveRank(right) ||
               (left.trigger_name ?? "").localeCompare(right.trigger_name ?? ""))
           )
         }
-        if (sort === "status") return factor * left.summary.localeCompare(right.summary)
+        if (sort === "steps") {
+          return compareAutomationSteps(left, right, direction)
+        }
         if (sort === "nextRun") {
           if (left.next_run_at === null)
             return right.next_run_at === null ? 0 : 1
@@ -424,57 +451,20 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <SelectAllTableHead noun="automations" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "trigger"}
-                  direction={direction}
-                  onClick={() => toggleSort("trigger")}
-                >
-                  Trigger
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "nextRun"}
-                  direction={direction}
-                  onClick={() => toggleSort("nextRun")}
-                >
-                  Next run
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden md:table-cell">
-                <TableSortButton
-                  active={sort === "updated"}
-                  direction={direction}
-                  onClick={() => toggleSort("updated")}
-                >
-                  Updated
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={AUTOMATION_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="automations"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sorted.length === 0}
         emptyText={
@@ -530,90 +520,90 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
               {formatDate(automation.updated_at)}
             </TableCell>
             <TableCell column="actions">
-                {automation.can_run_manually ? (
-                  <DisabledReason
-                    disabled={paused || !automation.isValid}
-                    reason={
-                      paused
-                        ? "Every automation is paused. Resume them to start this flow."
-                        : "This flow has something to fix before it can run. Open it and check the steps marked in red."
-                    }
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      disabled={
-                        paused || !automation.isValid || runningId !== null
-                      }
-                      aria-label={`Run ${automation.name} now`}
-                      onClick={() => void handleRunNow(automation)}
-                    >
-                      {runningId === automation.id ? (
-                        <Loader2Icon className="size-4 animate-spin" />
-                      ) : (
-                        <PlayIcon className="size-4" />
-                      )}
-                    </Button>
-                  </DisabledReason>
-                ) : null}
+              {automation.can_run_manually ? (
                 <DisabledReason
                   disabled={paused || !automation.isValid}
                   reason={
                     paused
-                      ? "Every automation is paused. Resume them to test this flow."
-                      : "This flow has something to fix before it can be tested."
+                      ? "Every automation is paused. Resume them to start this flow."
+                      : "This flow has something to fix before it can run. Open it and check the steps marked in red."
                   }
                 >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    disabled={paused || !automation.isValid}
-                    aria-label={`Test ${automation.name} with one member`}
-                    onClick={() => setTestTarget(automation)}
+                    disabled={
+                      paused || !automation.isValid || runningId !== null
+                    }
+                    aria-label={`Run ${automation.name} now`}
+                    onClick={() => void handleRunNow(automation)}
                   >
-                    <UserIcon className="size-4" />
+                    {runningId === automation.id ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : (
+                      <PlayIcon className="size-4" />
+                    )}
                   </Button>
                 </DisabledReason>
+              ) : null}
+              <DisabledReason
+                disabled={paused || !automation.isValid}
+                reason={
+                  paused
+                    ? "Every automation is paused. Resume them to test this flow."
+                    : "This flow has something to fix before it can be tested."
+                }
+              >
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  aria-label={`Duplicate ${automation.name}`}
-                  disabled={duplicatingId !== null}
-                  onClick={() => void handleDuplicate(automation)}
+                  disabled={paused || !automation.isValid}
+                  aria-label={`Test ${automation.name} with one member`}
+                  onClick={() => setTestTarget(automation)}
                 >
-                  {duplicatingId === automation.id ? (
-                    <Loader2Icon className="size-4 animate-spin" />
-                  ) : (
-                    <CopyIcon className="size-4" />
-                  )}
+                  <UserIcon className="size-4" />
                 </Button>
-                {/*
+              </DisabledReason>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Duplicate ${automation.name}`}
+                disabled={duplicatingId !== null}
+                onClick={() => void handleDuplicate(automation)}
+              >
+                {duplicatingId === automation.id ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <CopyIcon className="size-4" />
+                )}
+              </Button>
+              {/*
                   Renames rather than opening the editor: clicking the row
                   already does that, so this was a second way to do the same
                   thing and no way at all to change a flow's name without
                   opening its canvas.
                 */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Rename ${automation.name}`}
-                  onClick={() => openRename(automation)}
-                >
-                  <SettingsIcon className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Delete ${automation.name}`}
-                  onClick={() => setDeleteTargets([automation])}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Rename ${automation.name}`}
+                onClick={() => openRename(automation)}
+              >
+                <SettingsIcon className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete ${automation.name}`}
+                onClick={() => setDeleteTargets([automation])}
+              >
+                <Trash2Icon className="size-4" />
+              </Button>
             </TableCell>
           </TableRow>
         ))}

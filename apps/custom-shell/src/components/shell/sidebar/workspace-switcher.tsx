@@ -62,7 +62,7 @@ export function WorkspaceSwitcher({
   baseDomain?: string
   copyChoices?: WorkspaceCopyChoice[]
 }) {
-  const { isMobile } = useSidebar()
+  const { isMobile, setOpenMobile } = useSidebar()
   const activeWorkspace =
     workspaces.find((workspace) => workspace.active) ?? workspaces[0]
   // Read here rather than at the top of the module: an app's options file can
@@ -112,7 +112,11 @@ export function WorkspaceSwitcher({
     return null
   }
 
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false)
+  }
   const handleSwitch = async (workspaceId: string) => {
+    closeMobileSidebar()
     if (workspaceId === activeWorkspace.id) return
     await switchToWorkspace(workspaceId)
   }
@@ -124,6 +128,7 @@ export function WorkspaceSwitcher({
           <div className="flex min-h-8 items-center gap-2 py-2">
             <Link
               to="/home"
+              onClick={closeMobileSidebar}
               className="flex h-8 min-w-8 shrink-0 cursor-pointer items-center justify-center"
             >
               <WorkspaceLogo
@@ -135,6 +140,7 @@ export function WorkspaceSwitcher({
             <div className="flex min-w-0 flex-1 items-center overflow-visible whitespace-nowrap transition-opacity duration-250 ease-linear group-data-[collapsible=icon]:pointer-events-none group-data-[collapsible=icon]:opacity-0">
               <Link
                 to="/home"
+                onClick={closeMobileSidebar}
                 className="grid min-w-0 flex-1 text-left text-sm leading-tight"
               >
                 <span className="truncate font-medium">
@@ -208,6 +214,7 @@ export function WorkspaceSwitcher({
                                 target="_blank"
                                 rel="noreferrer"
                                 aria-label={`Open ${displayName} site in a new tab`}
+                                onClick={closeMobileSidebar}
                               >
                                 <ExternalLinkIcon className="size-4" />
                               </a>
@@ -222,7 +229,11 @@ export function WorkspaceSwitcher({
                   })}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild className="gap-2 p-2">
-                    <Link to="/workspaces" search={{ open: undefined }}>
+                    <Link
+                      to="/workspaces"
+                      search={{ open: undefined }}
+                      onClick={closeMobileSidebar}
+                    >
                       <div className="flex size-6 items-center justify-center rounded-md border border-border bg-transparent">
                         {renderShellIcon("settings")}
                       </div>

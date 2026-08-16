@@ -71,6 +71,7 @@ export function AutomationFlowCanvas({
   onGraphChange,
   onSelectNode,
   onSelectEdge,
+  onDeleteNode,
   onSizeChange,
   onDropNode,
 }: {
@@ -81,6 +82,7 @@ export function AutomationFlowCanvas({
   onGraphChange: (graph: AutomationGraph) => void
   onSelectNode: (nodeId: string | null) => void
   onSelectEdge: (edgeId: string | null) => void
+  onDeleteNode: (nodeId: string) => void
   onSizeChange: (size: CanvasSize) => void
   onDropNode?: (position: CanvasPoint) => void
 }) {
@@ -223,20 +225,6 @@ export function AutomationFlowCanvas({
     return () => observer.disconnect()
   }, [onSizeChange])
 
-  const deleteNode = React.useCallback(
-    (nodeId: string) => {
-      onGraphChange({
-        ...graph,
-        nodes: graph.nodes.filter((node) => node.id !== nodeId),
-        edges: graph.edges.filter(
-          (edge) => edge.from !== nodeId && edge.to !== nodeId
-        ),
-      })
-      onSelectNode(null)
-    },
-    [graph, onGraphChange, onSelectNode]
-  )
-
   const deleteEdge = React.useCallback(
     (edgeId: string) => {
       onGraphChange({
@@ -257,7 +245,7 @@ export function AutomationFlowCanvas({
     }
     if (event.key !== "Delete" && event.key !== "Backspace") return
     event.preventDefault()
-    if (selectedNodeId) deleteNode(selectedNodeId)
+    if (selectedNodeId) onDeleteNode(selectedNodeId)
     else if (selectedEdgeId) deleteEdge(selectedEdgeId)
   }
 

@@ -74,6 +74,8 @@ import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
 import { clampToastSeconds } from "@/lib/toast/toast-seconds"
+import { focusRing } from "@/lib/layout/focus-ring"
+import { cn } from "@/lib/utils"
 
 // Debounce window before an edit on the settings page is auto-saved.
 const CONFIG_SAVE_DEBOUNCE_MS = 700
@@ -511,6 +513,21 @@ export function ShellLayout({
           sidebarWidth={config.sidebarWidth}
           onSidebarWidthCommit={handleSidebarWidthCommit}
         >
+          <a
+            href="#main-content"
+            className={cn(
+              "sr-only fixed top-2 left-2 z-[60] rounded-md bg-background px-3 py-2 text-sm font-medium text-foreground focus:not-sr-only",
+              focusRing
+            )}
+            onClick={(event) => {
+              const main = document.getElementById("main-content")
+              if (!main) return
+              event.preventDefault()
+              main.focus()
+            }}
+          >
+            Skip to content
+          </a>
           <AppSidebar
             config={config}
             user={user}
@@ -561,7 +578,7 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent styling={config.styling}>
+            <DashboardContent id="main-content" styling={config.styling}>
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
                   of ids so a fresh load after one is retired starts from the

@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import {
   InspectorCard,
   InspectorNote,
@@ -144,28 +146,11 @@ export default function TimeActivateFields({
       ) : null}
 
       {schedule.frequency === "monthly" ? (
-        <div className="grid gap-1.5">
-          <FieldLabel
-            htmlFor={`time-${node.id}-month-day`}
-            className="text-xs"
-            hint="Shorter months use their final day."
-          >
-            Day of month
-          </FieldLabel>
-          <Input
-            id={`time-${node.id}-month-day`}
-            type="number"
-            min={1}
-            max={31}
-            value={schedule.dayOfMonth}
-            onChange={(event) =>
-              setSchedule({
-                ...schedule,
-                dayOfMonth: Number(event.target.value),
-              })
-            }
-          />
-        </div>
+        <MonthlyDayField
+          id={`time-${node.id}-month-day`}
+          value={schedule.dayOfMonth}
+          onChange={(dayOfMonth) => setSchedule({ ...schedule, dayOfMonth })}
+        />
       ) : null}
 
       <div className="grid gap-1.5">
@@ -202,5 +187,70 @@ export default function TimeActivateFields({
         times are skipped instead of arriving in a burst later.
       </InspectorNote>
     </InspectorCard>
+  )
+}
+
+function MonthlyDayField({
+  id,
+  value,
+  onChange,
+}: {
+  id: string
+  value: number
+  onChange: (value: number) => void
+}) {
+  const [draft, setDraft] = React.useState(String(value))
+  const [lastValue, setLastValue] = React.useState(value)
+  if (value !== lastValue) {
+    setLastValue(value)
+    setDraft(String(value))
+  }
+
+  const parsed = Number(draft)
+  const valid =
+    draft.trim() !== "" &&
+    Number.isInteger(parsed) &&
+    parsed >= 1 &&
+    parsed <= 31
+  const errorId = `${id}-error`
+
+  return (
+    <div className="grid gap-1.5">
+      <FieldLabel
+        htmlFor={id}
+        className="text-xs"
+        hint="Shorter months use their final day."
+      >
+        Day of month
+      </FieldLabel>
+      <Input
+        id={id}
+        type="number"
+        inputMode="numeric"
+        min={1}
+        max={31}
+        value={draft}
+        aria-invalid={!valid || undefined}
+        aria-describedby={!valid ? errorId : undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          const nextNumber = Number(next)
+          if (
+            next.trim() &&
+            Number.isInteger(nextNumber) &&
+            nextNumber >= 1 &&
+            nextNumber <= 31
+          ) {
+            onChange(nextNumber)
+          }
+        }}
+      />
+      {!valid ? (
+        <p id={errorId} className="text-xs text-destructive">
+          Day of month must be a whole number from 1 to 31.
+        </p>
+      ) : null}
+    </div>
   )
 }

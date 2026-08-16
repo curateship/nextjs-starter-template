@@ -213,13 +213,15 @@ export function StickyHeaderLeftNav({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" className="gap-1.5">
+          <Button variant="ghost" className="max-w-28 min-w-0 shrink gap-1.5">
             {activeLink.icon ? (
               <span className="flex h-3.5 w-3.5 items-center justify-center">
                 {activeLink.icon}
               </span>
             ) : null}
-            <span>{activeLink.label}</span>
+            <span className="max-w-20 min-w-0 truncate">
+              {activeLink.label}
+            </span>
             <ChevronDownIcon className="size-3" />
           </Button>
         </DropdownMenuTrigger>
