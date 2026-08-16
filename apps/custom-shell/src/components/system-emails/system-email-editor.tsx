@@ -1,5 +1,5 @@
 import * as React from "react"
-import { RotateCcwIcon, SendIcon } from "lucide-react"
+import { Loader2Icon, RotateCcwIcon, SendIcon } from "lucide-react"
 import { toast } from "sonner"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -11,6 +11,7 @@ import { InspectorCard } from "@/components/broadcasts/inspector-fields"
 import { SystemEmailSendsPanel } from "@/components/system-emails/system-email-sends-panel"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   Tooltip,
   TooltipContent,
@@ -135,43 +136,67 @@ export function SystemEmailEditor({
         }
         headerAction={(saveNow) => (
           <>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-7 px-0 sm:w-auto sm:px-3"
-                  disabled={testing || resetting}
-                  onClick={() => {
-                    saveBeforeResetRef.current = saveNow
-                    setResetOpen(true)
-                  }}
-                >
-                  <RotateCcwIcon className="size-3.5" />
-                  <span className="sr-only sm:not-sr-only">Reset</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Reset</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="w-7 px-0 sm:w-auto sm:px-3"
-                  disabled={testing || resetting}
-                  onClick={() => void sendTest(saveNow)}
-                >
-                  <SendIcon className="size-3.5" />
-                  <span className="sr-only sm:not-sr-only">
-                    {testing ? "Sending…" : "Send myself a test"}
-                  </span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Send myself a test</TooltipContent>
-            </Tooltip>
+            <DisabledReason
+              disabled={testing || resetting}
+              reason={
+                testing
+                  ? "Wait for the test send to finish."
+                  : "The reset is already running."
+              }
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-7 px-0 sm:w-auto sm:px-3"
+                    disabled={testing || resetting}
+                    onClick={() => {
+                      saveBeforeResetRef.current = saveNow
+                      setResetOpen(true)
+                    }}
+                  >
+                    <RotateCcwIcon className="size-3.5" />
+                    <span className="sr-only sm:not-sr-only">Reset</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Reset</TooltipContent>
+              </Tooltip>
+            </DisabledReason>
+            <DisabledReason
+              disabled={testing || resetting}
+              reason={
+                testing
+                  ? "Sending test email…"
+                  : "Wait for the reset to finish."
+              }
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-7 px-0 sm:w-auto sm:px-3"
+                    disabled={testing || resetting}
+                    onClick={() => void sendTest(saveNow)}
+                  >
+                    {testing ? (
+                      <Loader2Icon className="size-3.5 animate-spin" />
+                    ) : (
+                      <SendIcon className="size-3.5" />
+                    )}
+                    <span className="sr-only sm:not-sr-only">
+                      {testing ? "Sending…" : "Send myself a test"}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {testing ? "Sending test email…" : "Send myself a test"}
+                </TooltipContent>
+              </Tooltip>
+            </DisabledReason>
           </>
         )}
         bottomPanel={

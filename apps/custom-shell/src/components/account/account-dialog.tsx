@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { FormDialog } from "@/components/ui/form-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AccountProfilePage } from "@/components/account/account-profile-page"
 import { AccountBillingPage } from "@/components/account/account-billing-page"
@@ -283,10 +283,11 @@ function BillingTab() {
 
   // Only when there is nothing else to show. Once `lastBilling` is filled, a
   // refresh that fails leaves the cards from last time standing rather than
-  // replacing a working page with a banner.
+  // replacing a working page with an error row.
   if (error && !data) {
     return (
-      <ErrorBanner
+      <ErrorRow
+        className="min-h-56"
         message={error}
         // Clearing the message here rather than in the effect: the loading
         // state is what should show while the second attempt is in the air.
