@@ -75,6 +75,7 @@ export function JournalMarksLayer({
   trades,
   fills,
   focusedTrade,
+  showArrows,
 }: {
   surface: ChartSurface
   /** Every finished trade for the market currently on screen. */
@@ -83,6 +84,8 @@ export function JournalMarksLayer({
   fills: readonly LiveFill[]
   /** The trade picked in the Journal, or null when none is. */
   focusedTrade: LiveTrade | null
+  /** Whether fill arrows are enabled in the chart's View options. */
+  showArrows: boolean
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
   const marks = React.useMemo<ChartFillMark[]>(() => {
@@ -104,9 +107,11 @@ export function JournalMarksLayer({
   // Panning away from the arrow under the pointer must take its label with it,
   // rather than leaving one floating over a price it has nothing to do with.
   const onPlot =
-    hovered && hovered.x >= 0 && hovered.x <= surface.width ? hovered : null
+    showArrows && hovered && hovered.x >= 0 && hovered.x <= surface.width
+      ? hovered
+      : null
 
-  if (marks.length === 0) return null
+  if (marks.length === 0 || (!showArrows && !focusedTrade)) return null
 
   const entryY = focusedTrade ? surface.yOf(focusedTrade.entryPx) : null
   const exitY = focusedTrade ? surface.yOf(focusedTrade.exitPx) : null
@@ -173,7 +178,7 @@ export function JournalMarksLayer({
           />
         ) : null}
 
-        {marks.map(({ id, tradeId, mark }) => {
+        {(showArrows ? marks : []).map(({ id, tradeId, mark }) => {
           const y = surface.yOf(mark.px)
           if (y === null) return null
           // A candle owns the whole interval from its open until the next

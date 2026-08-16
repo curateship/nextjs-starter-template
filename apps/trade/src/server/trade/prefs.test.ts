@@ -33,7 +33,12 @@ describe("the remembered chart options", () => {
 
   it("comes back as the account left it", async () => {
     const { id } = await insertUser(database)
-    const options = { grid: false, volume: true, crosshair: false }
+    const options = {
+      grid: false,
+      volume: true,
+      crosshair: false,
+      orderArrows: false,
+    }
     await saveChartOptions(id, options)
     expect(await loadChartOptions(id)).toEqual(options)
   })
@@ -45,6 +50,7 @@ describe("the remembered chart options", () => {
       grid: false,
       volume: false,
       crosshair: false,
+      orderArrows: false,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
   })

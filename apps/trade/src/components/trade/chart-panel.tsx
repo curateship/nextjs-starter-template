@@ -704,6 +704,7 @@ export function ChartPanel({
                   trades={marketTrades}
                   fills={marketFills}
                   focusedTrade={focusTrade}
+                  showArrows={options.orderArrows}
                 />
                 <MeasureLayer
                   key={current.key}

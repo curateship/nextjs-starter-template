@@ -12,8 +12,29 @@ describe("chart view options", () => {
 
   it("reads a complete saved choice", () => {
     expect(
+      readChartOptions({
+        grid: false,
+        volume: true,
+        crosshair: false,
+        orderArrows: false,
+      })
+    ).toEqual({
+      grid: false,
+      volume: true,
+      crosshair: false,
+      orderArrows: false,
+    })
+  })
+
+  it("shows arrows without resetting older saved choices", () => {
+    expect(
       readChartOptions({ grid: false, volume: true, crosshair: false })
-    ).toEqual({ grid: false, volume: true, crosshair: false })
+    ).toEqual({
+      grid: false,
+      volume: true,
+      crosshair: false,
+      orderArrows: true,
+    })
   })
 
   it("does not partly apply an invalid saved choice", () => {

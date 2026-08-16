@@ -91,6 +91,7 @@ describe("finished trade arrows", () => {
         trades={trades}
         fills={[openFill]}
         focusedTrade={null}
+        showArrows={true}
       />
     )
 
@@ -111,10 +112,27 @@ describe("finished trade arrows", () => {
         trades={trades}
         fills={[]}
         focusedTrade={trades[1]}
+        showArrows={true}
       />
     )
 
     expect(arrowCount(html)).toBe(4)
+    expect(html).toContain("Stop")
+  })
+
+  it("hides arrows without hiding the selected Journal trade", () => {
+    const trades = [trade("selected", 1_000, 95)]
+    const html = renderToStaticMarkup(
+      <JournalMarksLayer
+        surface={surface}
+        trades={trades}
+        fills={[]}
+        focusedTrade={trades[0]}
+        showArrows={false}
+      />
+    )
+
+    expect(arrowCount(html)).toBe(0)
     expect(html).toContain("Stop")
   })
 })
