@@ -2,24 +2,28 @@ import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import {
+  openFillMarks,
   tradeFillMarks,
+  type LiveFill,
   type LiveFillMark,
   type LiveTrade,
 } from "@/lib/trade/live-trades"
 import { cn } from "@/lib/utils"
 
 /**
- * One finished trade, drawn over the candles it happened on.
+ * Finished fills for the market on screen, drawn over the candles they
+ * happened on.
  *
  * **An arrow per fill**, at the exact price and moment, joined by a dotted
  * line from the way in to the way out. A trade that was added to twice really
  * did three things at three prices, and one blended entry would hide that —
  * the same reason the backtest chart draws every fill rather than a summary.
  *
- * When a stop is what ended it, a dashed line runs at the stop price across
- * the trade's span. That is the whole question somebody opens this for: was
- * the stop sitting too close, or did the market simply keep going? The line
- * and the candles answer it together, and neither answers it alone.
+ * Every fill keeps its arrow on the chart without needing a Journal row to be
+ * picked first. Picking a trade adds its dotted in-to-out line and, when a
+ * stop ended it, the dashed stop line across its span. That is the whole
+ * question somebody opens the Journal row for: was the stop sitting too
+ * close, or did the market simply keep going?
  *
  * The same idiom as every other layer here: handed a surface that says where a
  * time and a price land, it draws on top, and `price-chart.tsx` is never
@@ -60,32 +64,65 @@ function arrow(x: number, y: number, side: "buy" | "sell"): string {
 
 type Hovered = { mark: LiveFillMark; x: number; y: number }
 
+type ChartFillMark = {
+  id: string
+  tradeId: string
+  mark: LiveFillMark
+}
+
 export function JournalMarksLayer({
   surface,
-  trade,
+  trades,
+  fills,
+  focusedTrade,
+  showArrows,
 }: {
   surface: ChartSurface
+  /** Every finished trade for the market currently on screen. */
+  trades: readonly LiveTrade[]
+  /** Every fill, including entries for positions that are still open. */
+  fills: readonly LiveFill[]
   /** The trade picked in the Journal, or null when none is. */
-  trade: LiveTrade | null
+  focusedTrade: LiveTrade | null
+  /** Whether fill arrows are enabled in the chart's View options. */
+  showArrows: boolean
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
-  const marks = React.useMemo(
-    () => (trade ? tradeFillMarks(trade) : []),
-    [trade]
-  )
+  const marks = React.useMemo<ChartFillMark[]>(() => {
+    const finished = trades.flatMap((trade) =>
+      tradeFillMarks(trade).map((mark, index) => ({
+        id: `${trade.id}:${mark.at}:${mark.side}:${index}`,
+        tradeId: trade.id,
+        mark,
+      }))
+    )
+    const open = openFillMarks(fills).map((mark, index) => ({
+      id: `open:${mark.at}:${mark.side}:${index}`,
+      tradeId: "open",
+      mark,
+    }))
+    return [...finished, ...open]
+  }, [fills, trades])
 
   // Panning away from the arrow under the pointer must take its label with it,
   // rather than leaving one floating over a price it has nothing to do with.
   const onPlot =
-    hovered && hovered.x >= 0 && hovered.x <= surface.width ? hovered : null
+    showArrows && hovered && hovered.x >= 0 && hovered.x <= surface.width
+      ? hovered
+      : null
 
-  if (!trade) return null
+  if (marks.length === 0 || (!showArrows && !focusedTrade)) return null
 
-  const entryY = surface.yOf(trade.entryPx)
-  const exitY = surface.yOf(trade.exitPx)
-  const stopY = trade.stopPx === null ? null : surface.yOf(trade.stopPx)
-  const fromX = surface.xOf(trade.openedAt)
-  const toX = surface.xOf(trade.closedAt)
+  const entryY = focusedTrade ? surface.yOf(focusedTrade.entryPx) : null
+  const exitY = focusedTrade ? surface.yOf(focusedTrade.exitPx) : null
+  const stopY =
+    focusedTrade?.stopPx == null ? null : surface.yOf(focusedTrade.stopPx)
+  const fromX = focusedTrade
+    ? surface.xOfContainingBar(focusedTrade.openedAt)
+    : 0
+  const toX = focusedTrade
+    ? surface.xOfContainingBar(focusedTrade.closedAt)
+    : 0
 
   return (
     <>
@@ -124,14 +161,14 @@ export function JournalMarksLayer({
 
         {/* In to out. Just the line: the numbers are already on the row and on
             the arrows, so the only thing left for the chart to say is where. */}
-        {entryY !== null && exitY !== null ? (
+        {focusedTrade && entryY !== null && exitY !== null ? (
           <line
             x1={fromX}
             y1={entryY}
             x2={toX}
             y2={exitY}
             className={
-              trade.pnl >= 0
+              focusedTrade.pnl >= 0
                 ? "text-teal-600 dark:text-teal-400"
                 : "text-red-600 dark:text-red-400"
             }
@@ -141,14 +178,17 @@ export function JournalMarksLayer({
           />
         ) : null}
 
-        {marks.map((mark, index) => {
+        {(showArrows ? marks : []).map(({ id, tradeId, mark }) => {
           const y = surface.yOf(mark.px)
           if (y === null) return null
-          const x = surface.xOf(mark.at)
+          // A candle owns the whole interval from its open until the next
+          // candle. The fill keeps its exact time for its label and history,
+          // but its arrow belongs at the centre of that candle.
+          const x = surface.xOfContainingBar(mark.at)
           if (x < -OFF_SCREEN || x > surface.width + OFF_SCREEN) return null
 
           return (
-            <g key={`${mark.at}-${mark.side}-${index}`}>
+            <g key={id}>
               {/* The exact price, as a hairline. The arrow says which way and
                   is easy to see; this says WHERE, to the pixel. */}
               <line
@@ -165,6 +205,8 @@ export function JournalMarksLayer({
                 strokeWidth={1}
               />
               <polygon
+                data-slot="trade-fill-mark"
+                data-trade-id={tradeId}
                 points={arrow(x, y, mark.side)}
                 className={
                   mark.side === "buy"

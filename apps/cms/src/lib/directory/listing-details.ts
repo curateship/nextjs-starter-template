@@ -159,7 +159,12 @@ export function listingHoursStatus(hours: ListingHours, now = new Date()) {
     : `Closed now · open ${formatListingTime(today.open)}–${formatListingTime(today.close)}`
 }
 
-function isSafeMediaUrl(value: string) {
+/**
+ * A picture address a page may point at: a same-site path or an http(s) URL.
+ * Shared with the custom-field cleaner so a photo field and the gallery agree
+ * on what counts as a picture rather than each deciding for itself.
+ */
+export function isSafeMediaUrl(value: string) {
   if (!value) return false
   if (value.startsWith("/") && !value.startsWith("//")) return true
   try {

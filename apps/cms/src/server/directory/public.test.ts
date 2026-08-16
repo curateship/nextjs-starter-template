@@ -20,6 +20,11 @@ import {
   readPublicCategory,
   readPublicListing,
 } from "@/server/directory/public"
+import {
+  createCustomSection,
+  updateCustomSection,
+} from "@/server/directory/custom-sections"
+import { listingJsonLd } from "@/lib/directory/public-seo"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
   createTestDatabase,
@@ -905,5 +910,115 @@ describe("each site's public directory settings", () => {
     })
     expect(betaCategoryPage?.listings).toHaveLength(7)
     expect(betaCategoryPage?.listings[0]?.title).toBe("Beta 08")
+  })
+})
+
+describe("the fields a site invented", () => {
+  /**
+   * Two listings that differ in exactly one way: one has answers under a site's
+   * own section, the other does not. Used by both tests below.
+   */
+  async function twoListings() {
+    const section = await createCustomSection(
+      alpha.id,
+      { name: "The wine" },
+      database
+    )
+    const withFields = await updateCustomSection(
+      alpha.id,
+      section.id,
+      {
+        fields: [
+          { label: "Grape", type: "text" },
+          { label: "Organic", type: "toggle" },
+        ],
+      },
+      database
+    )
+    const filled = await publish(alpha, { title: "Filled", slug: "filled" })
+    await publish(alpha, { title: "Empty", slug: "empty" })
+    await updateListing(
+      alpha.id,
+      filled.id,
+      {
+        customValues: {
+          [withFields.slug]: { grape: "Nebbiolo", organic: true },
+        },
+      },
+      database
+    )
+    resetPublicDirectoryCacheForTests()
+    return { slug: withFields.slug }
+  }
+
+  it("shows a section only on the listing that filled it in", async () => {
+    await twoListings()
+
+    const filled = await readPublicListing(alpha, "filled", {}, database)
+    const empty = await readPublicListing(alpha, "empty", {}, database)
+
+    expect(filled?.listing.customSections).toHaveLength(1)
+    expect(filled?.listing.customSections[0]?.name).toBe("The wine")
+    expect(
+      filled?.listing.customSections[0]?.fields.map((field) => field.label)
+    ).toEqual(["Grape", "Organic"])
+    expect(empty?.listing.customSections).toEqual([])
+  })
+
+  it("never lets another site's sections onto a page", async () => {
+    const theirs = await createCustomSection(
+      beta.id,
+      { name: "Beta only" },
+      database
+    )
+    await updateCustomSection(
+      beta.id,
+      theirs.id,
+      { fields: [{ label: "Trade", type: "text" }] },
+      database
+    )
+    await publish(alpha, { title: "Alpha one", slug: "alpha-one-fields" })
+    resetPublicDirectoryCacheForTests()
+
+    const page = await readPublicListing(alpha, "alpha-one-fields", {}, database)
+    expect(page?.listing.customSections).toEqual([])
+  })
+
+  /**
+   * **This test is the point of the feature's search-engine rule, not a
+   * formality.** Invented fields are a site's own wording, checked by nobody.
+   * They must never end up in the structured data a search engine reads as
+   * fact — so the markup for a listing with them filled in has to be identical
+   * to the markup for one without. Do not delete this.
+   */
+  it("puts nothing a site invented into the search-engine markup", async () => {
+    await twoListings()
+
+    const filled = await readPublicListing(alpha, "filled", {}, database)
+    const empty = await readPublicListing(alpha, "empty", {}, database)
+    if (!filled || !empty) throw new Error("Both listings should be readable.")
+
+    const markupFor = (page: typeof filled) =>
+      listingJsonLd({
+        siteName: page.site.name,
+        siteUrl: page.site.url,
+        // The two listings differ by name and address as well, and this test
+        // is only about the invented fields — so everything else is held the
+        // same and only the fields are allowed to vary.
+        title: "Same title",
+        slug: "same-slug",
+        description: "",
+        image: page.listing.featuredImage,
+        gallery: page.listing.gallery,
+        hours: page.listing.hours,
+        address: page.listing.contactLinks.address,
+        latitude: page.listing.latitude,
+        longitude: page.listing.longitude,
+        createdAt: new Date(0),
+        updatedAt: new Date(0),
+      })
+
+    expect(markupFor(filled)).toEqual(markupFor(empty))
+    expect(JSON.stringify(markupFor(filled))).not.toContain("Nebbiolo")
   })
 })

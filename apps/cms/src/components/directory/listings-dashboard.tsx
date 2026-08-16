@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select"
 import { TableCell, TableHead, TableRow } from "@/components/ui/table"
 import type { Category } from "@/lib/api/directory/categories"
+import type { CustomSection } from "@/lib/directory/custom-fields"
 import {
   copyListing,
   getListingErrorMessage,
@@ -72,11 +73,14 @@ import {
 export function ListingsDashboard({
   data,
   categories,
+  customSections,
   search,
 }: {
   data: ListingsPage
   /** The category tree, loaded with the list so the edit window opens with it. */
   categories: Category[]
+  /** The fields this site invented, loaded with the list for the same reason. */
+  customSections: CustomSection[]
   search: {
     q?: string
     status?: ListingStatusFilter
@@ -465,6 +469,7 @@ export function ListingsDashboard({
         open={creating || Boolean(search.open)}
         listingId={creating ? null : (search.open ?? null)}
         categories={categories}
+        customSections={customSections}
         preview={
           openRow ? { title: openRow.title, status: openRow.status } : null
         }

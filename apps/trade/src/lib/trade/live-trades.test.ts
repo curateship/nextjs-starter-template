@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildLiveTrades,
+  fillsOutsideTrades,
   formatHeld,
   tradeEndingLabel,
   tradeFillMarks,
@@ -237,6 +238,19 @@ describe("buildLiveTrades", () => {
 })
 
 describe("tradeFillMarks", () => {
+  it("keeps only fills from the position that has not finished", () => {
+    const fills = [
+      fill({ fillId: "closed-in", side: "buy", px: 100, sz: 1, at: 0 }),
+      fill({ fillId: "closed-out", side: "sell", px: 110, sz: 1, at: MINUTE }),
+      fill({ fillId: "open-in", side: "buy", px: 120, sz: 1, at: 2 * MINUTE }),
+    ]
+    const trades = buildLiveTrades(fills, noTriggers)
+
+    expect(fillsOutsideTrades(fills, trades).map((one) => one.fillId)).toEqual([
+      "open-in",
+    ])
+  })
+
   it("one order is one arrow, however many pieces the exchange filled it in", () => {
     // The real case this comes from: an order for 0.69 ate two prices off the
     // book, so the exchange sent back 0.05 and 0.64 at the same millisecond.

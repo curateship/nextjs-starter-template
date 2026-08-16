@@ -33,6 +33,7 @@ import { plural } from "@/lib/format/plural"
 import { formatUsd } from "@/lib/trade/format"
 import { keyExpiryWarning } from "@/lib/trade/live"
 import {
+  capForPickedWallet,
   venueLabel,
   type TradeWallet,
   type WalletAccountSummary,
@@ -175,10 +176,8 @@ export default function TradeWalletFields({
   // one place it could be picked back up by accident.
   const offered = wallets?.filter((one) => one.status === "active") ?? []
   const row = wallets?.find((one) => one.id === named?.id) ?? null
-  const figures =
-    (answer?.summaries ?? held?.summaries ?? []).find(
-      (one) => one.walletId === named?.id
-    ) ?? null
+  const summaries = answer?.summaries ?? held?.summaries ?? []
+  const figures = summaries.find((one) => one.walletId === named?.id) ?? null
   const freeCash = figures && figures.state === "ok" ? figures.free : null
 
   // A wallet renamed in the account panel leaves the copy on this step behind,
@@ -342,12 +341,14 @@ export default function TradeWalletFields({
                   walletKind: picked.kind,
                   walletProtocol: picked.protocol,
                   walletNetwork: picked.network,
-                  // The pot the strategy was tested with carries over as the
-                  // amount somebody is willing to commit. It is a starting
-                  // point they can see and change, not a guess hidden from
-                  // them — and the line under the box says what the wallet
-                  // actually holds.
-                  spendCapUsd: named?.capUsd ?? settings.startingUsd,
+                  // The cap starts at what this wallet actually has free; see
+                  // capForPickedWallet for why anything else is a number the
+                  // flow would not honour. It is still a box somebody can
+                  // change — a smaller cap is a real choice.
+                  spendCapUsd: capForPickedWallet(
+                    summaries.find((one) => one.walletId === picked.id),
+                    named?.capUsd ?? settings.startingUsd
+                  ),
                 })
               }}
             >

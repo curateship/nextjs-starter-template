@@ -51,6 +51,7 @@ import { Route as AuthenticatedAdminDashboardRouteImport } from './routes/_authe
 import { Route as AuthenticatedAdminFeedbackRouteImport } from './routes/_authenticated/admin/feedback'
 import { Route as AuthenticatedAdminListingClaimsRouteImport } from './routes/_authenticated/admin/listing-claims'
 import { Route as AuthenticatedAdminListingFeaturedRouteImport } from './routes/_authenticated/admin/listing-featured'
+import { Route as AuthenticatedAdminListingFieldsRouteImport } from './routes/_authenticated/admin/listing-fields'
 import { Route as AuthenticatedAdminListingOutreachRouteImport } from './routes/_authenticated/admin/listing-outreach'
 import { Route as AuthenticatedAdminListingSavesRouteImport } from './routes/_authenticated/admin/listing-saves'
 import { Route as AuthenticatedAdminListingSubmissionsRouteImport } from './routes/_authenticated/admin/listing-submissions'
@@ -306,6 +307,12 @@ const AuthenticatedAdminListingFeaturedRoute =
     path: '/listing-featured',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminListingFieldsRoute =
+  AuthenticatedAdminListingFieldsRouteImport.update({
+    id: '/listing-fields',
+    path: '/listing-fields',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminListingOutreachRoute =
   AuthenticatedAdminListingOutreachRouteImport.update({
     id: '/listing-outreach',
@@ -539,6 +546,7 @@ export interface FileRoutesByFullPath {
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
   '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
@@ -614,6 +622,7 @@ export interface FileRoutesByTo {
   '/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
   '/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
@@ -693,6 +702,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/feedback': typeof AuthenticatedAdminFeedbackRoute
   '/_authenticated/admin/listing-claims': typeof AuthenticatedAdminListingClaimsRoute
   '/_authenticated/admin/listing-featured': typeof AuthenticatedAdminListingFeaturedRoute
+  '/_authenticated/admin/listing-fields': typeof AuthenticatedAdminListingFieldsRoute
   '/_authenticated/admin/listing-outreach': typeof AuthenticatedAdminListingOutreachRoute
   '/_authenticated/admin/listing-saves': typeof AuthenticatedAdminListingSavesRoute
   '/_authenticated/admin/listing-submissions': typeof AuthenticatedAdminListingSubmissionsRoute
@@ -772,6 +782,7 @@ export interface FileRouteTypes {
     | '/admin/feedback'
     | '/admin/listing-claims'
     | '/admin/listing-featured'
+    | '/admin/listing-fields'
     | '/admin/listing-outreach'
     | '/admin/listing-saves'
     | '/admin/listing-submissions'
@@ -847,6 +858,7 @@ export interface FileRouteTypes {
     | '/admin/feedback'
     | '/admin/listing-claims'
     | '/admin/listing-featured'
+    | '/admin/listing-fields'
     | '/admin/listing-outreach'
     | '/admin/listing-saves'
     | '/admin/listing-submissions'
@@ -925,6 +937,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/feedback'
     | '/_authenticated/admin/listing-claims'
     | '/_authenticated/admin/listing-featured'
+    | '/_authenticated/admin/listing-fields'
     | '/_authenticated/admin/listing-outreach'
     | '/_authenticated/admin/listing-saves'
     | '/_authenticated/admin/listing-submissions'
@@ -1295,6 +1308,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminListingFeaturedRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/listing-fields': {
+      id: '/_authenticated/admin/listing-fields'
+      path: '/listing-fields'
+      fullPath: '/admin/listing-fields'
+      preLoaderRoute: typeof AuthenticatedAdminListingFieldsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/listing-outreach': {
       id: '/_authenticated/admin/listing-outreach'
       path: '/listing-outreach'
@@ -1573,6 +1593,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminFeedbackRoute: typeof AuthenticatedAdminFeedbackRoute
   AuthenticatedAdminListingClaimsRoute: typeof AuthenticatedAdminListingClaimsRoute
   AuthenticatedAdminListingFeaturedRoute: typeof AuthenticatedAdminListingFeaturedRoute
+  AuthenticatedAdminListingFieldsRoute: typeof AuthenticatedAdminListingFieldsRoute
   AuthenticatedAdminListingOutreachRoute: typeof AuthenticatedAdminListingOutreachRoute
   AuthenticatedAdminListingSavesRoute: typeof AuthenticatedAdminListingSavesRoute
   AuthenticatedAdminListingSubmissionsRoute: typeof AuthenticatedAdminListingSubmissionsRoute
@@ -1608,6 +1629,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminListingClaimsRoute: AuthenticatedAdminListingClaimsRoute,
   AuthenticatedAdminListingFeaturedRoute:
     AuthenticatedAdminListingFeaturedRoute,
+  AuthenticatedAdminListingFieldsRoute: AuthenticatedAdminListingFieldsRoute,
   AuthenticatedAdminListingOutreachRoute:
     AuthenticatedAdminListingOutreachRoute,
   AuthenticatedAdminListingSavesRoute: AuthenticatedAdminListingSavesRoute,

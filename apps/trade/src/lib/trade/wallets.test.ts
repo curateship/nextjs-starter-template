@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  capForPickedWallet,
   cleanAgentKey,
   describeAgentKeyProblem,
   describeKeyMismatch,
@@ -32,6 +33,7 @@ import {
   shortenAddress,
   summarizeWallet,
   venueLabel,
+  type WalletAccountSummary,
 } from "@/lib/trade/wallets"
 
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
@@ -117,5 +119,40 @@ describe("why a trading key was not approved", () => {
   it("is nothing for a refusal that carried no addresses", () => {
     expect(describeKeyMismatch("KEY_EXPIRED")).toBeNull()
     expect(describeKeyMismatch("KEY_NOT_APPROVED")).toBeNull()
+  })
+})
+
+describe("the cap a freshly picked wallet starts at", () => {
+  const readable: WalletAccountSummary = {
+    walletId: "w1",
+    state: "ok",
+    equity: 1_200,
+    free: 1_000,
+    inTrades: 200,
+    openProfit: 0,
+    sinceStart: 200,
+    settled: 200,
+  }
+
+  it("is what the wallet has free, not the backtest's pot", () => {
+    // A cap of $30,000 over a wallet holding $1,000 buys exactly what $1,000
+    // buys. The bigger number was never anything but a number on screen.
+    expect(capForPickedWallet(readable, 30_000)).toBe(1_000)
+  })
+
+  it("falls back when the exchange could not be reached", () => {
+    expect(
+      capForPickedWallet({ walletId: "w1", state: "unreachable" }, 30_000)
+    ).toBe(30_000)
+  })
+
+  it("falls back when the figures have not arrived", () => {
+    expect(capForPickedWallet(undefined, 30_000)).toBe(30_000)
+  })
+
+  it("falls back on an empty account rather than writing a cap of nothing", () => {
+    // The box will not take a zero, so an empty wallet has to leave the old
+    // number where it was.
+    expect(capForPickedWallet({ ...readable, free: 0 }, 30_000)).toBe(30_000)
   })
 })

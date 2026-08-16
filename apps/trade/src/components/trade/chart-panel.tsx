@@ -411,6 +411,15 @@ export function ChartPanel({
   // A trade drawn over another coin's candles would be nonsense.
   const focusTrade =
     shownTrade && shownTrade.marketKey === selectedKey ? shownTrade : null
+  const marketTrades = React.useMemo(
+    () =>
+      trading.trades.filter((trade) => trade.marketKey === selectedKey),
+    [trading.trades, selectedKey]
+  )
+  const marketFills = React.useMemo(
+    () => trading.fills.filter((fill) => fill.marketKey === selectedKey),
+    [trading.fills, selectedKey]
+  )
 
   /**
    * Where to put the chart, with a picked trade taken into account.
@@ -690,7 +699,13 @@ export function ChartPanel({
                 {/* Over the orders and under the ruler: a finished trade is
                     history, so it must never hide a stop that is live right
                     now, and Shift-dragging across it still measures. */}
-                <JournalMarksLayer surface={surface} trade={focusTrade} />
+                <JournalMarksLayer
+                  surface={surface}
+                  trades={marketTrades}
+                  fills={marketFills}
+                  focusedTrade={focusTrade}
+                  showArrows={options.orderArrows}
+                />
                 <MeasureLayer
                   key={current.key}
                   surface={surface}

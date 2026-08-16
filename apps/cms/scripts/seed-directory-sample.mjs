@@ -58,6 +58,48 @@ const sites = [
       ["/privacy", "Privacy", "Alpha Guide keeps its privacy promise simple."],
       ["/terms", "Terms", "The terms for using Alpha Guide."],
     ],
+    // Two sections of invented fields, so the Listing fields screen, the
+    // extra groups on the listing form and the extra sections on a public
+    // page all have something real in them.
+    customSections: [
+      {
+        slug: "the_food",
+        name: "The food",
+        layout: "two-column",
+        fields: [
+          { key: "kitchen", label: "Kitchen", type: "text" },
+          { key: "price", label: "Typical price", type: "number" },
+          {
+            key: "style",
+            label: "Style",
+            type: "select",
+            options: [
+              { id: "casual", label: "Casual", value: "casual" },
+              { id: "smart", label: "Smart", value: "smart" },
+            ],
+          },
+          { key: "vegan", label: "Vegan options", type: "toggle" },
+          { key: "known_for", label: "Known for", type: "tags" },
+          { key: "menu_photo", label: "Menu photo", type: "image" },
+        ],
+      },
+      {
+        slug: "whats_on",
+        name: "What's on",
+        layout: "stack",
+        fields: [
+          {
+            key: "events",
+            label: "Regular events",
+            type: "repeater",
+            fields: [
+              { key: "name", label: "Event", type: "text" },
+              { key: "when", label: "When", type: "text" },
+            ],
+          },
+        ],
+      },
+    ],
     categories: [
       {
         slug: "eat",
@@ -108,6 +150,21 @@ const sites = [
           "Joe's has been on the corner since 1974 and has not changed the menu once.",
           "Come for the pancakes. Stay because nobody will rush you out.",
         ],
+        custom: {
+          the_food: {
+            kitchen: "American diner",
+            price: 18,
+            style: "casual",
+            vegan: true,
+            known_for: ["Pancakes", "Bottomless coffee"],
+          },
+          whats_on: {
+            events: [
+              { name: "Quiz night", when: "Tuesdays, 8pm" },
+              { name: "Pie of the week", when: "Fridays" },
+            ],
+          },
+        },
       },
       {
         slug: "la-pentola",
@@ -130,6 +187,8 @@ const sites = [
           "Everything is made that morning, so the menu is short and it changes.",
           "Book ahead at the weekend — eleven tables go quickly.",
         ],
+        // Half a section on purpose: only what is filled in should show.
+        custom: { the_food: { kitchen: "Northern Italian", vegan: false } },
       },
       // A second published listing in "Eat", so a listing page actually has
       // something to show under "More like this".
@@ -278,6 +337,7 @@ async function main() {
     for (const site of sites) {
       const siteId = await upsertSite(client, ownerId, site)
       await upsertDirectorySettings(client, siteId, site.frontPageMode)
+      await upsertCustomSections(client, siteId, site.customSections ?? [])
       const categoryIds = await upsertCategories(
         client,
         siteId,
@@ -316,6 +376,37 @@ async function main() {
     )
   } finally {
     await client.end()
+  }
+}
+
+/**
+ * The extra fields this site invents. Keyed on the slug, which is also the key
+ * every listing's answers are stored under — so a rerun updates the same
+ * section rather than making a second one beside it.
+ */
+async function upsertCustomSections(client, siteId, sections) {
+  for (const [index, section] of sections.entries()) {
+    await client.query(
+      `insert into directory_custom_sections
+         (id, workspace_id, name, slug, layout, fields, display_order, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5::jsonb, $6, now(), now())
+       on conflict (workspace_id, slug) do update
+         set name = excluded.name,
+             layout = excluded.layout,
+             fields = excluded.fields,
+             display_order = excluded.display_order,
+             updated_at = now()`,
+      [
+        siteId,
+        section.name,
+        section.slug,
+        section.layout ?? "stack",
+        JSON.stringify(
+          section.fields.map((field) => ({ options: [], ...field }))
+        ),
+        index,
+      ]
+    )
   }
 }
 
@@ -425,10 +516,10 @@ async function upsertListings(client, siteId, categoryIds, listings) {
       `insert into directory_listings
          (id, workspace_id, title, slug, meta_description, rating, status,
           display_order, featured_image, gallery, hours, latitude, longitude,
-          contact_links, body, created_at, updated_at)
+          contact_links, body, custom_values, created_at, updated_at)
        values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8,
                $9::jsonb, $10::jsonb, $11, $12, $13::jsonb, $14::jsonb,
-               now(), now())
+               $15::jsonb, now(), now())
        on conflict (workspace_id, slug) do update
          set title = excluded.title,
              meta_description = excluded.meta_description,
@@ -442,6 +533,7 @@ async function upsertListings(client, siteId, categoryIds, listings) {
              longitude = excluded.longitude,
              contact_links = excluded.contact_links,
              body = excluded.body,
+             custom_values = excluded.custom_values,
              updated_at = now()
        returning id`,
       [
@@ -459,6 +551,7 @@ async function upsertListings(client, siteId, categoryIds, listings) {
         listing.longitude ?? null,
         JSON.stringify(contactLinks(listing)),
         JSON.stringify(body(listing.body)),
+        JSON.stringify(listing.custom ?? {}),
       ]
     )
     const listingId = rows[0].id

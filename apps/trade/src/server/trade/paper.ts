@@ -31,6 +31,7 @@ import {
 } from "@/lib/trade/paper"
 import {
   buildLiveTrades,
+  fillsOutsideTrades,
   type LiveFill,
   type LiveTrade,
   type LiveTradeEnding,
@@ -1021,6 +1022,8 @@ export async function settleWallet(
 export type PaperAccount = {
   positions: PaperPosition[]
   orders: PaperOrder[]
+  /** Every visible fill, including the entries of positions still open. */
+  fills: LiveFill[]
   /** Finished practice round trips — the Journal, alongside the real ones. */
   trades: LiveTrade[]
 }
@@ -1089,7 +1092,9 @@ export async function loadPaperPortfolio(
   wallets: readonly TradeWallet[]
 ): Promise<PaperAccount> {
   const paper = wallets.filter((wallet) => wallet.kind === "paper")
-  if (paper.length === 0) return { positions: [], orders: [], trades: [] }
+  if (paper.length === 0) {
+    return { positions: [], orders: [], fills: [], trades: [] }
+  }
 
   const keys = await exposedMarketKeys(
     userId,
@@ -1124,11 +1129,14 @@ export async function loadPaperPortfolio(
     .orderBy(desc(tradePaperJournal.fillTime))
     .limit(JOURNAL_PAGE)
 
+  const tradeFills = fills.map(toTradeFill)
+  const trades = buildLiveTrades(tradeFills, NO_TRIGGERS)
   return {
     positions: positions.sort((a, b) => a.marketKey.localeCompare(b.marketKey)),
     orders: orders.sort((a, b) => a.createdAt - b.createdAt),
+    fills: fillsOutsideTrades(tradeFills, trades),
     // No triggers to look up: a practice fill carries its own reason.
-    trades: buildLiveTrades(fills.map(toTradeFill), NO_TRIGGERS),
+    trades,
   }
 }
 

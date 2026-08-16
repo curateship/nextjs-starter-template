@@ -11,6 +11,7 @@ import { DirectoryRouteError } from "@/components/directory/public/directory-err
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingContactLinks } from "@/components/directory/public/listing-contact-links"
+import { ListingCustomSections } from "@/components/directory/public/listing-custom-sections"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingRating } from "@/components/directory/listing-rating"
 import {
@@ -200,6 +201,10 @@ function ListingRoute() {
            * paragraph.
            */}
           <WrittenPageBody body={listing.body} />
+
+          {/* Whatever this site invented, after the words. Empty sections
+              never arrive here — the server leaves them out. */}
+          <ListingCustomSections sections={listing.customSections} />
         </CardContent>
       </Card>
 

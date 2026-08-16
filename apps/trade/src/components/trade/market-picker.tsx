@@ -171,7 +171,7 @@ export function MarketPicker({
           ref={triggerRef}
           type="button"
           aria-label="Choose market"
-          className="flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 text-[15px] font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <span className="truncate">{selected.symbol}-PERP</span>
           <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />

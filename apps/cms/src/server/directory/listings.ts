@@ -16,6 +16,12 @@ import {
   cleanContactLinks,
   type ContactLinks,
 } from "@/lib/directory/contact-links"
+import {
+  cleanCustomValues,
+  type CustomSection,
+  type CustomValues,
+} from "@/lib/directory/custom-fields"
+import { listCustomSections } from "@/server/directory/custom-sections"
 import { LISTING_META_DESCRIPTION_MAX } from "@/lib/directory/field-lengths"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
@@ -85,6 +91,8 @@ export type DirectoryListing = {
   longitude: number | null
   contactLinks: ContactLinks
   body: WrittenPageNode
+  /** Answers to the fields this site invented. Empty when it has invented none. */
+  customValues: CustomValues
   createdAt: Date
   updatedAt: Date
 }
@@ -92,10 +100,24 @@ export type DirectoryListing = {
 /** A dashboard row: the listing without its body, plus its category names. */
 export type ListingSummary = Omit<
   DirectoryListing,
-  "body" | "contactLinks" | "gallery" | "hours" | "latitude" | "longitude"
+  | "body"
+  | "contactLinks"
+  | "customValues"
+  | "gallery"
+  | "hours"
+  | "latitude"
+  | "longitude"
 > & { categories: string[]; views: number }
 
-function toListing(row: DirectoryListingRow): DirectoryListing {
+/**
+ * `sections` is what the site currently defines. It is an argument rather than
+ * a lookup because the list reads fifty rows at once and has no use for the
+ * answers at all — passing none is how it says so.
+ */
+function toListing(
+  row: DirectoryListingRow,
+  sections: CustomSection[] = []
+): DirectoryListing {
   const coordinates = cleanListingCoordinates(row.latitude, row.longitude)
   return {
     id: row.id,
@@ -114,6 +136,7 @@ function toListing(row: DirectoryListingRow): DirectoryListing {
     // database is still only allowed to hand a page safe shapes.
     contactLinks: cleanContactLinks(row.contactLinks),
     body: cleanWrittenPageBody(row.body),
+    customValues: cleanCustomValues(sections, row.customValues),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -309,6 +332,7 @@ export async function listListings(
       const {
         body: _body,
         contactLinks: _links,
+        customValues: _customValues,
         gallery: _gallery,
         hours: _hours,
         latitude: _latitude,
@@ -329,22 +353,29 @@ export async function listListings(
 export async function findListing(
   workspaceId: string,
   id: string,
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  /** The site's field definitions, when the caller already has them. */
+  known?: CustomSection[]
 ): Promise<DirectoryListing | null> {
-  const [row] = await database
-    .select()
-    .from(directoryListings)
-    // The site is part of the lookup rather than checked after: an id from
-    // another site is simply not found, which is both the safe answer and the
-    // honest one.
-    .where(
-      and(
-        eq(directoryListings.id, id),
-        eq(directoryListings.workspaceId, workspaceId)
+  // Both at once: the answers mean nothing without the definitions to read
+  // them against, and neither read depends on the other.
+  const [[row], sections] = await Promise.all([
+    database
+      .select()
+      .from(directoryListings)
+      // The site is part of the lookup rather than checked after: an id from
+      // another site is simply not found, which is both the safe answer and
+      // the honest one.
+      .where(
+        and(
+          eq(directoryListings.id, id),
+          eq(directoryListings.workspaceId, workspaceId)
+        )
       )
-    )
-    .limit(1)
-  return row ? toListing(row) : null
+      .limit(1),
+    known ?? listCustomSections(workspaceId, database),
+  ])
+  return row ? toListing(row, sections) : null
 }
 
 /**
@@ -411,10 +442,14 @@ export async function updateListing(
     longitude?: number | null
     contactLinks?: unknown
     body?: unknown
+    customValues?: unknown
   },
   database: CustomShellDb = db
 ): Promise<DirectoryListing> {
   const values: Record<string, unknown> = { updatedAt: now() }
+  // Loaded whether or not the form sent answers, because the row that comes
+  // back is read against them either way.
+  const sections = await listCustomSections(workspaceId, database)
 
   if (input.title !== undefined) values.title = cleanTitle(input.title)
   if (input.slug !== undefined) {
@@ -456,6 +491,9 @@ export async function updateListing(
     values.contactLinks = cleanContactLinks(input.contactLinks)
   }
   if (input.body !== undefined) values.body = cleanWrittenPageBody(input.body)
+  if (input.customValues !== undefined) {
+    values.customValues = cleanCustomValues(sections, input.customValues)
+  }
 
   const [row] = await database
     .update(directoryListings)
@@ -470,7 +508,7 @@ export async function updateListing(
 
   if (!row) throw new Error("That listing no longer exists.")
   clearPublicDirectoryCache(workspaceId)
-  return toListing(row)
+  return toListing(row, sections)
 }
 
 /**
@@ -483,7 +521,11 @@ export async function duplicateListing(
   id: string,
   database: CustomShellDb = db
 ): Promise<DirectoryListing> {
-  const source = await findListing(workspaceId, id, database)
+  const sections = await listCustomSections(workspaceId, database)
+  // Handed the definitions rather than left to fetch its own: `findListing`
+  // reads them too, and asking twice for the same twelve rows is one query
+  // this path does not need.
+  const source = await findListing(workspaceId, id, database, sections)
   if (!source) throw new Error("That listing no longer exists.")
 
   const title = `Copy of ${source.title}`.slice(0, MAX_LISTING_TITLE)
@@ -511,6 +553,7 @@ export async function duplicateListing(
         longitude: source.longitude,
         contactLinks: source.contactLinks,
         body: source.body,
+        customValues: source.customValues,
         createdAt: at,
         updatedAt: at,
       })
@@ -535,7 +578,7 @@ export async function duplicateListing(
   })
 
   clearPublicDirectoryCache(workspaceId)
-  return toListing(row)
+  return toListing(row, sections)
 }
 
 /**

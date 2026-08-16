@@ -6,18 +6,17 @@ import {
   MenuLinksFields,
   SocialLinksFields,
 } from "@/components/directory/contact-links-fields"
+import { ListingCustomFields } from "@/components/directory/listing-custom-fields"
 import { ListingDetailsFields } from "@/components/directory/listing-details-fields"
+import {
+  collapseStorageKey,
+  useRememberedCollapse,
+} from "@/lib/remembered-choice"
+import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { DocumentEditor } from "@/components/shared/rich-text-editor"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   DialogBody,
@@ -53,6 +52,11 @@ import {
   readSettledListing,
 } from "@/lib/directory/listing-cache"
 import type { MenuLink, SocialLink } from "@/lib/directory/contact-links"
+import {
+  formCustomValues,
+  type CustomSection,
+  type CustomValues,
+} from "@/lib/directory/custom-fields"
 import { slugFromTitle } from "@/lib/directory/slugs"
 import {
   listingRatingFromText,
@@ -81,6 +85,7 @@ export function ListingDialog({
   open,
   listingId,
   categories,
+  customSections,
   preview,
   onClose,
   onSaved,
@@ -90,6 +95,12 @@ export function ListingDialog({
   listingId: string | null
   /** The category tree, already in hand from the page's own loader. */
   categories: Category[]
+  /**
+   * The fields this site invented, also from the page's loader. They come from
+   * there rather than travelling with the record, because a listing being
+   * created has no record to carry them.
+   */
+  customSections: CustomSection[]
   /**
    * What the row already says about this listing. Only used on the rare cold
    * open — a link straight to `?open=<id>`, or a click the prefetch did not
@@ -221,11 +232,24 @@ export function ListingDialog({
     type: "doc",
     content: [],
   })
+  const [customValues, setCustomValues] = React.useState<CustomValues>({})
   const [categoryIds, setCategoryIds] = React.useState<Set<string>>(new Set())
   const [primaryCategoryId, setPrimaryCategoryId] = React.useState<
     string | null
   >(null)
   const [saving, setSaving] = React.useState(false)
+
+  /**
+   * Two cards the form has to be able to open: they hold the only fields a
+   * save refuses over — the title, the address and the rating in the first,
+   * the coordinates in the second. Folded away, a refusal would point at a box
+   * that is not on screen. Both still remember what the admin chose.
+   */
+  const [basicsOpen, setBasicsOpen, basicsNoFlash] = useRememberedCollapse(
+    collapseStorageKey.settingsCard("listing-basics")
+  )
+  const [locationOpen, setLocationOpen, locationNoFlash] =
+    useRememberedCollapse(collapseStorageKey.settingsCard("listing-map"))
 
   // Seed the fields the moment the record is in hand — adjusting during
   // render, which is what React asks for when state has to follow a prop.
@@ -259,10 +283,11 @@ export function ListingDialog({
       setMenuLinks(record.contactLinks.menuLinks)
       setSocialLinks(record.contactLinks.socialLinks)
       setBody(record.body)
+      setCustomValues(formCustomValues(customSections, record.customValues))
       setCategoryIds(new Set(ready.data.categoryIds))
       setPrimaryCategoryId(ready.data.primaryCategoryId)
     } else if (seedKey === "new") {
-      const blank = blankSnapshot()
+      const blank = blankSnapshot(customSections)
       setTitle(blank.title)
       setSlug(blank.slug)
       setMetaDescription(blank.metaDescription)
@@ -279,6 +304,7 @@ export function ListingDialog({
       setMenuLinks(blank.contactLinks.menuLinks)
       setSocialLinks(blank.contactLinks.socialLinks)
       setBody(blank.body)
+      setCustomValues(blank.customValues)
       setCategoryIds(new Set())
       setPrimaryCategoryId(null)
     }
@@ -298,6 +324,7 @@ export function ListingDialog({
     longitude,
     contactLinks: { address, menuLinks, socialLinks },
     body,
+    customValues,
     // Sorted so ticking a box off and on again is not read as an edit.
     categoryIds: [...categoryIds].sort(),
     primaryCategoryId:
@@ -308,9 +335,11 @@ export function ListingDialog({
 
   /** What the window opened with, in exactly the shape a save sends. */
   const openedWith = React.useMemo(() => {
-    if (creating || createdId) return JSON.stringify(blankSnapshot())
-    return ready ? JSON.stringify(openedSnapshot(ready.data)) : null
-  }, [creating, createdId, ready])
+    if (creating || createdId) return JSON.stringify(blankSnapshot(customSections))
+    return ready
+      ? JSON.stringify(openedSnapshot(ready.data, customSections))
+      : null
+  }, [creating, createdId, customSections, ready])
   const dirty =
     openedWith !== null &&
     (creating || createdId !== null || seededFor === seedKey) &&
@@ -324,7 +353,13 @@ export function ListingDialog({
       parsedRating = listingRatingFromText(rating)
       coordinates = requireListingCoordinates(latitude, longitude)
     } catch (error) {
-      if (ratingTextIsInvalid(rating)) setRatingTouched(true)
+      if (ratingTextIsInvalid(rating)) {
+        setRatingTouched(true)
+        setBasicsOpen(true)
+      } else {
+        // The only other thing checked here is the pair of coordinates.
+        setLocationOpen(true)
+      }
       showErrorToast(
         error instanceof Error ? error.message : LISTING_RATING_ERROR
       )
@@ -371,6 +406,9 @@ export function ListingDialog({
       toast.success(listingId ? "Listing saved." : "Listing created.")
       onClose()
     } catch (error) {
+      // Everything the server refuses a listing over — a missing title, an
+      // address another listing already has — is in the first card.
+      setBasicsOpen(true)
       showErrorToast(getListingErrorMessage(error))
     } finally {
       setSaving(false)
@@ -421,15 +459,18 @@ export function ListingDialog({
               </div>
             ) : (
               <>
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>The listing</CardTitle>
-                    <CardDescription>
-                      The name, address and search wording. A draft is never
-                      shown to a visitor.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
+                <CollapsibleSettingsCard
+                  size="sm"
+                  storageId="listing-basics"
+                  collapse={{
+                    open: basicsOpen,
+                    onOpenChange: setBasicsOpen,
+                    noFlashKey: basicsNoFlash,
+                  }}
+                  title="The listing"
+                  description="The name, address and search wording. A draft is never shown to a visitor."
+                  contentClassName="grid gap-4"
+                >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                       <div className="grid gap-2 sm:flex-1">
                         <FieldLabel htmlFor="listing-title">Title</FieldLabel>
@@ -579,8 +620,7 @@ export function ListingDialog({
                         className="max-w-24"
                       />
                     </div>
-                  </CardContent>
-                </Card>
+                </CollapsibleSettingsCard>
 
                 <ListingDetailsFields
                   gallery={gallery}
@@ -592,19 +632,22 @@ export function ListingDialog({
                   onHoursChange={setHours}
                   onLatitudeChange={setLatitude}
                   onLongitudeChange={setLongitude}
+                  locationCollapse={{
+                    open: locationOpen,
+                    onOpenChange: setLocationOpen,
+                    noFlashKey: locationNoFlash,
+                  }}
                 />
 
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Categories</CardTitle>
-                    <CardDescription>
-                      {orderedCategories.length
-                        ? "Where visitors find it when browsing. The primary one is the category its breadcrumb names."
-                        : "No categories exist yet — create them on the Categories screen and they appear here."}
-                    </CardDescription>
-                  </CardHeader>
+                <CollapsibleSettingsCard
+                  size="sm"
+                  storageId="listing-categories"
+                  title="Categories"
+                  description="Where visitors find it when browsing. The primary one is the category its breadcrumb names."
+                  contentClassName="grid gap-4"
+                >
                   {orderedCategories.length ? (
-                    <CardContent className="grid gap-4">
+                    <>
                       <div className="grid gap-2">
                         {orderedCategories.map(({ category, depth }) => (
                           <div
@@ -680,19 +723,22 @@ export function ListingDialog({
                           </Select>
                         </div>
                       ) : null}
-                    </CardContent>
-                  ) : null}
-                </Card>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No categories exist yet — create them on the Categories
+                      screen and they appear here.
+                    </p>
+                  )}
+                </CollapsibleSettingsCard>
 
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Contact and links</CardTitle>
-                    <CardDescription>
-                      The street address, ways to reach the place, and its
-                      social profiles. Blank rows are dropped on save.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="grid gap-4">
+                <CollapsibleSettingsCard
+                  size="sm"
+                  storageId="listing-contact"
+                  title="Contact and links"
+                  description="The street address, ways to reach the place, and its social profiles. Blank rows are dropped on save."
+                  contentClassName="grid gap-4"
+                >
                     <div className="grid gap-2">
                       <FieldLabel
                         htmlFor="listing-address"
@@ -717,26 +763,30 @@ export function ListingDialog({
                       disabled={saving}
                       onChange={setSocialLinks}
                     />
-                  </CardContent>
-                </Card>
+                </CollapsibleSettingsCard>
 
-                <Card size="sm">
-                  <CardHeader>
-                    <CardTitle>Write-up</CardTitle>
-                    <CardDescription>
-                      The listing's own words: headings, lists, links and
-                      emphasis.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <DocumentEditor
-                      value={body}
-                      disabled={saving}
-                      onChange={setBody}
-                      placeholder="Write about this place…"
-                    />
-                  </CardContent>
-                </Card>
+                <CollapsibleSettingsCard
+                  size="sm"
+                  storageId="listing-write-up"
+                  title="Write-up"
+                  description="The listing's own words: headings, lists, links and emphasis."
+                >
+                  <DocumentEditor
+                    value={body}
+                    disabled={saving}
+                    onChange={setBody}
+                    placeholder="Write about this place…"
+                  />
+                </CollapsibleSettingsCard>
+
+                {/* Last, in the site's own order — the same place they sit on
+                    the public page, so the form reads like the result. */}
+                <ListingCustomFields
+                  sections={customSections}
+                  values={customValues}
+                  disabled={saving}
+                  onChange={setCustomValues}
+                />
               </>
             )}
           </DialogBody>
@@ -789,7 +839,7 @@ function treeOrder(
 }
 
 /** What a brand-new listing's form holds before anything is typed. */
-function blankSnapshot() {
+function blankSnapshot(customSections: CustomSection[]) {
   return {
     title: "",
     slug: "",
@@ -804,13 +854,17 @@ function blankSnapshot() {
     longitude: "",
     contactLinks: { address: "", menuLinks: [], socialLinks: [] },
     body: { type: "doc" as const, content: [] },
+    customValues: formCustomValues(customSections, {}),
     categoryIds: [] as string[],
     primaryCategoryId: null,
   }
 }
 
 /** The opened-with snapshot, in exactly the shape a save sends. */
-function openedSnapshot(data: ListingForEdit) {
+function openedSnapshot(
+  data: ListingForEdit,
+  customSections: CustomSection[]
+) {
   const { listing } = data
   return {
     title: listing.title,
@@ -826,6 +880,7 @@ function openedSnapshot(data: ListingForEdit) {
     longitude: listing.longitude === null ? "" : String(listing.longitude),
     contactLinks: listing.contactLinks,
     body: listing.body,
+    customValues: formCustomValues(customSections, listing.customValues),
     categoryIds: [...data.categoryIds].sort(),
     primaryCategoryId: data.primaryCategoryId,
   }
