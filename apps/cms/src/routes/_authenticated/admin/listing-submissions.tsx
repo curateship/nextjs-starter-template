@@ -9,10 +9,12 @@ import {
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { REVIEW_STATUSES, type ReviewStatus } from "@/lib/directory/review-status"
 import { readOpenSearch } from "@/lib/hooks/use-open-from-link"
-import { readOneOf, readPage } from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 type SubmissionsSearch = {
   status?: ReviewStatus
+  /** What was typed in the search box, matched against name and contact email. */
+  q?: string
   page?: number
   size?: number
   /** Which submission is open, so one can be linked to. */
@@ -30,6 +32,7 @@ function readSubmissionsSearch(
 ): SubmissionsSearch {
   return {
     status: readOneOf(search.status, REVIEW_STATUSES),
+    q: readSearchText(search.q),
     page: readPage(search.page),
     size: readOneOf(
       String(search.size),
@@ -50,6 +53,7 @@ export const Route = createFileRoute("/_authenticated/admin/listing-submissions"
     loader: ({ deps }) =>
       loadSubmissionsPage({
         status: deps.status,
+        search: deps.q,
         page: deps.page,
         limit: deps.size,
       }),

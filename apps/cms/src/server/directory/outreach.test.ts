@@ -62,7 +62,7 @@ describe("claim outreach", () => {
 
     expect(first.sent).toEqual([listing.id])
     expect(second.skipped).toEqual([listing.id])
-    expect((await outreachListings(site.id, database))[0]).toMatchObject({
+    expect((await outreachListings(site.id, {}, database)).listings[0]).toMatchObject({
       status: "sent",
       sendStatus: "sent",
     })
@@ -81,8 +81,8 @@ describe("claim outreach", () => {
       .toEqual([onAlpha.id])
     expect((await sendClaimOutreach(beta.id, admin.id, [onBeta.id], database)).skipped)
       .toEqual([onBeta.id])
-    expect((await outreachListings(alpha.id, database))[0]?.status).toBe("opted_out")
-    expect((await outreachListings(beta.id, database))[0]?.status).toBe("opted_out")
+    expect((await outreachListings(alpha.id, {}, database)).listings[0]?.status).toBe("opted_out")
+    expect((await outreachListings(beta.id, {}, database)).listings[0]?.status).toBe("opted_out")
   })
 
   it("only a signed link can record the permanent opt-out", async () => {
@@ -105,5 +105,81 @@ describe("claim outreach", () => {
     const admin = await insertUser(database, { role: "admin" })
     expect((await sendClaimOutreach(site.id, admin.id, [listing.id], database)).skipped)
       .toEqual([listing.id])
+  })
+})
+
+/**
+ * The ready list pages on the server now, and the address it filters on is
+ * worked out in SQL rather than in JavaScript. These say the SQL rule still
+ * matches the JavaScript one it replaced — a listing with no usable email must
+ * stay out of the list, and the count beside the page controls must be the
+ * whole total rather than the size of the page.
+ */
+describe("the ready list pages and counts on the server", () => {
+  it("leaves out a listing whose email is not a real address", async () => {
+    const site = await insertWorkspace(database, { name: "Alpha" })
+    await contactListing(site.id, "Good", "owner@example.com")
+    await contactListing(site.id, "No at sign", "not-an-address")
+    await contactListing(site.id, "No dot", "owner@example")
+
+    const { listings, total } = await outreachListings(site.id, {}, database)
+
+    expect(listings.map((row) => row.title)).toEqual(["Good"])
+    expect(total).toBe(1)
+  })
+
+  it("reads a mailto: address the same way the old code did", async () => {
+    const site = await insertWorkspace(database, { name: "Alpha" })
+    await contactListing(site.id, "Cafe", "MailTo:Owner@Example.com")
+
+    const { listings } = await outreachListings(site.id, {}, database)
+
+    expect(listings[0]?.email).toBe("owner@example.com")
+  })
+
+  it("counts the whole list, not the page it hands back", async () => {
+    const site = await insertWorkspace(database, { name: "Alpha" })
+    for (const name of ["A", "B", "C"]) {
+      await contactListing(site.id, name, `${name.toLowerCase()}@example.com`)
+    }
+
+    const first = await outreachListings(site.id, { limit: 2 }, database)
+    const second = await outreachListings(site.id, { limit: 2, offset: 2 }, database)
+
+    expect(first.listings.map((row) => row.title)).toEqual(["A", "B"])
+    expect(first.total).toBe(3)
+    expect(second.listings.map((row) => row.title)).toEqual(["C"])
+    expect(second.total).toBe(3)
+  })
+
+  it("still knows the total on a page past the end of the list", async () => {
+    const site = await insertWorkspace(database, { name: "Alpha" })
+    for (const name of ["A", "B", "C"]) {
+      await contactListing(site.id, name, `${name.toLowerCase()}@example.com`)
+    }
+
+    // Somebody edited `?page=` by hand. The table is empty, but the footer has
+    // to keep saying how many there really are or there is no way back.
+    const past = await outreachListings(site.id, { limit: 2, offset: 20 }, database)
+
+    expect(past.listings).toEqual([])
+    expect(past.total).toBe(3)
+  })
+
+  it("searches the title and the address, and stays inside its own site", async () => {
+    const alpha = await insertWorkspace(database, { name: "Alpha" })
+    const beta = await insertWorkspace(database, { name: "Beta" })
+    await contactListing(alpha.id, "Joe's Diner", "joe@example.com")
+    await contactListing(alpha.id, "Sam's Bar", "sam@example.com")
+    await contactListing(beta.id, "Joe's Other Diner", "joe@other.com")
+
+    const byTitle = await outreachListings(alpha.id, { search: "joe" }, database)
+    const byEmail = await outreachListings(alpha.id, { search: "sam@" }, database)
+
+    // Beta's Joe is not in either answer: the search narrows the site's own
+    // rows, it never reaches past the boundary.
+    expect(byTitle.listings.map((row) => row.title)).toEqual(["Joe's Diner"])
+    expect(byTitle.total).toBe(1)
+    expect(byEmail.listings.map((row) => row.title)).toEqual(["Sam's Bar"])
   })
 })

@@ -27,17 +27,55 @@ export function getOutreachErrorMessage(error: unknown) {
 
 const loadOutreachFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
-  .handler(async ({ context }) => {
+  .inputValidator(
+    z.object({
+      search: z.string().max(120).optional(),
+      page: z.number().int().min(1).max(10_000).optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+      historyPage: z.number().int().min(1).max(10_000).optional(),
+    })
+  )
+  .handler(async ({ data, context }) => {
     const site = await workspaceIdForRequest(context.user.id)
-    const [listings, history] = await Promise.all([
-      outreachListings(site),
-      outreachHistory(site),
+    const pageSize = data.limit ?? 50
+    const page = data.page ?? 1
+    const historyPage = data.historyPage ?? 1
+
+    // One search box drives both tables, so a term typed to find a business
+    // finds what was already written to it as well as what has not been.
+    const [ready, history] = await Promise.all([
+      outreachListings(site, {
+        search: data.search,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }),
+      outreachHistory(site, {
+        search: data.search,
+        limit: pageSize,
+        offset: (historyPage - 1) * pageSize,
+      }),
     ])
-    return { listings, history }
+
+    return {
+      listings: ready.listings,
+      total: ready.total,
+      page,
+      history: history.history,
+      historyTotal: history.total,
+      historyPage,
+      pageSize,
+    }
   })
 
-export function loadOutreach() {
-  return loadOutreachFn()
+export function loadOutreach(
+  input: {
+    search?: string
+    page?: number
+    limit?: number
+    historyPage?: number
+  } = {}
+) {
+  return loadOutreachFn({ data: input })
 }
 
 const sendOutreachFn = createServerFn({ method: "POST" })

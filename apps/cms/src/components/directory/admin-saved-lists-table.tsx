@@ -14,6 +14,7 @@ import {
   DashboardToolbarSearch,
 } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
+import { CharacterCount } from "@/components/shared/character-count"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -443,7 +444,10 @@ function AdminSavedListDialog({
               </CardHeader>
               <CardContent className="grid gap-4">
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="admin-saved-list-name">Name</FieldLabel>
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel htmlFor="admin-saved-list-name">Name</FieldLabel>
+                    <CharacterCount value={name} max={80} />
+                  </div>
                   <Input
                     id="admin-saved-list-name"
                     value={name}
@@ -492,7 +496,7 @@ function AdminSavedListDialog({
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon-sm"
+                          size="icon"
                           disabled={busy}
                           aria-label={`Remove ${item.title}`}
                           onClick={() => void onRemove(item.id)}

@@ -8,10 +8,12 @@ import {
 } from "@/lib/api/directory/claims"
 import { DASHBOARD_ROWS_PER_PAGE_OPTIONS } from "@/lib/custom-shell"
 import { REVIEW_STATUSES, type ReviewStatus } from "@/lib/directory/review-status"
-import { readOneOf, readPage } from "@/lib/nav/list-search"
+import { readOneOf, readPage, readSearchText } from "@/lib/nav/list-search"
 
 type ClaimsSearch = {
   status?: ReviewStatus
+  /** The search box, matched against listing title, claimant name and email. */
+  q?: string
   page?: number
   size?: number
   /** Which claim's window is open. */
@@ -39,6 +41,7 @@ function readClaimsSearch(search: Record<string, unknown>): ClaimsSearch {
 
   return {
     status: readOneOf(search.status, REVIEW_STATUSES),
+    q: readSearchText(search.q),
     page: readPage(search.page),
     size: readOneOf(
       String(search.size),
@@ -58,6 +61,7 @@ export const Route = createFileRoute("/_authenticated/admin/listing-claims")({
   loader: ({ deps }) =>
     loadClaimsScreen({
       status: deps.status,
+      search: deps.q,
       page: deps.page,
       limit: deps.size,
     }),

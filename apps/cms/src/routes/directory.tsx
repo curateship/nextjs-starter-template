@@ -110,6 +110,36 @@ function DirectoryRoute() {
     })
   }
 
+  // What the visitor asked for, in their own words. `category` is a slug in the
+  // address, so it is turned back into the name they clicked.
+  const categoryName = current.category
+    ? (categories.find((row) => row.slug === current.category)?.name ??
+      current.category)
+    : null
+  const anythingApplied = Boolean(current.q || current.category || current.near)
+
+  /*
+   * Two sentences, not one, and the difference is the whole point.
+   *
+   * With nothing applied the line describes the site: "5 listings on Alpha
+   * Guide" is true and useful. With a search on, the same shape becomes a lie —
+   * a search for something the site does not stock printed "0 listings on Alpha
+   * Guide", which reads as "this directory is empty" to a visitor who then
+   * leaves without seeing the five listings that are there.
+   *
+   * The search term is put in through JSX, so a term containing markup is drawn
+   * as the characters somebody typed and can never be anything else.
+   */
+  const counted = total === 0 ? "No listings" : `${total} ${plural(total, "listing", "listings")}`
+  const searchSummary = anythingApplied ? (
+    <>
+      {counted}
+      {current.q ? <> matching “{current.q}”</> : null}
+      {categoryName ? <> in {categoryName}</> : null}
+      {current.near && !current.q && !categoryName ? <> nearby</> : null}
+    </>
+  ) : null
+
   return (
     <DirectoryFrame>
       <header className="flex flex-col gap-1">
@@ -118,7 +148,11 @@ function DirectoryRoute() {
           <p className="text-sm text-muted-foreground">{browseIntro}</p>
         ) : null}
         <p className="text-sm text-muted-foreground">
-          {total} {plural(total, "listing", "listings")} on {site.name}
+          {searchSummary ?? (
+            <>
+              {total} {plural(total, "listing", "listings")} on {site.name}
+            </>
+          )}
         </p>
       </header>
 
@@ -142,6 +176,17 @@ function DirectoryRoute() {
           })
         }
         onRadiusChange={(radius) => setListSearch({ radius, page: undefined })}
+        onClearAll={() =>
+          setListSearch({
+            q: undefined,
+            category: undefined,
+            near: undefined,
+            place: undefined,
+            radius: undefined,
+            sort: undefined,
+            page: undefined,
+          })
+        }
         onNearClear={() =>
           setListSearch({
             near: undefined,

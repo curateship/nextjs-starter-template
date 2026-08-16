@@ -204,6 +204,7 @@ const loadSubmissionsPageFn = createServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       status: z.enum(REVIEW_STATUSES).optional(),
+      search: z.string().max(120).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -216,6 +217,7 @@ const loadSubmissionsPageFn = createServerFn({ method: "GET" })
     const [{ submissions, total }, waiting] = await Promise.all([
       listSubmissions(site, {
         status: data.status,
+        search: data.search,
         limit: pageSize,
         offset: (page - 1) * pageSize,
       }),
@@ -241,6 +243,7 @@ const loadSubmissionsPageFn = createServerFn({ method: "GET" })
 
 export function loadSubmissionsPage(input: {
   status?: ReviewStatus
+  search?: string
   page?: number
   limit?: number
 }) {

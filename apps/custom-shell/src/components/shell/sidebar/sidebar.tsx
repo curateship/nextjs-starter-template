@@ -175,7 +175,10 @@ export function AppSidebar({
           />
         )}
       </SidebarHeader>
-      <SidebarContent onDoubleClick={handleDoubleClick}>
+      <SidebarContent
+        aria-label="Main navigation"
+        onDoubleClick={handleDoubleClick}
+      >
         {sections.length ? (
           sections.map(({ section, entries }) => (
             <SidebarCollapsible

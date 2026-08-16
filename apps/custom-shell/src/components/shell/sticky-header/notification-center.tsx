@@ -7,7 +7,7 @@ import { BellIcon, CheckCheckIcon, Loader2Icon } from "lucide-react"
 import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
@@ -395,8 +395,8 @@ export function NotificationCenter({
                 </div>
               ) : canLoadHiddenUnread || error ? null : (
                 // A failed load leaves no rows either, and saying "none" there
-                // would be the same lie in a different place — the banner below
-                // is the only honest thing to show.
+                // would be the same lie in a different place — the error row
+                // below is the only honest thing to show.
                 <EmptyNotifications
                   // Nothing loaded at all is a different thing from having read
                   // everything, and the two deserve different words.
@@ -438,12 +438,13 @@ export function NotificationCenter({
               ) : null}
 
               {error ? (
-                <div className="mt-4">
-                  <ErrorBanner
-                    message={error}
-                    onRetry={() => void loadNotificationRows()}
-                  />
-                </div>
+                <ErrorRow
+                  className={cn(
+                    notifications.length === 0 ? "min-h-56" : "mt-4"
+                  )}
+                  message={error}
+                  onRetry={() => void loadNotificationRows()}
+                />
               ) : null}
             </div>
           </ScrollArea>

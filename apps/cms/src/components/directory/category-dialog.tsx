@@ -17,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CharacterCount } from "@/components/shared/character-count"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -217,12 +218,7 @@ export function CategoryDialog({
                     >
                       Meta description
                     </FieldLabel>
-                    <span
-                      aria-live="polite"
-                      className="text-xs text-muted-foreground"
-                    >
-                      {metaDescription.length}/300
-                    </span>
+                    <CharacterCount value={metaDescription} max={300} />
                   </div>
                   <Textarea
                     id="category-meta-description"

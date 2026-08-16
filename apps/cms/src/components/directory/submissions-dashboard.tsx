@@ -4,6 +4,7 @@ import { toast } from "sonner"
 
 import { SubmissionDialog } from "@/components/directory/submission-dialog"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,7 +27,7 @@ import {
   type ReviewStatus,
 } from "@/lib/directory/review-status"
 import { formatDate } from "@/lib/format/format-time"
-import { useListSearchNavigate } from "@/lib/nav/list-search"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 
 /**
  * The admin's submissions queue.
@@ -46,10 +47,16 @@ export function SubmissionsDashboard({
   search,
 }: {
   data: SubmissionsPage
-  search: { status?: ReviewStatus; open?: string }
+  search: { status?: ReviewStatus; q?: string; open?: string }
 }) {
   const router = useRouter()
   const setListSearch = useListSearchNavigate()
+  // The typed text stays in the box and the address catches up once typing
+  // pauses, so a shared link and a refresh both keep the search.
+  const [searchText, setSearchText] = useSearchBoxText(
+    search.q ?? "",
+    (value) => setListSearch({ q: value, page: undefined })
+  )
 
   const open = search.open
     ? (data.submissions.find((row) => row.id === search.open) ?? null)
@@ -83,6 +90,13 @@ export function SubmissionsDashboard({
                   : `${data.waiting} need review`}
               </button>
             ) : null}
+            <DashboardToolbarSearch
+              name="submission-search"
+              aria-label="Search submissions by business name or contact email"
+              placeholder="Search name or email…"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
             <Select
               value={search.status ?? "all"}
               onValueChange={(value) =>
@@ -127,9 +141,13 @@ export function SubmissionsDashboard({
         }
         isEmpty={data.submissions.length === 0}
         emptyText={
-          search.status
-            ? "Nothing with that status."
-            : "Nothing has been submitted yet."
+          // A search that found nothing is not an empty queue, and saying so
+          // stops the screen claiming the site has never had a submission.
+          search.q
+            ? `Nothing matches “${search.q}”. Clear the search to see everything.`
+            : search.status
+              ? "Nothing with that status."
+              : "Nothing has been submitted yet."
         }
         emptyColSpan={5}
         footer={{

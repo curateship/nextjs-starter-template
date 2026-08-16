@@ -5,7 +5,9 @@ import { toast } from "sonner"
 
 import { ClaimDialog } from "@/components/directory/claim-dialog"
 import { EditRequestDialog } from "@/components/directory/edit-request-dialog"
+import { CharacterCount } from "@/components/shared/character-count"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -44,7 +46,7 @@ import {
 } from "@/lib/directory/review-status"
 import { formatDate } from "@/lib/format/format-time"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
-import { useListSearchNavigate } from "@/lib/nav/list-search"
+import { useListSearchNavigate, useSearchBoxText } from "@/lib/nav/list-search"
 
 /**
  * Claims, the changes owners have asked for, and what this site says about
@@ -62,10 +64,16 @@ export function ClaimsDashboard({
   search,
 }: {
   data: ClaimsScreen
-  search: { status?: ReviewStatus; open?: string; request?: string }
+  search: { status?: ReviewStatus; q?: string; open?: string; request?: string }
 }) {
   const router = useRouter()
   const setListSearch = useListSearchNavigate()
+  // The typed text stays in the box and the address catches up once typing
+  // pauses, so a shared link and a refresh both keep the search.
+  const [searchText, setSearchText] = useSearchBoxText(
+    search.q ?? "",
+    (value) => setListSearch({ q: value, page: undefined })
+  )
 
   const openClaim = search.open
     ? (data.claims.find((row) => row.id === search.open) ?? null)
@@ -100,6 +108,13 @@ export function ClaimsDashboard({
                   : `${data.waitingClaims} need review`}
               </button>
             ) : null}
+            <DashboardToolbarSearch
+              name="claim-search"
+              aria-label="Search claims by listing, claimant name or email"
+              placeholder="Search listing, name or email…"
+              value={searchText}
+              onChange={(event) => setSearchText(event.target.value)}
+            />
             <Select
               value={search.status ?? "all"}
               onValueChange={(value) =>
@@ -144,9 +159,13 @@ export function ClaimsDashboard({
         }
         isEmpty={data.claims.length === 0}
         emptyText={
-          search.status
-            ? "Nothing with that status."
-            : "Nobody has claimed a listing yet."
+          // A search that found nothing is not an empty screen, and saying so
+          // stops it claiming the site has never had a claim.
+          search.q
+            ? `Nothing matches “${search.q}”. Clear the search to see everything.`
+            : search.status
+              ? "Nothing with that status."
+              : "Nobody has claimed a listing yet."
         }
         emptyColSpan={5}
         footer={{
@@ -349,7 +368,10 @@ function ClaimSettingsCard({ settings }: { settings: ClaimsScreen["settings"] })
           </FieldLabel>
         </div>
         <div className="grid gap-2">
-          <FieldLabel htmlFor="claim-label">Button</FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor="claim-label">Button</FieldLabel>
+            <CharacterCount value={label} max={80} />
+          </div>
           <Input
             id="claim-label"
             maxLength={80}
@@ -360,9 +382,12 @@ function ClaimSettingsCard({ settings }: { settings: ClaimsScreen["settings"] })
           />
         </div>
         <div className="grid gap-2">
-          <FieldLabel htmlFor="claim-pending">
-            While a request is being read
-          </FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor="claim-pending">
+              While a request is being read
+            </FieldLabel>
+            <CharacterCount value={pending} max={300} />
+          </div>
           <Textarea
             id="claim-pending"
             rows={1}
@@ -373,9 +398,12 @@ function ClaimSettingsCard({ settings }: { settings: ClaimsScreen["settings"] })
           />
         </div>
         <div className="grid gap-2">
-          <FieldLabel htmlFor="claim-approved">
-            To the owner, once it is theirs
-          </FieldLabel>
+          <div className="flex items-center justify-between gap-2">
+            <FieldLabel htmlFor="claim-approved">
+              To the owner, once it is theirs
+            </FieldLabel>
+            <CharacterCount value={approved} max={300} />
+          </div>
           <Textarea
             id="claim-approved"
             rows={1}

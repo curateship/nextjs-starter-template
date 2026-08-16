@@ -19,6 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { CharacterCount } from "@/components/shared/character-count"
+import { CLAIM_MESSAGE_MAX } from "@/lib/directory/field-lengths"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -281,10 +283,14 @@ function ClaimDialog({
                   />
                 </div>
                 <div className="grid gap-2">
-                  <FieldLabel htmlFor="claim-message">Message</FieldLabel>
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel htmlFor="claim-message">Message</FieldLabel>
+                    <CharacterCount value={message} max={CLAIM_MESSAGE_MAX} />
+                  </div>
                   <Textarea
                     id="claim-message"
                     rows={1}
+                    maxLength={CLAIM_MESSAGE_MAX}
                     value={message}
                     disabled={sending}
                     onChange={(event) => setMessage(event.target.value)}

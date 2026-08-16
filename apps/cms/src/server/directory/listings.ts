@@ -16,6 +16,7 @@ import {
   cleanContactLinks,
   type ContactLinks,
 } from "@/lib/directory/contact-links"
+import { LISTING_META_DESCRIPTION_MAX } from "@/lib/directory/field-lengths"
 import { slugFromTitle, slugProblem } from "@/lib/directory/slugs"
 import {
   isListingRating,
@@ -422,7 +423,9 @@ export async function updateListing(
     values.slug = slug
   }
   if (input.metaDescription !== undefined) {
-    values.metaDescription = input.metaDescription.trim().slice(0, 300)
+    values.metaDescription = input.metaDescription
+      .trim()
+      .slice(0, LISTING_META_DESCRIPTION_MAX)
   }
   if (input.rating !== undefined) {
     if (input.rating !== null && !isListingRating(input.rating)) {

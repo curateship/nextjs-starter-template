@@ -10,6 +10,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { CharacterCount } from "@/components/shared/character-count"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -148,10 +149,16 @@ export function ListingSubmissionForm({ form }: { form: SubmissionForm }) {
             const id = `submission-${field.name}`
             return (
               <div key={field.name} className="grid gap-2">
-                <FieldLabel htmlFor={id} hint={field.hint}>
-                  {field.label}
-                  {field.required ? "" : " (optional)"}
-                </FieldLabel>
+                <div className="flex items-center justify-between gap-2">
+                  <FieldLabel htmlFor={id} hint={field.hint}>
+                    {field.label}
+                    {field.required ? "" : " (optional)"}
+                  </FieldLabel>
+                  <CharacterCount
+                    value={values[field.name]}
+                    max={field.maxLength}
+                  />
+                </div>
                 {field.multiline ? (
                   <Textarea
                     id={id}

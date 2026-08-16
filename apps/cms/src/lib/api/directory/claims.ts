@@ -141,6 +141,7 @@ const loadClaimsScreenFn = createServerFn({ method: "GET" })
     z.object({
       status: z.enum(REVIEW_STATUSES).optional(),
       requestStatus: z.enum(EDIT_REQUEST_STATUSES).optional(),
+      search: z.string().max(120).optional(),
       page: z.number().int().min(1).max(10_000).optional(),
       limit: z.number().int().min(1).max(200).optional(),
     })
@@ -154,6 +155,7 @@ const loadClaimsScreenFn = createServerFn({ method: "GET" })
       await Promise.all([
         listClaims(site, {
           status: data.status,
+          search: data.search,
           limit: pageSize,
           offset: (page - 1) * pageSize,
         }),
@@ -178,6 +180,7 @@ const loadClaimsScreenFn = createServerFn({ method: "GET" })
 export function loadClaimsScreen(input: {
   status?: ReviewStatus
   requestStatus?: EditRequestStatus
+  search?: string
   page?: number
   limit?: number
 }) {

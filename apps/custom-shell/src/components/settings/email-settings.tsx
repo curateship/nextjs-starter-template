@@ -6,11 +6,13 @@ import { CollapsibleSettingsCard } from "@/components/settings/collapsible-setti
 import { DripSettingsFields } from "@/components/shared/drip-settings-fields"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
-import { CardGroup } from "@/components/ui/card"
+import { Card, CardGroup } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import { LoadingRow } from "@/components/ui/loading-row"
+import { NumberField } from "@/components/ui/number-field"
 import {
   Tooltip,
   TooltipContent,
@@ -411,6 +413,23 @@ export function EmailSettings() {
   const showWebhookSentinel =
     !webhookDraft && editing !== "webhook" && Boolean(status?.webhookConfigured)
 
+  if (loadError) {
+    return (
+      <CardGroup>
+        <Card>
+          <ErrorRow
+            className="min-h-32"
+            message={loadError}
+            onRetry={() => {
+              setLoadError(null)
+              setReloads((count) => count + 1)
+            }}
+          />
+        </Card>
+      </CardGroup>
+    )
+  }
+
   return (
     <CardGroup>
       <CollapsibleSettingsCard
@@ -419,15 +438,11 @@ export function EmailSettings() {
         description="Every email goes through Resend with this key. Choose one sender for sign-in, reset, and security emails, and another for this workspace's newsletters and automation emails."
         contentClassName="space-y-6"
       >
-        {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
+        {!status || !sender ? (
+          <LoadingRow
+            label="Loading email sending settings…"
+            className="min-h-[29rem] sm:min-h-[26.5rem]"
           />
-        ) : !status || !sender ? (
-          <div className="flex justify-center p-6">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
         ) : (
           <>
             <EmailStatusHeader status={status} />
@@ -637,7 +652,7 @@ export function EmailSettings() {
               flushLinkExpirySave()
             }}
           >
-            <ExpiryField
+            <NumberField
               id="verification-link-expiry"
               label="Email verification (hours)"
               hint="From 1 hour to 7 days. This also controls verification reminder links."
@@ -651,7 +666,7 @@ export function EmailSettings() {
               }}
               onCommit={flushLinkExpirySave}
             />
-            <ExpiryField
+            <NumberField
               id="password-reset-link-expiry"
               label="Password reset (minutes)"
               hint="From 5 minutes to 24 hours. This also controls links for accounts created by an admin."
@@ -665,7 +680,7 @@ export function EmailSettings() {
               }}
               onCommit={flushLinkExpirySave}
             />
-            <ExpiryField
+            <NumberField
               id="sign-in-link-expiry"
               label="Sign-in link (minutes)"
               hint="From 5 to 60 minutes. Shorter is safer because this link signs somebody straight in."
@@ -679,7 +694,7 @@ export function EmailSettings() {
               }}
               onCommit={flushLinkExpirySave}
             />
-            <ExpiryField
+            <NumberField
               id="email-change-link-expiry"
               label="Email change (hours)"
               hint="From 1 hour to 7 days. The confirmation and cancellation links use the same limit."
@@ -694,10 +709,11 @@ export function EmailSettings() {
               onCommit={flushLinkExpirySave}
             />
           </div>
-        ) : loadError ? null : (
-          <div className="flex justify-center p-6">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
+        ) : (
+          <LoadingRow
+            label="Loading link expiry settings…"
+            className="min-h-[16.5rem] sm:min-h-[7.75rem]"
+          />
         )}
       </CollapsibleSettingsCard>
 
@@ -728,10 +744,11 @@ export function EmailSettings() {
               }}
             />
           </div>
-        ) : loadError ? null : (
-          <div className="flex justify-center p-6">
-            <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-          </div>
+        ) : (
+          <LoadingRow
+            label="Loading newsletter sending settings…"
+            className="min-h-13 py-2"
+          />
         )}
       </CollapsibleSettingsCard>
 
@@ -757,81 +774,6 @@ export function EmailSettings() {
         }}
       />
     </CardGroup>
-  )
-}
-
-function ExpiryField({
-  id,
-  label,
-  hint,
-  value,
-  min,
-  max,
-  onChange,
-  onCommit,
-}: {
-  id: string
-  label: string
-  hint: string
-  value: number
-  min: number
-  max: number
-  onChange: (value: number) => void
-  onCommit: () => void
-}) {
-  const [savedValue, setSavedValue] = React.useState(value)
-  const [draft, setDraft] = React.useState(String(value))
-
-  if (savedValue !== value) {
-    setSavedValue(value)
-    setDraft(String(value))
-  }
-
-  const parsed = Number(draft)
-  const valid =
-    draft.trim() !== "" &&
-    Number.isInteger(parsed) &&
-    parsed >= min &&
-    parsed <= max
-
-  return (
-    <div className="grid gap-2">
-      <FieldLabel htmlFor={id} hint={hint}>
-        {label}
-      </FieldLabel>
-      <Input
-        id={id}
-        type="number"
-        inputMode="numeric"
-        min={min}
-        max={max}
-        value={draft}
-        aria-invalid={!valid || undefined}
-        onChange={(event) => {
-          const next = event.target.value
-          setDraft(next)
-          const number = Number(next)
-          if (
-            next.trim() !== "" &&
-            Number.isInteger(number) &&
-            number >= min &&
-            number <= max
-          ) {
-            onChange(number)
-          }
-        }}
-        onBlur={() => {
-          if (!valid) {
-            showErrorToast(
-              `Enter a whole number from ${min} to ${max}. The last valid value is still in use.`
-            )
-          }
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" && valid) onCommit()
-        }}
-      />
-    </div>
   )
 }
 

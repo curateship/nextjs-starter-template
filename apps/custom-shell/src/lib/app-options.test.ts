@@ -18,6 +18,7 @@ import {
   capitalise,
   workspaceWord,
 } from "@/lib/app-options"
+import { workspaceAddress } from "@/lib/workspaces/addresses"
 import { defineNode } from "@/lib/automations/node-descriptor"
 
 /**
@@ -168,6 +169,19 @@ describe("what an app calls a workspace", () => {
     // Written lower case and raised where a heading needs it, so an app never
     // has to write the same word twice in two shapes.
     expect(capitalise(word.many)).toBe("Sites")
+  })
+
+  it("leaves the address stand-in saying workspace until an app hands its own word in", () => {
+    expect(workspaceAddress("", "example.com")).toBe(
+      "your-workspace.example.com"
+    )
+    expect(workspaceAddress("", "example.com", "your-site")).toBe(
+      "your-site.example.com"
+    )
+    // A typed address always wins over the stand-in.
+    expect(workspaceAddress("alpha", "example.com", "your-site")).toBe(
+      "alpha.example.com"
+    )
   })
 })
 
