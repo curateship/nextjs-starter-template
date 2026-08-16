@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
@@ -74,6 +74,8 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
     }): Promise<{
       positions: PaperPosition[]
       orders: PaperOrder[]
+      /** Every visible fill, including entries for positions still open. */
+      fills: LiveFill[]
       /** Finished round trips, newest first — what the Journal tab draws. */
       trades: LiveTrade[]
       smartOrders: SmartOrder[]

@@ -19,6 +19,7 @@ const OPTIONS: { key: keyof ChartOptions; label: string }[] = [
   { key: "grid", label: "Chart grid" },
   { key: "volume", label: "Volume" },
   { key: "crosshair", label: "Crosshair" },
+  { key: "orderArrows", label: "Order arrows" },
 ]
 
 /** The eye beside Indicators controls which supporting chart parts are shown. */

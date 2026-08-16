@@ -3,6 +3,12 @@ import * as React from "react"
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
+export const workspacePanelHeadingClassName =
+  "font-heading text-[0.891rem] leading-snug font-medium"
+
+export const workspacePanelTabClassName =
+  "font-heading text-[0.792rem] font-medium"
+
 export function WorkspacePanelHeaderIcon({
   className,
   children,
@@ -55,7 +61,7 @@ export function WorkspacePanelHeader({
       )}
     >
       <WorkspacePanelHeaderIcon>{icon}</WorkspacePanelHeaderIcon>
-      <h2 className="font-heading min-w-0 truncate text-[0.99rem] leading-snug font-medium">
+      <h2 className={cn("min-w-0 truncate", workspacePanelHeadingClassName)}>
         {title}
       </h2>
       {meta ? (
@@ -96,7 +102,8 @@ export function WorkspacePanelTab({
   return (
     <TabsTrigger
       className={cn(
-        "group/panel-tab h-full flex-none rounded-none border-b-2 border-transparent px-0.5 font-heading text-[0.88rem] font-medium text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        "group/panel-tab h-full flex-none rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        workspacePanelTabClassName,
         className
       )}
       {...props}

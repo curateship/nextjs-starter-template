@@ -52,7 +52,7 @@ import type {
   SmartLadder,
   SmartOrder,
 } from "@/lib/trade/smart-plan"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type {
   PaperOrder,
   PaperPosition,
@@ -106,6 +106,7 @@ function getTradingSmartOrderError(error: unknown): string {
 
 /** One list, so a poll that finds nothing does not hand the panel a new array. */
 const EMPTY_TRADES: LiveTrade[] = []
+const EMPTY_FILLS: LiveFill[] = []
 
 export type Trading = {
   /** The wallet an order placed right now would go to, or null until one is picked. */
@@ -120,6 +121,8 @@ export type Trading = {
    * heard of.
    */
   placing: PaperOrder[]
+  /** Every visible execution, including entries for positions still open. */
+  fills: LiveFill[]
   /**
    * Finished round trips, newest first — the Journal tab. Practice and real
    * in one list, each row saying which it was, because the question you ask a
@@ -264,6 +267,7 @@ export type Trading = {
 type PaperAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
+  fills: LiveFill[]
   trades: LiveTrade[]
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
@@ -272,6 +276,7 @@ type PaperAnswer = {
 type LiveAnswer = {
   positions: PaperPosition[]
   orders: PaperOrder[]
+  fills: LiveFill[]
   trades: LiveTrade[]
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
@@ -441,6 +446,14 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       (left, right) => right.closedAt - left.closedAt
     )
   }, [paperAnswer, liveAnswer])
+
+  const fills = React.useMemo(
+    () => [
+      ...(paperAnswer?.fills ?? EMPTY_FILLS),
+      ...(liveAnswer?.fills ?? EMPTY_FILLS),
+    ],
+    [paperAnswer, liveAnswer]
+  )
 
   const orders = React.useMemo(() => {
     if (dropped.size === 0) return allOrders
@@ -879,6 +892,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     positions,
     orders,
     placing,
+    fills,
     trades,
     smartOrders,
     ladders,
