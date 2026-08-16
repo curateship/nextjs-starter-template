@@ -15,6 +15,7 @@ import {
   type LadderPlan,
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
+import type { SignalPlan } from "@/lib/trade/signal-order"
 import { readSmartOrderKind, readSmartPlan } from "@/lib/trade/smart-plan"
 import {
   holdUntil,
@@ -31,6 +32,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
 import { advanceGrid, type GridRow } from "./smart-grids"
+import { advanceSignal } from "./smart-signals"
 import {
   aimStop,
   INTERVAL_MS,
@@ -248,6 +250,14 @@ export async function advanceLadders(
         plan: plan as GridPlan,
       }
       await advanceGrid(input, withDatabase, row)
+      continue
+    }
+    if (kind === "signal") {
+      await advanceSignal(input, withDatabase, {
+        id: raw.id,
+        marketKey: raw.marketKey,
+        plan: plan as SignalPlan,
+      })
       continue
     }
     const row: LadderRow = {

@@ -24,6 +24,7 @@ import type {
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 
 /**
  * The whole run in tiles, down the left: what it made, what it cost you on the
@@ -274,12 +275,44 @@ export function BacktestStatsPanel({
 
               <dl className="grid gap-1 border-t pt-3 text-[11px]">
                 <Line label="Window" value={`${spec.days} ${plural(spec.days, "day", "days")} of ${spec.interval}`} />
-                <Line label="Rungs" value={String(spec.params.rungs.length)} />
-                <Line
-                  label="Most of the pot, per coin"
-                  value={`${spec.params.maxPositionPct}%`}
-                />
-                <Line label="Size ramp" value={`${spec.params.sizeMultiplier}×`} />
+                {/* What the run tested, in the words of whichever strategy it
+                    was. A signals run has no rungs and no ramp, and showing
+                    those as zeroes would read as a ladder that did nothing. */}
+                {spec.strategy.kind === "dca" ? (
+                  <>
+                    <Line
+                      label="Rungs"
+                      value={String(spec.strategy.params.rungs.length)}
+                    />
+                    <Line
+                      label="Most of the pot, per coin"
+                      value={`${spec.strategy.params.maxPositionPct}%`}
+                    />
+                    <Line
+                      label="Size ramp"
+                      value={`${spec.strategy.params.sizeMultiplier}×`}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Line
+                      label="Indicators"
+                      value={String(signalIndicatorsOn(spec.strategy.indicators))}
+                    />
+                    <Line
+                      label="Per coin, per arrow"
+                      value={`${spec.strategy.stakePct}%`}
+                    />
+                    <Line
+                      label="Follows a price that runs"
+                      value={
+                        spec.strategy.chaseGiveUp === 0
+                          ? "Not at all"
+                          : `Up to ${(spec.strategy.chaseGiveUp * 100).toFixed(2).replace(/\.?0+$/, "")}%`
+                      }
+                    />
+                  </>
+                )}
                 <Line
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}

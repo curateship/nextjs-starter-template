@@ -3,11 +3,14 @@ import { describe, expect, it } from "vitest"
 import type { IndicatorCandle } from "@/lib/trade/indicators/contract"
 import {
   INDICATOR_LIST,
+  SIGNAL_INDICATORS,
   defaultIndicatorSettings,
   indicatorPaint,
   indicatorSettingsSchema,
+  indicatorSignals,
   indicatorsOn,
   readIndicatorSettings,
+  signalIndicatorsOn,
 } from "@/lib/trade/indicators/registry"
 
 const HOUR = 3_600_000
@@ -170,5 +173,48 @@ describe("the indicator library", () => {
       indicatorSettingsSchema.safeParse({ base: { params: manySettings } })
         .success
     ).toBe(false)
+  })
+})
+
+describe("asking the library for signals", () => {
+  it("offers only the indicators that can actually call a trade", () => {
+    // A shorter list than the library is allowed and expected. What is not
+    // allowed is an indicator appearing here without a way to answer.
+    for (const module of SIGNAL_INDICATORS) {
+      expect(module.signals).toBeDefined()
+      expect(INDICATOR_LIST).toContain(module)
+    }
+  })
+
+  it("says nothing while every indicator is switched off", () => {
+    expect(indicatorSignals(defaultIndicatorSettings(), CANDLES)).toEqual([])
+    expect(signalIndicatorsOn(defaultIndicatorSettings())).toBe(0)
+  })
+
+  it("answers the switched-on ones, and counts them", () => {
+    const settings = readIndicatorSettings({
+      base: { on: true, params: { searchBars: 4, holdBars: 1, minBarsApart: 1 } },
+    })
+    expect(signalIndicatorsOn(settings)).toBe(1)
+    const called = indicatorSignals(settings, CANDLES)
+    expect(called).toEqual([{ time: 5 * HOUR, side: "buy" }])
+  })
+
+  it("answers an empty list rather than throwing on no candles", () => {
+    // The panel and the engine both ask this while prices are still arriving.
+    const settings = readIndicatorSettings({ base: { on: true, params: {} } })
+    expect(indicatorSignals(settings, [])).toEqual([])
+  })
+
+  it("hands back one moment per indicator, never a merged one", () => {
+    // Two indicators calling the same candle is two signals. Merging them here
+    // would be the registry inventing a rule nobody asked it for; what to do
+    // about a crowded moment belongs to whatever is trading.
+    const settings = readIndicatorSettings({
+      base: { on: true, params: { searchBars: 4, holdBars: 1, minBarsApart: 1 } },
+    })
+    const called = indicatorSignals(settings, CANDLES)
+    const times = called.map((one) => one.time)
+    expect(times).toEqual([...times].sort((a, b) => a - b))
   })
 })

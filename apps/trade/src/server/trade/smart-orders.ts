@@ -16,6 +16,7 @@ import {
   type LadderRungState,
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
+import type { SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
   readSmartPlan,
@@ -715,7 +716,9 @@ export async function listActiveSmartOrders(
     orders.push(
       kind === "grid"
         ? { ...shared, kind, plan: plan as GridPlan }
-        : { ...shared, kind, plan: plan as LadderPlan }
+        : kind === "signal"
+          ? { ...shared, kind, plan: plan as SignalPlan }
+          : { ...shared, kind, plan: plan as LadderPlan }
     )
   }
   return orders

@@ -8,6 +8,7 @@ import {
   type IndicatorModule,
   type IndicatorPaint,
   type IndicatorParams,
+  type IndicatorSignal,
 } from "@/lib/trade/indicators/contract"
 
 /**
@@ -22,6 +23,21 @@ import {
 
 /** The whole library, in the order the menu lists them. */
 export const INDICATOR_LIST: readonly IndicatorModule[] = [baseIndicator]
+
+/**
+ * The ones that call trades, in the same order.
+ *
+ * **A shorter list than the library, and it has to be able to be.** An
+ * indicator that only marks where something is has nothing to say about buying
+ * it, and offering it on a step that trades signals would be a switch that
+ * quietly does nothing — the worst kind, because it looks armed.
+ *
+ * Worked out from the modules themselves rather than written down a second
+ * time, so an indicator that gains a `signals` function appears here without
+ * anybody remembering to add it.
+ */
+export const SIGNAL_INDICATORS: readonly IndicatorModule[] =
+  INDICATOR_LIST.filter((module) => module.signals !== undefined)
 
 /**
  * The most indicators, or settings on one, a save may name.
@@ -147,6 +163,60 @@ export function indicatorPaint(
     paint.marks.push(...drawn.marks)
   }
   return paint
+}
+
+/**
+ * Every buy and sell moment the switched-on indicators call over these candles,
+ * in the order they happened.
+ *
+ * The signal twin of `indicatorPaint`, and read the same way: hand it whatever
+ * is stored and it answers for the indicators that are on and no others.
+ *
+ * **Two indicators calling the same moment come back as two signals**, not one.
+ * Merging them here would be this function inventing a rule — "both agreeing
+ * counts once" — that nothing asked it for. Whatever is trading decides what to
+ * do with a crowded moment; this only reports it.
+ */
+export function indicatorSignals(
+  settings: IndicatorSettings,
+  candles: IndicatorCandle[]
+): IndicatorSignal[] {
+  const signals: IndicatorSignal[] = []
+  if (candles.length === 0) return signals
+  for (const module of SIGNAL_INDICATORS) {
+    if (!settings[module.kind]?.on) continue
+    signals.push(...(module.signals?.(candles, settings[module.kind].params) ?? []))
+  }
+  return signals.sort((a, b) => a.time - b.time)
+}
+
+/**
+ * The most history any switched-on indicator needs before it can speak.
+ *
+ * The largest rather than the sum: they all read the same candles, so the one
+ * that looks furthest back decides how far back the candles have to go.
+ *
+ * Zero when nothing is on, or when the ones that are ask for nothing.
+ */
+export function indicatorWarmupBars(settings: IndicatorSettings): number {
+  let most = 0
+  for (const module of SIGNAL_INDICATORS) {
+    if (!settings[module.kind]?.on) continue
+    most = Math.max(most, module.warmupBars?.(settings[module.kind].params) ?? 0)
+  }
+  return most
+}
+
+/**
+ * How many switched-on indicators can actually call a trade.
+ *
+ * Separate from `indicatorsOn` because they answer different questions: that
+ * one is "how many am I looking at", this one is "how many are trading". A step
+ * with the count at zero is a step that will never buy anything, and it has to
+ * be able to say so.
+ */
+export function signalIndicatorsOn(settings: IndicatorSettings): number {
+  return SIGNAL_INDICATORS.filter((module) => settings[module.kind]?.on).length
 }
 
 /** How many are switched on — the count beside the menu's name. */

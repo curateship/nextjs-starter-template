@@ -114,6 +114,11 @@ const JUST_WAITING: Record<string, string> = {
   SMART_LADDER_UNDER_BASE: "Price has already fallen through the base",
   SMART_LADDER_ABOVE_MARKET: "Price is below every rung, so there is nothing to wait for",
   SMART_LADDER_EXISTS: "Already has a ladder working",
+  // The signals flow's own. All three are the strategy working, and all three
+  // are about ONE coin — so none of them count towards the back-off, for the
+  // same reason "no base yet" does not.
+  SIGNAL_NONE_YET: "Waiting for an arrow",
+  SIGNAL_RAN_AWAY: "Price ran away before it could buy",
 }
 
 /** The refusals somebody has to act on, and what they would do about it. */

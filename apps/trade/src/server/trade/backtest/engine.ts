@@ -8,11 +8,19 @@ import type {
 import type { DcaBaseDetection } from "@/lib/trade/dca"
 import {
   BASE_STOP_BAR_MS,
+  MIN_ORDER_USD,
+  baseStopDetection,
+  floorSize,
   ladderExitLevels,
   type DcaParams,
 } from "@/lib/trade/dca"
 import { marketIsCascading } from "@/lib/trade/cascade"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
+import type { IndicatorSignal } from "@/lib/trade/indicators/contract"
+import {
+  indicatorSignals,
+  type IndicatorSettings,
+} from "@/lib/trade/indicators/registry"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
 import {
   paperAccountFigures,
@@ -41,6 +49,7 @@ import {
   type LadderEngineDeps,
   type LadderRow,
 } from "@/server/trade/smart-ladders"
+import { advanceSignal, type SignalRow } from "@/server/trade/smart-signals"
 
 /**
  * Replaying a strategy over stored candles — the backtest itself.
@@ -82,16 +91,46 @@ export type BacktestCoin = {
   bars: readonly CandleBar[]
   /** 4h bars from before the window as well, for the base rule. */
   baseBars: readonly CandleBar[]
+  /**
+   * Candles from BEFORE the window, at the run's own interval, for a signals
+   * run — so its indicators can see far enough back to speak about the window's
+   * first bars. Empty on a ladder run, which reads its history off `baseBars`.
+   *
+   * **What it prevents is a run that reports a flat line.** An indicator handed
+   * only the stretch being tested cannot say anything about its first candles,
+   * so the run silently tested less than it claimed — and with a long search
+   * over a short window, nothing at all, while still printing a result.
+   */
+  warmupBars?: readonly CandleBar[]
   /** Historical settlements inside the run window, oldest first. */
   funding: readonly FundingRate[]
 }
+
+/**
+ * What the run is testing.
+ *
+ * A union rather than two fields, so a walk that reads a ladder's rungs out of
+ * a signals run cannot compile. The candle size stays outside it: both need
+ * one, and the merge of every coin's bar times is built from it before either
+ * strategy is asked anything.
+ */
+export type BacktestStrategy =
+  | { kind: "dca"; params: DcaParams }
+  | {
+      kind: "signals"
+      indicators: IndicatorSettings
+      /** What one buy signal spends, as a share of the pot. */
+      stakePct: number
+      /** How far a buy follows a price that runs, as a share of it. */
+      chaseGiveUp: number
+    }
 
 export type BacktestRunInput = {
   protocol: ProtocolId
   network: NetworkId
   startingUsd: number
   costs: PaperCosts
-  params: DcaParams
+  strategy: BacktestStrategy
   interval: CandleInterval
   coins: readonly BacktestCoin[]
   from: number
@@ -163,8 +202,11 @@ export async function runBacktest(
 ): Promise<BacktestRunOutcome> {
   const protocol = getProtocol(input.protocol)
   const barMs = protocol.markets.intervalMs(input.interval)
-  // The flow's own two numbers, not the indicator's factory pair.
-  const detection = input.params.baseDetection
+  const ladder = input.strategy.kind === "dca" ? input.strategy : null
+  const signals = input.strategy.kind === "signals" ? input.strategy : null
+  // The flow's own two numbers, not the indicator's factory pair. A signals run
+  // has no base stop to ride, so it needs none.
+  const detection = ladder?.params.baseDetection ?? baseStopDetection()
 
   const book: WalletBook = {
     wallet: backtestWallet(input),
@@ -186,8 +228,11 @@ export async function runBacktest(
   // The practice wallet's fifty is a guard against a person forgetting orders
   // on a chart; applied to a replay it silently capped the run at the first
   // fourteen coins in the alphabet and left the rest untested.
+  // A signals run holds at most one order per coin, so one apiece is already
+  // generous; a ladder holds a rung and its exit for every rung it drew.
   const orderCap =
-    input.coins.length * (input.params.rungs.length + 2) + MAX_OPEN_ORDERS
+    input.coins.length * ((ladder?.params.rungs.length ?? 0) + 2) +
+    MAX_OPEN_ORDERS
 
   const coins = [...input.coins].sort((left, right) =>
     left.marketKey.localeCompare(right.marketKey)
@@ -200,6 +245,19 @@ export async function runBacktest(
 
   /** Every ladder still working, one per coin at most. */
   const ladders = new Map<string, LadderRow>()
+  /** Every signal trade still working, on a signals run. Also one per coin. */
+  const trades = new Map<string, SignalRow>()
+  /**
+   * How far through each coin's arrows the walk has read.
+   *
+   * A forward-only cursor, and not an optimisation — the difference between
+   * finishing and not. The signals are worked out ONCE per coin, up front,
+   * because the rule only ever looks backwards: the arrow at candle 40 is
+   * decided by candles 0 to 40 and candle 41 cannot change it. Asking again per
+   * bar is what took the server down when the base did it.
+   */
+  const signalsPerCoin = new Map<string, readonly IndicatorSignal[]>()
+  const signalCursor = new Map<string, number>()
 
   const deps: LadderEngineDeps = {
     fill,
@@ -238,10 +296,13 @@ export async function runBacktest(
       return id
     },
     saveLadder: async (row, status) => {
-      // Nothing is written down. A ladder that finished stops being worked and
-      // the coin is free to arm a fresh one, which is the whole of what
+      // Nothing is written down. A smart order that finished stops being worked
+      // and the coin is free to start a fresh one, which is the whole of what
       // "saving" means inside a replay.
-      if (status === "done") ladders.delete(row.marketKey)
+      if (status === "done") {
+        ladders.delete(row.marketKey)
+        trades.delete(row.marketKey)
+      }
     },
   }
 
@@ -322,6 +383,35 @@ export async function runBacktest(
     ])
   )
 
+  // Every arrow every coin will ever print, worked out once before the walk
+  // starts.
+  //
+  // **Not an optimisation — the difference between finishing and not.** The
+  // rule only ever looks backwards, so the arrow at candle 40 is decided by
+  // candles 0 to 40 and candle 41 cannot change it; asking again at every bar
+  // is the same answer computed thousands of times. The base rule did exactly
+  // that once, and a run of 250 coins over ten years never finished and took
+  // the server's memory with it.
+  if (signals) {
+    for (const coin of coins) {
+      // Computed over the warm-up AND the window, then cut back to the window.
+      // The warm-up is there so the indicator can SEE, never so the run can
+      // trade on it: an arrow that printed before the run started is not this
+      // run's to act on, and acting on it would buy at the window's first bar
+      // on the strength of something that happened before it.
+      const walked = ascending(coin.bars)
+      const first = walked[0]?.openTime ?? input.from
+      const called = indicatorSignals(signals.indicators, [
+        ...ascending(coin.warmupBars ?? []),
+        ...walked,
+      ])
+      signalsPerCoin.set(
+        coin.marketKey,
+        called.filter((one) => one.time >= first)
+      )
+    }
+  }
+
   const equity: Array<{ t: number; usd: number }> = []
   const inPlay: number[] = []
   let stoppedEarly = false
@@ -330,7 +420,9 @@ export async function runBacktest(
   // The crash rule, and the candles it reads. Null when the flow did not ask
   // for it, which skips the whole check rather than running it and ignoring
   // the answer.
-  const cascadeRule = input.params.cascade ?? null
+  // A signals run has no crash rule at all: it exits on an arrow, and holding
+  // out through a collapse is a ladder's idea about its own rungs.
+  const cascadeRule = ladder?.params.cascade ?? null
   // Oldest-first, like every other reader of these bars: the crash check finds
   // its window by binary search and quietly reads the wrong stretch of history
   // if the bars are not in order.
@@ -428,8 +520,89 @@ export async function runBacktest(
       )
     }
 
+    // ----- What the signal trades make of it ------------------------------
+    if (signals) {
+      for (const marketKey of [...trades.keys()].sort()) {
+        const row = trades.get(marketKey)
+        if (!row) continue
+        await advanceSignal(
+          { book, marks, ladderBars, now: closeTime, cascading },
+          deps,
+          row
+        )
+      }
+
+      // ----- Reading this bar's arrows ------------------------------------
+      for (const coin of coins) {
+        const cursor = signalCursor.get(coin.marketKey) ?? 0
+        const called = signalsPerCoin.get(coin.marketKey) ?? []
+        // **Compared against the bar's OPEN time, not its close.**
+        //
+        // An arrow is named by the candle it printed on, and that candle has
+        // only finished once the walk reaches it. Comparing against `closeTime`
+        // reads one bar into the future: the arrow belonging to bar 5 has a
+        // time equal to bar 4's close, so a run acted on it a whole bar before
+        // it could possibly have known — and then measured a price it could
+        // never have had. This is the only lookahead this walk can commit and
+        // it is the one that would make every result too good.
+        //
+        // More than one arrow can land in a bar on a coin that skipped bars,
+        // and the last of them is the one in force.
+        let index = cursor
+        let newest: IndicatorSignal | null = null
+        while (index < called.length && called[index].time <= time) {
+          newest = called[index]
+          index += 1
+        }
+        if (index !== cursor) signalCursor.set(coin.marketKey, index)
+        if (!newest) continue
+
+        const held = trades.get(coin.marketKey)
+        if (held) {
+          // Only a coin being held has anything to do with a sell arrow. One
+          // mid-buy or mid-sell is already asking for a price and another arrow
+          // cannot change that.
+          if (newest.side === "sell" && held.plan.phase === "holding") {
+            held.plan.phase = "selling"
+          }
+          continue
+        }
+        if (newest.side !== "buy") continue
+        const mark = marks.get(coin.marketKey)
+        if (mark === undefined || !(mark > 0)) continue
+        // Nothing starts while a position is still open on that coin — the
+        // trade that opened it is the one that has to close it.
+        if (book.positions.has(coin.marketKey)) continue
+
+        const stakeUsd = (input.startingUsd * signals.stakePct) / 100
+        const sz = floorSize(stakeUsd / mark, coin.rules.sizeDecimals)
+        if (sz <= 0 || mark * sz < MIN_ORDER_USD) continue
+        if (mark * sz > freeCash(book) + 1e-9) continue
+
+        trades.set(coin.marketKey, {
+          id: `backtest-signal-${coin.marketKey}-${closeTime}`,
+          marketKey: coin.marketKey,
+          plan: {
+            signalPx: mark,
+            signalAt: newest.time,
+            chaseGiveUp: signals.chaseGiveUp,
+            stakeUsd,
+            sizeDecimals: coin.rules.sizeDecimals,
+            maxLeverage: coin.rules.maxLeverage ?? 1,
+            phase: "buying",
+            orderId: null,
+            orderPx: null,
+            chasedAt: 0,
+            chases: 0,
+            startedAt: closeTime,
+          },
+        })
+      }
+    }
+
     // ----- Arming a fresh ladder where there is none ----------------------
-    for (const coin of coins) {
+    for (const coin of ladder ? coins : []) {
+      if (!ladder) break
       if (ladders.has(coin.marketKey)) continue
       const mark = marks.get(coin.marketKey)
       if (mark === undefined || !(mark > 0)) continue
@@ -439,7 +612,7 @@ export async function runBacktest(
 
       const outcome = armLadder({
         marketKey: coin.marketKey,
-        params: input.params,
+        params: ladder.params,
         interval: input.interval,
         mark,
         base: baseAt(coin, closeTime, detection),
@@ -448,7 +621,7 @@ export async function runBacktest(
         // Compound sizes a fresh ladder from the shared pot as it stands now.
         // Fixed keeps every new ladder on the run's opening dollars. The plan
         // then freezes those rung sizes, so an active ladder never shifts.
-        equity: input.params.compound
+        equity: ladder.params.compound
           ? paperAccountFigures({
               startingBalance: input.startingUsd,
               realized: book.cash - input.startingUsd,

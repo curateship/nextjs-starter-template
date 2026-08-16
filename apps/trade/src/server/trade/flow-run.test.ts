@@ -2,6 +2,8 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { defaultSignalIndicators } from "@/lib/automations/nodes/trade-signals"
+import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultDcaParams } from "@/lib/trade/dca"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
@@ -58,6 +60,7 @@ vi.mock("@/server/trade/workers", () => ({
 const { flowRunSpec, startFlowRun, stopFlowRun } = await import(
   "@/server/trade/flow-run"
 )
+type FlowNodes = Parameters<typeof flowRunSpec>[1]
 
 function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
   return {
@@ -78,7 +81,7 @@ function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
 function nodes(patch: {
   wallet?: Record<string, unknown>
   markets?: Record<string, unknown>
-} = {}) {
+} = {}): FlowNodes {
   return {
     wallet: {
       startingUsd: 10_000,
@@ -101,7 +104,10 @@ function nodes(patch: {
       to: null,
       ...patch.markets,
     },
-    dca: { params: defaultDcaParams(), interval: "4h" },
+    strategy: {
+      kind: "dca" as const,
+      settings: { params: defaultDcaParams(), interval: "4h" },
+    },
   }
 }
 
@@ -158,13 +164,60 @@ describe("what a flow is allowed to start with", () => {
     // A flow has nothing to click, so "wherever price happens to be" would buy
     // halfway up a rally with no floor beneath it. Same rule a backtest forces.
     const clicked = nodes()
-    clicked.dca = {
-      params: { ...defaultDcaParams(), anchor: "click" },
-      interval: "4h",
+    clicked.strategy = {
+      kind: "dca",
+      settings: {
+        params: { ...defaultDcaParams(), anchor: "click" },
+        interval: "4h",
+      },
     }
     const { spec } = await flowRunSpec(userId, clicked)
 
-    expect(spec.params.anchor).toBe("base")
+    expect(spec.strategy.kind).toBe("dca")
+    if (spec.strategy.kind !== "dca") throw new Error("expected a ladder")
+    expect(spec.strategy.params.anchor).toBe("base")
+  })
+
+  it("refuses a signals flow with nothing switched on", async () => {
+    // It would switch on looking perfectly healthy and then never buy
+    // anything, which is the exact silence this whole function exists to
+    // prevent — refused at the button, not at a first buy that never comes.
+    const quiet = nodes()
+    quiet.strategy = {
+      kind: "signals",
+      settings: {
+        indicators: defaultIndicatorSettings(),
+        interval: "4h",
+        stakePct: 20,
+        chaseGiveUpPct: 1,
+      },
+    }
+
+    await expect(flowRunSpec(userId, quiet)).rejects.toThrow(
+      "FLOW_NO_INDICATORS"
+    )
+  })
+
+  it("freezes a signals strategy as a share, not a percent", async () => {
+    const loud = nodes()
+    loud.strategy = {
+      kind: "signals",
+      settings: {
+        indicators: defaultSignalIndicators(),
+        interval: "4h",
+        stakePct: 20,
+        chaseGiveUpPct: 2,
+      },
+    }
+
+    const { spec } = await flowRunSpec(userId, loud)
+
+    expect(spec.strategy.kind).toBe("signals")
+    if (spec.strategy.kind !== "signals") throw new Error("expected signals")
+    expect(spec.strategy.stakePct).toBe(20)
+    // Everything that reads this multiplies it by a price, so the hundred is
+    // divided out once here rather than in every reader.
+    expect(spec.strategy.chaseGiveUp).toBe(0.02)
   })
 
   it("refuses a flow with no cap", async () => {

@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { CandleBar, FundingRate } from "@/lib/protocols/contracts"
 import { defaultDcaParams, type DcaParams } from "@/lib/trade/dca"
+import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultPaperCosts, type PaperCosts } from "@/lib/trade/paper"
-import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
+import {
+  runBacktest,
+  type BacktestCoin,
+  type BacktestStrategy,
+} from "@/server/trade/backtest/engine"
 
 /**
  * The replay itself.
@@ -93,7 +98,7 @@ function inputFor(
     network: "mainnet" as const,
     startingUsd: overrides.startingUsd ?? 10_000,
     costs: overrides.costs ?? defaultPaperCosts(),
-    params: overrides.params ?? params(),
+    strategy: { kind: "dca" as const, params: overrides.params ?? params() },
     interval: "4h" as const,
     coins,
     from: START,
@@ -666,5 +671,203 @@ describe("what counts as a base", () => {
 
     expect(once.endingUsd).toBe(twice.endingUsd)
     expect(once.coins[0].fills.length).toBe(twice.coins[0].fills.length)
+  })
+})
+
+describe("replaying a signals run", () => {
+  /**
+   * The replay has to model the chase HONESTLY or not at all.
+   *
+   * A run that assumed every chased limit filled at the arrow's price would be
+   * a run that had invented money — and it would flatter the strategy in
+   * exactly the situation the setting exists for, a price running away. So
+   * these check the two halves: an order that price came back to fills, and
+   * one it left behind does not.
+   */
+  function signalsFor(over: { stakePct?: number; chaseGiveUp?: number } = {}) {
+    const indicators = defaultIndicatorSettings()
+    return {
+      kind: "signals" as const,
+      indicators: {
+        ...indicators,
+        base: {
+          ...indicators.base,
+          on: true,
+          params: {
+            ...indicators.base.params,
+            searchBars: 4,
+            holdBars: 1,
+            minBarsApart: 1,
+            withTrendOnly: false,
+            showBases: true,
+            showCeilings: false,
+          },
+        },
+      },
+      stakePct: over.stakePct ?? 25,
+      chaseGiveUp: over.chaseGiveUp ?? 0.02,
+    }
+  }
+
+  /** Bars built straight from a list of lows, so a base confirms where wanted. */
+  function fromLows(lows: number[], highOver = 100): CandleBar[] {
+    return lows.map((low, index) => ({
+      openTime: START + index * FOUR_HOURS,
+      open: low + 0.5,
+      high: low + highOver,
+      low,
+      close: low + 0.5,
+      volume: 1_000,
+    }))
+  }
+
+  function runFor(shape: CandleBar[], strategy: BacktestStrategy) {
+    return runBacktest({
+      protocol: "hyperliquid" as const,
+      network: "mainnet" as const,
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy,
+      interval: "4h" as const,
+      coins: [coin("hyperliquid:mainnet:AAA", shape)],
+      from: START,
+      to: START + shape.length * FOUR_HOURS,
+    })
+  }
+
+  it("gives the identical answer twice", async () => {
+    const shape = fromLows([10, 9, 8, 7, 5, 6, 7, 6, 5, 6, 7, 8])
+    const first = await runFor(shape, signalsFor())
+    const second = await runFor(shape, signalsFor())
+
+    expect(second.endingUsd).toBe(first.endingUsd)
+    expect(second.equity).toEqual(first.equity)
+  })
+
+  it("buys on an arrow when price comes back to the order", async () => {
+    // Dips to 5 at bar 4, confirming a base at bar 5. The order is placed on
+    // the bar after that, and a bar can only fill an order that already existed
+    // when it opened — so price has to stay down for a couple of bars, which is
+    // exactly what it does here.
+    const shape = fromLows([10, 9, 8, 7, 5, 6, 6, 5.5, 5.2, 6, 7, 8])
+    const outcome = await runFor(shape, signalsFor())
+
+    const fills = outcome.coins[0].fills
+    expect(fills.length).toBeGreaterThan(0)
+    expect(fills[0].side).toBe("buy")
+    // And it did not pay the market: the fill is at the price it asked for.
+    expect(fills[0].px).toBeLessThanOrEqual(shape[5].close)
+  })
+
+  it("cannot act on an arrow before its own candle has closed", async () => {
+    // The one lookahead this walk could commit, and the one that would make
+    // every signals result too good. An arrow is NAMED by the candle it printed
+    // on, so its time equals the previous bar's close — and comparing against
+    // the close rather than the open acted on it a whole bar early, at a price
+    // the run could not have had. It cost a real bug on the way in.
+    //
+    // The arrow here confirms on bar 5. Bar 6 is the earliest anything can be
+    // ASKED for, and bar 7 the earliest anything can fill.
+    const shape = fromLows([10, 9, 8, 7, 5, 6, 6, 5.5, 5.2, 6, 7, 8])
+    const outcome = await runFor(shape, signalsFor())
+
+    expect(outcome.coins[0].fills.length).toBeGreaterThan(0)
+    expect(outcome.coins[0].fills[0].fillTime).toBeGreaterThanOrEqual(
+      START + 7 * FOUR_HOURS
+    )
+  })
+
+  it("buys nothing at all when price never comes back", async () => {
+    // The same base, then straight up and away. The chase follows to its limit
+    // and gives up, and a run that reported a fill here would be inventing one.
+    const shape = fromLows([10, 9, 8, 7, 5, 6, 20, 40, 80, 160, 320, 640])
+    const outcome = await runFor(shape, signalsFor({ chaseGiveUp: 0.02 }))
+
+    expect(outcome.coins[0].fills).toHaveLength(0)
+    expect(outcome.endingUsd).toBe(10_000)
+  })
+
+  it("sees the window's first bars, using history from before it", async () => {
+    // Without a head start an indicator cannot say anything about the window's
+    // opening candles — a base searching 4 back has nothing to search until
+    // candle 4 — so the run silently tested less than it claimed. With a long
+    // search over a short window it tested NOTHING and still printed a result,
+    // which reads as "the strategy lost nothing" rather than "it could not see".
+    //
+    // The window here is six bars: too short to confirm anything on its own,
+    // and plenty once the six bars before it are handed over as well.
+    // A long fall that bottoms out right at the window's edge, then a window
+    // that hovers there. The base confirms on the window's FIRST bar, which is
+    // exactly the bar a run with no head start is blind to.
+    const window = fromLows([100, 101, 100.5, 99.5, 100.2, 100])
+    const before = fromLows([200, 180, 160, 140, 120, 100]).map(
+      (bar, index) => ({ ...bar, openTime: START - (6 - index) * FOUR_HOURS })
+    )
+
+    const blind = await runBacktest({
+      protocol: "hyperliquid" as const,
+      network: "mainnet" as const,
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy: signalsFor(),
+      interval: "4h" as const,
+      coins: [coin("hyperliquid:mainnet:AAA", window)],
+      from: START,
+      to: START + window.length * FOUR_HOURS,
+    })
+    expect(blind.coins[0].fills).toHaveLength(0)
+
+    const seeing = await runBacktest({
+      protocol: "hyperliquid" as const,
+      network: "mainnet" as const,
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy: signalsFor(),
+      interval: "4h" as const,
+      coins: [{ ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before }],
+      from: START,
+      to: START + window.length * FOUR_HOURS,
+    })
+    expect(seeing.coins[0].fills.length).toBeGreaterThan(0)
+  })
+
+  it("never acts on an arrow that printed before the run started", async () => {
+    // The head start is so the indicator can SEE, never so the run can trade on
+    // it. An arrow from before the window would otherwise buy on the very first
+    // bar on the strength of something that happened before the test began.
+    // The base confirms on the LAST warm-up bar, before the run starts, and
+    // the window itself never confirms one.
+    const window = fromLows([300, 310, 320, 330, 340, 350])
+    const before = fromLows([200, 180, 160, 140, 120, 120]).map(
+      (bar, index) => ({ ...bar, openTime: START - (6 - index) * FOUR_HOURS })
+    )
+
+    const outcome = await runBacktest({
+      protocol: "hyperliquid" as const,
+      network: "mainnet" as const,
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy: signalsFor(),
+      interval: "4h" as const,
+      coins: [{ ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before }],
+      from: START,
+      to: START + window.length * FOUR_HOURS,
+    })
+
+    expect(outcome.coins[0].fills).toHaveLength(0)
+    expect(outcome.endingUsd).toBe(10_000)
+  })
+
+  it("does nothing when no indicator is switched on", async () => {
+    const shape = fromLows([10, 9, 8, 7, 5, 6, 5.5, 5.2, 6, 7, 8, 9])
+    const outcome = await runFor(shape, {
+      kind: "signals" as const,
+      indicators: defaultIndicatorSettings(),
+      stakePct: 25,
+      chaseGiveUp: 0.02,
+    })
+
+    expect(outcome.coins[0].fills).toHaveLength(0)
+    expect(outcome.endingUsd).toBe(10_000)
   })
 })

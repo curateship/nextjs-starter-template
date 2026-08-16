@@ -5,6 +5,7 @@ import {
   type IndicatorField,
   type IndicatorMark,
   type IndicatorModule,
+  type IndicatorPaint,
   type IndicatorParams,
   type IndicatorSide,
 } from "@/lib/trade/indicators/contract"
@@ -399,6 +400,37 @@ function marksOf(
   return marks
 }
 
+/**
+ * Everything this indicator has to say about a run of candles, in one pass.
+ *
+ * Lifted out of `compute` so that `signals` can read the very same answer
+ * rather than working one out beside it. That is the whole reason it exists: a
+ * signal is not "the same rule as an arrow", it IS an arrow, read a different
+ * way. Two passes that merely agreed would be free to stop agreeing, and this
+ * indicator has already been on the wrong end of that once — see the note in
+ * `baseLevelsInForce`.
+ */
+function basePaint(
+  candles: IndicatorCandle[],
+  params: IndicatorParams
+): IndicatorPaint {
+  const settings = baseSettings(params)
+  const dashes: IndicatorDash[] = []
+  const marks: IndicatorMark[] = []
+  // Each side is a whole pass of its own, so its arrows keep their own
+  // spacing clock and a run of bases can never crowd out a ceiling.
+  for (const side of ["up", "down"] as const) {
+    const shown = side === "up" ? settings.showBases : settings.showCeilings
+    if (!shown) continue
+    const found = levelsOf(candles, settings.searchBars, settings.holdBars, side)
+    dashes.push(...dashesOf(found.dash, candles, side))
+    marks.push(...marksOf(found, candles, settings, side))
+  }
+  // Both sides' arrows, back in the order they happened.
+  marks.sort((a, b) => a.time - b.time)
+  return { dashes, marks }
+}
+
 export const baseIndicator: IndicatorModule = {
   kind: "base",
   label: "Base",
@@ -427,26 +459,42 @@ export const baseIndicator: IndicatorModule = {
       ? null
       : `The wait has to be shorter than the search, so it is acting as ${held} candles.`
   },
-  compute: (candles, params) => {
+  compute: basePaint,
+  /**
+   * Every arrow, read as an instruction: a confirmed base is a buy and a
+   * confirmed ceiling is a sell.
+   *
+   * **The same list `compute` draws, mapped.** Not a second walk over the
+   * candles that follows the same rule — the actual arrows, so a signal that
+   * has no arrow, or an arrow with no signal, is not a bug that can happen.
+   *
+   * That makes "Show bases" and "Show ceilings" mean something sharper on a
+   * step that trades these than on a chart that draws them: switching ceilings
+   * off is switching the sell side off. It is the honest reading — a side you
+   * are not being shown is a side you are not acting on — and the panel that
+   * offers them says so in those words.
+   *
+   * Late by design, and worth knowing before trusting one: the arrow prints on
+   * the candle that FINISHED the wait, which is `holdBars` candles after the
+   * low that made the level. A buy here is a buy some way above the floor.
+   */
+  /**
+   * The search window plus the wait — the first candle that could possibly
+   * confirm a level.
+   *
+   * Not a guess: `levelsOf` looks `searchBars` back to find an extreme and then
+   * needs `hold` more candles to see it stand, so nothing before that can be
+   * anything. The wait is read through `cappedHold` for the same reason the
+   * maths does, or a setting the run quietly shortens would ask for history it
+   * never uses.
+   */
+  warmupBars: (params) => {
     const settings = baseSettings(params)
-    const dashes: IndicatorDash[] = []
-    const marks: IndicatorMark[] = []
-    // Each side is a whole pass of its own, so its arrows keep their own
-    // spacing clock and a run of bases can never crowd out a ceiling.
-    for (const side of ["up", "down"] as const) {
-      const shown = side === "up" ? settings.showBases : settings.showCeilings
-      if (!shown) continue
-      const found = levelsOf(
-        candles,
-        settings.searchBars,
-        settings.holdBars,
-        side
-      )
-      dashes.push(...dashesOf(found.dash, candles, side))
-      marks.push(...marksOf(found, candles, settings, side))
-    }
-    // Both sides' arrows, back in the order they happened.
-    marks.sort((a, b) => a.time - b.time)
-    return { dashes, marks }
+    return settings.searchBars + cappedHold(settings.searchBars, settings.holdBars)
   },
+  signals: (candles, params) =>
+    basePaint(candles, params).marks.map((mark) => ({
+      time: mark.time,
+      side: mark.side === "up" ? "buy" : "sell",
+    })),
 }

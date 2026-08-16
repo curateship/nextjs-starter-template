@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import { dcaParamsSchema } from "@/lib/trade/dca"
+import { indicatorSettingsSchema } from "@/lib/trade/indicators/registry"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 
 /**
@@ -596,16 +597,45 @@ export type BacktestResult = z.infer<typeof backtestResultSchema>
  * rewrite what yesterday's result says it tested. A run that could change its
  * own past is worse than no record at all.
  */
+/**
+ * Which strategy a run tested, and everything it needed.
+ *
+ * A union rather than an optional field, so a screen reading a signals run for
+ * a ladder's rung count is a compile error instead of a blank. Runs recorded
+ * before there were two strategies were rewritten into the `dca` shape by
+ * migration 0126, so there is one shape here rather than two forever.
+ */
+export const backtestStrategySnapshotSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("dca"),
+    /** The ladder settings, exactly as the step held them. */
+    params: dcaParamsSchema,
+  }),
+  z.object({
+    kind: z.literal("signals"),
+    /** Which indicators called the trades, and what each was set to. */
+    indicators: indicatorSettingsSchema,
+    /** What one buy signal spent, as a share of the pot. */
+    stakePct: z.number(),
+    /** How far a buy followed a price that ran, as a share of it. */
+    chaseGiveUp: z.number(),
+  }),
+])
+
+export type BacktestStrategySnapshot = z.infer<
+  typeof backtestStrategySnapshotSchema
+>
+
 export const backtestSpecSnapshotSchema = z.object({
   startingUsd: z.number(),
   takerFeePct: z.number(),
   makerFeePct: z.number(),
   slippagePct: z.number(),
   days: z.number(),
+  /** Shared by both strategies — the bar size the run walks. */
   interval: z.enum(CANDLE_INTERVALS),
   marketKeys: z.array(z.string()),
-  /** The ladder settings, exactly as the step held them. */
-  params: dcaParamsSchema,
+  strategy: backtestStrategySnapshotSchema,
   /** The window that was actually walked, epoch ms. */
   from: z.number(),
   to: z.number(),

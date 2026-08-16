@@ -22,6 +22,10 @@ import {
   BASE_STOP_INTERVAL,
   dcaParamsSchema,
 } from "@/lib/trade/dca"
+import {
+  indicatorSettingsSchema,
+  indicatorWarmupBars,
+} from "@/lib/trade/indicators/registry"
 import { db } from "@/server/db"
 import {
   ensureCandleCoverage,
@@ -34,6 +38,7 @@ import {
   loadStoredFunding,
 } from "@/server/trade/funding-store"
 import { marketRules } from "@/server/trade/market-rules"
+import { INTERVAL_MS } from "@/server/trade/smart-engine"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 import {
   backtestCosts,
@@ -87,6 +92,26 @@ import { tradeBacktests } from "@/server/trade/schema"
  */
 const FETCH_AT_ONCE = 6
 const HEARTBEAT_MS = 60_000
+
+/**
+ * How far before the window a signals run has to be able to see, in candles of
+ * its own interval.
+ *
+ * Zero for a ladder run, which reads its history off the 4h base feed instead.
+ * Written once because two places need it — the fetch, which has to put those
+ * candles in the store, and the walk, which reads them back — and a fetch that
+ * disagreed with the read would leave the walk quietly warm-up-less again.
+ */
+function signalWarmupCount(spec: BacktestSpecSnapshot): number {
+  if (spec.strategy.kind !== "signals") return 0
+  return indicatorWarmupBars(
+    indicatorSettingsSchema.parse(spec.strategy.indicators)
+  )
+}
+
+function signalWarmupFrom(spec: BacktestSpecSnapshot): number {
+  return spec.from - signalWarmupCount(spec) * INTERVAL_MS[spec.interval]
+}
 
 export async function backtestTick(now: number = Date.now()): Promise<void> {
   // Anything that ran out of tries says so, rather than sitting at "running"
@@ -233,6 +258,13 @@ async function loadOneCoin(
   // The base rule reads the 4h whatever the run walks, and it needs history
   // from before the window so a level can already be known on day one.
   await ensureCandleCoverage(marketKey, BASE_STOP_INTERVAL, warmFrom, spec.to)
+  // A signals run needs the same head start at its OWN interval. Its own call
+  // rather than a wider window above, so the "no history for this coin" answer
+  // still comes from exactly the stretch being tested.
+  const signalFrom = signalWarmupFrom(spec)
+  if (signalFrom < spec.from) {
+    await ensureCandleCoverage(marketKey, spec.interval, signalFrom, spec.from)
+  }
   await ensureFundingCoverage(marketKey, spec.from, spec.to)
 
   if (window.barCount === 0) {
@@ -325,10 +357,27 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
       spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
       spec.to
     )
+    // A signals run needs history at ITS OWN interval from before the window,
+    // or its indicators cannot say anything about the window's first bars —
+    // and with a long search over a short window, about any of them. Bounded by
+    // what the switched-on indicators actually ask for rather than a guess, so
+    // a default Base costs 44 extra bars and not five hundred.
+    const signalFrom = signalWarmupFrom(spec)
+    const warmupBars =
+      signalFrom < spec.from
+        ? await loadStoredCandles(
+            coin.marketKey,
+            spec.interval,
+            signalFrom,
+            spec.from
+          )
+        : []
+
     coins.push({
       marketKey: coin.marketKey,
       symbol: coin.symbol,
       rules,
+      warmupBars,
       bars:
         spec.interval === BASE_STOP_INTERVAL
           ? baseBars.slice(firstOpenAtOrAfter(baseBars, spec.from))
@@ -349,14 +398,24 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
 
   await noteAll(userId, groupId, 0.4, "Running the strategy")
 
-  const params = dcaParamsSchema.parse(spec.params)
+  // Re-read rather than trusted: the snapshot is jsonb written by whichever
+  // build recorded the run, and the walk is about to spend a pot on it.
+  const strategy =
+    spec.strategy.kind === "dca"
+      ? { kind: "dca" as const, params: dcaParamsSchema.parse(spec.strategy.params) }
+      : {
+          kind: "signals" as const,
+          indicators: indicatorSettingsSchema.parse(spec.strategy.indicators),
+          stakePct: spec.strategy.stakePct,
+          chaseGiveUp: spec.strategy.chaseGiveUp,
+        }
   const outcome = await runBacktest(
     {
       protocol,
       network,
       startingUsd: spec.startingUsd,
       costs: backtestCosts(spec),
-      params,
+      strategy,
       interval: spec.interval,
       coins,
       from: spec.from,

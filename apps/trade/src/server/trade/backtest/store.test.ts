@@ -59,7 +59,11 @@ function specOf(marketKeys: string[]): BacktestSpec {
       spendCapUsd: null,
     },
     markets: { protocol: "hyperliquid", marketKeys, days: 30, from: null, to: null },
-    dca: { params: defaultDcaParams(), interval: "4h" },
+    interval: "4h" as const,
+    strategy: {
+      kind: "dca" as const,
+      dca: { params: defaultDcaParams(), interval: "4h" as const },
+    },
   }
 }
 

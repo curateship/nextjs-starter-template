@@ -5,16 +5,25 @@ import { parseMarketKey } from "@/lib/protocols/contracts"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
 import { tradeDcaSettingsSchema } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsSettingsSchema } from "@/lib/automations/nodes/trade-markets"
+import { tradeSignalsSettingsSchema } from "@/lib/automations/nodes/trade-signals"
 import type {
   FlowStopOutcome,
   TradeFlowRunSpec,
+  TradeFlowStrategy,
 } from "@/lib/trade/flow-run"
 import {
   flowWaitCode,
   nextFlowHold,
   STRIKES_BEFORE_HOLD,
+  type FlowHold,
   type FlowWaitReason,
 } from "@/lib/trade/flow-waiting"
+import {
+  advanceSignalFlow,
+  signalReadDue,
+  workingSignals,
+} from "@/server/trade/signal-run"
+import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -78,12 +87,17 @@ export type FlowStartRefusal =
   | "FLOW_WALLET_BUSY"
   | "FLOW_UNFUNDED_MARKET"
   | "FLOW_MAINNET_OFF"
+  | "FLOW_NO_INDICATORS"
+  | "FLOW_STRATEGY_UNREADABLE"
 
-/** The three steps a trading flow is made of, read off its saved drawing. */
+/** The steps a trading flow is made of, read off its saved drawing. */
 export type FlowNodes = {
   wallet: Record<string, unknown>
   markets: Record<string, unknown>
-  dca: Record<string, unknown>
+  /** Whichever strategy step it was drawn with — a flow has exactly one. */
+  strategy:
+    | { kind: "dca"; settings: Record<string, unknown> }
+    | { kind: "signals"; settings: Record<string, unknown> }
 }
 
 /**
@@ -116,8 +130,19 @@ export async function flowRunSpec(
   if (!markets.success || markets.data.marketKeys.length === 0) {
     throw new Error("FLOW_NO_COINS")
   }
-  const dca = tradeDcaSettingsSchema.safeParse(nodes.dca)
-  if (!dca.success) throw new Error("FLOW_NO_COINS")
+  const strategy = readFlowStrategy(nodes.strategy)
+  if (!strategy) throw new Error("FLOW_STRATEGY_UNREADABLE")
+  // A signals flow with nothing switched on is a flow that will never buy
+  // anything, and it would switch on looking perfectly healthy. Refused here
+  // for the same reason as everything else in this function: at the button,
+  // where somebody can do something about it, rather than at a first buy that
+  // never comes.
+  if (
+    strategy.kind === "signals" &&
+    signalIndicatorsOn(strategy.indicators) === 0
+  ) {
+    throw new Error("FLOW_NO_INDICATORS")
+  }
 
   // Every coin, not a sample. One coin from the wrong exchange would be refused
   // at the moment it tried to buy, days later, with the rest of the flow
@@ -169,16 +194,47 @@ export async function flowRunSpec(
       protocol: wallet.protocol,
       network: wallet.network,
       marketKeys: [...markets.data.marketKeys],
-      // Always measured from the base, whatever the flow saved — the same rule
-      // a backtest forces, and for the same reason: a flow has nothing to
-      // click, so "wherever price happens to be" would buy halfway up a rally
-      // with no floor beneath it.
-      params: { ...dca.data.params, anchor: "base" as const },
-      interval: dca.data.interval,
+      strategy,
       capUsd: named.capUsd,
       walletLabel: wallet.label,
       real: wallet.kind === "live",
     },
+  }
+}
+
+/**
+ * The strategy step, read into the frozen shape a run works from.
+ *
+ * Null when its settings cannot be read at all — a saved flow written by a
+ * different build. Refusing beats switching on and trading half-read settings.
+ */
+function readFlowStrategy(
+  step: FlowNodes["strategy"]
+): TradeFlowStrategy | null {
+  if (step.kind === "signals") {
+    const parsed = tradeSignalsSettingsSchema.safeParse(step.settings)
+    if (!parsed.success) return null
+    return {
+      kind: "signals",
+      indicators: parsed.data.indicators,
+      interval: parsed.data.interval,
+      stakePct: parsed.data.stakePct,
+      // Kept as a share rather than a percent, because everything that reads it
+      // multiplies by a price. Converting once, here, is one less place for a
+      // hundred to go missing.
+      chaseGiveUp: parsed.data.chaseGiveUpPct / 100,
+    }
+  }
+  const parsed = tradeDcaSettingsSchema.safeParse(step.settings)
+  if (!parsed.success) return null
+  return {
+    kind: "dca",
+    // Always measured from the base, whatever the flow saved — the same rule
+    // a backtest forces, and for the same reason: a flow has nothing to
+    // click, so "wherever price happens to be" would buy halfway up a rally
+    // with no floor beneath it.
+    params: { ...parsed.data.params, anchor: "base" as const },
+    interval: parsed.data.interval,
   }
 }
 
@@ -286,6 +342,29 @@ export async function stopFlowRun(
     // A grid on one of this flow's coins is not this flow's to cancel — it was
     // placed by hand — so it counts as held and is left exactly where it is.
     const plan = ladder.plan
+    if (ladder.kind === "signal" && "phase" in plan) {
+      // A signal trade IS this flow's, and one still chasing a price must be
+      // called off — otherwise a flow somebody switched off carries on and
+      // buys. The cancelling itself is the engine's next pass; see `stopping`.
+      if (plan.phase === "buying") {
+        await database
+          .update(tradeSmartLadders)
+          .set({
+            plan: { ...plan, phase: "stopping" },
+            updatedAt: new Date(input.now),
+          })
+          .where(
+            and(
+              eq(tradeSmartLadders.userId, userId),
+              eq(tradeSmartLadders.id, ladder.id)
+            )
+          )
+        cancelled += 1
+      } else {
+        held += 1
+      }
+      continue
+    }
     if (!("rungs" in plan)) {
       held += 1
       continue
@@ -362,6 +441,15 @@ export async function advanceFlowRuns(
       continue
     }
 
+    // Paused: it looks at nothing, and nothing it already placed is touched.
+    // Stopping is the act that cancels; this one only stops it looking.
+    if (run.pausedAt) continue
+
+    if (run.spec.strategy.kind === "signals") {
+      await advanceSignalRun(run, wallet, now, database)
+      continue
+    }
+
     const busy = await database
       .select({ marketKey: tradeSmartLadders.marketKey })
       .from(tradeSmartLadders)
@@ -384,9 +472,6 @@ export async function advanceFlowRuns(
     let looked = 0
     /** Coins this pass put a ladder on, so a stop knows which are the flow's. */
     const placedNow: string[] = []
-    // Paused: it looks at nothing, and nothing it already placed is touched.
-    // Stopping is the act that cancels; this one only stops it looking.
-    if (run.pausedAt) continue
 
     let hold = run.hold ?? null
 
@@ -473,6 +558,132 @@ export async function advanceFlowRuns(
   }
 }
 
+/**
+ * One pass of a signals flow.
+ *
+ * Its own function because almost nothing about the ladder's pass applies. A
+ * ladder pass is looking for coins with no ladder yet; this one also has to
+ * look at coins it is already holding, because that is where a sell arrow
+ * lands. And it looks at exactly ONE coin, not twelve, because looking means
+ * reading candles and candles are the expensive thing — see `signal-run.ts`.
+ *
+ * The bookkeeping is shared, though: the same `waiting` map and the same
+ * back-off, so a signals flow that cannot buy for want of cash says so on the
+ * canvas in the same words a ladder flow does.
+ */
+async function advanceSignalRun(
+  run: {
+    userId: string
+    id: string
+    walletId: string
+    spec: TradeFlowRunSpec
+    waiting: Record<string, FlowWaitReason>
+    acted: Record<string, number>
+    placed: string[]
+    hold: FlowHold | null
+  },
+  wallet: TradeWallet,
+  now: number,
+  database: CustomShellDb
+): Promise<void> {
+  const waiting: Record<string, FlowWaitReason> = { ...run.waiting }
+  const acted = { ...run.acted }
+  let hold = run.hold ?? null
+  let placedNow: string | null = null
+
+  // Held: the same problem three times running, so it has stopped asking. A
+  // signals pass costs a candle read whether or not it can act on what it
+  // finds, so a flow refusing every coin is worth pausing exactly as much.
+  if (hold !== null && hold.until > now) return
+
+  // Asked before the database is touched. The pass looks at one coin every two
+  // and a half seconds, so three passes in four have nothing to do — and
+  // reading what every coin is holding first, once a second, forever, would be
+  // most of this flow's cost spent finding that out.
+  if (!signalReadDue(now)) return
+
+  const working = await workingSignals(
+    run.userId,
+    run.walletId,
+    run.spec.marketKeys,
+    database
+  )
+
+  try {
+    const outcome = await advanceSignalFlow(
+      {
+        userId: run.userId,
+        wallet,
+        spec: run.spec,
+        working,
+        lookedAt: Object.fromEntries(
+          Object.entries(run.waiting).map(([key, one]) => [key, one.at])
+        ),
+        acted,
+        now,
+      },
+      database
+    )
+    if (outcome.marketKey) {
+      if (outcome.did === "nothing") {
+        // Looked at and it said nothing. That IS the strategy waiting, and the
+        // entry is what makes the rotation fair — without it the same coin
+        // would be "least recently looked at" forever.
+        waiting[outcome.marketKey] = { code: "SIGNAL_NONE_YET", at: now }
+      } else {
+        delete waiting[outcome.marketKey]
+        // **The arrow's own time, never the clock.** An arrow is only visible
+        // once its candle has closed, so the clock at that moment is already
+        // past the NEXT candle's open time — and writing it here would skip
+        // that candle's arrow without a word, including a sell.
+        acted[outcome.marketKey] = outcome.at
+        if (outcome.did === "opened") placedNow = outcome.marketKey
+      }
+      // Anything that went through clears the count outright: whatever was
+      // refusing has been fixed, and carrying a wait over from before the fix
+      // would leave the flow idle for no reason.
+      if (outcome.did !== "nothing") hold = null
+    }
+  } catch (error) {
+    const code = flowWaitCode(error)
+    if (code === "FLOW_UNKNOWN") {
+      console.warn(
+        `Signal refusal with no words — ${scrubSecrets(
+          error instanceof Error ? error.message : String(error)
+        )}`
+      )
+    }
+    // No coin to blame it on: the pass picks its own coin and an error can come
+    // from before it picked one. Recorded against the flow's back-off, which is
+    // the part that matters — a key the exchange keeps refusing must stop being
+    // asked whichever coin it was asked about.
+    hold = nextFlowHold(hold, code, now)
+  }
+
+  // The arrow's own time, not the moment we acted on it. A pass that opened a
+  // trade already wrote `signalAt` onto its plan; this is the copy that
+  // outlives the plan, so the same arrow cannot start a second trade after the
+  // first one closes.
+  for (const [key, one] of working) {
+    acted[key] = Math.max(acted[key] ?? 0, one.plan.signalAt)
+  }
+
+  await database
+    .update(tradeFlowRuns)
+    .set({
+      updatedAt: new Date(now),
+      waiting,
+      acted,
+      hold,
+      ...(placedNow
+        ? { placed: [...new Set([...run.placed, placedNow])] }
+        : {}),
+    })
+    .where(
+      and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
+    )
+}
+
 /** One ladder, through the placement path a right-click already uses. */
 async function placeLadderForFlow(
   userId: string,
@@ -480,12 +691,16 @@ async function placeLadderForFlow(
   spec: TradeFlowRunSpec,
   marketKey: string
 ): Promise<void> {
+  // Only ever called for a ladder flow — the pass forks on the strategy long
+  // before here — so anything else is a bug worth stopping on rather than a
+  // case to handle.
+  if (spec.strategy.kind !== "dca") throw new Error("FLOW_NO_COINS")
   const input = {
     marketKey,
     // Never read: the ladder hangs off the base, which is forced in the spec.
     clickPx: 0,
-    interval: spec.interval,
-    params: spec.params,
+    interval: spec.strategy.interval,
+    params: spec.strategy.params,
     potUsd: spec.capUsd,
   }
   if (wallet.kind === "live") {

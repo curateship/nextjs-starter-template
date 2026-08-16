@@ -32,6 +32,7 @@ import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
+import { indicatorPaint } from "@/lib/trade/indicators/registry"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
 
@@ -105,17 +106,22 @@ export function BacktestChartPanel({
   // So this draws a short dash at each base the ladder actually anchored to,
   // in the same shape the trading chart uses. Nothing here is a level the run
   // did not use, and nothing here is a line drawn across the chart.
-  const indicators = React.useMemo(
-    () => ({
-      dashes: baseDashes([...bars], spec.params.baseDetection),
+  const indicators = React.useMemo(() => {
+    // A signals run is the other way round: there its arrows ARE the orders,
+    // so drawing them says exactly what the run acted on. The dashes are the
+    // ladder's business and would mean nothing here.
+    if (spec.strategy.kind === "signals") {
+      return indicatorPaint(spec.strategy.indicators, [...bars])
+    }
+    return {
+      dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
       // No arrows. The base draws one at each candle that confirmed a level,
       // and on this chart that reads as an order — which is exactly what the
       // arrows beside it already are. Two different things in one shape is
       // worse than one of them being missing.
       marks: [],
-    }),
-    [bars, spec]
-  )
+    }
+  }, [bars, spec])
 
   /**
    * Where the chart sits when a trade is picked: zoomed to that round trip,

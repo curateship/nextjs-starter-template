@@ -1,6 +1,12 @@
 import { eq } from "drizzle-orm"
 
-import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
+import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
+import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
+import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
+import {
+  chosenWallet,
+  tradeWalletNode,
+} from "@/lib/automations/nodes/trade-wallet"
 import { plural } from "@/lib/format/plural"
 import { formatUsd } from "@/lib/trade/format"
 import { db } from "@/server/db"
@@ -30,21 +36,63 @@ export type RunOutcome = {
   summary: string
 }
 
-/** The three trade steps off a compiled flow, or null when they are not all there. */
+/** The trade steps off a compiled flow, or null when they are not all there. */
 export function flowNodesOf(
   config: { nodes: Record<string, { kind: string; settings: unknown }> } | null
 ): FlowNodes | null {
   if (!config) return null
   const steps = Object.values(config.nodes)
-  const wallet = steps.find((one) => one.kind === "tradeWallet")
-  const markets = steps.find((one) => one.kind === "tradeMarkets")
-  const dca = steps.find((one) => one.kind === "tradeDca")
-  if (!wallet || !markets || !dca) return null
-  return {
-    wallet: wallet.settings as Record<string, unknown>,
-    markets: markets.settings as Record<string, unknown>,
-    dca: dca.settings as Record<string, unknown>,
+  const wallet = steps.find((one) => one.kind === tradeWalletNode.kind)
+  const markets = steps.find((one) => one.kind === tradeMarketsNode.kind)
+  const dca = steps.find((one) => one.kind === tradeDcaNode.kind)
+  const signals = steps.find((one) => one.kind === tradeSignalsNode.kind)
+  if (!wallet || !markets) return null
+  // Both drawn is not a flow this can read, and saying so is
+  // `flowStrategyProblem`'s job — every caller asks it first.
+  if (dca && signals) return null
+  if (dca) {
+    return {
+      wallet: wallet.settings as Record<string, unknown>,
+      markets: markets.settings as Record<string, unknown>,
+      strategy: { kind: "dca", settings: dca.settings as Record<string, unknown> },
+    }
   }
+  if (signals) {
+    return {
+      wallet: wallet.settings as Record<string, unknown>,
+      markets: markets.settings as Record<string, unknown>,
+      strategy: {
+        kind: "signals",
+        settings: signals.settings as Record<string, unknown>,
+      },
+    }
+  }
+  return null
+}
+
+/**
+ * The one sentence about a flow drawn with two strategies on it.
+ *
+ * **Written once and asked by both paths** — switching on and back-testing —
+ * because they would otherwise say two different things about the same drawing,
+ * and only one of them would be the one somebody read.
+ *
+ * Null means there is nothing wrong with the strategy steps, which includes a
+ * flow that has none of them: that is not this question.
+ */
+export function flowStrategyProblem(
+  config: { nodes: Record<string, { kind: string; settings: unknown }> } | null
+): string | null {
+  if (!config) return null
+  const kinds = Object.values(config.nodes).map((one) => one.kind)
+  const strategies = [tradeDcaNode.kind, tradeSignalsNode.kind].filter((kind) =>
+    kinds.includes(kind)
+  )
+  if (strategies.length < 2) return null
+  return (
+    "This flow has a DCA ladder step and a Signals step on it. A flow trades one " +
+    "strategy or the other, so delete whichever one you did not mean."
+  )
 }
 
 export async function runTradeFlow(
@@ -62,6 +110,12 @@ export async function runTradeFlow(
     .select({ compiledConfig: customShellAutomations.compiledConfig })
     .from(customShellAutomations)
     .where(eq(customShellAutomations.id, run.automationId))
+
+  // Asked before anything else, because it is not a complaint about the wallet
+  // or the coins: it is a drawing this app cannot read either way, and both the
+  // backtest and the switch-on would otherwise refuse it in their own words.
+  const twoStrategies = flowStrategyProblem(flow?.compiledConfig ?? null)
+  if (twoStrategies) return { summary: twoStrategies }
 
   const nodes = flowNodesOf(flow?.compiledConfig ?? null)
   const named = nodes ? chosenWallet(nodes.wallet) : null

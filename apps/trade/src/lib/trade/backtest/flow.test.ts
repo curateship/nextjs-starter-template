@@ -48,7 +48,7 @@ describe("a flow that is a backtest", () => {
     expect(read.problem).toBeNull()
     expect(read.spec?.wallet.startingUsd).toBe(10_000)
     expect(read.spec?.markets.marketKeys).toEqual(["hyperliquid:mainnet:BTC"])
-    expect(read.spec?.dca.interval).toBe("4h")
+    expect(read.spec?.interval).toBe("4h")
   })
 
   it("ignores steps that are not part of a backtest", () => {
@@ -354,7 +354,9 @@ describe("a ladder saved with the old click setting", () => {
     const read = backtestSpecFromFlow(flowOf({ a: wallet, b: markets, c: clicked }))
 
     expect(read.problem).toBeNull()
-    expect(read.spec?.dca.params.anchor).toBe("base")
+    expect(
+      read.spec?.strategy.kind === "dca" ? read.spec.strategy.dca.params.anchor : null
+    ).toBe("base")
   })
 })
 

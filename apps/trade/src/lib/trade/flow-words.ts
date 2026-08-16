@@ -28,6 +28,12 @@ export function flowStartProblem(code: string, walletLabel: string): string {
   if (code.includes("FLOW_NO_COINS")) {
     return "No coins are chosen on the Markets step, so there is nothing to watch."
   }
+  if (code.includes("FLOW_NO_INDICATORS")) {
+    return "No indicators are switched on, so this flow would never buy anything. Open the Signals step and switch one on."
+  }
+  if (code.includes("FLOW_STRATEGY_UNREADABLE")) {
+    return "The strategy step's settings could not be read. Open it and check the numbers."
+  }
   if (code.includes("FLOW_WRONG_EXCHANGE")) {
     return `The coins on the Markets step are not from ${walletLabel}'s exchange, so it could not trade any of them. Open the Markets step and choose them again.`
   }

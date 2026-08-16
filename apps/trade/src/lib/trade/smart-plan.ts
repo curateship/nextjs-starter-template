@@ -1,14 +1,17 @@
 import { ladderPlanSchema, type LadderPlan } from "@/lib/trade/dca"
 import { readGridPlan, type GridPlan } from "@/lib/trade/grid"
+import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
 
 /**
- * The two kinds of smart order, and the one door every stored plan is read
+ * The three kinds of smart order, and the one door every stored plan is read
  * through.
  *
- * Ladders and grids share a table. That is not tidiness: there is exactly ONE
- * position per coin per wallet and both kinds write its stop, so two of them on
- * the same coin would fight over it. Sharing the table means the existing "one
- * live smart order per coin per wallet" check blocks that on its own.
+ * Ladders, grids and signal trades share a table. That is not tidiness: there
+ * is exactly ONE position per coin per wallet and each kind writes to it, so
+ * two of them on the same coin would fight over it. Sharing the table means the
+ * existing "one live smart order per coin per wallet" check blocks that on its
+ * own — including a flow's signal trade landing on a coin somebody has already
+ * put a ladder on by hand.
  *
  * The price of sharing is that a row is only as good as the parse, and a parse
  * that fails returns null — which every caller turns into "skip this row". A
@@ -18,10 +21,10 @@ import { readGridPlan, type GridPlan } from "@/lib/trade/grid"
  * and adding a kind makes the compiler walk you round every caller.
  */
 
-export const SMART_ORDER_KINDS = ["dca", "grid"] as const
+export const SMART_ORDER_KINDS = ["dca", "grid", "signal"] as const
 export type SmartOrderKind = (typeof SMART_ORDER_KINDS)[number]
 
-export type SmartPlan = LadderPlan | GridPlan
+export type SmartPlan = LadderPlan | GridPlan | SignalPlan
 
 /**
  * A stored smart order, whichever kind it is, as the screens see it.
@@ -45,7 +48,10 @@ export type SmartLadder = SmartOrderShared & { kind: "dca"; plan: LadderPlan }
 /** One placed grid, as the screens see it. */
 export type SmartGrid = SmartOrderShared & { kind: "grid"; plan: GridPlan }
 
-export type SmartOrder = SmartLadder | SmartGrid
+/** One coin being traded on an indicator's say-so, as the screens see it. */
+export type SmartSignal = SmartOrderShared & { kind: "signal"; plan: SignalPlan }
+
+export type SmartOrder = SmartLadder | SmartGrid | SmartSignal
 
 /** The kind a stored row claims to be, or null when it is not one we know. */
 export function readSmartOrderKind(value: unknown): SmartOrderKind | null {
@@ -65,8 +71,35 @@ export function readSmartPlan(
   value: unknown
 ): SmartPlan | null {
   if (kind === "grid") return readGridPlan(value)
+  if (kind === "signal") return readSignalPlan(value)
   const parsed = ladderPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null
+}
+
+/**
+ * A stored plan together with the kind that says how to read it.
+ *
+ * **Not a second door** — it goes through `readSmartPlan` like everything else.
+ * What it adds is that the two travel as one value, so checking the kind
+ * narrows the plan: reading `aimedSlPx` off something that has no stop becomes
+ * a compile error rather than `undefined` at four in the morning. The live
+ * reconciler carried these as a loose `{ kind, plan }` pair and had to cast at
+ * every use, which is the same thing with the safety taken out.
+ */
+export type SmartEntry =
+  | { kind: "dca"; plan: LadderPlan }
+  | { kind: "grid"; plan: GridPlan }
+  | { kind: "signal"; plan: SignalPlan }
+
+export function readSmartEntry(
+  kind: SmartOrderKind,
+  value: unknown
+): SmartEntry | null {
+  const plan = readSmartPlan(kind, value)
+  if (!plan) return null
+  if (kind === "grid") return { kind, plan: plan as GridPlan }
+  if (kind === "signal") return { kind, plan: plan as SignalPlan }
+  return { kind, plan: plan as LadderPlan }
 }
 
 /**
@@ -89,6 +122,19 @@ export function forEachPlanOrderId(
 ): void {
   // A grid rests nothing on the book, so it carries no order ids to walk.
   if (kind === "grid") return
+  // A signal trade rests exactly one — the order it is chasing — and it is
+  // load-bearing that it gets walked. Miss it and the temporary id stays in the
+  // saved plan; the next pass sees an id the exchange does not know, decides
+  // the order vanished, and places another. Every ten seconds. Forever.
+  if (kind === "signal") {
+    const signal = plan as SignalPlan
+    if (signal.orderId) {
+      visit(signal.orderId, (next) => {
+        signal.orderId = next
+      })
+    }
+    return
+  }
   for (const rung of (plan as LadderPlan).rungs) {
     if (rung.orderId) {
       visit(rung.orderId, (next) => {

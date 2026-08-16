@@ -2,6 +2,7 @@
 import type { AppOptions } from "@/lib/app-options"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
+import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
 import {
   TRADE_PALETTE_GROUP,
   tradeWalletNode,
@@ -41,10 +42,16 @@ export const appOptions: AppOptions = {
   },
   automations: {
     /**
-     * The three steps a backtest is drawn from, in the order they chain:
-     * the pot, the coins, the ladder. Reaching the ladder starts the run.
+     * The steps a trading flow is drawn from, in the order they chain: the
+     * pot, the coins, then a strategy. Reaching the strategy starts the run.
+     *
+     * **Two strategies are offered and a flow holds one of them.** The ladder
+     * waits for price to fall into a plan; Signals waits for an indicator to
+     * call it. A flow holding both is refused in words when it is switched on
+     * — see `flowNodesOf` and `backtestSpecFromFlow` — rather than left to
+     * discover itself with money on the line.
      */
-    nodes: [tradeWalletNode, tradeMarketsNode, tradeDcaNode],
+    nodes: [tradeWalletNode, tradeMarketsNode, tradeDcaNode, tradeSignalsNode],
     paletteGroups: [TRADE_PALETTE_GROUP],
     /**
      * A trading flow has no member to test against.
@@ -57,9 +64,12 @@ export const appOptions: AppOptions = {
      */
     memberTest: {
       appliesTo: (kinds) =>
-        ![tradeWalletNode.kind, tradeMarketsNode.kind, tradeDcaNode.kind].some(
-          (kind) => kinds.includes(kind)
-        ),
+        ![
+          tradeWalletNode.kind,
+          tradeMarketsNode.kind,
+          tradeDcaNode.kind,
+          tradeSignalsNode.kind,
+        ].some((kind) => kinds.includes(kind)),
     },
     canvasPanel: {
       // The panel is the backtest: its last result, and the button that runs
@@ -68,8 +78,10 @@ export const appOptions: AppOptions = {
       // chip, so the honest name is the plain one.
       label: "Backtest",
       // Only on a flow that actually runs one. Every other flow in this app
-      // would otherwise carry a button offering a backtest it never ran.
-      appliesTo: (kinds) => kinds.includes(tradeDcaNode.kind),
+      // would otherwise carry a button offering a backtest it never ran. Both
+      // strategies back-test, so both bring the panel.
+      appliesTo: (kinds) =>
+        kinds.includes(tradeDcaNode.kind) || kinds.includes(tradeSignalsNode.kind),
       panel: () => import("@/components/automations/backtest-canvas-panel"),
     },
     /**

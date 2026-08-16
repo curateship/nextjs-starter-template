@@ -46,6 +46,22 @@ export type IndicatorMark = {
 /** Everything an indicator wants drawn, in the market's own coordinates. */
 export type IndicatorPaint = { dashes: IndicatorDash[]; marks: IndicatorMark[] }
 
+/**
+ * A moment an indicator calls, at the close of the candle that confirmed it.
+ *
+ * **Deliberately not `IndicatorMark` with a different word for `side`.** A mark
+ * is a drawing — an arrow, at a price, pointing a way — and this is an
+ * instruction. Sharing one type would mean every indicator that draws an arrow
+ * had also volunteered to trade, which is the opposite of the split the rest of
+ * this file is built on.
+ *
+ * No price, on purpose. The time names the candle; what the trade actually
+ * costs is decided by whatever is trading, at the moment it trades, and a price
+ * carried here would read like a promise the indicator is in no position to
+ * make.
+ */
+export type IndicatorSignal = { time: number; side: "buy" | "sell" }
+
 /** What one setting holds. Nothing else is storable, on purpose. */
 export type IndicatorParams = Record<string, number | boolean>
 
@@ -91,6 +107,39 @@ export type IndicatorModule = {
    * number it did not ask for.
    */
   compute(candles: IndicatorCandle[], params: IndicatorParams): IndicatorPaint
+  /**
+   * The buy and sell moments this indicator calls, if it calls any.
+   *
+   * **Unset is a real answer**, and the honest one for an indicator that only
+   * marks where something is. A step that trades signals lists only the
+   * indicators that have this, so an indicator without one is never offered as
+   * a switch that would do nothing.
+   *
+   * Whoever writes one owes the reader exactly one promise: **a signal and an
+   * arrow are the same event.** Not "agree" — the same event, out of the same
+   * pass, so they cannot come apart. Two functions that merely agree today have
+   * already gone wrong once here; see the note in `base.ts` about the ladder
+   * following 1,622 bases while the chart drew 1,387.
+   */
+  signals?(
+    candles: IndicatorCandle[],
+    params: IndicatorParams
+  ): IndicatorSignal[]
+  /**
+   * How many candles of history it needs before its answers can be trusted.
+   *
+   * **What this prevents is a run that reports a flat line and looks like a
+   * strategy that lost nothing.** An indicator handed only the stretch being
+   * tested cannot say anything about its first candles — a base searching 36
+   * back has nothing to search until candle 36 — so a replay that started at
+   * the window's edge silently tested less than it claimed, and with a long
+   * search over a short window tested nothing at all while still printing a
+   * result.
+   *
+   * Read by whatever loads candles, so it can fetch this much extra from
+   * before the window and then ignore anything the indicator says about it.
+   */
+  warmupBars?(params: IndicatorParams): number
   /**
    * One line about the settings as they stand, when there is something worth
    * saying — a setting quietly capping another one, most often. Null the rest

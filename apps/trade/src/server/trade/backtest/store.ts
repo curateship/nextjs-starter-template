@@ -115,9 +115,18 @@ function snapshotOf(
     // every screen that reads this would otherwise caption a two-year run
     // "30 days".
     days: windowDays(spec.markets),
-    interval: spec.dca.interval,
+    interval: spec.interval,
     marketKeys: [...spec.markets.marketKeys],
-    params: spec.dca.params,
+    strategy:
+      spec.strategy.kind === "dca"
+        ? { kind: "dca", params: spec.strategy.dca.params }
+        : {
+            kind: "signals",
+            indicators: spec.strategy.signals.indicators,
+            stakePct: spec.strategy.signals.stakePct,
+            // Stored as a share, the way everything that reads it uses it.
+            chaseGiveUp: spec.strategy.signals.chaseGiveUpPct / 100,
+          },
     from: window.from,
     to: window.to,
   }
@@ -168,7 +177,7 @@ export async function createBacktest(
   }
 
   const intervalMs = getProtocol(first.protocol).markets.intervalMs(
-    input.spec.dca.interval
+    input.spec.interval
   )
   const window = backtestWindow(input.now, input.spec.markets, intervalMs)
   if (window.to <= window.from) {

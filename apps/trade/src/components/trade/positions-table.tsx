@@ -115,6 +115,7 @@ function placedByOf(
 const PLACED_BY_LABELS: Record<SmartOrderKind, string> = {
   dca: "DCA ladder",
   grid: "Grid",
+  signal: "Signals",
 }
 
 /** The badge in the Type column. */

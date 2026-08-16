@@ -15,12 +15,18 @@ import {
   type TradeMarketsSettings,
 } from "@/lib/automations/nodes/trade-markets"
 import {
+  tradeSignalsNode,
+  tradeSignalsSettingsSchema,
+  type TradeSignalsSettings,
+} from "@/lib/automations/nodes/trade-signals"
+import {
   chosenWallet,
   tradeWalletNode,
   tradeWalletSettingsSchema,
   walletMoneyWords,
   type TradeWalletSettings,
 } from "@/lib/automations/nodes/trade-wallet"
+import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 
 /**
  * Reading a backtest out of a drawn flow.
@@ -35,11 +41,21 @@ import {
  * what is wrong before anybody presses Run.
  */
 
-/** Everything one backtest needs, read off the steps. */
+/**
+ * Everything one backtest needs, read off the steps.
+ *
+ * The candle size sits on whichever strategy step was drawn, so it is lifted
+ * out here: both strategies have one and everything downstream — the window
+ * arithmetic, the memory check, the stored snapshot — needs it without caring
+ * which strategy it came from.
+ */
 export type BacktestSpec = {
   wallet: TradeWalletSettings
   markets: TradeMarketsSettings
-  dca: TradeDcaSettings
+  interval: TradeDcaSettings["interval"]
+  strategy:
+    | { kind: "dca"; dca: TradeDcaSettings }
+    | { kind: "signals"; signals: TradeSignalsSettings }
 }
 
 export type BacktestSpecResult =
@@ -65,6 +81,19 @@ export function backtestSpecFromFlow(
   const wallets = stepsOfKind(config, tradeWalletNode.kind)
   const markets = stepsOfKind(config, tradeMarketsNode.kind)
   const ladders = stepsOfKind(config, tradeDcaNode.kind)
+  const signals = stepsOfKind(config, tradeSignalsNode.kind)
+
+  // Both strategies drawn, asked before anything else about the flow: it is not
+  // a complaint about the coins or the dates, it is a drawing this app cannot
+  // read either way.
+  if (ladders.length > 0 && signals.length > 0) {
+    return {
+      spec: null,
+      problem:
+        "This flow has a DCA ladder step and a Signals step on it. A backtest " +
+        "tests one strategy, so delete whichever one you did not mean.",
+    }
+  }
 
   if (wallets.length === 0) {
     return { spec: null, problem: "Add a Wallet step to this flow." }
@@ -89,8 +118,11 @@ export function backtestSpecFromFlow(
         "This flow has two Markets to test steps. Put every coin on one of them and delete the other.",
     }
   }
-  if (ladders.length === 0) {
-    return { spec: null, problem: "Add a DCA ladder step after the markets." }
+  if (ladders.length === 0 && signals.length === 0) {
+    return {
+      spec: null,
+      problem: "Add a DCA ladder step or a Signals step after the markets.",
+    }
   }
   if (ladders.length > 1) {
     return {
@@ -99,12 +131,24 @@ export function backtestSpecFromFlow(
         "This flow has two DCA ladder steps. A backtest tests one strategy, so delete one of them.",
     }
   }
+  if (signals.length > 1) {
+    return {
+      spec: null,
+      problem:
+        "This flow has two Signals steps. A backtest tests one strategy, so delete one of them.",
+    }
+  }
 
   // Already strict-parsed at compile time, so a failure here means a saved flow
   // written by a different build. Refusing beats running half-read settings.
   const wallet = tradeWalletSettingsSchema.safeParse(wallets[0][1].settings)
   const market = tradeMarketsSettingsSchema.safeParse(markets[0][1].settings)
-  const dca = tradeDcaSettingsSchema.safeParse(ladders[0][1].settings)
+  const dca = ladders[0]
+    ? tradeDcaSettingsSchema.safeParse(ladders[0][1].settings)
+    : null
+  const signal = signals[0]
+    ? tradeSignalsSettingsSchema.safeParse(signals[0][1].settings)
+    : null
 
   if (!wallet.success) {
     return {
@@ -132,10 +176,38 @@ export function backtestSpecFromFlow(
       problem: "The Markets to test step needs at least one coin.",
     }
   }
-  if (!dca.success) {
+  if (dca && !dca.success) {
     return {
       spec: null,
       problem: "The DCA ladder step's settings could not be read. Open it and check the numbers.",
+    }
+  }
+  if (signal && !signal.success) {
+    return {
+      spec: null,
+      problem: "The Signals step's settings could not be read. Open it and check the numbers.",
+    }
+  }
+  if (signal?.success && signalIndicatorsOn(signal.data.indicators) === 0) {
+    // A run with nothing switched on would walk months of candles and report a
+    // flat line, which reads as "the strategy lost nothing" rather than "there
+    // was no strategy".
+    return {
+      spec: null,
+      problem:
+        "The Signals step has no indicators switched on, so there is nothing to test. Open it and switch one on.",
+    }
+  }
+
+  const interval = dca?.success
+    ? dca.data.interval
+    : signal?.success
+      ? signal.data.interval
+      : null
+  if (interval === null) {
+    return {
+      spec: null,
+      problem: "Add a DCA ladder step or a Signals step after the markets.",
     }
   }
 
@@ -170,13 +242,13 @@ export function backtestSpecFromFlow(
   // `days` here would have waved through two years of 5-minute candles any
   // time the dates were set and the number underneath still said 30.
   const days = windowDays(market.data)
-  const allowed = coinsAllowedFor(dca.data.interval, days)
+  const allowed = coinsAllowedFor(interval, days)
   if (market.data.marketKeys.length > allowed) {
-    const each = candlesPerCoin(dca.data.interval, days)
+    const each = candlesPerCoin(interval, days)
     return {
       spec: null,
       problem:
-        `That is ${market.data.marketKeys.length} coins of ${dca.data.interval} candles over ${days} days — about ${each.toLocaleString()} candles each, and every coin's candles are held in memory at once. ` +
+        `That is ${market.data.marketKeys.length} coins of ${interval} candles over ${days} days — about ${each.toLocaleString()} candles each, and every coin's candles are held in memory at once. ` +
         `Pick at most ${allowed} coins, shorten the window, or use a bigger candle.`,
     }
   }
@@ -202,14 +274,27 @@ export function backtestSpecFromFlow(
       // it filled a dump at whatever the bar opened at and buys piled up in
       // one spot. "You got the price you asked for" is the one assumption a 4h
       // replay can state honestly.
-      dca: {
-        ...dca.data,
-        params: {
-          ...dca.data.params,
-          anchor: "base" as const,
-          rungEntry: "limit" as const,
-        },
-      },
+      interval,
+      strategy: dca?.success
+        ? {
+            kind: "dca",
+            dca: {
+              ...dca.data,
+              params: {
+                ...dca.data.params,
+                anchor: "base" as const,
+                rungEntry: "limit" as const,
+              },
+            },
+          }
+        : {
+            // Nothing is forced on a signals run. Its two settings mean the
+            // same thing in a replay as they do on a real book — how much a
+            // buy spends, and how far it follows — and the replay models its
+            // resting orders the way it models every other one.
+            kind: "signals",
+            signals: (signal as { data: TradeSignalsSettings }).data,
+          },
     },
     problem: null,
   }

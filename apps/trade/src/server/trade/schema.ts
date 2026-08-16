@@ -944,6 +944,23 @@ export const tradeFlowRuns = pgTable(
       .notNull()
       .default({}),
     /**
+     * The newest arrow each coin has already been acted on for, keyed by
+     * market key. Only a signals flow writes it.
+     *
+     * **Without it the same arrow buys the same coin over and over.** An arrow
+     * stays the newest one for as long as its candle is the last to have
+     * confirmed anything — hours, on a four-hour chart — so "act on the newest"
+     * has to mean "act on it once".
+     *
+     * Kept on the run rather than on the smart order it started, because the
+     * order is gone the moment the trade closes and the arrow that started it
+     * is exactly what must not start a second one.
+     */
+    acted: jsonb("acted")
+      .$type<Record<string, number>>()
+      .notNull()
+      .default({}),
+    /**
      * Set when the same refusal keeps coming back, so it stops asking.
      *
      * A refusal about the setup rather than about one coin — rungs too small,

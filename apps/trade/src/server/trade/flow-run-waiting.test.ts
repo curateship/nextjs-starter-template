@@ -79,8 +79,11 @@ async function startRun(marketKeys: string[] = COINS) {
       protocol: "hyperliquid",
       network: "mainnet",
       marketKeys,
-      params: defaultDcaParams(),
-      interval: "4h",
+      strategy: {
+        kind: "dca" as const,
+        params: defaultDcaParams(),
+        interval: "4h" as const,
+      },
       capUsd: 500,
       walletLabel: "Practice",
       real: false,

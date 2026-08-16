@@ -4,6 +4,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { DcaParams } from "@/lib/trade/dca"
+import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 
 /**
  * A flow that has been switched on to trade, in the app's own words.
@@ -23,16 +24,42 @@ export type TradeFlowRunStatus = "running" | "stopped"
  * here is copied at the moment of the switch and never read from the drawing
  * again; changing a running flow means switching it off and on.
  */
+/**
+ * How a switched-on flow decides what to buy, frozen with everything else.
+ *
+ * **One of two, never both.** A ladder waits for price to fall into a plan it
+ * drew from a base; signals wait for an indicator to say so. A flow drawn with
+ * both strategy steps is refused before it starts, in words, rather than left
+ * to work out which one it meant with money on the line.
+ */
+export type TradeFlowStrategy =
+  | {
+      kind: "dca"
+      /** The ladder settings, exactly as the DCA step held them. */
+      params: DcaParams
+      /** The candle size the ladder's own rules are measured on. */
+      interval: CandleInterval
+    }
+  | {
+      kind: "signals"
+      /** Which indicators call the trades, and what each is set to. */
+      indicators: IndicatorSettings
+      /** The candle size the arrows are read on. */
+      interval: CandleInterval
+      /** What one buy signal spends, as a share of the cap. */
+      stakePct: number
+      /** How far a buy may follow a price that runs, as a share of it. */
+      chaseGiveUp: number
+    }
+
 export type TradeFlowRunSpec = {
   /** The exchange and network every coin on the list belongs to. */
   protocol: ProtocolId
   network: NetworkId
   /** The coins this flow watches, as full market keys. */
   marketKeys: string[]
-  /** The ladder settings, exactly as the DCA step held them. */
-  params: DcaParams
-  /** The candle size the ladder's own rules are measured on. */
-  interval: CandleInterval
+  /** What it does about them. */
+  strategy: TradeFlowStrategy
   /** The most of the wallet this flow may spend, in dollars. */
   capUsd: number
   /** What the wallet was called when it started, for a sentence afterwards. */
@@ -64,7 +91,7 @@ export type TradeFlowRunRow = {
  * flow off needs to know money is still in the market.
  */
 export type FlowStopOutcome = {
-  /** Ladders called off before they bought anything. */
+  /** Coins called off before they bought anything. */
   cancelled: number
   /** Coins still held, whose stops and targets were left alone. */
   held: number
@@ -73,8 +100,12 @@ export type FlowStopOutcome = {
 export function describeFlowStop(outcome: FlowStopOutcome): string {
   const parts: string[] = []
   if (outcome.cancelled > 0) {
+    // "Coin" rather than "ladder", because a flow's strategy is now either a
+    // ladder or a signal trade and the sentence has to be true of both. What
+    // was called off is the same thing in each case: a coin that had asked for
+    // a price and not got one.
     parts.push(
-      `${outcome.cancelled} waiting ${outcome.cancelled === 1 ? "ladder" : "ladders"} cancelled`
+      `${outcome.cancelled} ${outcome.cancelled === 1 ? "coin" : "coins"} called off before buying anything`
     )
   }
   if (outcome.held > 0) {

@@ -1,6 +1,7 @@
 import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
+import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
 import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AppServerOptions } from "@/server/app-options"
 import { backtestTick } from "@/server/trade/backtest/worker"
@@ -62,6 +63,19 @@ export const appServerOptions: AppServerOptions = {
        * why, rather than failing as broken.
        */
       [tradeDcaNode.kind]: async ({ run, now }) => {
+        const outcome = await runTradeFlow(run, now().getTime())
+        return { type: "complete", summary: outcome.summary }
+      },
+
+      /**
+       * The other strategy, and the identical hand-over.
+       *
+       * `runTradeFlow` re-reads the saved flow and works out which strategy it
+       * holds from the steps themselves, so this does not need to say. Written
+       * as its own entry rather than sharing one, because the executor table is
+       * keyed by kind and a kind with no entry fails the run as broken.
+       */
+      [tradeSignalsNode.kind]: async ({ run, now }) => {
         const outcome = await runTradeFlow(run, now().getTime())
         return { type: "complete", summary: outcome.summary }
       },

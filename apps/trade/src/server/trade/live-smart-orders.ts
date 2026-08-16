@@ -21,8 +21,9 @@ import {
 } from "@/lib/trade/grid"
 import {
   forEachPlanOrderId,
+  readSmartEntry,
   readSmartOrderKind,
-  readSmartPlan,
+  type SmartEntry,
   type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
@@ -57,6 +58,7 @@ import {
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
 import { advanceGrid } from "./smart-grids"
+import { advanceSignal } from "./smart-signals"
 import {
   advanceOne,
   ladderBarsKey,
@@ -567,12 +569,12 @@ async function reconcileLiveLaddersOnce(
   // separate places later — a row that some of this function believes in and
   // the rest does not is how an order ends up resting on the exchange with
   // nothing advancing it.
-  const parsed = new Map<string, { kind: SmartOrderKind; plan: SmartPlan }>()
+  const parsed = new Map<string, SmartEntry>()
   for (const row of rows) {
     const kind = readSmartOrderKind(row.kind)
     if (!kind) continue
-    const plan = readSmartPlan(kind, row.plan)
-    if (plan) parsed.set(row.id, { kind, plan })
+    const entry = readSmartEntry(kind, row.plan)
+    if (entry) parsed.set(row.id, entry)
   }
   if (parsed.size === 0) return
 
@@ -745,8 +747,12 @@ async function reconcileLiveLaddersOnce(
       // have come from.
       const aimedTpPx =
         entry && entry.kind === "dca" ? (entry.plan as LadderPlan).aimedTpPx : null
+      // A signal trade writes no protection at all — its exit is the next
+      // arrow — so none of its sells can have come from a stop it never set.
+      const aimedSlPx =
+        entry && entry.kind !== "signal" ? entry.plan.aimedSlPx : null
       const reason: PaperFillReason =
-        one.side === "sell" && near(entry?.plan.aimedSlPx ?? null)
+        one.side === "sell" && near(aimedSlPx)
           ? "stop_loss"
           : one.side === "sell" && near(aimedTpPx)
             ? "take_profit"
@@ -820,7 +826,7 @@ async function reconcileLiveLaddersOnce(
    */
   const advanceRow = async (
     raw: (typeof rows)[number],
-    entry: { kind: SmartOrderKind; plan: SmartPlan },
+    entry: SmartEntry,
     engine: (
       input: LadderAdvanceInput,
       deps: LadderEngineDeps,
@@ -977,7 +983,14 @@ async function reconcileLiveLaddersOnce(
         // durable ids. If protection is refused, a retry cannot place them
         // twice.
         const position = book.positions.get(row.marketKey)
-        if (position && book.touchedMarkets.has(row.marketKey)) {
+        // A signal trade manages no protection. Its exit is the next arrow, so
+        // writing a stop or a target for it here would be putting orders on a
+        // position that nobody asked for and nothing would ever move again.
+        if (
+          entry.kind !== "signal" &&
+          position &&
+          book.touchedMarkets.has(row.marketKey)
+        ) {
           try {
             await setLiveBrackets(userId, {
               walletId: wallet.id,
@@ -997,7 +1010,11 @@ async function reconcileLiveLaddersOnce(
                 ? null
                 : (originalBrackets?.tpPx ?? null)
             }
-            row.plan.aimedSlPx = oldProtectionGone
+            // Through `entry`, not `row`, and they are the same object: only
+            // `entry` carries the kind, so only it knows this plan has a stop
+            // to aim at all. A signal trade cannot reach here — the block this
+            // sits inside skips its kind, and the compiler now knows it.
+            entry.plan.aimedSlPx = oldProtectionGone
               ? null
               : (originalBrackets?.slPx ?? null)
             await saveLadderPlan(userId, row.id, row.plan, status)
@@ -1023,6 +1040,15 @@ async function reconcileLiveLaddersOnce(
       // A grid has no orders on the exchange to match fills against: its
       // levels are watched prices and it buys when one is reached.
       await advanceRow(raw, entry, advanceGrid)
+      continue
+    }
+
+    if (entry.kind === "signal") {
+      // A signal trade has exactly one order on the exchange and does not need
+      // its fills matched back to anything. It decides what to do next by
+      // looking at the POSITION, which this book has just rebuilt from the
+      // exchange — so a partial fill needs no arithmetic here to be understood.
+      await advanceRow(raw, entry, advanceSignal)
       continue
     }
 

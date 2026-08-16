@@ -375,3 +375,92 @@ describe("the bases a backtest chart draws", () => {
     }
   })
 })
+
+describe("an arrow and a signal are the same event", () => {
+  /**
+   * The one promise the Signals step stands on.
+   *
+   * Not "the two rules agree" — the same list, read two ways. Two passes that
+   * merely agreed today would be free to stop agreeing, and this indicator has
+   * already been on the wrong end of exactly that: the chart drew 1,387 bases
+   * while the ladder followed 1,622, on the same coins with the same settings.
+   */
+  const walk = Array.from({ length: 400 }, (_, i) =>
+    Math.round(100 + Math.sin(i / 5) * 6 + Math.sin(i / 23) * 14 - i * 0.05)
+  )
+  const candles = walk.map((low, index) => ({
+    openTime: index * HOUR,
+    low,
+    // A high that moves with the low, so the ceiling side has real shapes of
+    // its own to find rather than a flat line nothing can confirm.
+    high: low + 20 + Math.round(Math.sin(index / 7) * 5),
+    close: low + 0.5,
+  }))
+
+  for (const withTrendOnly of [true, false]) {
+    for (const minBarsApart of [1, 20]) {
+      it(`one for one — trend ${withTrendOnly}, ${minBarsApart} apart`, () => {
+        const params = settings({
+          searchBars: 8,
+          holdBars: 3,
+          withTrendOnly,
+          minBarsApart,
+          showBases: true,
+          showCeilings: true,
+        })
+
+        const arrows = baseIndicator.compute(candles, params).marks
+        const called = baseIndicator.signals?.(candles, params) ?? []
+
+        expect(called).toHaveLength(arrows.length)
+        // Enough arrows for the comparison to mean something. A pass over a
+        // shape that produced none would be two empty lists agreeing.
+        expect(arrows.length).toBeGreaterThan(3)
+        expect(called).toEqual(
+          arrows.map((arrow) => ({
+            time: arrow.time,
+            side: arrow.side === "up" ? "buy" : "sell",
+          }))
+        )
+      })
+    }
+  }
+
+  it("switching ceilings off switches the sell side off", () => {
+    // On a chart this hides a drawing. On a step that trades these it stops it
+    // selling, and that is the honest reading of the same switch rather than a
+    // second meaning bolted on.
+    const params = settings({
+      searchBars: 8,
+      holdBars: 3,
+      minBarsApart: 1,
+      showBases: true,
+      showCeilings: false,
+    })
+    const called = baseIndicator.signals?.(candles, params) ?? []
+    expect(called.length).toBeGreaterThan(0)
+    expect(called.every((one) => one.side === "buy")).toBe(true)
+  })
+
+  it("says nothing at all when both sides are off", () => {
+    const params = settings({ showBases: false, showCeilings: false })
+    expect(baseIndicator.signals?.(candles, params)).toEqual([])
+  })
+
+  it("comes back in the order the candles happened", () => {
+    const params = settings({
+      searchBars: 8,
+      holdBars: 3,
+      minBarsApart: 1,
+      showBases: true,
+      showCeilings: true,
+    })
+    const called = baseIndicator.signals?.(candles, params) ?? []
+    const times = called.map((one) => one.time)
+    expect(times).toEqual([...times].sort((a, b) => a - b))
+  })
+
+  it("answers an empty list rather than throwing on no candles", () => {
+    expect(baseIndicator.signals?.([], settings())).toEqual([])
+  })
+})
