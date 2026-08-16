@@ -98,6 +98,12 @@ function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
   }
 }
 
+function planArchiveReason(plan: AdminPlan) {
+  return plan.isDefault
+    ? "This is the default plan, which everyone falls back to. Make another plan the default first."
+    : "This plan is already archived."
+}
+
 type PlanDraft = {
   slug: string
   name: string
@@ -350,12 +356,17 @@ export function AdminPlansDashboard({
             rowAction={() => openPlan(plan)}
           >
             <TableCell column="select">
-              <Checkbox
-                checked={selectedIds.has(plan.id)}
-                onCheckedChange={() => selection.toggle(plan.id)}
+              <DisabledReason
                 disabled={plan.isDefault || !plan.active}
-                aria-label={`Select ${plan.name}`}
-              />
+                reason={planArchiveReason(plan)}
+              >
+                <Checkbox
+                  checked={selectedIds.has(plan.id)}
+                  onCheckedChange={() => selection.toggle(plan.id)}
+                  disabled={plan.isDefault || !plan.active}
+                  aria-label={`Select ${plan.name}`}
+                />
+              </DisabledReason>
             </TableCell>
             <TableCell column="main">
               <button
@@ -414,11 +425,7 @@ export function AdminPlansDashboard({
                 </Button>
                 <DisabledReason
                   disabled={plan.isDefault || !plan.active}
-                  reason={
-                    plan.isDefault
-                      ? "This is the default plan, which everyone falls back to. Make another plan the default first."
-                      : "This plan is already archived."
-                  }
+                  reason={planArchiveReason(plan)}
                 >
                   <Button
                     type="button"

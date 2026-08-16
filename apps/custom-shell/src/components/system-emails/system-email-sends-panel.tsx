@@ -1,8 +1,10 @@
 import * as React from "react"
+import { Loader2Icon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getSystemEmailErrorMessage,
@@ -39,6 +41,7 @@ export function SystemEmailSendsPanel({
   const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [reloads, setReloads] = React.useState(0)
 
   const meta = SYSTEM_EMAIL_META[kind]
 
@@ -62,7 +65,7 @@ export function SystemEmailSendsPanel({
     return () => {
       cancelled = true
     }
-  }, [kind, refreshToken])
+  }, [kind, refreshToken, reloads])
 
   const loadMore = async () => {
     setLoadingMore(true)
@@ -103,7 +106,16 @@ export function SystemEmailSendsPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {error ? <ErrorBanner message={error} /> : null}
+          {error ? (
+            <ErrorRow
+              message={error}
+              onRetry={() => {
+                setError(null)
+                setLoading(true)
+                setReloads((count) => count + 1)
+              }}
+            />
+          ) : null}
 
           <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">{meta.whenSent}</p>
@@ -130,7 +142,9 @@ export function SystemEmailSendsPanel({
             ) : null}
           </div>
 
-          {!loading && sends.length === 0 ? (
+          {loading && sends.length === 0 ? (
+            <LoadingRow label="Loading recent sends…" />
+          ) : !error && sends.length === 0 ? (
             <EmptyRow>
               Nobody has been sent this yet. Every one that goes out from now on
               shows up here.
@@ -180,7 +194,14 @@ export function SystemEmailSendsPanel({
                   disabled={loadingMore}
                   onClick={() => void loadMore()}
                 >
-                  {loadingMore ? "Loading…" : "Show more"}
+                  <Loader2Icon
+                    className={cn(
+                      "size-4",
+                      loadingMore ? "animate-spin" : "invisible"
+                    )}
+                    aria-hidden
+                  />
+                  Show more
                 </Button>
               ) : null}
             </div>

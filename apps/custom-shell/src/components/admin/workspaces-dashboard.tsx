@@ -272,15 +272,24 @@ export function WorkspacesDashboard({
         controls={
           <>
             {selectedIds.size ? (
-              <DashboardToolbarButton
-                type="button"
-                variant="destructive"
-                onClick={() => setMassDeleteOpen(true)}
+              <DisabledReason
                 disabled={busy || selectedIds.size >= workspaces.length}
+                reason={
+                  busy
+                    ? "Wait for the delete that is already running to finish."
+                    : `This is your last ${word.one}, and the app needs one. Make another before deleting this.`
+                }
               >
-                <Trash2Icon className="size-4" />
-                Delete ({selectedIds.size})
-              </DashboardToolbarButton>
+                <DashboardToolbarButton
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setMassDeleteOpen(true)}
+                  disabled={busy || selectedIds.size >= workspaces.length}
+                >
+                  <Trash2Icon className="size-4" />
+                  Delete ({selectedIds.size})
+                </DashboardToolbarButton>
+              </DisabledReason>
             ) : null}
             <DashboardToolbarSearch
               name="workspace-search"

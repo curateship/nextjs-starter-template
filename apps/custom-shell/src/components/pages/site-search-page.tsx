@@ -4,9 +4,11 @@ import { PublicPageFrame } from "@/components/shell/public-page-frame"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { getSiteSearchErrorMessage } from "@/lib/api/content/search"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { plural } from "@/lib/format/plural"
 import { toLinkProps } from "@/lib/nav/nav-href"
 import type { SiteSearchResult } from "@/lib/pages/site-search"
 
@@ -22,9 +24,9 @@ export function SiteSearchPage({ query, results }: { query: string; results: Sit
 
       <SiteSearchForm className="grid gap-2 sm:grid-cols-[1fr_auto]">
         <div className="grid gap-2">
-          <label htmlFor="site-search-query" className="text-sm font-medium">
+          <FieldLabel htmlFor="site-search-query">
             Search this site
-          </label>
+          </FieldLabel>
           <Input
             key={query}
             id="site-search-query"
@@ -63,7 +65,7 @@ function SearchResults({ query, results }: { query: string; results: SiteSearchR
   return (
     <div className="grid gap-2 md:gap-3">
       <p className="text-sm text-muted-foreground">
-        {results.length} {results.length === 1 ? "result" : "results"}
+        {results.length} {plural(results.length, "result")}
       </p>
       <ul className="grid gap-2 md:gap-3">
         {results.map((result) => (

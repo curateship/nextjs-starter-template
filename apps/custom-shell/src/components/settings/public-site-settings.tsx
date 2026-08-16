@@ -14,7 +14,13 @@ import {
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardGroup,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
@@ -62,7 +68,7 @@ export function PublicSiteSettings({
   onSaveConfig,
 }: PublicSiteSettingsProps) {
   return (
-    <div className="grid gap-6">
+    <CardGroup>
       <PublicLinkEditor
         id="public-menu"
         title="Public menu"
@@ -97,7 +103,7 @@ export function PublicSiteSettings({
           />
         </div>
       </CollapsibleSettingsCard>
-    </div>
+    </CardGroup>
   )
 }
 
