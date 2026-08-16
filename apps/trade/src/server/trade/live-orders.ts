@@ -12,7 +12,7 @@ import {
   livePortfolioRows,
   type LiveJournalAction,
 } from "@/lib/trade/live"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import {
   isMarketable,
   type PaperOrder,
@@ -26,7 +26,7 @@ import {
   getProtocol,
   ordersOf,
 } from "@/server/protocols/registry"
-import { loadLiveTrades, sweepLiveFills } from "@/server/trade/live-fills"
+import { loadLiveHistory, sweepLiveFills } from "@/server/trade/live-fills"
 import {
   tradeLiveJournal,
   tradeWalletNonces,
@@ -409,6 +409,7 @@ export async function loadLivePortfolio(
 ): Promise<{
   positions: PaperPosition[]
   orders: PaperOrder[]
+  fills: LiveFill[]
   trades: LiveTrade[]
   unreachable: string[]
 }> {
@@ -446,10 +447,10 @@ export async function loadLivePortfolio(
   // through when a real order has gone wrong, and the background engine trades
   // with nobody watching and no toast to see. Nothing on screen reads it, so
   // the poll does not pay for it either.
-  const trades = await loadLiveTrades(
+  const history = await loadLiveHistory(
     userId,
     live.map((wallet) => wallet.id)
   )
 
-  return { positions, orders, trades, unreachable }
+  return { positions, orders, ...history, unreachable }
 }

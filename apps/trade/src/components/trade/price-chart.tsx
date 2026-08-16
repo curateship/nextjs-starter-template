@@ -60,6 +60,8 @@ export type ChartSurface = {
   axisWidth: number
   /** Epoch milliseconds to a horizontal position, off the ends included. */
   xOf(time: number): number
+  /** The centre of the candle that contains this epoch millisecond. */
+  xOfContainingBar(time: number): number
   /** A horizontal position back to epoch milliseconds. */
   timeAt(x: number): number
   /**
@@ -431,6 +433,9 @@ export function PriceChart({
       // a live bar appending itself changes what lies to the right of the
       // last candle without moving anything already on screen.
       xOf: (time) => next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
+      xOfContainingBar: (time) =>
+        next.barZeroX +
+        Math.floor(barOfTime(timesRef.current, time)) * next.barWidth,
       timeAt: (x) => timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
       barAt: (time) => barOfTime(timesRef.current, time),
       yOf: (price) => series.priceToCoordinate(price),

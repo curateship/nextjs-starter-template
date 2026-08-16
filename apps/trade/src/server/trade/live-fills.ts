@@ -6,6 +6,7 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   buildLiveTrades,
+  fillsOutsideTrades,
   type LiveFill,
   type LiveTrade,
   type LiveTriggerKind,
@@ -292,11 +293,11 @@ async function recordTriggers(
  * is `buildLiveTrades`, which is tested on its own and knows nothing about a
  * database.
  */
-export async function loadLiveTrades(
+export async function loadLiveHistory(
   userId: string,
   walletIds: readonly string[]
-): Promise<LiveTrade[]> {
-  if (walletIds.length === 0) return []
+): Promise<{ fills: LiveFill[]; trades: LiveTrade[] }> {
+  if (walletIds.length === 0) return { fills: [], trades: [] }
 
   const [fillRows, triggerRows] = await Promise.all([
     db
@@ -351,7 +352,11 @@ export async function loadLiveTrades(
       ])
   )
 
-  return buildLiveTrades(fills, triggers).slice(0, MAX_TRADES)
+  const allTrades = buildLiveTrades(fills, triggers)
+  return {
+    fills: fillsOutsideTrades(fills, allTrades),
+    trades: allTrades.slice(0, MAX_TRADES),
+  }
 }
 
 /**

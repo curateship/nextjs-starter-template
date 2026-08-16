@@ -340,6 +340,40 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
 }
 
 /**
+ * Fills that have not made a finished trade yet, as plain chart arrows.
+ *
+ * They cannot say what the whole trade made because it is still running. They
+ * can still say exactly what happened, where, and at what size. Pieces of one
+ * exchange order are grouped by the same rule as finished-trade arrows.
+ */
+export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
+  return groupFills(
+    [...fills].sort(
+      (left, right) =>
+        left.at - right.at || left.fillId.localeCompare(right.fillId)
+    )
+  ).map((fill) => ({
+    at: fill.at,
+    px: fill.px,
+    side: fill.side,
+    sz: fill.sz,
+    label: `${fill.side === "buy" ? "Bought" : "Sold"} ${price$(fill.px)}`,
+    detail: `Size ${trimmed(fill.sz)}`,
+  }))
+}
+
+/** Fills not already carried by a finished trade, normally the open position. */
+export function fillsOutsideTrades(
+  fills: readonly LiveFill[],
+  trades: readonly LiveTrade[]
+): LiveFill[] {
+  const finished = new Set(
+    trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))
+  )
+  return fills.filter((fill) => !finished.has(fill.fillId))
+}
+
+/**
  * One order's pieces added back into one fill, at the price it averaged.
  *
  * Grouped on the order rather than the moment, because that is what "one
@@ -353,6 +387,8 @@ function groupFills(fills: readonly LiveFill[]): LiveFill[] {
     const open = out[out.length - 1]
     if (
       open &&
+      open.walletId === fill.walletId &&
+      open.marketKey === fill.marketKey &&
       open.orderId === fill.orderId &&
       open.side === fill.side &&
       Math.abs(open.at - fill.at) <= 1000

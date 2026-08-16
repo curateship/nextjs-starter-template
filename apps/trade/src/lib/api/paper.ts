@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -115,6 +115,7 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
     }): Promise<{
       positions: PaperPosition[]
       orders: PaperOrder[]
+      fills: LiveFill[]
       /** Finished practice round trips — the Journal, alongside the real ones. */
       trades: LiveTrade[]
       smartOrders: SmartOrder[]
