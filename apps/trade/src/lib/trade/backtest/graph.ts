@@ -52,6 +52,23 @@ export type GraphSeries = {
   openCount: number[] | null
   /** The pot counting only banked trades. Null until the trades are in hand. */
   banked: number[] | null
+  /**
+   * How low the pot went **inside** each bar, as far as the trades can prove.
+   *
+   * The run writes the pot once a bar, at its close, so a crash and its
+   * recovery inside one candle leave no mark: on 10 October 2025 the pot went
+   * 21,421 → 39,392 between two four-hour stamps, with twenty-two liquidations
+   * and a rally in between, and the line drew a clean step up.
+   *
+   * This is not a guess at the shape. Every trade that closed in a bar carries
+   * what it lost, and those losses were taken before the bar ended, so the pot
+   * was at least that far down at some instant inside it. Winners are left out
+   * on purpose: a loss is money that was definitely gone by the close, while
+   * assuming a winner had already banked would flatter the trough.
+   *
+   * A lower bound, then, never a story. Null until the trades are in hand.
+   */
+  trough: number[] | null
 }
 
 /**
@@ -94,11 +111,13 @@ export function buildGraphSeries(
       offPeakPct,
       openCount: null,
       banked: null,
+      trough: null,
     }
   }
 
   const opens = new Array<number>(usd.length + 1).fill(0)
   const closes = new Array<number>(usd.length + 1).fill(0)
+  const lost = new Array<number>(usd.length + 1).fill(0)
   for (const trade of trades) {
     const from = barAt(t, trade.entryAt)
     // A trade with no exit was still open when the run stopped, so it runs to
@@ -107,7 +126,26 @@ export function buildGraphSeries(
     if (from > to) continue
     opens[from] += 1
     opens[to + 1] -= 1
-    if (trade.exitAt !== null) closes[to] += trade.pnl
+    if (trade.exitAt !== null) {
+      closes[to] += trade.pnl
+      if (trade.pnl < 0) lost[to] += trade.pnl
+    }
+  }
+
+  // The pot going into the bar, less everything that was lost during it. Bars
+  // where nothing was lost sit at their own close, so the line is unchanged
+  // anywhere a crash did not happen.
+  const trough: number[] = new Array(usd.length)
+  for (let bar = 0; bar < usd.length; bar++) {
+    // No loss taken in the bar is no hole in it. Measuring every bar from the
+    // one before would hang a wick off every rise, which says nothing except
+    // that the pot went up.
+    if (lost[bar] === 0) {
+      trough[bar] = usd[bar]
+      continue
+    }
+    const before = bar === 0 ? startingUsd : usd[bar - 1]
+    trough[bar] = Math.min(usd[bar], before + lost[bar])
   }
 
   const openCount: number[] = new Array(usd.length)
@@ -121,7 +159,15 @@ export function buildGraphSeries(
     banked[bar] = startingUsd + takings
   }
 
-  return { t, usd, inPlay: [...atWork], offPeakPct, openCount, banked }
+  return {
+    t,
+    usd,
+    inPlay: [...atWork],
+    offPeakPct,
+    openCount,
+    banked,
+    trough,
+  }
 }
 
 /**
@@ -458,6 +504,27 @@ export function potHeight(
   }
   const span = Math.max(1e-9, scale.hi - scale.lo)
   return (value) => bottom - ((value - scale.lo) / span) * height
+}
+
+/**
+ * The other way round: what a height on the chart is worth.
+ *
+ * The mirror of `potHeight`, and written beside it so the two cannot drift —
+ * a crosshair that names a different dollar figure than the line it crosses is
+ * worse than no crosshair.
+ */
+export function potValue(
+  scale: { log: boolean; lo: number; hi: number },
+  bottom: number,
+  height: number
+): (y: number) => number {
+  if (scale.log) {
+    const low = Math.log(Math.max(1e-9, scale.lo))
+    const high = Math.log(Math.max(low + 1e-9, scale.hi))
+    return (y) => Math.exp(low + ((bottom - y) / height) * (high - low))
+  }
+  const span = Math.max(1e-9, scale.hi - scale.lo)
+  return (y) => scale.lo + ((bottom - y) / height) * span
 }
 
 /**

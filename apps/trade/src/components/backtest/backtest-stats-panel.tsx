@@ -71,6 +71,7 @@ export function BacktestStatsPanel({
   stats,
   window,
   onWindow,
+  leverage,
   coinsTotal,
   running,
 }: {
@@ -83,6 +84,8 @@ export function BacktestStatsPanel({
   stats: WindowStats | null
   window: GraphWindow
   onWindow: (next: GraphWindow) => void
+  /** How much the run borrows — see the tooltip in the graph. */
+  leverage: number
   coinsTotal: number
   /** The run has not finished, so these figures are still moving. */
   running: boolean
@@ -128,28 +131,32 @@ export function BacktestStatsPanel({
                     ? `${formatDate(new Date(stats.fromT))} – ${formatDate(new Date(stats.toT))}`
                     : "full run"}
                 </div>
+                {/* The percent leads: it is the half of this line that can be
+                    held against another run, another window or another
+                    strategy, while the dollars only mean anything next to the
+                    pot they came out of. Both at the same size and weight —
+                    in a pill at 11px the comparable figure was the smallest
+                    thing on the panel. */}
                 <div className="mt-0.5 flex items-baseline gap-2">
-                  {/* Coloured like every other figure in the app: made money is
-                      teal, lost is red. The pill beside it was doing that on
-                      its own, so the same fact was green in one half of the
-                      line and plain in the other. */}
                   <span
                     className={cn(
-                      "font-mono text-xl font-semibold tracking-tight tabular-nums",
-                      toneClass(stats ? stats.net : summary.madeOrLost)
-                    )}
-                  >
-                    {formatSignedUsd(stats ? stats.net : summary.madeOrLost)}
-                  </span>
-                  <span
-                    className={cn(
-                      "rounded-full px-2 py-0.5 font-mono text-[11px] font-medium",
+                      "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
                       (stats ? stats.net : summary.madeOrLost) >= 0
                         ? "bg-teal-600/10 text-teal-600 dark:bg-teal-400/10 dark:text-teal-400"
                         : "bg-red-600/10 text-red-600 dark:bg-red-400/10 dark:text-red-400"
                     )}
                   >
                     {signedPct(stats ? stats.netPct : summary.madeOrLostPct)}
+                  </span>
+                  {/* Coloured like every other figure in the app: made money is
+                      teal, lost is red. */}
+                  <span
+                    className={cn(
+                      "text-xl font-semibold tracking-tight tabular-nums",
+                      toneClass(stats ? stats.net : summary.madeOrLost)
+                    )}
+                  >
+                    {formatSignedUsd(stats ? stats.net : summary.madeOrLost)}
                   </span>
                 </div>
                 <div className="mt-1 text-[10px] text-muted-foreground">
@@ -297,7 +304,9 @@ export function BacktestStatsPanel({
                 />
                 <BacktestKpi
                   label="In markets now"
-                  value={stats ? formatUsd(stats.inCoinsUsd) : "—"}
+                  // The pot's line records the margin a position put up, so at
+                  // 2× the money in the market is twice it.
+                  value={stats ? formatUsd(stats.inCoinsUsd * leverage) : "—"}
                   sub={
                     stats?.openNow === null || stats?.openNow === undefined
                       ? "at the end of the window"

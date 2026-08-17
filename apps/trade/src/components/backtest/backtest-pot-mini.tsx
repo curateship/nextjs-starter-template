@@ -61,7 +61,7 @@ export function BacktestPotMini({
         <h3 className="shrink-0 text-[11px] whitespace-nowrap text-muted-foreground">
           The pot · full run
         </h3>
-        <span className="truncate font-mono text-[10px] text-muted-foreground">
+        <span className="truncate text-[10px] text-muted-foreground">
           {formatDate(new Date(t[0]))} – {formatDate(new Date(t[last]))}
         </span>
       </div>

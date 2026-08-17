@@ -17,6 +17,7 @@ import {
   potHeight,
   potScale,
   potTicks,
+  potValue,
   type BacktestRunTrade,
   type GraphPreset,
   type GraphSeries,
@@ -64,6 +65,7 @@ export function BacktestGraph({
   series,
   trades,
   startingUsd,
+  leverage,
   window,
   onWindow,
 }: {
@@ -71,11 +73,19 @@ export function BacktestGraph({
   /** Null until the run's trades arrive, or on a run too old to have them. */
   trades: readonly BacktestRunTrade[] | null
   startingUsd: number
+  /**
+   * How much the run borrows. The pot's line records the MARGIN each position
+   * put up, so at 2× the money actually in the market is twice that — three
+   * positions staking $1,058 were being reported as $529.
+   */
+  leverage: number
   window: GraphWindow
   onWindow: (next: GraphWindow) => void
 }) {
   const [box, setBox] = React.useState({ width: 900, height: 420 })
   const [hover, setHover] = React.useState<number | null>(null)
+  /** Where the pointer is down the plot, for the crosshair that goes with it. */
+  const [hoverY, setHoverY] = React.useState<number | null>(null)
   const [drag, setDrag] = React.useState<[number, number] | null>(null)
   const [overlays, setOverlays] = React.useState<Overlays>({
     offPeak: true,
@@ -169,8 +179,10 @@ export function BacktestGraph({
   }
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const bar = barAtX(localX(event))
+    const box = event.currentTarget.getBoundingClientRect()
+    const bar = barAtX(event.clientX - box.left)
     setHover(bar)
+    setHoverY(event.clientY - box.top)
     setDrag((old) => (old ? [old[0], bar] : old))
   }
 
@@ -226,10 +238,10 @@ export function BacktestGraph({
               somebody typed and "$10,000.00" spends two characters saying it
               has no pence. */}
           <div className="flex flex-wrap items-baseline gap-x-2">
-            <span className="font-mono text-2xl font-semibold tracking-tight tabular-nums">
+            <span className="text-2xl font-semibold tracking-tight tabular-nums">
               {reading ? formatUsd(reading.usd) : "—"}
             </span>
-            <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+            <span className="text-[11px] text-muted-foreground tabular-nums">
               from {formatUsdRounded(startingUsd)}
             </span>
           </div>
@@ -338,9 +350,17 @@ export function BacktestGraph({
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        // A cancelled pointer is one that is no longer anywhere, so the
+        // crosshair goes with it. A normal release keeps it: the pointer is
+        // still over the plot and still pointing at something.
+        onPointerCancel={(event) => {
+          onPointerUp(event)
+          setHover(null)
+          setHoverY(null)
+        }}
         onPointerLeave={() => {
           setHover(null)
+          setHoverY(null)
           setDrag(null)
           pressRef.current = null
         }}
@@ -406,7 +426,10 @@ export function BacktestGraph({
           ) : null}
 
           {/* What it started with, so above or below the line is the whole
-              answer at a glance. */}
+              answer at a glance. Named on the line itself: unlabelled dashes
+              are one more line on a chart that has several, and on a run whose
+              starting money lands near the off-peak strip they vanish into it
+              entirely. */}
           <line
             x1={PAD_LEFT}
             y1={shape.startY}
@@ -416,6 +439,32 @@ export function BacktestGraph({
             strokeOpacity={0.35}
             strokeDasharray="3 3"
           />
+          {/* Named at the left end, where the run begins. On the right it sat
+              among the liquidation counts and the two collided. */}
+          <text
+            x={PAD_LEFT + 5}
+            y={shape.startY - 5}
+            fontSize={10}
+            className="fill-muted-foreground"
+          >
+            started {formatUsdRounded(startingUsd)}
+          </text>
+
+          {/* How far the pot fell inside a bar before the close it was written
+              at — the crash that a once-a-bar stamp cannot show.
+              A translucent red block, not a line with a tick: in the line's own
+              colour it vanished into the vertical step it hangs off, and as a
+              line with a foot several in a row read as stray marks. */}
+          {shape.wicks.map((wick) => (
+            <rect
+              key={wick.x}
+              x={wick.x - 1.5}
+              y={wick.from}
+              width={3}
+              height={Math.max(1, wick.to - wick.from)}
+              className="fill-red-600/35 dark:fill-red-400/35"
+            />
+          ))}
 
           <path
             d={shape.walletLine}
@@ -426,35 +475,67 @@ export function BacktestGraph({
             strokeLinecap="round"
           />
 
-          {/* Each ✕ is a trade the exchange took off you, at the moment it went
-              and at what the pot was worth then. They cluster on a bad day
-              because that is what happened on it. */}
+          {/* Trades the exchange took off you, counted per moment and drawn up
+              from the foot of the chart, with the number over the column. */}
           {overlays.liquidations
             ? shape.liquidations.map((mark, index) => (
-                <g
-                  key={`${mark.x}:${index}`}
-                  className="stroke-red-600 dark:stroke-red-400"
-                  strokeWidth={1.3}
-                  strokeLinecap="round"
-                >
-                  <line
-                    x1={mark.x - 4}
-                    y1={mark.y - 4}
-                    x2={mark.x + 4}
-                    y2={mark.y + 4}
+                <g key={`${mark.x}:${index}`}>
+                  <rect
+                    x={mark.x - 1.5}
+                    y={shape.laneFloor - mark.height}
+                    width={3}
+                    height={mark.height}
+                    className="fill-red-600 dark:fill-red-400"
                   />
-                  <line
-                    x1={mark.x - 4}
-                    y1={mark.y + 4}
-                    x2={mark.x + 4}
-                    y2={mark.y - 4}
-                  />
+                  <text
+                    x={mark.x}
+                    y={shape.laneFloor - mark.height - 4}
+                    textAnchor="middle"
+                    fontSize={9}
+                    fontWeight={600}
+                    className="fill-red-600 dark:fill-red-400"
+                  >
+                    {mark.count}
+                  </text>
                 </g>
               ))
             : null}
 
           {hover !== null ? (
             <>
+              {/* Both ways, like any chart: down for the moment, across for
+                  the amount, with what that height is worth in the gutter. */}
+              {hoverY !== null && hoverY < paneHeight ? (
+                <>
+                  <line
+                    x1={PAD_LEFT}
+                    y1={hoverY}
+                    x2={box.width - PAD_RIGHT}
+                    y2={hoverY}
+                    stroke="currentColor"
+                    strokeOpacity={0.4}
+                    strokeDasharray="3 3"
+                  />
+                  <rect
+                    x={2}
+                    y={hoverY - 8}
+                    width={PAD_LEFT - 8}
+                    height={16}
+                    rx={3}
+                    className="fill-foreground"
+                  />
+                  <text
+                    x={PAD_LEFT - 9}
+                    y={hoverY}
+                    textAnchor="end"
+                    dominantBaseline="central"
+                    fontSize={10}
+                    className="fill-background"
+                  >
+                    {formatCompactUsd(shape.valueAt(hoverY))}
+                  </text>
+                </>
+              ) : null}
               <line
                 x1={xOf(cursor)}
                 y1={0}
@@ -479,7 +560,7 @@ export function BacktestGraph({
         {shape.ticks.map((tick) => (
           <div
             key={tick.value}
-            className="pointer-events-none absolute text-right font-mono text-[11px] text-muted-foreground tabular-nums"
+            className="pointer-events-none absolute text-right text-[11px] text-muted-foreground tabular-nums"
             style={{ top: tick.y - 7, left: 0, width: PAD_LEFT - 10 }}
           >
             {formatCompactUsd(tick.value)}
@@ -488,7 +569,7 @@ export function BacktestGraph({
 
         {overlays.offPeak && shape.worstOffPeak < 0 ? (
           <div
-            className="pointer-events-none absolute font-mono text-[11px] whitespace-nowrap text-red-600/80 dark:text-red-400/80"
+            className="pointer-events-none absolute text-[11px] whitespace-nowrap text-red-600/80 dark:text-red-400/80"
             style={{ top: paneHeight - 16, left: PAD_LEFT + 4 }}
           >
             Off peak · worst {shape.worstOffPeak.toFixed(1)}%
@@ -526,7 +607,10 @@ export function BacktestGraph({
               value={`${reading.offPeakPct.toFixed(2)}%`}
               className="text-red-600 dark:text-red-400"
             />
-            <ReadingRow label="In markets" value={formatUsd(reading.inCoins)} />
+            <ReadingRow
+              label="In markets"
+              value={formatUsd(reading.inCoins * leverage)}
+            />
             <ReadingRow
               label="Open"
               value={reading.open === null ? "—" : String(reading.open)}
@@ -555,7 +639,7 @@ function ReadingRow({
   return (
     <div className="flex justify-between gap-4">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-mono font-medium tabular-nums", className)}>
+      <span className={cn("font-medium tabular-nums", className)}>
         {value}
       </span>
     </div>
@@ -659,6 +743,7 @@ function buildShape({
 
   const top = paneHeight - 6
   const yOf = potHeight(scale, top, paneHeight - 18)
+  const valueAt = potValue(scale, top, paneHeight - 18)
 
   const line = (values: readonly number[], y: (value: number) => number) =>
     linePath(values, v0, v1, xOf, y)
@@ -683,6 +768,26 @@ function buildShape({
   const inCoinsY = (value: number) =>
     top - (value / mostInCoins) * (paneHeight * 0.22)
 
+  // Wicks down to the worst the pot could be proved to have reached inside a
+  // bar — see `trough` in graph.ts. Drawn in the line's own colour so it reads
+  // as the pot plunging and coming back, which is what happened, and only where
+  // the drop is worth a pixel.
+  const wicks: { x: number; from: number; to: number }[] = []
+  if (series.trough) {
+    for (let bar = v0; bar <= v1; bar++) {
+      const low = series.trough[bar]
+      const close = usd[bar] ?? 0
+      // Only a real crater, not every losing trade. Below a twentieth of the
+      // pot this marked hundreds of ordinary bars and buried the one day that
+      // mattered in its own noise.
+      if (!(low < close) || close <= 0 || (close - low) / close < 0.05) continue
+      const top = yOf(close)
+      const bottom = yOf(low)
+      if (bottom - top < 4) continue
+      wicks.push({ x: xOf(bar), from: top, to: bottom })
+    }
+  }
+
   const ticks = potTicks(scale).map((value) => ({
     value,
     y: yOf(value),
@@ -703,16 +808,34 @@ function buildShape({
     }
   })
 
-  const liquidations =
-    overlays.liquidations && trades
-      ? trades
-          .filter((trade) => trade.liquidated && trade.exitAt !== null)
-          .map((trade) => {
-            const bar = barAt(t, trade.exitAt as number)
-            return { bar, x: xOf(bar), y: yOf(usd[bar] ?? 0) }
-          })
-          .filter((mark) => mark.bar >= v0 && mark.bar <= v1)
-      : []
+  // **A column per moment along the bottom, the way a chart draws volume.**
+  // Counted, not stacked: 22 of this run's 46 liquidations landed on one
+  // four-hour bar of 10 October 2025, and 22 crosses on one pixel of the line
+  // was indistinguishable from one. As columns the cascade is the tallest thing
+  // on the chart, which is what it was.
+  const liquidations: { x: number; height: number; count: number }[] = []
+  if (overlays.liquidations && trades) {
+    const perBar = new Map<number, number>()
+    for (const trade of trades) {
+      if (!trade.liquidated || trade.exitAt === null) continue
+      const bar = barAt(t, trade.exitAt)
+      if (bar < v0 || bar > v1) continue
+      perBar.set(bar, (perBar.get(bar) ?? 0) + 1)
+    }
+    let worst = 1
+    for (const count of perBar.values()) if (count > worst) worst = count
+    // The busiest moment fills the lane; everything else is read against it.
+    const lane = paneHeight * 0.3
+    for (const [bar, count] of perBar) {
+      liquidations.push({
+        x: xOf(bar),
+        // A floor of three pixels, so one lone liquidation is still a mark
+        // rather than a line too thin to see.
+        height: Math.max(3, (count / worst) * lane),
+        count,
+      })
+    }
+  }
 
   return {
     yOf,
@@ -723,8 +846,12 @@ function buildShape({
     offPeakLine: overlays.offPeak ? line(offPeakPct, offPeakY) : "",
     offPeakArea: overlays.offPeak ? area(offPeakPct, offPeakY, stripTop) : "",
     worstOffPeak,
+    valueAt,
+    wicks,
     ticks,
     dates,
     liquidations,
+    /** The foot of the wallet pane, which the liquidation columns stand on. */
+    laneFloor: top,
   }
 }

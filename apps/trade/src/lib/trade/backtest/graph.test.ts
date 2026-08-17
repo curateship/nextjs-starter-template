@@ -8,6 +8,7 @@ import {
   potHeight,
   potScale,
   potTicks,
+  potValue,
   windowStats,
   type BacktestRunTrade,
   type EquityPoint,
@@ -61,6 +62,34 @@ describe("buildGraphSeries", () => {
     ]
     const series = buildGraphSeries(pot([100, 130, 140, 140]), [], trades, 100)
     expect(series.banked).toEqual([100, 100, 140, 140])
+  })
+
+  it("shows how far the pot fell inside a bar, from what was lost in it", () => {
+    // The pot is stamped once a bar, so a crash and its recovery inside one
+    // bar leave a step up and no sign of the hole. These two trades lost
+    // $3,000 in the bar that ends at day 2, so the pot was at least $3,000
+    // below where it started that bar at some point during it.
+    const trades: BacktestRunTrade[] = [
+      { coin: "BTC", entryAt: at(1), exitAt: at(2), amountUsd: 2_000, pnl: -2_000, liquidated: true },
+      { coin: "ETH", entryAt: at(1), exitAt: at(2), amountUsd: 1_000, pnl: -1_000, liquidated: true },
+      { coin: "SOL", entryAt: at(1), exitAt: at(2), amountUsd: 5_000, pnl: 9_000, liquidated: false },
+    ]
+    const series = buildGraphSeries(pot([10_000, 10_000, 16_000]), [], trades, 10_000)
+    // Day 2 closes at $16,000 having started the bar at $10,000 — and the
+    // trough says it was down at $7,000 inside it.
+    expect(series.trough?.[2]).toBe(7_000)
+    // Quiet bars sit at their own close, so the line is untouched elsewhere.
+    expect(series.trough?.[0]).toBe(10_000)
+    expect(series.trough?.[1]).toBe(10_000)
+  })
+
+  it("never claims a trough deeper than the losses can prove", () => {
+    const trades: BacktestRunTrade[] = [
+      { coin: "BTC", entryAt: at(0), exitAt: at(1), amountUsd: 100, pnl: 500, liquidated: false },
+    ]
+    const series = buildGraphSeries(pot([10_000, 10_500]), [], trades, 10_000)
+    // Nothing lost money, so there is no hole to draw.
+    expect(series.trough).toEqual([10_000, 10_500])
   })
 
   it("says nothing rather than zero when the trades are not in hand", () => {
@@ -236,6 +265,27 @@ describe("potHeight", () => {
   it("does not divide by zero on a run that never moved", () => {
     const y = potHeight({ log: false, lo: 500, hi: 500 }, 80, 80)
     expect(Number.isFinite(y(500))).toBe(true)
+  })
+})
+
+describe("potValue", () => {
+  it("undoes potHeight, so the crosshair names what the line sits at", () => {
+    for (const scale of [
+      { log: false, lo: 9_000, hi: 42_000 },
+      { log: true, lo: 900, hi: 400_000 },
+    ]) {
+      const toY = potHeight(scale, 300, 280)
+      const toValue = potValue(scale, 300, 280)
+      for (const value of [1_000, 12_345, 380_000]) {
+        if (value < scale.lo || value > scale.hi) continue
+        expect(toValue(toY(value))).toBeCloseTo(value, 3)
+      }
+    }
+  })
+
+  it("does not divide by zero on a run that never moved", () => {
+    const at = potValue({ log: false, lo: 500, hi: 500 }, 80, 80)
+    expect(Number.isFinite(at(40))).toBe(true)
   })
 })
 

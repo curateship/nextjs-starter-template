@@ -70,6 +70,7 @@ export function BacktestChartPanel({
   trades,
   focusTrade,
   spec,
+  leverage,
   graphSeries,
   runTrades,
   window,
@@ -93,6 +94,8 @@ export function BacktestChartPanel({
   focusTrade: BacktestTrade | null
   /** The run's own settings — what a base is, for this run. */
   spec: BacktestSpecSnapshot
+  /** How much the run borrows — the graph reads it for "In markets". */
+  leverage: number
   /** The pot's lines, worked out once by the page. */
   graphSeries: GraphSeries | null
   /** Every trade in the run. Null until they arrive, or on an older run. */
@@ -303,6 +306,7 @@ export function BacktestChartPanel({
             series={graphSeries}
             trades={runTrades}
             startingUsd={spec.startingUsd}
+            leverage={leverage}
             window={window}
             onWindow={onWindow}
           />

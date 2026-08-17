@@ -167,6 +167,13 @@ export function BacktestRunPage({
     openCoin ? "chart" : "graph"
   )
 
+  // How much the run borrows. The pot's line records the MARGIN each position
+  // put up, not what it bought, so at 2× the money in the market is twice the
+  // saved figure — and reading it straight said $529 where $1,058 was at work.
+  // A signals run does not borrow, so it stands at 1.
+  const leverage =
+    run.spec.strategy.kind === "dca" ? run.spec.strategy.params.leverage : 1
+
   // Which stretch of the run every figure on the screen is answering for. It
   // lives here rather than inside the graph because the tiles on the left have
   // to move with it — two copies of this would be two answers to one question.
@@ -340,6 +347,7 @@ export function BacktestRunPage({
       stats={graphStats}
       window={window}
       onWindow={setWindow}
+      leverage={leverage}
       coinsTotal={coins.length}
       running={!done}
     />
@@ -365,6 +373,7 @@ export function BacktestRunPage({
       }
       graphSeries={graphSeries}
       runTrades={trades}
+      leverage={leverage}
       window={window}
       onWindow={setWindow}
       view={view}

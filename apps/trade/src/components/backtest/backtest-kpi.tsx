@@ -37,13 +37,13 @@ export function BacktestKpi({
       <span className="text-[11px] text-muted-foreground">{label}</span>
       <span
         className={cn(
-          "font-mono text-sm leading-tight font-semibold tracking-tight tabular-nums",
+          "text-sm leading-tight font-semibold tracking-tight tabular-nums",
           toneClass(tone)
         )}
       >
         {value}
       </span>
-      <span className="font-mono text-[10px] leading-tight text-muted-foreground">
+      <span className="text-[10px] leading-tight text-muted-foreground">
         {sub}
       </span>
     </div>
