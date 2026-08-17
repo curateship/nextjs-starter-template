@@ -9,12 +9,14 @@ import {
 } from "@/lib/directory/public-search"
 import { findCurrentUser } from "@/server/auth/security"
 import {
+  readDirectoryMap,
   readPublicBrowse,
   readPublicCategory,
   readPublicListing,
   visitorSite,
   type PublicBrowse,
   type PublicCategoryPage,
+  type PublicDirectoryMap,
   type PublicListingPage,
 } from "@/server/directory/public"
 import { readDirectoryFrontPage } from "@/server/directory/front-page"
@@ -103,6 +105,43 @@ export function loadDirectoryBrowse(input: {
   return readDirectoryBrowseFn({ data: input })
 }
 
+const readDirectoryMapFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      search: z.string().max(120).optional(),
+      category: z.string().max(160).optional(),
+      sort: sortInput,
+      near: z.string().max(40).optional(),
+      radius: z.number().int().optional(),
+    })
+  )
+  .handler(async ({ data }): Promise<PublicDirectoryMap | null> => {
+    const site = await visitorSite()
+    if (!site) return null
+
+    return readDirectoryMap(site, {
+      search: data.search,
+      category: data.category,
+      sort: data.sort,
+      near: parseDirectoryNearPoint(data.near) ?? undefined,
+      radius: readDirectoryNearRadius(data.radius),
+    })
+  })
+
+/**
+ * The same filtered listings as the grid, as pins, with the site's own browser
+ * map key. Null when this site does not offer a map or has no key for one.
+ */
+export function loadDirectoryMap(input: {
+  search?: string
+  category?: string
+  sort?: DirectorySort
+  near?: string
+  radius?: number
+}) {
+  return readDirectoryMapFn({ data: input })
+}
+
 const geocodeDirectoryPlaceFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ query: z.string().max(120) }))
   .handler(async ({ data }) => {
@@ -182,6 +221,8 @@ export function loadDirectoryFrontPage() {
 export type {
   PublicCategory,
   PublicClaimState,
+  PublicDirectoryMap,
   PublicListingCard,
+  PublicMapPin,
 } from "@/server/directory/public"
 export type { DirectoryFrontPageData } from "@/lib/directory/front-page"

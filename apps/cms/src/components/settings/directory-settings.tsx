@@ -24,11 +24,15 @@ import {
   loadDirectorySettings,
   saveBrowseSettings,
   saveFrontPageSettings,
+  saveMapEnabled,
   type DirectoryBrowseSettingsInput,
   type DirectoryFrontPageSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
 } from "@/lib/api/directory/settings"
-import { saveGeocodingKey } from "@/lib/api/directory/geocoding-settings"
+import {
+  saveGeocodingKey,
+  saveMapDisplayKey,
+} from "@/lib/api/directory/geocoding-settings"
 import {
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   DIRECTORY_FRONT_PAGE_COUNT_MIN,
@@ -54,6 +58,8 @@ export function DirectorySettings() {
   const [savedGeocodingKey, setSavedGeocodingKey] = React.useState<
     string | null
   >(null)
+  const [mapKey, setMapKey] = React.useState("")
+  const [savedMapKey, setSavedMapKey] = React.useState<string | null>(null)
   const [save, saving] = useAsyncAction(getDirectorySettingsErrorMessage)
   const [clearCache, clearingCache] = useAsyncAction(
     getClearPublicPagesErrorMessage
@@ -67,6 +73,7 @@ export function DirectorySettings() {
         setPageSize(String(loadedSettings.pageSize))
         setFrontPageCount(String(loadedSettings.frontPageCount))
         setSavedGeocodingKey(loadedSettings.geocodingKeyStatus)
+        setSavedMapKey(loadedSettings.mapKeyStatus)
       })
       .catch(() =>
         showErrorToast("The directory settings could not be loaded.")
@@ -166,6 +173,89 @@ export function DirectorySettings() {
           ) : null}
         </div>
       </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-map"
+        title="Map view"
+        description="Give the browse page a map button, showing the same results as pins."
+        contentClassName="space-y-4"
+      >
+        <div className="flex items-center gap-2">
+          <Switch
+            id="directory-map-enabled"
+            checked={settings.mapEnabled}
+            disabled={saving}
+            onCheckedChange={(mapEnabled) => {
+              const previous = settings.mapEnabled
+              setSettings({ ...settings, mapEnabled })
+              void save(() => saveMapEnabled(mapEnabled)).then((saved) => {
+                if (!saved) {
+                  setSettings((current) =>
+                    current ? { ...current, mapEnabled: previous } : current
+                  )
+                }
+              })
+            }}
+          />
+          <FieldLabel
+            htmlFor="directory-map-enabled"
+            hint="Off means no map button anywhere, which is how every site starts."
+          >
+            Offer a map on the browse page
+          </FieldLabel>
+        </div>
+
+        <div className="grid max-w-md gap-2">
+          <FieldLabel
+            htmlFor="directory-map-key"
+            hint="Enable the Maps JavaScript API in Google Cloud, then restrict this key to this site's web address. It is encrypted here and only its last four characters are shown again."
+          >
+            Map display key
+          </FieldLabel>
+          <div className="flex gap-2">
+            <Input
+              id="directory-map-key"
+              type="password"
+              value={mapKey}
+              onChange={(event) => setMapKey(event.target.value)}
+              placeholder={savedMapKey ?? "Paste your Maps JavaScript key"}
+            />
+            <Button
+              type="button"
+              disabled={!mapKey.trim() || saving}
+              onClick={() => {
+                const key = mapKey.trim()
+                void save(() => saveMapDisplayKey(key)).then((saved) => {
+                  if (!saved) return
+                  setSavedMapKey(`••••${key.slice(-4)}`)
+                  setMapKey("")
+                  toast.success("Map display key saved.")
+                })
+              }}
+            >
+              Save key
+            </Button>
+          </div>
+          {savedMapKey ? (
+            <p className="text-sm text-muted-foreground">
+              Saved key: {savedMapKey}
+            </p>
+          ) : (
+            /*
+             * Said here rather than left to be discovered on the public page.
+             * With the switch on and no key there is no map button at all, and
+             * an admin who is not told why will reasonably think it is broken.
+             */
+            <p className="text-sm text-muted-foreground">
+              No map key yet, so no map button appears even with the switch on.
+              This is a second key from the one above on purpose: a key a
+              browser may use has to be locked to your web address, and a key
+              locked that way is refused by the place search.
+            </p>
+          )}
+        </div>
+      </CollapsibleSettingsCard>
+
       <CollapsibleSettingsCard
         storageId="directory-front-page"
         title="Front page"

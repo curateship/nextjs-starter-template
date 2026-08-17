@@ -524,6 +524,17 @@ export const directorySettings = pgTable(
     geocodingApiKeyEncrypted: varchar("geocoding_api_key_encrypted", {
       length: 700,
     }),
+    /** Whether the browse page offers the map view at all. Off to start with. */
+    mapEnabled: boolean("map_enabled").notNull().default(false),
+    /**
+     * The Google key the visitor's browser uses to draw the map. Separate from
+     * the geocoding key above on purpose: a browser key is restricted to a
+     * website address, and a key restricted that way is refused by the
+     * server-side Geocoding API, so one key would have to be left unrestricted.
+     */
+    mapDisplayKeyEncrypted: varchar("map_display_key_encrypted", {
+      length: 700,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },

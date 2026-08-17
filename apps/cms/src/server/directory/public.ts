@@ -1,4 +1,15 @@
-import { and, asc, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm"
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  ne,
+  or,
+  sql,
+} from "drizzle-orm"
 import { getRequestHeader } from "@tanstack/react-start/server"
 
 import type { ContactLinks } from "@/lib/directory/contact-links"
@@ -37,7 +48,11 @@ import {
   featuredPriorityFor,
 } from "@/server/directory/featured"
 import { listCustomSections } from "@/server/directory/custom-sections"
-import { directorySettingsFor } from "@/server/directory/settings"
+import {
+  directoryMapDisplayKey,
+  directorySettingsFor,
+} from "@/server/directory/settings"
+import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/directory/listing-map"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
@@ -219,6 +234,31 @@ export type PublicBrowse = {
   browseTitle: string
   browseIntro: string
   sort: DirectorySort
+  /**
+   * This site both offers the map and has a key to draw it with. Half of that
+   * is not a map: a site that switched the view on and never pasted a key gets
+   * no button rather than a grey square.
+   */
+  mapAvailable: boolean
+}
+
+/** One listing as a pin: a grid card, plus the two numbers that place it. */
+export type PublicMapPin = PublicListingCard & {
+  latitude: number
+  longitude: number
+}
+
+/** Everything the map view draws, for the filters the visitor has applied. */
+export type PublicDirectoryMap = {
+  /** The site's own browser key. Public by design, and only ever this one. */
+  apiKey: string
+  pins: PublicMapPin[]
+  /**
+   * Matching listings that have a location at all, before the cap. Bigger than
+   * `pins.length` is exactly when the visitor has to be told something is
+   * missing.
+   */
+  total: number
 }
 
 /**
@@ -399,9 +439,13 @@ async function categoryForCards(
   return found
 }
 
-async function toCards(
-  siteId: string,
-  rows: {
+/**
+ * Generic in the row on purpose. The map's rows carry a latitude and longitude
+ * the grid's do not, and a fixed row type here would drop them from the result
+ * type while `...row` kept them at runtime — a lie the compiler could not see.
+ */
+async function toCards<
+  Row extends {
     id: string
     title: string
     slug: string
@@ -409,9 +453,12 @@ async function toCards(
     rating: number | null
     featuredImage: string
     distanceKm?: number | null
-  }[],
+  },
+>(
+  siteId: string,
+  rows: Row[],
   database: CustomShellDb
-): Promise<PublicListingCard[]> {
+): Promise<(Row & PublicListingCard)[]> {
   const ids = rows.map((row) => row.id)
   // Both for the whole page at once. One query each rather than one per card:
   // twelve cards used to mean twelve round trips for the category alone.
@@ -511,6 +558,26 @@ export async function publicCategories(
 }
 
 /**
+ * One category's id from its address, or nothing.
+ *
+ * Deliberately not `publicCategories`, which counts the published listings in
+ * every category on the site — a join and a group-by over the whole table for a
+ * page that only wants to know what one slug means.
+ */
+async function categoryIdForSlug(
+  siteId: string,
+  slug: string,
+  database: CustomShellDb
+): Promise<string | undefined> {
+  const [row] = await database
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.workspaceId, siteId), eq(categories.slug, slug)))
+    .limit(1)
+  return row?.id
+}
+
+/**
  * The ids of the listings in one category.
  *
  * **This category only, never its children.** That is what the directory app
@@ -534,24 +601,28 @@ function listingIdsInCategory(
     )
 }
 
-/** One page of published listings, ordered and counted. */
-async function listingPage(
-  siteId: string,
-  options: {
-    search?: string
-    categoryId?: string
-    sort: DirectorySort
-    page: number
-    pageSize: number
-    featuredFirst: boolean
-    near?: DirectoryNearPoint
-    radius?: number
-  },
-  database: CustomShellDb
-): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
-  const page = Math.max(1, Math.trunc(options.page))
-  const offset = (page - 1) * options.pageSize
+/**
+ * What a visitor has narrowed the list to: the same search, the same category
+ * and the same location for every way of drawing it.
+ *
+ * One place rather than two because the grid and the map show *the same
+ * results*. Written twice they would drift, and a map quietly showing a
+ * different set from the grid beside it is the worst version of this feature.
+ */
+type BrowseQuery = {
+  search?: string
+  categoryId?: string
+  sort: DirectorySort
+  featuredFirst: boolean
+  near?: DirectoryNearPoint
+  radius?: number
+}
 
+function browseQuery(
+  siteId: string,
+  options: BrowseQuery,
+  database: CustomShellDb
+) {
   const filters = [publishedOnSite(siteId)]
 
   const search = options.search?.trim()
@@ -610,6 +681,19 @@ async function listingPage(
         ? [sql`${directoryListings.latitude} is null`, ...ordinaryOrder]
         : ordinaryOrder
 
+  return { where: nearWhere, ordered, distanceKm }
+}
+
+/** One page of published listings, ordered and counted. */
+async function listingPage(
+  siteId: string,
+  options: BrowseQuery & { page: number; pageSize: number },
+  database: CustomShellDb
+): Promise<{ listings: PublicListingCard[]; total: number; page: number }> {
+  const page = Math.max(1, Math.trunc(options.page))
+  const offset = (page - 1) * options.pageSize
+  const { where, ordered, distanceKm } = browseQuery(siteId, options, database)
+
   const rows = await database
     .select({
       ...cardColumns,
@@ -617,7 +701,7 @@ async function listingPage(
       total: sql<number>`count(*) over()::int`,
     })
     .from(directoryListings)
-    .where(nearWhere)
+    .where(where)
     .orderBy(...ordered)
     .limit(options.pageSize)
     .offset(offset)
@@ -629,7 +713,7 @@ async function listingPage(
     const [countRow] = await database
       .select({ total: sql<number>`count(*)::int` })
       .from(directoryListings)
-      .where(nearWhere)
+      .where(where)
     total = countRow?.total ?? 0
   }
 
@@ -691,6 +775,7 @@ async function readPublicBrowseUncached(
     browseTitle: settings.browseTitle,
     browseIntro: settings.browseIntro,
     sort: resolvedSort,
+    mapAvailable: settings.mapEnabled && settings.hasMapKey,
   }
 }
 
@@ -726,6 +811,123 @@ export function readPublicBrowse(
     },
     () => readPublicBrowseUncached(site, resolvedOptions, database)
   )
+}
+
+/**
+ * The pins for the filters a visitor has applied, capped, and how many there
+ * really are.
+ *
+ * Everything about *which* listings is `browseQuery`, the same one the grid
+ * uses, plus one extra rule: a listing with no coordinates is not on the map.
+ * That is not a filter the visitor chose, so the count it is measured against
+ * counts the same way — the sentence above a capped map compares mappable
+ * listings with mappable listings, never with the grid's total.
+ */
+async function readDirectoryMapUncached(
+  site: VisitorSite,
+  options: {
+    search?: string
+    category?: string
+    sort?: DirectorySort
+    near?: DirectoryNearPoint
+    radius?: number
+  },
+  database: CustomShellDb
+): Promise<Omit<PublicDirectoryMap, "apiKey"> | null> {
+  // Asked here rather than trusted from the browse payload: this is a door of
+  // its own, and a site that never switched the map on must not be able to have
+  // its listing coordinates read by calling it directly.
+  const settings = await directorySettingsFor(site.id, database)
+  if (!settings.mapEnabled) return null
+
+  // A category address nobody has is no filter rather than an error, the same
+  // as the grid: a stale link should still show the map.
+  const categoryId = options.category
+    ? await categoryIdForSlug(site.id, options.category, database)
+    : undefined
+
+  const { where, ordered } = browseQuery(
+    site.id,
+    {
+      search: options.search,
+      categoryId,
+      sort: options.sort ?? (options.near ? "distance" : settings.defaultSort),
+      featuredFirst: settings.featuredFirst,
+      near: options.near,
+      radius: options.radius,
+    },
+    database
+  )
+
+  const mappable = and(
+    where,
+    isNotNull(directoryListings.latitude),
+    isNotNull(directoryListings.longitude)
+  )
+
+  const rows = await database
+    .select({
+      ...cardColumns,
+      latitude: directoryListings.latitude,
+      longitude: directoryListings.longitude,
+      total: sql<number>`count(*) over()::int`,
+    })
+    .from(directoryListings)
+    .where(mappable)
+    .orderBy(...ordered)
+    .limit(DIRECTORY_MAP_LISTING_LIMIT)
+
+  const total = rows[0]?.total ?? 0
+  // The query already refuses a row missing either number, so this narrowing
+  // drops nothing. It is written as a check rather than a cast so the promise
+  // the type makes — a pin always has both — is one the compiler proved.
+  const pinRows = rows.flatMap(({ total: _total, ...row }) =>
+    row.latitude === null || row.longitude === null
+      ? []
+      : [{ ...row, latitude: row.latitude, longitude: row.longitude }]
+  )
+
+  return { pins: await toCards(site.id, pinRows, database), total }
+}
+
+export async function readDirectoryMap(
+  site: VisitorSite,
+  options: {
+    search?: string
+    category?: string
+    sort?: DirectorySort
+    near?: DirectoryNearPoint
+    radius?: number
+  },
+  database: CustomShellDb = db
+): Promise<PublicDirectoryMap | null> {
+  const resolvedOptions = {
+    ...options,
+    radius: options.near
+      ? (options.radius ?? DEFAULT_DIRECTORY_NEAR_RADIUS_KM)
+      : undefined,
+  }
+  const pins = await cachedPublicDirectoryRead(
+    site.id,
+    "map",
+    {
+      search: resolvedOptions.search ?? "",
+      category: resolvedOptions.category ?? "",
+      sort: resolvedOptions.sort ?? "",
+      near: resolvedOptions.near ?? null,
+      radius: resolvedOptions.radius ?? null,
+    },
+    () => readDirectoryMapUncached(site, resolvedOptions, database)
+  )
+  if (!pins) return null
+
+  // Read after the cache, like every other secret-shaped value here: a key
+  // pasted a minute ago should reach the next visitor, not the one after the
+  // cache expires.
+  const apiKey = await directoryMapDisplayKey(site.id, database)
+  if (!apiKey) return null
+
+  return { apiKey, ...pins }
 }
 
 /**

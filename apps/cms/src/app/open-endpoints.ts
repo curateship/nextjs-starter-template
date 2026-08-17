@@ -31,6 +31,8 @@
 export const appOpenEndpoints: Record<string, string> = {
   "directory/public.ts:readDirectoryBrowseFn":
     "The directory a site publishes is a public page, so its list of published listings has to be readable by somebody with no account.",
+  "directory/public.ts:readDirectoryMapFn":
+    "The map is the same public browse list drawn as pins, so it answers with published listings on the visited site only, and only when that site has switched its map on.",
   "directory/public.ts:readDirectoryListingFn":
     "A listing's own page is public. It answers with published listings on the visited site only, so a draft is missing rather than merely hidden.",
   "directory/public.ts:readDirectoryCategoryFn":

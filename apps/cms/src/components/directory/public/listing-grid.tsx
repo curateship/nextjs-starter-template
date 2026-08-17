@@ -44,7 +44,12 @@ export function ListingGrid({
   )
 }
 
-function ListingCard({ listing }: { listing: PublicListingCard }) {
+/**
+ * Exported so the map's pin card is this card, not a second half-copy of it.
+ * A pin that opened a card missing the rating or the claimed tick would be one
+ * more thing to keep in step by hand.
+ */
+export function ListingCard({ listing }: { listing: PublicListingCard }) {
   return (
     <Card className="group/card relative w-full transition-colors hover:bg-accent/40">
       {listing.featuredImage ? (

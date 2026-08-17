@@ -9,6 +9,8 @@
  * had to be told to ignore.
  */
 
+import type { DirectoryView } from "@/lib/directory/listing-map"
+
 /** How a visitor may order the list. The first one is the default. */
 export const DIRECTORY_SORTS = ["order", "newest", "title", "distance"] as const
 export const DIRECTORY_DEFAULT_SORTS = ["order", "newest", "title"] as const
@@ -64,6 +66,11 @@ export type DirectoryBrowseSearch = {
   /** A human-readable place name, when the visitor typed one. */
   place?: string
   radius?: number
+  /**
+   * Grid or map. In the address rather than in memory so a map somebody sends
+   * opens as a map, which is the whole reason for having the switch.
+   */
+  view?: DirectoryView
 }
 
 export const DIRECTORY_NEAR_RADII_KM = [5, 10, 25, 50] as const

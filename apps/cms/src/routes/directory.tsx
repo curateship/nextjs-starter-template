@@ -5,7 +5,12 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { DirectoryToolbar } from "@/components/directory/public/directory-toolbar"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
-import { loadDirectoryBrowse } from "@/lib/api/directory/public"
+import { ListingMap } from "@/components/directory/public/listing-map"
+import {
+  loadDirectoryBrowse,
+  loadDirectoryMap,
+} from "@/lib/api/directory/public"
+import { DIRECTORY_VIEWS } from "@/lib/directory/listing-map"
 import { plural } from "@/lib/format/plural"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -50,6 +55,7 @@ export const Route = createFileRoute("/directory")({
       near,
       place: readSearchText(search.place),
       radius: readDirectoryNearRadius(search.radius),
+      view: readOneOf(search.view, DIRECTORY_VIEWS),
     }
   },
   loaderDeps: ({ search }) => search,
@@ -58,7 +64,12 @@ export const Route = createFileRoute("/directory")({
     // as any other public page. Asked alongside the list rather than before
     // it: the answer has to arrive before the page draws, not before it starts
     // fetching, and a hidden page rejects here with nothing it fetched shown.
-    const [, browse] = await Promise.all([
+    //
+    // The pins are asked for beside the list rather than after it, so a map
+    // link costs one round trip like every other page here. The endpoint
+    // answers null on its own when this site has no map, so nothing has to be
+    // known before asking.
+    const [, browse, map] = await Promise.all([
       requirePageVisible("/directory"),
       loadDirectoryBrowse({
         search: deps.q,
@@ -69,10 +80,19 @@ export const Route = createFileRoute("/directory")({
         place: deps.place,
         radius: deps.radius,
       }),
+      deps.view === "map"
+        ? loadDirectoryMap({
+            search: deps.q,
+            category: deps.category,
+            sort: deps.sort,
+            near: deps.near,
+            radius: deps.radius,
+          })
+        : Promise.resolve(null),
     ])
 
     if (!browse) throw notFound()
-    return browse
+    return { ...browse, map }
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {}
@@ -100,6 +120,8 @@ function DirectoryRoute() {
     browseTitle,
     browseIntro,
     sort,
+    mapAvailable,
+    map,
   } = Route.useLoaderData()
   const current = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -130,7 +152,10 @@ function DirectoryRoute() {
    * The search term is put in through JSX, so a term containing markup is drawn
    * as the characters somebody typed and can never be anything else.
    */
-  const counted = total === 0 ? "No listings" : `${total} ${plural(total, "listing", "listings")}`
+  const counted =
+    total === 0
+      ? "No listings"
+      : `${total} ${plural(total, "listing", "listings")}`
   const searchSummary = anythingApplied ? (
     <>
       {counted}
@@ -160,6 +185,7 @@ function DirectoryRoute() {
         current={current}
         sort={sort}
         categories={categories}
+        mapAvailable={mapAvailable}
         // A new search or a new order starts at the beginning: page 4 of the
         // old list is nowhere in the new one.
         onSearchChange={(value) => setListSearch({ q: value, page: undefined })}
@@ -198,23 +224,39 @@ function DirectoryRoute() {
         }
       />
 
-      <ListingGrid
-        listings={listings}
-        emptyMessage={
-          current.near
-            ? "Nothing is within that distance. Try a wider distance or a different location."
-            : current.q || current.category
-              ? "Nothing matches that. Try a different search or category."
-              : "There is nothing in this directory yet."
-        }
-      />
+      {/*
+       * The map replaces the grid rather than sitting beside it, and it
+       * replaces the pager with it: the map holds every matching listing it is
+       * allowed to draw at once, so page 2 of it would mean nothing.
+       *
+       * `map` is null whenever the site has no map to give — switched off, no
+       * key, or an address that was hand-edited to `view=map` on a site that
+       * never offered one — and the grid is what a visitor gets in every one
+       * of those cases.
+       */}
+      {map ? (
+        <ListingMap apiKey={map.apiKey} pins={map.pins} total={map.total} />
+      ) : (
+        <>
+          <ListingGrid
+            listings={listings}
+            emptyMessage={
+              current.near
+                ? "Nothing is within that distance. Try a wider distance or a different location."
+                : current.q || current.category
+                  ? "Nothing matches that. Try a different search or category."
+                  : "There is nothing in this directory yet."
+            }
+          />
 
-      <DirectoryPagination
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        hrefForPage={(next) => directoryPageHref(current, next)}
-      />
+          <DirectoryPagination
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            hrefForPage={(next) => directoryPageHref(current, next)}
+          />
+        </>
+      )}
     </DirectoryFrame>
   )
 }

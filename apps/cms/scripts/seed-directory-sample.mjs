@@ -198,6 +198,8 @@ const sites = [
         meta: "Tea, toast and a newspaper nobody has finished.",
         category: "eat",
         order: 2,
+        // No coordinates on purpose. A directory always has a few of these,
+        // and the map has to leave them off without looking broken.
         address: "4 Bank Street, New York, NY",
         links: [{ type: "phone", value: "+1 607 555 0134" }],
         body: ["Open from six. Closed the moment the bread runs out."],
@@ -208,6 +210,8 @@ const sites = [
         meta: "Fourteen rooms, no lobby music.",
         category: "stay",
         order: 3,
+        latitude: 40.7223,
+        longitude: -74.0031,
         address: "30 Grand Street, New York, NY",
         links: [{ type: "website", value: "quiethotel.example.com" }],
         body: ["Fourteen rooms above a bookshop. Breakfast is included."],
@@ -292,12 +296,49 @@ const fillers = [
   "Kestrel Guttering",
 ]
 
+/**
+ * Alpha gets a handful of cafés with real coordinates, in two tight knots a few
+ * blocks apart. Without them the map has three pins on it and nothing to look
+ * at — the whole question the map answers is "what is near what", and one pin
+ * per neighbourhood cannot show that.
+ */
+/** A title turned into the address it lives at, the same way twice. */
+function slugFor(title) {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+const alphaCafes = [
+  ["Corner Cup", 40.7461, -73.9902],
+  ["Ninth Street Roasters", 40.7468, -73.9875],
+  ["The Long Black", 40.7455, -73.9889],
+  ["Paper Cup Coffee", 40.7479, -73.9868],
+  ["Bench & Bean", 40.7452, -73.9915],
+  ["Mercer Espresso", 40.7211, -74.0002],
+  ["Greene Street Coffee", 40.7196, -74.0019],
+  ["Small Hours", 40.7218, -73.9994],
+  ["The Reading Room", 40.7189, -74.0034],
+]
+
+sites[0].listings.push(
+  ...alphaCafes.map(([title, latitude, longitude], index) => ({
+    slug: slugFor(title),
+    title,
+    meta: "Coffee, and somewhere to sit with it.",
+    category: "eat",
+    order: 20 + index,
+    latitude,
+    longitude,
+    address: `${title}, New York, NY`,
+    body: [`${title} opens early and does one thing properly.`],
+  }))
+)
+
 sites[1].listings.push(
   ...fillers.map((title, index) => ({
-    slug: title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, ""),
+    slug: slugFor(title),
     title,
     meta: "One of the trades on Beta's list.",
     category: "trades",
@@ -336,7 +377,15 @@ async function main() {
     const ownerId = await sampleOwner(client)
     for (const site of sites) {
       const siteId = await upsertSite(client, ownerId, site)
-      await upsertDirectorySettings(client, siteId, site.frontPageMode)
+      // Alpha offers the map, Beta does not, so both states are on screen
+      // without changing a setting. The key it needs is a secret and is never
+      // seeded: paste one in Settings → Directory → Map view.
+      await upsertDirectorySettings(
+        client,
+        siteId,
+        site.frontPageMode,
+        site.subdomain === "alpha"
+      )
       await upsertCustomSections(client, siteId, site.customSections ?? [])
       const categoryIds = await upsertCategories(
         client,
@@ -410,16 +459,22 @@ async function upsertCustomSections(client, siteId, sections) {
   }
 }
 
-async function upsertDirectorySettings(client, siteId, frontPageMode) {
+async function upsertDirectorySettings(
+  client,
+  siteId,
+  frontPageMode,
+  mapEnabled
+) {
   await client.query(
     `insert into directory_settings
-       (workspace_id, front_page_mode, front_page_count, created_at, updated_at)
-     values ($1, $2, 8, now(), now())
+       (workspace_id, front_page_mode, front_page_count, map_enabled, created_at, updated_at)
+     values ($1, $2, 8, $3, now(), now())
      on conflict (workspace_id) do update
        set front_page_mode = excluded.front_page_mode,
            front_page_count = excluded.front_page_count,
+           map_enabled = excluded.map_enabled,
            updated_at = now()`,
-    [siteId, frontPageMode]
+    [siteId, frontPageMode, mapEnabled]
   )
 }
 
