@@ -27,7 +27,24 @@ const sites = [
   {
     subdomain: "alpha",
     name: "Alpha Guide",
-    frontPageMode: "newest",
+    // Three rows, one under the other, and the third is deliberately pointed at
+    // a category with nothing published in it — the page leaves it out
+    // altogether, which is the behaviour worth being able to see.
+    frontPage: [
+      {
+        heading: "New this week",
+        intro: "The places added most recently.",
+        sort: "newest",
+        listingCount: 3,
+      },
+      { heading: "Featured places", sort: "featured", listingCount: 3 },
+      {
+        heading: "Nightlife",
+        category: "nightlife",
+        sort: "newest",
+        listingCount: 3,
+      },
+    ],
     publicSettings: {
       publicNavigation: [
         { label: "Home", href: "/" },
@@ -118,6 +135,13 @@ const sites = [
           "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&w=1200&q=80",
       },
       { slug: "stay", name: "Stay", description: "Somewhere to sleep." },
+      // Nothing is ever put in this one, on purpose: it is what the third home
+      // page row filters to, so the empty-row rule is on screen.
+      {
+        slug: "nightlife",
+        name: "Nightlife",
+        description: "Nowhere yet — this category is deliberately empty.",
+      },
     ],
     listings: [
       {
@@ -232,7 +256,9 @@ const sites = [
   {
     subdomain: "beta",
     name: "Beta Directory",
-    frontPageMode: "off",
+    // No rows, so Beta's home page stays the platform's own — the other half of
+    // the picture.
+    frontPage: [],
     publicSettings: {
       publicNavigation: [
         { label: "Browse", href: "/directory" },
@@ -380,17 +406,18 @@ async function main() {
       // Alpha offers the map, Beta does not, so both states are on screen
       // without changing a setting. The key it needs is a secret and is never
       // seeded: paste one in Settings → Directory → Map view.
-      await upsertDirectorySettings(
-        client,
-        siteId,
-        site.frontPageMode,
-        site.subdomain === "alpha"
-      )
+      await upsertDirectorySettings(client, siteId, site.subdomain === "alpha")
       await upsertCustomSections(client, siteId, site.customSections ?? [])
       const categoryIds = await upsertCategories(
         client,
         siteId,
         site.categories
+      )
+      await upsertFrontPageSections(
+        client,
+        siteId,
+        categoryIds,
+        site.frontPage ?? []
       )
       const listingIds = await upsertListings(
         client,
@@ -459,23 +486,48 @@ async function upsertCustomSections(client, siteId, sections) {
   }
 }
 
-async function upsertDirectorySettings(
-  client,
-  siteId,
-  frontPageMode,
-  mapEnabled
-) {
+async function upsertDirectorySettings(client, siteId, mapEnabled) {
   await client.query(
     `insert into directory_settings
-       (workspace_id, front_page_mode, front_page_count, map_enabled, created_at, updated_at)
-     values ($1, $2, 8, $3, now(), now())
+       (workspace_id, map_enabled, created_at, updated_at)
+     values ($1, $2, now(), now())
      on conflict (workspace_id) do update
-       set front_page_mode = excluded.front_page_mode,
-           front_page_count = excluded.front_page_count,
-           map_enabled = excluded.map_enabled,
+       set map_enabled = excluded.map_enabled,
            updated_at = now()`,
-    [siteId, frontPageMode, mapEnabled]
+    [siteId, mapEnabled]
   )
+}
+
+/**
+ * The rows this site's home page is made of.
+ *
+ * Replaced wholesale rather than matched up one by one: there is no natural key
+ * on a row, and a rerun that added a second "New this week" beside the first
+ * would break the cap after two goes.
+ */
+async function upsertFrontPageSections(client, siteId, categoryIds, rows) {
+  await client.query(
+    `delete from directory_front_page_sections where workspace_id = $1`,
+    [siteId]
+  )
+  for (const [index, row] of rows.entries()) {
+    await client.query(
+      `insert into directory_front_page_sections
+         (id, workspace_id, display_order, heading, intro, category_id, sort,
+          listing_count, layout, created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())`,
+      [
+        siteId,
+        index,
+        row.heading,
+        row.intro ?? "",
+        row.category ? (categoryIds.get(row.category) ?? null) : null,
+        row.sort ?? "newest",
+        row.listingCount ?? 8,
+        row.layout ?? "grid",
+      ]
+    )
+  }
 }
 
 /**

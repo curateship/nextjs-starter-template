@@ -54,7 +54,12 @@ export const tradeDcaNode = defineNode({
     const parsed = tradeDcaSettingsSchema.safeParse(settings)
     if (!parsed.success) return "A DCA ladder to test against history."
     const rungs = parsed.data.params.rungs.length
-    return `${rungs} ${plural(rungs, "rung", "rungs")} on ${parsed.data.interval} candles, up to ${parsed.data.params.maxPositionPct}% of the pot per coin.`
+    const line = `${rungs} ${plural(rungs, "rung", "rungs")} on ${parsed.data.interval} candles, up to ${parsed.data.params.maxPositionPct}% of the pot per coin.`
+    // Borrowing changes what every other number on this card means, so it is
+    // said on the card rather than left inside the panel. A ladder that can be
+    // sold out from under itself is not the same ladder.
+    const { leverage } = parsed.data.params
+    return leverage > 1 ? `${line} Borrows ${leverage}×.` : line
   },
   icon: LayersIcon,
   // Nothing follows a backtest. The run is the end of the flow, so drawing a

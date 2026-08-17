@@ -14,6 +14,7 @@ import { formatRelativeTime } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { resultSummary } from "@/lib/trade/backtest/result"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -255,7 +256,17 @@ export default function BacktestCanvasPanel({
     }
   }, [automationId, runId])
 
-  const summary = run?.summary ?? null
+  /**
+   * The last run's figures — but only when it actually walked a coin.
+   *
+   * A run stopped before it started still writes a summary, because the code
+   * that ends a run is the same either way. Drawn as a result that reads
+   * "Made or lost $0.00, Coins tested 0, Finished 9 minutes ago", which is a
+   * completed backtest that found nothing rather than one that never ran, and
+   * looks for all the world like the app is broken. Nothing tested is not a
+   * result, so it is not shown as one.
+   */
+  const summary = resultSummary(run?.summary)
   // Believed from the click until the list catches up with it. `starting` is
   // cleared the moment a running row actually appears, below.
   const running = starting || (run !== null && run.finishedAt === null)
@@ -449,13 +460,23 @@ export default function BacktestCanvasPanel({
                   label="Still holding"
                   value={`${summary.coinsOpenAtEnd} ${plural(summary.coinsOpenAtEnd, "coin", "coins")}, ${formatUsd(summary.openAtEndUsd)}`}
                 />
+                {/* Only when it happened. At 1× it is always zero, and a row of
+                    zeroes on every run would train the eye to skip the line on
+                    the one run where it says something. */}
+                {summary.tradesLiquidated > 0 ? (
+                  <Line
+                    label="Liquidated"
+                    value={`${summary.tradesLiquidated} ${plural(summary.tradesLiquidated, "trade", "trades")}, ${formatSignedUsd(summary.liquidatedUsd)}`}
+                    tone={toneClass(summary.liquidatedUsd)}
+                  />
+                ) : null}
               </div>
 
             </>
           ) : (
             <p className="text-xs text-muted-foreground">
-              That run finished without a result — it was stopped, or every coin
-              was skipped.
+              That run ended without testing a coin — it was stopped, or every
+              coin was skipped. Press Backtest to run it again.
             </p>
           )}
 

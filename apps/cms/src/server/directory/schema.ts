@@ -517,10 +517,6 @@ export const directorySettings = pgTable(
     browseTitle: varchar("browse_title", { length: 120 }),
     browseIntro: varchar("browse_intro", { length: 500 }),
     featuredFirst: boolean("featured_first"),
-    frontPageMode: varchar("front_page_mode", { length: 20 })
-      .notNull()
-      .default("off"),
-    frontPageCount: integer("front_page_count").notNull().default(8),
     geocodingApiKeyEncrypted: varchar("geocoding_api_key_encrypted", {
       length: 700,
     }),
@@ -537,20 +533,68 @@ export const directorySettings = pgTable(
     }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  }
+)
+
+export type DirectorySettingsRow = typeof directorySettings.$inferSelect
+
+/**
+ * One row of listings on a site's home page.
+ *
+ * Several rows per site, in `displayOrder`. This replaced the pair of columns
+ * on `directorySettings` that between them said "one row, newest or featured,
+ * across every category" — so there is one place, and only one, that decides
+ * what a home page shows.
+ */
+export const directoryFrontPageSections = pgTable(
+  "directory_front_page_sections",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 })
+      .notNull()
+      .references(() => customShellWorkspaces.id, { onDelete: "cascade" }),
+    displayOrder: integer("display_order").notNull().default(0),
+    heading: varchar("heading", { length: 120 }).notNull(),
+    intro: varchar("intro", { length: 500 }).notNull().default(""),
+    /**
+     * Null is every category. A deleted category empties this rather than
+     * taking the row with it: deleting a category is not a request to lose a
+     * row of the home page.
+     */
+    categoryId: varchar("category_id", { length: 36 }).references(
+      () => categories.id,
+      { onDelete: "set null" }
+    ),
+    /** 'newest', 'featured', 'rating' or 'name'. */
+    sort: varchar("sort", { length: 20 }).notNull().default("newest"),
+    listingCount: integer("listing_count").notNull().default(8),
+    /** 'grid', 'list' or 'map' — how this row draws. */
+    layout: varchar("layout", { length: 20 }).notNull().default("grid"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
-    check(
-      "directory_settings_front_page_mode_check",
-      sql`${table.frontPageMode} IN ('off', 'newest', 'featured')`
+    index("ix_directory_front_page_sections_workspace_order").on(
+      table.workspaceId,
+      table.displayOrder
     ),
     check(
-      "directory_settings_front_page_count_check",
-      sql`${table.frontPageCount} BETWEEN 1 AND 12`
+      "directory_front_page_sections_sort_check",
+      sql`${table.sort} IN ('newest', 'featured', 'rating', 'name')`
+    ),
+    check(
+      "directory_front_page_sections_layout_check",
+      sql`${table.layout} IN ('grid', 'list', 'map')`
+    ),
+    check(
+      "directory_front_page_sections_count_check",
+      sql`${table.listingCount} BETWEEN 1 AND 12`
     ),
   ]
 )
 
-export type DirectorySettingsRow = typeof directorySettings.$inferSelect
+export type DirectoryFrontPageSectionRow =
+  typeof directoryFrontPageSections.$inferSelect
 
 /** A named folder of listings saved by one account on one site. */
 export const directorySaveCollections = pgTable(

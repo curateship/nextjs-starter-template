@@ -17,9 +17,16 @@ import { formatDirectoryDistance } from "@/lib/directory/public-search"
 export function ListingGrid({
   listings,
   emptyMessage,
+  layout = "grid",
 }: {
   listings: PublicListingCard[]
   emptyMessage: string
+  /**
+   * `list` is one card per line all the way up. It exists because a home page
+   * row of three listings reads better stacked than as a third of a grid, and
+   * it is the same card either way rather than a second one to keep in step.
+   */
+  layout?: "grid" | "list"
 }) {
   if (listings.length === 0) {
     return (
@@ -34,7 +41,13 @@ export function ListingGrid({
   }
 
   return (
-    <ul className="grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3">
+    <ul
+      className={
+        layout === "list"
+          ? "grid gap-2 md:gap-3"
+          : "grid gap-2 sm:grid-cols-2 md:gap-3 lg:grid-cols-3"
+      }
+    >
       {listings.map((listing) => (
         <li key={listing.id} className="flex">
           <ListingCard listing={listing} />

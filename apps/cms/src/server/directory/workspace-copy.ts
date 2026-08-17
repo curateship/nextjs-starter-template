@@ -6,6 +6,7 @@ import {
   categories,
   categoryRelationships,
   directoryCustomSections,
+  directoryFrontPageSections,
   directoryListings,
   LISTING_CONTENT_TYPE,
 } from "@/server/directory/schema"
@@ -66,6 +67,35 @@ export async function copyDirectoryWorkspace({
         layout: section.layout,
         fields: section.fields,
         displayOrder: section.displayOrder,
+        createdAt: at,
+        updatedAt: at,
+      }))
+    )
+  }
+
+  // The home page's rows come across whether or not the listings do, for the
+  // same reason the invented fields above do: they are part of what the site
+  // *is*, and a copy made to start a second site from wants the same home page
+  // shape waiting for it. Each row's category is re-pointed at the copy's own,
+  // so a row filtered to "Cafés" filters to the new site's Cafés.
+  const sourceRows = await database
+    .select()
+    .from(directoryFrontPageSections)
+    .where(eq(directoryFrontPageSections.workspaceId, sourceWorkspaceId))
+  if (sourceRows.length) {
+    await database.insert(directoryFrontPageSections).values(
+      sourceRows.map((row) => ({
+        id: uuid(),
+        workspaceId: newWorkspaceId,
+        displayOrder: row.displayOrder,
+        heading: row.heading,
+        intro: row.intro,
+        categoryId: row.categoryId
+          ? (categoryIds.get(row.categoryId) ?? null)
+          : null,
+        sort: row.sort,
+        listingCount: row.listingCount,
+        layout: row.layout,
         createdAt: at,
         updatedAt: at,
       }))

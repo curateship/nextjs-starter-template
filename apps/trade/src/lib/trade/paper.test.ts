@@ -10,6 +10,8 @@ import {
   legCrosses,
   liquidationAway,
   liquidationPx,
+  slippedPx,
+  positionValue,
   nextEventOnLeg,
   paperAccountFigures,
   positionMargin,
@@ -389,5 +391,133 @@ describe("an order already through the market", () => {
     expect(isMarketable("buy", 90, 100)).toBe(false)
     expect(isMarketable("sell", 90, 100)).toBe(true)
     expect(isMarketable("sell", 110, 100)).toBe(false)
+  })
+})
+
+/**
+ * What a forced sale actually fills at, and what an open position is worth.
+ *
+ * Neither had a test. The first decides how much a stop or a liquidation
+ * costs — which is most of what borrowing is judged on — and the second is
+ * what "In coins" and every open coin inside "made or lost" is built from.
+ */
+describe("slippage on a forced fill", () => {
+  it("makes a buy pay more and a sell receive less", () => {
+    // Always against you. A sign the wrong way round would turn the cost of
+    // every stop and liquidation into a small profit.
+    expect(slippedPx(100, "buy", 0.0005)).toBeCloseTo(100.05, 9)
+    expect(slippedPx(100, "sell", 0.0005)).toBeCloseTo(99.95, 9)
+  })
+
+  it("is the price itself when nothing is charged", () => {
+    expect(slippedPx(100, "buy", 0)).toBe(100)
+    expect(slippedPx(100, "sell", 0)).toBe(100)
+    // A negative rate would pay you to be stopped out; it is ignored, not
+    // applied backwards.
+    expect(slippedPx(100, "buy", -0.01)).toBe(100)
+  })
+
+  it("scales with the price, not by a flat amount", () => {
+    expect(slippedPx(1, "buy", 0.01)).toBeCloseTo(1.01, 9)
+    expect(slippedPx(10_000, "buy", 0.01)).toBeCloseTo(10_100, 9)
+  })
+})
+
+describe("what an open position is worth", () => {
+  it("is the coins held times today's price", () => {
+    expect(positionValue({ szi: 3 }, 250)).toBeCloseTo(750, 9)
+  })
+
+  it("counts a short by its size, not as a negative bag of coins", () => {
+    // The whole holding, not the stake — a short of 3 is 3 coins of exposure.
+    expect(positionValue({ szi: -3 }, 250)).toBeCloseTo(750, 9)
+  })
+
+  it("is nothing when nothing is held", () => {
+    expect(positionValue({ szi: 0 }, 250)).toBe(0)
+  })
+})
+
+/**
+ * A liquidation takes the money out of the pot.
+ *
+ * The whole point of one is that the loss is realised — the position goes and
+ * the cash goes with it. A close that left the cash alone would let a wallet
+ * keep trading money it no longer had, and every borrowed run would compound
+ * losses it had never actually paid.
+ */
+describe("what closing a position does to the cash", () => {
+  it("takes the loss out, not just the position", () => {
+    // 10 coins bought at 100 — $1,000 of coin on $333 of margin at 3x. Closed
+    // at 80, which is $200 gone.
+    const outcome = applyPaperFill(
+      {
+        szi: 10,
+        entryPx: 100,
+        leverage: 3,
+        maxLeverage: 3,
+        tpPx: null,
+        slPx: null,
+        feesPaid: 0,
+      },
+      { side: "sell", px: 80, sz: 10, feeRate: 0, leverage: 3, maxLeverage: 3 }
+    )
+
+    expect(outcome.position).toBeNull()
+    expect(outcome.closedPnl).toBeCloseTo(-200, 9)
+  })
+
+  it("charges the fee on top of the loss", () => {
+    const outcome = applyPaperFill(
+      {
+        szi: 10,
+        entryPx: 100,
+        leverage: 3,
+        maxLeverage: 3,
+        tpPx: null,
+        slPx: null,
+        feesPaid: 0,
+      },
+      {
+        side: "sell",
+        px: 80,
+        sz: 10,
+        feeRate: 0.001,
+        leverage: 3,
+        maxLeverage: 3,
+      }
+    )
+
+    // $800 sold at a tenth of a percent.
+    expect(outcome.fee).toBeCloseTo(0.8, 9)
+    expect(outcome.closedPnl).toBeCloseTo(-200, 9)
+  })
+})
+
+describe("what a wallet may spend", () => {
+  it("does not count money its open positions are holding", () => {
+    // A pot cannot trade what it has already committed. Free cash is the cash
+    // less the margin every open position is sitting on.
+    const book = {
+      cash: 10_000,
+      positions: new Map([
+        [
+          "AAA",
+          {
+            szi: 30,
+            entryPx: 100,
+            leverage: 3,
+            maxLeverage: 3,
+          },
+        ],
+      ]),
+    }
+    let held = 0
+    for (const position of book.positions.values()) {
+      held += positionMargin(position)
+    }
+    // $3,000 of coin at 3x is $1,000 of margin.
+    expect(held).toBeCloseTo(1_000, 9)
+    expect(book.cash - held).toBeCloseTo(9_000, 9)
   })
 })

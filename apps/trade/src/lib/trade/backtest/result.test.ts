@@ -8,7 +8,11 @@ import {
   pairTrades,
   sideStatsFromTrades,
   worstDip,
+  backtestSummarySchema,
+  resultSummary,
+  whyNoLadder,
   type BacktestFill,
+  type BacktestSummary,
   type BacktestTrade,
 } from "@/lib/trade/backtest/result"
 
@@ -457,5 +461,126 @@ describe("reading a run's fills back", () => {
       { at: 0, side: "buy", px: 100, sz: 1, fee: 0, closedPnl: 0, reason: "order" } as never,
     ])
     expect(marks[0].detail).toBeNull()
+  })
+})
+
+describe("whether a run counts as having a result", () => {
+  function summaryOf(coinsTested: number): BacktestSummary {
+    return backtestSummarySchema.parse({
+      startingUsd: 10_000,
+      endingUsd: 10_000,
+      madeOrLost: 0,
+      madeOrLostPct: 0,
+      fundingPaid: 0,
+      worstDipUsd: 0,
+      worstDipAt: null,
+      coinsTested,
+      coinsSkipped: 0,
+      coinsThatMadeMoney: 0,
+      peakInPlayUsd: 0,
+      peakInPlayAt: null,
+      peakInPlayHeldMs: 0,
+      typicalInPlayUsd: 0,
+      potAtWorstDipUsd: null,
+      coinsOpenAtEnd: 0,
+      openAtEndUsd: 0,
+      buyAndHold: 0,
+      trades: 0,
+      tradesClosed: 0,
+      tradesWon: 0,
+      warnings: [],
+    })
+  }
+
+  it("is nothing when the run never tested a coin", () => {
+    // The case this exists for: a run stopped in its first fraction of a
+    // second still writes a full set of zeroes, and drawn as figures it reads
+    // as a finished backtest rather than one that never ran.
+    expect(resultSummary(summaryOf(0))).toBeNull()
+  })
+
+  it("is nothing when there is no summary at all", () => {
+    expect(resultSummary(null)).toBeNull()
+    expect(resultSummary(undefined)).toBeNull()
+  })
+
+  it("is the figures once a coin was actually walked", () => {
+    const summary = summaryOf(1)
+    expect(resultSummary(summary)).toBe(summary)
+  })
+})
+
+describe("why a coin never got a ladder", () => {
+  it("says the heaviest reason, in the app's own words", () => {
+    // Two reasons over five years of bars. The one that held it back for a
+    // thousand of them is the answer; the one that happened twice is noise.
+    const why = whyNoLadder({
+      trades: 0,
+      armRefusals: [
+        { reason: "SMART_LADDER_UNDER_BASE", bars: 1_204, lastAt: 1_700 },
+        { reason: "SMART_LADDER_COST", bars: 2, lastAt: 900 },
+      ],
+    })
+
+    expect(why?.words).toBe("Price has already fallen through the base")
+    expect(why?.bars).toBe(1_204)
+    expect(why?.lastAt).toBe(1_700)
+  })
+
+  it("says nothing about a coin that traded", () => {
+    expect(
+      whyNoLadder({
+        trades: 4,
+        armRefusals: [{ reason: "SMART_LADDER_COST", bars: 9, lastAt: 1 }],
+      })
+    ).toBeNull()
+  })
+
+  it("says nothing on a run saved before the reasons were kept", () => {
+    // Not "never refused" — nothing was recorded, and inventing an answer for
+    // an old run is worse than leaving the row quiet.
+    expect(whyNoLadder({ trades: 0, armRefusals: [] })).toBeNull()
+  })
+})
+
+describe("the worst dip on a run that grew", () => {
+  it("reports the deepest fall by share, not the biggest one in dollars", () => {
+    // The real shape this exists for: an early collapse below the starting
+    // pot, then years of growth ending in a shallower but far bigger fall.
+    // Picking by dollars reported 19.6% on a run that had been 40.5% down.
+    const dip = worstDip([
+      { t: 1, usd: 10_000 },
+      { t: 2, usd: 15_000 },
+      { t: 3, usd: 9_000 }, // -40% of 15,000 — only $6,000
+      { t: 4, usd: 130_000 },
+      { t: 5, usd: 105_000 }, // -19% of 130,000 — but $25,000
+    ])
+
+    expect(dip.at).toBe(3)
+    expect(dip.peak).toBe(15_000)
+    expect(dip.usd).toBe(6_000)
+    expect((dip.usd / dip.peak) * 100).toBeCloseTo(40, 5)
+  })
+
+  it("still measures against the top it fell from, not the opening balance", () => {
+    const dip = worstDip([
+      { t: 1, usd: 10_000 },
+      { t: 2, usd: 20_000 },
+      { t: 3, usd: 14_000 },
+    ])
+
+    // 30% off its peak, not 40% off what it started with.
+    expect(dip.peak).toBe(20_000)
+    expect((dip.usd / dip.peak) * 100).toBeCloseTo(30, 5)
+  })
+
+  it("says nothing fell when a run only ever went up", () => {
+    const dip = worstDip([
+      { t: 1, usd: 10_000 },
+      { t: 2, usd: 11_000 },
+    ])
+
+    expect(dip.usd).toBe(0)
+    expect(dip.at).toBeNull()
   })
 })

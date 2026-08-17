@@ -280,6 +280,8 @@ export function fill(
     at: number
     /** Brackets to hand the position this fill opens, if it opens one. */
     brackets?: { tpPx: number | null; slPx: number | null }
+    /** The order behind this fill, when there was one. */
+    orderId?: string | null
   }
 ): void {
   const held = book.positions.get(input.marketKey) ?? null
@@ -323,6 +325,7 @@ export function fill(
     closedPnl: outcome.closedPnl,
     reason: input.reason,
     fillTime: input.at,
+    orderId: input.orderId ?? null,
   })
   book.touchedMarkets.add(input.marketKey)
 }
@@ -385,6 +388,7 @@ function fillOrder(
     reason: "order",
     at: input.at,
     brackets: { tpPx: order.tpPx, slPx: order.slPx },
+    orderId: order.id,
   })
 
   // The exit goes on the book here, not after the candle finishes — see
@@ -513,7 +517,25 @@ export function settleMarket(
       // finite. The cap is a backstop, not a rule.
       for (let step = 0; step < MAX_OPEN_ORDERS + 2; step += 1) {
         const held = book.positions.get(marketKey) ?? null
-        const eligibleHeld = held && settled(held.updatedAt) ? held : null
+        // A position is liable from the moment it exists — including a
+        // position this very bar has just opened or added to.
+        //
+        // It used to be held to the same "existed before the bar" test as an
+        // order, and that is wrong for a position in a way it is not for an
+        // order. An order must not fill on price that predates it. A position
+        // that exists NOW is exposed to every price the bar has left to go,
+        // and the leg is walked in price order, so what remains is exactly the
+        // price it has not met yet.
+        //
+        // What the old test did was make a ladder un-liquidatable during the
+        // crash that built it. HEI bought seven rungs down the 10 Oct 2025
+        // candle, from 0.22376 to 0.02481, while its liquidation price fell
+        // from 0.18647 to 0.02803 — it traded through its own floor three
+        // rungs before the end and nothing closed it, because every one of
+        // those fills was stamped at the bar's close. The next bar it was back
+        // at 0.17 and safe. Every leveraged run was flattered on exactly the
+        // days the deep rungs exist for.
+        const eligibleHeld = held
         const eligibleOrders = book.orders.filter(
           (order) => order.marketKey === marketKey && settled(order.updatedAt)
         )

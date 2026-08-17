@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm"
 
 import { parseMarketKey, type WalletPortfolio } from "@/lib/protocols/contracts"
 import {
+  CASH_ONLY,
   dcaLadderPlan,
   floorSize,
   ladderBaseStopOf,
@@ -245,7 +246,12 @@ async function placeLiveDcaLadderOnce(
   const drawn = dcaLadderPlan({
     anchorPx,
     equity: livePotOf(input, input.params.compound ? account.equity : wallet.startingBalance),
-    params: input.params,
+    // Real money, so the same rule as the practice path and for the same
+    // reason: the sizing multiplies each rung by the borrowing setting while
+    // the orders below are sent at leverage 1. Reading it here would buy three
+    // times the intended coin with cash, on a real Hyperliquid account, from a
+    // box the panel says is only for backtests.
+    params: { ...input.params, leverage: CASH_ONLY },
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,
   })
@@ -360,6 +366,11 @@ function ladderPlan(
     baseDetection: input.params.baseDetection,
     sizeDecimals,
     maxLeverage,
+    // Cash, deliberately, and not read from the settings. A real wallet's
+    // ladder taking leverage would hand the exchange a price at which it can
+    // close the position — a decision nobody has made yet. The setting exists
+    // so a backtest can measure the idea; it does not reach a live book.
+    leverage: 1,
     rungs,
     takeProfit: takeProfit
       ? {
@@ -761,6 +772,9 @@ async function reconcileLiveLaddersOnce(
       return [
         {
           id: one.fillId,
+          // The exchange's own fill of a bracket it holds, not of an order
+          // this app placed — so there is nothing to point back at.
+          orderId: null,
           walletId: wallet.id,
           marketKey,
           side: one.side,
@@ -1064,6 +1078,7 @@ async function reconcileLiveLaddersOnce(
           }
           book.fills.push({
             id: `managed:${total.fillId}`,
+            orderId: rung.orderId,
             walletId: wallet.id,
             marketKey: raw.marketKey,
             side: "buy",
@@ -1086,6 +1101,7 @@ async function reconcileLiveLaddersOnce(
         }
         book.fills.push({
           id: `managed:${total.fillId}`,
+          orderId: rung.sellOrderId,
           walletId: wallet.id,
           marketKey: raw.marketKey,
           side: "sell",

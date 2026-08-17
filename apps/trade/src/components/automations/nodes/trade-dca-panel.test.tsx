@@ -135,3 +135,27 @@ describe("what counts as a base", () => {
     expect(html).not.toContain("acting as")
   })
 })
+
+/**
+ * Borrowing, and the one thing that must never be silent about it.
+ *
+ * The setting only reaches a replay — live and practice wallets still buy with
+ * cash whatever it says — and a number that appears to change what a wallet
+ * does when it does not is the worst kind of wrong on this screen. So the panel
+ * says so, and only when it would matter.
+ */
+describe("the borrowing box", () => {
+  it("says nothing extra while the ladder buys with cash", () => {
+    const html = draw(dcaNode())
+
+    expect(html).toContain("Borrowing")
+    expect(html).not.toContain("Backtests only")
+  })
+
+  it("says it is backtests only the moment it is turned up", () => {
+    const html = draw(dcaNode({ leverage: 2 }))
+
+    expect(html).toContain("Backtests only")
+    expect(html).toContain('value="2"')
+  })
+})

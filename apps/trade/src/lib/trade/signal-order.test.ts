@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { isMarketable } from "@/lib/trade/paper"
-import { CHASE_MAX_OFFSET, restingChasePx } from "@/lib/trade/signal-order"
+import {
+  chaseCeilingPx,
+  chaseWorthMoving,
+  CHASE_MAX_OFFSET,
+  restingChasePx,
+} from "@/lib/trade/signal-order"
 
 /**
  * The one promise the whole Signals step rests on: it asks for a price, it
@@ -71,5 +76,50 @@ describe("pricing an order that has to rest", () => {
   it("says nothing about a price that is not a price", () => {
     expect(restingChasePx("buy", 0, (one) => one)).toBeNull()
     expect(restingChasePx("sell", -1, (one) => one)).toBeNull()
+  })
+})
+
+/**
+ * How far a chased buy will follow a price that runs, and when it bothers
+ * moving. Neither had a test, and both decide whether a signal buys at all.
+ */
+describe("the ceiling a chase will not buy above", () => {
+  it("is that share above the price the arrow appeared at", () => {
+    expect(chaseCeilingPx({ signalPx: 100, chaseGiveUp: 0.02 })).toBeCloseTo(
+      102,
+      9
+    )
+    expect(chaseCeilingPx({ signalPx: 0.0004, chaseGiveUp: 0.05 })).toBeCloseTo(
+      0.00042,
+      12
+    )
+  })
+
+  it("is the signal price itself when it will not chase at all", () => {
+    expect(chaseCeilingPx({ signalPx: 100, chaseGiveUp: 0 })).toBe(100)
+  })
+})
+
+describe("whether a resting chase is worth moving", () => {
+  it("always places one when nothing is resting yet", () => {
+    expect(chaseWorthMoving(null, 100)).toBe(true)
+  })
+
+  it("leaves an order that has barely drifted alone", () => {
+    // Cancelling and replacing for a tenth of a percent spends the wallet's
+    // request allowance for a price nobody would notice.
+    expect(chaseWorthMoving(100, 100)).toBe(false)
+    expect(chaseWorthMoving(100.05, 100)).toBe(false)
+  })
+
+  it("moves it once the gap is worth more than the drift it allows", () => {
+    expect(chaseWorthMoving(100.2, 100)).toBe(true)
+    expect(chaseWorthMoving(99.8, 100)).toBe(true)
+  })
+
+  it("measures the gap as a share of the price, not in dollars", () => {
+    // A cent is nothing on a $100 coin and everything on a $0.001 one.
+    expect(chaseWorthMoving(0.001, 0.0011)).toBe(true)
+    expect(chaseWorthMoving(10_000, 10_001)).toBe(false)
   })
 })

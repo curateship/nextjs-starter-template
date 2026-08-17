@@ -10,6 +10,8 @@ import {
   gridStopPx,
   type GridLevelState,
   type GridPlan,
+  gridStopUnder,
+  gridTakeProfitPx,
 } from "./grid"
 import { readSmartPlan } from "./smart-plan"
 
@@ -293,4 +295,35 @@ describe("reading a stored grid back", () => {
     ).toBe(false)
   })
 
+})
+
+/**
+ * The two grid prices nothing was checking.
+ *
+ * Both decide where real money leaves a trade, and neither had a test.
+ */
+describe("where a grid's stop sits under its range", () => {
+  it("is that percent below the bottom rung", () => {
+    expect(gridStopUnder(100, 5)).toBeCloseTo(95, 9)
+    expect(gridStopUnder(0.004, 10)).toBeCloseTo(0.0036, 12)
+  })
+
+  it("sits ON the bottom rung at zero, rather than nowhere", () => {
+    expect(gridStopUnder(100, 0)).toBe(100)
+  })
+})
+
+describe("a grid's take-profit", () => {
+  it("only counts when it is above the range", () => {
+    // A target inside the range is a level the grid means to sell at rung by
+    // rung. Treating it as the exit would close the whole grid the first time
+    // price touched a level it was built to trade.
+    expect(gridTakeProfitPx({ takeProfitPx: 120, topPx: 100 })).toBe(120)
+    expect(gridTakeProfitPx({ takeProfitPx: 90, topPx: 100 })).toBeNull()
+    expect(gridTakeProfitPx({ takeProfitPx: 100, topPx: 100 })).toBeNull()
+  })
+
+  it("is nothing when none was set", () => {
+    expect(gridTakeProfitPx({ takeProfitPx: null, topPx: 100 })).toBeNull()
+  })
 })

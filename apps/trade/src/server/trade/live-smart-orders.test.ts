@@ -95,6 +95,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     maxPositionPct: 20,
     sizeMultiplier: 2,
     compound: true,
+    leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
     // Inert: every ladder watches its rungs now, whatever this says. Still
@@ -196,6 +197,24 @@ describe("live Smart orders", () => {
       "waiting",
     ])
     expect(plan.rungs.map((rung) => rung.orderId)).toEqual([null, null])
+  })
+
+  it("ignores the borrowing setting — real money only ever spends cash", async () => {
+    // The setting is a backtest instrument. It reaches the rung sizing, and
+    // the orders are still sent at leverage 1, so a live ladder that read it
+    // would buy three times the coin and pay the whole price out of a real
+    // Hyperliquid account.
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ leverage: 3 }),
+    })
+
+    const plan = await ladder()
+    expect(plan.leverage).toBe(1)
+    // The same size a cash ladder gets, to the ninth decimal.
+    expect(plan.rungs[0].sz).toBeCloseTo(0.701, 9)
   })
 
   it("keeps fixed sizing on the wallet's starting balance", async () => {

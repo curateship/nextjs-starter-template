@@ -3,6 +3,7 @@ import { ListIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -235,7 +236,19 @@ function Row({
         column="meta"
         className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
       >
-        {open ? "—" : `${trade.returnPct.toFixed(2)}%`}
+        {/* The chip says the exchange ended this one, not the strategy. Beside
+            the return rather than in a column of its own: it is the reason for
+            the number next to it, and on a cash run it never appears at all. */}
+        {open ? (
+          "—"
+        ) : trade.exitReason === "liquidated" ? (
+          <span className="inline-flex items-center gap-1.5">
+            <Badge variant="destructive">Liquidated</Badge>
+            {`${trade.returnPct.toFixed(2)}%`}
+          </span>
+        ) : (
+          `${trade.returnPct.toFixed(2)}%`
+        )}
       </TableCell>
       <TableCell
         column="meta"

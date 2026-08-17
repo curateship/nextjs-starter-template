@@ -98,7 +98,10 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
 }))
 
 vi.mock("@/server/trade/market-rules", () => ({
-  marketRules: async () => ({
+  // A market that answers for itself, so the Hyperliquid fill-in inside
+  // `replayMarketRules` has nothing to do — the walk here is about candles and
+  // coins, not about where a leverage limit comes from.
+  replayMarketRules: async () => ({
     sizeDecimals: 3,
     maxLeverage: 10,
     volume24hUsd: 1_000_000_000,
@@ -203,6 +206,211 @@ describe("a run the worker picks up", () => {
       .where(eq(tradeBacktests.groupId, groupId))
     expect(coins.every((coin) => coin.status === "done")).toBe(true)
     expect(coins.every((coin) => coin.progress === 1)).toBe(true)
+  })
+
+  /**
+   * Every figure on the results card, checked against the run it came from.
+   *
+   * **These are not the sums being re-done; they are the promises between
+   * them.** A total that cannot be reached from its parts is the failure mode
+   * that has actually happened here more than once, and it is invisible on
+   * screen — the card looks like a card whatever the numbers say. Each of
+   * these held when it was written, so any one of them breaking later means a
+   * figure has drifted from what it claims to be.
+   */
+  it("keeps every headline figure consistent with the run behind it", async () => {
+    history.set("AAA", shape(START - 400 * FOUR_HOURS, 600))
+    history.set("BBB", shape(START - 400 * FOUR_HOURS, 600))
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-figures",
+        automationName: "Figures",
+        spec: specOf(["hyperliquid:mainnet:AAA", "hyperliquid:mainnet:BBB"]),
+        now: START,
+      },
+      db
+    )
+    expect(await tickUntilDone(groupId)).not.toBeNull()
+
+    const [group] = await db
+      .select()
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+    const coins = await db
+      .select()
+      .from(tradeBacktests)
+      .where(eq(tradeBacktests.groupId, groupId))
+
+    const summary = group.summary!
+    const rows = coins.filter((coin) => coin.summary)
+    const trades = rows.flatMap((coin) => coin.trades ?? [])
+
+    // What it ended with is where the pot's own line ends. These are worked
+    // out in different places and a run that disagreed with its own chart
+    // would be lying on one of the two.
+    const equity = group.result!.equity
+    expect(summary.endingUsd).toBeCloseTo(equity[equity.length - 1].usd, 6)
+    expect(summary.madeOrLost).toBeCloseTo(
+      summary.endingUsd - summary.startingUsd,
+      6
+    )
+
+    // The whole is the sum of the coins. This is the one that catches a total
+    // quietly counting something the rows do not.
+    expect(
+      rows.reduce((sum, coin) => sum + coin.summary!.madeOrLost, 0)
+    ).toBeCloseTo(summary.madeOrLost, 4)
+    expect(summary.coinsTested).toBe(rows.length)
+    expect(summary.coinsThatMadeMoney).toBe(
+      rows.filter((coin) => coin.summary!.madeOrLost > 0).length
+    )
+    expect(summary.trades).toBe(trades.length)
+
+    // Won and closed are counts of the same list, so they cannot outrun it.
+    expect(summary.tradesClosed).toBe(
+      trades.filter((trade) => trade.exitAt !== null).length
+    )
+    expect(summary.tradesWon).toBe(
+      trades.filter((trade) => trade.exitAt !== null && trade.pnl > 0).length
+    )
+    expect(summary.tradesWon).toBeLessThanOrEqual(summary.tradesClosed)
+    expect(summary.tradesClosed).toBeLessThanOrEqual(summary.trades)
+
+    // Taken by the exchange, counted the same way from the same rows.
+    expect(summary.tradesLiquidated).toBe(
+      trades.filter((trade) => trade.exitReason === "liquidated").length
+    )
+    expect(summary.liquidatedUsd).toBeCloseTo(
+      trades
+        .filter((trade) => trade.exitReason === "liquidated")
+        .reduce((sum, trade) => sum + trade.pnl, 0),
+      4
+    )
+
+    // Still held at the end, and what it is worth.
+    expect(summary.openAtEndUsd).toBeCloseTo(
+      rows.reduce((sum, coin) => sum + coin.summary!.openAtEndUsd, 0),
+      4
+    )
+    expect(summary.coinsOpenAtEnd).toBe(
+      rows.filter((coin) => coin.summary!.openAtEndUsd > 0).length
+    )
+
+    // A fall can never be more than everything, and the percent has to be the
+    // dollars over the top it fell from — not over what the run started with.
+    expect(summary.worstDipUsd).toBeGreaterThanOrEqual(0)
+    if (summary.worstDipPct !== null && summary.worstDipPeakUsd !== null) {
+      expect(summary.worstDipPct).toBeLessThanOrEqual(100)
+      expect(summary.worstDipPct).toBeCloseTo(
+        (summary.worstDipUsd / summary.worstDipPeakUsd) * 100,
+        6
+      )
+    }
+    // And it is the DEEPEST fall by share anywhere on the line, not merely a
+    // fall. This is the bug that reported 19.6% on a run that had been 40.5%
+    // down: the biggest number of dollars is not the worst moment.
+    let high = Number.NEGATIVE_INFINITY
+    let deepest = 0
+    for (const point of equity) {
+      if (point.usd > high) high = point.usd
+      if (high > 0) deepest = Math.max(deepest, (high - point.usd) / high)
+    }
+    expect(summary.worstDipPct ?? 0).toBeCloseTo(deepest * 100, 6)
+
+    // The money at work, checked against the series it came from. These two
+    // used to be the only figures on the page that could not be recomputed
+    // from anything saved — they were worked out and the series thrown away.
+    const inPlay = group.result!.inPlay
+    expect(inPlay).toHaveLength(equity.length)
+    expect(summary.peakInPlayUsd).toBeCloseTo(Math.max(...inPlay, 0), 6)
+    expect(Math.min(...inPlay, 0)).toBeGreaterThanOrEqual(0)
+    expect(summary.typicalInPlayUsd).toBeLessThanOrEqual(summary.peakInPlayUsd)
+    if (summary.peakInPlayPct !== null && summary.typicalInPlayPct !== null) {
+      expect(summary.typicalInPlayPct).toBeLessThanOrEqual(
+        summary.peakInPlayPct
+      )
+    }
+
+    // ----- Nothing quietly dropped ---------------------------------------
+    //
+    // Every coin asked for is accounted for as either tested or skipped. A
+    // coin that fell out of both is a run reporting on fewer coins than it
+    // was given, and there is nothing on screen that would show it.
+    expect(summary.coinsTested + summary.coinsSkipped).toBe(
+      group.spec.marketKeys.length
+    )
+    expect(group.result!.coins).toHaveLength(summary.coinsTested)
+    // The run's own blob carries the coin summaries WITHOUT their two long
+    // lists — every coin already has them on its own row, and nothing reads
+    // this copy. Storing them twice put 4,259 rung events into a blob the run
+    // page loads whole.
+    for (const coin of group.result!.coins) {
+      expect(coin.rungEvents).toEqual([])
+      expect(coin.armRefusals).toEqual([])
+    }
+    // And the rows themselves still have everything.
+    expect(
+      rows.some((coin) => (coin.summary!.rungEvents ?? []).length > 0)
+    ).toBe(true)
+    expect(group.result!.skipped).toHaveLength(summary.coinsSkipped)
+    expect(coins).toHaveLength(group.spec.marketKeys.length)
+
+    // Percentages are the dollars over the base they claim, not a second
+    // sum that could drift from the first.
+    expect(summary.madeOrLostPct).toBeCloseTo(
+      (summary.madeOrLost / summary.startingUsd) * 100,
+      6
+    )
+
+    // The pot at the worst moment is a point ON the line, not a number worked
+    // out beside it.
+    if (summary.worstDipAt !== null) {
+      const atDip = equity.find((point) => point.t === summary.worstDipAt)
+      expect(atDip).toBeDefined()
+      expect(summary.potAtWorstDipUsd).toBeCloseTo(atDip!.usd, 6)
+      // And the fall really is the peak minus what was there.
+      expect(summary.worstDipUsd).toBeCloseTo(
+        summary.worstDipPeakUsd! - atDip!.usd,
+        6
+      )
+    }
+
+    // Funding is a real cost that came out of the pot, summed from the coins
+    // that paid it rather than defaulted to nothing.
+    expect(summary.fundingPaid).toBeCloseTo(
+      rows.reduce((sum, coin) => sum + coin.summary!.fundingPaid, 0),
+      4
+    )
+    expect(summary.buyAndHold).toBeCloseTo(
+      rows.reduce((sum, coin) => sum + coin.summary!.buyAndHold, 0),
+      4
+    )
+
+    // Every figure that is meant to be a number IS one. A NaN renders as a
+    // blank or "NaN" on the card and reads as a missing feature rather than a
+    // broken sum.
+    for (const [name, value] of Object.entries(summary)) {
+      if (typeof value === "number") {
+        expect(Number.isFinite(value), `${name} is not a finite number`).toBe(
+          true
+        )
+      }
+    }
+    for (const point of equity) {
+      expect(Number.isFinite(point.usd)).toBe(true)
+    }
+
+    // A coin's own figures hold together too: won and liquidated are counts of
+    // its closed trades, and it cannot have closed more than it opened.
+    for (const coin of rows) {
+      const own = coin.summary!
+      expect(own.won).toBeLessThanOrEqual(own.closed)
+      expect(own.closed).toBeLessThanOrEqual(own.trades)
+      expect(own.liquidated).toBeLessThanOrEqual(own.closed)
+      expect(own.trades).toBe((coin.trades ?? []).length)
+      expect(own.worstDipUsd).toBeGreaterThanOrEqual(0)
+    }
   })
 
   it("tests a young coin from the day it listed, rather than dropping it", async () => {
@@ -597,6 +805,18 @@ describe("a run the worker picks up", () => {
     expect(ghost?.status).toBe("skipped")
     expect(ghost?.skipReason).toContain("no price history")
     expect(coins.some((c) => c.status === "error")).toBe(false)
+
+    // And the run says so on its own summary, with the count — a result built
+    // from half the coins it was given must not read like a result built from
+    // all of them.
+    const [group] = await db
+      .select()
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+    expect(group.summary?.coinsSkipped).toBe(1)
+    expect(group.summary?.coinsTested).toBe(1)
+    expect(group.summary?.warnings.join(" ")).toContain("1 of 2 coins")
+    expect(group.result?.skipped.map((one) => one.symbol)).toEqual(["GHOST"])
   })
 
   it("still retries a rate limit rather than writing the coin off", async () => {

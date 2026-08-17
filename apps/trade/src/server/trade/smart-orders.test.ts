@@ -139,6 +139,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     maxPositionPct: 20,
     sizeMultiplier: 2,
     compound: true,
+    leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
     // Inert: every ladder watches its rungs now, whatever this says. Still
@@ -303,6 +304,24 @@ describe("placing a ladder", () => {
     expect(rungs[0].sz).toBeCloseTo(7.017, 9)
     expect(rungs[1].px).toBeCloseTo(87.4, 9)
     expect(rungs[1].sz).toBeCloseTo(15.255, 9)
+  })
+
+  it("ignores the borrowing setting outright — a wallet only ever spends cash", async () => {
+    // The setting exists so a BACKTEST can measure borrowing. It reaches the
+    // rung sizing, and the orders are still sent at leverage 1 — so a wallet
+    // that read it would buy three times the coin and pay the whole price in
+    // cash. Practice money here, real money on the live path, same rule.
+    const cash = await place()
+    const asked = await (async () => {
+      await database.delete(tradeSmartLadders)
+      return await place({ leverage: 3 })
+    })()
+
+    expect(asked).toEqual(cash)
+    const ladder = await onlyLadder()
+    expect(ladder.plan.leverage).toBe(1)
+    expect(ladder.plan.rungs[0].sz).toBeCloseTo(7.017, 9)
+    expect(ladder.plan.rungs[1].sz).toBeCloseTo(15.255, 9)
   })
 
   it("keeps fixed sizing on the wallet's starting balance after a profit", async () => {

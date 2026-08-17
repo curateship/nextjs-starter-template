@@ -7,6 +7,7 @@ import {
   type CandleInterval,
 } from "@/lib/protocols/contracts"
 import {
+  CASH_ONLY,
   dcaLadderPlan,
   floorSize,
   ladderBaseStopOf,
@@ -181,16 +182,34 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
 
   const twoGreen = params.twoGreen
 
+  const maxLeverage = rules.maxLeverage ?? 1
+  // Held to the coin's ceiling ONLY when the coin actually named one. The
+  // exchange would refuse a bigger ask at the moment of the buy, which reads as
+  // the strategy failing rather than as a number somebody typed.
+  //
+  // The `?? 1` above is "nobody said", not a limit of one, and clamping to it
+  // would quietly turn every ladder on a market with no stated ceiling back
+  // into cash — which is most of a Binance replay, and is exactly the bug where
+  // 2x did nothing at all.
+  const leverage =
+    rules.maxLeverage === null
+      ? params.leverage
+      : Math.min(params.leverage, rules.maxLeverage)
+
   // Only what could be committed at once has to be affordable now. Placing
   // commits nothing — each rung is bought when price reaches it, and the cash
   // is re-checked then — so the whole-ladder cost is not the question, and
   // asking it refused ladders over money they would never hold at one time.
   // There is no order-cap check for the same reason: placing puts nothing on
   // the book.
-  const committing = Math.max(...priced.map((rung) => rung.px * rung.sz))
+  //
+  // Divided by the leverage because that is what the cash has to cover: a
+  // borrowed rung holding $2,000 of coin is $1,000 out of the account. Asking
+  // for the whole notional would refuse every borrowed ladder at the moment it
+  // was placed — which is exactly what borrowing is supposed to avoid.
+  const committing =
+    Math.max(...priced.map((rung) => rung.px * rung.sz)) / leverage
   if (committing > input.freeCash + 1e-9) throw new Error("SMART_LADDER_COST")
-
-  const maxLeverage = rules.maxLeverage ?? 1
 
   const rungs: LadderRungState[] = priced.map((rung) => {
     const state: LadderRungState = {
@@ -240,6 +259,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     baseDetection: params.baseDetection,
     sizeDecimals: rules.sizeDecimals,
     maxLeverage,
+    leverage,
     rungs,
     takeProfit: tp
       ? { mode: tp.mode, pct: tp.mode === "average" ? tp.pct : null }
@@ -344,7 +364,12 @@ export async function placeDcaLadder(
 
   const { plan, rungs } = draftDcaLadder({
     marketKey: input.marketKey,
-    params: input.params,
+    // Borrowing is a backtest instrument and must not reach a wallet. The
+    // sizing multiplies every rung by it while the orders are still sent at
+    // leverage 1, so a ladder that read it would buy three times the coin and
+    // pay the whole price in cash. Forced here rather than trusted upstream:
+    // this is the only door a practice ladder comes through.
+    params: { ...input.params, leverage: CASH_ONLY },
     interval: input.interval,
     clickPx: input.clickPx,
     mark,

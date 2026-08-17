@@ -258,6 +258,27 @@ export const dcaParamsSchema = z.object({
    */
   compound: z.boolean().default(true),
   /**
+   * How many dollars of coin each dollar of the pot buys. 1 is cash.
+   *
+   * **BACKTESTS ONLY, and enforced rather than assumed.** Every real and
+   * practice placement forces this to `CASH_ONLY` before it sizes anything —
+   * see `placeDcaLadder` and `placeLiveDcaLadder`. That is not tidiness: the
+   * sizing below multiplies each rung by this number, so a wallet path that
+   * read it would buy three times the coin while still posting the full price
+   * in cash, because the orders themselves are placed at leverage 1. Three
+   * times the intended size, with real money, from a box the panel says is for
+   * backtests.
+   *
+   * Wiring it to a live wallet is a separate decision, because it hands the
+   * exchange the power to close a position: above 1 the position has a
+   * liquidation price, and the ladder's own stop only fires first if it sits
+   * above it.
+   *
+   * Defaulted to 1 so every ladder and every saved run reads back exactly as
+   * it always has.
+   */
+  leverage: z.number().min(1).max(50).default(1),
+  /**
    * Liquidity guard: no single buy bigger than this share of the coin's
    * last-24-hours volume, so thin coins get small orders. 0 = off.
    */
@@ -320,12 +341,25 @@ export const dcaParamsSchema = z.object({
 
 export type DcaParams = z.infer<typeof dcaParamsSchema>
 
+/**
+ * What a ladder buys at when nobody may borrow — every real and practice
+ * placement, always.
+ *
+ * Named rather than a bare `1` at each call site so the two places that force
+ * it can be found from here, and so a third path added later is an obvious
+ * omission rather than an invisible one.
+ */
+export const CASH_ONLY = 1
+
 export function defaultDcaParams(): DcaParams {
   return {
     rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
     maxPositionPct: DEFAULT_DCA_MAX_POSITION_PCT,
     sizeMultiplier: DEFAULT_DCA_SIZE_MULTIPLIER,
     compound: true,
+    // Cash. Above 1 the exchange gets a price at which it can close the
+    // position, and nothing should acquire that by default.
+    leverage: 1,
     maxOrderVolPct: 0,
     twoGreen: false,
     anchor: "base",
@@ -460,7 +494,11 @@ export function dcaLadderPlan(input: {
   equity: number
   params: Pick<
     DcaParams,
-    "rungs" | "maxPositionPct" | "sizeMultiplier" | "maxOrderVolPct"
+    | "rungs"
+    | "maxPositionPct"
+    | "sizeMultiplier"
+    | "maxOrderVolPct"
+    | "leverage"
   >
   sizeDecimals: number | null
   volume24hUsd: number | null
@@ -472,6 +510,11 @@ export function dcaLadderPlan(input: {
     input.params.sizeMultiplier
   )
   const capUsd = volumeCapUsd(input.params.maxOrderVolPct, input.volume24hUsd)
+  // What each share of the pot BUYS. At 1 they are the same number and always
+  // were. At 2 the same slice of the pot puts twice as many dollars of coin on
+  // — which is the whole of what borrowing means here, and the share of the
+  // pot itself is untouched: "15% per coin" still sets aside 15%.
+  const buying = input.params.leverage
 
   let totalCost = 0
   let tooSmallIndex: number | null = null
@@ -480,7 +523,7 @@ export function dcaLadderPlan(input: {
   const rungs = levels.map((px, index) => {
     const sized = sizeOneOrder({
       px,
-      wantedUsd: (input.equity * shares[index]) / 100,
+      wantedUsd: (input.equity * shares[index] * buying) / 100,
       capUsd,
       sizeDecimals: input.sizeDecimals,
     })
@@ -626,6 +669,15 @@ export const ladderPlanSchema = z.object({
   /** The market's rules, frozen at placement — the engine re-aims from these. */
   sizeDecimals: z.number().nullable(),
   maxLeverage: z.number().positive(),
+  /**
+   * What this ladder buys at, frozen at placement and already clamped to the
+   * market's own ceiling — so nothing downstream has to re-check it against a
+   * catalogue that may have moved since.
+   *
+   * Defaulted to 1, which is what every ladder placed before this existed was
+   * doing and what every live and practice placement still does.
+   */
+  leverage: z.number().positive().default(1),
   rungs: z.array(ladderRungStateSchema).min(1).max(20),
   takeProfit: ladderTakeProfitSchema.nullable(),
   stopLoss: ladderStopLossSchema.nullable(),
