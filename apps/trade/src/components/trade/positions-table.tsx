@@ -8,6 +8,7 @@ import {
 import { MarketIcon } from "@/components/trade/market-icon"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   TableRow,
   TableSortButton,
@@ -287,6 +288,48 @@ function EmptyTable({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * The row a table shows before it can show rows: still reading, or the read
+ * failed with nothing to fall back on.
+ *
+ * Inside the table's own frame, under the real header, so nothing moves when
+ * the rows land — and never the empty state's words. "Nothing here" and "I
+ * could not find out" are different answers, and only one is safe to act on.
+ * The empty state stays for the one case that has actually been checked.
+ */
+function TableStateRow({
+  span,
+  loading,
+  loadingLabel,
+  onRetry,
+  children,
+}: {
+  /** Every column, including the actions one, so the row spans the frame. */
+  span: number
+  loading: boolean
+  loadingLabel: string
+  onRetry: () => void
+  /** The failed wording — what exactly is not known right now. */
+  children: React.ReactNode
+}) {
+  return (
+    <tr className="border-t">
+      <td colSpan={span}>
+        {loading ? (
+          <LoadingRow label={loadingLabel} className="py-6 text-xs" />
+        ) : (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {children}{" "}
+            <button type="button" className="underline" onClick={onRetry}>
+              Try again
+            </button>
+          </p>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+/**
  * The market cell every table starts with: art, symbol, and what it is.
  *
  * The name is the way back to the chart, rather than a button in the actions
@@ -507,6 +550,9 @@ export function PositionsTable({
   walletName,
   smartOrders,
   busy,
+  loading,
+  failed,
+  onRetry,
   onSelectMarket,
   onEdit,
   onFlip,
@@ -518,6 +564,11 @@ export function PositionsTable({
   /** Every smart order still working, so a row can say what is running it. */
   smartOrders: readonly SmartOrder[]
   busy: boolean
+  /** The first read has not come back yet — nothing may claim to be empty. */
+  loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   onEdit: (position: PaperPosition) => void
   onFlip: (position: PaperPosition) => void
@@ -575,7 +626,9 @@ export function PositionsTable({
     }
   })
 
-  if (positions.length === 0) {
+  // Empty is only claimed once a read has landed; before that the frame shows
+  // it is still reading, and a failed first read says so instead.
+  if (positions.length === 0 && !loading && !failed) {
     return <EmptyTable>No open positions. Anything you are holding shows up here.</EmptyTable>
   }
 
@@ -602,21 +655,33 @@ export function PositionsTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((position) => (
-            <PositionRow
-              key={position.id}
-              position={position}
-              market={markets.get(position.marketKey) ?? null}
-              mark={markOf(position)}
-              wallet={walletName(position.walletId)}
-              placedBy={placedByOf(position, smart)}
-              busy={busy}
-              onSelectMarket={onSelectMarket}
-              onEdit={onEdit}
-              onFlip={onFlip}
-              onClose={setConfirming}
-            />
-          ))}
+          {rows.length === 0 ? (
+            <TableStateRow
+              span={POSITION_COLUMNS.length + 1}
+              loading={loading}
+              loadingLabel="Reading what you are holding"
+              onRetry={onRetry}
+            >
+              The positions could not be read, so it is not known whether you
+              are holding anything.
+            </TableStateRow>
+          ) : (
+            rows.map((position) => (
+              <PositionRow
+                key={position.id}
+                position={position}
+                market={markets.get(position.marketKey) ?? null}
+                mark={markOf(position)}
+                wallet={walletName(position.walletId)}
+                placedBy={placedByOf(position, smart)}
+                busy={busy}
+                onSelectMarket={onSelectMarket}
+                onEdit={onEdit}
+                onFlip={onFlip}
+                onClose={setConfirming}
+              />
+            ))
+          )}
         </tbody>
       </table>
 
@@ -648,6 +713,9 @@ export function OpenOrdersTable({
   markets,
   walletName,
   busy,
+  loading,
+  failed,
+  onRetry,
   onSelectMarket,
   onCancel,
 }: {
@@ -655,6 +723,11 @@ export function OpenOrdersTable({
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   busy: boolean
+  /** The first read has not come back yet — nothing may claim to be empty. */
+  loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  onRetry: () => void
   onSelectMarket: (marketKey: string) => void
   onCancel: (order: PaperOrder) => void
 }) {
@@ -686,7 +759,7 @@ export function OpenOrdersTable({
     }
   })
 
-  if (orders.length === 0) {
+  if (orders.length === 0 && !loading && !failed) {
     return <EmptyTable>No open orders. Orders waiting to fill show up here.</EmptyTable>
   }
 
@@ -712,7 +785,18 @@ export function OpenOrdersTable({
         </tr>
       </thead>
       <tbody>
-        {rows.map((order) => (
+        {rows.length === 0 ? (
+          <TableStateRow
+            span={ORDER_COLUMNS.length + 1}
+            loading={loading}
+            loadingLabel="Reading your open orders"
+            onRetry={onRetry}
+          >
+            The orders could not be read, so it is not known whether anything
+            is waiting to fill.
+          </TableStateRow>
+        ) : (
+        rows.map((order) => (
           <tr
             key={order.id}
             className="border-t hover:bg-muted/40"
@@ -765,7 +849,8 @@ export function OpenOrdersTable({
               </span>
             </td>
           </tr>
-        ))}
+        ))
+        )}
       </tbody>
     </table>
   )
@@ -813,6 +898,9 @@ export function TradesTable({
   walletName,
   selectedId,
   busy,
+  loading,
+  failed,
+  onRetry,
   onSelectTrade,
   onSelectMarket,
   onRemove,
@@ -823,6 +911,11 @@ export function TradesTable({
   /** The trade drawn on the chart right now, or null. */
   selectedId: string | null
   busy: boolean
+  /** The first read has not come back yet — nothing may claim to be empty. */
+  loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  onRetry: () => void
   onSelectTrade: (trade: LiveTrade) => void
   onSelectMarket: (marketKey: string) => void
   onRemove: (trade: LiveTrade) => void
@@ -859,7 +952,7 @@ export function TradesTable({
     }
   })
 
-  if (trades.length === 0) {
+  if (trades.length === 0 && !loading && !failed) {
     return (
       <EmptyTable>
         No finished trades yet. Once a position is closed it lands here, with
@@ -890,7 +983,18 @@ export function TradesTable({
         </tr>
       </thead>
       <tbody>
-        {rows.map((trade) => (
+        {rows.length === 0 ? (
+          <TableStateRow
+            span={TRADE_COLUMNS.length + 1}
+            loading={loading}
+            loadingLabel="Reading your finished trades"
+            onRetry={onRetry}
+          >
+            The journal could not be read, so it is not known how past trades
+            went.
+          </TableStateRow>
+        ) : (
+        rows.map((trade) => (
           <TableRow
             key={trade.id}
             rowAction={() => onSelectTrade(trade)}
@@ -970,7 +1074,8 @@ export function TradesTable({
               </Button>
             </td>
           </TableRow>
-        ))}
+        ))
+        )}
       </tbody>
     </table>
   )

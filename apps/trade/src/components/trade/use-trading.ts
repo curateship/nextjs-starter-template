@@ -138,6 +138,16 @@ export type Trading = {
   /** An action is in flight; the buttons that started it stay disabled. */
   busy: boolean
   /**
+   * True only before the first answer — never during a background refresh.
+   * While this is true the tables have not looked yet, so nothing may claim
+   * to be empty. Same shape as `use-trade-account`, on purpose.
+   */
+  loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  /** The button on the failed state; the poll retries on its own too. */
+  retry: () => void
+  /**
    * Sends an order and returns straight away. Nothing waits on it: the window
    * that asked for it has already closed, the chart is already drawing it, and
    * a refusal arrives as an error toast whenever the exchange gets round to it.
@@ -286,6 +296,10 @@ type LiveAnswer = {
 export function useTrading(wallet: TradeWallet | null): Trading {
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
+  // The whole read came back with nothing — both halves refused. With rows
+  // already on screen the next tick is the retry and nothing is said; this
+  // only ever surfaces while there is nothing to fall back on.
+  const [failed, setFailed] = React.useState(false)
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
@@ -333,6 +347,9 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     if (live.status === "fulfilled") {
       setLiveAnswer((was) => keepUnreachableRows(was, live.value))
     }
+    setFailed(
+      paper.status === "rejected" && live.status === "rejected"
+    )
     return paper.status === "fulfilled" && live.status === "fulfilled"
   }, [])
 
@@ -898,6 +915,11 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     ladders,
     grids,
     busy: pending > 0,
+    // Never both: an answered half is something to show, a failure with rows
+    // still up stays quiet, and only a screen with nothing yet says either.
+    loading: paperAnswer === null && liveAnswer === null && !failed,
+    failed: failed && paperAnswer === null && liveAnswer === null,
+    retry: () => void refresh(),
     place,
     move,
     cancel,

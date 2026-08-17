@@ -79,6 +79,12 @@ export function ActivityPanel({
   const editingNow =
     trading.positions.find((one) => one.id === editing?.id) ?? null
 
+  // A count that is not known yet shows nothing rather than a zero — before
+  // the first read, and after a first read that failed, "0" would be claiming
+  // an answer the panel does not have.
+  const countOf = (length: number) =>
+    trading.loading || trading.failed ? undefined : length
+
   return (
     <Tabs
       value={tab}
@@ -90,19 +96,19 @@ export function ActivityPanel({
           value="positions"
           icon={<LayersIcon className="size-4" />}
           label="Positions"
-          count={trading.positions.length}
+          count={countOf(trading.positions.length)}
         />
         <WorkspacePanelTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
-          count={trading.orders.length}
+          count={countOf(trading.orders.length)}
         />
         <WorkspacePanelTab
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
           label="Journal"
-          count={trading.trades.length}
+          count={countOf(trading.trades.length)}
         />
         {/* Close all is the practice engine's sweep; real positions are
             closed one by one, each with its own question. */}
@@ -128,6 +134,9 @@ export function ActivityPanel({
             walletName={walletName}
             smartOrders={trading.smartOrders}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onEdit={setEditing}
             onFlip={setFlipping}
@@ -145,6 +154,9 @@ export function ActivityPanel({
             markets={markets}
             walletName={walletName}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onCancel={(order) => void trading.cancel(order.walletId, order.id)}
           />
@@ -159,6 +171,9 @@ export function ActivityPanel({
             walletName={walletName}
             selectedId={shownTrade?.id ?? null}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             // Pressing the row already drawn puts the chart back to itself,
             // so the same press both shows and hides.
             onSelectTrade={(trade) =>
