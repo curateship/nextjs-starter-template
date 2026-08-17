@@ -66,6 +66,7 @@ import {
   getSessionToken,
   hashPassword,
   hashSessionToken,
+  isActiveAccount,
   listUserSessions,
   now,
   requireOwnAccount,
@@ -420,7 +421,7 @@ const resendVerificationFn = createServerFn({ method: "POST" })
     const user = await findUserByEmail(data.email)
     // Always reports success so this cannot be used to discover which emails
     // have accounts.
-    if (user && !user.emailVerifiedAt) {
+    if (isActiveAccount(user) && !user.emailVerifiedAt) {
       const linkContext = await getAuthLinkContext()
       const token = await createWorkspaceAuthToken(
         user.id,
@@ -581,7 +582,7 @@ const requestPasswordResetFn = createServerFn({ method: "POST" })
     await enforceHumanCheck(data.humanCheckToken)
 
     const user = await findUserByEmail(data.email)
-    if (user) {
+    if (isActiveAccount(user)) {
       const linkContext = await getAuthLinkContext()
       const token = await createWorkspaceAuthToken(
         user.id,
@@ -786,6 +787,9 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
   .inputValidator(changeEmailSchema)
   .handler(async ({ data }): Promise<EmailChangeState> => {
     requireAppOrigin()
+    // `requireOwnAccount` resolves the session through `isActiveAccount`, so a
+    // suspended or closing account is refused before either email-change token
+    // is created or either address is mailed.
     const user = await requireOwnAccount()
     const workspaceId = await workspaceIdForRequest(user.id)
     const linkContext = await getAuthLinkContext(db, workspaceId)
