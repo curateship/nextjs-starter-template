@@ -11,6 +11,9 @@ const emailSettings = vi.hoisted(() => ({
 const sends = vi.hoisted(() => ({
   recordSystemEmailSend: vi.fn(),
 }))
+const retries = vi.hoisted(() => ({
+  enqueuePendingEmailSend: vi.fn(),
+}))
 
 vi.mock("@/server/email/settings", () => emailSettings)
 vi.mock("@/server/workspaces/for-request", () => ({
@@ -20,6 +23,7 @@ vi.mock("@/server/email/system-emails", () => ({
   getSystemEmail: vi.fn().mockResolvedValue(null),
   recordSystemEmailSend: sends.recordSystemEmailSend,
 }))
+vi.mock("@/server/email/retry", () => retries)
 vi.mock("@/server/email/branding", () => ({
   emailBrandName: vi.fn(),
   protectSentEmailLogos: vi.fn(),
@@ -49,6 +53,7 @@ afterEach(() => {
   vi.restoreAllMocks()
   emailSettings.getAppEmailApiKey.mockReset()
   sends.recordSystemEmailSend.mockReset()
+  retries.enqueuePendingEmailSend.mockReset()
   resetDevOutboxForTests()
 })
 
@@ -155,6 +160,12 @@ describe("a configured system-email sender", () => {
     await expect(
       sendAuthEmail({ ...request, showFailureReasonToAdmin: true })
     ).rejects.toThrow("EMAIL_DELIVERY_RETRYABLE: Too many requests.")
+    expect(retries.enqueuePendingEmailSend).toHaveBeenCalledWith(
+      expect.objectContaining(request),
+      expect.objectContaining({
+        reason: "Too many requests.",
+      })
+    )
   })
 
   it("does not expose Resend's reason to a signed-out flow", async () => {
@@ -191,6 +202,12 @@ describe("a configured system-email sender", () => {
       expect.objectContaining({
         status: "failed",
         error: "The email service could not be reached.",
+      })
+    )
+    expect(retries.enqueuePendingEmailSend).toHaveBeenCalledWith(
+      expect.objectContaining(request),
+      expect.objectContaining({
+        reason: "The email service could not be reached.",
       })
     )
   })

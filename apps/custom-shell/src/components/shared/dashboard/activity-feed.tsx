@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router"
 import {
   CircleAlertIcon,
   GaugeIcon,
+  MailWarningIcon,
   MegaphoneIcon,
   PencilLineIcon,
   UserCheckIcon,
@@ -193,6 +194,15 @@ function toActivityEvent(item: NotificationItem): ActivityEvent {
               },
             }
           : null,
+    }
+  }
+  if (item.type === "system_email_failed") {
+    return {
+      ...event,
+      who: item.message ?? "An account email could not be delivered",
+      text: "",
+      detail: item.detail,
+      icon: MailWarningIcon,
     }
   }
   if (item.type === "announcement") {

@@ -273,19 +273,24 @@ const sendSystemEmailTestFn = createServerFn({ method: "POST" })
       "ai-limit-warning": {},
       "ai-limit-reached": {},
     }
-    return sendAuthEmail({
-      kind: data.kind,
-      to: context.user.email,
-      recipientName: context.user.name,
-      workspaceId,
-      showFailureReasonToAdmin: true,
-      tokens: sampleTokens[data.kind],
-      actionUrl: appUrlFor("/"),
-      reportUrl:
-        data.kind === "sign-in-link" || data.kind === "password-reset"
-          ? "#"
-          : undefined,
-    })
+    return sendAuthEmail(
+      {
+        kind: data.kind,
+        to: context.user.email,
+        recipientName: context.user.name,
+        workspaceId,
+        showFailureReasonToAdmin: true,
+        tokens: sampleTokens[data.kind],
+        actionUrl: appUrlFor("/"),
+        reportUrl:
+          data.kind === "sign-in-link" || data.kind === "password-reset"
+            ? "#"
+            : undefined,
+      },
+      // A test is an immediate answer for the admin, not an account email that
+      // should arrive unexpectedly after the screen already reported failure.
+      { retryOnFailure: false }
+    )
   })
 
 function toDetail(

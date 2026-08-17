@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const jobs = vi.hoisted(() => ({
   automations: vi.fn(async () => {}),
   broadcasts: vi.fn(async () => {}),
+  accountEmails: vi.fn(async () => {}),
   appWorkers: [] as { name: string; tick: () => Promise<void> }[],
 }))
 
@@ -22,6 +23,9 @@ vi.mock("@/server/automations/engine", () => ({
 }))
 vi.mock("@/server/email/broadcast-send", () => ({
   processDueBroadcasts: () => jobs.broadcasts(),
+}))
+vi.mock("@/server/email/retry", () => ({
+  processPendingEmailRetries: () => jobs.accountEmails(),
 }))
 vi.mock("@/server/app-options", () => ({
   appBackgroundWorkers: () => jobs.appWorkers,
@@ -32,6 +36,7 @@ let complained: ReturnType<typeof vi.spyOn>
 beforeEach(() => {
   jobs.automations.mockReset().mockResolvedValue(undefined)
   jobs.broadcasts.mockReset().mockResolvedValue(undefined)
+  jobs.accountEmails.mockReset().mockResolvedValue(undefined)
   jobs.appWorkers = []
   complained = vi.spyOn(console, "error").mockImplementation(() => {})
 })
@@ -46,11 +51,12 @@ async function pass() {
 }
 
 describe("a background pass", () => {
-  it("runs the shell's own two jobs", async () => {
+  it("runs the shell's own jobs", async () => {
     await expect(pass()).resolves.toEqual({ failed: 0 })
 
     expect(jobs.automations).toHaveBeenCalledOnce()
     expect(jobs.broadcasts).toHaveBeenCalledOnce()
+    expect(jobs.accountEmails).toHaveBeenCalledOnce()
   })
 
   it("also runs the workers the app registered", async () => {
@@ -69,6 +75,14 @@ describe("a background pass", () => {
     await expect(pass()).resolves.toEqual({ failed: 1 })
     expect(jobs.broadcasts).toHaveBeenCalledOnce()
     expect(String(complained.mock.calls[0]?.[0])).toContain("Automation tick")
+  })
+
+  it("does not let an account-email retry stop the other jobs", async () => {
+    jobs.accountEmails.mockRejectedValue(new Error("boom"))
+
+    await expect(pass()).resolves.toEqual({ failed: 1 })
+    expect(jobs.automations).toHaveBeenCalledOnce()
+    expect(jobs.broadcasts).toHaveBeenCalledOnce()
   })
 
   it("does not let an app's own worker take the shell's jobs down", async () => {

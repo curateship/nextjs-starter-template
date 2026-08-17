@@ -833,38 +833,46 @@ const requestEmailChangeFn = createServerFn({ method: "POST" })
     )
 
     try {
-      await sendAuthEmail({
-        kind: "email-change",
-        to: data.newEmail,
-        recipientName: user.name,
-        workspaceId,
-        linkExpiry: linkContext.expiry,
-        tokens: {
-          old_email: user.email,
+      await sendAuthEmail(
+        {
+          kind: "email-change",
+          to: data.newEmail,
+          recipientName: user.name,
+          workspaceId,
+          linkExpiry: linkContext.expiry,
+          tokens: {
+            old_email: user.email,
+          },
+          actionUrl: appUrlFor(
+            `/change-email?token=${encodeURIComponent(token)}`
+          ),
         },
-        actionUrl: appUrlFor(
-          `/change-email?token=${encodeURIComponent(token)}`
-        ),
-      })
+        // This flow cancels both links when either message fails. A queued copy
+        // would arrive later with a link the cancellation deliberately erased.
+        { retryOnFailure: false }
+      )
 
       // The old address hears about it too, and gets the one thing it needs:
       // a way to stop this without signing in. For an account with no password
       // — Google, a passkey — the check above did not run at all, so this
       // warning is the only thing standing between a stolen session and the
       // account.
-      await sendAuthEmail({
-        kind: "email-change-warning",
-        to: user.email,
-        recipientName: user.name,
-        workspaceId,
-        linkExpiry: linkContext.expiry,
-        tokens: {
-          new_email: data.newEmail,
+      await sendAuthEmail(
+        {
+          kind: "email-change-warning",
+          to: user.email,
+          recipientName: user.name,
+          workspaceId,
+          linkExpiry: linkContext.expiry,
+          tokens: {
+            new_email: data.newEmail,
+          },
+          actionUrl: appUrlFor(
+            `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
+          ),
         },
-        actionUrl: appUrlFor(
-          `/revoke-email-change?token=${encodeURIComponent(revokeToken)}`
-        ),
-      })
+        { retryOnFailure: false }
+      )
     } catch (deliveryError) {
       // Both tokens are dropped rather than left behind. This is the one link
       // whose existence is shown to the person who asked for it, so a mail that

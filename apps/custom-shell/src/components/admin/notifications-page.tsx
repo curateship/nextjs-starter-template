@@ -6,6 +6,7 @@ import {
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
+  MailWarningIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
@@ -89,8 +90,8 @@ const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
  * order — see `subjectExpression` in `src/server/notifications/inbox.ts`.
  */
 function notificationSubject(item: NotificationItem) {
-  if (item.type === "account_update") {
-    return item.message ?? "Account updated"
+  if (item.type === "account_update" || item.type === "system_email_failed") {
+    return item.message ?? "The app needs attention"
   }
   // An AI-allowance notice carries its own words — there is no thing it is
   // about to borrow a title from.
@@ -119,7 +120,7 @@ function notificationSubject(item: NotificationItem) {
  */
 function notificationSubjectDetail(item: NotificationItem) {
   const subject = notificationSubject(item)
-  if (item.type === "account_update") {
+  if (item.type === "account_update" || item.type === "system_email_failed") {
     return item.detail ? `${subject}\n\n${item.detail}` : subject
   }
   if (isAiLimitNotification(item.type)) {
@@ -435,6 +436,9 @@ export function NotificationsPage({
                 <SelectItem value="automation_failed">
                   Automation failures
                 </SelectItem>
+                <SelectItem value="system_email_failed">
+                  Email failures
+                </SelectItem>
               </SelectContent>
             </Select>
           </>
@@ -492,6 +496,8 @@ export function NotificationsPage({
                     <UserCheckIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "automation_failed" ? (
                     <CircleAlertIcon className="size-4 text-destructive" />
+                  ) : item.type === "system_email_failed" ? (
+                    <MailWarningIcon className="size-4 text-destructive" />
                   ) : item.type === "feedback_merged" ? (
                     <GitMergeIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "feedback_vote" ? (

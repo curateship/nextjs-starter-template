@@ -37,6 +37,9 @@ import {
   recordSystemEmailSend,
 } from "@/server/email/system-emails"
 import { emailBrandName, protectSentEmailLogos } from "@/server/email/branding"
+import { enqueuePendingEmailSend } from "@/server/email/retry"
+import { db, type CustomShellDb } from "@/server/db"
+import { uuid } from "@/server/auth/security"
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails"
 
@@ -224,7 +227,19 @@ async function fromAddress(
  * to end; production refuses instead of silently dropping the message. Either
  * way the attempt is written down, so "the link never arrived" has an answer.
  */
-export async function sendAuthEmail(email: AuthEmail) {
+export type SendAuthEmailOptions = {
+  database?: CustomShellDb
+  idempotencyKey?: string
+  retryOnFailure?: boolean
+}
+
+export async function sendAuthEmail(
+  email: AuthEmail,
+  options: SendAuthEmailOptions = {}
+) {
+  const database = options.database ?? db
+  const idempotencyKey = options.idempotencyKey ?? uuid()
+  const retryOnFailure = options.retryOnFailure !== false
   // Which site is sending. Resolved from the domain the request arrived on —
   // somebody registering on Alpha gets Alpha's words from Alpha's sender, and
   // that is a question about the site, not about them. A deployment with no
@@ -235,7 +250,7 @@ export async function sendAuthEmail(email: AuthEmail) {
   // A database that will not answer must not stop a password reset, so a
   // failure here falls through to the built-in wording rather than throwing.
   let saved = workspaceId
-    ? await getSystemEmail(workspaceId, email.kind).catch(() => null)
+    ? await getSystemEmail(workspaceId, email.kind, database).catch(() => null)
     : null
   let appName: string | undefined
   if (workspaceId && saved) {
@@ -270,20 +285,32 @@ export async function sendAuthEmail(email: AuthEmail) {
 
   if (!apiKey) {
     if (!devOutboxIsAvailable()) {
-      await logSend(workspaceId, email, subject, {
-        status: "failed",
-        error: "No Resend key is saved under Settings → Email.",
-      })
+      await logSend(
+        workspaceId,
+        email,
+        subject,
+        {
+          status: "failed",
+          error: "No Resend key is saved under Settings → Email.",
+        },
+        options.database
+      )
       throw new Error("EMAIL_NOT_CONFIGURED")
     }
 
     console.info(
       `[custom-shell] email not configured, ${subject} link for ${email.to}: ${email.actionUrl}`
     )
-    await logSend(workspaceId, email, subject, {
-      status: "failed",
-      error: "Email is not set up on this server, so it was only logged.",
-    })
+    await logSend(
+      workspaceId,
+      email,
+      subject,
+      {
+        status: "failed",
+        error: "Email is not set up on this server, so it was only logged.",
+      },
+      options.database
+    )
     return { delivered: false }
   }
 
@@ -294,6 +321,7 @@ export async function sendAuthEmail(email: AuthEmail) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({
         from: await fromAddress(fromName, workspaceId),
@@ -306,10 +334,21 @@ export async function sendAuthEmail(email: AuthEmail) {
     // Network errors have no provider response to quote. Keep the useful fact
     // without logging a low-level error that could contain request details.
     const failure = unreachableEmailServiceFailure()
-    await logSend(workspaceId, email, subject, {
-      status: "failed",
-      error: failure.reason,
-    })
+    await logSend(
+      workspaceId,
+      email,
+      subject,
+      { status: "failed", error: failure.reason },
+      options.database
+    )
+    if (retryOnFailure) {
+      await saveRetry(email, {
+        database,
+        idempotencyKey,
+        workspaceId,
+        reason: failure.reason,
+      })
+    }
     throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
@@ -321,10 +360,21 @@ export async function sendAuthEmail(email: AuthEmail) {
     // when the answer was sitting in the response all along.
     const failure = describeResendFailure(response.status, body)
 
-    await logSend(workspaceId, email, subject, {
-      status: "failed",
-      error: failure.reason,
-    })
+    await logSend(
+      workspaceId,
+      email,
+      subject,
+      { status: "failed", error: failure.reason },
+      options.database
+    )
+    if (retryOnFailure && failure.kind === "retryable") {
+      await saveRetry(email, {
+        database,
+        idempotencyKey,
+        workspaceId,
+        reason: failure.reason,
+      })
+    }
     throw emailDeliveryError(failure, email.showFailureReasonToAdmin)
   }
 
@@ -335,10 +385,13 @@ export async function sendAuthEmail(email: AuthEmail) {
     typeof body.id === "string"
       ? body.id
       : null
-  await logSend(workspaceId, email, subject, {
-    status: "sent",
-    providerMessageId: messageId,
-  })
+  await logSend(
+    workspaceId,
+    email,
+    subject,
+    { status: "sent", providerMessageId: messageId },
+    options.database
+  )
 
   return { delivered: true, messageId }
 }
@@ -358,17 +411,33 @@ async function logSend(
     status: "sent" | "failed"
     providerMessageId?: string | null
     error?: string | null
-  }
+  },
+  database?: CustomShellDb
 ) {
   try {
-    await recordSystemEmailSend({
+    const entry = {
       workspaceId,
       kind: email.kind,
       toEmail: email.to,
       subject,
       ...outcome,
-    })
+    }
+    await (database
+      ? recordSystemEmailSend(entry, database)
+      : recordSystemEmailSend(entry))
   } catch {
     // Nothing to do about it here, and nothing worth stopping for.
+  }
+}
+
+/** A retry is useful only if saving it succeeds; never replace the send error. */
+async function saveRetry(
+  email: AuthEmail,
+  options: Parameters<typeof enqueuePendingEmailSend>[1]
+) {
+  try {
+    await enqueuePendingEmailSend(email, options)
+  } catch (error) {
+    console.error("Email retry could not be saved", error)
   }
 }
