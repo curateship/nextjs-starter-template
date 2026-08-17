@@ -69,3 +69,65 @@ export async function marketRules(
   const rules = await rulesFor(protocol, network)
   return rules.get(marketId) ?? null
 }
+
+/**
+ * What a replayed coin nobody lists is assumed to allow.
+ *
+ * **Most of a replay needs this.** A run over Binance history covers every coin
+ * Binance has ever listed, and only a minority of them exist on Hyperliquid —
+ * on a recent 473-coin run it was 178. Leaving the other 295 with no limit
+ * leaves them with no liquidation price either, so a borrowed run reports the
+ * upside of borrowing on every coin and the downside on barely a third. That is
+ * worse than an assumption: it is an assumption of infinity, made silently.
+ *
+ * Three because it is both the commonest ceiling on Hyperliquid — 128 of its
+ * 232 coins — and the harshest, since the maintenance margin is half the
+ * initial margin at the ceiling. A 2x ladder is closed a third below its
+ * average buy here, where a coin allowing 10x would give it 45%. The
+ * pessimistic end of the real range is the right place to stand when the answer
+ * is being used to decide whether to risk money.
+ *
+ * It only ever reaches a replay. A live wallet trades Hyperliquid, which always
+ * states a real ceiling, so nothing that touches money is ever sized or closed
+ * out against a guess.
+ */
+export const ASSUMED_REPLAY_MAX_LEVERAGE = 3
+
+/**
+ * The same rules, but with a leverage limit a replay can actually be closed
+ * out by.
+ *
+ * **Why this exists.** A backtest replays Binance history, and Binance
+ * deliberately reports no leverage limit — it is a per-account setting there
+ * and asking needs a signed request, so `binance/markets.ts` returns null
+ * rather than guessing. The engine reads that null as `1`, and `liquidationPx`
+ * gives up on a limit of 1. The result is a replay in which **nothing can ever
+ * be liquidated**: run a ladder at 2x and it reports every winner doubled and
+ * not one of the positions the exchange would have taken away. That is not a
+ * harsh result or a lenient one, it is a fictional one.
+ *
+ * The honest limit is the one that will actually apply, and the money is going
+ * to Hyperliquid — so the coin's limit there is what a replay is closed out by,
+ * even though the prices came from somewhere else. Most of its coins cap at 3x,
+ * which is the difference between a 2x ladder being closed a third below its
+ * average buy and never being closed at all.
+ *
+ * Left alone when the venue already answered: a Hyperliquid replay is already
+ * running on its own numbers. A coin neither venue lists falls back to
+ * `ASSUMED_REPLAY_MAX_LEVERAGE`, for the reason written there — most of a
+ * Binance replay is those coins, and leaving them without a limit is not
+ * caution, it is assuming they can never be closed out at all.
+ */
+export async function replayMarketRules(
+  protocol: ProtocolId,
+  network: NetworkId,
+  marketId: string
+): Promise<MarketRules | null> {
+  const rules = await marketRules(protocol, network, marketId)
+  if (!rules || rules.maxLeverage !== null) return rules
+  const traded = await marketRules("hyperliquid", "mainnet", marketId)
+  return {
+    ...rules,
+    maxLeverage: traded?.maxLeverage ?? ASSUMED_REPLAY_MAX_LEVERAGE,
+  }
+}

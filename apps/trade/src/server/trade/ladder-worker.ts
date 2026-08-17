@@ -107,6 +107,21 @@ export function ensureLadderLoop(): void {
       globalThis.__tradeLadderLock = taken
       globalThis.__tradeLadderHeldSince = Date.now()
       globalThis.__tradeLadderLoop = setInterval(() => {
+        // The lock lives on a database connection; if that line has died the
+        // lock is already gone and another copy may hold it. Stop trading
+        // first — the shell's ticker asks for the lock again within seconds.
+        if (taken.lost()) {
+          if (globalThis.__tradeLadderLoop) {
+            clearInterval(globalThis.__tradeLadderLoop)
+            globalThis.__tradeLadderLoop = undefined
+          }
+          globalThis.__tradeLadderLock = undefined
+          globalThis.__tradeLadderHeldSince = undefined
+          globalThis.__tradeLadderSince = 0
+          void taken.release().catch(() => {})
+          console.log("Trade ladders: the lock's connection dropped, letting go")
+          return
+        }
         void advanceWorkingLadders().catch((error) => {
           console.error("Ladder loop failed", error)
         })

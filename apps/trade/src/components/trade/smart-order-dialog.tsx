@@ -25,6 +25,7 @@ import { loadLadderBase, loadSmartDcaParams } from "@/lib/api/smart-orders"
 import { parseMarketKey, type CandleInterval, type MarketRow } from "@/lib/protocols/contracts"
 import {
   DCA_ANCHOR_HINTS,
+  CASH_ONLY,
   DCA_ANCHOR_LABELS,
   DCA_ANCHORS,
   DCA_TP_MODE_HINTS,
@@ -265,6 +266,10 @@ export function SmartOrderDialog({
       sizeMultiplier: parsed(sizeMultiplier) ?? -1,
       // Hand-placed ladders have no repeat cycle. Keep their existing sizing.
       compound: true,
+      // Cash. A ladder placed by hand goes to a real or practice wallet, and
+      // both placement paths force this anyway — a box here would be a setting
+      // that does nothing.
+      leverage: CASH_ONLY,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       twoGreen,
       anchor,

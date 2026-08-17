@@ -8,6 +8,7 @@ import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   consumeAuthToken,
   findUserByEmail,
+  isActiveAccount,
   now,
   type SessionOrigin,
 } from "@/server/auth/security"
@@ -45,7 +46,7 @@ export async function createSignInLinkToken(
   linkContext?: AuthLinkContext
 ) {
   const user = await findUserByEmail(email, database)
-  if (!user || user.status !== "active") {
+  if (!isActiveAccount(user)) {
     return null
   }
 

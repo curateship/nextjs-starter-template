@@ -261,6 +261,23 @@ export default function TradeDcaFields({
           suffix="×"
           onChange={(sizeMultiplier) => setParams({ sizeMultiplier })}
         />
+        <TradeNumberField
+          id={`dca-${node.id}-leverage`}
+          label="Borrowing"
+          hint="How many dollars of coin each dollar of the pot buys. 1 is cash — you own what you paid for and nobody can take it off you. At 2, $1,000 of the pot holds $2,000 of coin, and the exchange sells the position out from under you if it falls about a third below your average buy — on most coins here, less on some. That sale is final: the ladder does not get to buy the recovery."
+          value={params.leverage}
+          min={1}
+          max={50}
+          suffix="×"
+          onChange={(leverage) => setParams({ leverage })}
+        />
+        {params.leverage > 1 ? (
+          <InspectorNote>
+            Backtests only. Every real and practice wallet still buys with cash,
+            whatever this says, so this measures the idea rather than trading
+            it.
+          </InspectorNote>
+        ) : null}
       </InspectorCard>
 
       {/* Where the floor is, which is the level the whole ladder hangs off.

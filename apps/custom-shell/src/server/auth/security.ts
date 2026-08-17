@@ -223,6 +223,18 @@ export async function findCurrentUser(database: CustomShellDb = db) {
 }
 
 /**
+ * Whether the app may treat an account as usable right now.
+ *
+ * Suspended and closing accounts cannot hold a session or use an account link.
+ * Keeping that status check in one place stops those two entry paths drifting.
+ */
+export function isActiveAccount<User extends Pick<CustomShellUser, "status">>(
+  user: User | null | undefined
+): user is User {
+  return user?.status === "active"
+}
+
+/**
  * The account for an email address. The one lookup for every path that starts
  * from a typed-in email — signing in, asking for a reset link, asking for a
  * sign-in link — so none of them can disagree about whose account an address
@@ -751,7 +763,7 @@ export async function findSessionContextByToken(
   // A suspended account, and one marked for deletion, are both treated as
   // signed out — so either takes effect immediately, even on a session that is
   // still inside its lifetime.
-  if (!owner || owner.status !== "active") {
+  if (!isActiveAccount(owner)) {
     return null
   }
 

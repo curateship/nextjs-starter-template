@@ -14,7 +14,12 @@ import {
   TableSortButton,
 } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { BACKTEST_STATUS_LABELS } from "@/lib/trade/backtest/result"
+import {
+  BACKTEST_STATUS_LABELS,
+  whyNoLadder,
+} from "@/lib/trade/backtest/result"
+import { formatDate } from "@/lib/format/format-time"
+import { plural } from "@/lib/format/plural"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -154,54 +159,70 @@ export function BacktestMarketsPanel({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sorted.map((coin) => (
-              <TableRow
-                key={coin.id}
-                data-state={coin.marketKey === openCoin ? "selected" : undefined}
-                rowAction={
-                  coin.summary ? () => onOpenCoin(coin.marketKey) : undefined
-                }
-              >
-                <TableCell column="meta" className="whitespace-nowrap">
-                  <span
+            {sorted.map((coin) => {
+              const noLadder = coin.summary ? whyNoLadder(coin.summary) : null
+              return (
+                <TableRow
+                  key={coin.id}
+                  data-state={coin.marketKey === openCoin ? "selected" : undefined}
+                  rowAction={
+                    coin.summary ? () => onOpenCoin(coin.marketKey) : undefined
+                  }
+                >
+                  <TableCell column="meta" className="whitespace-nowrap">
+                    <span
+                      className={cn(
+                        "font-medium",
+                        coin.marketKey === openCoin && "underline underline-offset-4"
+                      )}
+                    >
+                      {coin.symbol}
+                    </span>
+                    {coin.summary ? null : (
+                      <span
+                        className="ml-2 text-[10px] text-muted-foreground"
+                        title={coin.skipReason ?? coin.error ?? undefined}
+                      >
+                        {BACKTEST_STATUS_LABELS[coin.status]}
+                      </span>
+                    )}
+                    {/* A coin the run walked and never traded. Without this it is
+                        a row of zeroes with nothing to ask — and working out
+                        whether it was waiting for a base, already under one, or
+                        simply unaffordable meant reading the price history by
+                        hand against the ladder's settings. */}
+                    {noLadder ? (
+                      <span
+                        className="ml-2 text-[10px] text-muted-foreground"
+                        title={`${noLadder.bars} ${plural(noLadder.bars, "bar", "bars")}, last on ${formatDate(new Date(noLadder.lastAt))}`}
+                      >
+                        {noLadder.words}
+                      </span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell
+                    column="meta"
                     className={cn(
-                      "font-medium",
-                      coin.marketKey === openCoin && "underline underline-offset-4"
+                      "text-right tabular-nums",
+                      toneClass(coin.summary?.madeOrLost)
                     )}
                   >
-                    {coin.symbol}
-                  </span>
-                  {coin.summary ? null : (
-                    <span
-                      className="ml-2 text-[10px] text-muted-foreground"
-                      title={coin.skipReason ?? coin.error ?? undefined}
-                    >
-                      {BACKTEST_STATUS_LABELS[coin.status]}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell
-                  column="meta"
-                  className={cn(
-                    "text-right tabular-nums",
-                    toneClass(coin.summary?.madeOrLost)
-                  )}
-                >
-                  {coin.summary ? formatSignedUsd(coin.summary.madeOrLost) : "—"}
-                </TableCell>
-                <TableCell column="meta" className="text-right tabular-nums">
-                  {coin.summary ? formatUsd(coin.summary.worstDipUsd) : "—"}
-                </TableCell>
-                <TableCell column="meta" className="text-right tabular-nums">
-                  {coin.summary
-                    ? `${coin.summary.won}/${coin.summary.closed}`
-                    : "—"}
-                </TableCell>
-                <TableCell column="meta" className="text-right tabular-nums">
-                  {coin.summary ? coin.summary.trades : "—"}
-                </TableCell>
-              </TableRow>
-            ))}
+                    {coin.summary ? formatSignedUsd(coin.summary.madeOrLost) : "—"}
+                  </TableCell>
+                  <TableCell column="meta" className="text-right tabular-nums">
+                    {coin.summary ? formatUsd(coin.summary.worstDipUsd) : "—"}
+                  </TableCell>
+                  <TableCell column="meta" className="text-right tabular-nums">
+                    {coin.summary
+                      ? `${coin.summary.won}/${coin.summary.closed}`
+                      : "—"}
+                  </TableCell>
+                  <TableCell column="meta" className="text-right tabular-nums">
+                    {coin.summary ? coin.summary.trades : "—"}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
             {/* The totals as the last row of the body: this table primitive
                 has no footer, and a total that scrolled away with the rows
                 would be the one number nobody could find. */}

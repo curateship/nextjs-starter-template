@@ -189,6 +189,21 @@ export type PaperJournalEntry = {
   closedPnl: number
   reason: PaperFillReason
   fillTime: number
+  /**
+   * The order this fill came from, when it came from one.
+   *
+   * **So a fill never has to be guessed back to its order.** A replay labels
+   * each arrow with the ladder rung that bought it, and used to work that out
+   * afterwards by hunting the ladder for a rung of the same size — which fails
+   * the moment the ladder has moved on, and a ladder can buy, sell out and be
+   * replaced inside a single crashing candle. Eighteen buys out of 763 lost
+   * their rung that way, all of them on crash bars, which are the ones worth
+   * reading.
+   *
+   * Null for a fill nothing placed: a stop, a liquidation, a hand-closed
+   * position.
+   */
+  orderId: string | null
 }
 
 /** Everything the fill arithmetic reads and rewrites. */

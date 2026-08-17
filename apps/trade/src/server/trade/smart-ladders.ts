@@ -699,6 +699,19 @@ async function reviveRungs(
   for (const rung of plan.rungs) {
     if (rung.status !== "waiting" || rung.dead || rung.orderId) continue
     changed = true
+    // A rung the price has already gone past does NOT get its order back.
+    //
+    // This looks like a rung being lost and it is not. Rungs are put back
+    // AFTER the bar is settled, so re-placing one below the market means an
+    // order at a price the market has already left — it fills on the next bar
+    // at the old price, and its "sell at the rung above" is higher still and
+    // fills at once too. The pair reads as a profitable round trip on a market
+    // that has done nothing but fall. Removing this check turned one DEXE
+    // crash into a column of buy-then-sell arrows all the way down.
+    //
+    // The real cost — rungs the price passed inside one candle never buying —
+    // is a question of WHEN rungs are put back, not whether. Fixing it here
+    // manufactures money.
     if (mark !== null && mark <= rung.px) {
       rung.status = "skipped"
       continue
@@ -708,7 +721,13 @@ async function reviveRungs(
       side: "buy",
       px: rung.px,
       sz: rung.sz,
-      leverage: 1,
+      // The ladder's own leverage, not a flat 1. A rung armed at placement got
+      // `plan.leverage` and one revived here got cash, so the same ladder held
+      // two different kinds of position depending on whether a stop had been
+      // through it. On a live or practice wallet the plan always says 1 and
+      // nothing changes; in a replay it is the difference between a borrowed
+      // ladder and half a borrowed ladder.
+      leverage: plan.leverage,
       maxLeverage: plan.maxLeverage,
       reduceOnly: false,
       now: input.now,

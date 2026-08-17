@@ -37,7 +37,7 @@ import {
   listFundingGaps,
   loadStoredFunding,
 } from "@/server/trade/funding-store"
-import { marketRules } from "@/server/trade/market-rules"
+import { replayMarketRules } from "@/server/trade/market-rules"
 import { INTERVAL_MS } from "@/server/trade/smart-engine"
 import { runBacktest, type BacktestCoin } from "@/server/trade/backtest/engine"
 import {
@@ -336,7 +336,7 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   for (const coin of testable) {
     const ref = parseMarketKey(coin.marketKey)
     if (!ref) continue
-    const rules = await marketRules(protocol, network, ref.marketId)
+    const rules = await replayMarketRules(protocol, network, ref.marketId)
     if (!rules) {
       skipped.push({
         marketKey: coin.marketKey,
@@ -581,6 +581,12 @@ async function finish(
         ? stake * (walked.lastPx / walked.firstPx - 1)
         : 0
 
+    // The exchange's own endings, kept apart from every other loss: the ladder
+    // has no answer to one, where a stop at least leaves the money behind.
+    const liquidated = trades.filter(
+      (trade) => trade.exitReason === "liquidated"
+    )
+
     const summary: BacktestCoinSummary = {
       marketKey: row.marketKey,
       symbol: row.symbol,
@@ -589,6 +595,14 @@ async function finish(
       trades: trades.length,
       won: closed.filter((trade) => trade.pnl > 0).length,
       closed: closed.length,
+      liquidated: liquidated.length,
+      liquidatedUsd: liquidated.reduce((sum, trade) => sum + trade.pnl, 0),
+      // Why it never got a ladder, when it never did. A coin the engine walked
+      // but never armed used to be a blank row with nothing to ask.
+      armRefusals: walked.armRefusals,
+      // What was actually on the book, so "price went through rung 5 and
+      // nothing happened" is a lookup rather than an afternoon.
+      rungEvents: walked.rungEvents,
       worstDipUsd: coinWorstDip(trades),
       // Only when it is later than the window's own start. A coin that covered
       // the whole test has nothing to say here.
@@ -659,6 +673,14 @@ async function finish(
     trades: coinSummaries.reduce((sum, coin) => sum + coin.trades, 0),
     tradesClosed: coinSummaries.reduce((sum, coin) => sum + coin.closed, 0),
     tradesWon: coinSummaries.reduce((sum, coin) => sum + coin.won, 0),
+    tradesLiquidated: coinSummaries.reduce(
+      (sum, coin) => sum + coin.liquidated,
+      0
+    ),
+    liquidatedUsd: coinSummaries.reduce(
+      (sum, coin) => sum + coin.liquidatedUsd,
+      0
+    ),
     warnings,
   }
 
@@ -666,7 +688,23 @@ async function finish(
     // Every bar is 540 points over ninety days at 4h — small enough to keep
     // whole, so the line on the run page is the line the run actually walked.
     equity,
-    coins: coinSummaries,
+    // Kept beside the pot's own line so the two wallet figures on the results
+    // page can be checked against something. They used to be the only numbers
+    // there that could not be recomputed from what was saved.
+    inPlay: outcome?.inPlay ?? [],
+    // The coin summaries WITHOUT their two long lists.
+    //
+    // Every coin already carries its own summary on its own row, which is what
+    // every screen reads — nothing anywhere reads this copy. It stays because
+    // the shape is stored and read back by older runs, but there is no reason
+    // for it to carry a second copy of every rung change and every refusal:
+    // 4,259 rung events on a 154-coin run, written twice, in a blob the run
+    // page loads whole.
+    coins: coinSummaries.map((coin) => ({
+      ...coin,
+      armRefusals: [],
+      rungEvents: [],
+    })),
     skipped,
   }
 
@@ -716,8 +754,11 @@ async function credibilityWarnings(
     if (gaps.length > 0) holed.push(coin.symbol)
   }
   if (holed.length > 0) {
+    // The COUNT first, then the names. It used to lead with five symbols and
+    // trail off in "and 81 more", which reads as a handful of oddities when it
+    // was 86 of the 154 coins the result is built from.
     warnings.push(
-      `The exchange had stretches with no prices for ${holed.slice(0, 5).join(", ")}${holed.length > 5 ? ` and ${holed.length - 5} more` : ""}. Those stretches were not traded.`
+      `${holed.length} of ${coins.length} coins had stretches with no prices — ${holed.slice(0, 5).join(", ")}${holed.length > 5 ? ` and ${holed.length - 5} more` : ""}. Those stretches were not traded.`
     )
   }
 
@@ -728,7 +769,7 @@ async function credibilityWarnings(
   }
   if (fundingMissing.length > 0) {
     warnings.push(
-      `The exchange had stretches with no funding history for ${fundingMissing.slice(0, 5).join(", ")}${fundingMissing.length > 5 ? ` and ${fundingMissing.length - 5} more` : ""}. Those charges are missing from this result, not assumed to be free.`
+      `${fundingMissing.length} of ${coins.length} coins had stretches with no funding history — ${fundingMissing.slice(0, 5).join(", ")}${fundingMissing.length > 5 ? ` and ${fundingMissing.length - 5} more` : ""}. Those charges are missing from this result, not assumed to be free.`
     )
   }
 
