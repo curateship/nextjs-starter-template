@@ -102,6 +102,38 @@ async function becomeLeaderOrWait(): Promise<void> {
   }
 }
 
+/**
+ * Work the ladders every second until the lock is gone.
+ *
+ * The lock lives on a database connection, and that connection can die —
+ * the network path hangs up lines that go quiet, which is what used to kill
+ * the whole process at exactly sixty minutes old, every hour. A dead line
+ * means the lock is already released and another copy may take it at any
+ * moment, so the only safe order is: stop trading first, then go and queue
+ * for the lock again.
+ */
+function workUntilLockLost(): Promise<void> {
+  return new Promise((done) => {
+    loop = setInterval(() => {
+      if (leadership?.lost()) {
+        if (loop) clearInterval(loop)
+        loop = null
+        const gone = leadership
+        leadership = null
+        void gone?.release().catch(() => {})
+        done()
+        return
+      }
+      void advanceWorkingLadders().catch((error) => {
+        // A pass that throws is one pass. The next one is a second away and
+        // starts from the database, so nothing is carried over from the failure.
+        console.error("trade worker: pass failed", error)
+      })
+    }, PASS_EVERY_MS)
+    console.log(`trade worker: ready, working ladders every ${PASS_EVERY_MS}ms`)
+  })
+}
+
 async function main(): Promise<void> {
   console.log("trade worker: starting")
 
@@ -111,21 +143,20 @@ async function main(): Promise<void> {
   await sayAlive(role)
   beat = setInterval(() => void sayAlive(role), HEARTBEAT_EVERY_MS)
 
-  console.log("trade worker: waiting for the lock")
-  await becomeLeaderOrWait()
-  if (stopping) return
-  role = "leader"
-  console.log("trade worker: holding the lock, this copy is trading")
+  while (!stopping) {
+    console.log("trade worker: waiting for the lock")
+    await becomeLeaderOrWait()
+    if (stopping) return
+    role = "leader"
+    console.log("trade worker: holding the lock, this copy is trading")
 
-  loop = setInterval(() => {
-    void advanceWorkingLadders().catch((error) => {
-      // A pass that throws is one pass. The next one is a second away and
-      // starts from the database, so nothing is carried over from the failure.
-      console.error("trade worker: pass failed", error)
-    })
-  }, PASS_EVERY_MS)
-
-  console.log(`trade worker: ready, working ladders every ${PASS_EVERY_MS}ms`)
+    await workUntilLockLost()
+    if (stopping) return
+    role = "standby"
+    console.log(
+      "trade worker: the lock's database connection dropped, asking for the lock again"
+    )
+  }
 }
 
 async function shutdown(signal: string): Promise<void> {
