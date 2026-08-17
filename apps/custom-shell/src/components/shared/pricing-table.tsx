@@ -139,27 +139,32 @@ function PlanCard({
   const onThisPlan = plan.slug === currentPlanSlug
   const current =
     onThisPlan && (free || currentInterval == null || interval === currentInterval)
+  const highlighted = Boolean(plan.highlightBadgeText)
 
   return (
-    <Card className={cn("flex flex-col", selected && "ring-2 ring-primary")}>
+    <Card
+      className={cn(
+        "flex flex-col",
+        (selected || highlighted) && "ring-2 ring-primary shadow-sm"
+      )}
+    >
       <CardHeader>
         <div className="flex items-center justify-between gap-2">
           <CardTitle>{plan.name}</CardTitle>
-          {selected ? (
-            <Badge variant="secondary" className="shrink-0">
-              Selected
-            </Badge>
-          ) : current ? (
-            <Badge variant="secondary" className="shrink-0">
-              Current plan
-            </Badge>
-          ) : onThisPlan ? (
-            // Same plan, other period: say which period they are on so the
-            // live button below reads as a switch rather than a second buy.
-            <Badge variant="outline" className="shrink-0">
-              {currentInterval === "yearly" ? "Yours, yearly" : "Yours, monthly"}
-            </Badge>
-          ) : null}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {highlighted ? <Badge>{plan.highlightBadgeText}</Badge> : null}
+            {selected ? (
+              <Badge variant="secondary">Selected</Badge>
+            ) : current ? (
+              <Badge variant="secondary">Current plan</Badge>
+            ) : onThisPlan ? (
+              // Same plan, other period: say which period they are on so the
+              // live button below reads as a switch rather than a second buy.
+              <Badge variant="outline">
+                {currentInterval === "yearly" ? "Yours, yearly" : "Yours, monthly"}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         {plan.description ? (
           <CardDescription>{plan.description}</CardDescription>
@@ -222,6 +227,7 @@ function PlanCard({
               soldOnOtherPeriod,
               interval,
               actionLabel,
+              checkoutButtonText: plan.checkoutButtonText,
             })}
           </Button>
         )}
@@ -243,15 +249,17 @@ function planActionLabel({
   soldOnOtherPeriod,
   interval,
   actionLabel,
+  checkoutButtonText,
 }: {
   current: boolean
   purchasable: boolean
   soldOnOtherPeriod: boolean
   interval: BillingInterval
   actionLabel: string
+  checkoutButtonText: string | null
 }) {
   if (current) return "Your plan"
-  if (purchasable) return actionLabel
+  if (purchasable) return checkoutButtonText || actionLabel
   if (soldOnOtherPeriod) {
     return interval === "yearly" ? "Sold monthly only" : "Sold yearly only"
   }

@@ -50,6 +50,7 @@ import {
   findPlanByStripePrice,
   getDefaultPlan,
   getPlanBySlug,
+  updatePlan,
   type PlanInput,
 } from "@/server/billing/plans"
 import { clearRateLimit, enforceRateLimit } from "@/server/auth/rate-limit"
@@ -493,6 +494,65 @@ describe("plans", () => {
         database
       )
     ).rejects.toThrow("PLAN_STRIPE_PRICE_REQUIRED")
+  })
+
+  it("allows one highlighted plan at a time and names the one already highlighted", async () => {
+    const popular = await createPlan(
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: "Most popular",
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).rejects.toThrow("PLAN_HIGHLIGHT_ALREADY_SET:Popular")
+
+    const databaseGuard = await createPlan(
+      planInput({
+        slug: "database-guard",
+        stripePriceIdMonthly: "price_database_guard_monthly",
+      }),
+      database
+    )
+    await expect(
+      database
+        .update(customShellPlans)
+        .set({ highlightBadgeText: "Recommended" })
+        .where(eq(customShellPlans.id, databaseGuard.id))
+    ).rejects.toThrow()
+
+    await updatePlan(
+      popular.id,
+      planInput({
+        slug: "popular",
+        name: "Popular",
+        highlightBadgeText: null,
+      }),
+      database
+    )
+
+    await expect(
+      createPlan(
+        planInput({
+          slug: "second",
+          name: "Second",
+          stripePriceIdMonthly: "price_second_monthly",
+          highlightBadgeText: "Recommended",
+        }),
+        database
+      )
+    ).resolves.toMatchObject({ highlightBadgeText: "Recommended" })
   })
 
   it("finds a plan by its Stripe price and refuses to archive the default", async () => {
