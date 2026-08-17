@@ -240,7 +240,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
                   direction={direction}
                   onClick={() => toggleSort("coins")}
                 >
-                  Coins
+                  Markets
                 </TableSortButton>
               </TableHead>
               <TableHead column="meta">
@@ -275,7 +275,7 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
           </TableHeader>
         }
         isEmpty={sorted.length === 0}
-        emptyText="No backtests yet. Draw a pretend wallet, the coins to test and a DCA ladder on an automation canvas, then press Run above it."
+        emptyText="No backtests yet. Draw a pretend wallet, the markets to test and a DCA ladder on an automation canvas, then press Run above it."
         emptyColSpan={7}
         footer={{ type: "summary", count: sorted.length, label: "run" }}
       >
@@ -426,6 +426,6 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
 function nameOf(run: BacktestListRow): string {
   return (
     run.name ??
-    `${run.coinsTotal} ${plural(run.coinsTotal, "coin", "coins")}, ${run.spec.days} ${plural(run.spec.days, "day", "days")}`
+    `${run.coinsTotal} ${plural(run.coinsTotal, "market", "markets")}, ${run.spec.days} ${plural(run.spec.days, "day", "days")}`
   )
 }

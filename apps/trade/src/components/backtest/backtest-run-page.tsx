@@ -17,7 +17,16 @@ import {
 import {
   getBacktestErrorMessage,
   loadBacktestCoin,
+  loadBacktestRunTrades,
 } from "@/lib/api/backtests"
+import {
+  buildGraphSeries,
+  graphView,
+  windowStats,
+  WHOLE_RUN,
+  type BacktestRunTrade,
+  type GraphWindow,
+} from "@/lib/trade/backtest/graph"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import { resultSummary } from "@/lib/trade/backtest/result"
@@ -144,6 +153,77 @@ export function BacktestRunPage({
   /** The trade picked in the list, drawn heavier on the chart above it. */
   const [selectedTrade, setSelectedTrade] = React.useState<number | null>(null)
 
+  // Which picture the middle panel is showing: the Graph, which is the pot's
+  // line over the whole run, or the Chart, which is one coin's candles.
+  //
+  // A run opens on the Graph, because what the money did over the whole window
+  // is the first question anybody asks of a result — and at the size it used
+  // to be drawn, in the panel on the left, its timeline could not be read.
+  //
+  // Except when the address already names a coin: that is somebody following a
+  // link to that coin's candles, and answering with a different chart would
+  // ignore what they asked for.
+  const [view, setView] = React.useState<"graph" | "chart">(
+    openCoin ? "chart" : "graph"
+  )
+
+  // Which stretch of the run every figure on the screen is answering for. It
+  // lives here rather than inside the graph because the tiles on the left have
+  // to move with it — two copies of this would be two answers to one question.
+  const [window, setWindow] = React.useState<GraphWindow>(WHOLE_RUN)
+
+  // Every round trip the run made, in one request. The figures that need them —
+  // win rate, profit factor, how long it was in the market, which coins made
+  // money — cannot be windowed without them, and the coin-at-a-time door would
+  // be one request per coin to draw one panel.
+  // Carries the run it answers, the same way the coin fetch below does. Opening
+  // a second run reuses this page rather than rebuilding it, so without the id
+  // the previous run's trades would be counted against the new run's pot until
+  // the new ones landed — a second or two of figures belonging to neither.
+  const [runTrades, setRunTrades] = React.useState<{
+    runId: string
+    trades: BacktestRunTrade[]
+  } | null>(null)
+  React.useEffect(() => {
+    let live = true
+    void loadBacktestRunTrades(run.id)
+      .then((answer) => {
+        if (live) setRunTrades({ runId: run.id, trades: answer.trades })
+      })
+      .catch(() => {
+        // A run whose trades will not load still has a pot to draw and a
+        // summary to read; those tiles show a dash. Nothing here is worth
+        // taking the page down for.
+        if (live) setRunTrades(null)
+      })
+    return () => {
+      live = false
+    }
+  }, [run.id])
+  const trades = runTrades?.runId === run.id ? runTrades.trades : null
+
+  const graphSeries = React.useMemo(() => {
+    if (!run.result || run.result.equity.length < 2) return null
+    return buildGraphSeries(
+      run.result.equity,
+      run.result.inPlay,
+      trades,
+      run.spec.startingUsd
+    )
+  }, [run.result, run.spec.startingUsd, trades])
+
+  const graphStats = React.useMemo(() => {
+    if (!graphSeries) return null
+    const { stats } = graphView(graphSeries, window)
+    return windowStats(
+      graphSeries,
+      trades,
+      stats[0],
+      stats[1],
+      run.spec.startingUsd
+    )
+  }, [graphSeries, trades, window, run.spec.startingUsd])
+
   // One coin's candles and trades, fetched when the address names one. Carries
   // the coin it answers, so a slow reply for a coin you have already left is
   // thrown away rather than drawn under the wrong name.
@@ -222,6 +302,9 @@ export function BacktestRunPage({
   const openCoinInChart = (marketKey: string) => {
     setActiveCoin(marketKey)
     setSelectedTrade(null)
+    // Picking a coin is asking to see it, so the panel swaps over to the
+    // candles rather than leaving the click looking like it did nothing.
+    setView("chart")
     void navigate({
       to: "/backtests/$groupId",
       params: { groupId: run.id },
@@ -231,6 +314,9 @@ export function BacktestRunPage({
 
   const selectTrade = (trade: number | null) => {
     setSelectedTrade(trade)
+    // Same reason as picking a coin: a trade is only worth picking on the
+    // chart that draws it.
+    if (trade !== null) setView("chart")
     if (activeCoin) {
       rememberBacktestSelection(run.id, { marketKey: activeCoin, trade })
     }
@@ -250,6 +336,10 @@ export function BacktestRunPage({
       summary={resultSummary(run.summary)}
       result={run.result}
       spec={run.spec}
+      series={graphSeries}
+      stats={graphStats}
+      window={window}
+      onWindow={setWindow}
       coinsTotal={coins.length}
       running={!done}
     />
@@ -257,6 +347,7 @@ export function BacktestRunPage({
   const marketsPanel = (
     <BacktestMarketsPanel
       coins={coins}
+      skipped={run.result?.skipped ?? []}
       openCoin={activeCoin}
       onOpenCoin={openCoinInChart}
     />
@@ -272,6 +363,12 @@ export function BacktestRunPage({
       focusTrade={
         shown?.trades.find((trade) => trade.n === selectedTrade) ?? null
       }
+      graphSeries={graphSeries}
+      runTrades={trades}
+      window={window}
+      onWindow={setWindow}
+      view={view}
+      onSwapView={() => setView(view === "graph" ? "chart" : "graph")}
       interval={run.spec.interval}
       loading={activeCoin !== null && shown === null && shownError === null}
       error={shownError}

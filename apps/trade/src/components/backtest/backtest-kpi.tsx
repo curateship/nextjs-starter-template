@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 /**
@@ -8,6 +7,16 @@ import { cn } from "@/lib/utils"
  * Ported from the old app's `Kpi`, and deliberately the same three-line shape —
  * a figure with no caption is a number nobody can check, and the caption is
  * where "of 2 tested" and "$49,583 in pot" live.
+ *
+ * **A cell in a ruled grid, not a card.** Fourteen cards down a narrow panel is
+ * fourteen boxes with fourteen shadows, and the eye spends its time on the
+ * boxes rather than the numbers. Ruled off from its neighbours by a single
+ * hairline instead, the figures line up in columns and the panel reads as one
+ * table of results — which is what it is. The extra room a card spent on its
+ * own border goes into the number, which is the thing being read.
+ *
+ * The rules are bare `border-b` / `border-r` with no colour named, so they
+ * follow the Divider lines setting like every other line in the app.
  */
 export function BacktestKpi({
   label,
@@ -22,22 +31,22 @@ export function BacktestKpi({
   tone?: number
 }) {
   return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-base font-semibold tabular-nums",
-            toneClass(tone)
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[9px] text-muted-foreground">
-          {sub}
-        </span>
-      </CardContent>
-    </Card>
+    // `odd:border-r` rules the left column off from the right one: in a
+    // two-column grid the odd children are the left column.
+    <div className="flex flex-col gap-0.5 border-b px-3 py-2 odd:border-r">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "font-mono text-sm leading-tight font-semibold tracking-tight tabular-nums",
+          toneClass(tone)
+        )}
+      >
+        {value}
+      </span>
+      <span className="font-mono text-[10px] leading-tight text-muted-foreground">
+        {sub}
+      </span>
+    </div>
   )
 }
 

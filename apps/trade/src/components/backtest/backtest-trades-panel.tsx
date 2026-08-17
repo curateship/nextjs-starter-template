@@ -112,7 +112,9 @@ export function BacktestTradesPanel({
         active={sort === column}
         direction={direction}
         onClick={() => toggleSort(column)}
-        className={cn(right && "ml-auto flex-row-reverse")}
+        // Matched to the figures under it. The shared button is 14px, so on a
+        // 12px table every heading sat a size above its own column.
+        className={cn("text-xs sm:text-xs", right && "ml-auto flex-row-reverse")}
       >
         {label}
       </TableSortButton>
@@ -138,7 +140,7 @@ export function BacktestTradesPanel({
       >
         {!symbol ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
-            Pick a coin in Results to see its trades.
+            Pick a market in Results to see its trades.
           </p>
         ) : loading ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
@@ -146,10 +148,19 @@ export function BacktestTradesPanel({
           </p>
         ) : trades.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
-            This coin never traded in the window.
+            This market never traded in the window.
           </p>
         ) : (
-          <Table>
+          // The same type and cell spacing as the Positions, Orders and
+          // Journal tables in the bottom panel of the Trade screen: small text,
+          // 12px each side, 8px top and bottom. It is the same panel in the
+          // same place doing the same job, and it was reading a size larger
+          // than all three of them.
+          //
+          // The outside edges are named separately because the shared table
+          // gives its first and last columns 24px there, which is the dashboard
+          // rule — twice what this panel's neighbours use.
+          <Table className="text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:px-3 [&_td]:py-2 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:px-3 [&_th]:text-xs">
             <TableHeader>
               <TableRow>
                 {head("#", "n")}

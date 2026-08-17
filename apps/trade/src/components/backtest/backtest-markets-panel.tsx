@@ -1,9 +1,13 @@
 import * as React from "react"
-import { ListOrderedIcon } from "lucide-react"
+import { ListOrderedIcon, SkipForwardIcon } from "lucide-react"
 
 import { toneClass } from "@/components/backtest/backtest-kpi"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -17,6 +21,7 @@ import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
   BACKTEST_STATUS_LABELS,
   whyNoLadder,
+  type BacktestSkip,
 } from "@/lib/trade/backtest/result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -26,9 +31,20 @@ import { cn } from "@/lib/utils"
 import type { BacktestCoinRow } from "./backtest-run-page"
 
 /**
- * Every coin the run tested — the same table the old app puts down the right of
- * its backtest screen: the coin, what it made, how far it fell, how often it
- * won, and how many trades it took to get there. Clicking one charts it.
+ * Every market the run tested — the same table the old app puts down the right of
+ * its backtest screen: the coin, what it made, how far it fell, and how often
+ * it won. Clicking one charts it.
+ *
+ * Win says "2/6", which already carries the trade count, so the separate Trades
+ * column that used to sit beside it was the same number written twice — and it
+ * was taking a quarter of a narrow panel to do it.
+ *
+ * **Two tabs, because there are two kinds of coin here.** Results holds the
+ * ones that traded. Skipped holds every coin that produced nothing — whether
+ * it was ruled out before the run began or walked the whole window without
+ * opening a trade — with the reason in words beside it. They used to share one
+ * table, where the ones that did nothing were dozens of identical rows of
+ * $0.00, $0.00, 0/0 between the results you came to read.
  *
  * Sorted biggest-first on whichever figure you pick, with the totals pinned at
  * the bottom — a list of fifty coins is only readable from its ends, and the
@@ -37,22 +53,81 @@ import type { BacktestCoinRow } from "./backtest-run-page"
  * Right-aligned columns flip their sort button so the arrow hugs the number,
  * exactly as `sortHead` does in the old app.
  */
-type Column = "coin" | "net" | "dip" | "win" | "trades"
+type Column = "coin" | "net" | "dip" | "win"
+
+type PanelTab = "results" | "skipped"
 
 export function BacktestMarketsPanel({
   coins,
+  skipped,
   openCoin,
   onOpenCoin,
 }: {
   coins: readonly BacktestCoinRow[]
+  /** Coins the run could not test at all, with the reason it gives. */
+  skipped: readonly BacktestSkip[]
   openCoin: string | null
   onOpenCoin: (marketKey: string) => void
 }) {
+  const [tab, setTab] = React.useState<PanelTab>("results")
   const { sort, direction, toggleSort } = useTableSort<Column>("net", "desc")
+
+  // **Every coin that produced nothing**, whichever way it produced nothing:
+  // the ones ruled out before the walk began, and the ones the run walked all
+  // the way through without ever opening a trade.
+  //
+  // They belong together because they are the same news. A coin that never
+  // traded is a row of $0.00, $0.00, 0/0 — and on a 156-coin run there are
+  // dozens of them, sitting between the real results and pushing them off the
+  // screen. What you actually want to know about one is *why*, and that is a
+  // sentence, not four zeroes. So they get a tab with a Why column instead.
+  const skippedRows = React.useMemo(() => {
+    const rows = new Map<string, { symbol: string; reason: string }>()
+    for (const coin of coins) {
+      if (coin.status === "skipped") {
+        rows.set(coin.marketKey, {
+          symbol: coin.symbol,
+          reason: coin.skipReason ?? coin.error ?? "No reason recorded.",
+        })
+        continue
+      }
+      // Walked to the end and never opened a trade. `whyNoLadder` already works
+      // out which of the reasons it was — waiting for a base, already under
+      // one, or never affordable — and says it in words.
+      if (coin.status === "done" && coin.summary && coin.summary.trades === 0) {
+        rows.set(coin.marketKey, {
+          symbol: coin.symbol,
+          reason:
+            whyNoLadder(coin.summary)?.words ??
+            "Walked the whole window without a trade.",
+        })
+      }
+    }
+    for (const skip of skipped) {
+      if (rows.has(skip.marketKey)) continue
+      rows.set(skip.marketKey, { symbol: skip.symbol, reason: skip.reason })
+    }
+    return [...rows.entries()]
+      .map(([marketKey, row]) => ({ marketKey, ...row }))
+      .sort((left, right) => left.symbol.localeCompare(right.symbol))
+  }, [coins, skipped])
+
+  // What is left for the results table: the coins that actually traded, plus
+  // any the run has not finished with yet — a live run's rows have no figures
+  // and no verdict, and hiding them would look like the run had lost them.
+  const walked = React.useMemo(
+    () =>
+      coins.filter(
+        (coin) =>
+          coin.status !== "skipped" &&
+          !(coin.status === "done" && coin.summary && coin.summary.trades === 0)
+      ),
+    [coins]
+  )
 
   const sorted = React.useMemo(() => {
     const way = direction === "asc" ? 1 : -1
-    return [...coins].sort((left, right) => {
+    return [...walked].sort((left, right) => {
       // Three bands, always in this order however the column is sorted.
       //
       // The ones that traded come first — winners AND losers together, because
@@ -68,12 +143,10 @@ export function BacktestMarketsPanel({
           ? (row) => row.summary?.worstDipUsd ?? 0
           : sort === "win"
             ? (row) => wonShare(row)
-            : sort === "trades"
-              ? (row) => row.summary?.trades ?? 0
-              : (row) => row.summary?.madeOrLost ?? 0
+            : (row) => row.summary?.madeOrLost ?? 0
       return way * (pick(left) - pick(right))
     })
-  }, [coins, sort, direction])
+  }, [walked, sort, direction])
 
   const tested = sorted.filter((coin) => coin.summary)
   const total = (pick: (coin: BacktestCoinRow) => number) =>
@@ -106,12 +179,30 @@ export function BacktestMarketsPanel({
   )
 
   return (
-    <>
-      <WorkspacePanelHeader
-        icon={<ListOrderedIcon />}
-        title="Results"
-        meta={`${tested.length} of ${coins.length} tested`}
-      />
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as PanelTab)}
+      className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
+    >
+      <WorkspacePanelTabsHeader>
+        <WorkspacePanelTab
+          value="results"
+          icon={<ListOrderedIcon className="size-4" />}
+          label="Results"
+          count={tested.length}
+        />
+        {/* Always there, even at zero. A run where every coin traded is worth
+            being able to check, and a tab that comes and goes is one you cannot
+            learn the place of. */}
+        <WorkspacePanelTab
+          value="skipped"
+          icon={<SkipForwardIcon className="size-4" />}
+          label="Skipped"
+          count={skippedRows.length}
+        />
+      </WorkspacePanelTabsHeader>
+
+      <TabsContent value="results" className="flex min-h-0 flex-1 flex-col">
       {/* The scroll box's own inner element is `display: table`, which sizes
           itself to its CONTENTS. A table set to `w-full` inside it therefore
           measures 100% of ITSELF and grows as wide as its widest row, so the
@@ -137,8 +228,8 @@ export function BacktestMarketsPanel({
             widest content — the coin names — so a ticker sat a hand's width
             from its own result. `w-full` on that column was worse: it means
             "this column wants the whole table" and the browser adds the others
-            ON TOP, so the table outgrew the panel and Trades fell off the
-            edge. Fixed widths in PIXELS fail too: when their total is more
+            ON TOP, so the table outgrew the panel and the last column fell off
+            the edge. Fixed widths in PIXELS fail too: when their total is more
             than the panel, a fixed-layout table grows to fit the total rather
             than shrinking the columns.
             
@@ -151,11 +242,10 @@ export function BacktestMarketsPanel({
         <Table className="table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:overflow-hidden [&_th]:px-1.5">
           <TableHeader>
             <TableRow>
-              {head("Coin", "coin", "w-[21%]")}
-              {head("Net", "net", "w-[23%]", true)}
-              {head("Dip", "dip", "w-[18%]", true)}
-              {head("Win", "win", "w-[15%]", true)}
-              {head("Trades", "trades", "w-[23%]", true)}
+              {head("Market", "coin", "w-[30%]")}
+              {head("Net", "net", "w-[27%]", true)}
+              {head("Dip", "dip", "w-[22%]", true)}
+              {head("Win", "win", "w-[21%]", true)}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -212,13 +302,13 @@ export function BacktestMarketsPanel({
                   <TableCell column="meta" className="text-right tabular-nums">
                     {coin.summary ? formatUsd(coin.summary.worstDipUsd) : "—"}
                   </TableCell>
+                  {/* Win carries the count with it — "2/6" already says six
+                      trades — so a column repeating the six was a column of
+                      numbers that were on the row twice. */}
                   <TableCell column="meta" className="text-right tabular-nums">
                     {coin.summary
                       ? `${coin.summary.won}/${coin.summary.closed}`
                       : "—"}
-                  </TableCell>
-                  <TableCell column="meta" className="text-right tabular-nums">
-                    {coin.summary ? coin.summary.trades : "—"}
                   </TableCell>
                 </TableRow>
               )
@@ -228,8 +318,11 @@ export function BacktestMarketsPanel({
                 would be the one number nobody could find. */}
             {tested.length > 0 ? (
               <TableRow className="border-t-2">
+                {/* "Traded", not "tested": the coins that were tested and did
+                    nothing are in the Skipped tab now, and counting them here
+                    would describe a list that is not on the screen. */}
                 <TableCell column="meta" className="font-medium whitespace-nowrap">
-                  {tested.length} tested
+                  {tested.length} traded
                 </TableCell>
                 <TableCell
                   column="meta"
@@ -255,18 +348,57 @@ export function BacktestMarketsPanel({
                 >
                   {wonTotal}/{closedTotal}
                 </TableCell>
-                <TableCell
-                  column="meta"
-                  className="text-right font-medium tabular-nums"
-                >
-                  {total((coin) => coin.summary?.trades ?? 0)}
-                </TableCell>
               </TableRow>
             ) : null}
           </TableBody>
         </Table>
       </ScrollArea>
-    </>
+      </TabsContent>
+
+      <TabsContent value="skipped" className="flex min-h-0 flex-1 flex-col">
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+          {skippedRows.length === 0 ? (
+            <p className="p-4 text-center text-xs text-muted-foreground">
+              Every market on the list traded at least once.
+            </p>
+          ) : (
+            <Table className="table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:px-1.5 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:px-1.5">
+              <TableHeader>
+                <TableRow>
+                  <TableHead column="meta" className="w-[30%]">
+                    Coin
+                  </TableHead>
+                  <TableHead column="meta" className="w-[70%]">
+                    Why
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {skippedRows.map((row) => (
+                  <TableRow key={row.marketKey}>
+                    <TableCell
+                      column="meta"
+                      className="font-medium whitespace-nowrap"
+                    >
+                      {row.symbol}
+                    </TableCell>
+                    {/* The reason in full, wrapped. It is usually a sentence
+                        about missing history, and a truncated one leaves you
+                        guessing at the only thing this row says. */}
+                    <TableCell
+                      column="meta"
+                      className="text-muted-foreground whitespace-normal"
+                    >
+                      {row.reason}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </ScrollArea>
+      </TabsContent>
+    </Tabs>
   )
 }
 

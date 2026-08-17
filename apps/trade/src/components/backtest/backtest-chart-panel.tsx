@@ -2,12 +2,15 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
+  CandlestickChartIcon,
   ChevronLeftIcon,
   SlidersHorizontalIcon,
+  TrendingUpIcon,
 } from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
 import { BacktestMarksLayer } from "@/components/backtest/backtest-marks-layer"
+import { BacktestGraph } from "@/components/backtest/backtest-graph"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
@@ -23,6 +26,12 @@ import type {
   BacktestFillMark,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
+import { formatDate } from "@/lib/format/format-time"
+import type {
+  BacktestRunTrade,
+  GraphSeries,
+  GraphWindow,
+} from "@/lib/trade/backtest/graph"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
@@ -37,7 +46,13 @@ import { indicatorPaint } from "@/lib/trade/indicators/registry"
 import type { BacktestCoinRow } from "./backtest-run-page"
 
 /**
- * The middle panel: one coin's candles with the run's buys and sells on them.
+ * The middle panel, which shows one of two things: the **Graph** — the pot's
+ * line over the whole run — or the **Chart**, one coin's candles with the
+ * run's buys and sells on them.
+ *
+ * It opens on the Graph, because that is the picture that answers "did this
+ * work", and one button in the header swaps between the two. A coin's candles
+ * are the second question, asked once a coin has been picked.
  *
  * The candles come from the store rather than the exchange, so what is drawn is
  * exactly what the run walked — asking the exchange again could answer with a
@@ -55,6 +70,12 @@ export function BacktestChartPanel({
   trades,
   focusTrade,
   spec,
+  graphSeries,
+  runTrades,
+  window,
+  onWindow,
+  view,
+  onSwapView,
   interval,
   loading,
   error,
@@ -72,6 +93,16 @@ export function BacktestChartPanel({
   focusTrade: BacktestTrade | null
   /** The run's own settings — what a base is, for this run. */
   spec: BacktestSpecSnapshot
+  /** The pot's lines, worked out once by the page. */
+  graphSeries: GraphSeries | null
+  /** Every trade in the run. Null until they arrive, or on an older run. */
+  runTrades: readonly BacktestRunTrade[] | null
+  window: GraphWindow
+  onWindow: (next: GraphWindow) => void
+  /** Which of the two this panel is showing. */
+  view: "graph" | "chart"
+  /** Swap to the other one. */
+  onSwapView: () => void
   interval: string
   loading: boolean
   error: string | null
@@ -82,6 +113,11 @@ export function BacktestChartPanel({
   onRetry: () => void
 }) {
   const chartable = coins.filter((coin) => coin.summary)
+  // A run with nothing to draw has no Graph to offer: no button, and the
+  // candles whatever the page asked for. One point is not a line — the same
+  // guard the left panel used when this chart lived there.
+  const hasGraph = graphSeries !== null && graphSeries.usd.length > 1
+  const showGraph = hasGraph && view === "graph"
   // The same drawings, tools and ruler as the trading chart, saved against the
   // same market key — a line drawn on ETH while reading a backtest is still a
   // line on ETH, and having two sets of them per market would be two answers to
@@ -201,12 +237,41 @@ export function BacktestChartPanel({
           </Link>
         }
         title={
-          coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
-          "No coin picked"
+          showGraph
+            ? "Graph"
+            : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
+              "No market picked")
         }
-        meta={`${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`}
+        meta={
+          showGraph
+            ? `${formatDate(new Date(spec.from))} – ${formatDate(new Date(spec.to))}`
+            : `${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`
+        }
         action={
           <div className="flex items-center gap-2">
+            {/* The two pictures are called the Graph — the pot's line over the
+                whole run — and the Chart, one coin's candles.
+
+                One button, two labels: it always names the one you are not
+                looking at, so it reads as the way over to that one. Two
+                buttons sitting there permanently would mean one of them never
+                does anything. Hidden entirely on a run with no line to draw,
+                where there is only ever one thing to show. */}
+            {hasGraph ? (
+              <Button type="button" variant="outline" onClick={onSwapView}>
+                {showGraph ? (
+                  <>
+                    <CandlestickChartIcon className="size-4" />
+                    Chart
+                  </>
+                ) : (
+                  <>
+                    <TrendingUpIcon className="size-4" />
+                    Graph
+                  </>
+                )}
+              </Button>
+            ) : null}
             {/* Straight back to the settings this run was made from, with
                 the ladder step already chosen. Picking a coin lives in the
                 Coins tab below, where the whole list is; a dropdown up here
@@ -225,22 +290,31 @@ export function BacktestChartPanel({
         }
       />
 
-      {live ? (
+      {live && !showGraph ? (
         <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
           This run is still going, so more marks may appear on this chart.
         </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {error ? (
+        {showGraph && graphSeries ? (
+          // The candles keep loading behind this, so the swap is instant.
+          <BacktestGraph
+            series={graphSeries}
+            trades={runTrades}
+            startingUsd={spec.startingUsd}
+            window={window}
+            onWindow={onWindow}
+          />
+        ) : error ? (
           <div className="p-4 sm:p-5">
             <ErrorBanner message={error} onRetry={onRetry} />
           </div>
         ) : !openCoin ? (
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0
-              ? "No coin was tested, so there is nothing to chart."
-              : "Pick a coin above, or click a row in the Coins tab below."}
+              ? "No market was tested, so there is nothing to chart."
+              : "Pick a market above, or click a row in the Results tab below."}
           </p>
         ) : loading ? (
           <div
