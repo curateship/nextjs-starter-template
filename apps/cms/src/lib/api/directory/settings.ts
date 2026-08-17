@@ -11,6 +11,8 @@ import {
   saveDirectoryBrowseSettings,
   saveDirectoryFrontPageSettings,
   directoryGeocodingKeyStatus,
+  directoryMapDisplayKeyStatus,
+  saveDirectoryMapEnabled,
   type DirectorySettings,
 } from "@/server/directory/settings"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -42,11 +44,12 @@ const loadDirectorySettingsFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .handler(async ({ context }) => {
     const workspaceId = await workspaceIdForRequest(context.user.id)
-    const [settings, geocodingKeyStatus] = await Promise.all([
+    const [settings, geocodingKeyStatus, mapKeyStatus] = await Promise.all([
       directorySettingsFor(workspaceId),
       directoryGeocodingKeyStatus(workspaceId),
+      directoryMapDisplayKeyStatus(workspaceId),
     ])
-    return { ...settings, geocodingKeyStatus }
+    return { ...settings, geocodingKeyStatus, mapKeyStatus }
   })
 
 export function loadDirectorySettings() {
@@ -77,6 +80,21 @@ const saveBadgeSettingsFn = createServerFn({ method: "POST" })
 
 export function saveBadgeSettings(badgesEnabled: boolean) {
   return saveBadgeSettingsFn({ data: { badgesEnabled } })
+}
+
+const saveMapEnabledFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ mapEnabled: z.boolean() }))
+  .handler(async ({ data, context }) =>
+    saveDirectoryMapEnabled(
+      await workspaceIdForRequest(context.user.id),
+      data.mapEnabled
+    )
+  )
+
+/** Turns this site's browse-page map view on or off, and nothing else. */
+export function saveMapEnabled(mapEnabled: boolean) {
+  return saveMapEnabledFn({ data: { mapEnabled } })
 }
 
 const browseSettingsInput = z.object({

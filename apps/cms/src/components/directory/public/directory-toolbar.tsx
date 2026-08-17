@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { Loader2Icon } from "lucide-react"
+import { LayoutGridIcon, Loader2Icon, MapIcon } from "lucide-react"
 
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,10 @@ import {
   type DirectoryBrowseSearch,
   type DirectorySort,
 } from "@/lib/directory/public-search"
+import {
+  DIRECTORY_VIEWS,
+  DIRECTORY_VIEW_LABELS,
+} from "@/lib/directory/listing-map"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useSearchBoxText } from "@/lib/nav/list-search"
 import { cn } from "@/lib/utils"
@@ -41,6 +45,7 @@ export function DirectoryToolbar({
   current,
   sort,
   categories,
+  mapAvailable,
   onSearchChange,
   onSortChange,
   onNearChange,
@@ -52,6 +57,8 @@ export function DirectoryToolbar({
   current: DirectoryBrowseSearch
   sort: DirectorySort
   categories: PublicCategory[]
+  /** This site offers a map and has a key for it. No switch when it does not. */
+  mapAvailable: boolean
   onSearchChange: (value: string) => void
   onSortChange: (value: DirectorySort) => void
   onNearChange: (near: string, place: string, radius: number) => void
@@ -138,9 +145,17 @@ export function DirectoryToolbar({
           aria-label="Search listings"
           className="sm:max-w-xs"
         />
+        {/* Grid or map. Absent entirely on a site that has not switched the
+            map on, rather than shown and refusing — a button that does nothing
+            is worse than no button. */}
+        {mapAvailable ? (
+          <div className="shrink-0 sm:ml-auto">
+            <ViewSwitch current={current} />
+          </div>
+        ) : null}
         {/* `shrink-0` because the trigger is only as wide as its own words —
             without it the row squeezes it down to the arrow alone. */}
-        <div className="shrink-0 sm:ml-auto">
+        <div className={cn("shrink-0", mapAvailable ? "" : "sm:ml-auto")}>
           <Select
             value={sort}
             onValueChange={(value) => onSortChange(value as DirectorySort)}
@@ -257,6 +272,53 @@ export function DirectoryToolbar({
 }
 
 /**
+ * Grid or map, in the segmented style the rest of the app uses for a small set
+ * of exclusive choices.
+ *
+ * Links rather than buttons, and for the same reason the category chips are: a
+ * map of the cafés in one category is a page in its own right. It can be sent
+ * to somebody, opened in a new tab, and returned to with Back — none of which
+ * a button holding the state in memory can do.
+ */
+function ViewSwitch({ current }: { current: DirectoryBrowseSearch }) {
+  const active = current.view ?? "grid"
+  return (
+    <div
+      role="group"
+      aria-label="Show listings as"
+      className="inline-flex h-8 w-fit items-center justify-center rounded-lg bg-muted p-0.5 text-muted-foreground"
+    >
+      {DIRECTORY_VIEWS.map((option) => {
+        const Icon = option === "map" ? MapIcon : LayoutGridIcon
+        return (
+          <Link
+            key={option}
+            to="/directory"
+            // Everything else the visitor has narrowed to is kept: switching to
+            // the map is a change of drawing, not a new search.
+            search={{
+              ...current,
+              view: option === "grid" ? undefined : option,
+            }}
+            aria-current={option === active ? "page" : undefined}
+            className={cn(
+              "inline-flex h-7 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium whitespace-nowrap transition-colors",
+              focusRing,
+              option === active
+                ? "bg-background text-foreground shadow-sm"
+                : "hover:text-foreground"
+            )}
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            {DIRECTORY_VIEW_LABELS[option]}
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
  * One chip per category with something published in it, plus an "All" chip.
  *
  * Real links rather than buttons, so a chip can be opened in a new tab and a
@@ -317,6 +379,7 @@ function Chip({
         near: current.near,
         place: current.place,
         radius: current.radius,
+        view: current.view,
       }}
       aria-current={active ? "page" : undefined}
       className={cn(

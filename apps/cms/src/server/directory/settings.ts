@@ -42,6 +42,17 @@ export type DirectorySettings = {
   featuredFirst: boolean
   frontPageMode: DirectoryFrontPageMode
   frontPageCount: number
+  /** Whether the browse page offers the map view at all. */
+  mapEnabled: boolean
+  /**
+   * A map key is saved for this site. Read off the same row rather than asked
+   * for separately, because the browse page needs it on every load and a
+   * second query for one boolean is a second query for one boolean.
+   *
+   * Never the key itself. This travels to a public page; the key is fetched on
+   * its own, by the one read that has a use for it.
+   */
+  hasMapKey: boolean
 }
 
 /** The wording a site gets before anybody changes it. */
@@ -60,6 +71,9 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   featuredFirst: true,
   frontPageMode: "off",
   frontPageCount: DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
+  // Off, so a site that already exists gains no map button by this shipping.
+  mapEnabled: false,
+  hasMapKey: false,
 }
 
 /**
@@ -149,6 +163,8 @@ export async function directorySettingsFor(
     ),
     ...resolvedBrowseSettings(row),
     ...resolvedFrontPageSettings(row),
+    mapEnabled: row.mapEnabled,
+    hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
   }
 }
 
@@ -205,6 +221,93 @@ export async function saveDirectoryGeocodingKey(
 }
 
 /**
+ * The Google key the visitor's browser uses to draw the map.
+ *
+ * **A different key from the geocoding one above, and it has to be.** A key a
+ * browser may use is restricted to a website address; a key restricted that way
+ * is refused by the server-side Geocoding API. One key for both jobs would have
+ * to be left unrestricted, and an unrestricted key sitting in a public page is
+ * anybody's free geocoding on this site's bill.
+ *
+ * There is deliberately no environment-variable fallback, unlike the geocoding
+ * key. This one is handed to the open internet, so it is only ever a value a
+ * site's own admin chose to publish.
+ */
+export async function directoryMapDisplayKey(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  const [row] = await database
+    .select({ key: directorySettings.mapDisplayKeyEncrypted })
+    .from(directorySettings)
+    .where(eq(directorySettings.workspaceId, workspaceId))
+    .limit(1)
+  if (!row?.key) return null
+  try {
+    return decryptSecret(row.key)
+  } catch {
+    // A changed encryption secret must not throw a public page. No key means
+    // no map, which is already a state the browse page draws.
+    return null
+  }
+}
+
+export async function directoryMapDisplayKeyStatus(
+  workspaceId: string,
+  database: CustomShellDb = db
+) {
+  const key = await directoryMapDisplayKey(workspaceId, database)
+  return key ? `••••${key.slice(-4)}` : null
+}
+
+export async function saveDirectoryMapDisplayKey(
+  workspaceId: string,
+  key: string,
+  database: CustomShellDb = db
+) {
+  const value = key.trim()
+  if (!value) throw new Error("Paste a Google Maps key.")
+  const at = now()
+  const encrypted = encryptSecret(value)
+  await database
+    .insert(directorySettings)
+    .values({
+      workspaceId,
+      mapDisplayKeyEncrypted: encrypted,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { mapDisplayKeyEncrypted: encrypted, updatedAt: at },
+    })
+
+  // The browse page remembers whether a map is on offer, so a key arriving has
+  // to forget that answer or the switch stays missing for two minutes.
+  clearPublicDirectoryCache(workspaceId)
+  return directoryMapDisplayKeyStatus(workspaceId, database)
+}
+
+/** Changes only the map switch, leaving every other directory choice alone. */
+export async function saveDirectoryMapEnabled(
+  workspaceId: string,
+  mapEnabled: boolean,
+  database: CustomShellDb = db
+) {
+  const at = now()
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, mapEnabled, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { mapEnabled, updatedAt: at },
+    })
+
+  clearPublicDirectoryCache(workspaceId)
+  return { mapEnabled }
+}
+
+/**
  * What the admin form last typed, defaults and all, so a cleared box comes back
  * empty rather than pre-filled with the wording it falls back to.
  */
@@ -227,6 +330,8 @@ export async function savedDirectorySettings(
         claimApprovedMessage: row.claimApprovedMessage,
         ...resolvedBrowseSettings(row),
         ...resolvedFrontPageSettings(row),
+        mapEnabled: row.mapEnabled,
+        hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
       }
     : {
         claimsEnabled: DIRECTORY_SETTING_DEFAULTS.claimsEnabled,
@@ -241,6 +346,8 @@ export async function savedDirectorySettings(
         featuredFirst: DIRECTORY_SETTING_DEFAULTS.featuredFirst,
         frontPageMode: DIRECTORY_SETTING_DEFAULTS.frontPageMode,
         frontPageCount: DIRECTORY_SETTING_DEFAULTS.frontPageCount,
+        mapEnabled: DIRECTORY_SETTING_DEFAULTS.mapEnabled,
+        hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
       }
 }
 
