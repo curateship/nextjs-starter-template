@@ -4,13 +4,6 @@ import {
   isDirectoryDefaultSort,
   type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
-import {
-  DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
-  DIRECTORY_FRONT_PAGE_COUNT_MAX,
-  DIRECTORY_FRONT_PAGE_COUNT_MIN,
-  isDirectoryFrontPageMode,
-  type DirectoryFrontPageMode,
-} from "@/lib/directory/front-page"
 import { now } from "@/server/auth/security"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
@@ -40,8 +33,6 @@ export type DirectorySettings = {
   browseTitle: string
   browseIntro: string
   featuredFirst: boolean
-  frontPageMode: DirectoryFrontPageMode
-  frontPageCount: number
   /** Whether the browse page offers the map view at all. */
   mapEnabled: boolean
   /**
@@ -69,8 +60,6 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   browseTitle: "Directory",
   browseIntro: "",
   featuredFirst: true,
-  frontPageMode: "off",
-  frontPageCount: DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
   // Off, so a site that already exists gains no map button by this shipping.
   mapEnabled: false,
   hasMapKey: false,
@@ -117,23 +106,6 @@ function resolvedBrowseSettings(row: {
   }
 }
 
-function resolvedFrontPageSettings(row: {
-  frontPageMode: string | null
-  frontPageCount: number | null
-}) {
-  return {
-    frontPageMode: isDirectoryFrontPageMode(row.frontPageMode)
-      ? row.frontPageMode
-      : DIRECTORY_SETTING_DEFAULTS.frontPageMode,
-    frontPageCount:
-      Number.isInteger(row.frontPageCount) &&
-      row.frontPageCount! >= DIRECTORY_FRONT_PAGE_COUNT_MIN &&
-      row.frontPageCount! <= DIRECTORY_FRONT_PAGE_COUNT_MAX
-        ? row.frontPageCount!
-        : DIRECTORY_SETTING_DEFAULTS.frontPageCount,
-  }
-}
-
 export async function directorySettingsFor(
   workspaceId: string,
   database: CustomShellDb = db
@@ -162,7 +134,6 @@ export async function directorySettingsFor(
       DIRECTORY_SETTING_DEFAULTS.claimApprovedMessage
     ),
     ...resolvedBrowseSettings(row),
-    ...resolvedFrontPageSettings(row),
     mapEnabled: row.mapEnabled,
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
   }
@@ -329,7 +300,6 @@ export async function savedDirectorySettings(
         claimPendingMessage: row.claimPendingMessage,
         claimApprovedMessage: row.claimApprovedMessage,
         ...resolvedBrowseSettings(row),
-        ...resolvedFrontPageSettings(row),
         mapEnabled: row.mapEnabled,
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
       }
@@ -344,8 +314,6 @@ export async function savedDirectorySettings(
         browseTitle: DIRECTORY_SETTING_DEFAULTS.browseTitle,
         browseIntro: DIRECTORY_SETTING_DEFAULTS.browseIntro,
         featuredFirst: DIRECTORY_SETTING_DEFAULTS.featuredFirst,
-        frontPageMode: DIRECTORY_SETTING_DEFAULTS.frontPageMode,
-        frontPageCount: DIRECTORY_SETTING_DEFAULTS.frontPageCount,
         mapEnabled: DIRECTORY_SETTING_DEFAULTS.mapEnabled,
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
       }
@@ -430,44 +398,6 @@ export async function saveDirectoryBrowseSettings(
     })
 
   clearPublicDirectoryCache(workspaceId)
-  return directorySettingsFor(workspaceId, database)
-}
-
-export type DirectoryFrontPageSettingsInput = Pick<
-  DirectorySettings,
-  "frontPageMode" | "frontPageCount"
->
-
-/** Changes the site's front page without touching any other directory choice. */
-export async function saveDirectoryFrontPageSettings(
-  workspaceId: string,
-  input: DirectoryFrontPageSettingsInput,
-  database: CustomShellDb = db
-): Promise<DirectorySettings> {
-  if (!isDirectoryFrontPageMode(input.frontPageMode)) {
-    throw new Error("Choose what the front page should show.")
-  }
-  if (
-    !Number.isInteger(input.frontPageCount) ||
-    input.frontPageCount < DIRECTORY_FRONT_PAGE_COUNT_MIN ||
-    input.frontPageCount > DIRECTORY_FRONT_PAGE_COUNT_MAX
-  ) {
-    throw new Error("Front page listings must be between 1 and 12.")
-  }
-
-  const at = now()
-  const values = {
-    frontPageMode: input.frontPageMode,
-    frontPageCount: input.frontPageCount,
-  }
-  await database
-    .insert(directorySettings)
-    .values({ workspaceId, ...values, createdAt: at, updatedAt: at })
-    .onConflictDoUpdate({
-      target: directorySettings.workspaceId,
-      set: { ...values, updatedAt: at },
-    })
-
   return directorySettingsFor(workspaceId, database)
 }
 

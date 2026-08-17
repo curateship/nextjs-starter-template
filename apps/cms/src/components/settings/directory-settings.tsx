@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { FrontPageSectionsPanel } from "@/components/directory/front-page-sections-panel"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardGroup } from "@/components/ui/card"
@@ -23,23 +24,14 @@ import {
   getDirectorySettingsErrorMessage,
   loadDirectorySettings,
   saveBrowseSettings,
-  saveFrontPageSettings,
   saveMapEnabled,
   type DirectoryBrowseSettingsInput,
-  type DirectoryFrontPageSettingsInput,
   type DirectorySettings as DirectorySettingsValue,
 } from "@/lib/api/directory/settings"
 import {
   saveGeocodingKey,
   saveMapDisplayKey,
 } from "@/lib/api/directory/geocoding-settings"
-import {
-  DIRECTORY_FRONT_PAGE_COUNT_MAX,
-  DIRECTORY_FRONT_PAGE_COUNT_MIN,
-  DIRECTORY_FRONT_PAGE_MODES,
-  DIRECTORY_FRONT_PAGE_MODE_LABELS,
-  type DirectoryFrontPageMode,
-} from "@/lib/directory/front-page"
 import {
   DIRECTORY_SORTS,
   DIRECTORY_SORT_LABELS,
@@ -53,7 +45,6 @@ export function DirectorySettings() {
     null
   )
   const [pageSize, setPageSize] = React.useState("")
-  const [frontPageCount, setFrontPageCount] = React.useState("")
   const [geocodingKey, setGeocodingKey] = React.useState("")
   const [savedGeocodingKey, setSavedGeocodingKey] = React.useState<
     string | null
@@ -71,7 +62,6 @@ export function DirectorySettings() {
       .then((loadedSettings) => {
         setSettings(loadedSettings)
         setPageSize(String(loadedSettings.pageSize))
-        setFrontPageCount(String(loadedSettings.frontPageCount))
         setSavedGeocodingKey(loadedSettings.geocodingKeyStatus)
         setSavedMapKey(loadedSettings.mapKeyStatus)
       })
@@ -91,27 +81,10 @@ export function DirectorySettings() {
     [save]
   )
 
-  const persistFrontPage = React.useCallback(
-    (next: DirectoryFrontPageSettingsInput) => {
-      const queued = saveQueue.current.then(() =>
-        save(() => saveFrontPageSettings(next))
-      )
-      saveQueue.current = queued
-      return queued
-    },
-    [save]
-  )
-
   const pageNumber = Number(pageSize)
   const pageSizeInvalid =
     Boolean(settings) &&
     (!Number.isInteger(pageNumber) || pageNumber < 6 || pageNumber > 48)
-  const frontPageNumber = Number(frontPageCount)
-  const frontPageCountInvalid =
-    Boolean(settings) &&
-    (!Number.isInteger(frontPageNumber) ||
-      frontPageNumber < DIRECTORY_FRONT_PAGE_COUNT_MIN ||
-      frontPageNumber > DIRECTORY_FRONT_PAGE_COUNT_MAX)
 
   if (!settings) {
     return (
@@ -259,80 +232,11 @@ export function DirectorySettings() {
       <CollapsibleSettingsCard
         storageId="directory-front-page"
         title="Front page"
-        description="Show this site's newest or featured listings on its home page. It uses the Browse page title and introduction."
-        contentClassName="space-y-4"
+        description="The rows of listings this site's home page is made of, in the order they are drawn. It uses the Browse page title and introduction as its own heading."
       >
-        <div className="grid max-w-xs gap-2">
-          <FieldLabel htmlFor="directory-front-page-mode">
-            Listings to show
-          </FieldLabel>
-          <Select
-            value={settings?.frontPageMode}
-            disabled={!settings || saving}
-            onValueChange={(value) => {
-              if (!settings) return
-              const previous = settings.frontPageMode
-              const frontPageMode = value as DirectoryFrontPageMode
-              setSettings({ ...settings, frontPageMode })
-              void persistFrontPage({
-                frontPageMode,
-                frontPageCount: settings.frontPageCount,
-              }).then((saved) => {
-                if (!saved) {
-                  setSettings((current) =>
-                    current ? { ...current, frontPageMode: previous } : current
-                  )
-                }
-              })
-            }}
-          >
-            <SelectTrigger id="directory-front-page-mode">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {DIRECTORY_FRONT_PAGE_MODES.map((mode) => (
-                <SelectItem key={mode} value={mode}>
-                  {DIRECTORY_FRONT_PAGE_MODE_LABELS[mode]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="grid max-w-40 gap-2">
-          <FieldLabel
-            htmlFor="directory-front-page-count"
-            hint="Choose between 1 and 12 listings."
-          >
-            Number of listings
-          </FieldLabel>
-          <Input
-            id="directory-front-page-count"
-            type="number"
-            min={DIRECTORY_FRONT_PAGE_COUNT_MIN}
-            max={DIRECTORY_FRONT_PAGE_COUNT_MAX}
-            value={frontPageCount}
-            disabled={!settings || settings.frontPageMode === "off"}
-            aria-invalid={frontPageCountInvalid || undefined}
-            onChange={(event) => setFrontPageCount(event.target.value)}
-            onBlur={() => {
-              if (!settings || settings.frontPageMode === "off") return
-              if (frontPageCountInvalid) {
-                showErrorToast("Front page listings must be between 1 and 12.")
-                return
-              }
-              const next = {
-                ...settings,
-                frontPageCount: frontPageNumber,
-              }
-              setSettings(next)
-              void persistFrontPage({
-                frontPageMode: next.frontPageMode,
-                frontPageCount: next.frontPageCount,
-              })
-            }}
-          />
-        </div>
+        <FrontPageSectionsPanel
+          mapAvailable={settings.mapEnabled && settings.hasMapKey}
+        />
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

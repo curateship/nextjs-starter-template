@@ -12,6 +12,10 @@ import {
   updateCustomSection,
 } from "@/server/directory/custom-sections"
 import {
+  createFrontPageSection,
+  listFrontPageSections,
+} from "@/server/directory/front-page-sections"
+import {
   categoriesForListing,
   createListing,
   findListing,
@@ -170,6 +174,34 @@ describe("copying CMS site content", () => {
     expect(listing?.latitude).toBe(40.7)
     expect(listing?.longitude).toBe(-74)
   })
+
+  it("carries the home page rows, pointed at the copy's own categories", async () => {
+    const { ownerId, sourceId } = await seedSourceSite()
+
+    const copied = await copyUserWorkspace(
+      ownerId,
+      sourceId,
+      "Gamma with rows",
+      {},
+      database
+    )
+
+    const rows = await listFrontPageSections(copied.id, database)
+    expect(rows.map((row) => row.heading)).toEqual([
+      "New this week",
+      "Restaurants",
+    ])
+    expect(rows[0]).toMatchObject({ categoryId: null, sort: "newest" })
+
+    const copiedCategories = await listCategories(copied.id, database)
+    const restaurants = copiedCategories.find(
+      (category) => category.name === "Restaurants"
+    )
+    // The copy's own category, not the original's — a row that still pointed at
+    // the source site would filter to a category this site cannot see.
+    expect(rows[1]?.categoryId).toBe(restaurants?.id)
+    expect(rows[1]).toMatchObject({ sort: "rating", layout: "list" })
+  })
 })
 
 async function seedSourceSite() {
@@ -237,6 +269,21 @@ async function seedSourceSite() {
       latitude: 40.7,
       longitude: -74,
       customValues: { [wine.slug]: { grape: "Nebbiolo" } },
+    },
+    database
+  )
+  await createFrontPageSection(
+    workspace.id,
+    { heading: "New this week", listingCount: 3 },
+    database
+  )
+  await createFrontPageSection(
+    workspace.id,
+    {
+      heading: "Restaurants",
+      categoryId: child.id,
+      sort: "rating",
+      layout: "list",
     },
     database
   )
