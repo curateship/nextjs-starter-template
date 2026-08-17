@@ -1,3 +1,4 @@
+import { signedUsd } from "@/components/backtest/backtest-kpi"
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
 import {
@@ -47,7 +48,7 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { BacktestListRow } from "@/lib/trade/backtest/result"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatUsdRounded } from "@/lib/trade/format"
 
 /**
  * Every backtest ever run, newest first, with the pinned ones on top.
@@ -317,15 +318,15 @@ export function BacktestsListPage({ initial }: { initial: BacktestListRow[] }) {
               <p className="truncate text-xs text-muted-foreground">
                 {row.automationName} · {row.spec.days}{" "}
                 {plural(row.spec.days, "day", "days")} of {row.spec.interval}{" "}
-                candles from {formatUsd(row.spec.startingUsd)}
+                candles from {formatUsdRounded(row.spec.startingUsd)}
               </p>
             </TableCell>
             <TableCell column="meta">{row.coinsTotal}</TableCell>
             <TableCell column="meta" className="tabular-nums">
-              {row.summary ? formatSignedUsd(row.summary.madeOrLost) : "—"}
+              {row.summary ? signedUsd(row.summary.madeOrLost) : "—"}
             </TableCell>
             <TableCell column="meta" className="tabular-nums">
-              {row.summary ? formatUsd(row.summary.worstDipUsd) : "—"}
+              {row.summary ? formatUsdRounded(row.summary.worstDipUsd) : "—"}
             </TableCell>
             <TableCell column="meta" title={formatDateTime(new Date(row.createdAt))}>
               {formatRelativeTime(new Date(row.createdAt), formatDateTime)}

@@ -26,7 +26,6 @@ import type {
   BacktestFillMark,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
-import { formatDate } from "@/lib/format/format-time"
 import type {
   BacktestRunTrade,
   GraphSeries,
@@ -219,25 +218,40 @@ export function BacktestChartPanel({
   return (
     <>
       <WorkspacePanelHeader
-        // Back to the canvas this run came from, in the panel's own icon slot.
-        // The one place anybody wants to go from a result is the flow that
-        // produced it, so it is the first thing on the row rather than a
-        // separate strip above the panels.
+        // The way back to the other picture, in the panel's own icon slot: from
+        // the Graph to the market's candles, and from the candles to the Graph.
+        // On a run with no Graph to go to it falls back to the list of runs,
+        // which is the only other place there is.
+        //
+        // Pulled out by a quarter on each side in both cases. The header's icon
+        // slot is 16px and this target is 24px, so without the negative margin
+        // the hover box grew out of its slot and sat off-centre against the
+        // title beside it.
         icon={
-          <Link
-            to="/backtests"
-            aria-label="Back to every backtest"
-            // Pulled out by a quarter on each side. The header's icon slot is
-            // 16px and this target is 24px, so without the negative margin the
-            // hover box grew out of its slot and sat off-centre against the
-            // title beside it.
-            className={cn(
-              "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-              focusRing
-            )}
-          >
-            <ChevronLeftIcon className="size-4" />
-          </Link>
+          hasGraph ? (
+            <button
+              type="button"
+              onClick={onSwapView}
+              aria-label={showGraph ? "Back to the market's chart" : "Back to the graph"}
+              className={cn(
+                "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
+                focusRing
+              )}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </button>
+          ) : (
+            <Link
+              to="/backtests"
+              aria-label="Back to every backtest"
+              className={cn(
+                "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
+                focusRing
+              )}
+            >
+              <ChevronLeftIcon className="size-4" />
+            </Link>
+          )
         }
         title={
           showGraph
@@ -245,9 +259,11 @@ export function BacktestChartPanel({
             : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
               "No market picked")
         }
+        // The Graph carries no meta: the dates it covers are along its own
+        // bottom axis, and saying them again up here was the same fact twice.
         meta={
           showGraph
-            ? `${formatDate(new Date(spec.from))} – ${formatDate(new Date(spec.to))}`
+            ? undefined
             : `${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`
         }
         action={

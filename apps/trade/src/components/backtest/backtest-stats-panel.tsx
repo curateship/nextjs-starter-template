@@ -2,13 +2,14 @@ import { ChevronDownIcon, FlaskConicalIcon } from "lucide-react"
 
 import {
   BacktestKpi,
+  roundedPct,
   sharePct,
   signedPct,
+  signedUsd,
   toneClass,
 } from "@/components/backtest/backtest-kpi"
 import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
-import { Badge } from "@/components/ui/badge"
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,7 +25,7 @@ import type {
 import type { GraphSeries, GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatUsdRounded } from "@/lib/trade/format"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { cn } from "@/lib/utils"
 
@@ -108,10 +109,9 @@ export function BacktestStatsPanel({
       <WorkspacePanelHeader
         icon={<FlaskConicalIcon />}
         title="Backtest · all markets"
-        action={<Badge variant="secondary">Read-only</Badge>}
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
+        <div className="grid gap-3 px-5 py-4">
           {!summary ? (
             <p className="p-2 text-xs text-muted-foreground">
               {running
@@ -124,13 +124,10 @@ export function BacktestStatsPanel({
                   the headline: with a box dragged on the graph this is no
                   longer the run's figure, and saying so is what stops it being
                   read as one. */}
-              <div>
-                <div className="text-[11px] text-muted-foreground">
-                  Net P&L ·{" "}
-                  {stats && scoped
-                    ? `${formatDate(new Date(stats.fromT))} – ${formatDate(new Date(stats.toT))}`
-                    : "full run"}
-                </div>
+              {/* `pb-2` on top of the grid's own gap, so the space under this
+                  line matches the 20px at the sides and the top rather than
+                  sitting tighter than both. */}
+              <div className="pb-2">
                 {/* The percent leads: it is the half of this line that can be
                     held against another run, another window or another
                     strategy, while the dollars only mean anything next to the
@@ -156,13 +153,8 @@ export function BacktestStatsPanel({
                       toneClass(stats ? stats.net : summary.madeOrLost)
                     )}
                   >
-                    {formatSignedUsd(stats ? stats.net : summary.madeOrLost)}
+                    {signedUsd(stats ? stats.net : summary.madeOrLost)}
                   </span>
-                </div>
-                <div className="mt-1 text-[10px] text-muted-foreground">
-                  {stats
-                    ? `${stats.days} ${plural(stats.days, "day", "days")} · ${stats.bars} ${plural(stats.bars, "bar", "bars")} · ${scoped ? "drag to re-scope" : "drag the graph to scope"}`
-                    : `${spec.days} ${plural(spec.days, "day", "days")} of ${spec.interval}`}
                 </div>
               </div>
 
@@ -170,7 +162,7 @@ export function BacktestStatsPanel({
                   line up in two columns and read as a table of results. The
                   grid is pulled out to the panel's edges, the way the design
                   runs its rules the full width. */}
-              <div className="-mx-3 grid grid-cols-2 border-t">
+              <div className="-mx-5 grid grid-cols-2 border-t">
                 <BacktestKpi
                   label="Win rate"
                   value={
@@ -195,10 +187,10 @@ export function BacktestStatsPanel({
                 />
                 <BacktestKpi
                   label="Max drawdown"
-                  value={stats ? `-${stats.worstDipPct.toFixed(2)}%` : "—"}
+                  value={stats ? `-${roundedPct(stats.worstDipPct)}` : "—"}
                   sub={
                     stats
-                      ? `${formatUsd(stats.worstDipUsd)} off ${formatUsd(stats.worstDipPeak)}`
+                      ? `${formatUsdRounded(stats.worstDipUsd)} off ${formatUsdRounded(stats.worstDipPeak)}`
                       : ""
                   }
                   tone={stats && stats.worstDipUsd > 0 ? -1 : undefined}
@@ -223,7 +215,7 @@ export function BacktestStatsPanel({
                     invented. Saying "whole run" is cheaper than being wrong. */}
                 <BacktestKpi
                   label="Buy & hold"
-                  value={formatSignedUsd(summary.buyAndHold)}
+                  value={signedUsd(summary.buyAndHold)}
                   sub={scoped ? "whole run · if you just held" : "if you just held"}
                   tone={summary.buyAndHold}
                 />
@@ -248,7 +240,7 @@ export function BacktestStatsPanel({
                   label="Expectancy"
                   value={
                     stats && stats.expectancy !== null
-                      ? formatSignedUsd(stats.expectancy)
+                      ? signedUsd(stats.expectancy)
                       : "—"
                   }
                   sub="per closed trade"
@@ -268,7 +260,7 @@ export function BacktestStatsPanel({
                 {showLiquidated ? (
                   <BacktestKpi
                     label="Liquidated"
-                    value={formatSignedUsd(stats?.liquidatedUsd ?? 0)}
+                    value={signedUsd(stats?.liquidatedUsd ?? 0)}
                     sub={`${liquidatedCount} ${plural(liquidatedCount, "trade", "trades")} taken by the exchange`}
                     tone={-1}
                   />
@@ -278,7 +270,7 @@ export function BacktestStatsPanel({
                   value={stats ? `${Math.round(stats.peakWalletPct)}%` : "—"}
                   sub={
                     stats
-                      ? `${formatUsd(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
+                      ? `${formatUsdRounded(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
                       : ""
                   }
                 />
@@ -286,7 +278,7 @@ export function BacktestStatsPanel({
                   label="Avg wallet"
                   value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
                   sub={
-                    stats ? `${formatUsd(stats.typicalWalletUsd)} typically` : ""
+                    stats ? `${formatUsdRounded(stats.typicalWalletUsd)} typically` : ""
                   }
                 />
                 <BacktestKpi
@@ -306,7 +298,7 @@ export function BacktestStatsPanel({
                   label="In markets now"
                   // The pot's line records the margin a position put up, so at
                   // 2× the money in the market is twice it.
-                  value={stats ? formatUsd(stats.inCoinsUsd * leverage) : "—"}
+                  value={stats ? formatUsdRounded(stats.inCoinsUsd * leverage) : "—"}
                   sub={
                     stats?.openNow === null || stats?.openNow === undefined
                       ? "at the end of the window"
@@ -388,8 +380,8 @@ export function BacktestStatsPanel({
                     figure(summary.fundingPaid) === null
                       ? "—"
                       : summary.fundingPaid >= 0
-                        ? formatUsd(summary.fundingPaid)
-                        : `-${formatUsd(Math.abs(summary.fundingPaid))}`
+                        ? formatUsdRounded(summary.fundingPaid)
+                        : `-${formatUsdRounded(Math.abs(summary.fundingPaid))}`
                   }
                 />
                 {/* Not saved anywhere as one figure — it is the coins' own fee
@@ -447,7 +439,7 @@ function feesPaid(result: BacktestResult | null): string {
     total += fees
   }
   if (!known) return "—"
-  return total > 0 ? `-${formatUsd(total)}` : formatUsd(0)
+  return total > 0 ? `-${formatUsdRounded(total)}` : formatUsdRounded(0)
 }
 
 function Line({ label, value }: { label: string; value: string }) {

@@ -4,11 +4,7 @@ import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/format/format-time"
-import {
-  formatCompactUsd,
-  formatUsd,
-  formatUsdRounded,
-} from "@/lib/trade/format"
+import { formatCompactUsd, formatUsdRounded } from "@/lib/trade/format"
 import {
   GRAPH_PRESETS,
   barAt,
@@ -23,6 +19,7 @@ import {
   type GraphSeries,
   type GraphWindow,
 } from "@/lib/trade/backtest/graph"
+import { roundedPct } from "@/components/backtest/backtest-kpi"
 import { cn } from "@/lib/utils"
 
 /**
@@ -48,7 +45,12 @@ import { cn } from "@/lib/utils"
 const DRAG_SLOP = 3
 
 const PAD_LEFT = 58
-const PAD_RIGHT = 12
+/**
+ * Nothing on the right. The plot already sits inside the panel's own padding,
+ * so a further inset here stopped the line short of the buttons above it and
+ * the chart looked narrower than the row it belongs to.
+ */
+const PAD_RIGHT = 0
 const AXIS_HEIGHT = 26
 
 const PRESET_LABELS: Record<GraphPreset, string> = {
@@ -221,14 +223,8 @@ export function BacktestGraph({
       }
     : null
 
-  const scoped =
-    window.sel !== null ||
-    window.preset !== "all" ||
-    window.from !== null ||
-    window.to !== null
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 sm:p-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 p-3 sm:p-4">
       <div className="flex items-start gap-4">
         <div className="min-w-0">
           {/* What it is worth now, and what it began with, on one line — the
@@ -239,55 +235,17 @@ export function BacktestGraph({
               has no pence. */}
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-2xl font-semibold tracking-tight tabular-nums">
-              {reading ? formatUsd(reading.usd) : "—"}
+              {reading ? formatUsdRounded(reading.usd) : "—"}
             </span>
             <span className="text-[11px] text-muted-foreground tabular-nums">
               from {formatUsdRounded(startingUsd)}
             </span>
           </div>
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            Wallet · {readingWhen(series, cursor)}
-          </div>
         </div>
-        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 pt-1">
-          <OverlayToggle
-            label="Off peak"
-            on={overlays.offPeak}
-            swatch="bg-red-600 dark:bg-red-400"
-            onClick={() =>
-              setOverlays((old) => ({ ...old, offPeak: !old.offPeak }))
-            }
-          />
-          <OverlayToggle
-            label="Liquidations"
-            on={overlays.liquidations}
-            swatch="bg-red-600 dark:bg-red-400"
-            onClick={() =>
-              setOverlays((old) => ({
-                ...old,
-                liquidations: !old.liquidations,
-              }))
-            }
-          />
-          <OverlayToggle
-            label="In markets"
-            on={overlays.inCoins}
-            swatch="bg-teal-600 dark:bg-teal-400"
-            onClick={() =>
-              setOverlays((old) => ({ ...old, inCoins: !old.inCoins }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 border-t pt-3">
-        {/* Sits with the controls rather than over the plot: down there it
-            landed on the dates along the bottom. */}
-        <span className="text-xs text-muted-foreground">
-          {stats[1] - stats[0] + 1} bars shown
-          {scoped ? null : " · drag across the graph to scope every figure to it"}
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        {/* The window controls sit up beside the wallet figure, and what the
+            chart draws sits under them: picking a stretch of time comes before
+            deciding which lines to see across it. */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <Tabs
             value={window.preset}
             onValueChange={(value) =>
@@ -340,6 +298,36 @@ export function BacktestGraph({
             Reset
           </Button>
         </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-end gap-x-4 gap-y-1">
+        <OverlayToggle
+          label="Off peak"
+          on={overlays.offPeak}
+          swatch="bg-red-600 dark:bg-red-400"
+          onClick={() =>
+            setOverlays((old) => ({ ...old, offPeak: !old.offPeak }))
+          }
+        />
+        <OverlayToggle
+          label="Liquidations"
+          on={overlays.liquidations}
+          swatch="bg-red-600 dark:bg-red-400"
+          onClick={() =>
+            setOverlays((old) => ({
+              ...old,
+              liquidations: !old.liquidations,
+            }))
+          }
+        />
+        <OverlayToggle
+          label="In markets"
+          on={overlays.inCoins}
+          swatch="bg-teal-600 dark:bg-teal-400"
+          onClick={() =>
+            setOverlays((old) => ({ ...old, inCoins: !old.inCoins }))
+          }
+        />
       </div>
 
       <div
@@ -572,7 +560,7 @@ export function BacktestGraph({
             className="pointer-events-none absolute text-[11px] whitespace-nowrap text-red-600/80 dark:text-red-400/80"
             style={{ top: paneHeight - 16, left: PAD_LEFT + 4 }}
           >
-            Off peak · worst {shape.worstOffPeak.toFixed(1)}%
+            Off peak · worst {roundedPct(shape.worstOffPeak)}
           </div>
         ) : null}
 
@@ -601,15 +589,15 @@ export function BacktestGraph({
             <div className="mb-1 text-muted-foreground">
               {readingWhen(series, cursor)}
             </div>
-            <ReadingRow label="Wallet" value={formatUsd(reading.usd)} />
+            <ReadingRow label="Wallet" value={formatUsdRounded(reading.usd)} />
             <ReadingRow
               label="Off peak"
-              value={`${reading.offPeakPct.toFixed(2)}%`}
+              value={reading.offPeakPct < 0 ? `-${roundedPct(reading.offPeakPct)}` : roundedPct(0)}
               className="text-red-600 dark:text-red-400"
             />
             <ReadingRow
               label="In markets"
-              value={formatUsd(reading.inCoins * leverage)}
+              value={formatUsdRounded(reading.inCoins * leverage)}
             />
             <ReadingRow
               label="Open"
@@ -617,7 +605,7 @@ export function BacktestGraph({
             />
             <ReadingRow
               label="Realised"
-              value={reading.banked === null ? "—" : formatUsd(reading.banked)}
+              value={reading.banked === null ? "—" : formatUsdRounded(reading.banked)}
             />
           </div>
         ) : null}
@@ -760,8 +748,11 @@ function buildShape({
     if ((inPlay[bar] ?? 0) > mostInCoins) mostInCoins = inPlay[bar]
   }
 
+  // Starts exactly where the wallet's pane ends, with no daylight between the
+  // two: the pot's shading stopped short of the strip and left a white band
+  // across the chart that meant nothing.
   const offPeakY = (value: number) =>
-    stripTop + 2 + (value / Math.min(-0.001, worstOffPeak)) * (mainHeight - stripTop - 5)
+    stripTop + (value / Math.min(-0.001, worstOffPeak)) * (mainHeight - stripTop - 3)
   // In coins is drawn against the bottom of the wallet's pane at a fifth of its
   // height: it is a second reading in different money, and letting it use the
   // whole pane would have it read as the pot.
@@ -841,8 +832,8 @@ function buildShape({
     yOf,
     startY: yOf(startingUsd),
     walletLine: line(usd, yOf),
-    walletArea: area(usd, yOf, top),
-    inCoinsArea: overlays.inCoins && inPlay.length ? area(inPlay, inCoinsY, top) : "",
+    walletArea: area(usd, yOf, stripTop),
+    inCoinsArea: overlays.inCoins && inPlay.length ? area(inPlay, inCoinsY, stripTop) : "",
     offPeakLine: overlays.offPeak ? line(offPeakPct, offPeakY) : "",
     offPeakArea: overlays.offPeak ? area(offPeakPct, offPeakY, stripTop) : "",
     worstOffPeak,
@@ -851,7 +842,11 @@ function buildShape({
     ticks,
     dates,
     liquidations,
-    /** The foot of the wallet pane, which the liquidation columns stand on. */
-    laneFloor: top,
+    /**
+     * Where the liquidation columns stand: the strip's own top edge, the same
+     * line the pot's shading closes on. Six pixels higher and they floated
+     * above the strip with a band of nothing under them.
+     */
+    laneFloor: stripTop,
   }
 }

@@ -1,7 +1,10 @@
 import * as React from "react"
 import { ListOrderedIcon, SkipForwardIcon } from "lucide-react"
 
-import { toneClass } from "@/components/backtest/backtest-kpi"
+import {
+  signedUsd,
+  toneClass,
+} from "@/components/backtest/backtest-kpi"
 import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
@@ -25,7 +28,7 @@ import {
 } from "@/lib/trade/backtest/result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
@@ -239,7 +242,7 @@ export function BacktestMarketsPanel({
             The old app's type and spacing — small text, 8px between columns,
             12px at the outside edges — because the shared dashboard padding is
             20px a side and this panel does not have that to give. */}
-        <Table className="table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:overflow-hidden [&_th]:px-1.5">
+        <Table className="table-fixed text-xs [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_td]:overflow-hidden [&_td]:px-1.5 [&_td]:text-ellipsis [&_th:first-child]:pl-5 [&_th:last-child]:pr-5 [&_th]:overflow-hidden [&_th]:px-1.5">
           <TableHeader>
             <TableRow>
               {head("Market", "coin", "w-[30%]")}
@@ -297,10 +300,10 @@ export function BacktestMarketsPanel({
                       toneClass(coin.summary?.madeOrLost)
                     )}
                   >
-                    {coin.summary ? formatSignedUsd(coin.summary.madeOrLost) : "—"}
+                    {coin.summary ? signedUsd(coin.summary.madeOrLost) : "—"}
                   </TableCell>
                   <TableCell column="meta" className="text-right tabular-nums">
-                    {coin.summary ? formatUsd(coin.summary.worstDipUsd) : "—"}
+                    {coin.summary ? formatUsdRounded(coin.summary.worstDipUsd) : "—"}
                   </TableCell>
                   {/* Win carries the count with it — "2/6" already says six
                       trades — so a column repeating the six was a column of
@@ -331,7 +334,7 @@ export function BacktestMarketsPanel({
                     toneClass(total((coin) => coin.summary?.madeOrLost ?? 0))
                   )}
                 >
-                  {formatSignedUsd(total((coin) => coin.summary?.madeOrLost ?? 0))}
+                  {signedUsd(total((coin) => coin.summary?.madeOrLost ?? 0))}
                 </TableCell>
                 {/* No total for the dip: adding up each coin's worst moment
                     would describe a day that never happened. The run's own dip
@@ -362,7 +365,7 @@ export function BacktestMarketsPanel({
               Every market on the list traded at least once.
             </p>
           ) : (
-            <Table className="table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:px-1.5 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:px-1.5">
+            <Table className="table-fixed text-xs [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_td]:px-1.5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5 [&_th]:px-1.5">
               <TableHeader>
                 <TableRow>
                   <TableHead column="meta" className="w-[30%]">

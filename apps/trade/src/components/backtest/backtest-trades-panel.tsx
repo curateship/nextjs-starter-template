@@ -1,7 +1,11 @@
 import * as React from "react"
 import { ListIcon } from "lucide-react"
 
-import { toneClass } from "@/components/backtest/backtest-kpi"
+import {
+  signedPct,
+  signedUsd,
+  toneClass,
+} from "@/components/backtest/backtest-kpi"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -17,7 +21,7 @@ import {
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import type { BacktestTrade } from "@/lib/trade/backtest/result"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -235,13 +239,13 @@ function Row({
         {open ? "still open" : formatDateTime(new Date(trade.exitAt!))}
       </TableCell>
       <TableCell column="meta" className="text-right tabular-nums">
-        {formatUsd(trade.amountUsd)}
+        {formatUsdRounded(trade.amountUsd)}
       </TableCell>
       <TableCell
         column="meta"
         className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
       >
-        {open ? "—" : formatSignedUsd(trade.pnl)}
+        {open ? "—" : signedUsd(trade.pnl)}
       </TableCell>
       <TableCell
         column="meta"
@@ -255,17 +259,17 @@ function Row({
         ) : trade.exitReason === "liquidated" ? (
           <span className="inline-flex items-center gap-1.5">
             <Badge variant="destructive">Liquidated</Badge>
-            {`${trade.returnPct.toFixed(2)}%`}
+            {signedPct(trade.returnPct)}
           </span>
         ) : (
-          `${trade.returnPct.toFixed(2)}%`
+          signedPct(trade.returnPct)
         )}
       </TableCell>
       <TableCell
         column="meta"
         className={cn("text-right tabular-nums", toneClass(cumPnl ?? 0))}
       >
-        {cumPnl === null ? "—" : formatSignedUsd(cumPnl)}
+        {cumPnl === null ? "—" : signedUsd(cumPnl)}
       </TableCell>
     </TableRow>
   )

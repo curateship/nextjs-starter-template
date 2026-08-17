@@ -1,4 +1,3 @@
-import { formatDate } from "@/lib/format/format-time"
 import {
   graphView,
   linePath,
@@ -35,7 +34,7 @@ export function BacktestPotMini({
   window: GraphWindow
   onReset: () => void
 }) {
-  const { usd, t } = series
+  const { usd } = series
   if (usd.length < 2) return null
 
   const last = usd.length - 1
@@ -57,14 +56,6 @@ export function BacktestPotMini({
 
   return (
     <section className="grid gap-1.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <h3 className="shrink-0 text-[11px] whitespace-nowrap text-muted-foreground">
-          The pot · full run
-        </h3>
-        <span className="truncate text-[10px] text-muted-foreground">
-          {formatDate(new Date(t[0]))} – {formatDate(new Date(t[last]))}
-        </span>
-      </div>
       <button
         type="button"
         onClick={onReset}

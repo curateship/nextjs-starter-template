@@ -1,3 +1,4 @@
+import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -33,7 +34,7 @@ export function BacktestKpi({
   return (
     // `odd:border-r` rules the left column off from the right one: in a
     // two-column grid the odd children are the left column.
-    <div className="flex flex-col gap-0.5 border-b px-3 py-2 odd:border-r">
+    <div className="flex flex-col gap-0.5 border-b px-5 py-2 odd:border-r">
       <span className="text-[11px] text-muted-foreground">{label}</span>
       <span
         className={cn(
@@ -64,9 +65,41 @@ export function sharePct(won: number, of: number): string {
   return `${Math.round((won / of) * 100)}%`
 }
 
-/** "+15.46%" / "-21.51%" — the old app's `signedPct`. */
+/**
+ * "+1,118%" / "-22%" / "-0.2%" — a percent at the precision it is worth
+ * reading at.
+ *
+ * **Two decimals were noise on every figure this screen shows.** A run up
+ * eleven times over reported "+1117.82%", where the last three characters are
+ * a rounding artefact of a made-up pot, and a drawdown of "-22.04%" is a
+ * drawdown of 22%. Under ten it keeps one decimal, because there the small
+ * part is the whole story: a trade that returned 0.2% must not read as 0%.
+ */
 export function signedPct(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+  return `${value >= 0 ? "+" : "-"}${roundedPct(Math.abs(value))}`
+}
+
+/**
+ * "+$111,782" / "-$1,250" — money with a sign, and no pence above $100.
+ *
+ * The backtest screen deals in whole pots, and two decimals on six figures is
+ * two characters nobody reads. Under $100 `formatUsdRounded` keeps the pence,
+ * because there they are the figure.
+ */
+export function signedUsd(value: number): string {
+  return `${value >= 0 ? "+" : ""}${formatUsdRounded(value)}`
+}
+
+/** The same rounding without a sign in front — "22%", "0.2%". */
+export function roundedPct(value: number): string {
+  const size = Math.abs(value)
+  if (size < 10) return `${trimZero(size.toFixed(1))}%`
+  return `${Math.round(size).toLocaleString("en-US")}%`
+}
+
+/** "0.0" reads as a figure measured to a tenth; "0" is the honest version. */
+function trimZero(text: string): string {
+  return text.endsWith(".0") ? text.slice(0, -2) : text
 }
 
 /**
