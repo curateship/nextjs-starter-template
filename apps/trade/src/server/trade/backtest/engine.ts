@@ -13,6 +13,7 @@ import {
   floorSize,
   ladderExitLevels,
   type DcaParams,
+  type LadderPlan,
 } from "@/lib/trade/dca"
 import { marketIsCascading } from "@/lib/trade/cascade"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
@@ -163,6 +164,43 @@ export type BacktestCoinTrades = {
   firstAt: number | null
   /** Positive when this coin paid funding, negative when it received it. */
   fundingPaid: number
+  /**
+   * Every reason a ladder was turned down on this coin, and how many bars each
+   * one held it back. Empty when one armed on the first chance it got.
+   */
+  armRefusals: ArmRefusal[]
+  /** Every change to every rung, oldest first — what was actually on the book. */
+  rungEvents: RungEvent[]
+}
+
+/** One reason a ladder could not be armed, tallied over the whole walk. */
+export type ArmRefusal = { reason: string; bars: number; lastAt: number }
+
+/**
+ * One change to one rung, the moment it happened.
+ *
+ * **The replay's only record of what a ladder actually had on the book.** A
+ * fill says a rung bought; nothing said whether the other six were waiting with
+ * an order, had been skipped for being passed, or had been killed under the
+ * stop. So "price fell through rung 5 and nothing happened" had no answer
+ * except reading the strategy by hand and guessing.
+ *
+ * Changes only, not a snapshot per bar: a run is twelve thousand bars across a
+ * hundred and fifty coins, and all but a handful of those bars change nothing.
+ */
+export type RungEvent = {
+  /** Counted from 0, matching the fills. */
+  rung: number
+  /** The bar it changed on. */
+  at: number
+  /** Its price, so the event reads without cross-referencing the plan. */
+  px: number
+  /**
+   * What it became: `armed` has an order on the book, `waiting` has none,
+   * `skipped` had its moment pass, `dead` is under the stop, and `filled` or
+   * `sold` are the ordinary endings.
+   */
+  state: string
 }
 
 export type BacktestRunOutcome = {
@@ -326,6 +364,80 @@ export async function runBacktest(
   // When each coin's history actually starts. A coin listed part way through
   // the window is tested from the day it existed, and the report says so.
   const firstAt = new Map<string, number>()
+  /**
+   * Why each coin went without a ladder, counted as the walk goes.
+   *
+   * Kept here rather than worked out afterwards because the answer only exists
+   * at the moment it is decided: it depends on where the base was on that bar
+   * and what cash was free, neither of which survives to the end of the run.
+   */
+  const refusalsByMarket = new Map<string, Map<string, ArmRefusal>>()
+  const noteRefusal = (marketKey: string, reason: string, at: number) => {
+    // The rung number on `SMART_RUNG_TOO_SMALL:3` would make one reason look
+    // like twenty. The code alone is the reason; which rung it was is not.
+    const code = reason.split(":")[0]
+    const forCoin =
+      refusalsByMarket.get(marketKey) ?? new Map<string, ArmRefusal>()
+    const seen = forCoin.get(code)
+    if (seen) {
+      seen.bars += 1
+      seen.lastAt = at
+    } else {
+      forCoin.set(code, { reason: code, bars: 1, lastAt: at })
+    }
+    refusalsByMarket.set(marketKey, forCoin)
+  }
+
+  /**
+   * Which rung placed which order — remembered while the rung still knows.
+   *
+   * A rung drops its order id the moment it fills, and the fills are only
+   * written down at the end of the bar, so by then the link is gone. Kept here
+   * as the ladders are walked, which is the last point both halves exist.
+   *
+   * Order ids are counted, never reused, so this only ever grows by one entry
+   * per rung placed.
+   */
+  const rungByOrderId = new Map<string, number>()
+  const rememberRungOrders = (plan: LadderPlan) => {
+    for (const [index, rung] of plan.rungs.entries()) {
+      if (rung.orderId) rungByOrderId.set(rung.orderId, index)
+    }
+  }
+
+  /**
+   * What each rung looked like last time we looked, and every change since.
+   *
+   * Diffed after each bar rather than written from inside the engine: the
+   * engine is the live one, shared with real money, and threading a recorder
+   * through every place a rung changes would be a second thing to keep in step
+   * with the first. A diff cannot fall out of step — it reads the same plan the
+   * engine just finished writing.
+   */
+  const rungWas = new Map<string, string[]>()
+  const rungEventsByMarket = new Map<string, RungEvent[]>()
+  const noteRungs = (marketKey: string, plan: LadderPlan, at: number) => {
+    const now = plan.rungs.map((rung) =>
+      rung.status === "waiting"
+        ? rung.dead
+          ? "dead"
+          : rung.orderId
+            ? "armed"
+            : "waiting"
+        : rung.status
+    )
+    const before = rungWas.get(marketKey)
+    const events = rungEventsByMarket.get(marketKey) ?? []
+    for (const [index, state] of now.entries()) {
+      // A ladder that has just replaced another has a different rung count;
+      // treat anything without a previous state as new rather than unchanged.
+      if (before && before[index] === state) continue
+      events.push({ rung: index, at, px: plan.rungs[index].px, state })
+    }
+    rungWas.set(marketKey, now)
+    rungEventsByMarket.set(marketKey, events)
+  }
+
   const fillsByMarket = new Map<string, BacktestEngineFill[]>(
     coins.map((coin) => [coin.marketKey, []])
   )
@@ -513,11 +625,15 @@ export async function runBacktest(
     for (const marketKey of [...ladders.keys()].sort()) {
       const row = ladders.get(marketKey)
       if (!row) continue
+      // Before the ladder is worked: a rung that fills inside this pass throws
+      // its order id away, and the fills are not written down until later.
+      rememberRungOrders(row.plan)
       await advanceOne(
         { book, marks, ladderBars, now: closeTime, cascading },
         deps,
         row
       )
+      noteRungs(marketKey, row.plan, closeTime)
     }
 
     // ----- What the signal trades make of it ------------------------------
@@ -637,7 +753,10 @@ export async function runBacktest(
         heldSzi: book.positions.get(coin.marketKey)?.szi ?? null,
         nextOrderId,
       })
-      if (!outcome.plan) continue
+      if (!outcome.plan) {
+        noteRefusal(coin.marketKey, outcome.refusal, closeTime)
+        continue
+      }
 
       // The arm named an order id for every rung that is going to wait, and
       // this writes those orders onto the replay's book. They model the live
@@ -655,7 +774,7 @@ export async function runBacktest(
           side: "buy",
           px: rung.px,
           sz: rung.sz,
-          leverage: 1,
+          leverage: outcome.plan.leverage,
           maxLeverage: outcome.plan.maxLeverage,
           reduceOnly: false,
           tpPx: null,
@@ -683,29 +802,19 @@ export async function runBacktest(
 
     // ----- Take the fills off the book and record the pot -----------------
     for (const one of book.fills) {
-      // Which rung this was, read off the ladder working the coin right now.
+      // Which rung this was — **asked of the order, not guessed from the
+      // fill.** The rung placed that order and remembers its id, so this is
+      // the rung saying so rather than an afterwards match on size and price.
       //
-      // Matched on SIZE, not price. Rungs used to rest as orders and fill at
-      // exactly their own price, so the price was the rung's name — but a rung
-      // that buys at market fills wherever price was, which is never its own
-      // line, and every arrow lost its rung number the day that changed. The
-      // size is what survives: the rung records the amount it actually bought,
-      // so that is what ties the fill back to it. Price only breaks a tie
-      // between two rungs that happened to buy the same amount.
-      const plan = ladders.get(one.marketKey)?.plan
-      let rung = -1
-      if (one.side === "buy" && plan) {
-        let best = Infinity
-        for (const [index, candidate] of plan.rungs.entries()) {
-          if (candidate.status !== "filled" && candidate.status !== "sold") continue
-          if (Math.abs(candidate.sz - one.sz) > Math.max(1e-9, one.sz * 1e-9)) continue
-          const gap = Math.abs(candidate.px - one.px)
-          if (gap < best) {
-            best = gap
-            rung = index
-          }
-        }
-      }
+      // It used to hunt the ladder for a rung of the same size. That works
+      // only while the ladder is still there, and a ladder can buy, sell out
+      // and be replaced inside one crashing candle — after which the old
+      // fills matched nothing. Eighteen buys of 763 lost their rung that way,
+      // every one of them on a crash bar, which are the ones worth reading.
+      const rung =
+        one.side === "buy" && one.orderId
+          ? (rungByOrderId.get(one.orderId) ?? -1)
+          : -1
       // Stamped with the bar's OPEN time, not the close time the engine runs
       // on. A candle is named by the moment it opened everywhere else in the
       // app, so a fill stamped with the close lands on the NEXT candle — a 4h
@@ -752,6 +861,12 @@ export async function runBacktest(
       firstPx: firstPx.get(coin.marketKey) ?? null,
       firstAt: firstAt.get(coin.marketKey) ?? null,
       fundingPaid: fundingPaidByMarket.get(coin.marketKey) ?? 0,
+      // Heaviest first: the reason that held a coin back for a thousand bars
+      // is the answer, and the one that happened twice is a footnote.
+      armRefusals: [...(refusalsByMarket.get(coin.marketKey)?.values() ?? [])].sort(
+        (left, right) => right.bars - left.bars
+      ),
+      rungEvents: rungEventsByMarket.get(coin.marketKey) ?? [],
     })),
     equity,
     inPlay,

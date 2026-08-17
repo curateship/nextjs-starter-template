@@ -871,3 +871,98 @@ describe("replaying a signals run", () => {
     expect(outcome.endingUsd).toBe(10_000)
   })
 })
+
+/**
+ * Leverage, and the reason a replay could not measure it before.
+ *
+ * A backtest runs on Binance history, and Binance reports no leverage limit —
+ * so every replay coin arrived with a limit of `1`, and `liquidationPx` refuses
+ * a limit of 1. Nothing could ever be closed out. A 2x run therefore reported
+ * every winner doubled and not one of the positions the exchange would have
+ * taken away, which is not a lenient result but a fictional one.
+ *
+ * `replayMarketRules` fills that limit in from the venue the money is actually
+ * going to. These two prove the engine does something with it.
+ */
+describe("a ladder that borrows", () => {
+  // Falls hard and never comes back, so the position is a long way under water
+  // by the end whichever leverage it ran at.
+  const sinking = bars(40, 0)
+
+  it("is closed out where a cash ladder is left holding", async () => {
+    const coins = [coin("hyperliquid:mainnet:AAA", sinking)]
+
+    const cash = await runBacktest(inputFor(coins, { params: params() }))
+    const borrowed = await runBacktest(
+      inputFor(coins, { params: params({ leverage: 2 }) })
+    )
+
+    const closedOut = (outcome: Awaited<ReturnType<typeof runBacktest>>) =>
+      outcome.coins[0].fills.filter((fill) => fill.reason === "liquidated")
+
+    expect(closedOut(cash)).toHaveLength(0)
+    expect(closedOut(borrowed).length).toBeGreaterThan(0)
+    // Which of the two ends with more money is deliberately not asserted. On a
+    // price that never comes back, being closed out early is the KINDER
+    // outcome — the loss is cut where the cash ladder rides it to the bottom.
+    // The expensive case is the opposite one, a fall that recovers, and that
+    // is a question for a real run over real coins rather than for a shape
+    // written to make a point.
+  })
+
+  it("is left alone on a market that never said what it allows", async () => {
+    // No limit means no maintenance margin, so no price at which the exchange
+    // steps in. The engine must not invent one — that is not its call. A real
+    // run never gets here: `replayMarketRules` fills the limit in first, from
+    // Hyperliquid where the coin is listed and from a written-down assumption
+    // where it is not, precisely so a borrowed replay cannot be un-closable.
+    const coins = [
+      {
+        ...coin("hyperliquid:mainnet:AAA", sinking),
+        rules: { ...rules, maxLeverage: null },
+      },
+    ]
+
+    const outcome = await runBacktest(
+      inputFor(coins, { params: params({ leverage: 2 }) })
+    )
+
+    expect(
+      outcome.coins[0].fills.filter((fill) => fill.reason === "liquidated")
+    ).toHaveLength(0)
+  })
+})
+
+/**
+ * Why a coin never got a ladder.
+ *
+ * The engine decides this on every bar of every coin and used to throw the
+ * answer away, so a coin that did nothing was a blank row — and finding out
+ * whether it was waiting for a base, already under one, or simply could not be
+ * afforded meant reading the price history by hand against the settings.
+ */
+describe("a coin the run never armed", () => {
+  it("records why, and how many bars it held", async () => {
+    // Anchored to a base with no base to be found: `baseBars` is empty, so
+    // every bar answers the same way.
+    const outcome = await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", bars(6, 6))], {
+        params: params({ anchor: "base" }),
+      })
+    )
+
+    const refusals = outcome.coins[0].armRefusals
+    expect(refusals[0]?.reason).toBe("SMART_LADDER_NO_BASE")
+    expect(refusals[0]?.bars).toBeGreaterThan(1)
+    expect(outcome.coins[0].fills).toHaveLength(0)
+  })
+
+  it("says nothing about a coin that armed straight away", async () => {
+    const outcome = await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", bars(10, 10))])
+    )
+
+    expect(outcome.coins[0].fills.length).toBeGreaterThan(0)
+    expect(outcome.coins[0].armRefusals).toEqual([])
+  })
+})

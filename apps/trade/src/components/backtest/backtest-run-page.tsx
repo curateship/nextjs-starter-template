@@ -20,6 +20,7 @@ import {
 } from "@/lib/api/backtests"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
+import { resultSummary } from "@/lib/trade/backtest/result"
 import type {
   BacktestCoinSummary,
   BacktestFillMark,
@@ -242,7 +243,11 @@ export function BacktestRunPage({
 
   const statsPanel = (
     <BacktestStatsPanel
-      summary={run.summary}
+      // Nothing tested is not a result. A run stopped before it started still
+      // writes a summary — same ending code either way — and drawn as figures
+      // it reads as a finished backtest that found nothing rather than one that
+      // never ran. Same reason as the canvas panel's own guard.
+      summary={resultSummary(run.summary)}
       result={run.result}
       spec={run.spec}
       coinsTotal={coins.length}

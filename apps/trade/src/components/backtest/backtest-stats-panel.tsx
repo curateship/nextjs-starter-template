@@ -34,6 +34,30 @@ import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
  * numbers you check first and then stop reading. The line under them is the
  * same money over time, which is the one thing the tiles cannot say.
  */
+
+/**
+ * The bottom of the pot chart's log axis.
+ *
+ * A log scale has no zero to start from, so it needs a floor — and the floor
+ * has to sit under the lowest the pot ever got, or the worst moment of the run
+ * is clipped off the bottom of the picture that exists to show it. A tenth
+ * below the low leaves the line clear of the edge without flattening it.
+ *
+ * A tenth below whatever the low was, never a fixed number: clamping to a
+ * round floor like one dollar would clip the bottom off any run that fell
+ * under it, which is the one case this whole function exists for.
+ *
+ * One dollar only when there is nothing to read at all — a scale Recharts
+ * accepts, and an empty chart cannot be wrong about it.
+ */
+function potFloor(points: readonly { usd: number }[]): number {
+  let low = Number.POSITIVE_INFINITY
+  for (const point of points) {
+    if (point.usd > 0 && point.usd < low) low = point.usd
+  }
+  return Number.isFinite(low) && low > 0 ? low * 0.9 : 1
+}
+
 const potConfig: ChartConfig = {
   usd: { label: "The pot", color: "var(--foreground)" },
 }
@@ -75,7 +99,7 @@ export function BacktestStatsPanel({
             <p className="p-2 text-xs text-muted-foreground">
               {running
                 ? "Still loading its candles — nothing is worked out yet."
-                : "This run finished without a result."}
+                : "This run ended without testing a coin — it was stopped, or every coin was skipped."}
             </p>
           ) : (
             <>
@@ -168,6 +192,17 @@ export function BacktestStatsPanel({
                   }
                   sub={`${formatUsd(summary.typicalInPlayUsd)} typically in trades`}
                 />
+                {/* Only on a run where it happened. Without borrowing it is
+                    always zero, and a permanent zero tile is one the eye stops
+                    reading — including on the run where it finally matters. */}
+                {(figure(summary.tradesLiquidated) ?? 0) > 0 ? (
+                  <BacktestKpi
+                    label="Liquidated"
+                    value={formatSignedUsd(summary.liquidatedUsd)}
+                    sub={`${summary.tradesLiquidated} ${summary.tradesLiquidated === 1 ? "trade" : "trades"} taken by the exchange`}
+                    tone={summary.liquidatedUsd}
+                  />
+                ) : null}
                 <BacktestKpi
                   label="In coins"
                   value={formatUsd(summary.openAtEndUsd)}
@@ -204,12 +239,27 @@ export function BacktestStatsPanel({
                             read "The pot / The pot 11,676" and the one thing
                             it could not tell you was when. */}
                         <XAxis dataKey="label" hide />
+                        {/* **Log, not linear.** A run that ends at a million
+                            draws its first two years as four pixels of flat
+                            line on a linear axis — so a fall from $51,655 to
+                            $10,716, four fifths of everything there was, is
+                            invisible while the headline figure reports it at
+                            79%. The better the run did, the more of its own
+                            history the chart erased.
+
+                            On a log axis a halving is the same height wherever
+                            it happens, which is how a fall is actually judged.
+                            The floor is explicit because a log scale cannot
+                            draw zero, and it sits below the lowest point the
+                            pot reached so nothing is clipped off the bottom. */}
                         <YAxis
                           axisLine={false}
                           tickLine={false}
                           tick={{ fontSize: 9 }}
                           width={52}
-                          domain={["auto", "auto"]}
+                          scale="log"
+                          domain={[potFloor(result.equity), "auto"]}
+                          allowDataOverflow={false}
                         />
                         {/* What it started with, so the line above or below it
                             is the whole answer at a glance. */}

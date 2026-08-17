@@ -347,6 +347,8 @@ describe("saving what a run found", () => {
     trades: 4,
     tradesClosed: 3,
     tradesWon: 2,
+    tradesLiquidated: 0,
+    liquidatedUsd: 0,
     warnings: [],
   }
 
@@ -362,7 +364,7 @@ describe("saving what a run found", () => {
       {
         attempt: claimed!.attempts,
         summary,
-        result: { equity: [], coins: [], skipped: [] },
+        result: { equity: [], inPlay: [], coins: [], skipped: [] },
         coins: [
           {
             marketKey: "hyperliquid:mainnet:AAA",
@@ -402,7 +404,7 @@ describe("saving what a run found", () => {
       {
         attempt: claimed!.attempts,
         summary,
-        result: { equity: [], coins: [], skipped: [] },
+        result: { equity: [], inPlay: [], coins: [], skipped: [] },
         coins: [],
         now: NOW,
       },
@@ -425,7 +427,7 @@ describe("saving what a run found", () => {
         {
           attempt: first!.attempts,
           summary,
-          result: { equity: [], coins: [], skipped: [] },
+          result: { equity: [], inPlay: [], coins: [], skipped: [] },
           coins: [],
           now: NOW + 7 * 60_000,
         },

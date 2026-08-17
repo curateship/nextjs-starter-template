@@ -13,6 +13,9 @@ import {
   ladderFirstBuyPx,
   baseStopPx,
   rungBudget,
+  floorSize,
+  volumeCapUsd,
+  sizeOneOrder,
   type LadderPlan,
   type LadderRungState,
 } from "./dca"
@@ -86,7 +89,39 @@ describe("dcaLadderPlan", () => {
     maxPositionPct: 20,
     sizeMultiplier: 2,
     maxOrderVolPct: 0,
+    leverage: 1,
   }
+
+  it("buys twice as much coin at 2x, out of the same slice of the pot", () => {
+    // The whole of what borrowing means here. "20% per coin" still sets aside
+    // 20% — $2,000 of a $10,000 pot — and that $2,000 now holds $4,000 of coin.
+    const cash = dcaLadderPlan({
+      anchorPx: 100,
+      equity: 10_000,
+      params,
+      sizeDecimals: 3,
+      volume24hUsd: null,
+    })
+    const borrowed = dcaLadderPlan({
+      anchorPx: 100,
+      equity: 10_000,
+      params: { ...params, leverage: 2 },
+      sizeDecimals: 3,
+      volume24hUsd: null,
+    })
+
+    expect(cash.totalCost).toBeCloseTo(2_000, 0)
+    expect(borrowed.totalCost).toBeCloseTo(4_000, 0)
+    // Same prices, same shape — only the amount at each rung moved.
+    expect(borrowed.rungs.map((one) => one.px)).toEqual(
+      cash.rungs.map((one) => one.px)
+    )
+    for (const [index, rung] of borrowed.rungs.entries()) {
+      // Not exact: each size is floored to the market's own step, so doubling
+      // then flooring is a thousandth off flooring then doubling.
+      expect(rung.sz).toBeCloseTo(cash.rungs[index].sz * 2, 2)
+    }
+  })
 
   it("prices, funds and sizes every rung from the same arithmetic", () => {
     const plan = dcaLadderPlan({
@@ -147,6 +182,7 @@ describe("ladder plans", () => {
     startedAt: 0,
     sizeDecimals: 3,
     maxLeverage: 50,
+    leverage: 1,
     rungs: [
       {
         px: 95,
@@ -300,5 +336,127 @@ describe("adding a rung to a ladder", () => {
 
   it("never sends a rung past 99 percent below", () => {
     expect(nextDcaRung([{ deviation: 60 }, { deviation: 90 }]).deviation).toBe(99)
+  })
+})
+
+/**
+ * The arithmetic that turns dollars into coins.
+ *
+ * Every rung, on every ladder, on every run passes through here — so a rounding
+ * mistake in it is not one wrong trade, it is every number on the results page
+ * being slightly untrue with nothing on screen to show it. None of these three
+ * had a test.
+ */
+describe("rounding a size to the market's step", () => {
+  it("always rounds DOWN, never up into more risk", () => {
+    expect(floorSize(1.999, 0)).toBe(1)
+    expect(floorSize(1.999, 2)).toBe(1.99)
+    expect(floorSize(1.999, 3)).toBe(1.999)
+  })
+
+  it("treats a market with no stated step as whole coins", () => {
+    // Not "any precision". A null step is the exchange not saying, and buying
+    // 1.9 of something that only trades in whole units is an order it would
+    // refuse.
+    expect(floorSize(1.9, null)).toBe(1)
+  })
+
+  it("is nothing for anything that is not a real positive size", () => {
+    expect(floorSize(0, 3)).toBe(0)
+    expect(floorSize(-5, 3)).toBe(0)
+    expect(floorSize(Number.NaN, 3)).toBe(0)
+    expect(floorSize(Number.POSITIVE_INFINITY, 3)).toBe(0)
+  })
+})
+
+describe("the liquidity guard's ceiling", () => {
+  it("is that share of the coin's daily volume, in dollars", () => {
+    expect(volumeCapUsd(0.2, 50_000_000)).toBeCloseTo(100_000, 9)
+    expect(volumeCapUsd(5, 1_000)).toBeCloseTo(50, 9)
+  })
+
+  it("is off at zero, which is what off means", () => {
+    expect(volumeCapUsd(0, 50_000_000)).toBeNull()
+  })
+
+  it("is off — not zero — when the exchange gave no volume", () => {
+    // Null here means "nothing caps this". Returning 0 instead would cap every
+    // buy at nothing and silently stop a coin trading at all.
+    expect(volumeCapUsd(0.2, null)).toBeNull()
+    expect(volumeCapUsd(0.2, 0)).toBeNull()
+  })
+})
+
+describe("sizing one order", () => {
+  it("reports what it will ACTUALLY spend, not what it wanted", () => {
+    // 100 dollars at 3 each is 33.33 coins, floored to 33 — which is 99, not
+    // 100. Reporting the ask would overstate the money at work on every rung.
+    const sized = sizeOneOrder({
+      px: 3,
+      wantedUsd: 100,
+      capUsd: null,
+      sizeDecimals: 0,
+    })
+    expect(sized.sz).toBe(33)
+    expect(sized.dollars).toBeCloseTo(99, 9)
+    expect(sized.capped).toBe(false)
+    expect(sized.tooSmall).toBe(false)
+  })
+
+  it("shrinks to the guard and says it was shrunk", () => {
+    const sized = sizeOneOrder({
+      px: 1,
+      wantedUsd: 5_000,
+      capUsd: 400,
+      sizeDecimals: 2,
+    })
+    expect(sized.dollars).toBeCloseTo(400, 9)
+    expect(sized.capped).toBe(true)
+  })
+
+  it("does not claim it was capped when the guard never bit", () => {
+    const sized = sizeOneOrder({
+      px: 1,
+      wantedUsd: 100,
+      capUsd: 400,
+      sizeDecimals: 2,
+    })
+    expect(sized.capped).toBe(false)
+  })
+
+  it("flags an order under the exchange's dollar minimum", () => {
+    // $9 of a $1 coin is a real size and still not an order anybody can send.
+    expect(
+      sizeOneOrder({ px: 1, wantedUsd: 9, capUsd: null, sizeDecimals: 2 })
+        .tooSmall
+    ).toBe(true)
+    expect(
+      sizeOneOrder({ px: 1, wantedUsd: 11, capUsd: null, sizeDecimals: 2 })
+        .tooSmall
+    ).toBe(false)
+  })
+
+  it("flags a size that rounds away to nothing", () => {
+    const sized = sizeOneOrder({
+      px: 1_000_000,
+      wantedUsd: 100,
+      capUsd: null,
+      sizeDecimals: 0,
+    })
+    expect(sized.sz).toBe(0)
+    expect(sized.dollars).toBe(0)
+    expect(sized.tooSmall).toBe(true)
+  })
+
+  it("spends nothing on a market with no usable price", () => {
+    const sized = sizeOneOrder({
+      px: 0,
+      wantedUsd: 100,
+      capUsd: null,
+      sizeDecimals: 2,
+    })
+    expect(sized.sz).toBe(0)
+    expect(sized.dollars).toBe(0)
+    expect(sized.tooSmall).toBe(true)
   })
 })

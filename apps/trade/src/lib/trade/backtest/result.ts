@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import { dcaParamsSchema } from "@/lib/trade/dca"
+import { flowWaitWords } from "@/lib/trade/flow-waiting"
 import { indicatorSettingsSchema } from "@/lib/trade/indicators/registry"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 
@@ -453,6 +454,67 @@ export const backtestCoinSummarySchema = z.object({
   won: z.number(),
   /** How many closed at all — the denominator for the one above. */
   closed: z.number(),
+  /**
+   * How many of this coin's trades the exchange closed out, and what they cost.
+   *
+   * Kept apart from the other losses because it is the one ending the ladder
+   * has no answer to: a stop sells and leaves the money to buy back with, and a
+   * liquidation takes the position off you at the exchange's price. Defaulted
+   * so every run saved before borrowing existed reads back as none, which is
+   * what it was.
+   */
+  liquidated: z.number().default(0),
+  liquidatedUsd: z.number().default(0),
+  /**
+   * Why this coin never got a ladder, when it did not — every reason the run
+   * turned it down, and how many bars each one held it back.
+   *
+   * **Because "it did nothing" is not an answer.** A coin with no trades used
+   * to be a blank row, and working out whether it was waiting for a base, was
+   * already below one, or simply could not be afforded meant reading the price
+   * history by hand against the ladder's settings. The engine decides this on
+   * every bar and knew the reason each time; it was thrown away.
+   *
+   * Only counted on bars where a ladder COULD have been armed — a coin already
+   * holding a position is not being refused, it is busy.
+   *
+   * Empty on runs saved before this existed, which reads correctly as "nothing
+   * recorded" rather than as "never refused".
+   */
+  armRefusals: z
+    .array(
+      z.object({
+        /** The engine's own code, worded by `flowWaitWords`. */
+        reason: z.string(),
+        /** How many bars it gave this answer. */
+        bars: z.number(),
+        /** The last bar it did, so it can be found on the chart. */
+        lastAt: z.number(),
+      })
+    )
+    .default([]),
+  /**
+   * Every change to every rung, oldest first — what the ladder actually had on
+   * the book, bar by bar.
+   *
+   * **A fill only says what bought.** It says nothing about the rungs that did
+   * not: whether they were waiting with an order, had been skipped because
+   * price was already past them, or had been killed under the stop. So "price
+   * fell through rung 5 and nothing happened" had no answer but guesswork.
+   *
+   * Changes only — a rung that sits waiting for a year is one entry, not two
+   * thousand.
+   */
+  rungEvents: z
+    .array(
+      z.object({
+        rung: z.number(),
+        at: z.number(),
+        px: z.number(),
+        state: z.string(),
+      })
+    )
+    .default([]),
   /** The worst this coin's banked money fell from its own high, in dollars. */
   worstDipUsd: z.number(),
   /**
@@ -574,6 +636,16 @@ export const backtestSummarySchema = z.object({
   tradesClosed: z.number(),
   /** How many of those banked money. */
   tradesWon: z.number(),
+  /**
+   * How many round trips across every coin ended with the exchange closing the
+   * position, and what those cost in dollars.
+   *
+   * On the results card rather than buried, because it is the whole price of
+   * borrowing: at 1× it is always zero, and any other number is the strategy
+   * being overruled. Defaulted for runs saved before borrowing existed.
+   */
+  tradesLiquidated: z.number().default(0),
+  liquidatedUsd: z.number().default(0),
   /** Things that make the result less believable, in plain words. */
   warnings: z.array(z.string()),
 })
@@ -584,6 +656,19 @@ export type BacktestSummary = z.infer<typeof backtestSummarySchema>
 export const backtestResultSchema = z.object({
   /** The combined pot at each bar, for the line on the run page. */
   equity: z.array(z.object({ t: z.number(), usd: z.number() })),
+  /**
+   * What was tied up in trades at each of those same bars, in dollars.
+   *
+   * **Saved so the two wallet figures can be checked.** "Peak wallet" and
+   * "avg wallet" were worked out from this and then it was thrown away, which
+   * left them as the only numbers on the results page that could not be
+   * recomputed from anything — they had to be taken on trust, and this is a
+   * page where several numbers have turned out not to deserve it.
+   *
+   * Same length and same order as `equity`, so a bar's pot and what it had at
+   * work line up by position. Empty on runs saved before it was kept.
+   */
+  inPlay: z.array(z.number()).default([]),
   coins: z.array(backtestCoinSummarySchema),
   skipped: z.array(backtestSkipSchema),
 })
@@ -687,6 +772,7 @@ export function worstDip(points: readonly { t: number; usd: number }[]): {
   peak: number
 } {
   let high = Number.NEGATIVE_INFINITY
+  let worstShare = 0
   let worst = 0
   let at: number | null = null
   let peak = points[0]?.usd ?? 0
@@ -694,7 +780,18 @@ export function worstDip(points: readonly { t: number; usd: number }[]): {
   for (const point of points) {
     if (point.usd > high) high = point.usd
     const dip = high - point.usd
-    if (dip > worst) {
+    // **The deepest fall as a SHARE of the top it fell from, not the biggest
+    // number of dollars.** They are not the same answer on a run that grew,
+    // and picking by dollars hides the worse one every time: a run that went
+    // from $10,000 to $107,000 reported 19.6% — $25,600 off a $130,000 peak in
+    // its last month — while quietly containing a 40.5% collapse from $15,123
+    // to $8,997, below what it started with, eighteen months earlier. The
+    // better a run did, the more it hid. And it is the percentage that answers
+    // the only question anybody has of this figure, which is whether they
+    // would still have been in the trade.
+    const share = high > 0 ? dip / high : 0
+    if (share > worstShare) {
+      worstShare = share
       worst = dip
       at = point.t
       peak = high
@@ -738,4 +835,50 @@ export type BacktestListRow = {
   progressNote: string
   coinsDone: number
   coinsTotal: number
+}
+
+/**
+ * A run's figures, or null when it never actually tested anything.
+ *
+ * **A run that ends early still writes a summary.** The code that finishes a
+ * run is the same whether it walked five hundred coins or was stopped in its
+ * first fraction of a second, so a run that never started leaves behind a
+ * complete-looking set of zeroes. On screen that reads "Made or lost $0.00,
+ * Coins tested 0, Finished 9 minutes ago" — a finished backtest that found
+ * nothing, rather than one that never ran, which looks exactly like the app
+ * being broken.
+ *
+ * Both places that draw a result ask this instead of reading `summary`
+ * directly, so the two can never disagree about what counts as one.
+ */
+export function resultSummary(
+  summary: BacktestSummary | null | undefined
+): BacktestSummary | null {
+  if (!summary || summary.coinsTested <= 0) return null
+  return summary
+}
+
+/**
+ * Why a coin the run walked never traded, in the words the rest of the app
+ * already uses for the same refusals.
+ *
+ * Null when it did trade, and null on a run saved before the reasons were
+ * recorded — "nothing to say" rather than a made-up answer.
+ *
+ * Only the heaviest reason. A coin can be turned down for two or three
+ * different things over five years of bars, but the one that held it back for
+ * a thousand bars is the answer and the rest are noise; the full tally is on
+ * the summary for anyone who wants it.
+ */
+export function whyNoLadder(
+  summary: Pick<BacktestCoinSummary, "trades" | "armRefusals">
+): { words: string; bars: number; lastAt: number } | null {
+  if (summary.trades > 0) return null
+  const worst = summary.armRefusals[0]
+  if (!worst) return null
+  return {
+    words: flowWaitWords(worst.reason),
+    bars: worst.bars,
+    lastAt: worst.lastAt,
+  }
 }
