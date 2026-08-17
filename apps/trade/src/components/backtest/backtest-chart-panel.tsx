@@ -52,6 +52,7 @@ export function BacktestChartPanel({
   openCoin,
   bars,
   fills,
+  trades,
   focusTrade,
   spec,
   interval,
@@ -65,6 +66,8 @@ export function BacktestChartPanel({
   openCoin: string | null
   bars: readonly CandleBar[]
   fills: readonly BacktestFillMark[]
+  /** Every round trip on this coin — where the picked trade's ladder-mates are found. */
+  trades: readonly BacktestTrade[]
   /** The trade picked in the list below, joined up on the chart. */
   focusTrade: BacktestTrade | null
   /** The run's own settings — what a base is, for this run. */
@@ -140,12 +143,29 @@ export function BacktestChartPanel({
   // Off the candles themselves, so no timeframe is written down twice.
   const barMs = bars.length > 1 ? bars[1].openTime - bars[0].openTime : 0
 
+  // The picked trade AND every other rung its exit closed. A sell that took
+  // out three rungs is three round trips sharing one exit arrow, and picking
+  // any of them is picking the same event — so all of them get their dotted
+  // line, and the zoom below reaches back to the earliest of their buys.
+  const focusTrades = React.useMemo<readonly BacktestTrade[]>(() => {
+    if (!focusTrade) return []
+    if (focusTrade.exitAt === null) return [focusTrade]
+    return trades.filter(
+      (trade) =>
+        trade.exitAt === focusTrade.exitAt && trade.exitPx === focusTrade.exitPx
+    )
+  }, [focusTrade, trades])
+
   const focusView = React.useMemo<ChartView | null>(() => {
     if (!focusTrade || !(barMs > 0)) return null
 
     const newest = bars[bars.length - 1].openTime
     const endsAt = focusTrade.exitAt ?? newest
-    const spanBars = Math.max(1, (endsAt - focusTrade.entryAt) / barMs)
+    const startsAt = Math.min(
+      ...focusTrades.map((trade) => trade.entryAt),
+      focusTrade.entryAt
+    )
+    const spanBars = Math.max(1, (endsAt - startsAt) / barMs)
     // Room either side, and never so tight that a four-candle trade fills the
     // screen — the point is to see the trade IN its market, not on its own.
     const pad = Math.max(10, spanBars * 0.75)
@@ -155,7 +175,7 @@ export function BacktestChartPanel({
       marginTop: DEFAULT_MARGIN_TOP,
       marginBottom: DEFAULT_MARGIN_BOTTOM,
     }
-  }, [focusTrade, bars, barMs])
+  }, [focusTrade, focusTrades, bars, barMs])
 
   return (
     <>
@@ -251,7 +271,11 @@ export function BacktestChartPanel({
                   <BacktestMarksLayer surface={surface} fills={fills} />
                   {/* Over the arrows: a picked trade is what you are looking
                       at, and its box has to be readable through them. */}
-                  <BacktestFocusLayer surface={surface} trade={focusTrade} />
+                  <BacktestFocusLayer
+                    surface={surface}
+                    trades={trades}
+                    focus={focusTrades}
+                  />
                   <PaintLayer
                     surface={surface}
                     drawings={paint.drawings}
