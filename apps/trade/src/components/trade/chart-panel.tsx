@@ -38,6 +38,7 @@ import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
   CANDLE_INTERVALS,
   type CandleBar,
@@ -57,6 +58,7 @@ import {
 } from "@/lib/trade/smart-plan"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
+import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
   indicatorPaint,
@@ -148,6 +150,7 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  initialQuickOrder,
   options,
   indicators,
   market,
@@ -163,6 +166,12 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /**
+   * How the right-click order window was last set up, from the same loader.
+   * The window opens on a click, so anything read after it is on screen would
+   * arrive too late to be any use to somebody already typing.
+   */
+  initialQuickOrder: QuickOrderPrefs
   /** Which supporting parts of the chart are visible. */
   options: ChartOptions
   /** Which indicators are on and what each is set to, owned by the workspace. */
@@ -221,6 +230,17 @@ export function ChartPanel({
   // The zoom and scroll, which belong to neither: one view, carried onto
   // whatever market and timeframe you open next.
   const chartView = useRememberedChartView(initialChartView)
+
+  // How the order window is set up, held here rather than inside the window —
+  // the window is thrown away and rebuilt on every right-click, so it has
+  // nowhere to keep anything. Written down as well, best-effort: a failed
+  // write only loses the memory, and a toast about it would interrupt somebody
+  // who has just placed an order and is watching for it to land.
+  const [quickPrefs, setQuickPrefs] = React.useState(initialQuickOrder)
+  const rememberQuickOrder = React.useCallback((next: QuickOrderPrefs) => {
+    setQuickPrefs(next)
+    saveQuickOrderPrefs(next).catch(() => {})
+  }, [])
 
   // Right-clicking the chart: the menu that opens under the pointer, and the
   // order window one of its rows opens at the same spot.
@@ -749,6 +769,8 @@ export function ChartPanel({
           // the order back in dollars before anything is sent.
           real={trading.wallet?.kind === "live"}
           free={free}
+          prefs={quickPrefs}
+          onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
           onPlace={(input) => trading.place({ marketKey: market.key, ...input })}
         />

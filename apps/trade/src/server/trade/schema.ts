@@ -29,6 +29,7 @@ import type {
 } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
+import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
@@ -115,6 +116,11 @@ export const tradePrefs = pgTable("trade_prefs", {
   // shape the placement endpoint validates, and has no business carrying an
   // answer about what somebody could be bothered to look at.
   cardFolds: jsonb("card_folds").$type<CardFolds>(),
+  // The right-click order window's last-used settings: how much, in what, at
+  // what leverage, and where it gets out. `quickOrderPrefsSchema` is the only
+  // way in or out. Deliberately not carrying "only reduce what I hold", which
+  // is about the position in front of you and must not follow you around.
+  quickOrder: jsonb("quick_order").$type<QuickOrderPrefs>(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

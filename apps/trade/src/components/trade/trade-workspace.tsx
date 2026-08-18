@@ -64,6 +64,7 @@ import {
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 
 /**
@@ -127,6 +128,7 @@ export function TradeWorkspace({
   initialChartOptions,
   initialIndicators,
   initialCardFolds,
+  initialQuickOrder,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -145,6 +147,8 @@ export function TradeWorkspace({
   initialIndicators: IndicatorSettings
   /** How the trading windows' settings cards were left folded. */
   initialCardFolds: CardFoldsValue
+  /** How the right-click order window was last set up. */
+  initialQuickOrder: QuickOrderPrefs
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -371,6 +375,7 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            initialQuickOrder={initialQuickOrder}
             options={chartOptions.options}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
