@@ -660,6 +660,13 @@ export function AutomationEditor({
           <WorkflowIcon className="size-4" />
         )
       }
+      // A template already carries its way out on the right, as a named
+      // button. Only the real flow's icon is spare enough to become the arrow.
+      back={
+        templateMode
+          ? undefined
+          : { to: "/admin/automations", label: "Back to automations" }
+      }
       title={name}
       meta={templateMode ? "Template" : undefined}
       action={

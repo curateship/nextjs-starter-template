@@ -1,6 +1,9 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
+import { ArrowLeftIcon } from "lucide-react"
 
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
 export const workspacePanelHeadingClassName =
@@ -9,11 +12,24 @@ export const workspacePanelHeadingClassName =
 export const workspacePanelTabClassName =
   "font-heading text-[0.792rem] font-medium"
 
+const backTargetClassName =
+  "-m-1 flex size-6 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
+
 export function WorkspacePanelHeaderIcon({
   className,
+  interactive,
   children,
 }: {
   className?: string
+  /**
+   * The slot holds a real control — the way back — rather than decoration.
+   *
+   * Decoration is hidden from screen readers, because an icon beside a title
+   * only says the title again. A button in that same square is the opposite:
+   * hiding it leaves something a keyboard can land on and a screen reader
+   * cannot name.
+   */
+  interactive?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -22,7 +38,7 @@ export function WorkspacePanelHeaderIcon({
         "flex size-4 shrink-0 items-center justify-center text-muted-foreground",
         className
       )}
-      aria-hidden
+      aria-hidden={interactive ? undefined : true}
     >
       {children}
     </span>
@@ -41,12 +57,26 @@ export function WorkspacePanelHeaderIcon({
  */
 export function WorkspacePanelHeader({
   icon,
+  back,
   title,
   meta,
   action,
   className,
 }: {
   icon: React.ReactNode
+  /**
+   * Turns the icon into the way out. A header opened from a list — one email,
+   * one automation, one backtest — has an icon that only repeats what the
+   * title already says, so the same square carries an arrow back instead.
+   *
+   * Either a place to go or something to do, because not every one of these
+   * navigates: the backtest header's arrow swaps the picture where it stands.
+   * Both are drawn here so the two can never end up different sizes.
+   */
+  back?: { label: string } & (
+    | { to: string; onClick?: never }
+    | { onClick: () => void; to?: never }
+  )
   title: React.ReactNode
   meta?: React.ReactNode
   action?: React.ReactNode
@@ -60,7 +90,33 @@ export function WorkspacePanelHeader({
         className
       )}
     >
-      <WorkspacePanelHeaderIcon>{icon}</WorkspacePanelHeaderIcon>
+      <WorkspacePanelHeaderIcon interactive={back !== undefined}>
+        {back ? (
+          /* Pulled in by a quarter on every side: the slot is 16px and this
+             target is 24px, so without it the hover box grows out of the slot
+             and sits off-centre against the title beside it. */
+          back.to !== undefined ? (
+            <Link
+              to={back.to}
+              aria-label={back.label}
+              className={cn(backTargetClassName, focusRing)}
+            >
+              <ArrowLeftIcon className="size-4" />
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={back.onClick}
+              aria-label={back.label}
+              className={cn(backTargetClassName, focusRing)}
+            >
+              <ArrowLeftIcon className="size-4" />
+            </button>
+          )
+        ) : (
+          icon
+        )}
+      </WorkspacePanelHeaderIcon>
       <h2 className={cn("min-w-0 truncate", workspacePanelHeadingClassName)}>
         {title}
       </h2>

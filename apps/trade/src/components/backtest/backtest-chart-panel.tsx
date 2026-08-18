@@ -3,7 +3,6 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
   CandlestickChartIcon,
-  ChevronLeftIcon,
   SlidersHorizontalIcon,
   TrendingUpIcon,
 } from "lucide-react"
@@ -36,8 +35,6 @@ import {
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
 import { indicatorPaint } from "@/lib/trade/indicators/registry"
@@ -218,40 +215,21 @@ export function BacktestChartPanel({
   return (
     <>
       <WorkspacePanelHeader
-        // The way back to the other picture, in the panel's own icon slot: from
-        // the Graph to the market's candles, and from the candles to the Graph.
-        // On a run with no Graph to go to it falls back to the list of runs,
-        // which is the only other place there is.
-        //
-        // Pulled out by a quarter on each side in both cases. The header's icon
-        // slot is 16px and this target is 24px, so without the negative margin
-        // the hover box grew out of its slot and sat off-centre against the
-        // title beside it.
-        icon={
-          hasGraph ? (
-            <button
-              type="button"
-              onClick={onSwapView}
-              aria-label={showGraph ? "Back to the market's chart" : "Back to the graph"}
-              className={cn(
-                "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-                focusRing
-              )}
-            >
-              <ChevronLeftIcon className="size-4" />
-            </button>
-          ) : (
-            <Link
-              to="/backtests"
-              aria-label="Back to every backtest"
-              className={cn(
-                "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-                focusRing
-              )}
-            >
-              <ChevronLeftIcon className="size-4" />
-            </Link>
-          )
+        // The way back to the other picture: from the Graph to the market's
+        // candles, and from the candles to the Graph. On a run with no Graph to
+        // go to it falls back to the list of runs, which is the only other
+        // place there is. The header draws it, so this arrow is the same one
+        // an automation and a newsletter get.
+        icon={null}
+        back={
+          hasGraph
+            ? {
+                onClick: onSwapView,
+                label: showGraph
+                  ? "Back to the market's chart"
+                  : "Back to the graph",
+              }
+            : { to: "/backtests", label: "Back to every backtest" }
         }
         title={
           showGraph
