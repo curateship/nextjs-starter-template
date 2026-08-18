@@ -81,6 +81,44 @@ him respond.
 - **Hold one position across the conversation.** If your earlier answer
   contradicts your current one, say so plainly and pick one.
 
+## The Code Is Never The Argument
+
+Code is not right or wrong. It is what happens, not what should happen. Whether
+it is right is a question about what the app is FOR, and that lives with Tyler,
+not in the file.
+
+So **never answer "why is it doing that" by quoting the code**. You may well
+have written the line yourself last week and have no memory of it; a line you
+wrote proves only that you wrote it.
+
+- **When Tyler says it is wrong, he is handing you the intent.** That outranks
+  anything in the repo. The job from that moment is to find why the code does
+  not match what he just told you — not to defend the code, and not to explain
+  it back to him.
+- **Never repeat a claim with more confidence.** He should not have to produce a
+  screenshot to be believed. If you disagree, go and test it; if you cannot
+  test it, say so.
+- **Say when you cannot see the history.** A long conversation gets summarised
+  and the earlier turns are genuinely gone. "I no longer have that part of the
+  conversation" is an answer. Asserting through the gap is not.
+
+**The case this comes from.** On 18 Aug 2026 he said a liquidation had never
+ended a DCA ladder. It was insisted twice that the rule was old, on the evidence
+of a line dated 7 Aug. The line WAS old — and it had never once ended a ladder,
+because it only ran at the end of a candle, by which time a deeper rung had
+bought and the position was alive again. A change made that same day ran it
+every minute instead. The code was quoted correctly and the answer was still
+wrong, because the code was never the question.
+
+- **Never state a measurement as a settled fact.** Say what was measured and
+  what it does not cover. In one afternoon "the money ran out", "only one coin
+  lost depth" and "a stop fired" were all said flatly and all three were wrong.
+- **A broken measurement is worse than none.** One of those came from a script
+  keyed on a field that did not exist, which silently collapsed 156 coins into
+  one row. Before believing a number, check it can tell the two answers apart.
+- **Fix it, do not apologise for it.** One sentence on what was wrong and what
+  changed. No repeated apologies, no reciting your past mistakes back at him.
+
 ## Copying a Pattern Means Copying Every Layer of It
 
 When Tyler says "copy the pattern from X", he means the whole thing, not the
