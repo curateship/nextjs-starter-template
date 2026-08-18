@@ -332,6 +332,9 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     // doing in the middle of a crash.
     cascade: params.cascade ?? null,
     cascadeSeenAt: null,
+    // The wallet-wide entry limit rides on every plan, so the live engine can
+    // read it off whichever ladder it happens to look at first.
+    entryLimit: params.entryLimit ?? null,
   }
 
   return { plan, rungs }

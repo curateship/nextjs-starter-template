@@ -259,11 +259,43 @@ describe("the account's five figures", () => {
       positions: [position],
       marks: new Map([["hyperliquid:mainnet:BTC", 110]]),
     })
-    // Cash is 10,250. The position holds 40 of it as margin and is up 20.
+    // Cash is 10,250. The position holds 40 of it as margin and is up 20, and
+    // being up is money the account has: what is free to spend is what the
+    // account is WORTH less what is committed, which is how an exchange
+    // answers it. 10,250 + 20 − 40.
     expect(figures.inTrades).toBe(40)
     expect(figures.openProfit).toBe(20)
-    expect(figures.free).toBe(10_210)
+    expect(figures.free).toBe(10_230)
     expect(figures.equity).toBe(10_270)
+  })
+
+  it("counts a position that is down against what is left to spend", () => {
+    // The one that mattered. Cash does not move while a position is losing —
+    // nothing has closed — so the old answer said the whole $10,250 was still
+    // there to spend. A replay took that at its word on 13 June 2022 and held
+    // $12,460 of margin against a wallet worth $9,273.
+    const figures = paperAccountFigures({
+      startingBalance: 10_000,
+      realized: 250,
+      positions: [position],
+      // Bought at 100, now worth 60: down $80 on two coins.
+      marks: new Map([["hyperliquid:mainnet:BTC", 60]]),
+    })
+    expect(figures.openProfit).toBe(-80)
+    expect(figures.equity).toBe(10_170)
+    expect(figures.free).toBe(10_130)
+  })
+
+  it("never says less than nothing is free", () => {
+    // Losses past the margin are a real state — the account is worth less than
+    // what it has committed — and it is still not a negative amount of money.
+    const figures = paperAccountFigures({
+      startingBalance: 100,
+      realized: 0,
+      positions: [position],
+      marks: new Map([["hyperliquid:mainnet:BTC", 1]]),
+    })
+    expect(figures.free).toBe(0)
   })
 
   it("says a wallet that has never traded is exactly its starting cash, all free", () => {

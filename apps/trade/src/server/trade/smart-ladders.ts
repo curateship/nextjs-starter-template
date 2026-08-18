@@ -14,6 +14,10 @@ import {
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
+import {
+  canOpenAnother,
+  type EntryLimit,
+} from "@/lib/trade/entry-limit"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
@@ -234,6 +238,38 @@ export async function advanceLadders(
       )
     )
 
+  // The wallet's own rule, taken off the plans on it.
+  //
+  // It lives on the book because it counts COINS across the wallet, and no one
+  // ladder can see the others. Every ladder a flow places carries the same
+  // numbers, so the first one that has them answers for all of them; a wallet
+  // with none is unchanged.
+  for (const raw of rows) {
+    const plan = readSmartPlan(readSmartOrderKind(raw.kind) ?? "dca", raw.plan)
+    const limit = (plan as { entryLimit?: EntryLimit | null } | null)?.entryLimit
+    if (limit) {
+      input.book.entryLimit = limit
+      break
+    }
+  }
+
+  // The same for the crash rule's leverage floor, and whether a crash is on.
+  // A rung fires without ever going through a ladder, so both have to be on
+  // the book before the first one is worked.
+  for (const raw of rows) {
+    const plan = readSmartPlan(readSmartOrderKind(raw.kind) ?? "dca", raw.plan)
+    const cascade = (plan as { cascade?: CascadeSettings | null } | null)
+      ?.cascade
+    if (!cascade) continue
+    const cascading =
+      input.cascading ?? cascadingFromLadderBars(cascade, input)
+    input.book.crashEntry = {
+      cascading,
+      leastLeverage: cascade.leastLeverage ?? null,
+    }
+    break
+  }
+
   for (const raw of rows) {
     const kind = readSmartOrderKind(raw.kind)
     if (!kind) continue
@@ -373,7 +409,17 @@ export async function advanceOne(
       // cancel by hand, or a buy the account could no longer afford.
       const exitId = exitOrderIdOf(rung.orderId)
       rung.orderId = null
-      rung.status = fillFor("buy", rung.px, rung.sz) ? "filled" : "skipped"
+      // Half way down a candle a rung is never written off. Its order may have
+      // been dropped a minute ago because the account could not afford it, and
+      // "skipped" is for ever — that is what emptied every deep rung of every
+      // ladder on 10 October 2025 once the walk started working ladders inside
+      // the candle. Left waiting, the end-of-candle pass decides as it always
+      // did, at the price the candle finished on.
+      rung.status = fillFor("buy", rung.px, rung.sz)
+        ? "filled"
+        : input.midCandle
+          ? "waiting"
+          : "skipped"
       // The exit that rode along with the buy is already on the book, or has
       // already filled. Claiming it here is what stops the block below from
       // placing a second sell at the same price.
@@ -444,10 +490,26 @@ export async function advanceOne(
   // `awaitingSteppedRung`.
   const betweenRungs = plan.awaitingSteppedRung && anyWaiting
 
+  // Wiped out — and the rungs below carry on.
+  //
+  // A liquidation is not the ladder finishing. It is the exchange taking one
+  // position away while the wallet still holds money, and the rungs under it
+  // are the whole reason the ladder exists: on 10 October 2025 GALA bought two
+  // rungs, was wiped at 0.006146, and had three rungs waiting between there
+  // and a fall of 66% — with $4,044 of the $6,956 wallet sitting free. Ending
+  // the ladder there cancelled all three.
+  //
+  // Only the rungs that had already bought are gone with the position. The
+  // ones still waiting have spent nothing, so nothing has happened to them.
+  const wipedOut = book.fills.some(
+    (fill) => fill.marketKey === row.marketKey && fill.reason === "liquidated"
+  )
+
   const over =
-    // The trade exited — stop, target, closed by hand, liquidated, or every
-    // slice sold. However it went, buying deeper is no longer the plan.
-    (anyBought && !position && !betweenRungs) ||
+    // The trade exited — stop, target, closed by hand, or every slice sold.
+    // However it went, buying deeper is no longer the plan. A liquidation is
+    // the exception: see above.
+    (anyBought && !position && !betweenRungs && !(wipedOut && anyWaiting)) ||
     // Turned into a short by hand: a buy ladder has no business adding to it.
     (position !== null && position.szi < 0) ||
     // Nothing waiting, nothing held, nothing resting: there is no ladder left.
@@ -702,6 +764,8 @@ async function reviveRungs(
     book: WalletBook
     marks: ReadonlyMap<string, number>
     now: number
+    /** The candle this pass is inside has not finished — see `advanceOne`. */
+    midCandle?: boolean
   },
   deps: LadderEngineDeps,
   row: LadderRow,
@@ -729,7 +793,12 @@ async function reviveRungs(
     // is a question of WHEN rungs are put back, not whether. Fixing it here
     // manufactures money.
     if (mark !== null && mark <= rung.px) {
-      rung.status = "skipped"
+      // Half way down a candle the moment has NOT passed — the candle is still
+      // happening. Left waiting, so the rung is still there when the cash that
+      // dropped its order comes back a few minutes later. Writing it off here
+      // is what left ACE holding one rung on 10 October 2025 while the four
+      // below it were cancelled three minutes after they were dropped.
+      if (!input.midCandle) rung.status = "skipped"
       continue
     }
     rung.orderId = await deps.insertOrder({
@@ -1119,6 +1188,9 @@ function watchCandles(
     const px = slippedPx(reached, "buy", input.book.costs.slippageRate)
     const sz = floorSize(rungBudget(next) / px, plan.sizeDecimals)
     if (sz <= 0) continue
+    if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
+      continue
+    }
     if (px * sz > deps.freeCash(input.book) + 1e-9) continue
     const priorSz = next.sz
 
@@ -1183,6 +1255,38 @@ function marketIsFunded(
   return market === "" || input.fundedMarkets.has(market)
 }
 
+/**
+ * May this ladder open a NEW coin on this wallet right now?
+ *
+ * The wallet-wide rules — the entry cap and the crash rule's leverage floor —
+ * are enforced where a rung actually fires. The replay's rungs rest as orders
+ * and are gated inside `fillOrder`; a practice or live rung is a TRIGGER that
+ * calls `deps.fill` directly, and without this check both rules were
+ * backtest-only: the one wallet they exist for — real money on a crash day —
+ * never saw them.
+ *
+ * Adding to a coin already held is never limited; the answer only matters for
+ * the fill that would open one. A refused rung is left waiting, and the next
+ * pass asks again — room comes back as the window moves and the crash ends.
+ */
+export function mayOpenCoin(
+  book: WalletBook,
+  marketKey: string,
+  maxLeverage: number,
+  now: number
+): boolean {
+  const held = book.positions.get(marketKey)
+  if (held && Math.abs(held.szi) > 1e-12) return true
+  if (
+    book.crashEntry.cascading &&
+    book.crashEntry.leastLeverage !== null &&
+    maxLeverage < book.crashEntry.leastLeverage
+  ) {
+    return false
+  }
+  return canOpenAnother(book.entryLimit, book.openedAt, now)
+}
+
 function fireRungsOnMark(
   plan: LadderPlan,
   input: LadderAdvanceInput,
@@ -1205,6 +1309,9 @@ function fireRungsOnMark(
     // waiting instead: pots move, and a rung too small today may clear the
     // bar tomorrow. The buy-back path applies the same rule.
     if (px * sz < MIN_ORDER_USD) continue
+    if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
+      continue
+    }
     if (px * sz > deps.freeCash(input.book) + 1e-9) continue
     const priorSz = rung.sz
     deps.fill(input.book, {

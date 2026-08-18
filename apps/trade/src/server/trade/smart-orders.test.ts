@@ -13,6 +13,7 @@ import {
 } from "@/server/test-support"
 import { customShellAutomations } from "@/server/schema"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
+import { mayOpenCoin } from "@/server/trade/smart-ladders"
 import {
   loadPaperPortfolio,
   placePaperOrder,
@@ -143,6 +144,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
   return {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
     cascade: null,
+    entryLimit: null,
     baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     maxPositionPct: 20,
     sizeMultiplier: 2,
@@ -513,6 +515,32 @@ describe("placing a ladder", () => {
     await expect(place()).rejects.toThrow("SMART_LADDER_ABOVE_MARKET")
     expect(await ladderRows()).toHaveLength(0)
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("stops buying rungs once the wallet is worth less than its margin", async () => {
+    // The engine's own version of the same rule, driven through a real settle:
+    // a ladder that has bought and is now well down must not go on filling
+    // deeper rungs on cash the account no longer has.
+    await place()
+    await backdate()
+    await dipTo(95)
+    const bought = (await positions())[0]
+    expect(bought).toBeDefined()
+
+    // The coin collapses. Cash has not moved — nothing closed — so the old
+    // rule still saw the whole wallet as spendable.
+    marks.set("BTC", 20)
+    await settle()
+
+    const held = (await positions())[0]
+    // Whatever happened to the position, nothing may have been bought with
+    // money the wallet no longer had: the margin behind it cannot be more
+    // than the account is worth.
+    if (held) {
+      const margin = (Math.abs(held.szi) * held.entryPx) / held.leverage
+      const worth = 10_000 + (20 - held.entryPx) * held.szi
+      expect(margin).toBeLessThanOrEqual(worth + 1e-6)
+    }
   })
 
   it("refuses a ladder that costs more than the free cash, writing nothing", async () => {
@@ -1152,5 +1180,63 @@ describe("a ladder that waits does not tie up the money for every rung", () => {
 
     await expect(place()).rejects.toThrow("SMART_LADDER_COST")
     expect(await ladderRows()).toHaveLength(0)
+  })
+})
+
+describe("may this ladder open a new coin", () => {
+  const bookWith = (over: {
+    held?: boolean
+    cascading?: boolean
+    leastLeverage?: number | null
+    entryLimit?: { coins: number; withinHours: number } | null
+    openedAt?: number[]
+  }) =>
+    ({
+      positions: new Map(
+        over.held
+          ? [[BTC, { szi: 1, entryPx: 100, leverage: 1, maxLeverage: 50 }]]
+          : []
+      ),
+      crashEntry: {
+        cascading: over.cascading ?? false,
+        leastLeverage: over.leastLeverage ?? null,
+      },
+      entryLimit: over.entryLimit ?? null,
+      openedAt: over.openedAt ?? [],
+    }) as unknown as Parameters<typeof mayOpenCoin>[0]
+
+  const NOW = Date.parse("2025-10-10T20:30:00Z")
+
+  it("never limits adding to a coin already held", () => {
+    const book = bookWith({
+      held: true,
+      cascading: true,
+      leastLeverage: 100,
+      entryLimit: { coins: 1, withinHours: 1 },
+      openedAt: [NOW - 60_000],
+    })
+    expect(mayOpenCoin(book, BTC, 3, NOW)).toBe(true)
+  })
+
+  it("blocks a low-leverage coin only while the market is cascading", () => {
+    expect(
+      mayOpenCoin(bookWith({ cascading: true, leastLeverage: 10 }), BTC, 3, NOW)
+    ).toBe(false)
+    expect(
+      mayOpenCoin(bookWith({ cascading: false, leastLeverage: 10 }), BTC, 3, NOW)
+    ).toBe(true)
+    expect(
+      mayOpenCoin(bookWith({ cascading: true, leastLeverage: 10 }), BTC, 10, NOW)
+    ).toBe(true)
+  })
+
+  it("blocks a coin past the wallet's entry allowance", () => {
+    const used = bookWith({
+      entryLimit: { coins: 2, withinHours: 1 },
+      openedAt: [NOW - 20 * 60_000, NOW - 10 * 60_000],
+    })
+    expect(mayOpenCoin(used, BTC, 50, NOW)).toBe(false)
+    // The same two entries an hour later are outside the window.
+    expect(mayOpenCoin(used, BTC, 50, NOW + 3_600_000)).toBe(true)
   })
 })

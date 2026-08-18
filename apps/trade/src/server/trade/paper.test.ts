@@ -788,7 +788,9 @@ describe("what the account is worth", () => {
     // One coin bought at 100 on 5x: 20 of margin, and 10 of profit at 110.
     expect(account?.inTrades).toBeCloseTo(20, 10)
     expect(account?.openProfit).toBeCloseTo(10, 10)
-    expect(account?.free).toBeCloseTo(10_000 - 100 * TAKER_FEE_RATE - 20, 8)
+    // Up ten on the position, and being up is money the account has: free is
+    // what it is worth less what is committed. 10,000 − fee − 20 margin + 10.
+    expect(account?.free).toBeCloseTo(10_000 - 100 * TAKER_FEE_RATE - 20 + 10, 8)
   })
 })
 

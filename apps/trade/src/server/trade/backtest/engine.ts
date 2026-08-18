@@ -24,6 +24,7 @@ import {
 } from "@/lib/trade/indicators/registry"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
 import {
+  liquidationPx,
   paperAccountFigures,
   positionMargin,
   type PaperCosts,
@@ -39,6 +40,8 @@ import {
   fill,
   freeCash,
   MAX_OPEN_ORDERS,
+  closeBar,
+  openBar,
   settleMarket,
   type WalletBook,
 } from "@/server/trade/paper"
@@ -83,6 +86,248 @@ import { advanceSignal, type SignalRow } from "@/server/trade/smart-signals"
  * runs where it is quickest to press.
  */
 const CHUNK_BARS = 50
+
+/**
+ * Could anything at all happen to this coin inside this bar?
+ *
+ * The answer is what makes zooming affordable. A ladder rests for days with
+ * price nowhere near a rung, and fetching minutes for every one of those days
+ * was most of the cost and changed nothing: with no level inside the bar's
+ * range, the minute-by-minute walk and the whole-bar walk fill exactly the same
+ * nothing.
+ *
+ * **It cannot miss anything.** Every price the real minutes visit is inside the
+ * bar's own high and low, so a level the minutes reach is a level this test has
+ * already said yes to. It is a superset, not a sample.
+ */
+function couldActInBar(
+  book: WalletBook,
+  marketKey: string,
+  bar: CandleBar
+): boolean {
+  const inRange = (level: number | null | undefined) =>
+    level != null && level >= bar.low && level <= bar.high
+
+  // The order's own price only. A resting buy carries the sell it will hand to
+  // the position (`exitPx`), and that price sits above the market for days on
+  // end — but it cannot fire until the buy has filled, and a bar the buy fills
+  // in has the buy's own price inside it anyway.
+  for (const order of book.orders) {
+    if (order.marketKey !== marketKey) continue
+    if (inRange(order.px)) return true
+  }
+
+  const held = book.positions.get(marketKey)
+  if (!held) return false
+  return (
+    inRange(held.tpPx) || inRange(held.slPx) || inRange(liquidationPx(held))
+  )
+}
+
+/** One minute of price. Binance's smallest candle, and the smallest we zoom to. */
+const MINUTE_MS = 60_000
+
+type WalkCoin = { marketKey: string }
+
+/**
+ * The old walk: one candle per coin, coins taken in turn.
+ *
+ * Every coin is first held at the worst price its own candle reached, because
+ * the coins are walked one after another and without it the ones further down
+ * the list are still valued where they closed LAST time while the market is
+ * falling through all of them at once. That is a guess, and a harsh one — see
+ * `walkByMinute` for the version that does not guess.
+ */
+function walkWholeBar(input: {
+  book: WalletBook
+  coins: readonly WalkCoin[]
+  barAt: Map<string, Map<number, CandleBar>>
+  time: number
+  barMs: number
+  closeTime: number
+}): void {
+  const { book, coins, barAt, time, barMs, closeTime } = input
+
+  const lows = new Map<string, number>()
+  for (const coin of coins) {
+    const bar = barAt.get(coin.marketKey)?.get(time)
+    if (bar && bar.low > 0) lows.set(coin.marketKey, bar.low)
+  }
+  openBar(book, lows)
+
+  for (const coin of coins) {
+    const bar = barAt.get(coin.marketKey)?.get(time)
+    if (!bar) continue
+    // No price "right now": a replay only knows what the bar said, and handing
+    // it today's price would let a trade see the future.
+    settleMarket(book, coin.marketKey, {
+      bars: [bar],
+      barMs,
+      mark: null,
+      now: closeTime,
+    })
+  }
+}
+
+/**
+ * The same bar walked on real minute prices, every coin advancing together.
+ *
+ * What it removes is the invented order of events. A four-hour candle that
+ * closed down is walked as open → high → low → close, because that is the
+ * conservative reading, but on 10 October 2025 the coins fell for eleven
+ * minutes and bottomed within five minutes of each other — and which of a rung
+ * and a stop came first decided whether the ladder bought the crash or was
+ * closed by it. Minute by minute there is nothing left to decide.
+ *
+ * It removes the money guess with it. Each minute every coin is marked where it
+ * really was at the end of that minute, so a coin that recovered early really
+ * does free up its money for the next coin's rung, and one still falling really
+ * does hold that money down.
+ *
+ * A minute is still a candle, so the same reading applies inside it — sixty
+ * seconds of it instead of four hours.
+ *
+ * Coins without minutes for this bar are walked whole afterwards. They are the
+ * ones holding nothing and resting nothing, so the bar cannot do anything to
+ * them; they are walked at all only so a coin picked up later starts from the
+ * right price.
+ */
+async function walkByMinute(input: {
+  book: WalletBook
+  coins: readonly WalkCoin[]
+  barAt: Map<string, Map<number, CandleBar>>
+  time: number
+  barMs: number
+  zoomed: Map<string, readonly CandleBar[]>
+  marks: Map<string, number>
+  /** Work one coin's ladder, as of a moment part-way through the bar. */
+  advanceCoin: (
+    marketKey: string,
+    at: number,
+    midCandle?: boolean
+  ) => Promise<void>
+  /** Move this minute's fills off the book and into the run's record. */
+  takeFills: () => void
+  /**
+   * The pot as it stands right now, asked once a minute.
+   *
+   * **Why the walk has to report this.** The pot is written down once per
+   * candle, at its close, so a fall and a recovery inside one candle leave no
+   * trace at all — 10 October 2025 fell 70% and bounced back inside a single
+   * four-hour bar, and "worst dip" read 33% for a day that took far more than
+   * that away and gave it back. Walking the minutes is the only way to see it,
+   * so the minutes are where it gets recorded.
+   */
+  notePot: (at: number) => void
+}): Promise<void> {
+  const {
+    book,
+    coins,
+    barAt,
+    time,
+    barMs,
+    zoomed,
+    marks,
+    advanceCoin,
+    takeFills,
+    notePot,
+  } = input
+
+  // Every minute any zoomed coin has, oldest first. A merge rather than a count
+  // from the bar's open: a coin can be missing minutes the exchange never
+  // published, and a fixed grid would walk it on a candle it does not have.
+  const minutes = [
+    ...new Set(
+      [...zoomed.values()].flatMap((bars) => bars.map((bar) => bar.openTime))
+    ),
+  ].sort((left, right) => left - right)
+
+  const minuteAt = new Map(
+    [...zoomed].map(([marketKey, bars]) => [
+      marketKey,
+      new Map(bars.map((bar) => [bar.openTime, bar])),
+    ])
+  )
+
+  for (const minute of minutes) {
+    // The same discipline as the whole-bar walk, at a sixtieth of the size: no
+    // coin is valued at a price this minute only reached later while another
+    // coin is being walked through it.
+    const lows = new Map<string, number>()
+    const closes = new Map<string, number>()
+    for (const [marketKey, bars] of minuteAt) {
+      const bar = bars.get(minute)
+      if (!bar) continue
+      if (bar.low > 0) lows.set(marketKey, bar.low)
+      if (bar.close > 0) closes.set(marketKey, bar.close)
+    }
+    openBar(book, lows)
+
+    const filled = new Set<string>()
+    for (const coin of coins) {
+      const bar = minuteAt.get(coin.marketKey)?.get(minute)
+      if (!bar) continue
+      const before = book.fills.length
+      settleMarket(book, coin.marketKey, {
+        bars: [bar],
+        barMs: MINUTE_MS,
+        mark: null,
+        now: minute + MINUTE_MS,
+      })
+      if (book.fills.length !== before) filled.add(coin.marketKey)
+    }
+
+    closeBar(book, closes)
+
+    // A ladder is worked the moment one of its rungs fills, not at the end of
+    // the bar.
+    //
+    // Without this the zoom is worth much less than it looks. A rung that
+    // bought at minute 12 has no target on it until the ladder is next worked,
+    // so a bounce at minute 30 that cleared that target sells nothing — which
+    // is the very trade the minutes exist to find. Asked only for the coins
+    // that actually filled, and only in the minute they filled, because a
+    // ladder whose position did not change has nothing new to say.
+    for (const marketKey of [...filled].sort()) {
+      await advanceCoin(marketKey, minute + MINUTE_MS, true)
+    }
+
+    notePot(minute + MINUTE_MS)
+
+    // This minute's fills come off the book before the next minute starts.
+    //
+    // Not tidying: the ladder claims a fill to work out which rung bought, and
+    // it builds a fresh claim list every pass. Leaving a whole candle's fills
+    // on the book meant the same buy could be claimed again by a later minute
+    // and mark a second rung as bought.
+    takeFills()
+  }
+
+  // The same worst-price guard the whole-bar walk uses, for the few coins left
+  // on it: a coin the exchange had no minutes for still must not be valued at a
+  // price this bar only reached later.
+  const restLows = new Map<string, number>()
+  for (const coin of coins) {
+    if (zoomed.has(coin.marketKey)) continue
+    const bar = barAt.get(coin.marketKey)?.get(time)
+    if (bar && bar.low > 0) restLows.set(coin.marketKey, bar.low)
+  }
+  openBar(book, restLows)
+
+  for (const coin of coins) {
+    if (zoomed.has(coin.marketKey)) continue
+    const bar = barAt.get(coin.marketKey)?.get(time)
+    if (!bar) continue
+    marks.set(coin.marketKey, bar.close)
+    settleMarket(book, coin.marketKey, {
+      bars: [bar],
+      barMs,
+      mark: null,
+      now: time + barMs,
+    })
+  }
+}
+
 
 export type BacktestCoin = {
   marketKey: string
@@ -136,6 +381,30 @@ export type BacktestRunInput = {
   coins: readonly BacktestCoin[]
   from: number
   to: number
+  /**
+   * Real minute prices for one coin's bar — how the walk stops guessing.
+   *
+   * A candle says where price opened, closed and how far it got each way, never
+   * the order it did them in, so `candleLegs` invents an order. That invention
+   * decides which of two levels inside the same candle fired first: a rung or
+   * the stop, a target or a liquidation. It also decides what every OTHER coin
+   * was worth while this one was being walked, which is what buying power is
+   * read off.
+   *
+   * When this is supplied and answers, the bar is walked minute by minute
+   * across every coin at once instead, and nothing is invented. Left out — as
+   * every test and the practice engine leave it out — the walk is exactly what
+   * it was.
+   *
+   * Only ever asked for a coin holding a position or resting an order: a coin
+   * with neither cannot do anything inside the bar, so its minutes would change
+   * nothing and cost a fetch.
+   */
+  zoomIn?: (
+    marketKey: string,
+    barOpen: number,
+    barMs: number
+  ) => Promise<readonly CandleBar[] | null>
 }
 
 export type BacktestRunHooks = {
@@ -255,7 +524,14 @@ export async function runBacktest(
     fills: [],
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    // The run's own rule, read off the ladder it is testing.
+    entryLimit: ladder?.params.entryLimit ?? null,
+    openedAt: [],
+    // Set once a bar, below, from the crash rule the run is testing.
+    crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
+    // Filled in as each bar is walked, so buying power falls with the wallet.
+    marks: new Map(),
     addedOrders: [],
   }
 
@@ -581,6 +857,13 @@ export async function runBacktest(
     // is the whole thing being prevented. The exit is dropped rather than
     // moved — once the hold ends, `advanceOne` places it again as it always
     // does, from the rung's own status.
+    // The fills need to know too: a rung is an order the wick fills, and it
+    // never goes near a ladder, so the rule has to sit on the book.
+    book.crashEntry = {
+      cascading,
+      leastLeverage: cascadeRule?.leastLeverage ?? null,
+    }
+
     if (cascading) {
       for (const order of book.orders) {
         if (order.side === "buy" && order.exitPx != null) order.exitPx = null
@@ -588,6 +871,9 @@ export async function runBacktest(
     }
 
     // ----- The bars ------------------------------------------------------
+    //
+    // The first price of the window per coin, for buy-and-hold, and the close
+    // every coin is worth once the whole bar has finished for all of them.
     for (const coin of coins) {
       const bar = barAt.get(coin.marketKey)?.get(time)
       if (!bar) continue
@@ -596,25 +882,16 @@ export async function runBacktest(
         firstAt.set(coin.marketKey, bar.openTime)
       }
       marks.set(coin.marketKey, bar.close)
-
-      // No price "right now": a replay only knows what the bar said, and
-      // handing it today's price would let a trade see the future.
-      settleMarket(book, coin.marketKey, {
-        bars: [bar],
-        barMs,
-        mark: null,
-        now: closeTime,
-      })
     }
 
-    applyFundingThrough(closeTime, true)
-
-    // ----- What the ladders make of it -----------------------------------
     // The feeds themselves are made ONCE, up at `feeds`, and handed over as
     // they are. They used to be copied here — every coin's whole history, twice
     // over, on every bar. A run of 250 coins over ten years copied about ninety
     // megabytes of pointers per bar and did it twenty-two thousand times, which
     // is most of why the server fell over rather than finishing.
+    //
+    // Built before the walk rather than after it, because a bar walked minute
+    // by minute works its ladders inside the walk.
     const ladderBars: LadderBars = new Map(
       [...ladders.keys()].flatMap((marketKey) => {
         const feed = feeds.get(marketKey)
@@ -622,18 +899,138 @@ export async function runBacktest(
       })
     )
 
-    for (const marketKey of [...ladders.keys()].sort()) {
+    /** Work one coin's ladder, as of a moment part-way through the bar. */
+    const advanceCoin = async (
+      marketKey: string,
+      at: number,
+      midCandle = false
+    ) => {
       const row = ladders.get(marketKey)
-      if (!row) continue
-      // Before the ladder is worked: a rung that fills inside this pass throws
-      // its order id away, and the fills are not written down until later.
+      if (!row) return
       rememberRungOrders(row.plan)
       await advanceOne(
-        { book, marks, ladderBars, now: closeTime, cascading },
+        { book, marks, ladderBars, now: at, cascading, midCandle },
         deps,
         row
       )
-      noteRungs(marketKey, row.plan, closeTime)
+      noteRungs(marketKey, row.plan, at)
+    }
+
+    /**
+     * Move whatever has filled off the book and into this run's record.
+     *
+     * Called once per candle normally, and once per MINUTE on a candle walked
+     * minute by minute — because the ladder claims fills to work out which
+     * rung bought, and a fill left on the book can be claimed twice.
+     */
+    const takeFills = () => {
+      for (const one of book.fills) {
+        // Which rung this was — **asked of the order, not guessed from the
+        // fill.** The rung placed that order and remembers its id, so this is
+        // the rung saying so rather than an afterwards match on size and price.
+        //
+        // It used to hunt the ladder for a rung of the same size. That works
+        // only while the ladder is still there, and a ladder can buy, sell out
+        // and be replaced inside one crashing candle — after which the old
+        // fills matched nothing. Eighteen buys of 763 lost their rung that way,
+        // every one of them on a crash bar, which are the ones worth reading.
+        const rung =
+          one.side === "buy" && one.orderId
+            ? (rungByOrderId.get(one.orderId) ?? -1)
+            : -1
+        // Stamped with the bar's OPEN time, not the close time the engine runs
+        // on. A candle is named by the moment it opened everywhere else in the
+        // app, so a fill stamped with the close lands on the NEXT candle — a 4h
+        // run puts every trade four hours after it happened. The chart used to
+        // hide this by taking a bar back off again in two separate places; the
+        // trades table did not, and printed the wrong time.
+        //
+        // The engine still WORKS on the close time and must keep doing so: a bar
+        // is only settled once it has finished, and reading it earlier would let
+        // a trade see inside a candle that had not happened yet.
+        //
+        // **Including a bar walked minute by minute.** The minutes are how the
+        // walk works out what happened; they are not where a mark belongs. The
+        // chart draws on the run's own candles, so a fill carrying 21:19 sits
+        // between two four-hour candles — its arrow floats off the candle it
+        // bought on and its line stretches away to the wrong one.
+        fillsByMarket
+          .get(one.marketKey)
+          ?.push({ ...one, fillTime: time, rung: rung >= 0 ? rung : null })
+      }
+      book.fills = []
+    }
+
+
+    /**
+     * The worst the pot got part-way through this candle, and when.
+     *
+     * Kept as one extra point rather than a point a minute: the drawdown has to
+     * see the bottom, and 240 points per crashing candle would bury the curve
+     * the rest of the run is drawn on.
+     */
+    let worstInBar: { t: number; usd: number; margin: number } | null = null
+    const notePot = (at: number) => {
+      const positions = [...book.positions.values()]
+      const usd = paperAccountFigures({
+        startingBalance: input.startingUsd,
+        realized: book.cash - input.startingUsd,
+        positions,
+        marks: book.marks,
+      }).equity
+      if (worstInBar !== null && usd >= worstInBar.usd) return
+      worstInBar = {
+        t: at,
+        usd,
+        margin: positions.reduce((sum, one) => sum + positionMargin(one), 0),
+      }
+    }
+
+    // Minute prices for the coins that could actually do something in this bar.
+    // A coin holding nothing and resting nothing cannot, so it is never asked
+    // for — that is what keeps the fetching to the handful of days a ladder was
+    // actually live rather than every day of the window.
+    const zoomed = new Map<string, readonly CandleBar[]>()
+    if (input.zoomIn) {
+      for (const coin of coins) {
+        const bar = barAt.get(coin.marketKey)?.get(time)
+        if (!bar) continue
+        if (!couldActInBar(book, coin.marketKey, bar)) continue
+        const minutes = await input.zoomIn?.(coin.marketKey, time, barMs)
+        if (minutes && minutes.length > 0) zoomed.set(coin.marketKey, minutes)
+      }
+    }
+
+    if (zoomed.size > 0) {
+      await walkByMinute({
+        book,
+        coins,
+        barAt,
+        time,
+        barMs,
+        zoomed,
+        marks,
+        advanceCoin,
+        takeFills,
+        notePot,
+      })
+    } else {
+      walkWholeBar({ book, coins, barAt, time, barMs, closeTime })
+    }
+
+    // Every coin has been walked, so the bar has finished for all of them.
+    // Only now is the book worth what the bar closed at — until this line,
+    // buying power saw the fall rather than the recovery.
+    closeBar(book, marks)
+
+    applyFundingThrough(closeTime, true)
+
+    // ----- What the ladders make of it -----------------------------------
+    for (const marketKey of [...ladders.keys()].sort()) {
+      // `advanceCoin` remembers the rung's order id before working it, because
+      // a rung that fills inside this pass throws its order id away and the
+      // fills are not written down until later.
+      await advanceCoin(marketKey, closeTime)
     }
 
     // ----- What the signal trades make of it ------------------------------
@@ -801,34 +1198,7 @@ export async function runBacktest(
     }
 
     // ----- Take the fills off the book and record the pot -----------------
-    for (const one of book.fills) {
-      // Which rung this was — **asked of the order, not guessed from the
-      // fill.** The rung placed that order and remembers its id, so this is
-      // the rung saying so rather than an afterwards match on size and price.
-      //
-      // It used to hunt the ladder for a rung of the same size. That works
-      // only while the ladder is still there, and a ladder can buy, sell out
-      // and be replaced inside one crashing candle — after which the old
-      // fills matched nothing. Eighteen buys of 763 lost their rung that way,
-      // every one of them on a crash bar, which are the ones worth reading.
-      const rung =
-        one.side === "buy" && one.orderId
-          ? (rungByOrderId.get(one.orderId) ?? -1)
-          : -1
-      // Stamped with the bar's OPEN time, not the close time the engine runs
-      // on. A candle is named by the moment it opened everywhere else in the
-      // app, so a fill stamped with the close lands on the NEXT candle — a 4h
-      // run puts every trade four hours after it happened. The chart used to
-      // hide this by taking a bar back off again in two separate places; the
-      // trades table did not, and printed the wrong time.
-      //
-      // The engine still WORKS on the close time and must keep doing so: a bar
-      // is only settled once it has finished, and reading it earlier would let
-      // a trade see inside a candle that had not happened yet.
-      fillsByMarket
-        .get(one.marketKey)
-        ?.push({ ...one, fillTime: time, rung: rung >= 0 ? rung : null })
-    }
+    takeFills()
     book.fills = []
     book.touchedMarkets.clear()
     book.goneOrderIds.clear()
@@ -844,6 +1214,24 @@ export async function runBacktest(
     // pot once this bar has finished, and that belongs to THIS bar — stamping
     // it with the close puts the whole curve one candle to the right, and
     // drags the dates on "worst dip" and "most in play" along with it.
+    // The bottom of the candle goes in first, so a fall and a recovery inside
+    // one bar is on the curve rather than smoothed away by its close. Only
+    // when it is genuinely lower than where the bar finished.
+    const worst = worstInBar as {
+      t: number
+      usd: number
+      margin: number
+    } | null
+    if (worst !== null && worst.usd < figures.equity) {
+      // Shifted one bar back like every other point on this curve. The curve
+      // names each pot by its bar's OPEN, so a dip stamped with its true
+      // minute would carry a LATER time than the close it happened before —
+      // and the times would run backwards. `barAt` finds a dragged window's
+      // edges by binary search over these times, and the preset views read the
+      // bar size off the first two points; both need the times ascending.
+      equity.push({ t: worst.t - barMs, usd: worst.usd })
+      inPlay.push(worst.margin)
+    }
     equity.push({ t: time, usd: figures.equity })
     inPlay.push(
       held.reduce((sum, position) => sum + positionMargin(position), 0)

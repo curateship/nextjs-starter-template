@@ -558,7 +558,13 @@ describe("holding through a market-wide crash", () => {
       inputFor(crashingMarket(), {
         params: params({
           ...laddered,
-          cascade: { fallPct: 50, withinHours: 4, minCoins: 10, holdHours: 4 },
+          cascade: {
+            fallPct: 50,
+            withinHours: 4,
+            minCoins: 10,
+            holdHours: 4,
+            leastLeverage: null,
+          },
         }),
       })
     )
@@ -588,7 +594,13 @@ describe("holding through a market-wide crash", () => {
       inputFor(market, {
         params: params({
           ...laddered,
-          cascade: { fallPct: 50, withinHours: 4, minCoins: 10, holdHours: 4 },
+          cascade: {
+            fallPct: 50,
+            withinHours: 4,
+            minCoins: 10,
+            holdHours: 4,
+            leastLeverage: null,
+          },
         }),
       })
     )

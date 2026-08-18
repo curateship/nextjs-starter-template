@@ -21,6 +21,7 @@ import {
   nextEventOnLeg,
   paperAccountFigures,
   positionMargin,
+  positionProfit,
   slippedPx,
   type PaperFillReason,
   type PaperJournalEntry,
@@ -37,6 +38,10 @@ import {
   type LiveTradeEnding,
   type LiveTriggerKind,
 } from "@/lib/trade/live-trades"
+import {
+  canOpenAnother,
+  type EntryLimit,
+} from "@/lib/trade/entry-limit"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -190,6 +195,27 @@ export type WalletBook = {
   /** Orders that filled or were cancelled by the engine. */
   goneOrderIds: Set<string>
   /**
+   * How many coins this wallet may open in a stretch of time, and when it last
+   * opened one. Null is off, which is every wallet that has not asked.
+   *
+   * On the BOOK rather than on a plan because the question is about the wallet:
+   * forty-four separate ladders each opening one coin is the thing being
+   * limited, and no single ladder can see the other forty-three.
+   */
+  entryLimit: EntryLimit | null
+  /** Every moment this wallet went from flat to holding, oldest first. */
+  openedAt: number[]
+  /**
+   * The whole market is falling off a cliff right now, and the least leverage
+   * the exchange must allow on a coin before a NEW one may be opened while it
+   * lasts. Null is off.
+   *
+   * On the book because it stops a FILL, and a fill does not go through a
+   * ladder — the replay's rungs are orders its own wick fills. Set once a bar
+   * by whoever knows the answer.
+   */
+  crashEntry: { cascading: boolean; leastLeverage: number | null }
+  /**
    * Orders the engine itself put on the book — today only the exits that ride
    * on a rung's buy. Everything else here is written down when it is asked
    * for, so this is the one list that has to be saved after the fact.
@@ -205,6 +231,20 @@ export type WalletBook = {
    * is the only reader; `ordersMatchVersion` is the test that keeps them honest.
    */
   ordersVersion: number
+  /**
+   * What each market this book holds is worth right now.
+   *
+   * **Here so that free cash can mean what an exchange means by it.** Buying
+   * power is the account's VALUE less the margin already posted, and the value
+   * moves with every position that is down — cash alone does not, because cash
+   * only changes when something closes. Without these prices a wallet whose
+   * positions had halved still looked as though it had every dollar of its
+   * cash to spend, and went on buying.
+   *
+   * A market with no price in here contributes nothing rather than a loss:
+   * silence is not a fall.
+   */
+  marks: Map<string, number>
 }
 
 /** One order on or off the book. Every such change goes through here. */
@@ -252,13 +292,32 @@ function markSaved(book: WalletBook): void {
   book.addedOrders = []
 }
 
-/** Cash not held as margin by anything open. */
+/**
+ * What is left to put behind a new trade: the account's value, less the margin
+ * already posted.
+ *
+ * **Value, not cash.** A position sitting 40% down has not banked anything, so
+ * the cash is untouched — and for a long time this said the wallet could still
+ * spend it. On 13 June 2022 one replay held $12,460 of margin against a wallet
+ * worth $9,273 and kept buying, which no exchange would have allowed: on
+ * Hyperliquid the money available is the account value minus what is in use,
+ * and the account value carries every open loss with it.
+ *
+ * Goes negative when the losses have eaten past the margin. That is a real
+ * answer and the callers all read it as "no": every one of them compares the
+ * cost of what it wants against this.
+ */
 export function freeCash(book: WalletBook): number {
   let held = 0
+  let openProfit = 0
   for (const position of book.positions.values()) {
     held += positionMargin(position)
+    const mark = book.marks.get(position.marketKey)
+    if (mark !== undefined && mark > 0) {
+      openProfit += positionProfit(position, mark)
+    }
   }
-  return book.cash - held
+  return book.cash + openProfit - held
 }
 
 /**
@@ -299,6 +358,10 @@ export function fill(
   } else {
     const opened =
       !held || Math.sign(outcome.position.szi) !== Math.sign(held.szi)
+    // A coin going from holding nothing to holding something. Adding to one
+    // already held is not an entry — leaving room for exactly that is what the
+    // limit is for.
+    if (opened) book.openedAt.push(input.at)
     book.positions.set(input.marketKey, {
       // One row per market, so a turn-around reuses the slot it turned in.
       id: held?.id ?? randomUUID(),
@@ -370,6 +433,26 @@ function fillOrder(
       return
     }
     sz = capped
+  } else if (
+    !book.positions.has(order.marketKey) &&
+    book.crashEntry.cascading &&
+    book.crashEntry.leastLeverage !== null &&
+    order.maxLeverage < book.crashEntry.leastLeverage
+  ) {
+    // Mid-crash, and the exchange does not give this coin enough room. Opening
+    // it now buys a position that gets closed out before the rung below it can
+    // buy. Left resting: the moment the crash rule lets go, it is an ordinary
+    // coin again and this rung buys as it always would.
+    return
+  } else if (
+    !book.positions.has(order.marketKey) &&
+    !canOpenAnother(book.entryLimit, book.openedAt, input.at)
+  ) {
+    // The wallet has opened its allowance of coins for now. The order is left
+    // exactly where it is rather than dropped: the level has not stopped being
+    // worth buying, the wallet has run out of room for NEW coins, and room
+    // comes back on its own as the window moves.
+    return
   } else if ((input.px * sz) / order.leverage > freeCash(book) + 1e-9) {
     dropOrder(book, order.id)
     return
@@ -495,11 +578,59 @@ function passedLevels(
  * replay. That is the whole seam — the tested ladder and the practice one are
  * the same code, so they cannot drift into two strategies with one name.
  */
+/**
+ * The bar is starting on every coin: value the book at the worst each of them
+ * gets to inside it.
+ *
+ * **Because a crash is not one coin at a time.** The replay walks coins in
+ * turn, so while coin one is filling rungs the other sixty-six are still
+ * valued where they closed yesterday — a wallet that looks untouched while the
+ * whole market is falling through it. That is how $125,274 of coin was bought
+ * on a wallet worth $10,151 on 10 October 2025.
+ *
+ * A long is valued at the bar's low, which is the price it demonstrably had to
+ * live through. It is the conservative reading on purpose: what a run may
+ * spend has to survive the worst moment of the bar, not the best.
+ */
+export function openBar(
+  book: WalletBook,
+  lows: ReadonlyMap<string, number>
+): void {
+  for (const [marketKey, low] of lows) {
+    if (low > 0) book.marks.set(marketKey, low)
+  }
+}
+
+/**
+ * The bar is over on every coin: this is what they are all worth now.
+ *
+ * Called once the whole list has been walked, so nothing inside the bar was
+ * ever valued at a price the bar only reached later. See `settleMarket`.
+ */
+export function closeBar(
+  book: WalletBook,
+  closes: ReadonlyMap<string, number>
+): void {
+  for (const [marketKey, close] of closes) {
+    if (close > 0) book.marks.set(marketKey, close)
+  }
+}
+
 export function settleMarket(
   book: WalletBook,
   marketKey: string,
   input: { bars: CandleBar[]; barMs: number; mark: number | null; now: number }
 ): void {
+  // What this market is worth, kept on the book so free cash can see what the
+  // positions are down.
+  //
+  // **Never the bar being walked.** A bar is not a moment: on 10 October 2025
+  // coins fell 80% and came back inside one four-hour candle, and marking the
+  // book at that candle's CLOSE while its own wick was still filling rungs
+  // turned the recovery into buying power for the next coin's rungs — 208 of
+  // them across 67 coins in a single bar, on a wallet holding $10,151. The
+  // price a trade inside this bar may be valued against is the last one that
+  // had finished happening.
   for (const bar of input.bars) {
     const barOpen = bar.openTime
     // Anything created after the bar opened is left out of it: part of that
@@ -548,6 +679,12 @@ export function settleMarket(
         })
         if (!event) break
 
+        // Buying power during this walk reads the mark `openBar` set — the
+        // bar's LOW — so every fill is checked against the worst this candle
+        // got to, not against where the coin started it. That floor is what
+        // stopped 10 October 2025 buying $125,274 of coin on a wallet holding
+        // $10,151: 208 fills across 67 coins in one candle, each funded by a
+        // recovery the next coin had not had yet.
         if (event.kind === "order") {
           const order = eligibleOrders.find((one) => one.id === event.orderId)
           if (order) {
@@ -578,8 +715,18 @@ export function settleMarket(
     }
   }
 
+  // **Deliberately not the bar's close.** In a replay every coin's bar covers
+  // the same four hours, and they are walked one after another — so writing
+  // coin A's recovered close here hands coin B a wallet fattened by a recovery
+  // that, for B, has not happened yet. The walk above leaves the mark at the
+  // last price this coin actually traded at, which is the conservative answer
+  // and the honest one. The caller settles every coin, then says what the bar
+  // closed at: `closeBar` below.
+
   const mark = input.mark
   if (mark === null || !(mark > 0)) return
+  // A price right now beats any bar's close.
+  book.marks.set(marketKey, mark)
 
   for (let step = 0; step < MAX_OPEN_ORDERS + 2; step += 1) {
     const waiting = book.orders.find(
@@ -678,11 +825,25 @@ async function readBook(
     wallet,
     costs: defaultPaperCosts(),
     cash: wallet.startingBalance + banked,
+    // Empty until the settle walks a market and says what it is worth. A
+    // position with no price counts as neither up nor down, which is the only
+    // honest thing to do with silence.
+    marks: new Map(),
     positions: new Map(positions.map((row) => [row.marketKey, toPosition(row)])),
     orders: orders.map(toOrder),
     fills: [],
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    entryLimit: null,
+    // The moments the coins still open were opened, so the entry limit means
+    // the same thing across settles — this book is rebuilt on every poll, and
+    // an empty list here made "5 coins an hour" into "5 coins per poll".
+    // Coins opened AND closed inside the window are not in this seed, so the
+    // cap can run slightly loose, never slightly tight.
+    openedAt: positions
+      .map((row) => row.createdAt.getTime())
+      .sort((left, right) => left - right),
+    crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
     addedOrders: [],
   }

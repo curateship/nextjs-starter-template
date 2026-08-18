@@ -315,6 +315,7 @@ describe("one smart order per coin per wallet", () => {
       params: {
         rungs: [{ deviation: 5 }],
         cascade: null,
+        entryLimit: null,
         baseDetection: defaultGridParams().baseDetection,
         maxPositionPct: 10,
         sizeMultiplier: 1,
@@ -341,6 +342,7 @@ describe("one smart order per coin per wallet", () => {
         params: {
           rungs: [{ deviation: 5 }],
           cascade: null,
+          entryLimit: null,
           baseDetection: defaultGridParams().baseDetection,
           maxPositionPct: 10,
           sizeMultiplier: 1,

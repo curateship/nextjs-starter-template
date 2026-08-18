@@ -28,6 +28,7 @@ import {
   indicatorWarmupBars,
 } from "@/lib/trade/indicators/registry"
 import { db } from "@/server/db"
+import { createBarZoom } from "./zoom"
 import {
   ensureCandleCoverage,
   listCandleGaps,
@@ -410,6 +411,9 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
           stakePct: spec.strategy.stakePct,
           chaseGiveUp: spec.strategy.chaseGiveUp,
         }
+  // Real minute prices for the bars a coin was actually holding or resting
+  // something in. Everything else is walked whole, exactly as before.
+  const zoom = createBarZoom()
   const outcome = await runBacktest(
     {
       protocol,
@@ -421,6 +425,7 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
       coins,
       from: spec.from,
       to: spec.to,
+      zoomIn: zoom.read,
     },
     {
       shouldStop: () => backtestStopRequested(userId, groupId),
@@ -429,13 +434,18 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
           userId,
           groupId,
           0.4 + fraction * 0.55,
-          "Running the strategy"
+          // The first run over a window fetches minute prices for the days a
+          // ladder was live, which takes far longer than the walk itself. Say
+          // so, or a run that is working looks like a run that has hung.
+          zoom.zoomedBars() > 0
+            ? `Running the strategy — reading minute prices (${zoom.zoomedBars()} bars so far)`
+            : "Running the strategy"
         ),
     }
   )
 
   await noteAll(userId, groupId, 0.97, "Saving results")
-  await finish(claimed, Date.now(), coins, skipped, outcome)
+  await finish(claimed, Date.now(), coins, skipped, outcome, zoom.coinsWithoutMinutes())
 }
 
 type Outcome = Awaited<ReturnType<typeof runBacktest>>
@@ -446,7 +456,9 @@ async function finish(
   now: number,
   coins: readonly BacktestCoin[],
   skippedByRules: readonly BacktestSkip[],
-  outcome: Outcome | null
+  outcome: Outcome | null,
+  /** Coins the exchange publishes no minute prices for. */
+  withoutMinutes: readonly string[] = []
 ): Promise<void> {
   const { userId, groupId, spec } = claimed
 
@@ -634,7 +646,13 @@ async function finish(
   const peak = peakInPlay(equity, outcome?.inPlay ?? [], spec.startingUsd)
   const shares = inPlayShares(equity, outcome?.inPlay ?? [], spec.startingUsd)
   const endingUsd = outcome?.endingUsd ?? spec.startingUsd
-  const warnings = await credibilityWarnings(spec, coins, outcome, skipped)
+  const warnings = await credibilityWarnings(
+    spec,
+    coins,
+    outcome,
+    skipped,
+    withoutMinutes
+  )
 
   const summary: BacktestSummary = {
     startingUsd: spec.startingUsd,
@@ -729,7 +747,8 @@ async function credibilityWarnings(
   spec: BacktestSpecSnapshot,
   coins: readonly BacktestCoin[],
   outcome: Outcome | null,
-  skipped: readonly BacktestSkip[]
+  skipped: readonly BacktestSkip[],
+  withoutMinutes: readonly string[] = []
 ): Promise<string[]> {
   const warnings: string[] = []
 
@@ -769,6 +788,13 @@ async function credibilityWarnings(
   if (fundingMissing.length > 0) {
     warnings.push(
       `${fundingMissing.length} of ${coins.length} coins had stretches with no funding history — ${fundingMissing.slice(0, 5).join(", ")}${fundingMissing.length > 5 ? ` and ${fundingMissing.length - 5} more` : ""}. Those charges are missing from this result, not assumed to be free.`
+    )
+  }
+
+  if (withoutMinutes.length > 0) {
+    const names = withoutMinutes.map((marketKey) => marketKey.split(":").pop())
+    warnings.push(
+      `${withoutMinutes.length} of ${coins.length} coins had no minute prices — ${names.slice(0, 5).join(", ")}${names.length > 5 ? ` and ${names.length - 5} more` : ""}. Their busy candles were read as one straight move rather than what really happened inside them.`
     )
   }
 

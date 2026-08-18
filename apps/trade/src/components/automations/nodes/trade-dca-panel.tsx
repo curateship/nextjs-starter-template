@@ -6,6 +6,7 @@ import {
 } from "@/components/automations/inspector-card"
 import { TradeNumberField } from "@/components/automations/nodes/trade-number-field"
 import { defaultCascade } from "@/lib/trade/cascade"
+import { defaultEntryLimit } from "@/lib/trade/entry-limit"
 import { formatUsdRounded } from "@/lib/trade/format"
 import { cappedHold } from "@/lib/trade/indicators/base"
 import {
@@ -81,6 +82,7 @@ export default function TradeDcaFields({
   const stop = params.stopLoss
   const baseStop = stop?.base ?? null
   const crash = params.cascade ?? null
+  const entries = params.entryLimit ?? null
 
   // What each rung actually buys, in money.
   //
@@ -545,6 +547,23 @@ export default function TradeDcaFields({
               onChange={(minCoins) => setParams({ cascade: { ...crash, minCoins } })}
             />
             <TradeNumberField
+              id={`dca-${node.id}-cascade-least-leverage`}
+              label="Only open coins the exchange allows"
+              hint="How much leverage the exchange ALLOWS, not how much you use. It decides how far a trade falls before being closed out: at 2x, a coin capped at 3x is closed 33% under its average entry, one capped at 10x waits until 45%. With rungs 30% apart the 3x coins are closed almost exactly where the next rung would have bought. Zero is off."
+              value={crash.leastLeverage ?? 0}
+              min={0}
+              max={100}
+              suffix="x or more"
+              onChange={(leastLeverage) =>
+                setParams({
+                  cascade: {
+                    ...crash,
+                    leastLeverage: leastLeverage > 0 ? leastLeverage : null,
+                  },
+                })
+              }
+            />
+            <TradeNumberField
               id={`dca-${node.id}-cascade-hold`}
               label="Hold for"
               hint="How long before it goes back to selling normally. Long enough to read the news and decide, not a bet that the market recovers."
@@ -554,6 +573,53 @@ export default function TradeDcaFields({
               suffix="hours"
               onChange={(holdHours) =>
                 setParams({ cascade: { ...crash, holdHours } })
+              }
+            />
+          </>
+        ) : null}
+
+        {/* The other half of the same day. The rule above stops the ladder
+            selling into the hole; this one stops it spending the wallet on
+            first rungs before the deep ones arrive. */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id={`dca-${node.id}-entry-on`}
+            checked={entries !== null}
+            onCheckedChange={(next) =>
+              setParams({ entryLimit: next === true ? defaultEntryLimit() : null })
+            }
+          />
+          <FieldLabel
+            htmlFor={`dca-${node.id}-entry-on`}
+            className="text-xs"
+            hint="On 10 October 2025 forty-four coins bought their first rung inside one candle. That used $14,585 of an $18,562 wallet, left $3,977 for the rungs below which wanted $14,193, and nearly every one of those coins was wiped out before the fall finished."
+          >
+            Limit how many coins it opens at once
+          </FieldLabel>
+        </div>
+
+        {entries ? (
+          <>
+            <TradeNumberField
+              id={`dca-${node.id}-entry-coins`}
+              label="Open at most"
+              hint="Counts a coin going from holding nothing to holding something. Adding to a coin it already holds is never counted — leaving room for exactly that is the point."
+              value={entries.coins}
+              min={1}
+              max={500}
+              suffix="coins"
+              onChange={(coins) => setParams({ entryLimit: { ...entries, coins } })}
+            />
+            <TradeNumberField
+              id={`dca-${node.id}-entry-within`}
+              label="Counted over"
+              hint="A rung that has to wait is not cancelled. It stays where it is and buys as soon as there is room again."
+              value={entries.withinHours}
+              min={0.25}
+              max={72}
+              suffix="hours"
+              onChange={(withinHours) =>
+                setParams({ entryLimit: { ...entries, withinHours } })
               }
             />
           </>

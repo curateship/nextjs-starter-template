@@ -241,7 +241,20 @@ export function windowStats(
   trades: readonly BacktestRunTrade[] | null,
   first: number,
   last: number,
-  startingUsd: number
+  startingUsd: number,
+  /**
+   * How much the run borrows.
+   *
+   * **`inPlay` is the MARGIN each position put up, not what it bought.** At 2×
+   * a wallet with $50,000 of margin at work is holding $100,000 of coin, and
+   * "how much of the wallet is in the market" means the second figure — which
+   * is why the graph's own reading multiplies by this and why every figure
+   * built from `inPlay` here has to as well. Reading it raw reported a run
+   * that was 164% in the market as 82%.
+   *
+   * One by default, which is every run that borrows nothing.
+   */
+  leverage = 1
 ): WindowStats {
   const { t, usd, inPlay, openCount } = series
   const i0 = Math.max(0, Math.min(first, usd.length - 1))
@@ -275,8 +288,9 @@ export function windowStats(
   let walletShareTotal = 0
   let walletUsdTotal = 0
   let barsInMarket = 0
+  const borrowed = Math.max(1, leverage)
   for (let bar = i0; bar <= i1; bar++) {
-    const atWork = inPlay[bar] ?? 0
+    const atWork = (inPlay[bar] ?? 0) * borrowed
     const share = usd[bar] > 0 ? (atWork / usd[bar]) * 100 : 0
     if (share > peakWalletPct) {
       peakWalletPct = share
@@ -302,11 +316,11 @@ export function windowStats(
     worstDipAt: dip.at,
     recoveryDays,
     peakWalletPct,
-    peakWalletUsd: inPlay[peakWalletAt] ?? 0,
+    peakWalletUsd: (inPlay[peakWalletAt] ?? 0) * borrowed,
     peakWalletAt: t[peakWalletAt] ?? 0,
     typicalWalletPct: bars > 0 ? walletShareTotal / bars : 0,
     typicalWalletUsd: bars > 0 ? walletUsdTotal / bars : 0,
-    inCoinsUsd: inPlay[i1] ?? 0,
+    inCoinsUsd: (inPlay[i1] ?? 0) * borrowed,
   }
 
   if (!trades) {

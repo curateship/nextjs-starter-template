@@ -16,6 +16,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
 import type {
@@ -75,6 +76,8 @@ export function BacktestStatsPanel({
   leverage,
   coinsTotal,
   running,
+  stopRequested,
+  onStop,
 }: {
   summary: BacktestSummary | null
   result: BacktestResult | null
@@ -90,6 +93,10 @@ export function BacktestStatsPanel({
   coinsTotal: number
   /** The run has not finished, so these figures are still moving. */
   running: boolean
+  /** True once a stop has been asked for, so the button says so. */
+  stopRequested?: boolean
+  /** Asks the run to stop. Left out on a run that has already finished. */
+  onStop?: () => void
 }) {
   const scoped =
     stats !== null &&
@@ -109,6 +116,20 @@ export function BacktestStatsPanel({
       <WorkspacePanelHeader
         icon={<FlaskConicalIcon />}
         title="Backtest · all markets"
+        action={
+          running && onStop ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7"
+              disabled={stopRequested}
+              onClick={onStop}
+            >
+              {stopRequested ? "Stopping…" : "Stop"}
+            </Button>
+          ) : null
+        }
       />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 px-5 py-4">
@@ -331,7 +352,26 @@ export function BacktestStatsPanel({
               ) : null}
 
               <dl className="grid gap-1 border-t pt-3 text-[11px]">
-                <Line label="Window" value={`${spec.days} ${plural(spec.days, "day", "days")} of ${spec.interval}`} />
+                {/* Follows the box dragged on the graph, like every figure
+                    above it. It was the run's own window and nothing else —
+                    so dragging out a fortnight left this saying "90 days",
+                    which is the one line on the panel somebody checks the
+                    dates against. Whole run, and it is the run's window
+                    again. */}
+                <Line
+                  label={scoped ? "Picked" : "Window"}
+                  value={
+                    scoped && stats
+                      ? `${stats.days} ${plural(stats.days, "day", "days")} of ${spec.interval}`
+                      : `${spec.days} ${plural(spec.days, "day", "days")} of ${spec.interval}`
+                  }
+                />
+                {scoped && stats ? (
+                  <Line
+                    label="From"
+                    value={`${formatDate(new Date(stats.fromT))} to ${formatDate(new Date(stats.toT))}`}
+                  />
+                ) : null}
                 {/* What the run tested, in the words of whichever strategy it
                     was. A signals run has no rungs and no ramp, and showing
                     those as zeroes would read as a ladder that did nothing. */}

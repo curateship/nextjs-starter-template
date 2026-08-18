@@ -91,6 +91,7 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
   return {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
     cascade: null,
+    entryLimit: null,
     baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     maxPositionPct: 20,
     sizeMultiplier: 2,

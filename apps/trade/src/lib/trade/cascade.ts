@@ -70,6 +70,25 @@ export const cascadeSchema = z.object({
    */
   minCoins: z.number().int().min(2).max(500).default(10),
   /**
+   * While the crash is on, only open a coin the exchange allows this much
+   * leverage on. Null is off, and every coin may be opened as before.
+   *
+   * **Not how much leverage is used — how much the exchange allows.** It sets
+   * how far a trade can fall before it is closed out: the exchange holds back
+   * half the margin needed at a coin's top leverage, so at 2x a coin capped at
+   * 3x is closed 33% below its average entry while one at 10x waits until 45%.
+   * With rungs 30% apart, the 3x coins are closed almost exactly where the next
+   * rung would have bought — so they take the money and give nothing back.
+   *
+   * Only while holding out, because outside a crash there is nothing wrong with
+   * a 3x coin: rungs arrive days apart, the position has time to be sold, and
+   * the ladder is never carrying four rungs of it at once.
+   *
+   * On 10 October 2025, testing only the 10x-and-up coins took the wipe-outs
+   * from 55 to 11 and the worst dip from 71% to 55%.
+   */
+  leastLeverage: z.number().min(1).max(100).nullable().default(null),
+  /**
    * How long the ladder holds before going back to selling normally.
    *
    * Not "how long until it bounces". It is how long you have to look at the
@@ -85,7 +104,13 @@ export const cascadeSchema = z.object({
 export type CascadeSettings = z.infer<typeof cascadeSchema>
 
 export function defaultCascade(): CascadeSettings {
-  return { fallPct: 50, withinHours: 4, minCoins: 10, holdHours: 4 }
+  return {
+    fallPct: 50,
+    withinHours: 4,
+    minCoins: 10,
+    holdHours: 4,
+    leastLeverage: null,
+  }
 }
 
 /**

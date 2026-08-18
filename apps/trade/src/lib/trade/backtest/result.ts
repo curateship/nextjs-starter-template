@@ -895,7 +895,9 @@ export function whyNoLadder(
   summary: Pick<BacktestCoinSummary, "trades" | "armRefusals">
 ): { words: string; bars: number; lastAt: number } | null {
   if (summary.trades > 0) return null
-  const worst = summary.armRefusals[0]
+  // A run saved before refusals were recorded has no list at all, and reading
+  // into one that is not there took the whole page down rather than the tile.
+  const worst = summary.armRefusals?.[0]
   if (!worst) return null
   return {
     words: flowWaitWords(worst.reason),

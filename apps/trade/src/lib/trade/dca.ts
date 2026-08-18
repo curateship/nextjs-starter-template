@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { entryLimitSchema } from "./entry-limit"
+
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { cascadeSchema } from "@/lib/trade/cascade"
 import { BASE_FIELDS } from "@/lib/trade/indicators/base"
@@ -319,6 +321,21 @@ export const dcaParamsSchema = z.object({
    * for what it is and why the numbers are what they are.
    */
   cascade: cascadeSchema.nullable().default(null),
+  /**
+   * How many coins the wallet may open in a stretch of time. Null is off.
+   *
+   * **What it is for.** On 10 October 2025 the market fell 50-70% in eleven
+   * minutes and forty-four coins took their first rung inside one candle. The
+   * wallet could not then fund their second rungs, and a coin holding one rung
+   * is wiped out 45% below it at 2x — so almost all forty-four were liquidated
+   * before the fall was over. Spending everything on first rungs is the worst
+   * possible use of the money on the one day the deep rungs pay.
+   *
+   * A coin going from holding nothing to holding something counts as one, so a
+   * coin wiped out and bought again counts twice. Adding to a coin already held
+   * is never counted: the whole point is to leave room for exactly that.
+   */
+  entryLimit: entryLimitSchema.nullable().default(null),
   stopLoss: z
     .object({
       /**
@@ -367,6 +384,9 @@ export function defaultDcaParams(): DcaParams {
     rungEntry: "limit",
     takeProfit: { mode: "average", pct: DEFAULT_DCA_TAKE_PROFIT_PCT },
     stopLoss: null,
+    // Off. A ladder that did not ask for a limit enters as many coins as it
+    // always did.
+    entryLimit: null,
     // Off. The rule only ever fires twice in six years of history, so a ladder
     // that did not ask for it must behave exactly as it did before.
     cascade: null,
@@ -692,6 +712,14 @@ export const ladderPlanSchema = z.object({
    * up and sell the whole ladder into the hole it was waiting out.
    */
   cascadeSeenAt: z.number().nullable().default(null),
+  /**
+   * How many coins this wallet may open in a stretch of time. Null is off.
+   *
+   * Carried on every plan the flow places, so the live engine can put the rule
+   * on the wallet's book without knowing which flow it came from. Every ladder
+   * a flow places carries the same numbers.
+   */
+  entryLimit: entryLimitSchema.nullable().default(null),
   /**
    * The brackets the ladder last wrote onto the position. When the position
    * carries something else, a hand moved it — the ladder stops following and

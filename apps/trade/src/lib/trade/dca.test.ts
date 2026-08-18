@@ -179,6 +179,7 @@ describe("ladder plans", () => {
     baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
     cascade: null,
     cascadeSeenAt: null,
+    entryLimit: null,
     startedAt: 0,
     sizeDecimals: 3,
     maxLeverage: 50,

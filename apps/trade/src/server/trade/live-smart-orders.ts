@@ -415,6 +415,9 @@ function ladderPlan(
     // Same as the practice ladder: frozen at placement, see `smart-orders.ts`.
     cascade: input.params.cascade ?? null,
     cascadeSeenAt: null,
+    // The wallet-wide entry limit rides on every plan, so the live engine can
+    // read it off whichever ladder it happens to look at first.
+    entryLimit: input.params.entryLimit ?? null,
   }
 }
 
@@ -748,6 +751,23 @@ async function reconcileLiveLaddersOnce(
       fillId: total?.fillId ?? one.fillId,
     })
   }
+  // When each coin still held was opened, as best the recent fills can say:
+  // the earliest fill this window has for it. The exchange's position rows
+  // carry no opening time, and an empty list here made the entry cap count
+  // only within one pass. A coin whose opening fill has aged out of the
+  // window contributes nothing — it was opened too long ago to count against
+  // any sane cap anyway.
+  const openedAt: number[] = []
+  for (const [marketKey] of positions) {
+    let earliest = Infinity
+    for (const one of fills) {
+      if (refs.get(one.marketId) !== marketKey) continue
+      if (one.at < earliest) earliest = one.at
+    }
+    if (Number.isFinite(earliest)) openedAt.push(earliest)
+  }
+  openedAt.sort((left, right) => left - right)
+
   const book: WalletBook = {
     wallet,
     // A real wallet pays the exchange's real fees, which is what the default
@@ -810,7 +830,14 @@ async function reconcileLiveLaddersOnce(
     }),
     touchedMarkets: new Set(),
     goneOrderIds: new Set(),
+    // Filled in by `advanceLadders`, off the plans actually on this wallet.
+    entryLimit: null,
+    openedAt,
+    crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
+    // The exchange's own prices for this pass, so what the wallet has left to
+    // spend counts the positions that are down.
+    marks: new Map(marks),
     addedOrders: [],
   }
 

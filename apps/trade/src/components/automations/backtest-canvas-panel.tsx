@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Meter } from "@/components/ui/meter"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { loadBacktests, loadLastBacktestAttempt } from "@/lib/api/backtests"
+import {
+  getBacktestErrorMessage,
+  loadBacktests,
+  loadLastBacktestAttempt,
+  stopBacktest,
+} from "@/lib/api/backtests"
 import { loadFlowTrading, type FlowTrading } from "@/lib/api/flow-trading"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
@@ -270,6 +275,27 @@ export default function BacktestCanvasPanel({
   // Believed from the click until the list catches up with it. `starting` is
   // cleared the moment a running row actually appears, below.
   const running = starting || (run !== null && run.finishedAt === null)
+
+  /**
+   * Believed from the click until the next poll carries the flag back.
+   *
+   * The button would otherwise say "Stop" for up to three more seconds after
+   * being pressed, which reads as a press that did nothing and gets pressed
+   * again. Held as the run's own id rather than a flag, so a NEW run appearing
+   * on the card is not shown as already stopping.
+   */
+  const [stopAskedFor, setStopAskedFor] = React.useState<string | null>(null)
+  const stopping = run !== null && stopAskedFor === run.id
+  const stopRun = async (groupId: string) => {
+    setStopAskedFor(groupId)
+    try {
+      await stopBacktest(groupId)
+    } catch (error) {
+      // Back to a button that can be pressed: nothing was asked to stop.
+      setStopAskedFor(null)
+      showErrorToast(getBacktestErrorMessage(error))
+    }
+  }
   /**
    * Why the last press tested nothing, when that is what happened.
    *
@@ -371,11 +397,29 @@ export default function BacktestCanvasPanel({
             {run.progressNote}
           </span>
         ) : null}
+        {/* Stopping a walk that is going nowhere. Sits beside the progress note
+            rather than in the body, because the note is the thing somebody is
+            watching when they decide to stop it. */}
+        {running && run && !startingOnly ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto h-7 shrink-0"
+            disabled={stopping || run.stopRequested}
+            onClick={(event) => {
+              event.stopPropagation()
+              void stopRun(run.id)
+            }}
+          >
+            {stopping || run.stopRequested ? "Stopping…" : "Stop"}
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="ml-auto"
+          className={running && run && !startingOnly ? "shrink-0" : "ml-auto"}
           aria-label="Close the backtest panel"
           onClick={(event) => {
             event.stopPropagation()

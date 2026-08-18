@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useRouter } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
@@ -18,6 +18,7 @@ import {
   getBacktestErrorMessage,
   loadBacktestCoin,
   loadBacktestRunTrades,
+  stopBacktest,
 } from "@/lib/api/backtests"
 import {
   buildGraphSeries,
@@ -109,6 +110,7 @@ export function BacktestRunPage({
   openCoin: string | null
 }) {
   const navigate = useNavigate()
+  const router = useRouter()
   const desktop = useWideScreen()
 
   const horizontalLayout = useRememberedPanelLayout(
@@ -250,9 +252,12 @@ export function BacktestRunPage({
       trades,
       stats[0],
       stats[1],
-      run.spec.startingUsd
+      run.spec.startingUsd,
+      // The same borrowing the graph's own reading uses, so the tiles and the
+      // tooltip cannot disagree about how much of the wallet is in the market.
+      leverage
     )
-  }, [graphSeries, trades, window, run.spec.startingUsd])
+  }, [graphSeries, trades, window, run.spec.startingUsd, leverage])
 
   // One coin's candles and trades, fetched when the address names one. Carries
   // the coin it answers, so a slow reply for a coin you have already left is
@@ -325,6 +330,25 @@ export function BacktestRunPage({
     })
   }, [activeCoin, navigate, openCoin, run.id])
 
+  /**
+   * Believed from the click until the page is read again.
+   *
+   * The run's own row only changes when the walk notices between chunks, which
+   * can be a few seconds, and a button still saying "Stop" in the meantime
+   * reads as a press that did nothing.
+   */
+  const [stopping, setStopping] = React.useState(false)
+  const askToStop = () => {
+    setStopping(true)
+    void stopBacktest(run.id)
+      .then(() => router.invalidate())
+      .catch((error: unknown) => {
+        // Back to a button that can be pressed: nothing was asked to stop.
+        setStopping(false)
+        showErrorToast(getBacktestErrorMessage(error))
+      })
+  }
+
   const shown = chart?.key === activeCoin ? chart : null
   const shownError = chartError?.key === activeCoin ? chartError.message : null
   const done = run.finishedAt !== null
@@ -373,6 +397,8 @@ export function BacktestRunPage({
       leverage={leverage}
       coinsTotal={coins.length}
       running={!done}
+      stopRequested={run.stopRequested || stopping}
+      onStop={askToStop}
     />
   )
   const marketsPanel = (

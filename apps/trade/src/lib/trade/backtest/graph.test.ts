@@ -198,6 +198,16 @@ describe("windowStats", () => {
     expect(stats.inCoinsUsd).toBe(500)
   })
 
+  it("counts the coin borrowing bought, not the margin behind it", () => {
+    // The run stores the MARGIN each position put up. At 2× that same $7,000
+    // of margin is holding $14,000 of coin — the whole wallet, not half of it,
+    // which is the figure "how much of the wallet is in the market" means.
+    const stats = windowStats(series, trades, 0, 5, 10_000, 2)
+    expect(stats.peakWalletPct).toBeCloseTo(100)
+    expect(stats.peakWalletUsd).toBe(14_000)
+    expect(stats.inCoinsUsd).toBe(1_000)
+  })
+
   it("draws a dash rather than a zero when the trades are missing", () => {
     const bare = buildGraphSeries(pot(values), inPlay, null, 10_000)
     const stats = windowStats(bare, null, 0, 5, 10_000)

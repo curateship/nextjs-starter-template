@@ -255,8 +255,10 @@ export function SmartOrderDialog({
       rungs: deviations.map((deviation) => ({ deviation: deviation as number })),
       // A ladder placed by hand from the chart. The crash rule needs to watch
       // a whole list of coins at once, which only a flow has, so there is
-      // nothing sensible to offer here.
+      // nothing sensible to offer here. Same for the entry limit: it counts
+      // coins across a wallet, and one hand-placed ladder is one coin.
       cascade: null,
+      entryLimit: null,
       // The one place still on the indicator's factory numbers, and the one
       // place that arguably should not be: you are clicking a base the chart
       // drew, so this ought to follow whatever the chart was drawing it with.

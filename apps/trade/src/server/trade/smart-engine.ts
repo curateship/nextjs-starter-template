@@ -184,6 +184,29 @@ export type LadderAdvanceInput = {
    * nobody is watching for it, which is every caller that has not asked.
    */
   cascading?: boolean
+  /**
+   * The candle this pass is inside has not finished yet.
+   *
+   * A backtest can walk one candle minute by minute, and then a ladder is
+   * worked several times inside the same candle instead of once at its end.
+   * Two decisions must not be made at a moment half way down a crash:
+   *
+   * - **A rung is not given up on.** A rung whose order has gone is written
+   *   off as "skipped" and never buys again. Judged at the bottom of the wick
+   *   that killed every deep rung of every ladder on 10 October 2025.
+   * - **A rung is not put back.** Reviving one compares the price now against
+   *   the rung, and mid-crash the price is under all of them, which marks them
+   *   skipped for the same reason.
+   *
+   * What a mid-candle pass IS for is reacting to a rung that just bought: its
+   * sell goes on, and the position's target and stop are aimed. That is what
+   * lets a coin buy and sell inside one candle, which is the whole point of
+   * walking the minutes.
+   *
+   * Undefined everywhere else — the practice and live engines are never inside
+   * a candle, they are at the moment itself.
+   */
+  midCandle?: boolean
 }
 
 export const INTERVAL_MS: Record<CandleInterval, number> = {

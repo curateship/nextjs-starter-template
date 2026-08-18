@@ -446,7 +446,17 @@ export function paperAccountFigures(input: {
     const mark = input.marks.get(position.marketKey)
     if (mark !== undefined) openProfit += positionProfit(position, mark)
   }
-  return { equity: cash + openProfit, free: cash - inTrades, inTrades, openProfit }
+  return {
+    equity: cash + openProfit,
+    // **What the account is worth, less what is already committed** — the
+    // exchange's own meaning of available margin. It used to be the cash less
+    // the margin, which ignored every open loss and told somebody holding a
+    // position 40% down that they still had the whole of their cash to spend.
+    // Never below nothing: a wallet cannot have less than no money free.
+    free: Math.max(0, cash + openProfit - inTrades),
+    inTrades,
+    openProfit,
+  }
 }
 
 /**
