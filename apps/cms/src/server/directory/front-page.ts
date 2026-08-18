@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm"
 import {
   browseSortForFrontPageSort,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
+  isDirectoryFrontPageKind,
   isDirectoryFrontPageLayout,
   isDirectoryFrontPageSort,
   MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
@@ -10,6 +11,10 @@ import {
   type DirectoryFrontPageListing,
   type DirectoryFrontPageRow,
 } from "@/lib/directory/front-page"
+import {
+  readCategoryCardsForChoices,
+  resolvedCategoryChoice,
+} from "@/server/directory/category-cards"
 import { db, type CustomShellDb } from "@/server/db"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import { directoryMapDisplayKey } from "@/server/directory/settings"
@@ -20,6 +25,10 @@ type FrontPageRow = {
   sectionId: string
   sectionHeading: string
   sectionIntro: string
+  kind: string
+  categorySource: string | null
+  pickedCategoryIds: unknown
+  listingCount: number
   sort: string
   layout: string
   categorySlug: string | null
@@ -38,15 +47,20 @@ type FrontPageRow = {
 }
 
 /**
- * Every row of a site's home page, and the listings in each, in one query.
+ * Every row of a site's home page, and what goes in each.
  *
- * One query no matter how many rows there are. Each row's listings come from a
- * lateral subquery that is re-run per row with that row's own filter, order and
- * limit, so six rows of twelve cost the same round trip as one row of eight —
- * which is the whole reason a home page is allowed several rows at all.
+ * **One query for every row of listings, however many there are.** Each row's
+ * listings come from a lateral subquery re-run per row with that row's own
+ * filter, order and limit, so six rows of twelve cost the same round trip as one
+ * row of eight — which is the whole reason a home page is allowed several rows.
  *
- * A row whose filter matches nothing comes back with no listings and is dropped
- * here rather than drawn as a heading over an empty space.
+ * **Two more, and only if a row of category cards exists**: one for the
+ * categories and one for their counts, shared by every category row on the page
+ * rather than run per row. So a home page is one query, or three if it has
+ * category cards on it, whatever it holds.
+ *
+ * A row that comes back with nothing in it is dropped here rather than drawn as
+ * a heading over an empty space, whichever kind of row it is.
  */
 async function readFrontPageRows(
   site: { id: string; name: string },
@@ -72,6 +86,9 @@ async function readFrontPageRows(
         section.heading,
         section.intro,
         section.category_id,
+        section.kind,
+        section.category_source,
+        section.picked_category_ids,
         section.sort,
         section.listing_count,
         -- A map this site cannot draw becomes a grid of the same listings. The
@@ -113,6 +130,10 @@ async function readFrontPageRows(
       sections.id AS "sectionId",
       sections.heading AS "sectionHeading",
       sections.intro AS "sectionIntro",
+      sections.kind,
+      sections.category_source AS "categorySource",
+      sections.picked_category_ids AS "pickedCategoryIds",
+      sections.listing_count AS "listingCount",
       sections.sort,
       sections.layout,
       sections.category_slug AS "categorySlug",
@@ -171,6 +192,8 @@ async function readFrontPageRows(
       ) category ON true
       WHERE listing.workspace_id = ${site.id}
         AND listing.status = 'published'
+        -- A category row draws categories, so it fetches no listings at all.
+        AND sections.kind = 'listings'
         AND (
           sections.category_id IS NULL
           OR EXISTS (
@@ -204,26 +227,70 @@ async function readFrontPageRows(
   if (!first) return null
 
   const byId = new Map<string, DirectoryFrontPageRow>()
+  // Every category row's choice, kept beside the row it belongs to so the cards
+  // can be read for all of them together rather than one row at a time.
+  const categoryRows: Array<{ id: string; row: FrontPageRow }> = []
+
   for (const row of rows) {
-    const sort = isDirectoryFrontPageSort(row.sort) ? row.sort : "newest"
+    const kind = isDirectoryFrontPageKind(row.kind) ? row.kind : "listings"
     let section = byId.get(row.sectionId)
+
     if (!section) {
-      const browseSort = browseSortForFrontPageSort(sort)
-      section = {
-        id: row.sectionId,
-        heading: row.sectionHeading,
-        intro: row.sectionIntro,
-        layout: isDirectoryFrontPageLayout(row.layout) ? row.layout : "grid",
-        browse: {
-          ...(row.categorySlug ? { category: row.categorySlug } : {}),
-          ...(browseSort ? { sort: browseSort } : {}),
-        },
-        listings: [],
+      if (kind === "categories") {
+        section = {
+          kind: "categories",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          cards: [],
+        }
+        categoryRows.push({ id: row.sectionId, row })
+      } else {
+        const sort = isDirectoryFrontPageSort(row.sort) ? row.sort : "newest"
+        const browseSort = browseSortForFrontPageSort(sort)
+        section = {
+          kind: "listings",
+          id: row.sectionId,
+          heading: row.sectionHeading,
+          intro: row.sectionIntro,
+          layout: isDirectoryFrontPageLayout(row.layout) ? row.layout : "grid",
+          browse: {
+            ...(row.categorySlug ? { category: row.categorySlug } : {}),
+            ...(browseSort ? { sort: browseSort } : {}),
+          },
+          listings: [],
+        }
       }
       byId.set(row.sectionId, section)
     }
-    const listing = toListing(row, section.layout === "map")
-    if (listing) section.listings.push(listing)
+
+    if (section.kind === "listings") {
+      const listing = toListing(row, section.layout === "map")
+      if (listing) section.listings.push(listing)
+    }
+  }
+
+  // Two more queries, and only when a category row exists — not two per row.
+  if (categoryRows.length) {
+    const cardsPerRow = await readCategoryCardsForChoices(
+      site.id,
+      categoryRows.map((entry) =>
+        resolvedCategoryChoice(
+          {
+            source: entry.row.categorySource,
+            pickedCategoryIds: entry.row.pickedCategoryIds,
+          },
+          entry.row.listingCount
+        )
+      ),
+      database
+    )
+    for (const [index, entry] of categoryRows.entries()) {
+      const section = byId.get(entry.id)
+      if (section?.kind === "categories") {
+        section.cards = cardsPerRow[index] ?? []
+      }
+    }
   }
 
   return {
@@ -231,8 +298,10 @@ async function readFrontPageRows(
     heading: first.pageHeading,
     intro: first.pageIntro,
     // A heading over nothing is worse than one row fewer, so an empty row is
-    // not drawn at all.
-    rows: [...byId.values()].filter((row) => row.listings.length > 0),
+    // not drawn at all — whichever kind of row it is.
+    rows: [...byId.values()].filter((row) =>
+      row.kind === "categories" ? row.cards.length > 0 : row.listings.length > 0
+    ),
   }
 }
 
@@ -296,7 +365,9 @@ export async function readDirectoryFrontPage(
   // pasted a minute ago should reach the next visitor rather than the one after
   // the cache expires. Only asked for when a row actually draws a map, so a
   // home page with no map never carries the key at all.
-  const mapApiKey = page.rows.some((row) => row.layout === "map")
+  const mapApiKey = page.rows.some(
+    (row) => row.kind === "listings" && row.layout === "map"
+  )
     ? await directoryMapDisplayKey(site.id, database)
     : null
 
@@ -305,7 +376,9 @@ export async function readDirectoryFrontPage(
   const rows = mapApiKey
     ? page.rows
     : page.rows.map((row) =>
-        row.layout === "map" ? { ...row, layout: "grid" as const } : row
+        row.kind === "listings" && row.layout === "map"
+          ? { ...row, layout: "grid" as const }
+          : row
       )
 
   return { ...page, rows, mapApiKey }

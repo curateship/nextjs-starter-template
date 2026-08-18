@@ -1,12 +1,13 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { directorySettings } from "@/server/directory/schema"
+import { categories, directorySettings } from "@/server/directory/schema"
 import {
   DIRECTORY_SETTING_DEFAULTS,
   directoryGeocodingKeyStatus,
   directorySettingsFor,
   saveDirectoryGeocodingKey,
+  saveDirectoryBrowseCategories,
   saveDirectoryBrowseSettings,
 } from "@/server/directory/settings"
 import {
@@ -14,6 +15,7 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
+import { uuid } from "@/server/auth/security"
 
 let client: PGlite
 let database: TestDatabase
@@ -138,5 +140,110 @@ describe("directory settings", () => {
     expect(
       (await directorySettingsFor(workspaceId, database)).defaultSort
     ).toBe(DIRECTORY_SETTING_DEFAULTS.defaultSort)
+  })
+
+  it("starts with no category cards on the browse page", async () => {
+    const settings = await directorySettingsFor(workspaceId, database)
+    expect(settings).toMatchObject({
+      browseCategoriesEnabled: false,
+      browseCategorySource: "top-level",
+      browsePickedCategoryIds: [],
+    })
+  })
+
+  it("saves the browse-page category row without touching anything else", async () => {
+    const saved = await saveDirectoryBrowseCategories(
+      workspaceId,
+      {
+        browseCategoriesEnabled: true,
+        browseCategorySource: "top-level",
+        browsePickedCategoryIds: [],
+      },
+      database
+    )
+
+    expect(saved).toMatchObject({
+      browseCategoriesEnabled: true,
+      browseCategorySource: "top-level",
+      // Untouched by this save.
+      claimsEnabled: true,
+      browseTitle: "Directory",
+      mapEnabled: false,
+    })
+  })
+
+  it("refuses a hand-picked row with nothing picked", async () => {
+    await expect(
+      saveDirectoryBrowseCategories(
+        workspaceId,
+        {
+          browseCategoriesEnabled: true,
+          browseCategorySource: "picked",
+          browsePickedCategoryIds: [],
+        },
+        database
+      )
+    ).rejects.toThrow(/at least one category/)
+  })
+
+  it("refuses a category that belongs to another site", async () => {
+    const otherSite = await insertWorkspace(database)
+    const theirs = uuid()
+    const at = new Date()
+    await database.insert(categories).values({
+      id: theirs,
+      workspaceId: otherSite.id,
+      name: "Theirs",
+      slug: "theirs",
+      createdAt: at,
+      updatedAt: at,
+    })
+
+    await expect(
+      saveDirectoryBrowseCategories(
+        workspaceId,
+        {
+          browseCategoriesEnabled: true,
+          browseCategorySource: "picked",
+          browsePickedCategoryIds: [theirs],
+        },
+        database
+      )
+    ).rejects.toThrow("That category is not on this site.")
+  })
+
+  it("forgets a stale pick when the row is switched off", async () => {
+    const mine = uuid()
+    const at = new Date()
+    await database.insert(categories).values({
+      id: mine,
+      workspaceId,
+      name: "Mine",
+      slug: "mine",
+      createdAt: at,
+      updatedAt: at,
+    })
+    await saveDirectoryBrowseCategories(
+      workspaceId,
+      {
+        browseCategoriesEnabled: true,
+        browseCategorySource: "picked",
+        browsePickedCategoryIds: [mine],
+      },
+      database
+    )
+
+    // Switched off, the list goes with it — there is no stale set of ids sitting
+    // behind a switch that stopped using them.
+    const off = await saveDirectoryBrowseCategories(
+      workspaceId,
+      {
+        browseCategoriesEnabled: false,
+        browseCategorySource: "picked",
+        browsePickedCategoryIds: [mine],
+      },
+      database
+    )
+    expect(off.browsePickedCategoryIds).toEqual([])
   })
 })

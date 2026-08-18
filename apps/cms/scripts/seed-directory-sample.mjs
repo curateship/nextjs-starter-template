@@ -44,7 +44,21 @@ const sites = [
         sort: "newest",
         listingCount: 3,
       },
+      // A hand-picked row of four categories, and "nightlife" has nothing in
+      // it — so three cards draw and the fourth is left off, which is the rule
+      // worth being able to see.
+      {
+        heading: "Start somewhere",
+        intro: "Pick a category and go from there.",
+        kind: "categories",
+        categorySource: "picked",
+        categories: ["eat", "italian", "stay", "nightlife"],
+        listingCount: 12,
+      },
     ],
+    // Beta's browse page has no cards; Alpha's does, from its top-level
+    // categories, so both states are on screen without changing a setting.
+    browseCategories: { enabled: true, source: "top-level" },
     publicSettings: {
       publicNavigation: [
         { label: "Home", href: "/" },
@@ -419,6 +433,12 @@ async function main() {
         categoryIds,
         site.frontPage ?? []
       )
+      await upsertBrowseCategories(
+        client,
+        siteId,
+        categoryIds,
+        site.browseCategories
+      )
       const listingIds = await upsertListings(
         client,
         siteId,
@@ -498,6 +518,29 @@ async function upsertDirectorySettings(client, siteId, mapEnabled) {
   )
 }
 
+/** The row of category cards at the top of this site's browse page, if any. */
+async function upsertBrowseCategories(client, siteId, categoryIds, choice) {
+  await client.query(
+    `update directory_settings
+        set browse_categories_enabled = $2,
+            browse_category_source = $3,
+            browse_picked_category_ids = $4::jsonb,
+            updated_at = now()
+      where workspace_id = $1`,
+    [
+      siteId,
+      Boolean(choice?.enabled),
+      choice?.source ?? "top-level",
+      JSON.stringify(
+        (choice?.categories ?? []).flatMap((slug) => {
+          const id = categoryIds.get(slug)
+          return id ? [id] : []
+        })
+      ),
+    ]
+  )
+}
+
 /**
  * The rows this site's home page is made of.
  *
@@ -513,14 +556,24 @@ async function upsertFrontPageSections(client, siteId, categoryIds, rows) {
   for (const [index, row] of rows.entries()) {
     await client.query(
       `insert into directory_front_page_sections
-         (id, workspace_id, display_order, heading, intro, category_id, sort,
-          listing_count, layout, created_at, updated_at)
-       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7, $8, now(), now())`,
+         (id, workspace_id, display_order, heading, intro, kind, category_source,
+          picked_category_ids, category_id, sort, listing_count, layout,
+          created_at, updated_at)
+       values (gen_random_uuid()::text, $1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9,
+               $10, $11, now(), now())`,
       [
         siteId,
         index,
         row.heading,
         row.intro ?? "",
+        row.kind ?? "listings",
+        row.categorySource ?? "top-level",
+        JSON.stringify(
+          (row.categories ?? []).flatMap((slug) => {
+            const id = categoryIds.get(slug)
+            return id ? [id] : []
+          })
+        ),
         row.category ? (categoryIds.get(row.category) ?? null) : null,
         row.sort ?? "newest",
         row.listingCount ?? 8,

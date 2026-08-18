@@ -1,6 +1,12 @@
 import { and, asc, eq, inArray } from "drizzle-orm"
 
 import {
+  cleanPickedCategoryIds,
+  isDirectoryCategorySource,
+  type DirectoryCategorySource,
+} from "@/lib/directory/category-cards"
+import { checkedPickedCategoryIds } from "@/server/directory/category-cards"
+import {
   DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   DIRECTORY_FRONT_PAGE_COUNT_MESSAGE,
@@ -9,9 +15,11 @@ import {
   DIRECTORY_FRONT_PAGE_HEADING_MAX,
   DIRECTORY_FRONT_PAGE_HEADING_MESSAGE,
   DIRECTORY_FRONT_PAGE_INTRO_MAX,
+  isDirectoryFrontPageKind,
   isDirectoryFrontPageLayout,
   isDirectoryFrontPageSort,
   MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
+  type DirectoryFrontPageKind,
   type DirectoryFrontPageLayout,
   type DirectoryFrontPageSection,
   type DirectoryFrontPageSort,
@@ -45,6 +53,11 @@ function toSection(row: SectionRowWithCategory): DirectoryFrontPageSection {
     displayOrder: row.displayOrder,
     heading: row.heading,
     intro: row.intro,
+    kind: isDirectoryFrontPageKind(row.kind) ? row.kind : "listings",
+    categorySource: isDirectoryCategorySource(row.categorySource)
+      ? row.categorySource
+      : "top-level",
+    pickedCategoryIds: cleanPickedCategoryIds(row.pickedCategoryIds),
     categoryId: row.categoryId ?? null,
     categorySlug: row.categorySlug,
     categoryName: row.categoryName,
@@ -106,6 +119,25 @@ async function checkedCategoryId(
   return row.id
 }
 
+/**
+ * The chosen categories to store for this row.
+ *
+ * A row that is not a hand-picked row of categories stores an empty list, so
+ * there is never a stale set of ids sitting behind a row that stopped using
+ * them. The checking itself belongs to `category-cards.ts`, which the browse
+ * page's own row reads through too.
+ */
+async function pickedCategoryIdsFor(
+  workspaceId: string,
+  kind: DirectoryFrontPageKind,
+  source: DirectoryCategorySource,
+  ids: string[] | undefined,
+  database: CustomShellDb
+): Promise<string[]> {
+  if (kind !== "categories" || source !== "picked") return []
+  return checkedPickedCategoryIds(workspaceId, ids, database)
+}
+
 export async function listFrontPageSections(
   workspaceId: string,
   database: CustomShellDb = db
@@ -146,6 +178,9 @@ async function findSection(
 type FrontPageSectionInput = {
   heading: string
   intro?: string
+  kind?: DirectoryFrontPageKind
+  categorySource?: DirectoryCategorySource
+  pickedCategoryIds?: string[]
   categoryId?: string | null
   sort?: DirectoryFrontPageSort
   listingCount?: number
@@ -185,6 +220,15 @@ export async function createFrontPageSection(
       displayOrder: existing.length,
       heading,
       intro: (input.intro ?? "").trim().slice(0, DIRECTORY_FRONT_PAGE_INTRO_MAX),
+      kind: input.kind ?? "listings",
+      categorySource: input.categorySource ?? "top-level",
+      pickedCategoryIds: await pickedCategoryIdsFor(
+        workspaceId,
+        input.kind ?? "listings",
+        input.categorySource ?? "top-level",
+        input.pickedCategoryIds,
+        database
+      ),
       categoryId,
       sort: input.sort ?? "newest",
       listingCount: checkedCount(
@@ -209,6 +253,15 @@ export async function updateFrontPageSection(
   input: Partial<FrontPageSectionInput>,
   database: CustomShellDb = db
 ): Promise<DirectoryFrontPageSection> {
+  // Read first, because the kind, the source and the chosen categories only
+  // mean anything together: what a save does not mention is taken from the row
+  // rather than guessed at. Guessing let a save that named only one of the three
+  // leave the row in a state the checks would have refused — a hand-picked row
+  // of categories with nothing picked, which draws nothing and quietly
+  // disappears off the home page.
+  const current = await findSection(workspaceId, id, database)
+  if (!current) throw new Error("That row no longer exists.")
+
   const values: Record<string, unknown> = { updatedAt: now() }
   if (input.heading !== undefined) values.heading = cleanHeading(input.heading)
   if (input.intro !== undefined) {
@@ -218,6 +271,27 @@ export async function updateFrontPageSection(
     values.categoryId = await checkedCategoryId(
       workspaceId,
       input.categoryId,
+      database
+    )
+  }
+
+  const kind = input.kind ?? current.kind
+  const categorySource = input.categorySource ?? current.categorySource
+  if (input.kind !== undefined) values.kind = kind
+  if (input.categorySource !== undefined) values.categorySource = categorySource
+  // Re-checked whenever any one of the three moves, because changing the kind or
+  // the source changes what the list is allowed to be — a row leaving the
+  // hand-picked case has its list cleared rather than left behind it.
+  if (
+    input.kind !== undefined ||
+    input.categorySource !== undefined ||
+    input.pickedCategoryIds !== undefined
+  ) {
+    values.pickedCategoryIds = await pickedCategoryIdsFor(
+      workspaceId,
+      kind,
+      categorySource,
+      input.pickedCategoryIds ?? current.pickedCategoryIds,
       database
     )
   }

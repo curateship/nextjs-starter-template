@@ -9,7 +9,7 @@ import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
 import { JsonLd } from "@/components/directory/public/json-ld"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
-import { SubcategoryGrid } from "@/components/directory/public/subcategory-grid"
+import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { loadDirectoryCategory } from "@/lib/api/directory/public"
 import { requirePageVisible } from "@/lib/api/content/pages"
 import {
@@ -122,7 +122,14 @@ function CategoryRoute() {
         ) : null}
       </header>
 
-      <SubcategoryGrid categoryName={category.name} categories={children} />
+      {children.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="explore">
+          <h2 id="explore" className="text-lg font-semibold">
+            Explore {category.name}
+          </h2>
+          <CategoryGrid categories={children} />
+        </section>
+      ) : null}
 
       <ListingGrid
         listings={listings}

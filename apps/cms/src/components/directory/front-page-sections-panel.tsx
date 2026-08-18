@@ -14,7 +14,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
+  DIRECTORY_CATEGORY_SOURCE_LABELS,
+} from "@/lib/directory/category-cards"
+import {
   DIRECTORY_FRONT_PAGE_FULL_MESSAGE,
+  DIRECTORY_FRONT_PAGE_KIND_LABELS,
   DIRECTORY_FRONT_PAGE_LAYOUT_LABELS,
   DIRECTORY_FRONT_PAGE_SORT_LABELS,
   MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
@@ -135,12 +139,21 @@ export function FrontPageSectionsPanel({
                     {section.heading}
                   </button>
                   <p className="text-xs text-muted-foreground">
-                    {[
-                      section.categoryName ?? "Every category",
-                      DIRECTORY_FRONT_PAGE_SORT_LABELS[section.sort],
-                      `${section.listingCount} ${plural(section.listingCount, "listing", "listings")}`,
-                      DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[section.layout],
-                    ].join(" · ")}
+                    {(section.kind === "categories"
+                      ? [
+                          DIRECTORY_FRONT_PAGE_KIND_LABELS[section.kind],
+                          DIRECTORY_CATEGORY_SOURCE_LABELS[
+                            section.categorySource
+                          ],
+                          `up to ${section.listingCount}`,
+                        ]
+                      : [
+                          section.categoryName ?? "Every category",
+                          DIRECTORY_FRONT_PAGE_SORT_LABELS[section.sort],
+                          `${section.listingCount} ${plural(section.listingCount, "listing", "listings")}`,
+                          DIRECTORY_FRONT_PAGE_LAYOUT_LABELS[section.layout],
+                        ]
+                    ).join(" · ")}
                   </p>
                 </div>
                 <div className="flex items-center">

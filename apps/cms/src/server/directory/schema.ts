@@ -523,6 +523,21 @@ export const directorySettings = pgTable(
     /** Whether the browse page offers the map view at all. Off to start with. */
     mapEnabled: boolean("map_enabled").notNull().default(false),
     /**
+     * Whether a row of category cards sits at the top of the browse page. Off
+     * to start with, so no existing site gains one by this shipping.
+     */
+    browseCategoriesEnabled: boolean("browse_categories_enabled")
+      .notNull()
+      .default(false),
+    /** 'top-level' or 'picked' — which categories that row shows. */
+    browseCategorySource: varchar("browse_category_source", { length: 20 })
+      .notNull()
+      .default("top-level"),
+    /** The chosen categories for that row, in the admin's order. */
+    browsePickedCategoryIds: jsonb("browse_picked_category_ids")
+      .notNull()
+      .default([]),
+    /**
      * The Google key the visitor's browser uses to draw the map. Separate from
      * the geocoding key above on purpose: a browser key is restricted to a
      * website address, and a key restricted that way is refused by the
@@ -533,7 +548,13 @@ export const directorySettings = pgTable(
     }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-  }
+  },
+  (table) => [
+    check(
+      "directory_settings_browse_category_source_check",
+      sql`${table.browseCategorySource} IN ('top-level', 'picked')`
+    ),
+  ]
 )
 
 export type DirectorySettingsRow = typeof directorySettings.$inferSelect
@@ -557,6 +578,26 @@ export const directoryFrontPageSections = pgTable(
     heading: varchar("heading", { length: 120 }).notNull(),
     intro: varchar("intro", { length: 500 }).notNull().default(""),
     /**
+     * 'listings' or 'categories' — which of the two kinds of row this is.
+     *
+     * A listings row uses `categoryId`, `sort` and `layout` below; a categories
+     * row uses `categorySource` and `pickedCategoryIds` instead. Both use
+     * `listingCount`, which is how many things the row shows either way.
+     */
+    kind: varchar("kind", { length: 20 }).notNull().default("listings"),
+    /** Categories rows only: 'top-level' or 'picked'. */
+    categorySource: varchar("category_source", { length: 20 })
+      .notNull()
+      .default("top-level"),
+    /**
+     * Categories rows only: the chosen categories, in the admin's order.
+     *
+     * An array rather than a table because the order is the point and these are
+     * only ever read with their row. An id whose category has since been
+     * deleted is ignored when the cards are read, the same as an empty one.
+     */
+    pickedCategoryIds: jsonb("picked_category_ids").notNull().default([]),
+    /**
      * Null is every category. A deleted category empties this rather than
      * taking the row with it: deleting a category is not a request to lose a
      * row of the home page.
@@ -568,7 +609,7 @@ export const directoryFrontPageSections = pgTable(
     /** 'newest', 'featured', 'rating' or 'name'. */
     sort: varchar("sort", { length: 20 }).notNull().default("newest"),
     listingCount: integer("listing_count").notNull().default(8),
-    /** 'grid', 'list' or 'map' — how this row draws. */
+    /** Listings rows only: 'grid', 'list' or 'map' — how this row draws. */
     layout: varchar("layout", { length: 20 }).notNull().default("grid"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
@@ -589,6 +630,14 @@ export const directoryFrontPageSections = pgTable(
     check(
       "directory_front_page_sections_count_check",
       sql`${table.listingCount} BETWEEN 1 AND 12`
+    ),
+    check(
+      "directory_front_page_sections_kind_check",
+      sql`${table.kind} IN ('listings', 'categories')`
+    ),
+    check(
+      "directory_front_page_sections_category_source_check",
+      sql`${table.categorySource} IN ('top-level', 'picked')`
     ),
   ]
 )

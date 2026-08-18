@@ -2,7 +2,12 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import { MAX_DIRECTORY_FRONT_PAGE_SECTIONS } from "@/lib/directory/front-page"
+import { DIRECTORY_CATEGORY_PICK_MESSAGE } from "@/lib/directory/category-cards"
+import {
+  DIRECTORY_FRONT_PAGE_COUNT_MESSAGE,
+  DIRECTORY_FRONT_PAGE_FULL_MESSAGE,
+  MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
+} from "@/lib/directory/front-page"
 import { uuid } from "@/server/auth/security"
 import {
   createFrontPageSection,
@@ -68,6 +73,11 @@ describe("home page rows", () => {
 
     expect(second).toMatchObject({
       displayOrder: 1,
+      // Nothing said about the kind means listings, which is what every row
+      // that existed before category rows were added has to read back as.
+      kind: "listings",
+      categorySource: "top-level",
+      pickedCategoryIds: [],
       heading: "Cafés",
       intro: "The good ones.",
       categoryId: cafes,
@@ -93,7 +103,7 @@ describe("home page rows", () => {
 
     await expect(
       createFrontPageSection(siteId, { heading: "One too many" }, database)
-    ).rejects.toThrow(/6 rows of listings/)
+    ).rejects.toThrow(DIRECTORY_FRONT_PAGE_FULL_MESSAGE)
     expect(await listFrontPageSections(siteId, database)).toHaveLength(
       MAX_DIRECTORY_FRONT_PAGE_SECTIONS
     )
@@ -106,7 +116,7 @@ describe("home page rows", () => {
         { heading: "Too many", listingCount: 13 },
         database
       )
-    ).rejects.toThrow(/between 1 and 12/)
+    ).rejects.toThrow(DIRECTORY_FRONT_PAGE_COUNT_MESSAGE)
   })
 
   it("refuses a category that belongs to another site", async () => {
@@ -207,4 +217,82 @@ describe("home page rows", () => {
     })
   })
 
+
+  it("refuses a switch to hand-picked categories that brings no list", async () => {
+    const row = await createFrontPageSection(
+      siteId,
+      { heading: "Listings for now" },
+      database
+    )
+
+    // Only the kind and the source are named. The chosen list is not, so it is
+    // still the empty one a listings row has — and a hand-picked row of
+    // categories with nothing picked draws nothing and would vanish off the
+    // home page without a word.
+    await expect(
+      updateFrontPageSection(
+        siteId,
+        row.id,
+        { kind: "categories", categorySource: "picked" },
+        database
+      )
+    ).rejects.toThrow(DIRECTORY_CATEGORY_PICK_MESSAGE)
+
+    // And the row is untouched by the refusal.
+    expect((await listFrontPageSections(siteId, database))[0]).toMatchObject({
+      kind: "listings",
+      pickedCategoryIds: [],
+    })
+  })
+
+  it("clears the chosen list when a row stops being hand-picked", async () => {
+    const cafes = await insertCategory(siteId, "cafes")
+    const row = await createFrontPageSection(
+      siteId,
+      {
+        heading: "Start here",
+        kind: "categories",
+        categorySource: "picked",
+        pickedCategoryIds: [cafes],
+      },
+      database
+    )
+    expect(row.pickedCategoryIds).toEqual([cafes])
+
+    // Only the source is named. The list has to go with it rather than sit
+    // behind a row that stopped using it.
+    const saved = await updateFrontPageSection(
+      siteId,
+      row.id,
+      { categorySource: "top-level" },
+      database
+    )
+    expect(saved.pickedCategoryIds).toEqual([])
+  })
+
+  it("leaves the chosen list alone when a save does not mention it", async () => {
+    const cafes = await insertCategory(siteId, "cafes")
+    const row = await createFrontPageSection(
+      siteId,
+      {
+        heading: "Start here",
+        kind: "categories",
+        categorySource: "picked",
+        pickedCategoryIds: [cafes],
+      },
+      database
+    )
+
+    const saved = await updateFrontPageSection(
+      siteId,
+      row.id,
+      { heading: "Start somewhere" },
+      database
+    )
+    expect(saved).toMatchObject({
+      heading: "Start somewhere",
+      categorySource: "picked",
+      pickedCategoryIds: [cafes],
+    })
+  })
 })

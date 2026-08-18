@@ -32,7 +32,10 @@ import {
   insertWorkspace,
   type TestDatabase,
 } from "@/server/test-support"
-import { saveDirectoryBrowseSettings } from "@/server/directory/settings"
+import {
+  saveDirectoryBrowseCategories,
+  saveDirectoryBrowseSettings,
+} from "@/server/directory/settings"
 import * as schema from "@/server/schema"
 
 /**
@@ -1020,5 +1023,36 @@ describe("the fields a site invented", () => {
 
     expect(markupFor(filled)).toEqual(markupFor(empty))
     expect(JSON.stringify(markupFor(filled))).not.toContain("Nebbiolo")
+  })
+
+  it("puts no category cards on a browse page until a site asks for one", async () => {
+    const eat = await createCategory(alpha.id, { name: "Eat" }, database)
+    const listing = await publish(alpha, { title: "Cafe", slug: "cafe" })
+    await setListingCategories(alpha.id, listing.id, [eat.id], eat.id, database)
+
+    expect((await browse(alpha)).categoryCards).toEqual([])
+  })
+
+  it("carries the row of category cards once the switch is on", async () => {
+    const eat = await createCategory(alpha.id, { name: "Eat" }, database)
+    await createCategory(alpha.id, { name: "Nightlife" }, database)
+    const listing = await publish(alpha, { title: "Cafe", slug: "cafe" })
+    await setListingCategories(alpha.id, listing.id, [eat.id], eat.id, database)
+
+    await saveDirectoryBrowseCategories(
+      alpha.id,
+      {
+        browseCategoriesEnabled: true,
+        browseCategorySource: "top-level",
+        browsePickedCategoryIds: [],
+      },
+      database
+    )
+
+    const page = await browse(alpha)
+    // Nightlife has nothing published in it, so it is not on the row at all.
+    expect(page.categoryCards).toMatchObject([{ name: "Eat", listingCount: 1 }])
+    // And it is this site's row only.
+    expect((await browse(beta)).categoryCards).toEqual([])
   })
 })

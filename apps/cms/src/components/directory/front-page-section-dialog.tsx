@@ -28,6 +28,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { CategoryPicker } from "@/components/directory/category-picker"
+import {
+  cleanPickedCategoryIds,
+  DIRECTORY_CATEGORY_PICK_MESSAGE,
+  type DirectoryCategorySource,
+} from "@/lib/directory/category-cards"
 import {
   DIRECTORY_FRONT_PAGE_COUNT_DEFAULT,
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
@@ -36,11 +42,15 @@ import {
   DIRECTORY_FRONT_PAGE_HEADING_MAX,
   DIRECTORY_FRONT_PAGE_HEADING_MESSAGE,
   DIRECTORY_FRONT_PAGE_INTRO_MAX,
+  DIRECTORY_FRONT_PAGE_KINDS,
+  DIRECTORY_FRONT_PAGE_KIND_HINTS,
+  DIRECTORY_FRONT_PAGE_KIND_LABELS,
   DIRECTORY_FRONT_PAGE_LAYOUTS,
   DIRECTORY_FRONT_PAGE_LAYOUT_LABELS,
   DIRECTORY_FRONT_PAGE_SORTS,
   DIRECTORY_FRONT_PAGE_SORT_HINTS,
   DIRECTORY_FRONT_PAGE_SORT_LABELS,
+  type DirectoryFrontPageKind,
   type DirectoryFrontPageLayout,
   type DirectoryFrontPageSection,
   type DirectoryFrontPageSort,
@@ -85,6 +95,10 @@ export function FrontPageSectionDialog({
 }) {
   const [heading, setHeading] = React.useState("")
   const [intro, setIntro] = React.useState("")
+  const [kind, setKind] = React.useState<DirectoryFrontPageKind>("listings")
+  const [categorySource, setCategorySource] =
+    React.useState<DirectoryCategorySource>("top-level")
+  const [pickedIds, setPickedIds] = React.useState<string[]>([])
   const [categoryId, setCategoryId] = React.useState(EVERY_CATEGORY)
   const [sort, setSort] = React.useState<DirectoryFrontPageSort>("newest")
   const [count, setCount] = React.useState(
@@ -101,6 +115,9 @@ export function FrontPageSectionDialog({
     setLoadedFor(key)
     setHeading(section?.heading ?? "")
     setIntro(section?.intro ?? "")
+    setKind(section?.kind ?? "listings")
+    setCategorySource(section?.categorySource ?? "top-level")
+    setPickedIds(section?.pickedCategoryIds ?? [])
     setCategoryId(section?.categoryId ?? EVERY_CATEGORY)
     setSort(section?.sort ?? "newest")
     setCount(
@@ -118,6 +135,9 @@ export function FrontPageSectionDialog({
   const dirty =
     heading !== (section?.heading ?? "") ||
     intro !== (section?.intro ?? "") ||
+    kind !== (section?.kind ?? "listings") ||
+    categorySource !== (section?.categorySource ?? "top-level") ||
+    pickedIds.join(",") !== (section?.pickedCategoryIds ?? []).join(",") ||
     categoryId !== (section?.categoryId ?? EVERY_CATEGORY) ||
     sort !== (section?.sort ?? "newest") ||
     count !==
@@ -140,9 +160,21 @@ export function FrontPageSectionDialog({
       return
     }
 
+    if (
+      kind === "categories" &&
+      categorySource === "picked" &&
+      cleanPickedCategoryIds(pickedIds).length === 0
+    ) {
+      showErrorToast(DIRECTORY_CATEGORY_PICK_MESSAGE)
+      return
+    }
+
     const values = {
       heading: heading.trim(),
       intro: intro.trim(),
+      kind,
+      categorySource,
+      pickedCategoryIds: pickedIds,
       categoryId: categoryId === EVERY_CATEGORY ? null : categoryId,
       sort,
       listingCount: countNumber,
@@ -163,12 +195,15 @@ export function FrontPageSectionDialog({
     }
   }, [
     categoryId,
+    categorySource,
     countInvalid,
     countNumber,
     heading,
     intro,
+    kind,
     layout,
     onSaved,
+    pickedIds,
     section,
     sort,
   ])
@@ -182,8 +217,8 @@ export function FrontPageSectionDialog({
               {section ? heading.trim() || "Untitled row" : "New row"}
             </DialogTitle>
             <DialogDescription>
-              A row of listings on this site&apos;s home page, with a heading
-              above it and a link to the rest underneath.
+              A row on this site&apos;s home page: either listings, or a card per
+              category with its photo and how many listings are under it.
             </DialogDescription>
           </DialogHeader>
 
@@ -192,10 +227,39 @@ export function FrontPageSectionDialog({
               <CardHeader>
                 <CardTitle>What it says</CardTitle>
                 <CardDescription>
-                  The heading visitors read above the listings.
+                  The heading visitors read above the row.
                 </CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="front-page-section-kind"
+                    hint={DIRECTORY_FRONT_PAGE_KIND_HINTS[kind]}
+                  >
+                    What the row shows
+                  </FieldLabel>
+                  <Select
+                    value={kind}
+                    disabled={saving}
+                    onValueChange={(value) =>
+                      setKind(value as DirectoryFrontPageKind)
+                    }
+                  >
+                    <SelectTrigger
+                      id="front-page-section-kind"
+                      className="w-full sm:w-fit"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DIRECTORY_FRONT_PAGE_KINDS.map((value) => (
+                        <SelectItem key={value} value={value}>
+                          {DIRECTORY_FRONT_PAGE_KIND_LABELS[value]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid gap-2">
                   <FieldLabel htmlFor="front-page-section-heading">
                     Heading
@@ -228,6 +292,48 @@ export function FrontPageSectionDialog({
               </CardContent>
             </Card>
 
+            {kind === "categories" ? (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle>Which categories</CardTitle>
+                  <CardDescription>
+                    Each card shows the category&apos;s photo, its name, and how
+                    many listings sit under it — including everything nested
+                    beneath it.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-4">
+                  <CategoryPicker
+                    idPrefix="front-page-section"
+                    categories={categories}
+                    source={categorySource}
+                    pickedIds={pickedIds}
+                    disabled={saving}
+                    onSourceChange={setCategorySource}
+                    onPickedChange={setPickedIds}
+                  />
+                  <div className="grid max-w-40 gap-2">
+                    <FieldLabel
+                      htmlFor="front-page-section-count"
+                      hint={`At most this many cards, between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX}.`}
+                    >
+                      How many
+                    </FieldLabel>
+                    <Input
+                      id="front-page-section-count"
+                      type="number"
+                      min={DIRECTORY_FRONT_PAGE_COUNT_MIN}
+                      max={DIRECTORY_FRONT_PAGE_COUNT_MAX}
+                      value={count}
+                      disabled={saving}
+                      aria-invalid={countInvalid || undefined}
+                      onChange={(event) => setCount(event.target.value)}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
             <Card size="sm">
               <CardHeader>
                 <CardTitle>Which listings</CardTitle>
@@ -353,6 +459,9 @@ export function FrontPageSectionDialog({
                 </div>
               </CardContent>
             </Card>
+              </>
+            )}
+
           </DialogBody>
 
           <DialogFooter>

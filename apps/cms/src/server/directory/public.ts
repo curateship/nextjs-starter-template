@@ -49,10 +49,19 @@ import {
 } from "@/server/directory/featured"
 import { listCustomSections } from "@/server/directory/custom-sections"
 import {
+  publishedSubtreeCounts,
+  readDirectoryCategoryCards,
+  resolvedCategoryChoice,
+} from "@/server/directory/category-cards"
+import {
   directoryMapDisplayKey,
   directorySettingsFor,
 } from "@/server/directory/settings"
 import { DIRECTORY_MAP_LISTING_LIMIT } from "@/lib/directory/listing-map"
+import {
+  MAX_DIRECTORY_CATEGORY_CARDS,
+  type DirectoryCategoryCard,
+} from "@/lib/directory/category-cards"
 import { cachedPublicDirectoryRead } from "@/server/directory/public-cache"
 import type { ReviewStatus } from "@/lib/directory/review-status"
 import { customShellWorkspaces } from "@/server/schema"
@@ -234,6 +243,12 @@ export type PublicBrowse = {
   browseTitle: string
   browseIntro: string
   sort: DirectorySort
+  /**
+   * The row of category cards at the top of the page, or empty when this site
+   * has not switched one on — and also when it has, but every category it chose
+   * is empty. A heading over no cards is worse than no row.
+   */
+  categoryCards: DirectoryCategoryCard[]
   /**
    * This site both offers the map and has a key to draw it with. Half of that
    * is not a map: a site that switched the view on and never pasted a key gets
@@ -775,6 +790,20 @@ async function readPublicBrowseUncached(
     browseTitle: settings.browseTitle,
     browseIntro: settings.browseIntro,
     sort: resolvedSort,
+    // Two more queries, and only for a site that switched the row on.
+    categoryCards: settings.browseCategoriesEnabled
+      ? await readDirectoryCategoryCards(
+          site.id,
+          resolvedCategoryChoice(
+            {
+              source: settings.browseCategorySource,
+              pickedCategoryIds: settings.browsePickedCategoryIds,
+            },
+            MAX_DIRECTORY_CATEGORY_CARDS
+          ),
+          database
+        )
+      : [],
     mapAvailable: settings.mapEnabled && settings.hasMapKey,
   }
 }
@@ -1139,54 +1168,6 @@ function ancestorsOf(
   return chain
 }
 
-/**
- * Published listings below each direct child of this category, including all
- * deeper descendants. One recursive query covers every child, and DISTINCT
- * keeps a listing assigned at two levels from being counted twice.
- */
-async function publishedSubtreeCounts(
-  siteId: string,
-  parentId: string,
-  database: CustomShellDb
-): Promise<Map<string, number>> {
-  const result = await database.execute(sql`
-    WITH RECURSIVE category_tree AS (
-      SELECT child.id AS ancestor_id, child.id AS descendant_id
-      FROM categories child
-      WHERE child.workspace_id = ${siteId}
-        AND child.parent_id = ${parentId}
-
-      UNION
-
-      SELECT tree.ancestor_id, child.id
-      FROM category_tree tree
-      INNER JOIN categories child
-        ON child.parent_id = tree.descendant_id
-       AND child.workspace_id = ${siteId}
-    )
-    SELECT
-      tree.ancestor_id AS "categoryId",
-      count(DISTINCT relationship.content_id)::int AS "count"
-    FROM category_tree tree
-    INNER JOIN category_relationships relationship
-      ON relationship.category_id = tree.descendant_id
-     AND relationship.workspace_id = ${siteId}
-     AND relationship.content_type = ${LISTING_CONTENT_TYPE}
-    INNER JOIN directory_listings listing
-      ON listing.id = relationship.content_id
-     AND listing.workspace_id = ${siteId}
-     AND listing.status = 'published'
-    GROUP BY tree.ancestor_id
-  `)
-
-  return new Map(
-    (result.rows as Array<{ categoryId: string; count: number }>).map((row) => [
-      row.categoryId,
-      row.count,
-    ])
-  )
-}
-
 /** One category's page, or null when this site has no category at that address. */
 async function readPublicCategoryUncached(
   site: VisitorSite,
@@ -1214,9 +1195,11 @@ async function readPublicCategoryUncached(
       },
       database
     ),
-    children.length
-      ? publishedSubtreeCounts(site.id, category.id, database)
-      : Promise.resolve(new Map<string, number>()),
+    publishedSubtreeCounts(
+      site.id,
+      children.map((row) => row.id),
+      database
+    ),
   ])
 
   return {
