@@ -374,14 +374,21 @@ export function BacktestStatsPanel({
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}
                 />
+                {/* The engine counts a charge as positive and a payment to
+                    us as negative. Shown as "-$1,489" under a label reading
+                    "paid" it looks like an enormous cost, when it is money the
+                    run took in — so the label follows the sign. */}
                 <Line
-                  label="Funding paid"
+                  label={
+                    figure(summary.fundingPaid) !== null &&
+                    summary.fundingPaid < 0
+                      ? "Funding earned"
+                      : "Funding paid"
+                  }
                   value={
                     figure(summary.fundingPaid) === null
                       ? "—"
-                      : summary.fundingPaid >= 0
-                        ? usd(summary.fundingPaid)
-                        : `-${usd(Math.abs(summary.fundingPaid))}`
+                      : usd(Math.abs(summary.fundingPaid))
                   }
                 />
                 {/* Not saved anywhere as one figure — it is the coins' own fee
