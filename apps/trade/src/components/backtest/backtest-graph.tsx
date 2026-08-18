@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/format/format-time"
-import { formatCompactUsd, formatUsdRounded } from "@/lib/trade/format"
+import { formatCompactUsd } from "@/lib/trade/format"
 import {
   GRAPH_PRESETS,
   barAt,
@@ -19,7 +19,10 @@ import {
   type GraphSeries,
   type GraphWindow,
 } from "@/lib/trade/backtest/graph"
-import { roundedPct } from "@/components/backtest/backtest-kpi"
+import {
+  roundedPct,
+  usd,
+} from "@/components/backtest/backtest-kpi"
 import { cn } from "@/lib/utils"
 
 /**
@@ -235,10 +238,10 @@ export function BacktestGraph({
               has no pence. */}
           <div className="flex flex-wrap items-baseline gap-x-2">
             <span className="text-2xl font-semibold tracking-tight tabular-nums">
-              {reading ? formatUsdRounded(reading.usd) : "—"}
+              {reading ? usd(reading.usd) : "—"}
             </span>
             <span className="text-[11px] text-muted-foreground tabular-nums">
-              from {formatUsdRounded(startingUsd)}
+              from {usd(startingUsd)}
             </span>
           </div>
         </div>
@@ -435,7 +438,7 @@ export function BacktestGraph({
             fontSize={10}
             className="fill-muted-foreground"
           >
-            started {formatUsdRounded(startingUsd)}
+            started {usd(startingUsd)}
           </text>
 
           {/* How far the pot fell inside a bar before the close it was written
@@ -589,7 +592,7 @@ export function BacktestGraph({
             <div className="mb-1 text-muted-foreground">
               {readingWhen(series, cursor)}
             </div>
-            <ReadingRow label="Wallet" value={formatUsdRounded(reading.usd)} />
+            <ReadingRow label="Wallet" value={usd(reading.usd)} />
             <ReadingRow
               label="Off peak"
               value={reading.offPeakPct < 0 ? `-${roundedPct(reading.offPeakPct)}` : roundedPct(0)}
@@ -597,7 +600,7 @@ export function BacktestGraph({
             />
             <ReadingRow
               label="In markets"
-              value={formatUsdRounded(reading.inCoins * leverage)}
+              value={usd(reading.inCoins * leverage)}
             />
             <ReadingRow
               label="Open"
@@ -605,7 +608,7 @@ export function BacktestGraph({
             />
             <ReadingRow
               label="Realised"
-              value={reading.banked === null ? "—" : formatUsdRounded(reading.banked)}
+              value={reading.banked === null ? "—" : usd(reading.banked)}
             />
           </div>
         ) : null}

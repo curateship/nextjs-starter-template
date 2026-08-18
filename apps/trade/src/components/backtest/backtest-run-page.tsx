@@ -29,7 +29,7 @@ import {
 } from "@/lib/trade/backtest/graph"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import type { CandleBar } from "@/lib/protocols/contracts"
-import { resultSummary } from "@/lib/trade/backtest/result"
+import { resultSummary, stoppedEarly } from "@/lib/trade/backtest/result"
 import type {
   BacktestCoinSummary,
   BacktestFillMark,
@@ -51,6 +51,7 @@ import {
   readBacktestSelection,
   rememberBacktestSelection,
 } from "@/lib/trade/backtest/selection"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 
 /**
@@ -166,6 +167,28 @@ export function BacktestRunPage({
   const [view, setView] = React.useState<"graph" | "chart">(
     openCoin ? "chart" : "graph"
   )
+
+  // **A run that never reached the end of its window says so out loud.**
+  //
+  // Every figure on this screen is then about less time than was asked for,
+  // and a run cut off while the pot is down reports that low point as its
+  // result — a strategy that finishes well ahead can print almost nothing. It
+  // used to be one line inside a list at the bottom of the left panel, below
+  // the fold and behind a toggle, under the very headline it was warning
+  // about. A toast cannot be scrolled past, and it stays until it is dismissed.
+  // Once per run, not once per render. The summary arrives as a fresh object
+  // every time the loader answers, so keying the effect on it would re-raise
+  // the toast on each revalidation — a warning that keeps reappearing while
+  // you are reading is one you start clicking away without reading.
+  const warnedRef = React.useRef<string | null>(null)
+  React.useEffect(() => {
+    if (warnedRef.current === run.id) return
+    if (!stoppedEarly(run.summary)) return
+    warnedRef.current = run.id
+    showErrorToast(
+      "This backtest stopped before the end of its window, so every figure here covers less time than it was set to. Run it again before trusting the result."
+    )
+  }, [run.id, run.summary])
 
   // How much the run borrows. The pot's line records the MARGIN each position
   // put up, not what it bought, so at 2× the money in the market is twice the

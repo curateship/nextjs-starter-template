@@ -5,6 +5,7 @@ import {
   signedPct,
   signedUsd,
   toneClass,
+  usd,
 } from "@/components/backtest/backtest-kpi"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
@@ -21,7 +22,6 @@ import {
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import type { BacktestTrade } from "@/lib/trade/backtest/result"
-import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -239,7 +239,7 @@ function Row({
         {open ? "still open" : formatDateTime(new Date(trade.exitAt!))}
       </TableCell>
       <TableCell column="meta" className="text-right tabular-nums">
-        {formatUsdRounded(trade.amountUsd)}
+        {usd(trade.amountUsd)}
       </TableCell>
       <TableCell
         column="meta"

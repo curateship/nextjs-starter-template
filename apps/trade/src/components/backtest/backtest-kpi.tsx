@@ -1,4 +1,3 @@
-import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -79,15 +78,34 @@ export function signedPct(value: number): string {
   return `${value >= 0 ? "+" : "-"}${roundedPct(Math.abs(value))}`
 }
 
+const WHOLE_USD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
+
 /**
- * "+$111,782" / "-$1,250" — money with a sign, and no pence above $100.
+ * "$111,782" / "-$1,250" — whole dollars, always.
  *
- * The backtest screen deals in whole pots, and two decimals on six figures is
- * two characters nobody reads. Under $100 `formatUsdRounded` keeps the pence,
- * because there they are the figure.
+ * **Always, because a column is read down.** The shared `formatUsdRounded`
+ * keeps the pence under a hundred dollars, which is right for one figure on
+ * its own and wrong for a table: a P&L column came out as -$52.68, -$92.01,
+ * -$207, $2,199 — half the rows carrying decimals the others did not, which
+ * reads as a broken column rather than a considered one.
+ *
+ * Under a dollar rounds to "$0", and that is the right answer here: against a
+ * pot in the tens of thousands, forty-five cents is nothing, and the colour of
+ * the figure already says which way it went.
  */
+export function usd(value: number): string {
+  const whole = Math.round(Math.abs(value))
+  // No sign on a rounded-away figure. Forty-five pence lost is "$0", never
+  // "-$0", which reads as a broken minus rather than as nothing.
+  const sign = whole > 0 && value < 0 ? "-" : ""
+  return `${sign}$${WHOLE_USD.format(whole)}`
+}
+
+/** The same, with its sign always shown — "+$111,782". */
 export function signedUsd(value: number): string {
-  return `${value >= 0 ? "+" : ""}${formatUsdRounded(value)}`
+  const whole = Math.round(Math.abs(value))
+  if (whole === 0) return usd(0)
+  return `${value > 0 ? "+" : ""}${usd(value)}`
 }
 
 /** The same rounding without a sign in front — "22%", "0.2%". */

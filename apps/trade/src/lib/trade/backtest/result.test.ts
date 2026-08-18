@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BACKTEST_STOPPED_EARLY,
   buildFillMarks,
   fillMarksFromStored,
   coinWorstDip,
@@ -10,6 +11,7 @@ import {
   worstDip,
   backtestSummarySchema,
   resultSummary,
+  stoppedEarly,
   whyNoLadder,
   type BacktestFill,
   type BacktestSummary,
@@ -582,5 +584,25 @@ describe("the worst dip on a run that grew", () => {
 
     expect(dip.usd).toBe(0)
     expect(dip.at).toBeNull()
+  })
+})
+
+describe("stoppedEarly", () => {
+  const summary = (warnings: string[]) => ({ warnings })
+
+  it("spots the run that never reached the end of its window", () => {
+    expect(stoppedEarly(summary([BACKTEST_STOPPED_EARLY]))).toBe(true)
+  })
+
+  it("is quiet about a run that finished, whatever else it warns about", () => {
+    expect(stoppedEarly(summary([]))).toBe(false)
+    expect(stoppedEarly(summary(["2 of 156 coins were skipped."]))).toBe(false)
+    expect(stoppedEarly(null)).toBe(false)
+  })
+
+  it("matches the sentence the engine actually writes", () => {
+    // The engine pushes this exact constant, so a reworded warning cannot
+    // silently stop the toast. If this ever fails, the two have drifted.
+    expect(BACKTEST_STOPPED_EARLY).toContain("stopped early")
   })
 })

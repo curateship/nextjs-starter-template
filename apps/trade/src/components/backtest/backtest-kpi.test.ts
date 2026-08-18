@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { roundedPct, sharePct, signedPct, signedUsd } from "./backtest-kpi"
+import { roundedPct, sharePct, signedPct, signedUsd, usd } from "./backtest-kpi"
 
 /**
  * The rounding every figure on the backtest screen reads through. Two decimals
@@ -42,14 +42,21 @@ describe("roundedPct", () => {
 })
 
 describe("signedUsd", () => {
-  it("drops the pence above a hundred dollars", () => {
+  it("is whole dollars, so a column reads straight down", () => {
     expect(signedUsd(111_782.38)).toBe("+$111,782")
     expect(signedUsd(-65_737.4)).toBe("-$65,737")
   })
 
-  it("keeps them below it, where they are the figure", () => {
-    expect(signedUsd(52.68)).toBe("+$52.68")
-    expect(signedUsd(-0.45)).toBe("-$0.45")
+  it("rounds the pence away, because the pot is in the thousands", () => {
+    expect(signedUsd(52.68)).toBe("+$53")
+  })
+
+  it("never writes a sign on a figure that rounded away to nothing", () => {
+    // "-$0" reads as a broken minus rather than as nothing.
+    expect(signedUsd(-0.45)).toBe("$0")
+    expect(signedUsd(0.45)).toBe("$0")
+    expect(signedUsd(0)).toBe("$0")
+    expect(usd(-0.45)).toBe("$0")
   })
 })
 

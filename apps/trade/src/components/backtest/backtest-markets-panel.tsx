@@ -4,6 +4,7 @@ import { ListOrderedIcon, SkipForwardIcon } from "lucide-react"
 import {
   signedUsd,
   toneClass,
+  usd,
 } from "@/components/backtest/backtest-kpi"
 import {
   WorkspacePanelTab,
@@ -28,7 +29,6 @@ import {
 } from "@/lib/trade/backtest/result"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { formatUsdRounded } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
@@ -303,7 +303,7 @@ export function BacktestMarketsPanel({
                     {coin.summary ? signedUsd(coin.summary.madeOrLost) : "—"}
                   </TableCell>
                   <TableCell column="meta" className="text-right tabular-nums">
-                    {coin.summary ? formatUsdRounded(coin.summary.worstDipUsd) : "—"}
+                    {coin.summary ? usd(coin.summary.worstDipUsd) : "—"}
                   </TableCell>
                   {/* Win carries the count with it — "2/6" already says six
                       trades — so a column repeating the six was a column of

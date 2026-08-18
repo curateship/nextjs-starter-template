@@ -7,6 +7,7 @@ import {
   signedPct,
   signedUsd,
   toneClass,
+  usd,
 } from "@/components/backtest/backtest-kpi"
 import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
@@ -25,7 +26,6 @@ import type {
 import type { GraphSeries, GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { formatUsdRounded } from "@/lib/trade/format"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { cn } from "@/lib/utils"
 
@@ -190,7 +190,7 @@ export function BacktestStatsPanel({
                   value={stats ? `-${roundedPct(stats.worstDipPct)}` : "—"}
                   sub={
                     stats
-                      ? `${formatUsdRounded(stats.worstDipUsd)} off ${formatUsdRounded(stats.worstDipPeak)}`
+                      ? `${usd(stats.worstDipUsd)} off ${usd(stats.worstDipPeak)}`
                       : ""
                   }
                   tone={stats && stats.worstDipUsd > 0 ? -1 : undefined}
@@ -270,7 +270,7 @@ export function BacktestStatsPanel({
                   value={stats ? `${Math.round(stats.peakWalletPct)}%` : "—"}
                   sub={
                     stats
-                      ? `${formatUsdRounded(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
+                      ? `${usd(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
                       : ""
                   }
                 />
@@ -278,7 +278,7 @@ export function BacktestStatsPanel({
                   label="Avg wallet"
                   value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
                   sub={
-                    stats ? `${formatUsdRounded(stats.typicalWalletUsd)} typically` : ""
+                    stats ? `${usd(stats.typicalWalletUsd)} typically` : ""
                   }
                 />
                 <BacktestKpi
@@ -298,7 +298,7 @@ export function BacktestStatsPanel({
                   label="In markets now"
                   // The pot's line records the margin a position put up, so at
                   // 2× the money in the market is twice it.
-                  value={stats ? formatUsdRounded(stats.inCoinsUsd * leverage) : "—"}
+                  value={stats ? usd(stats.inCoinsUsd * leverage) : "—"}
                   sub={
                     stats?.openNow === null || stats?.openNow === undefined
                       ? "at the end of the window"
@@ -380,8 +380,8 @@ export function BacktestStatsPanel({
                     figure(summary.fundingPaid) === null
                       ? "—"
                       : summary.fundingPaid >= 0
-                        ? formatUsdRounded(summary.fundingPaid)
-                        : `-${formatUsdRounded(Math.abs(summary.fundingPaid))}`
+                        ? usd(summary.fundingPaid)
+                        : `-${usd(Math.abs(summary.fundingPaid))}`
                   }
                 />
                 {/* Not saved anywhere as one figure — it is the coins' own fee
@@ -439,7 +439,7 @@ function feesPaid(result: BacktestResult | null): string {
     total += fees
   }
   if (!known) return "—"
-  return total > 0 ? `-${formatUsdRounded(total)}` : formatUsdRounded(0)
+  return total > 0 ? `-${usd(total)}` : usd(0)
 }
 
 function Line({ label, value }: { label: string; value: string }) {
