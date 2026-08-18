@@ -1,10 +1,15 @@
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
-import { ActivityIcon } from "lucide-react"
+import { ActivityIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 
 import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   TableCell,
   TableHead,
@@ -15,10 +20,14 @@ import {
 import {
   getFlowRunErrorMessage,
   loadFlowRuns,
+  removeFlowRuns,
   type FlowRunListRow,
 } from "@/lib/api/flow-runs"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
+import { useSelection } from "@/lib/hooks/use-selection"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
@@ -50,6 +59,10 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
   const [busy, setBusy] = React.useState(false)
   const [sort, setSort] = React.useState<Column>("started")
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
+  const [deleting, setDeleting] = React.useState<string[] | null>(null)
+  const [deleteBusy, setDeleteBusy] = React.useState(false)
+  const { selected, toggle, toggleVisible, clear, selectAllState } =
+    useSelection()
 
   const toggleSort = (column: Column) => {
     if (column === sort) {
@@ -81,6 +94,36 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
     const timer = setInterval(() => void refresh(), REFRESH_MS)
     return () => clearInterval(timer)
   }, [anyRunning, refresh])
+
+  /** Only runs that are over. A switched-on one is stopped, never deleted. */
+  const deletable = React.useMemo(
+    () => runs.filter((run) => run.status !== "running").map((run) => run.id),
+    [runs]
+  )
+  const chosen = [...selected].filter((id) => deletable.includes(id))
+
+  const remove = async (ids: string[]) => {
+    setDeleteBusy(true)
+    try {
+      const { deleted } = await removeFlowRuns(ids)
+      toast.success(
+        describeBulkResult({
+          done: deleted.length,
+          kept: ids.length - deleted.length,
+          one: "run",
+          many: "runs",
+          verb: "deleted",
+        })
+      )
+      clear()
+      await refresh()
+    } catch (error) {
+      showErrorToast(getFlowRunErrorMessage(error))
+    } finally {
+      setDeleteBusy(false)
+      setDeleting(null)
+    }
+  }
 
   const sorted = React.useMemo(() => {
     const way = direction === "asc" ? 1 : -1
@@ -118,15 +161,37 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
   )
 
   return (
-    <DashboardTable
+    <>
+      <DashboardTable
       title="Live runs"
       icon={<ActivityIcon />}
       count={sorted.length}
       busy={busy}
       error={error ? { message: error, onRetry: () => void refresh() } : null}
+      selectedCount={chosen.length}
+      onClearSelection={clear}
+      controls={
+        chosen.length ? (
+          <DashboardToolbarButton
+            type="button"
+            variant="destructive"
+            onClick={() => setDeleting(chosen)}
+          >
+            <Trash2Icon className="size-4" />
+            Delete ({chosen.length})
+          </DashboardToolbarButton>
+        ) : null
+      }
       header={
         <TableHeader>
           <TableRow>
+            <TableHead column="select">
+              <Checkbox
+                checked={selectAllState(deletable)}
+                onCheckedChange={() => toggleVisible(deletable)}
+                aria-label="Select every finished run"
+              />
+            </TableHead>
             <TableHead column="main">
               <TableSortButton
                 active={sort === "flow"}
@@ -140,12 +205,13 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
             {head("Working", "working")}
             {head("Made or lost", "net")}
             {head("Started", "started")}
+            <TableHead column="meta">Actions</TableHead>
           </TableRow>
         </TableHeader>
       }
       isEmpty={sorted.length === 0}
       emptyText="No flow has been switched on yet. Draw a wallet, the coins to trade and a strategy on an automation canvas, then switch it on above the canvas."
-      emptyColSpan={5}
+      emptyColSpan={7}
       footer={{ type: "summary", count: sorted.length, label: "run" }}
     >
       {sorted.map((row) => (
@@ -158,6 +224,14 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
             })
           }
         >
+          <TableCell column="select">
+            <Checkbox
+              checked={selected.has(row.id)}
+              disabled={row.status === "running"}
+              onCheckedChange={() => toggle(row.id)}
+              aria-label={`Select ${row.automationName}`}
+            />
+          </TableCell>
           <TableCell column="main">
             <div className="flex min-w-0 items-center gap-2">
               <Link
@@ -210,8 +284,44 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
           >
             {formatRelativeTime(new Date(row.startedAt), formatDateTime)}
           </TableCell>
+          <TableCell column="actions">
+            <div className="flex justify-end gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                // A switched-on run is not something to delete on the way
+                // past: its row is what holds the wallet and what says on the
+                // canvas that a flow is trading. Switch it off first.
+                disabled={row.status === "running"}
+                aria-label={`Delete the run of ${row.automationName}`}
+                onClick={() => setDeleting([row.id])}
+              >
+                <Trash2Icon className="size-3.5" />
+              </Button>
+            </div>
+          </TableCell>
         </TableRow>
       ))}
     </DashboardTable>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(null)
+        }}
+        title={
+          deleting && deleting.length > 1
+            ? `Delete ${deleting.length} runs?`
+            : "Delete this run?"
+        }
+        description="What it was set up to do, what it was waiting on and which orders it sent all go. The trades themselves stay — they are made of fills, which are kept forever — but they stop being tied to the run that made them."
+        confirmLabel="Delete"
+        loading={deleteBusy}
+        onConfirm={() => {
+          if (deleting) void remove(deleting)
+        }}
+      />
+    </>
   )
 }

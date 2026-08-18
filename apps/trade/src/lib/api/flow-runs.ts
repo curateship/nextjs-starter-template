@@ -5,8 +5,9 @@ import { parseMarketKey } from "@/lib/protocols/contracts"
 
 import type { LiveFillMark } from "@/lib/trade/live-trades"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import { userGet } from "@/server/guards"
+import { userGet, userPost } from "@/server/guards"
 import {
+  deleteFlowRuns,
   listFlowRuns,
   readFlowRun,
   readFlowRunCoin,
@@ -54,6 +55,17 @@ const coinSchema = z.object({
     .refine((key) => parseMarketKey(key) !== null, { message: "PAPER_MARKET" }),
 })
 
+const deleteSchema = z.object({
+  runIds: z.array(z.string().max(36)).max(200),
+})
+
+const deleteFlowRunsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(deleteSchema)
+  .handler(async ({ context, data }): Promise<{ deleted: string[] }> => {
+    return await deleteFlowRuns(context.user.id, data.runIds)
+  })
+
 const readFlowRunCoinFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(coinSchema)
@@ -78,6 +90,10 @@ export function loadFlowRuns() {
 
 export function loadFlowRun(runId: string) {
   return readFlowRunFn({ data: { runId } })
+}
+
+export function removeFlowRuns(runIds: string[]) {
+  return deleteFlowRunsFn({ data: { runIds } })
 }
 
 export function loadFlowRunCoin(runId: string, marketKey: string) {

@@ -570,19 +570,33 @@ export function TradeLinesLayer({
             {line.onSettings && !tool ? (
               // The whole pill is the press target, not just the little gear —
               // the gear stays as the visual cue, the × on top still wins.
+              //
+              // **It opens on the release, and only if the pointer stayed
+              // put.** The pill sits on the line, so a press on it that then
+              // moves is somebody dragging the order to a new price; opening
+              // on the press meant the window jumped up the moment they took
+              // hold of it, and the drag never happened. A press that travels
+              // drags, a press that does not opens the window.
               <g
                 role="button"
                 tabIndex={0}
                 aria-label={line.hint ?? `Settings for ${label.toLowerCase()}`}
                 style={{
                   pointerEvents: "all",
-                  cursor: "pointer",
+                  cursor: line.onMove ? "ns-resize" : "pointer",
                   outline: "none",
                 }}
                 onPointerDown={(event) => {
                   event.stopPropagation()
-                  line.onSettings?.()
+                  if (line.onMove) beginGrab(event, line)
                 }}
+                onPointerMove={continueGrab}
+                onPointerUp={(event) => {
+                  const dragged = grab?.id === line.id && grab.moved
+                  endGrab(event, line)
+                  if (!dragged) line.onSettings?.()
+                }}
+                onPointerCancel={(event) => endGrab(event, line)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault()

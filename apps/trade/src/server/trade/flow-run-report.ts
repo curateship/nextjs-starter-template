@@ -627,3 +627,55 @@ export async function readFlowRunCoin(
 
   return { marks: marks.sort((left, right) => left.at - right.at), ladders }
 }
+
+/**
+ * Throws away the record of runs that are over.
+ *
+ * **A switched-on run is refused.** Its row is what holds the wallet and what
+ * the canvas reads to know a flow is trading; deleting it would leave ladders
+ * working in the market with nothing on any screen saying so. Switch it off
+ * first — that is the act that ends a run, and it is deliberately not something
+ * a Delete button should do quietly on the way past.
+ *
+ * The trades themselves are not touched. They are made of fills, which are
+ * kept forever, and what goes here is the run's own description of itself: its
+ * settings, what it was waiting on, and which orders it sent.
+ */
+export async function deleteFlowRuns(
+  userId: string,
+  runIds: readonly string[]
+): Promise<{ deleted: string[] }> {
+  if (runIds.length === 0) return { deleted: [] }
+
+  // Two statements for the whole selection rather than two per run: this
+  // database is a long way off, and a page of old runs would otherwise be
+  // hundreds of round trips to do one thing.
+  const rows = await db
+    .delete(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        inArray(tradeFlowRuns.id, [...runIds]),
+        // Anything still running is skipped rather than refused outright, so
+        // deleting a page of old runs does not fail on the one at the top.
+        eq(tradeFlowRuns.status, "stopped")
+      )
+    )
+    .returning({ id: tradeFlowRuns.id })
+
+  const deleted = rows.map((row) => row.id)
+  if (deleted.length === 0) return { deleted }
+
+  // The list of orders each sent goes with it. The ladders keep their stamp:
+  // it is the record of who placed them, and a record does not become untrue
+  // because the thing it points at was tidied away.
+  await db
+    .delete(tradeFlowRunOrders)
+    .where(
+      and(
+        eq(tradeFlowRunOrders.userId, userId),
+        inArray(tradeFlowRunOrders.flowRunId, deleted)
+      )
+    )
+  return { deleted }
+}

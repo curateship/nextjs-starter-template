@@ -91,9 +91,8 @@ vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => wallet,
 }))
 
-const { listFlowRuns, readFlowRun, readFlowRunCoin } = await import(
-  "@/server/trade/flow-run-report"
-)
+const { deleteFlowRuns, listFlowRuns, readFlowRun, readFlowRunCoin } =
+  await import("@/server/trade/flow-run-report")
 
 function spec(patch: Partial<TradeFlowRunSpec> = {}): TradeFlowRunSpec {
   return {
@@ -316,6 +315,52 @@ describe("readFlowRunCoin", () => {
     const coin = await readFlowRunCoin(userId, "run-1", OTHER)
     expect(coin!.ladders).toHaveLength(0)
     expect(coin!.marks).toHaveLength(0)
+  })
+})
+
+describe("deleting a run", () => {
+  it("takes the run and the orders it sent, and leaves the ladders' stamp", async () => {
+    const { deleted } = await deleteFlowRuns(userId, ["run-1"])
+    expect(deleted).toEqual(["run-1"])
+
+    expect(
+      await db.select().from(tradeFlowRuns).where(eq(tradeFlowRuns.id, "run-1"))
+    ).toHaveLength(0)
+    expect(
+      await db
+        .select()
+        .from(tradeFlowRunOrders)
+        .where(eq(tradeFlowRunOrders.flowRunId, "run-1"))
+    ).toHaveLength(0)
+    // The ladder still says who placed it. That is a fact about the past, and
+    // tidying the run away does not make it untrue.
+    const [ladder] = await db
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "ladder-1"))
+    expect(ladder.flowRunId).toBe("run-1")
+  })
+
+  it("refuses to delete a run that is still switched on", async () => {
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "running" })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+
+    const { deleted } = await deleteFlowRuns(userId, ["run-1"])
+    expect(deleted).toEqual([])
+    expect(
+      await db.select().from(tradeFlowRuns).where(eq(tradeFlowRuns.id, "run-1"))
+    ).toHaveLength(1)
+  })
+
+  it("is nobody else's to delete", async () => {
+    const stranger = await insertUser(db)
+    const { deleted } = await deleteFlowRuns(stranger.id, ["run-1"])
+    expect(deleted).toEqual([])
+    expect(
+      await db.select().from(tradeFlowRuns).where(eq(tradeFlowRuns.id, "run-1"))
+    ).toHaveLength(1)
   })
 })
 
