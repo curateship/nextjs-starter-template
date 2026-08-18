@@ -10,8 +10,11 @@ import { z } from "zod"
  * else.
  */
 export const quickOrderPrefsSchema = z.object({
-  /** How the size was being said: in dollars, or as a share of free cash. */
-  sizeUnit: z.enum(["usd", "pct"]),
+  /**
+   * How the size was being said: in dollars, as a share of the free cash, or
+   * as the share of the whole wallet the trade may lose.
+   */
+  sizeUnit: z.enum(["usd", "pct", "risk"]),
   /** The number typed beside it, kept as typed so it comes back the same. */
   size: z.string().max(24),
   leverage: z.number().int().min(1).max(100),

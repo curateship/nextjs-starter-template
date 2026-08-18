@@ -1,7 +1,11 @@
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
-import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatUsdRounded,
+} from "@/lib/trade/format"
 import {
   liquidationPx,
   projectedProfit,
@@ -120,30 +124,42 @@ const DASHED: Record<LineKind, string | undefined> = {
 }
 
 /** How tall a label pill and its price badge are. */
-const PILL_HEIGHT = 20
+const PILL_HEIGHT = 22
 /** Roughly how wide the label text runs, for sizing its pill. */
 const CHAR_WIDTH = 6.4
 /** The × sits inside the pill, to the right of the words. */
 const CLOSE_WIDTH = 16
+/** The grip's dots, and the room they take at the pill's left edge. */
+const GRIP_WIDTH = 14
+/** The gap between the pill and the price badge that follows it. */
+const BADGE_GAP = 4
+/** How round both the pill and the price badge are. */
+const PILL_RADIUS = 8
 
 /**
- * The label pill: rounded on its left, square on its right.
+ * The grip: two columns of three dots, drawn only where a line can be dragged.
  *
- * Square on the right because it butts straight up against the price badge on
- * the axis — a rounded corner there leaves a notch of chart showing between
- * the two, and they are meant to read as one continuous label.
+ * **It is the one thing that says a line moves.** A dashed line with a label
+ * looks exactly like a line you can only read, and somebody who does not know
+ * a stop can be dragged has no way to find out. The dots are the same handle
+ * every draggable thing in this app uses, so they read without a legend.
  */
-function pillPath(x: number, y: number, width: number, height: number): string {
-  const r = 4
-  return [
-    `M${x + r} ${y}`,
-    `H${x + width}`,
-    `V${y + height}`,
-    `H${x + r}`,
-    `A${r} ${r} 0 0 1 ${x} ${y + height - r}`,
-    `V${y + r}`,
-    `A${r} ${r} 0 0 1 ${x + r} ${y}`,
-  ].join(" ")
+function Grip({ x, y, color }: { x: number; y: number; color: string }) {
+  const dots: React.ReactNode[] = []
+  for (let column = 0; column < 2; column++) {
+    for (let row = 0; row < 3; row++) {
+      dots.push(
+        <circle
+          key={`${column}-${row}`}
+          cx={x + column * 4}
+          cy={y + row * 4}
+          r={1.1}
+          fill={color}
+        />
+      )
+    }
+  }
+  return <g opacity={0.75}>{dots}</g>
 }
 
 export function TradeLinesLayer({
@@ -155,6 +171,8 @@ export function TradeLinesLayer({
   tool,
   entryBadge,
   onMoveOrder,
+  onMoveOrderStop,
+  onMoveOrderTarget,
   onCancelOrder,
   onEditOrder,
   onSetBrackets,
@@ -176,6 +194,16 @@ export function TradeLinesLayer({
   /** What a position's entry pill carries besides "Entry", if anything. */
   entryBadge?: (position: PaperPosition) => EntryBadge | null
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
+  /**
+   * Dragging a waiting order's stop, which changes how much the order is for.
+   *
+   * The money at stake stays where it was put: a stop dragged twice as far
+   * halves the order rather than doubling what it can lose. That is the whole
+   * reason this line is draggable at all — see `resizeForStop`.
+   */
+  onMoveOrderStop?: (walletId: string, orderId: string, price: number) => void
+  /** Dragging a waiting order's target. The amount is left alone. */
+  onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (walletId: string, orderId: string) => void
   /**
    * Pressing a waiting order's bar: its size and where it gets out. Only the
@@ -298,7 +326,7 @@ export function TradeLinesLayer({
     // A real resting order can neither be dragged to a new price nor changed
     // in place yet — both are the edit-orders task. Its × still cancels.
     const edit =
-      settled && !order.live && onEditOrder
+      settled && !order.live && !order.watched && onEditOrder
         ? () => onEditOrder(order.id)
         : undefined
 
@@ -306,12 +334,16 @@ export function TradeLinesLayer({
       id: `order:${order.id}`,
       kind: "order",
       price: order.px,
+      // In dollars, not in coins. "Buy 3.2754" is an amount of something whose
+      // price is the other number on the same line; the money it commits is
+      // the figure anybody reads a resting order for, and it is the one that
+      // compares with every other order on the chart.
       label: () =>
-        `${order.side === "buy" ? "Buy" : "Sell"} ${order.sz}${tag}${
-          settled ? "" : " · sending"
-        }`,
+        `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
+          order.px * order.sz
+        )}${tag}${settled ? "" : " · sending"}`,
       onMove:
-        settled && !order.live
+        settled && !order.live && !order.watched
           ? (price) => onMoveOrder(order.walletId, order.id, price)
           : undefined,
       onRemove: settled
@@ -324,21 +356,41 @@ export function TradeLinesLayer({
     })
 
     if (order.tpPx !== null) {
+      // Moving the target changes where the trade gets out in profit and
+      // nothing else — the amount stays where it was put, because the target
+      // has no say in what the trade can lose.
+      const move =
+        settled && !order.live && !order.watched && onMoveOrderTarget
+          ? (price: number) => onMoveOrderTarget(order.walletId, order.id, price)
+          : undefined
       lines.push({
         id: `order-tp:${order.id}`,
         kind: "order_take_profit",
         price: order.tpPx,
         label: (at) =>
-          `Target once filled ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+          `Take Profit ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+        onMove: move,
+        hint: move ? "Drag to move where this order takes its profit." : undefined,
       })
     }
     if (order.slPx !== null) {
+      // Draggable only on a practice order, exactly like the order's own price
+      // line above: a real resting order cannot be changed in place, it has to
+      // be cancelled and placed again.
+      const resize =
+        settled && !order.live && !order.watched && onMoveOrderStop
+          ? (price: number) => onMoveOrderStop(order.walletId, order.id, price)
+          : undefined
       lines.push({
         id: `order-sl:${order.id}`,
         kind: "order_stop_loss",
         price: order.slPx,
         label: (at) =>
-          `Stop once filled ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+          `Stop Loss ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
+        onMove: resize,
+        hint: resize
+          ? "Drag to move the stop. The order's size changes with it, so it still risks the same money."
+          : undefined,
       })
     }
   }
@@ -398,24 +450,38 @@ export function TradeLinesLayer({
         const priceText = formatPrice(price)
         const label = line.label(price)
 
-        // The label pill sits at the right-hand end of the line, tucked
-        // against the axis, with its price carrying straight on into the axis
-        // itself — so the line, what it is, and what it costs read as one
-        // thing left to right instead of three things to hunt for.
+        // Line, then an outlined pill saying what it is, then the price in a
+        // solid badge over the axis. The words sit in the line's own colour on
+        // the chart's background rather than in white on a block of it: a
+        // solid bar that wide reads as a thing in its own right and hides the
+        // candles behind it, while the price — the one figure that has to be
+        // found at a glance — keeps the colour to itself.
+        const grip = line.onMove ? GRIP_WIDTH : 0
+        // 20 of padding, plus room for the grip and for whichever controls the
+        // line carries — with a gap of its own before them, so the words never
+        // butt straight up against the gear.
+        const controls =
+          (line.onRemove ? CLOSE_WIDTH : 0) + (line.onSettings ? CLOSE_WIDTH : 0)
         const pillWidth =
           label.length * CHAR_WIDTH +
-          16 +
-          (line.onRemove ? CLOSE_WIDTH : 0) +
-          (line.onSettings ? CLOSE_WIDTH : 0)
-        const pillX = Math.max(2, surface.width - pillWidth)
+          20 +
+          grip +
+          (controls > 0 ? controls + 4 : 0)
+        const badgeWidth = Math.max(
+          surface.axisWidth,
+          priceText.length * CHAR_WIDTH + 12
+        )
+        const pillX = Math.max(2, surface.width - pillWidth - BADGE_GAP)
         const top = y - PILL_HEIGHT / 2
 
         return (
           <g key={line.id}>
+            {/* Stops at the pill rather than running under it, so the words
+                are read against the chart and not against their own line. */}
             <line
               x1={0}
               y1={y}
-              x2={surface.width}
+              x2={Math.max(0, pillX - 2)}
               y2={y}
               stroke={color}
               strokeWidth={held ? 2 : 1.5}
@@ -423,27 +489,45 @@ export function TradeLinesLayer({
             />
 
             <g style={{ pointerEvents: "none" }}>
-              <path d={pillPath(pillX, top, pillWidth, PILL_HEIGHT)} fill={color} />
+              <rect
+                x={pillX}
+                y={top}
+                width={pillWidth}
+                height={PILL_HEIGHT}
+                rx={PILL_RADIUS}
+                fill="var(--card)"
+                fillOpacity={0.92}
+                stroke={color}
+                strokeWidth={held ? 1.75 : 1.25}
+              />
+              {line.onMove ? (
+                <Grip x={pillX + 9} y={y - 4} color={color} />
+              ) : null}
               <text
-                x={pillX + 8}
-                y={y + 3.5}
-                fill="#ffffff"
-                style={{ fontSize: 11, fontWeight: 500 }}
+                x={pillX + 10 + grip}
+                y={y + 4}
+                fill={color}
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                }}
               >
                 {label}
               </text>
-              {/* The price runs on into the axis, in the line's own colour, so
-                  it reads against the axis numbers the way a mark price does. */}
+              {/* The price in the line's colour, over the axis, where every
+                  other price on the chart is read. */}
               <rect
-                x={surface.width}
+                x={surface.width + BADGE_GAP}
                 y={top}
-                width={surface.axisWidth}
+                width={badgeWidth}
                 height={PILL_HEIGHT}
+                rx={PILL_RADIUS}
                 fill={color}
               />
               <text
-                x={surface.width + 6}
-                y={y + 3.5}
+                x={surface.width + BADGE_GAP + 6}
+                y={y + 4}
                 fill="#ffffff"
                 style={{ fontSize: 11, fontWeight: 600 }}
               >
@@ -510,8 +594,9 @@ export function TradeLinesLayer({
                 <rect
                   x={pillX}
                   y={top}
-                  width={pillWidth + surface.axisWidth}
+                  width={pillWidth}
                   height={PILL_HEIGHT}
+                  rx={PILL_RADIUS}
                   fill="transparent"
                 />
               </g>
@@ -530,7 +615,7 @@ export function TradeLinesLayer({
                 }
                 y={y + 5}
                 textAnchor="middle"
-                fill="#ffffff"
+                fill={color}
                 fillOpacity={0.9}
                 style={{ fontSize: 15, pointerEvents: "none" }}
               >
@@ -542,6 +627,7 @@ export function TradeLinesLayer({
               <RemoveButton
                 x={pillX + pillWidth - CLOSE_WIDTH / 2 - 6}
                 y={y}
+                color={color}
                 label={`Remove ${label.toLowerCase()}`}
                 onRemove={line.onRemove}
               />
@@ -553,15 +639,17 @@ export function TradeLinesLayer({
   )
 }
 
-/** The × inside a label pill, in the pill's own white. */
+/** The × inside a label pill, in the line's own colour. */
 function RemoveButton({
   x,
   y,
+  color,
   label,
   onRemove,
 }: {
   x: number
   y: number
+  color: string
   label: string
   onRemove: () => void
 }) {
@@ -595,8 +683,8 @@ function RemoveButton({
       />
       <path
         d={`M${x - 3.5} ${y - 3.5} L${x + 3.5} ${y + 3.5} M${x + 3.5} ${y - 3.5} L${x - 3.5} ${y + 3.5}`}
-        stroke="#ffffff"
-        strokeOpacity={0.85}
+        stroke={color}
+        strokeOpacity={0.9}
         strokeWidth={1.6}
         strokeLinecap="round"
       />

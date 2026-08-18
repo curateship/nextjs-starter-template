@@ -61,6 +61,7 @@ import {
 } from "@/server/trade/smart-orders"
 import { advanceGrid } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
+import { advanceWatch } from "./smart-watch"
 import {
   advanceOne,
   ladderBarsKey,
@@ -775,10 +776,13 @@ async function reconcileLiveLaddersOnce(
       // have come from.
       const aimedTpPx =
         entry && entry.kind === "dca" ? (entry.plan as LadderPlan).aimedTpPx : null
-      // A signal trade writes no protection at all — its exit is the next
-      // arrow — so none of its sells can have come from a stop it never set.
+      // Only the two that manage a stop of their own can have fired one. A
+      // signal trade writes no protection at all — its exit is the next arrow
+      // — and a watch hands its stop to the position and is done.
       const aimedSlPx =
-        entry && entry.kind !== "signal" ? entry.plan.aimedSlPx : null
+        entry && (entry.kind === "dca" || entry.kind === "grid")
+          ? entry.plan.aimedSlPx
+          : null
       const reason: PaperFillReason =
         one.side === "sell" && near(aimedSlPx)
           ? "stop_loss"
@@ -1068,11 +1072,14 @@ async function reconcileLiveLaddersOnce(
             }
             // Through `entry`, not `row`, and they are the same object: only
             // `entry` carries the kind, so only it knows this plan has a stop
-            // to aim at all. A signal trade cannot reach here — the block this
-            // sits inside skips its kind, and the compiler now knows it.
-            entry.plan.aimedSlPx = oldProtectionGone
-              ? null
-              : (originalBrackets?.slPx ?? null)
+            // to aim at all. Neither a signal trade nor a watch can reach here
+            // — the block this sits inside skips both kinds, and the compiler
+            // now knows it.
+            if (entry.kind === "dca" || entry.kind === "grid") {
+              entry.plan.aimedSlPx = oldProtectionGone
+                ? null
+                : (originalBrackets?.slPx ?? null)
+            }
             await saveLadderPlan(userId, row.id, row.plan, status)
             throw error
           }
@@ -1105,6 +1112,14 @@ async function reconcileLiveLaddersOnce(
       // looking at the POSITION, which this book has just rebuilt from the
       // exchange — so a partial fill needs no arithmetic here to be understood.
       await advanceRow(raw, entry, advanceSignal)
+      continue
+    }
+
+    if (entry.kind === "watch") {
+      // Nothing is on the exchange at all until the level is touched, and from
+      // then on it is the same single chased order a signal trade has. Same
+      // reasoning, same path.
+      await advanceRow(raw, entry, advanceWatch)
       continue
     }
 

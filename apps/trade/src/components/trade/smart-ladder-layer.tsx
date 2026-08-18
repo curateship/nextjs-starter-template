@@ -33,6 +33,18 @@ import { cn } from "@/lib/utils"
 const LADDER_COLOR = "#059669"
 const SELL_COLOR = "#089981"
 
+/**
+ * The same tag every line on this chart wears: an outlined pill in the line's
+ * own colour, on the chart's own background.
+ *
+ * Matched to the position and order lines deliberately. They were solid blocks
+ * of colour with white words while those were outlines, so two things that are
+ * both "a price this trade cares about" looked like two different kinds of
+ * object — and a solid tag that wide hides the candles behind it.
+ */
+const TAG_CLASS =
+  "absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded-lg border bg-card/90 px-1.5 py-0.5 text-[11px] font-semibold"
+
 export function SmartLadderLayer({
   surface,
   marketKey,
@@ -83,8 +95,8 @@ export function SmartLadderLayer({
               style={{ borderColor: LADDER_COLOR }}
             />
             <span
-              className="absolute right-1 top-0 -translate-y-1/2 rounded px-1 text-[10px] tabular-nums opacity-70"
-              style={{ color: LADDER_COLOR }}
+              className={`${TAG_CLASS} tabular-nums opacity-70`}
+              style={{ borderColor: LADDER_COLOR, color: LADDER_COLOR }}
             >
               Rung {index + 1} · {formatPrice(px)}
             </span>
@@ -151,8 +163,12 @@ function LadderLines({
             style={{ borderColor: LADDER_COLOR }}
           />
           <span
-            className="absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded px-1 text-[11px] font-medium text-white"
-            style={{ backgroundColor: LADDER_COLOR, pointerEvents: controls }}
+            className={TAG_CLASS}
+            style={{
+              borderColor: LADDER_COLOR,
+              color: LADDER_COLOR,
+              pointerEvents: controls,
+            }}
             title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}. Rung prices are frozen; cancel and place again for a different ladder.`}
           >
             DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
@@ -160,7 +176,7 @@ function LadderLines({
               <button
                 type="button"
                 aria-label="Change the ladder's exits"
-                className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
                 onClick={() => onEditExits?.(ladder)}
               >
                 <SettingsIcon className="size-3" />
@@ -170,7 +186,7 @@ function LadderLines({
               <button
                 type="button"
                 aria-label="Stop buying deeper — cancel every waiting rung"
-                className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
                 onClick={() => onCancelLadder?.(ladder)}
               >
                 <XIcon className="size-3" />
@@ -202,8 +218,12 @@ function LadderLines({
               style={{ borderColor: LADDER_COLOR }}
             />
             <span
-              className="absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded px-1 text-[11px] text-white"
-              style={{ backgroundColor: LADDER_COLOR, pointerEvents: controls }}
+              className={TAG_CLASS}
+              style={{
+                borderColor: LADDER_COLOR,
+                color: LADDER_COLOR,
+                pointerEvents: controls,
+              }}
               title={
                 missed
                   ? "This rung never bought — price reached it while the cash was already spent, or passed it while it sat under your stop. It will not buy now."
@@ -227,7 +247,7 @@ function LadderLines({
                 <button
                   type="button"
                   aria-label={`Cancel rung ${index + 1}`}
-                  className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                  className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
                   onClick={() =>
                     onCancelRung?.(ladder.walletId, ladder.id, index)
                   }
@@ -251,8 +271,12 @@ function LadderLines({
               style={{ borderColor: SELL_COLOR }}
             />
             <span
-              className="absolute right-1 top-0 -translate-y-1/2 rounded px-1 text-[11px] text-white"
-              style={{ backgroundColor: SELL_COLOR, pointerEvents: controls }}
+              className={TAG_CLASS}
+              style={{
+                borderColor: SELL_COLOR,
+                color: SELL_COLOR,
+                pointerEvents: controls,
+              }}
               title="Rung sell — managed by the ladder, so it cannot be dragged. Change the exit rules to move it."
             >
               Rung {index + 1} sell · {formatUsdRounded(exits[index] * rung.sz)}

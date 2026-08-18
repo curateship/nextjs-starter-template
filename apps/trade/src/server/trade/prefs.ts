@@ -16,6 +16,10 @@ import {
   readIndicatorSettings,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
+import {
+  readOrderStyle,
+  type OrderStyle,
+} from "@/lib/trade/order-style"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -265,5 +269,28 @@ export async function saveQuickOrder(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { quickOrder, updatedAt: new Date() },
+    })
+}
+
+/** How this person's plain orders wait: on the exchange, or watched here. */
+export async function loadOrderStyle(userId: string): Promise<OrderStyle> {
+  const row = await db
+    .select({ orderStyle: tradePrefs.orderStyle })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readOrderStyle(row[0]?.orderStyle)
+}
+
+export async function saveOrderStyle(
+  userId: string,
+  orderStyle: OrderStyle
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, orderStyle, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { orderStyle, updatedAt: new Date() },
     })
 }

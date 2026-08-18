@@ -34,6 +34,7 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
   dca: "DCA ladder",
   grid: "Grid",
   signal: "Signals",
+  watch: "Watched price",
 }
 
 export function SmartOrdersPanel({
@@ -199,6 +200,16 @@ function whereItHasGot(
       (level) => level.status === "holding"
     ).length
     return `${order.plan.levels.length} levels ${formatPrice(order.plan.bottomPx)}–${formatPrice(order.plan.topPx)}, ${holding} bought`
+  }
+  if (order.kind === "watch") {
+    // A watch has its own three states and they mean different things from a
+    // signal trade's. Falling through to that one told somebody a price that
+    // has not been reached yet was a position being held.
+    if (order.plan.phase === "waiting") {
+      return `Waiting for ${formatPrice(order.plan.triggerPx)}, nothing sent yet`
+    }
+    if (order.plan.phase === "stopping") return "Being called off"
+    return `Reached ${formatPrice(order.plan.triggerPx)} — buying in`
   }
   const phase = order.plan.phase
   if (phase === "buying") return "Waiting to buy in"

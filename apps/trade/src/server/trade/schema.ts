@@ -29,6 +29,7 @@ import type {
 } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
+import type { OrderStyle } from "@/lib/trade/order-style"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -121,6 +122,15 @@ export const tradePrefs = pgTable("trade_prefs", {
   // way in or out. Deliberately not carrying "only reduce what I hold", which
   // is about the position in front of you and must not follow you around.
   quickOrder: jsonb("quick_order").$type<QuickOrderPrefs>(),
+  /**
+   * What a plain order does while it waits: rest on the exchange, or be
+   * watched here and sent when the price is reached. See `order-style.ts`;
+   * resting is what every order did before the choice existed.
+   */
+  orderStyle: varchar("order_style", { length: 8 })
+    .$type<OrderStyle>()
+    .notNull()
+    .default("rest"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

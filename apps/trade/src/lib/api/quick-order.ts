@@ -5,8 +5,14 @@ import {
   quickOrderPrefsSchema,
   type QuickOrderPrefs,
 } from "@/lib/trade/quick-order"
+import { ORDER_STYLES, type OrderStyle } from "@/lib/trade/order-style"
 import { userGet, userPost } from "@/server/guards"
-import { loadQuickOrder, saveQuickOrder } from "@/server/trade/prefs"
+import {
+  loadOrderStyle,
+  loadQuickOrder,
+  saveOrderStyle,
+  saveQuickOrder,
+} from "@/server/trade/prefs"
 
 /**
  * What the right-click order window remembers between orders.
@@ -38,4 +44,35 @@ export function loadQuickOrderPrefs() {
 
 export function saveQuickOrderPrefs(prefs: QuickOrderPrefs) {
   return saveQuickOrderFn({ data: { prefs } })
+}
+
+const styleSchema = z.object({ orderStyle: z.enum(ORDER_STYLES) })
+
+/**
+ * How a plain order waits, read and written from the Trading engine settings.
+ *
+ * Its own pair of doors rather than a field on the order window's remembered
+ * settings: those are saved when an order is placed, and this one has to be
+ * changeable without placing anything.
+ */
+const loadOrderStyleFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .handler(async ({ context }): Promise<{ orderStyle: OrderStyle }> => {
+    return { orderStyle: await loadOrderStyle(context.user.id) }
+  })
+
+const saveOrderStyleFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(styleSchema)
+  .handler(async ({ context, data }): Promise<{ saved: true }> => {
+    await saveOrderStyle(context.user.id, data.orderStyle)
+    return { saved: true }
+  })
+
+export function loadRememberedOrderStyle() {
+  return loadOrderStyleFn()
+}
+
+export function saveRememberedOrderStyle(orderStyle: OrderStyle) {
+  return saveOrderStyleFn({ data: { orderStyle } })
 }

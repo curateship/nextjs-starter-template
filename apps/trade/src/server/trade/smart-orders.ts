@@ -17,6 +17,8 @@ import {
   type LadderRungState,
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
+import type { PaperSide } from "@/lib/trade/paper"
+import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
@@ -846,8 +848,147 @@ export async function listActiveSmartOrders(
         ? { ...shared, kind, plan: plan as GridPlan }
         : kind === "signal"
           ? { ...shared, kind, plan: plan as SignalPlan }
-          : { ...shared, kind, plan: plan as LadderPlan }
+          : kind === "watch"
+            ? { ...shared, kind, plan: plan as WatchPlan }
+            : { ...shared, kind: "dca" as const, plan: plan as LadderPlan }
     )
   }
   return orders
+}
+
+/**
+ * Sets a price to watch, and what to do when the market reaches it.
+ *
+ * **Nothing is sent anywhere.** One row is written; the engine's next pass is
+ * what notices the level being touched and starts asking for a price. That is
+ * the whole difference from a resting order, and it is why this works the same
+ * on a practice wallet and a real one — neither of them has anything on a book
+ * until the moment it is wanted.
+ *
+ * One smart order per coin per wallet, checked under the same lock every other
+ * placement takes: a watch and a ladder on one coin would both write that
+ * position's stop and fight over it.
+ */
+export async function placeWatchOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: {
+    marketKey: string
+    side: PaperSide
+    /** The level to watch — the price that was clicked. */
+    px: number
+    sz: number
+    leverage: number
+    reduceOnly: boolean
+    tpPx: number | null
+    slPx: number | null
+  }
+): Promise<{ watching: true }> {
+  const ref = parseMarketKey(input.marketKey)
+  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+    throw new Error("PAPER_MARKET")
+  }
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("PAPER_MARKET")
+
+  const now = new Date()
+  const plan: WatchPlan = {
+    triggerPx: input.px,
+    side: input.side,
+    sz: input.sz,
+    leverage: input.leverage,
+    maxLeverage: rules.maxLeverage ?? 1,
+    sizeDecimals: rules.sizeDecimals,
+    tpPx: input.tpPx,
+    slPx: input.slPx,
+    reduceOnly: input.reduceOnly,
+    // It waits at the level rather than following the price away from it,
+    // which is the closest thing to the resting order this stands in for.
+    chaseGiveUp: 0,
+    phase: "waiting",
+    orderId: null,
+    orderPx: null,
+    chasedAt: 0,
+    chases: 0,
+    startedAt: now.getTime(),
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .for("update")
+    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
+    if (race) throw new Error("SMART_LADDER_EXISTS")
+
+    await tx.insert(tradeSmartLadders).values({
+      userId,
+      id: randomUUID(),
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "watch",
+      status: "active",
+      plan,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
+
+  return { watching: true }
+}
+
+/**
+ * Calls off a watched price.
+ *
+ * **It marks the row rather than deleting it**, and the engine's next pass does
+ * the cancelling — the same road a flow being switched off takes. While the
+ * level has not been touched there is nothing to cancel anywhere and the row
+ * simply ends; once it has, there may be an order resting on a real exchange,
+ * and only the engine has the wiring to take that back.
+ */
+export async function cancelWatchOrder(
+  userId: string,
+  walletId: string,
+  watchId: string
+): Promise<{ cancelled: true }> {
+  const [row] = await db
+    .select()
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.id, watchId),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+
+  const plan = readWatchPlan(row.plan)
+  if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
+
+  // Nothing has been sent, so nothing has to be taken back: the row is the
+  // whole of the order and it ends here.
+  if (plan.phase === "waiting" && plan.orderId === null) {
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "done", updatedAt: new Date() })
+      .where(
+        and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+      )
+    return { cancelled: true }
+  }
+
+  await db
+    .update(tradeSmartLadders)
+    .set({
+      plan: { ...plan, phase: "stopping" },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+    )
+  return { cancelled: true }
 }

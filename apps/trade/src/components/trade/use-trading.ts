@@ -35,6 +35,7 @@ import {
   updateGridStop,
   getSmartOrderErrorMessage,
   placeDcaLadder,
+  cancelWatch,
   reconcileLiveSmartOrders,
   updateLadderExits,
 } from "@/lib/api/smart-orders"
@@ -613,6 +614,16 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       // Cancelling costs nothing and the × on the chart has to stay instant,
       // so there is no question asked first — and nothing is said afterwards
       // either: the line disappearing is the answer.
+      // A watched price is drawn as an order and cancelled as one, but there
+      // is no order anywhere to cancel — the row IS the order until its level
+      // is touched, so it goes back through the smart-order door.
+      const watch = smartOrders.find(
+        (one) => one.kind === "watch" && one.id === orderId
+      )
+      if (watch) {
+        await run(() => cancelWatch({ walletId, ladderId: orderId }))
+        return
+      }
       const order = findOrder(orderId)
       if (order?.live) {
         await runWith(getLiveErrorMessage, () =>
@@ -622,7 +633,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       }
       await run(() => cancelPaperOrder(walletId, orderId))
     },
-    [run, runWith, findOrder]
+    [run, runWith, findOrder, smartOrders]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(

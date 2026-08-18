@@ -14,8 +14,12 @@ import {
   setLiveBrackets as setBracketsRow,
 } from "@/server/trade/live-orders"
 import { hideLiveTrade as hideTradeRows } from "@/server/trade/live-fills"
-import { listActiveSmartOrders } from "@/server/trade/smart-orders"
-import { listWallets } from "@/server/trade/wallets"
+import { loadOrderStyle } from "@/server/trade/prefs"
+import {
+  listActiveSmartOrders,
+  placeWatchOrder,
+} from "@/server/trade/smart-orders"
+import { findWallet, listWallets } from "@/server/trade/wallets"
 
 import { describeAuthError } from "./error-message"
 
@@ -101,6 +105,28 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
+    // Watched rather than rested, when that is what the account is set to.
+    // Nothing reaches the exchange until the price is actually there, so the
+    // answer here is "it is waiting", the same shape a resting order gives.
+    if ((await loadOrderStyle(context.user.id)) === "watch") {
+      const wallet = await findWallet(context.user.id, data.walletId)
+      if (!wallet) throw new Error("LIVE_WALLET")
+      await placeWatchOrder(context.user.id, wallet, data)
+      return {
+        outcome: {
+          status: "resting",
+          // No exchange order to name: there is not one yet, and the whole
+          // point is that there will not be until the price is reached.
+          orderId: null,
+          avgPx: null,
+          filledSz: null,
+          // The stop and target travel with the watch and are handed to the
+          // position it opens, so there is nothing to report on here.
+          protection: null,
+          protectionNote: null,
+        },
+      }
+    }
     return { outcome: await placeOrderRow(context.user.id, data) }
   })
 
@@ -176,6 +202,9 @@ const LIVE_SENTENCES: Record<string, string> = {
     "This wallet has no trading key saved. Open its settings and add one.",
   WALLET_INACTIVE: "Make this wallet active before placing a new order.",
   LIVE_MARKET: "That market is not one this wallet can trade.",
+  SMART_LADDER_EXISTS:
+    "This market already has a ladder, grid or watched price in that wallet. There can only be one of them per market — cancel it before setting another.",
+  LIVE_WALLET: "That wallet is not there any more.",
   LIVE_NETWORK_MISMATCH:
     "This wallet and this chart are on different networks — a test-network wallet cannot trade a real-money market, or the reverse.",
   LIVE_MAINNET_OFF:

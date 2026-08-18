@@ -16,6 +16,7 @@ import {
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import { readSmartOrderKind, readSmartPlan } from "@/lib/trade/smart-plan"
 import {
   holdUntil,
@@ -34,6 +35,7 @@ import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
 import { advanceGrid, type GridRow } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
+import { advanceWatch } from "./smart-watch"
 import {
   aimStop,
   INTERVAL_MS,
@@ -263,6 +265,14 @@ export async function advanceLadders(
         id: raw.id,
         marketKey: raw.marketKey,
         plan: plan as SignalPlan,
+      })
+      continue
+    }
+    if (kind === "watch") {
+      await advanceWatch(input, withDatabase, {
+        id: raw.id,
+        marketKey: raw.marketKey,
+        plan: plan as WatchPlan,
       })
       continue
     }

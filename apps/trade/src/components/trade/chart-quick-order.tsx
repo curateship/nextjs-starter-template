@@ -3,6 +3,7 @@ import { GripVerticalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -15,6 +16,7 @@ import {
 import { Slider } from "@/components/ui/slider"
 import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 import { bracketPrice } from "@/lib/trade/brackets"
+import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { isMarketable, type PaperSide } from "@/lib/trade/paper"
@@ -40,13 +42,14 @@ const PANEL_HEIGHT = 520
 const EDGE = 8
 
 /**
- * How size is being said: in dollars, or as a share of free cash.
+ * How size is being said: in dollars, as a share of free cash, or as the share
+ * of the whole wallet the trade is allowed to lose.
  *
  * Deliberately no "in coins". Everything else on these screens is in dollars,
  * and a size in coins is one more thing to convert in your head before you can
  * tell whether the order is the size you meant.
  */
-type SizeUnit = "usd" | "pct"
+type SizeUnit = "usd" | "pct" | "risk"
 
 const SHARE_PICKS = [10, 25, 50, 100]
 
@@ -59,6 +62,8 @@ export function ChartQuickOrder({
   real,
   /** Cash free to put behind a trade, from the account panel's own figures. */
   free,
+  /** Everything the wallet is worth — cash and open positions together. */
+  equity,
   prefs,
   onPlace,
   onRemember,
@@ -69,6 +74,7 @@ export function ChartQuickOrder({
   wallet: string
   real: boolean
   free: number
+  equity: number
   /** How the window was set up the last time it placed an order. */
   prefs: QuickOrderPrefs
   /**
@@ -175,29 +181,59 @@ export function ChartQuickOrder({
 
   const typed = Number(sizeInput)
   const amount = Number.isFinite(typed) && typed > 0 ? typed : 0
-  const sizeCoin =
-    sizeUnit === "usd"
+
+  // What that actually comes to, in dollars. "25% of free" is not an amount of
+  // anything on its own, so the box says the amount back at the price this
+  // order would get. Only when the box is not already in dollars, where it
+  // would be the same number twice.
+
+  // **Risking a share of the wallet cannot be done without a stop.** The stop
+  // is what turns "1% of the wallet" into an amount of coin: it is the
+  // distance the trade is allowed to move against you, and without one there
+  // is nothing to divide the money by. So choosing it switches the stop on and
+  // holds it on.
+  const byRisk = sizeUnit === "risk"
+  const wantsBracket = bracketOn || byRisk
+
+  const stopPx = wantsBracket
+    ? bracketPrice({ entryPx, percent: stopPct, long: buy, winning: false })
+    : null
+  const targetPx = wantsBracket
+    ? bracketPrice({ entryPx, percent: targetPct, long: buy, winning: true })
+    : null
+  const badStop = wantsBracket && stopPx === null
+  const badTarget = wantsBracket && targetPx === null
+  const bracketBad = badStop || badTarget
+
+  // How much coin the money at risk pays for. The dollars themselves are not
+  // said back: the box already shows what the order comes to, and a second
+  // figure beside it was one more number to read on a window that is mostly
+  // numbers already.
+  const wantedCoin = byRisk
+    ? stopPx === null
+      ? 0
+      : coinsForRisk({ equity, riskPct: amount, entryPx, stopPx })
+    : sizeUnit === "usd"
       ? amount / entryPx
       : // A share of the account is a share of what it can put behind a
         // trade — so leverage is part of it, the way it is everywhere else.
         (free * Math.min(amount, 100) * leverage) / 100 / entryPx
+
+  // A stop half a percent away turns a 1% risk into a position twenty times
+  // the wallet, which the exchange refuses. Capped to what the cash reaches
+  // instead — the box shows the figure it settled on, which is the answer to
+  // "how big will this be" without a sentence about it.
+  const canAfford = affordableCoins({ free, leverage, entryPx })
+  const sizeCoin =
+    byRisk && wantedCoin > canAfford && canAfford > 0 ? canAfford : wantedCoin
 
   // What that actually comes to, in dollars. "25% of free" is not an amount of
   // anything on its own, so the box says the amount back at the price this
   // order would get. Only when the box is not already in dollars, where it
   // would be the same number twice.
   const orderUsd = sizeCoin * entryPx
-  const shownUsd = sizeUnit !== "usd" && orderUsd > 0 ? formatUsdRounded(orderUsd) : null
-
-  const stopPx = bracketOn
-    ? bracketPrice({ entryPx, percent: stopPct, long: buy, winning: false })
-    : null
-  const targetPx = bracketOn
-    ? bracketPrice({ entryPx, percent: targetPct, long: buy, winning: true })
-    : null
-  const badStop = bracketOn && stopPx === null
-  const badTarget = bracketOn && targetPx === null
-  const bracketBad = badStop || badTarget
+  const shownUsd =
+    sizeUnit !== "usd" && orderUsd > 0 ? formatUsdRounded(orderUsd) : null
 
   const ready = sizeCoin > 0 && !bracketBad
 
@@ -344,6 +380,7 @@ export function ChartQuickOrder({
                 <SelectContent>
                   <SelectItem value="usd">USD</SelectItem>
                   <SelectItem value="pct">% of free</SelectItem>
+                  <SelectItem value="risk">Risk %</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -400,17 +437,23 @@ export function ChartQuickOrder({
 
           <div className="grid gap-2">
             <div className="flex items-center gap-2">
-              <Checkbox
-                id="quick-bracket"
-                checked={bracketOn}
-                onCheckedChange={(next) => {
-                  setBracketOn(next === true)
-                  unconfirm()
-                }}
-              />
+              <DisabledReason
+                disabled={byRisk}
+                reason="Risk % works out the amount from the stop, so an order sized that way always has one."
+              >
+                <Checkbox
+                  id="quick-bracket"
+                  checked={wantsBracket}
+                  disabled={byRisk}
+                  onCheckedChange={(next) => {
+                    setBracketOn(next === true)
+                    unconfirm()
+                  }}
+                />
+              </DisabledReason>
               <Label htmlFor="quick-bracket">Stop loss and take profit</Label>
             </div>
-            {bracketOn ? (
+            {wantsBracket ? (
               <div className="flex gap-2">
                 <div className="grid flex-1 gap-2">
                   <Label htmlFor="quick-stop" className="text-xs">

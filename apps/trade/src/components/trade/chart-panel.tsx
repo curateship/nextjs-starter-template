@@ -57,7 +57,9 @@ import {
   type SmartLadder,
 } from "@/lib/trade/smart-plan"
 import type { LiveTrade } from "@/lib/trade/live-trades"
+import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
+import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
@@ -348,11 +350,43 @@ export function ChartPanel({
   const looseOrders = React.useMemo(
     () => [
       ...trading.orders.filter((order) => !smartOrderIds.has(order.id)),
+      // A watched price, drawn as the order it stands in for.
+      //
+      // It is the same thing to whoever set it — a level, a size, and where it
+      // gets out — and the difference, that nothing is on the exchange until
+      // the price is touched, is not something a line on a chart can show. The
+      // × cancels it and the settings pill opens it, exactly as they do for an
+      // order, because both go through the same smart-order path underneath.
+      ...trading.smartOrders.flatMap((order) =>
+        order.kind === "watch" && order.plan.phase === "waiting"
+          ? [
+              {
+                id: order.id,
+                walletId: order.walletId,
+                marketKey: order.marketKey,
+                side: order.plan.side,
+                px: order.plan.triggerPx,
+                sz: order.plan.sz,
+                leverage: order.plan.leverage,
+                maxLeverage: order.plan.maxLeverage,
+                reduceOnly: order.plan.reduceOnly,
+                tpPx: order.plan.tpPx,
+                slPx: order.plan.slPx,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt,
+                // No order exists behind this line — see `watched` on
+                // `PaperOrder`. Everything that would reach for one steps
+                // aside; the × still works and goes the smart-order way.
+                watched: true,
+              } satisfies PaperOrder,
+            ]
+          : []
+      ),
       // Orders asked for whose answer has not landed yet, so a press shows on
       // the chart at once instead of a second or two later.
       ...trading.placing,
     ],
-    [trading.orders, trading.placing, smartOrderIds]
+    [trading.orders, trading.placing, trading.smartOrders, smartOrderIds]
   )
 
   // The open window follows the poll, because the order under it can move: the
@@ -642,6 +676,42 @@ export function ChartPanel({
                   onCancelOrder={(walletId, orderId) =>
                     void trading.cancel(walletId, orderId)
                   }
+                  // Dragging a waiting order's stop resizes the order so it
+                  // still risks the same money. Worked out from the order in
+                  // front of you rather than from a remembered setting, so it
+                  // holds whether the order was sized by risk or typed by hand.
+                  onMoveOrderTarget={(walletId, orderId, price) => {
+                    const order = trading.orders.find(
+                      (one) => one.id === orderId
+                    )
+                    if (!order) return
+                    void trading.editOrder(walletId, orderId, {
+                      sz: order.sz,
+                      tpPx: price,
+                      slPx: order.slPx,
+                    })
+                  }}
+                  onMoveOrderStop={(walletId, orderId, price) => {
+                    const order = trading.orders.find(
+                      (one) => one.id === orderId
+                    )
+                    if (!order || order.slPx === null) return
+                    void trading.editOrder(walletId, orderId, {
+                      // Floored to the market's own step, never rounded up:
+                      // rounding up buys more than the risk asked for.
+                      sz: floorSize(
+                        resizeForStop({
+                          entryPx: order.px,
+                          fromStopPx: order.slPx,
+                          toStopPx: price,
+                          sz: order.sz,
+                        }),
+                        market?.sizeDecimals ?? null
+                      ),
+                      tpPx: order.tpPx,
+                      slPx: price,
+                    })
+                  }}
                   onEditOrder={(orderId) =>
                     setEditing(
                       trading.orders.find((one) => one.id === orderId) ?? null
@@ -769,6 +839,7 @@ export function ChartPanel({
           // the order back in dollars before anything is sent.
           real={trading.wallet?.kind === "live"}
           free={free}
+          equity={equity}
           prefs={quickPrefs}
           onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
