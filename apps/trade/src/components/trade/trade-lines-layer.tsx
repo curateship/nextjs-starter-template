@@ -40,6 +40,19 @@ import {
  * changes that wallet's order rather than the active wallet's.
  */
 
+/**
+ * What a waiting order takes out of the wallet when it fills.
+ *
+ * Its own function because the two lanes answer differently: a practice order
+ * knows the leverage it was placed at, so the cash is the position divided by
+ * it; a live one carries a zero, and the honest answer there is what the
+ * position is worth.
+ */
+function orderCostUsd(order: PaperOrder): number {
+  const worth = order.px * order.sz
+  return order.leverage > 0 ? worth / order.leverage : worth
+}
+
 /** How far the pointer must travel before a press counts as a drag. */
 const DRAG_SLOP = 3
 
@@ -334,13 +347,18 @@ export function TradeLinesLayer({
       id: `order:${order.id}`,
       kind: "order",
       price: order.px,
-      // In dollars, not in coins. "Buy 3.2754" is an amount of something whose
-      // price is the other number on the same line; the money it commits is
-      // the figure anybody reads a resting order for, and it is the one that
-      // compares with every other order on the chart.
+      // **The cash it takes, not what it buys.** In dollars first, because
+      // "Buy 3.2754" is an amount of something whose price is the other number
+      // on the same line — and then the money that actually leaves the wallet,
+      // which at 3× is a third of what the position is worth.
+      //
+      // A real order's leverage is the account's setting rather than the
+      // order's, so the exchange never tells us this one's; those rows carry a
+      // zero and fall back to what the position would be worth. Saying the
+      // wrong figure with a straight face is worse than saying the plain one.
       label: () =>
         `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
-          order.px * order.sz
+          orderCostUsd(order)
         )}${tag}${settled ? "" : " · sending"}`,
       onMove:
         settled && !order.live && !order.watched

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildLiveTrades,
+  openFillMarks,
   fillsOutsideTrades,
   formatHeld,
   tradeEndingLabel,
@@ -333,5 +334,48 @@ describe("formatHeld", () => {
     expect(formatHeld(9 * MINUTE)).toBe("9m")
     expect(formatHeld(3 * 60 * MINUTE + 12 * MINUTE)).toBe("3h 12m")
     expect(formatHeld(30 * 60 * MINUTE)).toBe("1d 6h")
+  })
+})
+
+describe("arrows on a position that is still open", () => {
+  const fill = (over: Partial<LiveFill> = {}): LiveFill => ({
+    fillId: "f1",
+    orderId: "o1",
+    walletId: "w1",
+    marketKey: "hyperliquid:mainnet:BTC",
+    side: "buy",
+    px: 100,
+    sz: 1,
+    at: 1_000,
+    closedPnl: 0,
+    fee: 0,
+    dir: "Open Long",
+    liquidation: false,
+    ...over,
+  })
+
+  it("says what one sell banked while the rest is still held", () => {
+    // A grid recycles a level without the position ever going flat, so this
+    // sell is never part of a finished trade — and it still made money.
+    const [mark] = openFillMarks([
+      fill({ side: "sell", closedPnl: 12.5, fee: 0.5, dir: "Close Long" }),
+    ])
+    expect(mark.label).toContain("made $12.00")
+    expect(mark.detail).toContain("still holding the rest")
+  })
+
+  it("says lost when the sell closed under what it paid", () => {
+    const [mark] = openFillMarks([
+      fill({ side: "sell", closedPnl: -8, fee: 0.25, dir: "Close Long" }),
+    ])
+    expect(mark.label).toContain("lost $8.25")
+  })
+
+  it("puts no money on a fill that only opened", () => {
+    // Zero here would read as "made nothing", which is a different claim.
+    const [mark] = openFillMarks([fill()])
+    expect(mark.label).toBe("Bought $100.00")
+    // In dollars: what it put in, not how much of the coin it bought.
+    expect(mark.detail).toBe("$100.00 in")
   })
 })

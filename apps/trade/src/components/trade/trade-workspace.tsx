@@ -487,6 +487,8 @@ export function TradeWorkspace({
               <SmartOrdersPanel
                 smartOrders={trading.smartOrders}
                 positions={trading.positions}
+                fills={trading.fills}
+                trades={trading.trades}
                 markets={marketsByKey}
                 walletName={(walletId) =>
                   trading.walletNames.get(walletId) ?? "another wallet"

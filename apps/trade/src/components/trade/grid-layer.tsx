@@ -3,7 +3,7 @@ import { GripVerticalIcon, SettingsIcon, XIcon } from "lucide-react"
 
 import type { GridPreviewLine } from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
-import { formatPrice } from "@/lib/trade/format"
+import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import {
   gridLevels,
   gridRangeMovable,
@@ -198,6 +198,14 @@ type AtPrice = {
   dead: boolean
   /** This price is also an end of the range, so its label says so. */
   edge: "top" | "bottom" | null
+  /**
+   * What this level puts in, in dollars.
+   *
+   * The price is what the level is; this is what it costs, and it is the
+   * figure anybody reads a grid for — a dozen levels at a price each is
+   * twelve numbers that cannot be added up in your head.
+   */
+  usd: number
 }
 
 /** Prices from the same arithmetic, keyed so they group rather than near-miss. */
@@ -218,6 +226,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
       holding: null,
       dead: false,
       edge: null,
+      usd: 0,
     }
     at.set(key, made)
     return made
@@ -229,10 +238,12 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (level.status === "waiting") {
       const one = slot(level.buyPx)
       one.buy = index
+      one.usd = level.buyPx * level.sz
       if (level.dead) one.dead = true
     } else {
       const one = slot(level.buyPx)
       one.holding = index
+      one.usd = level.buyPx * level.sz
     }
   }
   // The ends of the range are not separate things to draw. The bottom IS the
@@ -519,6 +530,7 @@ function GridLines({
             key={priceKey(at.px)}
             y={y}
             px={at.px}
+            usd={at.usd}
             colour={selling ? LEVEL_SELL_COLOR : LEVEL_BUY_COLOR}
             name={null}
             dashed={at.dead}
@@ -556,6 +568,9 @@ function GridLines({
         <ChartLine
           y={pinBottom.y}
           px={shownBottom}
+          // The bottom of the range IS the deepest buy, so it carries that
+          // level's money like every other level line.
+          usd={bottomLevel?.usd}
           colour={BOUND_COLOR}
           name="LOWER PRICE"
           dashed={pinBottom.off !== null}
@@ -681,6 +696,7 @@ const LINE_LOOKS: Record<
 function ChartLine({
   y,
   px,
+  usd,
   colour,
   name,
   dashed,
@@ -692,6 +708,8 @@ function ChartLine({
 }: {
   y: number
   px: number
+  /** What this level puts in, when it is a level rather than a boundary. */
+  usd?: number
   colour: string
   name: string | null
   dashed: boolean
@@ -736,6 +754,14 @@ function ChartLine({
           </span>
         ) : null}
         {action}
+        {/* The money first, quietly, then the price in its own colour — the
+            same order the rest of the app reads in: what it costs, then where.
+            Left off the range's own edges, which buy nothing by themselves. */}
+        {usd !== undefined && usd > 0 ? (
+          <span className="rounded-sm bg-muted px-1 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+            {formatUsdRounded(usd)}
+          </span>
+        ) : null}
         <span
           className="rounded-sm px-1 py-0.5 text-[10px] font-medium tabular-nums text-white"
           style={{ backgroundColor: colour }}

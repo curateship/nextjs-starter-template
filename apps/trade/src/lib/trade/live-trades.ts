@@ -297,6 +297,11 @@ export type LiveFillMark = {
  * land?", and it has never heard of a stop. Building the sentence here also
  * means it can be checked without rendering anything.
  *
+ * **In dollars, never in coins.** "Size 6.89" is an amount of something whose
+ * price is on the same line and has to be multiplied out in your head, and it
+ * cannot be compared with the arrow above it on another coin. What the fill
+ * put in — or took out — is the figure being looked for.
+ *
  * **One order is one arrow**, even when the exchange filled it in pieces. An
  * order for 0.69 that eats two prices off the book comes back as a fill of
  * 0.05 and a fill of 0.64, a hundredth of a cent apart and at the same
@@ -324,10 +329,10 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
           money >= 0 ? "made" : "lost"
         } ${money$(Math.abs(money))}`
     const detail = opening
-      ? `Size ${trimmed(fill.sz)}`
+      ? `${money$(fill.px * fill.sz)} in`
       : fill === last
         ? tradeEndingLabel(trade)
-        : `Part closed · ${trimmed(fill.sz)}`
+        : `Part closed · ${money$(fill.px * fill.sz)}`
     return {
       at: fill.at,
       px: fill.px,
@@ -342,9 +347,16 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
 /**
  * Fills that have not made a finished trade yet, as plain chart arrows.
  *
- * They cannot say what the whole trade made because it is still running. They
- * can still say exactly what happened, where, and at what size. Pieces of one
- * exchange order are grouped by the same rule as finished-trade arrows.
+ * They cannot say what the WHOLE trade made, because it is still running. What
+ * a closing fill can say is what that sell itself banked, and it must: a grid
+ * recycles a level a dozen times without the position ever going flat, so its
+ * round trip never finishes and every one of those sells was reading "Sold
+ * $59.97, size 6.89" with no money on it at all. The figure is the exchange's
+ * own `closedPnl`, less the fee it charged on that fill — the same arithmetic
+ * a finished trade's row uses, applied to one sell instead of all of them.
+ *
+ * A fill that opened or added carries no money and says so by leaving it out,
+ * rather than printing a zero that reads as "made nothing".
  */
 export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
   return groupFills(
@@ -352,14 +364,26 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
       (left, right) =>
         left.at - right.at || left.fillId.localeCompare(right.fillId)
     )
-  ).map((fill) => ({
-    at: fill.at,
-    px: fill.px,
-    side: fill.side,
-    sz: fill.sz,
-    label: `${fill.side === "buy" ? "Bought" : "Sold"} ${price$(fill.px)}`,
-    detail: `Size ${trimmed(fill.sz)}`,
-  }))
+  ).map((fill) => {
+    const money = fill.closedPnl - fill.fee
+    const closed = fill.closedPnl !== 0
+    return {
+      at: fill.at,
+      px: fill.px,
+      side: fill.side,
+      sz: fill.sz,
+      label: closed
+        ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${price$(fill.px)} · ${
+            money >= 0 ? "made" : "lost"
+          } ${money$(Math.abs(money))}`
+        : `${fill.side === "buy" ? "Bought" : "Sold"} ${price$(fill.px)}`,
+      // Said out loud, because the trade behind it is still open: this is what
+      // one sell banked, not what the position has made.
+      detail: closed
+        ? `Part closed · ${money$(fill.px * fill.sz)} · still holding the rest`
+        : `${money$(fill.px * fill.sz)} in`,
+    }
+  })
 }
 
 /** Fills not already carried by a finished trade, normally the open position. */
@@ -430,11 +454,6 @@ function money$(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`
-}
-
-/** A size without the trailing zeros nobody typed. */
-function trimmed(value: number): string {
-  return String(Number(value.toFixed(8)))
 }
 
 /**
