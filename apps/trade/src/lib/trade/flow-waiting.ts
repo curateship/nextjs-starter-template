@@ -190,6 +190,25 @@ function bare(code: string): string {
 }
 
 /** True when somebody has to do something about it. */
+/**
+ * Answers a rule no longer asks, left behind on a run that recorded them.
+ *
+ * **A retired answer is worse than no answer.** Price being under the base
+ * stopped refusing a ladder on 18 August 2026, so a coin still carrying that
+ * reason is not waiting on anything — it simply has not been looked at since
+ * the rule changed, and saying "fallen through the base" tells somebody to go
+ * and look at a chart for nothing.
+ *
+ * The words stay in the list above, because a run's history reads better with
+ * them than with a bare code. What this decides is whether the answer is still
+ * worth showing as the reason a coin has nothing.
+ */
+const RETIRED: readonly string[] = ["SMART_LADDER_UNDER_BASE"]
+
+export function flowWaitIsRetired(code: string): boolean {
+  return RETIRED.includes(bare(code))
+}
+
 export function flowWaitIsProblem(code: string): boolean {
   return !(bare(code) in JUST_WAITING)
 }

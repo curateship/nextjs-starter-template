@@ -17,6 +17,11 @@ import { cn } from "@/lib/utils"
  * waiting rung's × calls just that rung off. None of these lines drag: the
  * ladder's prices are frozen at placement, and the label says so on hover.
  *
+ * **`readOnly` drops the buttons and keeps the drawing.** The live-run
+ * dashboard shows the same ladder on the same candles and has nothing to act
+ * with — its job is to report, and a × there would be a way to call off a real
+ * rung from a page that is supposed to be a record.
+ *
  * The ladder's control tag exists only before anything buys — a line at the
  * clicked price, which is all the ladder is at that point. The moment the
  * first rung buys, the controls fold into the position's own entry pill
@@ -34,6 +39,7 @@ export function SmartLadderLayer({
   ladders,
   preview,
   tool,
+  readOnly = false,
   walletName,
   onCancelRung,
   onCancelLadder,
@@ -47,10 +53,12 @@ export function SmartLadderLayer({
   preview: readonly number[] | null
   /** A paint tool in hand takes the pointer; these controls step aside. */
   tool: string | null
+  /** Draw the ladder, offer nothing to press. */
+  readOnly?: boolean
   walletName: (walletId: string) => string
-  onCancelRung: (walletId: string, ladderId: string, rungIndex: number) => void
-  onCancelLadder: (ladder: SmartLadder) => void
-  onEditExits: (ladder: SmartLadder) => void
+  onCancelRung?: (walletId: string, ladderId: string, rungIndex: number) => void
+  onCancelLadder?: (ladder: SmartLadder) => void
+  onEditExits?: (ladder: SmartLadder) => void
 }) {
   const shown = ladders.filter((ladder) => ladder.marketKey === marketKey)
 
@@ -90,6 +98,7 @@ export function SmartLadderLayer({
           ladder={ladder}
           yFor={yFor}
           tool={tool}
+          readOnly={readOnly}
           walletName={walletName}
           onCancelRung={onCancelRung}
           onCancelLadder={onCancelLadder}
@@ -104,6 +113,7 @@ function LadderLines({
   ladder,
   yFor,
   tool,
+  readOnly,
   walletName,
   onCancelRung,
   onCancelLadder,
@@ -112,10 +122,11 @@ function LadderLines({
   ladder: SmartLadder
   yFor: (price: number) => number | null
   tool: string | null
+  readOnly: boolean
   walletName: (walletId: string) => string
-  onCancelRung: (walletId: string, ladderId: string, rungIndex: number) => void
-  onCancelLadder: (ladder: SmartLadder) => void
-  onEditExits: (ladder: SmartLadder) => void
+  onCancelRung?: (walletId: string, ladderId: string, rungIndex: number) => void
+  onCancelLadder?: (ladder: SmartLadder) => void
+  onEditExits?: (ladder: SmartLadder) => void
 }) {
   const plan = ladder.plan
   const waiting = plan.rungs.filter((rung) => rung.status === "waiting").length
@@ -124,7 +135,7 @@ function LadderLines({
   )
   const exits = ladderExitLevels(plan)
   // While a paint tool is held, these controls must not steal its presses.
-  const controls = tool ? "none" : "auto"
+  const controls = tool || readOnly ? "none" : "auto"
 
   // Only before anything buys: the clicked price is all the ladder is, so its
   // controls sit on a line there. From the first buy on, the entry pill built
@@ -145,20 +156,22 @@ function LadderLines({
             title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}. Rung prices are frozen; cancel and place again for a different ladder.`}
           >
             DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
-            <button
-              type="button"
-              aria-label="Change the ladder's exits"
-              className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
-              onClick={() => onEditExits(ladder)}
-            >
-              <SettingsIcon className="size-3" />
-            </button>
-            {waiting > 0 ? (
+            {readOnly ? null : (
+              <button
+                type="button"
+                aria-label="Change the ladder's exits"
+                className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                onClick={() => onEditExits?.(ladder)}
+              >
+                <SettingsIcon className="size-3" />
+              </button>
+            )}
+            {waiting > 0 && !readOnly ? (
               <button
                 type="button"
                 aria-label="Stop buying deeper — cancel every waiting rung"
                 className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
-                onClick={() => onCancelLadder(ladder)}
+                onClick={() => onCancelLadder?.(ladder)}
               >
                 <XIcon className="size-3" />
               </button>
@@ -200,7 +213,9 @@ function LadderLines({
                       ? rung.touched
                         ? "Price has reached this rung — it buys at market once two green candles in a row confirm."
                         : "Watching — nothing rests on the book until price reaches it and two green candles confirm."
-                      : "A waiting rung — nothing rests on the book. It buys at market the moment price reaches this level. The × calls it off."
+                      : readOnly
+                        ? "A waiting rung — nothing rests on the book. It buys at market the moment price reaches this level."
+                        : "A waiting rung — nothing rests on the book. It buys at market the moment price reaches this level. The × calls it off."
               }
             >
               {/* Dollars, not a coin count. "Rung 1 · 2" read as a range,
@@ -208,12 +223,14 @@ function LadderLines({
               {missed
                 ? `Rung ${index + 1} · missed`
                 : `Rung ${index + 1} · ${formatUsdRounded(rung.px * rung.sz)}`}
-              {missed ? null : (
+              {missed || readOnly ? null : (
                 <button
                   type="button"
                   aria-label={`Cancel rung ${index + 1}`}
                   className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
-                  onClick={() => onCancelRung(ladder.walletId, ladder.id, index)}
+                  onClick={() =>
+                    onCancelRung?.(ladder.walletId, ladder.id, index)
+                  }
                 >
                   <XIcon className="size-3" />
                 </button>

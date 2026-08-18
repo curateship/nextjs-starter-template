@@ -73,6 +73,24 @@ export function ActivityPanel({
     return byKey
   }, [catalogs])
 
+  /**
+   * Positions nobody is managing — which is what this tab is for.
+   *
+   * A coin a ladder or a grid is working is not something you are holding: it
+   * is one step of something still happening, with its own next move already
+   * decided. Those live in the Smart orders panel beside the wallets, where
+   * what they are doing can be said properly. Mixed in here they read as
+   * ordinary trades left unattended.
+   */
+  const byHand = React.useMemo(() => {
+    const managed = new Set(
+      trading.smartOrders.map((order) => `${order.walletId}:${order.marketKey}`)
+    )
+    return trading.positions.filter(
+      (position) => !managed.has(`${position.walletId}:${position.marketKey}`)
+    )
+  }, [trading.positions, trading.smartOrders])
+
   // Resolved against the live list every render, so a position closed by its
   // own stop while its window is open closes the window instead of editing
   // something that is no longer there.
@@ -96,7 +114,7 @@ export function ActivityPanel({
           value="positions"
           icon={<LayersIcon className="size-4" />}
           label="Positions"
-          count={countOf(trading.positions.length)}
+          count={countOf(byHand.length)}
         />
         <WorkspacePanelTab
           value="orders"
@@ -129,10 +147,9 @@ export function ActivityPanel({
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <PositionsTable
-            positions={trading.positions}
+            positions={byHand}
             markets={markets}
             walletName={walletName}
-            smartOrders={trading.smartOrders}
             busy={trading.busy}
             loading={trading.loading}
             failed={trading.failed}

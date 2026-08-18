@@ -2,8 +2,8 @@ import * as React from "react"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
-import { AutomationMarketsPanel } from "@/components/trade/automation-markets-view"
 import { ActivityPanel } from "@/components/trade/activity-panel"
+import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import {
@@ -46,6 +46,7 @@ import {
   parseMarketKey,
   type CandleInterval,
   type MarketCatalog,
+  type MarketRow,
   type NetworkId,
 } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
@@ -341,6 +342,15 @@ export function TradeWorkspace({
   )
 
   const marketRows = catalogs.flatMap((catalog) => catalog.rows)
+  // Every market by key, so a row can find its own art and its fallback price
+  // without searching the catalogues itself.
+  const marketsByKey = React.useMemo(() => {
+    const byKey = new Map<string, MarketRow>()
+    for (const catalog of catalogs) {
+      for (const row of catalog.rows) byKey.set(row.key, row)
+    }
+    return byKey
+  }, [catalogs])
 
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
@@ -450,7 +460,12 @@ export function TradeWorkspace({
             A panel IS the card on this screen — its own rounded edges with a
             gap between it and the next. The automations were tucked inside the
             wallets' card for a build, which put a card inside a card and let
-            the list grow to eight thousand pixels instead of scrolling. */}
+            the list grow to eight thousand pixels instead of scrolling.
+
+            The lower one is empty on purpose. Every coin a switched-on flow is
+            watching used to sit there and now has a page of its own; the space,
+            its divider and the size you dragged it to are kept for whatever
+            goes in next, rather than taken away and rebuilt later. */}
         <ResizablePanelGroup
           key={accountColumnLayout.layoutKey}
           orientation="vertical"
@@ -467,10 +482,15 @@ export function TradeWorkspace({
             </WorkspacePanel>
           </ResizablePanel>
           <ResizableHandle gap className={NO_RING} />
-          <ResizablePanel id="automation" defaultSize="50%" minSize="12%">
-            <WorkspacePanel collapsed={accountCollapsed}>
-              <AutomationMarketsPanel
-                network={network}
+          <ResizablePanel id="smart-orders" defaultSize="50%" minSize="12%">
+            <WorkspacePanel collapsed={accountCollapsed} className="flex flex-col">
+              <SmartOrdersPanel
+                smartOrders={trading.smartOrders}
+                positions={trading.positions}
+                markets={marketsByKey}
+                walletName={(walletId) =>
+                  trading.walletNames.get(walletId) ?? "another wallet"
+                }
                 onSelectMarket={onSelectMarket}
               />
             </WorkspacePanel>

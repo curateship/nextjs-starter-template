@@ -463,8 +463,6 @@ export const getSmartOrderErrorMessage = createErrorMessage(
       "Every rung sits above the price right now, so there is nothing left to wait for — nothing was placed.",
     SMART_LADDER_NO_BASE:
       "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
-    SMART_LADDER_UNDER_BASE:
-      "Price is already below the base, so that level has gone — nothing was placed. The ladder starts when price is at or above a base and buys the fall from there.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",

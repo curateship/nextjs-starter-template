@@ -23,7 +23,6 @@ import {
   formatUsd,
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
 import {
   formatHeld,
   tradeEndingLabel,
@@ -94,49 +93,6 @@ function RealBadge({ marketKey }: { marketKey: string }) {
   )
 }
 
-/**
- * What put this position on: an ordinary order, or one of the two smart orders
- * still working it.
- *
- * Worked out by matching the position to the smart orders running right now.
- * There is exactly one position per coin per wallet and the two kinds are
- * mutually exclusive on it, so the match is never ambiguous.
- *
- * A smart order that has finished stops being one — its position reads as an
- * ordinary order from then on, because from then on that is what it is: nothing
- * is managing it, and nothing will sell it for you.
- */
-function placedByOf(
-  position: PaperPosition,
-  smart: ReadonlyMap<string, SmartOrderKind>
-): SmartOrderKind | null {
-  return smart.get(`${position.walletId}:${position.marketKey}`) ?? null
-}
-
-const PLACED_BY_LABELS: Record<SmartOrderKind, string> = {
-  dca: "DCA ladder",
-  grid: "Grid",
-  signal: "Signals",
-}
-
-/** The badge in the Type column. */
-function PlacedByCell({ kind }: { kind: SmartOrderKind | null }) {
-  return (
-    <td className="px-3 py-2 text-left text-xs whitespace-nowrap">
-      <span
-        className={cn(
-          "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-          kind === null
-            ? "bg-muted text-muted-foreground"
-            : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-        )}
-      >
-        {kind === null ? "Limit" : PLACED_BY_LABELS[kind]}
-      </span>
-    </td>
-  )
-}
-
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
 function PracticeBadge() {
   return (
@@ -198,13 +154,12 @@ function HeaderCell({
 type ColumnSpec<Key extends string> = { key: Key; label: string }
 
 type PositionColumn =
-  | "market" | "wallet" | "placedBy" | "value" | "margin"
+  | "market" | "wallet" | "value" | "margin"
   | "liquidation" | "projected" | "fees" | "unrealized"
 
 const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "market", label: "Market" },
   { key: "wallet", label: "Wallet" },
-  { key: "placedBy", label: "Type" },
   { key: "value", label: "Value" },
   { key: "margin", label: "Margin" },
   { key: "liquidation", label: "Liquidation" },
@@ -407,7 +362,6 @@ function PositionRow({
   market,
   mark,
   wallet,
-  placedBy,
   busy,
   onSelectMarket,
   onEdit,
@@ -420,7 +374,6 @@ function PositionRow({
   mark: number
   wallet: string
   /** The smart order working this position, or null for an ordinary one. */
-  placedBy: SmartOrderKind | null
   busy: boolean
   onSelectMarket: (marketKey: string) => void
   onEdit: (position: PaperPosition) => void
@@ -454,7 +407,6 @@ function PositionRow({
         onSelect={() => onSelectMarket(position.marketKey)}
       />
       <WalletCell wallet={wallet} />
-      <PlacedByCell kind={placedBy} />
       <Cell>{formatUsd(positionValue(position, mark))}</Cell>
       <Cell>{formatUsd(margin)}</Cell>
       <Cell>
@@ -548,7 +500,6 @@ export function PositionsTable({
   positions,
   markets,
   walletName,
-  smartOrders,
   busy,
   loading,
   failed,
@@ -561,8 +512,6 @@ export function PositionsTable({
   positions: readonly PaperPosition[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
-  /** Every smart order still working, so a row can say what is running it. */
-  smartOrders: readonly SmartOrder[]
   busy: boolean
   /** The first read has not come back yet — nothing may claim to be empty. */
   loading: boolean
@@ -583,15 +532,6 @@ export function PositionsTable({
     (column) => (column === "market" || column === "wallet" ? "asc" : "desc")
   )
 
-  // One lookup for the whole table rather than a search per row.
-  const smart = React.useMemo(() => {
-    const byPosition = new Map<string, SmartOrderKind>()
-    for (const order of smartOrders) {
-      byPosition.set(`${order.walletId}:${order.marketKey}`, order.kind)
-    }
-    return byPosition
-  }, [smartOrders])
-
   const marks = useLiveMarks(positions.map((one) => one.marketKey))
   const markOf = (position: PaperPosition) =>
     marks.get(position.marketKey) ??
@@ -605,10 +545,6 @@ export function PositionsTable({
         return symbolOf(position.marketKey)
       case "wallet":
         return walletName(position.walletId)
-      case "placedBy": {
-        const kind = placedByOf(position, smart)
-        return kind === null ? "Limit" : PLACED_BY_LABELS[kind]
-      }
       case "value":
         return positionValue(position, mark)
       case "margin":
@@ -673,7 +609,6 @@ export function PositionsTable({
                 market={markets.get(position.marketKey) ?? null}
                 mark={markOf(position)}
                 wallet={walletName(position.walletId)}
-                placedBy={placedByOf(position, smart)}
                 busy={busy}
                 onSelectMarket={onSelectMarket}
                 onEdit={onEdit}

@@ -29,6 +29,7 @@ import {
 } from "@/lib/trade/candle-window"
 import { slippedPx } from "@/lib/trade/paper"
 import { db, type CustomShellDb } from "@/server/db"
+import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
 import { advanceGrid, type GridRow } from "./smart-grids"
@@ -220,6 +221,7 @@ export async function advanceLadders(
       marketKey: tradeSmartLadders.marketKey,
       kind: tradeSmartLadders.kind,
       plan: tradeSmartLadders.plan,
+      flowRunId: tradeSmartLadders.flowRunId,
     })
     .from(tradeSmartLadders)
     .where(
@@ -230,19 +232,23 @@ export async function advanceLadders(
       )
     )
 
-  const withDatabase: LadderEngineDeps = {
-    ...deps,
-    insertOrder: (order) =>
-      insertLadderOrder(input.tx, input.userId, input.book, order),
-    saveLadder: (row, status, now) =>
-      saveLadderRow(input.tx, input.userId, row, status, now),
-  }
-
   for (const raw of rows) {
     const kind = readSmartOrderKind(raw.kind)
     if (!kind) continue
     const plan = readSmartPlan(kind, raw.plan)
     if (!plan) continue
+    // Built per row rather than once, so every order this smart order sends
+    // carries the flow that placed it — a rung's sell as much as its buy.
+    const withDatabase: LadderEngineDeps = {
+      ...deps,
+      insertOrder: (order) =>
+        insertLadderOrder(input.tx, input.userId, input.book, order, {
+          flowRunId: raw.flowRunId,
+          ladderId: raw.id,
+        }),
+      saveLadder: (row, status, now) =>
+        saveLadderRow(input.tx, input.userId, row, status, now),
+    }
     if (kind === "grid") {
       const row: GridRow = {
         id: raw.id,
@@ -1218,7 +1224,8 @@ async function insertLadderOrder(
   tx: CustomShellDb,
   userId: string,
   book: WalletBook,
-  input: LadderOrderInput
+  input: LadderOrderInput,
+  owner: { flowRunId: string | null; ladderId: string }
 ): Promise<string> {
   const id = randomUUID()
   await tx.insert(tradePaperOrders).values({
@@ -1236,6 +1243,17 @@ async function insertLadderOrder(
     slPx: null,
     createdAt: new Date(input.now),
     updatedAt: new Date(input.now),
+  })
+  // The practice engine's own ids, kept in the same ledger the real ones go
+  // in. A practice fill carries the order it came from and nothing about the
+  // flow, exactly like a real one, so it needs exactly the same answer.
+  await recordFlowRunOrders(tx, {
+    userId,
+    walletId: book.wallet.id,
+    flowRunId: owner.flowRunId,
+    ladderId: owner.ladderId,
+    marketKey: input.marketKey,
+    orderIds: [id],
   })
   return id
 }

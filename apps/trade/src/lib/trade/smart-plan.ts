@@ -38,6 +38,15 @@ type SmartOrderShared = {
   walletId: string
   marketKey: string
   status: "active" | "done"
+  /**
+   * The switched-on flow that placed it, or null when a person did.
+   *
+   * What separates the two lists on screen: a flow's orders belong to that
+   * run's dashboard, where the whole strategy can be read at once, and this
+   * one is what somebody placed themselves. Rows written before this was
+   * recorded read as placed by hand, which is what they look like anyway.
+   */
+  flowRunId: string | null
   createdAt: number
   updatedAt: number
 }

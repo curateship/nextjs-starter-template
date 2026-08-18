@@ -6,7 +6,12 @@ import type { CandleBar } from "@/lib/protocols/contracts"
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
+import { customShellAutomations } from "@/server/schema"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import {
   loadPaperPortfolio,
@@ -23,10 +28,12 @@ import {
 } from "@/server/trade/smart-orders"
 import {
   tradePaperJournal,
+  tradeFlowRunOrders,
   tradePaperOrders,
   tradePaperPositions,
   tradePrefs,
   tradeSmartLadders,
+  tradeFlowRuns,
   tradeWallets,
 } from "@/server/trade/schema"
 
@@ -128,6 +135,7 @@ function tapeWithBase(
 let client: PGlite
 let database: CustomShellDb
 let userId: string
+let workspace: Awaited<ReturnType<typeof insertWorkspace>>
 let wallet: TradeWallet
 
 /** Two rungs from a $100 click: buys at 95 and 87.4, sized 1:2 from 20%. */
@@ -258,6 +266,7 @@ beforeEach(async () => {
   candles = tapeWithBase(100)
 
   userId = (await insertUser(database)).id
+  workspace = await insertWorkspace(database)
   await database.insert(tradeWallets).values({
     userId,
     id: "w1",
@@ -286,6 +295,95 @@ afterEach(async () => {
   await client.close()
 })
 
+describe("who placed a smart order", () => {
+  it("credits the flow only for coins its own record says it placed", async () => {
+    // The flow's coin list is what it WATCHES. A ladder somebody placed by
+    // hand on one of those coins is theirs — the flow finds the coin taken and
+    // skips it — and reading the list instead of the record would hide their
+    // own order from every screen that draws it.
+    await place()
+    const ladder = await onlyLadder()
+
+    await database.insert(customShellAutomations).values({
+      id: "flow-1",
+      userId,
+      workspaceId: workspace.id,
+      name: "A flow",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await database.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-1",
+      walletId: wallet.id,
+      automationId: "flow-1",
+      status: "running",
+      spec: {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        marketKeys: [BTC],
+        strategy: { kind: "dca", params: params(), interval: "1m" },
+        capUsd: 500,
+        walletLabel: wallet.label,
+        real: false,
+      },
+      // Watching BTC, but it never placed on it.
+      placed: [],
+      startedAt: new Date(ladder.createdAt.getTime() - 60_000),
+    })
+
+    const watched = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watched[0].flowRunId).toBeNull()
+
+    // Once the flow records having placed it, it is the flow's.
+    await database
+      .update(tradeFlowRuns)
+      .set({ placed: [BTC] })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+    const claimed = await listActiveSmartOrders(userId, [wallet.id])
+    expect(claimed[0].flowRunId).toBe("run-1")
+  })
+
+  it("never credits a run with an order older than itself", async () => {
+    await place()
+    const ladder = await onlyLadder()
+    await database.insert(customShellAutomations).values({
+      id: "flow-2",
+      userId,
+      workspaceId: workspace.id,
+      name: "A later flow",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    await database.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-2",
+      walletId: wallet.id,
+      automationId: "flow-2",
+      status: "running",
+      spec: {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        marketKeys: [BTC],
+        strategy: { kind: "dca", params: params(), interval: "1m" },
+        capUsd: 500,
+        walletLabel: wallet.label,
+        real: false,
+      },
+      placed: [BTC],
+      // Switched on after the ladder already existed.
+      startedAt: new Date(ladder.createdAt.getTime() + 60_000),
+    })
+
+    const orders = await listActiveSmartOrders(userId, [wallet.id])
+    expect(orders[0].flowRunId).toBeNull()
+  })
+})
+
 describe("placing a ladder", () => {
   it("rests nothing — every rung waits as a watched price, sized by the ramp", async () => {
     const placed = await place()
@@ -304,6 +402,24 @@ describe("placing a ladder", () => {
     expect(rungs[0].sz).toBeCloseTo(7.017, 9)
     expect(rungs[1].px).toBeCloseTo(87.4, 9)
     expect(rungs[1].sz).toBeCloseTo(15.255, 9)
+  })
+
+  it("stamps the flow that placed it, and leaves a hand-placed one blank", async () => {
+    // The whole of how a run's dashboard tells its own trades from the ones
+    // somebody put on the same wallet themselves. Without the stamp there is
+    // nothing to tell them apart by afterwards.
+    await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params(),
+      flowRunId: "run-1",
+    })
+    expect((await onlyLadder()).flowRunId).toBe("run-1")
+
+    await database.delete(tradeSmartLadders)
+    await place()
+    expect((await onlyLadder()).flowRunId).toBeNull()
   })
 
   it("ignores the borrowing setting outright — a wallet only ever spends cash", async () => {
@@ -362,11 +478,39 @@ describe("placing a ladder", () => {
     expect(await orders()).toHaveLength(0)
   })
 
-  it("refuses to start once price is already under the base", async () => {
-    // The level has gone. A ladder arms when price is at or above a base and
-    // buys the fall from there; starting halfway down is a different trade.
+  it("still starts when price has slipped under the base", async () => {
+    // The rungs are 5% and 12.6% under a base of 100 — 95 and 87.40 — so at 99
+    // the whole ladder is still below the market and buys nothing today.
+    // Refusing this threw away coins for no gain: it was the base being a few
+    // percent above, not the ladder being in a bad place.
     marks.set("BTC", 99)
-    await expect(place()).rejects.toThrow("SMART_LADDER_UNDER_BASE")
+    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await ladderRows()).toHaveLength(1)
+  })
+
+  it("refuses a two-green ladder once price is under every rung", async () => {
+    // Two-green marks nothing as skipped, so the ordinary above-market check
+    // cannot catch this. Without its own check the ladder buys all of its
+    // rungs at one price the moment two green candles print.
+    marks.set("BTC", 80)
+    await expect(place({ twoGreen: true })).rejects.toThrow(
+      "SMART_LADDER_ABOVE_MARKET"
+    )
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
+  it("still places a two-green ladder while price is above its rungs", async () => {
+    marks.set("BTC", 99)
+    expect(await place({ twoGreen: true })).toEqual({ placed: 2, passed: 0 })
+  })
+
+  it("refuses when the fall has taken price under every rung", async () => {
+    // This is what the under-base rule was really about, asked of the prices
+    // being bought at instead of the level they were measured from: at 80
+    // both rungs are above the market, so the ladder would buy instantly into
+    // a fall.
+    marks.set("BTC", 80)
+    await expect(place()).rejects.toThrow("SMART_LADDER_ABOVE_MARKET")
     expect(await ladderRows()).toHaveLength(0)
     expect(await orders()).toHaveLength(0)
   })
@@ -457,6 +601,31 @@ describe("the ladder at work", () => {
     expect(ladder.plan.rungs[1].status).toBe("cancelled")
     expect(await orders()).toHaveLength(0)
     expect(await positions()).toHaveLength(0)
+  })
+
+  it("keeps the flow's stamp on every order the ladder sends afterwards", async () => {
+    // The sell a bought rung rests is as much the flow's as the buy was, and
+    // its id is written down the moment it is placed — the plan lets go of it
+    // as soon as it fills, and a practice fill arrives carrying nothing else.
+    await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params({ takeProfit: { mode: "prevRung", pct: 2 } }),
+      flowRunId: "run-1",
+    })
+    await backdate()
+    await dipTo(95)
+
+    const sells = (await orders()).filter((row) => row.side === "sell")
+    expect(sells).toHaveLength(1)
+
+    const ledger = await database
+      .select()
+      .from(tradeFlowRunOrders)
+      .where(eq(tradeFlowRunOrders.userId, userId))
+    expect(ledger.map((row) => row.orderId)).toContain(sells[0].id)
+    expect(ledger.every((row) => row.flowRunId === "run-1")).toBe(true)
   })
 
   it("slides the sell-everything target down as deeper rungs fill", async () => {
@@ -866,15 +1035,13 @@ describe("measuring the rungs from the click instead", () => {
     })
   })
 
-  it("does not mind price having fallen under the base", async () => {
-    // 99 is under the tape's base of 100, which refuses a base-anchored
-    // ladder. Measured from a click below the market, it places.
+  it("measures from the click rather than the base when asked to", async () => {
+    // Clicked at 90 with the market at 99: the rungs come off 90, not off the
+    // tape's base of 100.
     marks.set("BTC", 99)
-    await expect(place()).rejects.toThrow("SMART_LADDER_UNDER_BASE")
-    expect(await place({ anchor: "click" }, 90)).toEqual({
-      placed: 2,
-      passed: 0,
-    })
+    const ladder = await place({ anchor: "click" }, 90)
+    expect(ladder).toEqual({ placed: 2, passed: 0 })
+    expect((await onlyLadder()).plan.anchorPx).toBe(90)
   })
 
   it("still skips a rung price has already fallen past", async () => {

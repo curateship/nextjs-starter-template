@@ -31,7 +31,6 @@ function drawPositions(state: { loading: boolean; failed: boolean }): string {
       {...shared}
       {...state}
       positions={[]}
-      smartOrders={[]}
       onEdit={() => {}}
       onFlip={() => {}}
       onClose={() => {}}

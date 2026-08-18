@@ -794,6 +794,7 @@ export async function saveBook(
         closedPnl: entry.closedPnl,
         reason: entry.reason,
         fillTime: new Date(entry.fillTime),
+        orderId: entry.orderId,
       }))
     )
   }
@@ -1075,9 +1076,10 @@ const PAPER_ENDINGS: Partial<Record<PaperFillReason, LiveTradeEnding>> = {
 function toTradeFill(row: JournalRow): LiveFill {
   return {
     fillId: row.id,
-    // A practice fill has no exchange order behind it, and needs none: it
-    // already knows why it happened.
-    orderId: row.id,
+    // The order that placed it, where one did. It falls back to the fill's own
+    // id so that a stop or a liquidation — which nothing placed — still groups
+    // as one arrow, and so rows written before the column existed still read.
+    orderId: row.orderId ?? row.id,
     walletId: row.walletId,
     marketKey: row.marketKey,
     side: row.side,
@@ -1095,6 +1097,39 @@ function toTradeFill(row: JournalRow): LiveFill {
     ending: PAPER_ENDINGS[row.reason] ?? "closed",
     live: false,
   }
+}
+
+/**
+ * One or more practice wallets' finished trades, read from what is already
+ * written down.
+ *
+ * **No settle and no exchange.** `loadPaperPortfolio` above replays the candles
+ * first, because it is answering "what am I holding right now". This one is
+ * answering "what did these wallets do", which is a question about rows that
+ * are already there — and it is asked by a list page that must not cost a
+ * round of exchange calls per wallet to draw.
+ */
+export async function loadPaperHistory(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<{ fills: LiveFill[]; trades: LiveTrade[] }> {
+  if (walletIds.length === 0) return { fills: [], trades: [] }
+  const rows = await db
+    .select()
+    .from(tradePaperJournal)
+    .where(
+      and(
+        eq(tradePaperJournal.userId, userId),
+        inArray(tradePaperJournal.walletId, [...walletIds]),
+        eq(tradePaperJournal.hidden, false)
+      )
+    )
+    .orderBy(desc(tradePaperJournal.fillTime))
+    .limit(JOURNAL_PAGE)
+
+  const fills = rows.map(toTradeFill)
+  const trades = buildLiveTrades(fills, NO_TRIGGERS)
+  return { fills: fillsOutsideTrades(fills, trades), trades }
 }
 
 /**

@@ -36,6 +36,7 @@ import {
   type PaperPosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
+import { rememberFlowRunOrders } from "@/server/trade/flow-run-orders"
 import {
   accountOf,
   getProtocol,
@@ -239,7 +240,10 @@ async function placeLiveDcaLadderOnce(
     )
     if (base === null) throw new Error("SMART_LADDER_NO_BASE")
     anchorPx = roundPx(base)
-    if (mark < anchorPx) throw new Error("SMART_LADDER_UNDER_BASE")
+    // Price under the base does not refuse it — see `draftDcaLadder`, which
+    // this deliberately matches. What guards the real danger is the rung check
+    // below: a rung already above the market is marked skipped, and a ladder
+    // with none left below it is refused as `SMART_LADDER_ABOVE_MARKET`.
   }
   if (!(anchorPx > 0)) throw new Error("LIVE_PRICE")
 
@@ -293,6 +297,15 @@ async function placeLiveDcaLadderOnce(
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
+  // Two-green marks nothing skipped — price under a rung is its trigger — so
+  // the check above cannot fire for it. Real money, so this matters more here
+  // than anywhere: without it, a two-green ladder on a coin that has fallen
+  // under its deepest rung buys every rung at once on the next two greens.
+  // Matches `draftDcaLadder`, which the practice and replay paths use.
+  if (twoGreen && rungs.every((rung) => rung.px >= mark)) {
+    throw new Error("SMART_LADDER_ABOVE_MARKET")
+  }
+
   // Placing sends NOTHING to the exchange. The ladder is a row the engine
   // watches — each rung a price, bought at market when price reaches it — so
   // there are no orders to place here, no order-cap to count against, and no
@@ -328,6 +341,10 @@ async function placeLiveDcaLadderOnce(
       kind: "dca",
       status: "active",
       plan,
+      // Which flow placed it, when a flow did. Nothing has been sent to the
+      // exchange yet, so there are no order ids to record here — each rung's
+      // is written down as the engine sends it.
+      flowRunId: input.flowRunId ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -930,12 +947,23 @@ async function reconcileLiveLaddersOnce(
               throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
             accepted.push(outcome.orderId)
             replacePlanOrderId(entry.kind, row.plan, pending.tempId, outcome.orderId)
+            // Written down the moment the exchange names it, because the plan
+            // lets go of this id as soon as the order fills — and the fill
+            // that comes back hours later carries the id and nothing else.
+            await rememberFlowRunOrders({
+              userId,
+              walletId: wallet.id,
+              flowRunId: raw.flowRunId,
+              ladderId: row.id,
+              marketKey: pending.input.marketKey,
+              orderIds: [outcome.orderId],
+            })
           }
           for (const input of pendingFills) {
             marketActionStarted = true
             const mark = marks.get(input.marketKey)
             try {
-              await placeLiveOrder(userId, {
+              const outcome = await placeLiveOrder(userId, {
                 walletId: wallet.id,
                 marketKey: input.marketKey,
                 side: input.side,
@@ -946,6 +974,20 @@ async function reconcileLiveLaddersOnce(
                 tpPx: null,
                 slPx: null,
               })
+              // A rung bought at market. Its fill reaches the record through
+              // the exchange like any other, so its order id is written down
+              // here too — otherwise the flow's own buys would read as
+              // somebody else's.
+              if (outcome.orderId) {
+                await rememberFlowRunOrders({
+                  userId,
+                  walletId: wallet.id,
+                  flowRunId: raw.flowRunId,
+                  ladderId: row.id,
+                  marketKey: input.marketKey,
+                  orderIds: [outcome.orderId],
+                })
+              }
             } catch (error) {
               // Only the one error that PROMISES nothing stood: the exchange
               // processed our order and its own status refused it. The engine's

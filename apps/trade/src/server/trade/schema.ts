@@ -501,6 +501,15 @@ export const tradePaperJournal = pgTable(
     sz: doublePrecision("sz").notNull(),
     fee: doublePrecision("fee").notNull(),
     closedPnl: doublePrecision("closed_pnl").notNull().default(0),
+    /**
+     * The order this fill came from, when one placed it.
+     *
+     * Null for a stop, a liquidation or a position closed by hand — nothing
+     * placed those. It is what ties a practice trade back to the flow that
+     * made it, through `tradeFlowRunOrders`, exactly as a real fill's exchange
+     * order id does.
+     */
+    orderId: varchar("order_id", { length: 40 }),
     /** Binned from the list. The row still counts towards the wallet's cash. */
     hidden: boolean("hidden").notNull().default(false),
     reason: varchar("reason", { length: 16 })
@@ -550,6 +559,19 @@ export const tradeSmartLadders = pgTable(
       .default("dca"),
     status: varchar("status", { length: 8 }).$type<LadderStatus>().notNull(),
     plan: jsonb("plan").$type<SmartPlan>().notNull(),
+    /**
+     * The switched-on flow that placed this, when a flow did.
+     *
+     * Null for anything placed by hand, which is most of them. It is the stamp
+     * a run's dashboard reads: without it a flow's figures would silently
+     * include a trade somebody put on the same wallet themselves, and there
+     * would be no telling afterwards which was which.
+     *
+     * Deliberately not a foreign key. These rows outlive the run — a ladder
+     * flips to `done` and stays for the record — and the record must not be
+     * quietly rewritten by anything that happens to the run row.
+     */
+    flowRunId: varchar("flow_run_id", { length: 36 }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -564,6 +586,7 @@ export const tradeSmartLadders = pgTable(
       table.walletId,
       table.status
     ),
+    index("trade_smart_ladders_flow_idx").on(table.userId, table.flowRunId),
     foreignKey({
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],
@@ -998,6 +1021,45 @@ export const tradeFlowRuns = pgTable(
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
     index("trade_flow_runs_running_idx").on(table.status, table.updatedAt),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+  ]
+)
+
+/**
+ * Every order a switched-on flow has sent, kept by its id.
+ *
+ * **Because the plan forgets.** A rung's order id sits on the ladder's plan
+ * only while the order is resting, and is cleared the moment it fills — and a
+ * real fill comes back from the exchange carrying an order id and nothing
+ * else. So the link between "this order" and "the run that sent it" has to be
+ * written somewhere that is not the plan. Exactly the reason
+ * `tradeLiveTriggers` exists, learned the same way.
+ *
+ * Practice orders are written here too. Their ids are ours rather than an
+ * exchange's, but the question is the same one and two answers to it would
+ * drift.
+ *
+ * Written with "do nothing if it is already there", so a pass that sees the
+ * same order twice writes it once.
+ */
+export const tradeFlowRunOrders = pgTable(
+  "trade_flow_run_orders",
+  {
+    ...paperOwner(),
+    /** The exchange's id, or the practice engine's own. */
+    orderId: varchar("order_id", { length: 40 }).notNull(),
+    flowRunId: varchar("flow_run_id", { length: 36 }).notNull(),
+    /** The ladder or signal trade it came from, for reading the record back. */
+    ladderId: varchar("ladder_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 120 }).notNull(),
+    seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.orderId] }),
+    index("trade_flow_run_orders_run_idx").on(table.userId, table.flowRunId),
     foreignKey({
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],

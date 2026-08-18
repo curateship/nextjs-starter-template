@@ -76,6 +76,8 @@ export type SignalPassInput = {
   userId: string
   wallet: TradeWallet
   spec: TradeFlowRunSpec
+  /** The run this pass belongs to, stamped onto anything it opens. */
+  flowRunId: string
   /** What each coin is holding right now, keyed by market key. */
   working: ReadonlyMap<string, SignalRow>
   /** When each coin was last looked at, so the rotation is fair. */
@@ -269,6 +271,9 @@ async function openSignalTrade(
     kind: "signal",
     status: "active",
     plan,
+    // No order has been sent yet — the engine's next pass asks for a price —
+    // so this row is the only thing that can say whose trade it is.
+    flowRunId: input.flowRunId,
     createdAt: new Date(now),
     updatedAt: new Date(now),
   })
