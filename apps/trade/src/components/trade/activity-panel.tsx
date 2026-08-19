@@ -27,9 +27,21 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { parseMarketKey, type MarketCatalog, type MarketRow } from "@/lib/protocols/contracts"
+import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { useLiveMarks } from "@/lib/trade/live-market"
 import type { LiveTrade } from "@/lib/trade/live-trades"
-import type { PaperPosition } from "@/lib/trade/paper"
+import {
+  positionProfit,
+  positionValue,
+  type PaperPosition,
+} from "@/lib/trade/paper"
+import { cn } from "@/lib/utils"
 
 type ActivityTab = "positions" | "orders" | "journal"
 
@@ -121,12 +133,14 @@ export function ActivityPanel({
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
-          value="positions"
-          icon={<LayersIcon className="size-4" />}
-          label="Positions"
-          count={countOf(visible.length)}
-        />
+        <PositionsGlance positions={visible} markets={markets}>
+          <WorkspacePanelTab
+            value="positions"
+            icon={<LayersIcon className="size-4" />}
+            label="Positions"
+            count={countOf(visible.length)}
+          />
+        </PositionsGlance>
         <WorkspacePanelTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
@@ -301,5 +315,72 @@ export function ActivityPanel({
         }}
       />
     </Tabs>
+  )
+}
+
+/**
+ * A glance at what is held, without leaving the tab you are on.
+ *
+ * The panel is often collapsed to its header, or you are reading the Journal,
+ * and the question "what am I actually in right now" costs a click and a
+ * scroll to answer. Hovering the Positions tab answers it: the coin, what the
+ * stake is worth at today's price, and what it is up or down.
+ *
+ * Prices come from the same live feed the table uses, so the two never
+ * disagree. With nothing held there is nothing to say and no tooltip opens.
+ */
+function PositionsGlance({
+  positions,
+  markets,
+  children,
+}: {
+  positions: PaperPosition[]
+  markets: ReadonlyMap<string, MarketRow>
+  children: React.ReactNode
+}) {
+  const marks = useLiveMarks(positions.map((one) => one.marketKey))
+  if (positions.length === 0) return <>{children}</>
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent align="start" className="max-w-none p-0">
+        <div className="flex flex-col gap-1 p-2">
+          {positions.map((position) => {
+            const mark =
+              marks.get(position.marketKey) ??
+              markets.get(position.marketKey)?.price ??
+              position.entryPx
+            const profit = positionProfit(position, mark)
+            return (
+              <div
+                key={position.id}
+                className="flex items-center gap-3 text-xs tabular-nums"
+              >
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  {parseMarketKey(position.marketKey)?.marketId ??
+                    position.marketKey}
+                </span>
+                <span className="shrink-0">
+                  {formatUsd(positionValue(position, mark))}
+                </span>
+                <span
+                  className={cn(
+                    "w-20 shrink-0 text-right font-medium",
+                    profit > 0
+                      ? "text-emerald-500"
+                      : profit < 0
+                        ? "text-red-400"
+                        : ""
+                  )}
+                >
+                  {formatSignedUsd(profit)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   )
 }

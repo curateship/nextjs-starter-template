@@ -7,9 +7,10 @@ should be pinned by a test of the rule itself, not of the mechanism behind it,
 so a change to the mechanism cannot quietly change the rule.
 
 Most of these were learned the hard way on 18 Aug 2026, when several of them
-turned out to live nowhere but in timing, comments, or nobody's head. The two
-mechanism docs — `watched-orders.md` and `backtest-minute-zoom.md` — say how
-the machinery works; this file says what it must add up to.
+turned out to live nowhere but in timing, comments, or nobody's head. The
+mechanism docs — `watched-orders.md`, `backtest-minute-zoom.md` and
+`wallet-reads.md` — say how the machinery works; this file says what it must
+add up to.
 
 ## Orders
 
@@ -79,6 +80,13 @@ the machinery works; this file says what it must add up to.
   the crash rule's floor on what leverage the exchange must allow a coin.
 - **A refused market waits a minute.** Whatever the exchange's reason, a
   persistent refusal costs one request a minute, never sixty.
+- **Only wallets that are switched on are asked about.** A wallet nobody is
+  trading with spends none of the exchange's allowance, and says it is
+  inactive rather than pretending it could not be reached.
+- **A read that failed is never drawn as an empty wallet.** The figures that
+  last landed stay, marked as a moment old, until enough reads in a row have
+  missed to say plainly that the exchange cannot be reached. The same holds
+  for positions and orders. See `wallet-reads.md`.
 
 ## Backtests
 

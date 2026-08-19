@@ -48,7 +48,11 @@ function TooltipContent({
         {...props}
       >
         {children}
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-sm bg-foreground fill-foreground" />
+        {/* A square turned on its corner. The radius is deliberately tiny —
+            it still has to read as a point. `rounded-sm` is 4px on a 10px
+            square, which rounds the tip away entirely and leaves a knob stuck
+            to the bottom of the box. */}
+        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   )

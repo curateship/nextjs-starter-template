@@ -103,6 +103,10 @@ function ActiveWalletView({
   onRetry: () => void
 }) {
   const ok = summary !== null && summary.state === "ok"
+  // Real figures, just not this second's — the exchange has missed a read or
+  // two. Said quietly rather than shouted: nothing here is wrong, it is only
+  // a moment behind.
+  const stale = summary?.state === "ok" && summary.stale === true
   return (
     <div className="flex flex-col gap-2 px-4 py-3 sm:px-5">
       <div className="flex flex-col gap-0.5">
@@ -124,12 +128,18 @@ function ActiveWalletView({
           <span className="truncate">
             {venueLabel(wallet.protocol, wallet.network)}
             {" · "}
-            {ok ? "Connected" : "Can't reach it"}
+            {ok
+              ? stale
+                ? "Figures a moment old"
+                : "Connected"
+              : summary?.state === "inactive"
+                ? "Not switched on"
+                : "Can't reach it"}
           </span>
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              ok ? "bg-emerald-500" : "bg-destructive"
+              !ok ? "bg-destructive" : stale ? "bg-amber-500" : "bg-emerald-500"
             )}
             aria-hidden
           />
@@ -277,7 +287,11 @@ function ChooseWalletView({
                 <KindBadge kind={wallet.kind} />
               </span>
               <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                {ok ? formatUsd(summary.equity) : "Can't reach it"}
+                {ok
+                  ? formatUsd(summary.equity)
+                  : summary?.state === "inactive"
+                    ? "Inactive"
+                    : "Can't reach it"}
               </span>
             </button>
           )

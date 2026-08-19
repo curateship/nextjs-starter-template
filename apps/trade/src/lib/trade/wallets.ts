@@ -54,8 +54,78 @@ export type WalletAccountSummary =
       sinceStart: number
       /** The journey minus what is still open — the part already banked. */
       settled: number
+      /**
+       * These figures are the last ones that landed, not this second's — the
+       * exchange has missed a read or two since. Set by `keepGoodSummaries`
+       * on the browser's side, never by the server.
+       */
+      stale?: boolean
     } & WalletAccountFigures)
   | { walletId: string; state: "unreachable" }
+  /**
+   * Switched off, so the exchange was never asked. Kept apart from
+   * "unreachable" because they look identical on screen and mean opposite
+   * things: one is a wallet nobody is using, the other is a wallet that would
+   * not answer.
+   */
+  | { walletId: string; state: "inactive" }
+
+/**
+ * How many reads in a row must come back empty before the card says so.
+ *
+ * Three, at fifteen seconds apart, so a single hiccup is invisible and a real
+ * outage is admitted inside a minute.
+ */
+export const MISSES_BEFORE_UNREACHABLE = 3
+
+/**
+ * The figures that stand until a read actually lands.
+ *
+ * **A read that failed is not "this wallet is worth nothing".** The exchange
+ * rations requests and this panel asks for three things per wallet, so a miss
+ * is ordinary — and drawn straight, one miss replaced the whole card with
+ * "Can't reach it" until the next tick fifteen seconds later put it back. The
+ * card flickered all day on an account that was never actually unreachable.
+ *
+ * So the last good figures stay, marked stale so nothing claims to be fresh,
+ * until the misses pile up — then the card says it plainly and stops
+ * pretending. This is the same rule `keepUnreachableRows` already applies to
+ * positions and orders, which was written after real positions blinked out
+ * the same way.
+ */
+export function keepGoodSummaries(
+  was: ReadonlyMap<string, WalletAccountSummary>,
+  next: readonly WalletAccountSummary[],
+  misses: ReadonlyMap<string, number>
+): {
+  summaries: Map<string, WalletAccountSummary>
+  misses: Map<string, number>
+} {
+  const summaries = new Map<string, WalletAccountSummary>()
+  const nextMisses = new Map<string, number>()
+
+  for (const summary of next) {
+    // A wallet that was never asked has not missed anything.
+    if (summary.state === "ok" || summary.state === "inactive") {
+      summaries.set(summary.walletId, summary)
+      continue
+    }
+    // Counted per wallet: one coin's wallet being unreadable says nothing
+    // about the others, and they are read in the same answer.
+    const missed = (misses.get(summary.walletId) ?? 0) + 1
+    nextMisses.set(summary.walletId, missed)
+    const before = was.get(summary.walletId)
+    summaries.set(
+      summary.walletId,
+      before?.state === "ok" && missed < MISSES_BEFORE_UNREACHABLE
+        ? { ...before, stale: true }
+        : summary
+    )
+  }
+
+  // Wallets no longer in the answer are gone; their misses go with them.
+  return { summaries, misses: nextMisses }
+}
 
 /**
  * Turns one account read into the five rows. The two derived figures answer

@@ -266,9 +266,16 @@ export async function loadWalletSummaries(
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
 
   const wallets = rows.map(toWallet)
+  // **Only the wallets in use are read.** Every live wallet costs three
+  // requests to the exchange on every poll, and the exchange counts every
+  // request from this machine together — so wallets switched off were
+  // spending the same allowance as the one being traded with, and running out
+  // is exactly what makes a wallet answer with nothing. A switched-off wallet
+  // says so instead, which is the truth and costs nothing.
+  const inUse = wallets.filter((wallet) => wallet.status === "active")
   const paper = await paperWalletFigures(
     userId,
-    wallets.filter((wallet) => wallet.kind === "paper")
+    inUse.filter((wallet) => wallet.kind === "paper")
   ).catch((error) => {
     console.error("Paper wallets could not be settled", error)
     return new Map<string, WalletAccountFigures>()
@@ -276,6 +283,9 @@ export async function loadWalletSummaries(
 
   const summaries = await Promise.all(
     wallets.map(async (wallet): Promise<WalletAccountSummary> => {
+      if (wallet.status !== "active") {
+        return { walletId: wallet.id, state: "inactive" }
+      }
       if (wallet.kind === "paper") {
         const figures = paper.get(wallet.id)
         // The engine could not be run — the exchange would not answer, or the

@@ -316,6 +316,21 @@ describe("the figures sweep", () => {
     ])
   })
 
+  it("never asks the exchange about a wallet that is switched off", async () => {
+    const userId = await person()
+    const wallet = await createWallet(userId, liveInput())
+    await updateWallet(userId, { id: wallet.id, status: "inactive" })
+    fetchAccount.mockClear()
+
+    const { summaries } = await loadWalletSummaries(userId)
+
+    // Every live wallet costs three requests to the exchange on every poll,
+    // and the allowance is shared. A wallet nobody is trading with must not
+    // spend any of it.
+    expect(fetchAccount).not.toHaveBeenCalled()
+    expect(summaries).toEqual([{ walletId: wallet.id, state: "inactive" }])
+  })
+
   it("derives a live wallet's journey from its baseline", async () => {
     const userId = await person()
     const wallet = await createWallet(userId, liveInput())

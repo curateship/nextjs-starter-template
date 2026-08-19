@@ -161,6 +161,14 @@ cannot have changed (pace / don't ask).
   budget — and **zero** refusals over a multi-minute watch with a live flow
   working 118 ladders.
 
+## Where the wallet panel fits
+
+The account cards are their own spender and have their own doc:
+`wallet-reads.md`. Three calls per live wallet, every fifteen seconds, shared
+through a five-second cache, and **only for wallets that are switched on** —
+reading wallets nobody was trading with was itself a cause of the refusals it
+then displayed.
+
 ## If it happens again
 
 - Start the dev server with `TRADE_COUNT_EXCHANGE_CALLS=true` and read the

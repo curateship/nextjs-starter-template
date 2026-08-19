@@ -3,6 +3,47 @@ import { num } from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
+ * How long one account read stands in for the next, in ms.
+ *
+ * **Because this is three requests per wallet, and several things ask.** The
+ * account panel polls every fifteen seconds for every wallet, and the flow
+ * runner and the wallet picker ask the same question on their own beats — so
+ * five wallets could cost forty-five requests a minute from the panel alone,
+ * on an exchange that counts every request from one machine together. Running
+ * out is what makes a wallet answer with nothing, which is exactly the
+ * "Can't reach it" this cache exists to stop causing.
+ *
+ * Five seconds: shorter than the panel's own poll, so nothing on screen is
+ * staler than it has always been, and long enough that everything asking at
+ * once shares a single answer. A failed read is never remembered — one
+ * refusal must not be repeated to every caller for the next five seconds.
+ */
+const ACCOUNT_CACHE_MS = 5_000
+
+const accountCache = new Map<
+  string,
+  { at: number; answer: Promise<WalletAccountFigures> }
+>()
+
+/** One account's figures, from the cache when a read is already in flight. */
+export function fetchHyperliquidAccount(
+  network: NetworkId,
+  address: string
+): Promise<WalletAccountFigures> {
+  const key = `${network}:${address.toLowerCase()}`
+  const cached = accountCache.get(key)
+  if (cached && Date.now() - cached.at < ACCOUNT_CACHE_MS) return cached.answer
+
+  const at = Date.now()
+  const answer = readHyperliquidAccount(network, address)
+  answer.catch(() => {
+    if (accountCache.get(key)?.at === at) accountCache.delete(key)
+  })
+  accountCache.set(key, { at, answer })
+  return answer
+}
+
+/**
  * What one Hyperliquid account holds and is worth, translated to the app's
  * figures. Read-only — the address is public data and this asks nothing that
  * needs a key.
@@ -17,7 +58,7 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
  *   an unreadable core figure fails the whole read — a wallet that cannot be
  *   valued honestly says so rather than showing a zero.
  */
-export async function fetchHyperliquidAccount(
+async function readHyperliquidAccount(
   network: NetworkId,
   address: string
 ): Promise<WalletAccountFigures> {

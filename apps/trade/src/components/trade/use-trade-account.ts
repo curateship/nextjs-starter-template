@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import { loadWalletAccounts, pickWallet } from "@/lib/api/wallets"
+import { keepGoodSummaries } from "@/lib/trade/wallets"
 import type {
   TradeWallet,
   WalletAccountSummary,
@@ -51,6 +52,13 @@ export function useTradeAccount(): TradeAccount {
   // Only the newest request may write state — an old answer landing after a
   // newer one would put stale figures over fresh ones.
   const requestRef = React.useRef(0)
+  // What is on screen and how many empty reads each wallet has had in a row,
+  // held in refs so the merge below stays a plain calculation rather than
+  // something that counts twice when React runs an updater twice.
+  const summariesRef = React.useRef<ReadonlyMap<string, WalletAccountSummary>>(
+    new Map()
+  )
+  const missesRef = React.useRef<ReadonlyMap<string, number>>(new Map())
 
   const refresh = React.useCallback(async () => {
     const request = ++requestRef.current
@@ -58,9 +66,16 @@ export function useTradeAccount(): TradeAccount {
       const answer = await loadWalletAccounts()
       if (requestRef.current !== request) return
       setWallets(answer.wallets)
-      setSummaries(
-        new Map(answer.summaries.map((summary) => [summary.walletId, summary]))
+      // A wallet the exchange would not answer for keeps the figures it last
+      // had, until it has missed enough reads to be worth saying out loud.
+      const merged = keepGoodSummaries(
+        summariesRef.current,
+        answer.summaries,
+        missesRef.current
       )
+      summariesRef.current = merged.summaries
+      missesRef.current = merged.misses
+      setSummaries(merged.summaries)
       setLastWalletId(answer.lastWalletId)
       setFailed(false)
     } catch {

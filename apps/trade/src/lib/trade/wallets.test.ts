@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 
 import {
   capForPickedWallet,
+  keepGoodSummaries,
+  MISSES_BEFORE_UNREACHABLE,
   cleanAgentKey,
   describeAgentKeyProblem,
   describeKeyMismatch,
@@ -154,5 +156,68 @@ describe("the cap a freshly picked wallet starts at", () => {
     // The box will not take a zero, so an empty wallet has to leave the old
     // number where it was.
     expect(capForPickedWallet({ ...readable, free: 0 }, 30_000)).toBe(30_000)
+  })
+})
+
+describe("holding a wallet's figures through a missed read", () => {
+  const GOOD = {
+    walletId: "w1",
+    state: "ok",
+    equity: 1_000,
+    free: 400,
+    inTrades: 600,
+    openProfit: 25,
+    sinceStart: 100,
+    settled: 75,
+  } as const
+  const MISSED = { walletId: "w1", state: "unreachable" } as const
+
+  it("keeps the last good figures through a hiccup, and marks them old", () => {
+    const first = keepGoodSummaries(new Map(), [GOOD], new Map())
+    expect(first.summaries.get("w1")).toMatchObject({ state: "ok", equity: 1_000 })
+    expect(first.summaries.get("w1")).not.toHaveProperty("stale", true)
+
+    const missed = keepGoodSummaries(first.summaries, [MISSED], first.misses)
+    // Still the figures that landed, and honest about being a moment behind.
+    expect(missed.summaries.get("w1")).toMatchObject({
+      state: "ok",
+      equity: 1_000,
+      stale: true,
+    })
+    expect(missed.misses.get("w1")).toBe(1)
+  })
+
+  it("says it cannot reach the wallet once the misses pile up", () => {
+    let held = keepGoodSummaries(new Map(), [GOOD], new Map())
+    for (let read = 0; read < MISSES_BEFORE_UNREACHABLE; read += 1) {
+      held = keepGoodSummaries(held.summaries, [MISSED], held.misses)
+    }
+    expect(held.summaries.get("w1")).toEqual(MISSED)
+  })
+
+  it("forgets the misses the moment a read lands", () => {
+    let held = keepGoodSummaries(new Map(), [GOOD], new Map())
+    held = keepGoodSummaries(held.summaries, [MISSED], held.misses)
+    held = keepGoodSummaries(held.summaries, [GOOD], held.misses)
+
+    expect(held.misses.has("w1")).toBe(false)
+    // Fresh again — nothing left saying these figures are old.
+    expect(held.summaries.get("w1")).not.toHaveProperty("stale", true)
+  })
+
+  it("does not count a switched-off wallet as a missed read", () => {
+    const off = { walletId: "w1", state: "inactive" } as const
+    let held = keepGoodSummaries(new Map(), [GOOD], new Map())
+    held = keepGoodSummaries(held.summaries, [off], held.misses)
+
+    // Switched off is not a failure, so nothing is counted against it and the
+    // card never ends up saying the exchange could not be reached.
+    expect(held.summaries.get("w1")).toEqual(off)
+    expect(held.misses.has("w1")).toBe(false)
+  })
+
+  it("never invents figures for a wallet that has never answered", () => {
+    const cold = keepGoodSummaries(new Map(), [MISSED], new Map())
+    expect(cold.summaries.get("w1")).toEqual(MISSED)
   })
 })
