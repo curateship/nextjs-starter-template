@@ -189,7 +189,12 @@ export type Trading = {
   setBrackets: (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: {
+      tpPx: number | null
+      /** Coins the target sells; leave it out to sell the whole position. */
+      tpSz?: number | null
+      slPx: number | null
+    }
   ) => Promise<boolean>
   /**
    * From the chart: the same save, but silent and optimistic. Dragging a line
@@ -199,7 +204,12 @@ export type Trading = {
   dragBrackets: (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: {
+      tpPx: number | null
+      /** Coins the target sells; leave it out to sell the whole position. */
+      tpSz?: number | null
+      slPx: number | null
+    }
   ) => Promise<void>
   close: (walletId: string, marketKey: string) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
@@ -968,22 +978,54 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     [refresh]
   )
 
+  /**
+   * The emergency button: everything open, closed at once.
+   *
+   * **All of it starts together, and nothing waits on anything else.** This is
+   * the button somebody presses because the market is moving against them, so
+   * a real position must never sit in a queue behind another one, and a
+   * practice sweep that fails must never be the reason real money stayed open
+   * — which is exactly what a single throw used to do.
+   *
+   * Each real position goes through `closeLivePosition`, the same door its own
+   * row's button uses, so the emergency path can never sell real money
+   * differently from a hand on each row.
+   */
   const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
+    const real = positions.filter((one) => one.live)
     try {
-      const { closed } = await closeAllPaperPositions()
+      const [sweep, ...answers] = await Promise.allSettled([
+        closeAllPaperPositions(),
+        ...real.map((held) => closeLivePosition(held.walletId, held.marketKey)),
+      ])
+
+      if (sweep.status === "rejected") {
+        showErrorToast(getPaperErrorMessage(sweep.reason))
+      }
+      const refused = answers.filter((one) => one.status === "rejected")
+      if (refused.length > 0) {
+        const why = getLiveErrorMessage(refused[0].reason)
+        showErrorToast(
+          refused.length === 1
+            ? why
+            : `${refused.length} real positions were not closed. The first said: ${why}`
+        )
+      }
+
       // Counted honestly: a market the exchange would not price is left open,
       // and saying "all closed" when one is still there would be a lie.
+      const done =
+        (sweep.status === "fulfilled" ? sweep.value.closed : 0) +
+        (answers.length - refused.length)
       toast.success(
-        closed === 1 ? "1 position closed." : `${closed} positions closed.`
+        done === 1 ? "1 position closed." : `${done} positions closed.`
       )
-    } catch (error) {
-      showErrorToast(getPaperErrorMessage(error))
     } finally {
       setPending((count) => count - 1)
       void refresh()
     }
-  }, [refresh])
+  }, [refresh, positions])
 
   return {
     wallet: tradable ? wallet : null,

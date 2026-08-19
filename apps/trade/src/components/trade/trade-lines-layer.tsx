@@ -226,7 +226,7 @@ export function TradeLinesLayer({
   onSetBrackets: (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => void
   /**
    * Hands the chart's coordinates back up, so a right-click anywhere on the
@@ -284,6 +284,14 @@ export function TradeLinesLayer({
     }
 
     if (position.tpPx !== null) {
+      // A sized target pays on the slice it sells, and the label says what
+      // share of the position that is — a line selling half must not read
+      // like one closing the trade.
+      const tpSz = position.tpSz ?? null
+      const share =
+        tpSz !== null && Math.abs(position.szi) > 0
+          ? Math.round((tpSz / Math.abs(position.szi)) * 100)
+          : null
       lines.push({
         id: `tp:${position.id}`,
         kind: "take_profit",
@@ -291,10 +299,18 @@ export function TradeLinesLayer({
         // What it would pay at whatever price it is being held at — the
         // number that decides whether the target is where you want it.
         label: (at) =>
-          `Take Profit ${formatSignedUsd(projectedProfit(position, at))}${tag}`,
+          `Take Profit${share !== null ? ` ${share}%` : ""} ${formatSignedUsd(
+            projectedProfit(
+              tpSz !== null
+                ? { szi: Math.sign(position.szi) * tpSz, entryPx: position.entryPx }
+                : position,
+              at
+            )
+          )}${tag}`,
         onMove: (price) =>
           onSetBrackets(position.walletId, marketKey, {
             tpPx: price,
+            tpSz,
             slPx: position.slPx,
           }),
         onRemove: () =>
@@ -314,11 +330,13 @@ export function TradeLinesLayer({
         onMove: (price) =>
           onSetBrackets(position.walletId, marketKey, {
             tpPx: position.tpPx,
+            tpSz: position.tpSz ?? null,
             slPx: price,
           }),
         onRemove: () =>
           onSetBrackets(position.walletId, marketKey, {
             tpPx: position.tpPx,
+            tpSz: position.tpSz ?? null,
             slPx: null,
           }),
       })

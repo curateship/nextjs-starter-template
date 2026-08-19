@@ -137,6 +137,7 @@ function toPosition(row: PositionRow): PaperPosition {
     leverage: row.leverage,
     maxLeverage: row.maxLeverage,
     tpPx: row.tpPx,
+    tpSz: row.tpSz,
     slPx: row.slPx,
     feesPaid: row.feesPaid,
     updatedAt: row.updatedAt.getTime(),
@@ -382,6 +383,9 @@ export function fill(
       // A fill that opened a position takes the brackets the order carried;
       // one that added to a position leaves the ones already set alone.
       tpPx: opened ? (input.brackets?.tpPx ?? null) : outcome.position.tpPx,
+      // A sized target stays as coins, not a fraction: adding to the position
+      // does not grow what the target sells, and a fresh open starts clean.
+      tpSz: opened ? null : (held?.tpSz ?? null),
       slPx: opened ? (input.brackets?.slPx ?? null) : outcome.position.slPx,
       updatedAt: input.at,
     })
@@ -517,6 +521,47 @@ function fillOrder(
   }
 
   dropOrder(book, order.id)
+}
+
+/**
+ * The take profit firing — the one place its size rule lives.
+ *
+ * A target with no size closes the whole position, as it always has. A sized
+ * target sells that much and no more: the rest keeps running with the target
+ * used up — cleared in the same motion, or the settle loop would sell another
+ * slice at the same level forever. Either way a target is a limit sitting at
+ * your price, so it fills exactly there at maker fees, never slipping.
+ */
+function takeProfitAt(
+  book: WalletBook,
+  position: PaperPosition,
+  input: { px: number; at: number }
+): void {
+  const tpSz = position.tpSz ?? null
+  if (tpSz === null || tpSz >= Math.abs(position.szi) - 1e-9) {
+    closeAt(book, position, {
+      px: input.px,
+      feeRate: book.costs.makerFeeRate,
+      reason: "take_profit",
+      at: input.at,
+    })
+    return
+  }
+  fill(book, {
+    marketKey: position.marketKey,
+    side: position.szi > 0 ? "sell" : "buy",
+    px: input.px,
+    sz: tpSz,
+    feeRate: book.costs.makerFeeRate,
+    leverage: position.leverage,
+    maxLeverage: position.maxLeverage,
+    reason: "take_profit",
+    at: input.at,
+  })
+  const rest = book.positions.get(position.marketKey)
+  if (rest) {
+    book.positions.set(position.marketKey, { ...rest, tpPx: null, tpSz: null })
+  }
 }
 
 /** Closing the whole of a position at one price. */
@@ -709,20 +754,21 @@ export function settleMarket(
             })
           }
         } else if (eligibleHeld) {
-          closeAt(book, eligibleHeld, {
-            px: event.px,
-            // A target is a limit sitting at your price; a stop and a
-            // liquidation are market orders that take what is there.
-            feeRate:
-              event.kind === "take_profit"
-                ? book.costs.makerFeeRate
-                : book.costs.takerFeeRate,
-            // A stop and a liquidation are market orders and pay slippage; a
-            // target is a limit sitting at your price and does not.
-            slip: event.kind !== "take_profit",
-            reason: event.kind,
-            at,
-          })
+          if (event.kind === "take_profit") {
+            // A target is a limit sitting at your price — `takeProfitAt`
+            // fills exactly there, whole or sized, at maker fees.
+            takeProfitAt(book, eligibleHeld, { px: event.px, at })
+          } else {
+            // A stop and a liquidation are market orders that take what is
+            // there, so they pay taker fees and slippage.
+            closeAt(book, eligibleHeld, {
+              px: event.px,
+              feeRate: book.costs.takerFeeRate,
+              slip: true,
+              reason: event.kind,
+              at,
+            })
+          }
         }
         reached = event.px
       }
@@ -763,19 +809,19 @@ export function settleMarket(
     const level = passedLevels(held, mark)[0]
     if (!level) break
 
-    closeAt(book, held, {
+    if (level.reason === "take_profit") {
       // A target is a limit at your price, and running past it does not pay
-      // more. A stop and a liquidation are market orders, so a price that has
+      // more — `takeProfitAt` fills exactly there, whole or sized.
+      takeProfitAt(book, held, { px: level.px, at: input.now })
+      continue
+    }
+
+    closeAt(book, held, {
+      // A stop and a liquidation are market orders, so a price that has
       // gapped past fills where the market actually is — the cost of the gap.
-      px:
-        level.reason === "take_profit"
-          ? level.px
-          : worseOf(held.szi, level.px, mark),
-      feeRate:
-        level.reason === "take_profit"
-          ? book.costs.makerFeeRate
-          : book.costs.takerFeeRate,
-      slip: level.reason !== "take_profit",
+      px: worseOf(held.szi, level.px, mark),
+      feeRate: book.costs.takerFeeRate,
+      slip: true,
       reason: level.reason,
       at: input.now,
     })
@@ -933,6 +979,7 @@ export async function saveBook(
       leverage: position.leverage,
       maxLeverage: position.maxLeverage,
       tpPx: position.tpPx,
+      tpSz: position.tpSz ?? null,
       slPx: position.slPx,
       feesPaid: position.feesPaid,
       updatedAt: new Date(position.updatedAt),
@@ -1692,7 +1739,13 @@ export async function cancelPaperOrder(
 export async function setPaperBrackets(
   userId: string,
   wallet: TradeWallet,
-  input: { marketKey: string; tpPx: number | null; slPx: number | null }
+  input: {
+    marketKey: string
+    tpPx: number | null
+    /** Coins the target sells; null or the whole position sells everything. */
+    tpSz?: number | null
+    slPx: number | null
+  }
 ): Promise<void> {
   const book = await settleWallet(userId, wallet)
   const held = book.positions.get(input.marketKey)
@@ -1728,9 +1781,29 @@ export async function setPaperBrackets(
     throw new Error("PAPER_STOP_SIDE")
   }
 
+  // A size only means something on a target that exists, and it may not be
+  // more than is held. The whole position is stored as null — the size a
+  // target has always had — so only a genuinely partial one is written down.
+  //
+  // Floored to the market's own step first, exactly as an order's size is a
+  // few lines below: practice is meant to model the exchange, and a size the
+  // exchange would never accept is not a rehearsal of anything.
+  const heldSz = Math.abs(held.szi)
+  let tpSz =
+    tpPx === null || input.tpSz === null || input.tpSz === undefined
+      ? null
+      : roundSize(input.tpSz, rules?.sizeDecimals ?? null)
+  if (tpSz !== null) {
+    // Zero here is a size that floored away to nothing, not a size of zero.
+    if (!(tpSz > 0) || tpSz > heldSz + 1e-9) {
+      throw new Error("PAPER_TAKE_PROFIT_SIZE")
+    }
+    if (tpSz >= heldSz - 1e-9) tpSz = null
+  }
+
   await db
     .update(tradePaperPositions)
-    .set({ tpPx, slPx, updatedAt: new Date() })
+    .set({ tpPx, tpSz, slPx, updatedAt: new Date() })
     .where(
       and(
         eq(tradePaperPositions.userId, userId),

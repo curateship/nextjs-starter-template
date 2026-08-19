@@ -64,6 +64,7 @@ export function livePortfolioRows(
     // the formula this feeds. Carried so the shape stays one shape.
     maxLeverage: position.leverage,
     tpPx: position.tpPx,
+    tpSz: position.tpSz,
     slPx: position.slPx,
     feesPaid: 0,
     updatedAt: now,

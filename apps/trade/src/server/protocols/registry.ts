@@ -170,6 +170,8 @@ export type ProtocolEntry = {
         marketId: string
         position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
         tpPx: number | null
+        /** Coins the target sells; null sells the whole position. */
+        tpSz: number | null
         slPx: number | null
       }
     ): Promise<void>

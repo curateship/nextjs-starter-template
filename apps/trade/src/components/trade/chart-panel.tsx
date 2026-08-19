@@ -2,6 +2,7 @@ import * as React from "react"
 import { CandlestickChartIcon } from "lucide-react"
 import { toast } from "sonner"
 
+import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import {
   ChartOrderMenu,
   type ChartMenuState,
@@ -248,6 +249,15 @@ export function ChartPanel({
   // order window one of its rows opens at the same spot.
   const [menu, setMenu] = React.useState<ChartMenuState | null>(null)
   const [quick, setQuick] = React.useState<QuickOrderState | null>(null)
+  // "Take profit" from the same menu: the position it was picked on, and the
+  // level that was right-clicked, which the window opens already filled in
+  // with. The position is held by id rather than looked up again by market —
+  // a window that re-found its own subject could reopen itself later on a
+  // different position.
+  const [targetAt, setTargetAt] = React.useState<{
+    positionId: string
+    px: number
+  } | null>(null)
   // The DCA window, its live preview lines, and the exits window of a placed
   // ladder — the smart-order half of the same right-click.
   const [smart, setSmart] = React.useState<SmartOrderState | null>(null)
@@ -284,6 +294,7 @@ export function ChartPanel({
     setLastMarket(selectedKey)
     setMenu(null)
     setQuick(null)
+    setTargetAt(null)
     setSmart(null)
     setPreview(null)
     setExitsFor(null)
@@ -347,6 +358,18 @@ export function ChartPanel({
       ),
     [trading.positions, gridStops]
   )
+  // The position the menu's "Take profit" row would put a target on: held on
+  // this market with no target set yet. The active wallet's comes first, so
+  // when two wallets both hold the coin the row acts on the one being traded.
+  const bareTarget = React.useMemo(() => {
+    const held = trading.positions.filter(
+      (one) => one.marketKey === selectedKey && one.tpPx === null
+    )
+    return (
+      held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
+    )
+  }, [trading.positions, trading.wallet?.id, selectedKey])
+
   const looseOrders = React.useMemo(
     () => [
       ...trading.orders.filter((order) => !smartOrderIds.has(order.id)),
@@ -398,7 +421,7 @@ export function ChartPanel({
   const dragBrackets = (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => {
     const ladder = trading.ladders.find(
       (one) => one.walletId === walletId && one.marketKey === marketKey
@@ -807,6 +830,20 @@ export function ChartPanel({
             else setSmart(at)
             setMenu(null)
           }}
+          // Only when the click is on the winning side of the entry — a
+          // "target" on the losing side is a stop, and the row would set one
+          // at the mirrored price instead, which is worse than not offering.
+          onPickTakeProfit={
+            bareTarget &&
+            (bareTarget.szi > 0
+              ? menu.price > bareTarget.entryPx
+              : menu.price < bareTarget.entryPx)
+              ? () => {
+                  setTargetAt({ positionId: bareTarget.id, px: menu.price })
+                  setMenu(null)
+                }
+              : null
+          }
         />
       ) : null}
       {quick && market ? (
@@ -829,6 +866,24 @@ export function ChartPanel({
         busy={trading.busy}
         onSave={trading.editOrder}
         onClose={() => setEditing(null)}
+      />
+      {/* The clicked level arrives as a percentage already typed in, and the
+          window is the same one the positions table opens — the percentage
+          can be changed there before anything is saved. Resolved against the
+          live list, like the order window above it, so the window closes with
+          the position it belongs to rather than standing on a stale row. */}
+      <BracketsDialog
+        position={
+          targetAt
+            ? (trading.positions.find(
+                (one) => one.id === targetAt.positionId
+              ) ?? null)
+            : null
+        }
+        startTpPx={targetAt?.px ?? null}
+        busy={trading.busy}
+        onSave={trading.setBrackets}
+        onClose={() => setTargetAt(null)}
       />
       {smart && market ? (
         <SmartOrderDialog

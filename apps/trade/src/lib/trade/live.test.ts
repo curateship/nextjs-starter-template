@@ -23,6 +23,7 @@ const PORTFOLIO: WalletPortfolio = {
       marginUsed: 10_000,
       liquidationPx: 81_000,
       tpPx: 120_000,
+      tpSz: null,
       slPx: 90_000,
       tpOrderId: "11",
       slOrderId: "12",

@@ -19,6 +19,13 @@ import {
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { parseMarketKey, type MarketCatalog, type MarketRow } from "@/lib/protocols/contracts"
 import type { LiveTrade } from "@/lib/trade/live-trades"
@@ -50,6 +57,11 @@ export function ActivityPanel({
   onShowTrade: (trade: LiveTrade | null) => void
 }) {
   const [tab, setTab] = React.useState<ActivityTab>("positions")
+  // Every position, or only the ones placed by hand. Everything by default:
+  // hiding a ladder's position once made real money look gone from this
+  // table, and a row that exists but is filtered is something the dropdown
+  // can say — a row that is silently missing is not.
+  const [shown, setShown] = React.useState<"all" | "manual">("all")
   const [editing, setEditing] = React.useState<PaperPosition | null>(null)
   const [flipping, setFlipping] = React.useState<PaperPosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
@@ -74,13 +86,9 @@ export function ActivityPanel({
   }, [catalogs])
 
   /**
-   * Positions nobody is managing — which is what this tab is for.
-   *
-   * A coin a ladder or a grid is working is not something you are holding: it
-   * is one step of something still happening, with its own next move already
-   * decided. Those live in the Smart orders panel beside the wallets, where
-   * what they are doing can be said properly. Mixed in here they read as
-   * ordinary trades left unattended.
+   * The positions no ladder, grid or flow is running — the "Manual only"
+   * answer. What a smart order is doing still lives in the Smart orders
+   * panel; this filter only decides which rows this table lists.
    */
   const byHand = React.useMemo(() => {
     const managed = new Set(
@@ -90,6 +98,9 @@ export function ActivityPanel({
       (position) => !managed.has(`${position.walletId}:${position.marketKey}`)
     )
   }, [trading.positions, trading.smartOrders])
+  const visible = shown === "manual" ? byHand : trading.positions
+  // How many of the open positions are real money — the confirm says it.
+  const realCount = trading.positions.filter((one) => one.live).length
 
   // Resolved against the live list every render, so a position closed by its
   // own stop while its window is open closes the window instead of editing
@@ -114,7 +125,7 @@ export function ActivityPanel({
           value="positions"
           icon={<LayersIcon className="size-4" />}
           label="Positions"
-          count={countOf(byHand.length)}
+          count={countOf(visible.length)}
         />
         <WorkspacePanelTab
           value="orders"
@@ -128,26 +139,43 @@ export function ActivityPanel({
           label="Journal"
           count={countOf(trading.trades.length)}
         />
-        {/* Close all is the practice engine's sweep; real positions are
-            closed one by one, each with its own question. */}
-        {trading.positions.some((position) => !position.live) ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="ml-auto"
-            disabled={trading.busy}
-            onClick={() => setClosingAll(true)}
-          >
-            Close all
-          </Button>
-        ) : null}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Whether ladder- and flow-run positions are listed too. On the
+              positions tab only — the other tabs have nothing it would mean. */}
+          {tab === "positions" ? (
+            <Select
+              value={shown}
+              onValueChange={(next) => setShown(next as "all" | "manual")}
+            >
+              <SelectTrigger aria-label="Which positions to list">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="all">All positions</SelectItem>
+                <SelectItem value="manual">Manual only</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : null}
+          {/* The emergency button: one press, one confirm, and every open
+              position goes — real money included, each real one through the
+              same close its own row uses. */}
+          {trading.positions.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={trading.busy}
+              onClick={() => setClosingAll(true)}
+            >
+              Close all
+            </Button>
+          ) : null}
+        </div>
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <PositionsTable
-            positions={byHand}
+            positions={visible}
             markets={markets}
             walletName={walletName}
             busy={trading.busy}
@@ -254,8 +282,18 @@ export function ActivityPanel({
       <ConfirmDialog
         open={closingAll}
         onOpenChange={setClosingAll}
-        title="Close every practice position?"
-        description="Every practice position is sold at whatever its market costs right now, and everything made or lost is banked. Real positions and waiting orders are left alone. This cannot be undone."
+        title={
+          realCount > 0
+            ? `Close every position — ${realCount} real?`
+            : "Close every position?"
+        }
+        description={
+          realCount > 0
+            ? `Every open position is closed, including ${
+                realCount === 1 ? "1 position" : `${realCount} positions`
+              } of real money, each closed on the exchange exactly as its own row's button would. Practice positions are sold at whatever their market costs right now. Waiting orders are left alone. This cannot be undone.`
+            : "Every practice position is sold at whatever its market costs right now, and everything made or lost is banked. Waiting orders are left alone. This cannot be undone."
+        }
         confirmLabel="Close all positions"
         onConfirm={() => {
           void trading.closeAll()

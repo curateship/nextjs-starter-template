@@ -322,6 +322,62 @@ describe("cancelling", () => {
 })
 
 describe("protecting a position", () => {
+  it("passes a part-sized target through, and refuses one bigger than the position", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+        },
+      ],
+      orders: [],
+    })
+
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      tpPx: 100_000,
+      tpSz: 0.25,
+      slPx: null,
+    })
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+    expect(setBrackets.mock.calls[0][2]).toMatchObject({ tpSz: 0.25 })
+
+    // Selling the whole position is what no size already means, so it is
+    // never written down as a size — the exchange leg then scales with the
+    // position instead of being pinned to today's figure.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      tpPx: 100_000,
+      tpSz: 1,
+      slPx: null,
+    })
+    expect(setBrackets.mock.calls[1][2]).toMatchObject({ tpSz: null })
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        tpPx: 100_000,
+        tpSz: 1.5,
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_TAKE_PROFIT_SIZE")
+    expect(setBrackets).toHaveBeenCalledTimes(2)
+  })
+
   it("lets a long trail its stop above entry but not beyond the current price", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)

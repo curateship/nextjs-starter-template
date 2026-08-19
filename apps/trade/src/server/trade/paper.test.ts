@@ -382,6 +382,88 @@ describe("settling against the price right now", () => {
     expect(banked?.closedPnl).toBeCloseTo(20, 10)
   })
 
+  it("sells only the target's size and leaves the rest running", async () => {
+    await openLong(2)
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      tpPx: 120,
+      tpSz: 0.5,
+      slPx: 95,
+    })
+
+    marks.set("BTC", 121)
+    const account = await loadPaperPortfolio(userId, [wallet])
+
+    // A quarter came off at the target; the rest is still on.
+    expect(account.positions).toHaveLength(1)
+    expect(account.positions[0].szi).toBeCloseTo(1.5, 10)
+    const banked = (await journal()).find((row) => row.reason === "take_profit")
+    expect(banked?.px).toBe(120)
+    expect(banked?.sz).toBeCloseTo(0.5, 10)
+    expect(banked?.closedPnl).toBeCloseTo(10, 10)
+    // The target is used up by firing — once, not a slice per pass — while
+    // the stop stays on what is left.
+    expect(account.positions[0].tpPx).toBeNull()
+    expect(account.positions[0].slPx).toBe(95)
+
+    await loadPaperPortfolio(userId, [wallet])
+    expect(await reasons()).toEqual(["order", "take_profit"])
+  })
+
+  it("treats a target sized at the whole position as a full close", async () => {
+    await openLong(2)
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      tpPx: 120,
+      tpSz: 2,
+      slPx: null,
+    })
+
+    marks.set("BTC", 121)
+    const account = await loadPaperPortfolio(userId, [wallet])
+
+    expect(account.positions).toHaveLength(0)
+    expect(await reasons()).toEqual(["order", "take_profit"])
+  })
+
+  it("floors the target's size to the market's step, and refuses one that floors away", async () => {
+    await openLong(2)
+    // This market deals in thousandths. A size with more decimals than that
+    // is floored, exactly as an order's size is — practice has to model what
+    // the exchange would actually take.
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      tpPx: 120,
+      tpSz: 0.5009999,
+      slPx: null,
+    })
+    const account = await loadPaperPortfolio(userId, [wallet])
+    expect(account.positions[0].tpSz).toBeCloseTo(0.5, 10)
+
+    // Smaller than one step is not a piece of anything, so it is refused
+    // rather than quietly becoming "sell everything".
+    await expect(
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        tpPx: 120,
+        tpSz: 0.0001,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_TAKE_PROFIT_SIZE")
+  })
+
+  it("refuses a target selling more than the position holds", async () => {
+    await openLong(1)
+    await expect(
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        tpPx: 120,
+        tpSz: 1.5,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_TAKE_PROFIT_SIZE")
+  })
+
   it("fills a stop at the market when price has gapped through it", async () => {
     await openLong()
     await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: null, slPx: 95 })

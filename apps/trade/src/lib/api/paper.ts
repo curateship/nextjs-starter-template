@@ -83,6 +83,8 @@ const bracketsSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   tpPx: z.number().positive().finite().nullable(),
+  // Coins the target sells when it fires; null sells the whole position.
+  tpSz: z.number().positive().finite().nullable().optional(),
   slPx: z.number().positive().finite().nullable(),
 })
 
@@ -303,6 +305,8 @@ export const getPaperErrorMessage = createErrorMessage(
       "A reduce-only order needs a position to reduce, and there is not one.",
     PAPER_TAKE_PROFIT_SIDE:
       "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
+    PAPER_TAKE_PROFIT_SIZE:
+      "The take profit has to sell at least the market's smallest step and no more than the position holds.",
     PAPER_STOP_SIDE:
       "A stop must stay beyond the current price — below it on a long, above it on a short.",
   },

@@ -230,6 +230,11 @@ export type WalletPosition = {
   liquidationPx: number | null
   /** The protection riding on the position, read back from its trigger orders. */
   tpPx: number | null
+  /**
+   * Coins the target's leg sells, when it covers less than the position.
+   * Null means the whole position — the leg tracks the position's size.
+   */
+  tpSz: number | null
   slPx: number | null
   /** The exchange's ids for those protection legs — needed to replace them. */
   tpOrderId: string | null

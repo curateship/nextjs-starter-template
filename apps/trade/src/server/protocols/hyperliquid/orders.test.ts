@@ -6,6 +6,7 @@ import {
   fetchHyperliquidOrderFills,
   fetchHyperliquidPortfolio,
   forgetHyperliquidPortfolios,
+  setHyperliquidBrackets,
   formatPx,
   formatSize,
   orderTimeInForce,
@@ -20,6 +21,10 @@ import {
 
 // The portfolio read is tested against fixtures, not the network.
 const clearinghouseState = vi.fn()
+// The two exchange calls the protection path makes, so what it would have
+// sent — and the order it sends things in — can be read back.
+const exchangeOrder = vi.fn()
+const exchangeCancel = vi.fn()
 const frontendOpenOrders = vi.fn()
 const perpDexs = vi.fn()
 // One call for every market's asset list, in the order perpDexs gave them.
@@ -41,6 +46,14 @@ vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
   marketsWalletHasMoneyOn: () => feedState.moneyOn,
   walletFeedWarmingUp: () => feedState.warming,
   dropIdleWalletFeeds: () => {},
+}))
+
+vi.mock("@nktkas/hyperliquid", () => ({
+  ExchangeClient: class {
+    order = exchangeOrder
+    cancel = exchangeCancel
+  },
+  HttpTransport: class {},
 }))
 
 vi.mock("@/server/protocols/hyperliquid/client", () => ({
@@ -321,6 +334,48 @@ describe("reading the portfolio", () => {
     })
   })
 
+  it("reads back how much of the position a part-sized target sells", async () => {
+    clearinghouseState.mockResolvedValue({
+      assetPositions: [
+        {
+          position: {
+            coin: "BTC",
+            szi: "4.25",
+            entryPx: "23.5",
+            leverage: { value: 1 },
+            liquidationPx: null,
+            marginUsed: "100",
+          },
+        },
+      ],
+    })
+    frontendOpenOrders.mockResolvedValue([
+      {
+        coin: "BTC",
+        side: "A",
+        limitPx: "25.947",
+        sz: "2.12",
+        oid: 31,
+        isTrigger: true,
+        triggerPx: "25.947",
+        // Half the position, filed as an ordinary reduce-only trigger — the
+        // shape a part-sized target has on the exchange.
+        isPositionTpsl: false,
+        reduceOnly: true,
+        orderType: "Take Profit Market",
+      },
+    ])
+
+    const portfolio = await fetchHyperliquidPortfolio("mainnet", TEST_ADDRESS)
+
+    const held = portfolio.positions[0]
+    expect(held.tpPx).toBe(25.947)
+    expect(held.tpSz).toBe(2.12)
+    expect(held.tpOrderId).toBe("31")
+    // Still the position's protection, not a loose order row.
+    expect(portfolio.orders).toHaveLength(0)
+  })
+
   it("folds entry-attached brackets too — reduce-only triggers without the position flag", async () => {
     clearinghouseState.mockResolvedValue({
       assetPositions: [
@@ -489,5 +544,112 @@ describe("reading the portfolio", () => {
     await expect(
       fetchHyperliquidPortfolio("mainnet", TEST_ADDRESS)
     ).rejects.toThrow("LIVE_UNREADABLE")
+  })
+})
+
+describe("the protection on a real position", () => {
+  const AUTH = {
+    agentKey: TEST_KEY,
+    allocateNonce: async () => Date.now(),
+  }
+  /** A position holding half a coin, with a stop and a target already on it. */
+  const HELD = { szi: 0.5, tpOrderId: "11", slOrderId: "12" }
+
+  beforeEach(() => {
+    exchangeOrder.mockReset()
+    exchangeCancel.mockReset()
+    perpDexs.mockReset()
+    allPerpMetas.mockReset()
+    perpDexs.mockResolvedValue([null])
+    // Matching what the asset cache already holds for testnet — it has a TTL
+    // and no reset door, so this fixture has to agree with it rather than
+    // quietly describing a market the code will never see.
+    allPerpMetas.mockResolvedValue([
+      { universe: [{ name: "BTC", szDecimals: 5 }] },
+    ])
+    exchangeCancel.mockResolvedValue({
+      response: { data: { statuses: ["success", "success"] } },
+    })
+    exchangeOrder.mockResolvedValue({
+      response: {
+        data: { statuses: [{ resting: { oid: 21 } }, { resting: { oid: 22 } }] },
+      },
+    })
+  })
+
+  it("refuses a target too small to be a step BEFORE cancelling anything", async () => {
+    // A millionth of a coin: nothing on a market whose smallest step is
+    // 0.00001. The old legs must still be sitting there afterwards — a
+    // refusal that has already cancelled them leaves real money with no stop
+    // at all, which is the one outcome this path must never produce.
+    await expect(
+      setHyperliquidBrackets("testnet", AUTH, {
+        marketId: "BTC",
+        position: HELD,
+        tpPx: 120_000,
+        tpSz: 0.000001,
+        slPx: 90_000,
+      })
+    ).rejects.toThrow("LIVE_SIZE")
+
+    expect(exchangeCancel).not.toHaveBeenCalled()
+    expect(exchangeOrder).not.toHaveBeenCalled()
+  })
+
+  it("sends a part-sized target as its own fixed-size leg, the stop as the position's", async () => {
+    await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: HELD,
+      tpPx: 120_000,
+      tpSz: 0.2,
+      slPx: 90_000,
+    })
+
+    expect(exchangeCancel).toHaveBeenCalledTimes(1)
+    // Two calls, because the exchange takes one grouping at a time. The stop
+    // goes first: it is the leg that matters if the second call fails.
+    expect(exchangeOrder).toHaveBeenCalledTimes(2)
+
+    const stop = exchangeOrder.mock.calls[0][0]
+    expect(stop.grouping).toBe("positionTpsl")
+    expect(stop.orders).toHaveLength(1)
+    expect(stop.orders[0].s).toBe("0.5")
+    expect(stop.orders[0].t.trigger.tpsl).toBe("sl")
+
+    const target = exchangeOrder.mock.calls[1][0]
+    // NOT positionTpsl — the exchange grows those back to the whole position,
+    // which would sell everything at the target instead of the part asked for.
+    expect(target.grouping).toBe("na")
+    expect(target.orders[0].s).toBe("0.2")
+    expect(target.orders[0].r).toBe(true)
+    expect(target.orders[0].t.trigger.tpsl).toBe("tp")
+  })
+
+  it("keeps a whole-position target on one position-scaled call", async () => {
+    await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: HELD,
+      tpPx: 120_000,
+      tpSz: null,
+      slPx: 90_000,
+    })
+
+    expect(exchangeOrder).toHaveBeenCalledTimes(1)
+    const both = exchangeOrder.mock.calls[0][0]
+    expect(both.grouping).toBe("positionTpsl")
+    expect(both.orders.map((one: { s: string }) => one.s)).toEqual(["0.5", "0.5"])
+  })
+
+  it("clears both sides by cancelling and sending nothing", async () => {
+    await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: HELD,
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+    })
+
+    expect(exchangeCancel).toHaveBeenCalledTimes(1)
+    expect(exchangeOrder).not.toHaveBeenCalled()
   })
 })

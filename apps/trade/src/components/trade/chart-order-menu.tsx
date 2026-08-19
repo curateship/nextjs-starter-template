@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   Grid2x2Icon,
   LayersIcon,
+  TargetIcon,
   TrendingDownIcon,
   TrendingUpIcon,
 } from "lucide-react"
@@ -13,6 +14,11 @@ import type { PaperSide } from "@/lib/trade/paper"
  *
  * Buy at the level clicked, sell at it — and under a "Smart order" heading,
  * the presets that place a whole plan at once, starting with the DCA ladder.
+ *
+ * With a position open on this market and no target set on it yet, a "Take
+ * profit" row sits above everything: the fastest way to put a target where
+ * the pointer is. It only appears when the level clicked is on the winning
+ * side of the entry, because a target on the losing side is a stop.
  *
  * The price is not printed on the rows. It is the same price on all four of
  * them — the level the pointer is on — so four copies of it said nothing that
@@ -34,6 +40,7 @@ export function ChartOrderMenu({
   smartOrders,
   onPick,
   onPickSmart,
+  onPickTakeProfit,
   onClose,
 }: {
   menu: ChartMenuState
@@ -41,6 +48,12 @@ export function ChartOrderMenu({
   smartOrders: boolean
   onPick: (side: PaperSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
+  /**
+   * Puts a target on the open position at the level clicked, or null when
+   * there is nothing to put one on — no position here, a target already set,
+   * or the click on the losing side of the entry.
+   */
+  onPickTakeProfit: (() => void) | null
   onClose: () => void
 }) {
   React.useEffect(() => {
@@ -70,7 +83,7 @@ export function ChartOrderMenu({
       left: clamp(menu.x, EDGE, window.innerWidth - width - EDGE),
       top: clamp(menu.y, EDGE, window.innerHeight - height - EDGE),
     })
-  }, [menu.x, menu.y, smartOrders])
+  }, [menu.x, menu.y, smartOrders, onPickTakeProfit])
 
   return (
     <>
@@ -94,6 +107,16 @@ export function ChartOrderMenu({
         className="fixed z-50 w-max overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
         style={{ left: at.left, top: at.top }}
       >
+        {onPickTakeProfit ? (
+          <>
+            <IconRow
+              label="Take profit"
+              icon={<TargetIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
+              onPick={onPickTakeProfit}
+            />
+            <div role="presentation" className="mx-2 my-1 border-t" />
+          </>
+        ) : null}
         <MenuRow side="buy" onPick={() => onPick("buy")} />
         <MenuRow side="sell" onPick={() => onPick("sell")} />
         {smartOrders ? (
@@ -111,12 +134,12 @@ export function ChartOrderMenu({
               >
                 Smart order
               </p>
-              <SmartRow
+              <IconRow
                 label="DCA ladder"
                 icon={<LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
                 onPick={() => onPickSmart("dca")}
               />
-              <SmartRow
+              <IconRow
                 label="Grid"
                 icon={<Grid2x2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />}
                 onPick={() => onPickSmart("grid")}
@@ -129,8 +152,8 @@ export function ChartOrderMenu({
   )
 }
 
-/** One Smart-order preset: its icon and its name. */
-function SmartRow({
+/** One row that is just an icon and a name — the presets, and Take profit. */
+function IconRow({
   label,
   icon,
   onPick,

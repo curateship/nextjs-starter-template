@@ -550,11 +550,57 @@ export async function setHyperliquidBrackets(
     marketId: string
     position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
     tpPx: number | null
+    /** Coins the target sells; null sells the whole position. */
+    tpSz: number | null
     slPx: number | null
   }
 ): Promise<void> {
   const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
+
+  const isBuy = params.position.szi > 0
+  const fullSz = formatSize(Math.abs(params.position.szi), asset.szDecimals)
+  // A whole-position leg goes in as `positionTpsl`, which the exchange scales
+  // with the position. A sized target must NOT — the exchange would grow it
+  // back to the whole position — so it goes in as a plain reduce-only trigger
+  // with its own fixed size, which the portfolio read already recognises as
+  // the position's protection.
+  const partialTp =
+    params.tpSz !== null &&
+    params.tpSz < Math.abs(params.position.szi) * (1 - 1e-6)
+  // Every leg is made ready — size and price both — BEFORE the old legs are
+  // cancelled below. `formatSize` and `formatPx` refuse a size or price this
+  // market cannot take, and a refusal after the cancel would leave a real
+  // position standing with no stop at all.
+  const legs: Array<{
+    tpsl: "tp" | "sl"
+    px: string
+    sz: string
+    grouping: "positionTpsl" | "na"
+  }> = [
+    ...(params.tpPx !== null
+      ? [
+          {
+            tpsl: "tp" as const,
+            px: formatPx(params.tpPx, asset.szDecimals),
+            sz: partialTp
+              ? formatSize(params.tpSz ?? 0, asset.szDecimals)
+              : fullSz,
+            grouping: partialTp ? ("na" as const) : ("positionTpsl" as const),
+          },
+        ]
+      : []),
+    ...(params.slPx !== null
+      ? [
+          {
+            tpsl: "sl" as const,
+            px: formatPx(params.slPx, asset.szDecimals),
+            sz: fullSz,
+            grouping: "positionTpsl" as const,
+          },
+        ]
+      : []),
+  ]
 
   const oldLegs = [params.position.tpOrderId, params.position.slOrderId]
     .filter((id): id is string => id !== null)
@@ -579,45 +625,54 @@ export async function setHyperliquidBrackets(
     }
   }
 
-  const isBuy = params.position.szi > 0
-  const legs: Array<{ tpsl: "tp" | "sl"; triggerPx: number }> = [
-    ...(params.tpPx !== null ? [{ tpsl: "tp" as const, triggerPx: params.tpPx }] : []),
-    ...(params.slPx !== null ? [{ tpsl: "sl" as const, triggerPx: params.slPx }] : []),
-  ]
+  // Nothing wanted: the old legs are gone and that is the whole job.
   if (legs.length === 0) return
 
-  const sz = formatSize(Math.abs(params.position.szi), asset.szDecimals)
-  let statuses: OrderStatus[]
-  try {
-    const response = await client.order({
-      orders: legs.map((leg) => ({
-        a: asset.assetId,
-        b: !isBuy,
-        p: formatPx(leg.triggerPx, asset.szDecimals),
-        s: sz,
-        r: true,
-        t: {
-          trigger: {
-            isMarket: true,
-            triggerPx: formatPx(leg.triggerPx, asset.szDecimals),
-            tpsl: leg.tpsl,
+  // One call per grouping — the exchange takes one grouping per batch. The
+  // stop's grouping goes first on purpose: it is the leg that matters if the
+  // second call never lands.
+  //
+  // What has already landed is remembered so a refusal can say what is still
+  // standing. "The position is UNPROTECTED" is the right thing to shout when
+  // nothing went on, and the wrong thing when the stop is sitting there.
+  const landed = new Set<"tp" | "sl">()
+  for (const grouping of ["positionTpsl", "na"] as const) {
+    const batch = legs.filter((leg) => leg.grouping === grouping)
+    if (batch.length === 0) continue
+    const stillOn = landed.has("sl") ? "LIVE_TARGET_GONE" : "LIVE_BRACKETS_GONE"
+    let statuses: OrderStatus[]
+    try {
+      const response = await client.order({
+        orders: batch.map((leg) => ({
+          a: asset.assetId,
+          b: !isBuy,
+          p: leg.px,
+          s: leg.sz,
+          r: true,
+          t: {
+            trigger: {
+              isMarket: true,
+              triggerPx: leg.px,
+              tpsl: leg.tpsl,
+            },
           },
-        },
-        c: newCloid(),
-      })),
-      grouping: "positionTpsl",
-    })
-    statuses = response.response.data.statuses as OrderStatus[]
-  } catch (error) {
-    throw new Error(`LIVE_BRACKETS_GONE:${scrubbedMessage(error)}`)
-  }
+          c: newCloid(),
+        })),
+        grouping,
+      })
+      statuses = response.response.data.statuses as OrderStatus[]
+    } catch (error) {
+      throw new Error(`${stillOn}:${scrubbedMessage(error)}`)
+    }
 
-  // Every leg must stand — a short or failed list here means the position is
-  // sitting with less protection than was just asked for.
-  const failed = legs
-    .map((_, index) => statusError(statuses[index]))
-    .find((error) => error !== null)
-  if (failed) throw new Error(`LIVE_BRACKETS_GONE:${failed}`)
+    // Every leg must stand — a short or failed list here means the position is
+    // sitting with less protection than was just asked for.
+    const failed = batch
+      .map((_, index) => statusError(statuses[index]))
+      .find((error) => error !== null)
+    if (failed) throw new Error(`${stillOn}:${failed}`)
+    for (const leg of batch) landed.add(leg.tpsl)
+  }
 }
 
 // ----- Reading the portfolio ----------------------------------------------
@@ -931,6 +986,7 @@ async function readHyperliquidPortfolio(
         marginUsed,
         liquidationPx: position.liquidationPx ? num(position.liquidationPx) : null,
         tpPx: null,
+        tpSz: null,
         slPx: null,
         tpOrderId: null,
         slOrderId: null,
@@ -965,6 +1021,14 @@ async function readHyperliquidPortfolio(
       if (isTakeProfit && position.tpPx === null) {
         position.tpPx = triggerPx
         position.tpOrderId = String(order.oid)
+        // A leg smaller than the position is a partial target and its size
+        // matters; one that matches (or a position-scaled leg reported as 0)
+        // sells everything, which null already says.
+        const legSz = num(order.sz)
+        position.tpSz =
+          legSz !== null && legSz > 0 && legSz < Math.abs(position.szi) * (1 - 1e-6)
+            ? legSz
+            : null
         continue
       }
       if (!isTakeProfit && position.slPx === null) {

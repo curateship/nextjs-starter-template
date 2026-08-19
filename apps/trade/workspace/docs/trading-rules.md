@@ -28,6 +28,12 @@ the machinery works; this file says what it must add up to.
   never left uncovered mid-move.
 - **A trigger's price is never rewritten into a limit.** A stop or target leg
   the exchange holds is not a resting order, and no drag may turn it into one.
+- **A take profit can be sized.** By default it sells the whole position, as
+  it always has. Given a size, it sells exactly that much at the target price
+  and is used up by firing — the rest keeps running with no target. A size is
+  never more than the position holds, and on the exchange a sized target is a
+  fixed-size reduce-only trigger, never a position-scaled leg the exchange
+  would grow back to everything.
 - **Dragging is instant on screen.** The line stays where the hand let go; the
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is

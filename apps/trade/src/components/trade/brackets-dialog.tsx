@@ -14,13 +14,20 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   bracketPercent,
   bracketPrice,
   bracketTyped,
 } from "@/lib/trade/brackets"
-import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
 
 /**
@@ -38,16 +45,28 @@ import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
 
 export function BracketsDialog({
   position,
+  startTpPx = null,
   busy,
   onSave,
   onClose,
 }: {
   position: PaperPosition | null
+  /**
+   * A price to start the take-profit box from when the position has no target
+   * yet — the level right-clicked on the chart. A target already on the
+   * position wins over it.
+   */
+  startTpPx?: number | null
   busy: boolean
   onSave: (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: {
+      tpPx: number | null
+      /** Coins the target sells; leave it out to sell the whole position. */
+      tpSz?: number | null
+      slPx: number | null
+    }
   ) => Promise<boolean>
   onClose: () => void
 }) {
@@ -65,6 +84,7 @@ export function BracketsDialog({
             // its own figures rather than the last one's.
             key={position.id}
             position={position}
+            startTpPx={startTpPx}
             busy={busy}
             onSave={onSave}
             onClose={onClose}
@@ -77,24 +97,41 @@ export function BracketsDialog({
 
 function BracketsForm({
   position,
+  startTpPx,
   busy,
   onSave,
   onClose,
 }: {
   position: PaperPosition
+  startTpPx: number | null
   busy: boolean
   onSave: (
     walletId: string,
     marketKey: string,
-    brackets: { tpPx: number | null; slPx: number | null }
+    brackets: {
+      tpPx: number | null
+      /** Coins the target sells; leave it out to sell the whole position. */
+      tpSz?: number | null
+      slPx: number | null
+    }
   ) => Promise<boolean>
   onClose: () => void
 }) {
   const [targetPct, setTargetPct] = React.useState(() =>
-    bracketPercent(position.entryPx, position.tpPx)
+    bracketPercent(position.entryPx, position.tpPx ?? startTpPx)
   )
   const [stopPct, setStopPct] = React.useState(() =>
     bracketPercent(position.entryPx, position.slPx)
+  )
+  // How much of the position the target sells — as a share of it, or as
+  // dollars measured at the target price. Everything is the answer a take
+  // profit has always given, so that is what the box starts on.
+  const heldSz = Math.abs(position.szi)
+  const [sellUnit, setSellUnit] = React.useState<"pct" | "usd">("pct")
+  const [sellAmount, setSellAmount] = React.useState(() =>
+    position.tpSz != null && heldSz > 0
+      ? String(Number(((position.tpSz / heldSz) * 100).toFixed(2)))
+      : "100"
   )
 
   const long = position.szi > 0
@@ -115,10 +152,34 @@ function BracketsForm({
   const badTarget = bracketTyped(targetPct, tpPx)
   const badStop = bracketTyped(stopPct, slPx)
 
+  // The coins the typed amount works out to, or null when it is everything.
+  // An empty box also sells everything — the box starts on 100 for the same
+  // reason the percent boxes start empty: the default is what always happened.
+  const typedAmount = Number(sellAmount.trim())
+  const sellAll =
+    sellAmount.trim() === "" ||
+    (sellUnit === "pct" && typedAmount >= 100) ||
+    (sellUnit === "usd" && tpPx !== null && typedAmount >= heldSz * tpPx)
+  const tpSz = sellAll
+    ? null
+    : sellUnit === "pct"
+      ? heldSz * (typedAmount / 100)
+      : tpPx !== null
+        ? typedAmount / tpPx
+        : null
+  const badSell =
+    tpPx !== null &&
+    !sellAll &&
+    (!Number.isFinite(typedAmount) ||
+      typedAmount <= 0 ||
+      tpSz === null ||
+      !(tpSz > 0))
+
   const save = async () => {
-    if (badTarget || badStop) return
+    if (badTarget || badStop || badSell) return
     const saved = await onSave(position.walletId, position.marketKey, {
       tpPx,
+      tpSz: tpPx !== null ? tpSz : null,
       slPx,
     })
     if (saved) onClose()
@@ -158,7 +219,17 @@ function BracketsForm({
                 />
                 <p className="text-xs tabular-nums text-muted-foreground">
                   {tpPx
-                    ? `${formatPrice(tpPx)} · ${formatSignedUsd(projectedProfit(position, tpPx))}`
+                    ? `${formatPrice(tpPx)} · ${formatSignedUsd(
+                        projectedProfit(
+                          tpSz !== null && !badSell
+                            ? {
+                                szi: Math.sign(position.szi) * tpSz,
+                                entryPx: position.entryPx,
+                              }
+                            : position,
+                          tpPx
+                        )
+                      )}`
                     : "No target set."}
                 </p>
               </div>
@@ -184,6 +255,66 @@ function BracketsForm({
                 </p>
               </div>
             </div>
+            {tpPx !== null ? (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="brackets-sell"
+                  hint="How much of the position is sold when the target is reached. 100% sells all of it; anything less sells that piece and leaves the rest running with no target."
+                >
+                  How much comes off
+                </FieldLabel>
+                <div className="flex gap-2">
+                  <Input
+                    id="brackets-sell"
+                    inputMode="decimal"
+                    className="flex-1"
+                    value={sellAmount}
+                    onChange={(event) => setSellAmount(event.target.value)}
+                    aria-invalid={badSell}
+                  />
+                  <Select
+                    value={sellUnit}
+                    onValueChange={(next) => {
+                      const unit = next as "pct" | "usd"
+                      // The same piece, said in the other unit, so switching
+                      // never quietly changes what would be sold.
+                      const typed = Number(sellAmount.trim())
+                      if (Number.isFinite(typed) && typed > 0 && heldSz > 0) {
+                        if (unit === "usd" && sellUnit === "pct") {
+                          setSellAmount(
+                            String(
+                              Number(((heldSz * (typed / 100)) * tpPx).toFixed(2))
+                            )
+                          )
+                        } else if (unit === "pct" && sellUnit === "usd") {
+                          setSellAmount(
+                            String(
+                              Number(((typed / tpPx / heldSz) * 100).toFixed(2))
+                            )
+                          )
+                        }
+                      }
+                      setSellUnit(unit)
+                    }}
+                  >
+                    <SelectTrigger className="w-32 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pct">% of position</SelectItem>
+                      <SelectItem value="usd">USD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {badSell
+                    ? "That does not work out to a piece of this position."
+                    : tpSz !== null
+                      ? `Sells ${trimSize(tpSz)} of ${trimSize(heldSz)} — ${formatUsd(tpSz * tpPx)} — and the rest keeps running with no target.`
+                      : "The whole position closes at the target."}
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </DialogBody>
@@ -199,7 +330,7 @@ function BracketsForm({
         </Button>
         <Button
           type="button"
-          disabled={busy || badTarget || badStop}
+          disabled={busy || badTarget || badStop || badSell}
           onClick={() => void save()}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
@@ -208,4 +339,9 @@ function BracketsForm({
       </DialogFooter>
     </>
   )
+}
+
+/** A coin amount with the float noise cut off, for the preview lines. */
+function trimSize(sz: number): number {
+  return Number(sz.toFixed(6))
 }

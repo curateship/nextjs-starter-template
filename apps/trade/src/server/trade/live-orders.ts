@@ -396,6 +396,8 @@ export async function setLiveBrackets(
     walletId: string
     marketKey: string
     tpPx: number | null
+    /** Coins the target sells; null or the whole position sells everything. */
+    tpSz?: number | null
     slPx: number | null
   }
 ): Promise<void> {
@@ -415,6 +417,15 @@ export async function setLiveBrackets(
       const winning = long ? input.tpPx > held.entryPx : input.tpPx < held.entryPx
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
+    // A size only means something on a target that exists, and it may not be
+    // more than is held. Selling everything is what null already says.
+    let tpSz = input.tpPx === null ? null : (input.tpSz ?? null)
+    if (tpSz !== null) {
+      if (!(tpSz > 0) || tpSz > Math.abs(held.szi) * (1 + 1e-6)) {
+        throw new Error("LIVE_TAKE_PROFIT_SIZE")
+      }
+      if (tpSz >= Math.abs(held.szi) * (1 - 1e-6)) tpSz = null
+    }
     if (input.slPx !== null) {
       const prices = await protocol.markets.prices(row.network, [ref.marketId])
       const mark = prices.get(ref.marketId)
@@ -427,21 +438,28 @@ export async function setLiveBrackets(
       marketId: ref.marketId,
       position: held,
       tpPx: input.tpPx,
+      tpSz,
       slPx: input.slPx,
     })
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,
-      note: describeBrackets(input.tpPx, input.slPx),
+      note: describeBrackets(input.tpPx, tpSz, input.slPx),
     })
   } catch (error) {
     await refuse(userId, row.id, input.marketKey, side, error)
   }
 }
 
-function describeBrackets(tpPx: number | null, slPx: number | null): string {
+function describeBrackets(
+  tpPx: number | null,
+  tpSz: number | null,
+  slPx: number | null
+): string {
   const parts = [
-    tpPx !== null ? `take profit at ${tpPx}` : "take profit removed",
+    tpPx !== null
+      ? `take profit at ${tpPx}${tpSz !== null ? ` selling ${tpSz}` : ""}`
+      : "take profit removed",
     slPx !== null ? `stop at ${slPx}` : "stop removed",
   ]
   return `Protection set: ${parts.join(", ")}.`

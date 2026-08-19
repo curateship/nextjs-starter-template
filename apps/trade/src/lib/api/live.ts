@@ -63,6 +63,8 @@ const bracketsSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   tpPx: z.number().positive().finite().nullable(),
+  // Coins the target sells when it fires; null sells the whole position.
+  tpSz: z.number().positive().finite().nullable().optional(),
   slPx: z.number().positive().finite().nullable(),
 })
 
@@ -240,6 +242,8 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_UNLISTED: "Hyperliquid does not list that market for orders.",
   LIVE_TAKE_PROFIT_SIDE:
     "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
+  LIVE_TAKE_PROFIT_SIZE:
+    "The take profit cannot sell more than the position holds.",
   LIVE_STOP_SIDE:
     "A stop must stay beyond the current price — below it on a long, above it on a short.",
   LIVE_SIZE: "That size is smaller than this market's smallest step.",
@@ -284,6 +288,13 @@ export function getLiveErrorMessage(error: unknown): string {
   // with real money the reason IS the answer.
   const exchange = message.match(/LIVE_(?:EXCHANGE|ORDER_REFUSED):(.*)$/s)
   if (exchange) return humanizeExchangeReason(exchange[1].trim())
+  // The stop went on and only the target was refused. Said apart from the
+  // sentence below because "UNPROTECTED" is the wrong word for a position
+  // that is standing there with its stop.
+  const targetGone = message.match(/LIVE_TARGET_GONE:(.*)$/s)
+  if (targetGone) {
+    return `The stop is on, but the new take profit was refused (${humanizeExchangeReason(targetGone[1].trim())}). The position has no target — set it again.`
+  }
   const gone = message.match(/LIVE_BRACKETS_GONE:(.*)$/s)
   if (gone) {
     return `The old stop and target were removed but the new ones were refused (${humanizeExchangeReason(gone[1].trim())}). The position is UNPROTECTED — set them again now.`

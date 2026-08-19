@@ -431,6 +431,8 @@ export const tradePaperPositions = pgTable(
     // is built from it and the exchange's answer can change underneath.
     maxLeverage: doublePrecision("max_leverage").notNull(),
     tpPx: doublePrecision("tp_px"),
+    // How many coins the target sells when it fires; empty sells them all.
+    tpSz: doublePrecision("tp_sz"),
     slPx: doublePrecision("sl_px"),
     feesPaid: doublePrecision("fees_paid").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })

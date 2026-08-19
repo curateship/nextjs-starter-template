@@ -116,6 +116,14 @@ export type PaperPosition = {
    */
   maxLeverage: number
   tpPx: number | null
+  /**
+   * How many coins the target sells when it fires. Empty means all of them —
+   * the whole position closes, which is what a target has always done. A
+   * number smaller than the position sells that much at the target price and
+   * leaves the rest running with no target; the target is used up by firing.
+   * Meaningless without `tpPx`, and never set while `tpPx` is empty.
+   */
+  tpSz?: number | null
   slPx: number | null
   /** Fees this position has paid so far, entry and any part-closes. */
   feesPaid: number
