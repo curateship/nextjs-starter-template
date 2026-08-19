@@ -9,9 +9,17 @@ import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
+  readQuickOrderPrefs,
+  type QuickOrderPrefs,
+} from "@/lib/trade/quick-order"
+import {
   readIndicatorSettings,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
+import {
+  readOrderStyle,
+  type OrderStyle,
+} from "@/lib/trade/order-style"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -231,5 +239,58 @@ export async function saveSmartGrid(
     .onConflictDoUpdate({
       target: tradePrefs.userId,
       set: { smartGrid, updatedAt: new Date() },
+    })
+}
+
+/**
+ * How the right-click order window was last set up. Never null: a first visit
+ * and a row this build cannot read both come back as the plain defaults, which
+ * is a working window either way.
+ */
+export async function loadQuickOrder(
+  userId: string
+): Promise<QuickOrderPrefs> {
+  const row = await db
+    .select({ quickOrder: tradePrefs.quickOrder })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readQuickOrderPrefs(row[0]?.quickOrder ?? null)
+}
+
+/** Remember it — saved after an order really went, never on every keystroke. */
+export async function saveQuickOrder(
+  userId: string,
+  quickOrder: QuickOrderPrefs
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, quickOrder, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { quickOrder, updatedAt: new Date() },
+    })
+}
+
+/** How this person's plain orders wait: on the exchange, or watched here. */
+export async function loadOrderStyle(userId: string): Promise<OrderStyle> {
+  const row = await db
+    .select({ orderStyle: tradePrefs.orderStyle })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readOrderStyle(row[0]?.orderStyle)
+}
+
+export async function saveOrderStyle(
+  userId: string,
+  orderStyle: OrderStyle
+): Promise<void> {
+  await db
+    .insert(tradePrefs)
+    .values({ userId, orderStyle, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { orderStyle, updatedAt: new Date() },
     })
 }

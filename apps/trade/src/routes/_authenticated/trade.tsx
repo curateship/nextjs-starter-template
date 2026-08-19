@@ -12,8 +12,10 @@ import {
 import { loadRememberedChartOptions } from "@/lib/api/chart-options"
 import { loadRememberedChartView } from "@/lib/api/chart-view"
 import { loadRememberedFolds } from "@/lib/api/card-folds"
+import { loadQuickOrderPrefs } from "@/lib/api/quick-order"
 import { loadIndicatorSettings } from "@/lib/api/indicators"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
@@ -73,6 +75,7 @@ export const Route = createFileRoute("/_authenticated/trade")({
       chartOptions,
       indicators,
       cardFolds,
+      quickOrder,
     ] =
       await Promise.all([
         // A dead exchange must not take the page down with it: the workspace
@@ -109,6 +112,11 @@ export const Route = createFileRoute("/_authenticated/trade")({
         // its cards would draw open and then fold themselves a moment later,
         // in front of you. Losing it only means cards open as they always did.
         loadRememberedFolds().catch(() => ({ folds: {} })),
+        // The right-click order window's last-used sizing, read here for the
+        // same reason: it opens on a click, and a window that filled itself in
+        // after it was already on screen would be no use to anybody typing.
+        // Losing it only means an empty size box.
+        loadQuickOrderPrefs().catch(() => ({ prefs: DEFAULT_QUICK_ORDER })),
       ])
     return {
       markets,
@@ -119,6 +127,7 @@ export const Route = createFileRoute("/_authenticated/trade")({
       chartOptions: chartOptions.options,
       indicators: indicators.indicators,
       cardFolds: cardFolds.folds,
+      quickOrder: quickOrder.prefs,
     }
   },
   component: TradeRoute,
@@ -134,6 +143,7 @@ function TradeRoute() {
     chartOptions,
     indicators,
     cardFolds,
+    quickOrder,
   } = Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -178,6 +188,7 @@ function TradeRoute() {
       initialChartOptions={chartOptions}
       initialIndicators={indicators}
       initialCardFolds={cardFolds}
+      initialQuickOrder={quickOrder}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({

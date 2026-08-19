@@ -35,6 +35,7 @@ import {
   updateGridStop,
   getSmartOrderErrorMessage,
   placeDcaLadder,
+  cancelWatch,
   reconcileLiveSmartOrders,
   updateLadderExits,
 } from "@/lib/api/smart-orders"
@@ -137,6 +138,16 @@ export type Trading = {
   walletNames: ReadonlyMap<string, string>
   /** An action is in flight; the buttons that started it stay disabled. */
   busy: boolean
+  /**
+   * True only before the first answer — never during a background refresh.
+   * While this is true the tables have not looked yet, so nothing may claim
+   * to be empty. Same shape as `use-trade-account`, on purpose.
+   */
+  loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  /** The button on the failed state; the poll retries on its own too. */
+  retry: () => void
   /**
    * Sends an order and returns straight away. Nothing waits on it: the window
    * that asked for it has already closed, the chart is already drawing it, and
@@ -286,6 +297,10 @@ type LiveAnswer = {
 export function useTrading(wallet: TradeWallet | null): Trading {
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
+  // The whole read came back with nothing — both halves refused. With rows
+  // already on screen the next tick is the retry and nothing is said; this
+  // only ever surfaces while there is nothing to fall back on.
+  const [failed, setFailed] = React.useState(false)
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
@@ -333,6 +348,9 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     if (live.status === "fulfilled") {
       setLiveAnswer((was) => keepUnreachableRows(was, live.value))
     }
+    setFailed(
+      paper.status === "rejected" && live.status === "rejected"
+    )
     return paper.status === "fulfilled" && live.status === "fulfilled"
   }, [])
 
@@ -596,6 +614,16 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       // Cancelling costs nothing and the × on the chart has to stay instant,
       // so there is no question asked first — and nothing is said afterwards
       // either: the line disappearing is the answer.
+      // A watched price is drawn as an order and cancelled as one, but there
+      // is no order anywhere to cancel — the row IS the order until its level
+      // is touched, so it goes back through the smart-order door.
+      const watch = smartOrders.find(
+        (one) => one.kind === "watch" && one.id === orderId
+      )
+      if (watch) {
+        await run(() => cancelWatch({ walletId, ladderId: orderId }))
+        return
+      }
       const order = findOrder(orderId)
       if (order?.live) {
         await runWith(getLiveErrorMessage, () =>
@@ -605,7 +633,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       }
       await run(() => cancelPaperOrder(walletId, orderId))
     },
-    [run, runWith, findOrder]
+    [run, runWith, findOrder, smartOrders]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -898,6 +926,11 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     ladders,
     grids,
     busy: pending > 0,
+    // Never both: an answered half is something to show, a failure with rows
+    // still up stays quiet, and only a screen with nothing yet says either.
+    loading: paperAnswer === null && liveAnswer === null && !failed,
+    failed: failed && paperAnswer === null && liveAnswer === null,
+    retry: () => void refresh(),
     place,
     move,
     cancel,

@@ -1,10 +1,11 @@
-import { and, inArray, isNull, lte, or, type SQL } from "drizzle-orm"
+import { and, eq, inArray, isNull, lte, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 
 import {
   CLEANUP_BATCH_LIMIT,
   EMAIL_SEND_KEEP_DAYS,
   LINK_KEEP_DAYS,
+  PENDING_EMAIL_KEEP_DAYS,
   READ_NOTICE_KEEP_DAYS,
   THROTTLE_KEEP_HOURS,
   type CleanupCounts,
@@ -14,6 +15,7 @@ import { sendDueVerificationReminders } from "@/server/auth/verification-reminde
 import {
   customShellAuthTokens,
   customShellNotifications,
+  customShellPendingEmailSends,
   customShellRateLimits,
   customShellSystemEmailSends,
 } from "@/server/schema"
@@ -48,6 +50,7 @@ export async function cleanUpOldData(
     throttles: await purgeFinishedThrottles(database, at),
     notifications: await purgeOldReadNotices(database, at),
     emailSends: await purgeOldEmailSends(database, at),
+    pendingEmails: await purgeOldPendingEmails(database, at),
   }
 }
 
@@ -121,6 +124,21 @@ async function purgeOldEmailSends(database: CustomShellDb, at: Date) {
     customShellSystemEmailSends,
     customShellSystemEmailSends.id,
     lte(customShellSystemEmailSends.createdAt, cutoff)
+  )
+}
+
+/** Failed emails kept long enough for an admin to investigate, then removed. */
+async function purgeOldPendingEmails(database: CustomShellDb, at: Date) {
+  const cutoff = new Date(at.getTime() - PENDING_EMAIL_KEEP_DAYS * DAY_MS)
+
+  return deleteCapped(
+    database,
+    customShellPendingEmailSends,
+    customShellPendingEmailSends.id,
+    and(
+      eq(customShellPendingEmailSends.status, "exhausted"),
+      lte(customShellPendingEmailSends.updatedAt, cutoff)
+    )
   )
 }
 

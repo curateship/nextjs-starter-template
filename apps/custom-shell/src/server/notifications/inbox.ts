@@ -76,7 +76,7 @@ const recipientUsers = alias(customShellUsers, "recipient_users")
  * about for the rest. Mirrors `notificationSubject` on the page.
  */
 const subjectExpression = sql<string>`case
-  when ${customShellNotifications.type} = 'account_update' then coalesce(${customShellNotifications.message}, '')
+  when ${customShellNotifications.type} in ('account_update', 'system_email_failed') then coalesce(${customShellNotifications.message}, '')
   when ${customShellNotifications.type} = 'ai_limit_warning' then ${aiLimitNotificationText.ai_limit_warning.message}
   when ${customShellNotifications.type} = 'ai_limit_reached' then ${aiLimitNotificationText.ai_limit_reached.message}
   when ${customShellNotifications.type} = 'automation_approval' then coalesce(${customShellAutomations.name}, '')

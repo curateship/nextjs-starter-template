@@ -1,66 +1,53 @@
-import { FlaskConicalIcon } from "lucide-react"
-import { Area, AreaChart, ReferenceLine, XAxis, YAxis } from "recharts"
+import { ChevronDownIcon, FlaskConicalIcon } from "lucide-react"
 
 import {
   BacktestKpi,
-  heldFor,
+  roundedPct,
   sharePct,
   signedPct,
+  signedUsd,
+  toneClass,
+  usd,
 } from "@/components/backtest/backtest-kpi"
+import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
-import { Badge } from "@/components/ui/badge"
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart"
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { focusRing } from "@/lib/layout/focus-ring"
 import type {
   BacktestResult,
   BacktestSpecSnapshot,
   BacktestSummary,
 } from "@/lib/trade/backtest/result"
+import type { GraphSeries, GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import { formatDate } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
+import { cn } from "@/lib/utils"
 
 /**
- * The whole run in tiles, down the left: what it made, what it cost you on the
- * way, how many coins did the work — and the pot's own line underneath them.
+ * The run in figures, down the left — and **all of them answer for whatever
+ * stretch of the graph is picked**, not just for the whole run.
  *
- * A grid of tiles rather than a column of sentences because these are the eight
- * numbers you check first and then stop reading. The line under them is the
- * same money over time, which is the one thing the tiles cannot say.
+ * That is the change worth knowing about. Drag a box across the graph in the
+ * middle panel and every tile here recounts itself for those dates: the
+ * headline names them, "Trades closed" counts only the round trips that
+ * finished inside them, "Coins tested" says how many coins traded in that
+ * window rather than in the run. The little chart at the bottom shades the
+ * same stretch, so the numbers always have a place.
+ *
+ * The sums are in `@/lib/trade/backtest/graph`, where a test can check them.
+ * Nothing is worked out in this file: a panel doing its own arithmetic drifts
+ * from the graph it sits beside the moment either changes.
+ *
+ * **A dash is an answer.** Figures that need the run's every trade show "—"
+ * until those arrive, and on runs saved before they were kept. A zero would
+ * read as "none happened", which is a different and wrong thing to say.
  */
-
-/**
- * The bottom of the pot chart's log axis.
- *
- * A log scale has no zero to start from, so it needs a floor — and the floor
- * has to sit under the lowest the pot ever got, or the worst moment of the run
- * is clipped off the bottom of the picture that exists to show it. A tenth
- * below the low leaves the line clear of the edge without flattening it.
- *
- * A tenth below whatever the low was, never a fixed number: clamping to a
- * round floor like one dollar would clip the bottom off any run that fell
- * under it, which is the one case this whole function exists for.
- *
- * One dollar only when there is nothing to read at all — a scale Recharts
- * accepts, and an empty chart cannot be wrong about it.
- */
-function potFloor(points: readonly { usd: number }[]): number {
-  let low = Number.POSITIVE_INFINITY
-  for (const point of points) {
-    if (point.usd > 0 && point.usd < low) low = point.usd
-  }
-  return Number.isFinite(low) && low > 0 ? low * 0.9 : 1
-}
-
-const potConfig: ChartConfig = {
-  usd: { label: "The pot", color: "var(--foreground)" },
-}
 
 /**
  * A figure a run is too old to carry: the engine was not measuring it when that
@@ -72,255 +59,275 @@ function figure(value: number | null | undefined): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null
 }
 
+/** A whole number, or a dash when the trades that would answer are missing. */
+function count(value: number | null): string {
+  return value === null ? "—" : String(value)
+}
+
 export function BacktestStatsPanel({
   summary,
   result,
   spec,
+  series,
+  stats,
+  window,
+  onWindow,
+  leverage,
   coinsTotal,
   running,
 }: {
   summary: BacktestSummary | null
   result: BacktestResult | null
   spec: BacktestSpecSnapshot
+  /** The pot's lines. Null while the run has nothing to draw. */
+  series: GraphSeries | null
+  /** Every figure, for the picked stretch of time. */
+  stats: WindowStats | null
+  window: GraphWindow
+  onWindow: (next: GraphWindow) => void
+  /** How much the run borrows — see the tooltip in the graph. */
+  leverage: number
   coinsTotal: number
   /** The run has not finished, so these figures are still moving. */
   running: boolean
 }) {
+  const scoped =
+    stats !== null &&
+    (window.sel !== null ||
+      window.preset !== "all" ||
+      window.from !== null ||
+      window.to !== null)
+
+  // Worked out once because two things depend on it: the tile itself, and the
+  // empty cell that keeps the last row of the grid even. If they ever disagreed
+  // the rule between the two columns would run down past the last figure.
+  const liquidatedCount = stats?.liquidatedCount ?? 0
+  const showLiquidated = liquidatedCount > 0
+
   return (
     <>
       <WorkspacePanelHeader
         icon={<FlaskConicalIcon />}
-        title="Backtest · all coins"
-        action={<Badge variant="secondary">Read-only</Badge>}
+        title="Backtest · all markets"
       />
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-3 p-3">
+        <div className="grid gap-3 px-5 py-4">
           {!summary ? (
             <p className="p-2 text-xs text-muted-foreground">
               {running
                 ? "Still loading its candles — nothing is worked out yet."
-                : "This run ended without testing a coin — it was stopped, or every coin was skipped."}
+                : "This run ended without testing a market — it was stopped, or every market was skipped."}
             </p>
           ) : (
             <>
-              {/* The old app's eight, in its order and with its captions:
-                  what it made, how often it won, how far it fell and what was
-                  left in the pot at the bottom, how many coins were tested,
-                  how many finished ahead, then the three about the money —
-                  how hard the one shared pot was worked at its heaviest and
-                  for how long, what it typically ran at, and what was still
-                  open when the window closed. */}
-              <div className="grid grid-cols-2 gap-2">
-                <BacktestKpi
-                  label="Net P&L"
-                  value={signedPct(summary.madeOrLostPct)}
-                  sub={formatSignedUsd(summary.madeOrLost)}
-                  tone={summary.madeOrLost}
-                />
+              {/* What it made, and over what. The dates are the whole point of
+                  the headline: with a box dragged on the graph this is no
+                  longer the run's figure, and saying so is what stops it being
+                  read as one. */}
+              {/* `pb-2` on top of the grid's own gap, so the space under this
+                  line matches the 20px at the sides and the top rather than
+                  sitting tighter than both. */}
+              <div className="pb-2">
+                {/* The percent leads: it is the half of this line that can be
+                    held against another run, another window or another
+                    strategy, while the dollars only mean anything next to the
+                    pot they came out of. Both at the same size and weight —
+                    in a pill at 11px the comparable figure was the smallest
+                    thing on the panel. */}
+                <div className="mt-0.5 flex items-baseline gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
+                      (stats ? stats.net : summary.madeOrLost) >= 0
+                        ? "bg-teal-600/10 text-teal-600 dark:bg-teal-400/10 dark:text-teal-400"
+                        : "bg-red-600/10 text-red-600 dark:bg-red-400/10 dark:text-red-400"
+                    )}
+                  >
+                    {signedPct(stats ? stats.netPct : summary.madeOrLostPct)}
+                  </span>
+                  {/* Coloured like every other figure in the app: made money is
+                      teal, lost is red. */}
+                  <span
+                    className={cn(
+                      "text-xl font-semibold tracking-tight tabular-nums",
+                      toneClass(stats ? stats.net : summary.madeOrLost)
+                    )}
+                  >
+                    {signedUsd(stats ? stats.net : summary.madeOrLost)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Ruled, not gapped: one hairline between cells so the figures
+                  line up in two columns and read as a table of results. The
+                  grid is pulled out to the panel's edges, the way the design
+                  runs its rules the full width. */}
+              <div className="-mx-5 grid grid-cols-2 border-t">
                 <BacktestKpi
                   label="Win rate"
-                  value={sharePct(summary.tradesWon, summary.tradesClosed)}
-                  sub={`${summary.tradesWon}W / ${summary.tradesClosed - summary.tradesWon}L`}
-                />
-                {/* How many trades there were at all. A win rate with no count
-                    behind it is unreadable — 100% off two trades and 100% off
-                    two hundred are not the same result, and only this tile
-                    tells them apart. */}
-                <BacktestKpi
-                  label="Trades"
-                  value={String(summary.trades)}
+                  value={
+                    stats && stats.tradesClosed !== null && stats.tradesWon !== null
+                      ? sharePct(stats.tradesWon, stats.tradesClosed)
+                      : "—"
+                  }
                   sub={
-                    summary.trades === summary.tradesClosed
-                      ? "all closed"
-                      : `${summary.trades - summary.tradesClosed} still open`
+                    stats && stats.tradesClosed !== null && stats.tradesWon !== null
+                      ? `${stats.tradesWon}W / ${stats.tradesClosed - stats.tradesWon}L`
+                      : "needs the run's trades"
                   }
                 />
                 <BacktestKpi
-                  label="Buy & hold"
-                  value={formatSignedUsd(summary.buyAndHold)}
-                  sub="if you just held"
-                  tone={summary.buyAndHold}
+                  label="Trades closed"
+                  value={count(stats?.tradesClosed ?? null)}
+                  sub={
+                    stats?.openNow === null || stats?.openNow === undefined
+                      ? "in this window"
+                      : `${stats.openNow} open at the end`
+                  }
                 />
                 <BacktestKpi
                   label="Max drawdown"
+                  value={stats ? `-${roundedPct(stats.worstDipPct)}` : "—"}
+                  sub={
+                    stats
+                      ? `${usd(stats.worstDipUsd)} off ${usd(stats.worstDipPeak)}`
+                      : ""
+                  }
+                  tone={stats && stats.worstDipUsd > 0 ? -1 : undefined}
+                />
+                <BacktestKpi
+                  label="Recovery"
                   value={
-                    // Against the top it fell FROM, not what the run started
-                    // with — see `worstDip`. Older runs did not record the top,
-                    // and a wrong percent is worse than none.
-                    figure(summary.worstDipPct) === null
+                    !stats
                       ? "—"
-                      : `-${summary.worstDipPct!.toFixed(2)}%`
+                      : stats.recoveryDays === null
+                        ? "not yet"
+                        : `${stats.recoveryDays}d`
                   }
                   sub={
-                    figure(summary.worstDipPeakUsd) === null
-                      ? `${formatUsd(summary.worstDipUsd)} off the top`
-                      : `${formatUsd(summary.worstDipUsd)} off ${formatUsd(summary.worstDipPeakUsd!)}`
+                    stats?.worstDipAt
+                      ? `trough ${formatDate(new Date(stats.worstDipAt))}`
+                      : "back to the old high"
                   }
-                  tone={summary.worstDipUsd > 0 ? -1 : undefined}
+                />
+                {/* Whole-run, always. There is nothing saved per bar to slice a
+                    hold-it-instead figure out of, so a windowed one would be
+                    invented. Saying "whole run" is cheaper than being wrong. */}
+                <BacktestKpi
+                  label="Buy & hold"
+                  value={signedUsd(summary.buyAndHold)}
+                  sub={scoped ? "whole run · if you just held" : "if you just held"}
+                  tone={summary.buyAndHold}
                 />
                 <BacktestKpi
-                  label="Coins"
-                  value={`${summary.coinsTested}/${coinsTotal}`}
-                  sub="tested"
-                />
-                <BacktestKpi
-                  label="Green"
-                  value={`${summary.coinsThatMadeMoney}/${summary.coinsTested}`}
-                  sub="net positive"
-                />
-                <BacktestKpi
-                  label="Peak wallet"
+                  label="Profit factor"
                   value={
-                    // Against the pot as it stood at that moment, not what the
-                    // run started with — see `peakInPlayPct`. This used to
-                    // divide by the opening dollars, so a compounded run read
-                    // "334%" while it was using 106% of the money it had.
-                    // Older runs did not record it, and a wrong percent is
-                    // worse than none.
-                    figure(summary.peakInPlayPct) === null
+                    !stats || stats.tradesClosed === null
                       ? "—"
-                      : `${Math.round(summary.peakInPlayPct!)}%`
+                      : stats.profitFactor === null
+                        ? "no losses"
+                        : stats.profitFactor.toFixed(2)
                   }
-                  sub={peakSub(summary)}
+                  sub={
+                    !stats || stats.profitFactor === null
+                      ? "made against lost"
+                      : stats.profitFactor >= 1
+                        ? "wins outweigh losses"
+                        : "losses outweigh wins"
+                  }
                 />
                 <BacktestKpi
-                  label="Avg wallet"
+                  label="Expectancy"
                   value={
-                    figure(summary.typicalInPlayPct) === null
-                      ? "—"
-                      : `${Math.round(summary.typicalInPlayPct!)}%`
+                    stats && stats.expectancy !== null
+                      ? signedUsd(stats.expectancy)
+                      : "—"
                   }
-                  sub={`${formatUsd(summary.typicalInPlayUsd)} typically in trades`}
+                  sub="per closed trade"
+                  tone={stats?.expectancy ?? undefined}
                 />
-                {/* Only on a run where it happened. Without borrowing it is
-                    always zero, and a permanent zero tile is one the eye stops
-                    reading — including on the run where it finally matters. */}
-                {(figure(summary.tradesLiquidated) ?? 0) > 0 ? (
+                <BacktestKpi
+                  label="Markets green"
+                  value={
+                    stats && stats.coinsGreen !== null && stats.coinsTraded !== null
+                      ? `${stats.coinsGreen}/${stats.coinsTraded}`
+                      : "—"
+                  }
+                  sub="net positive of traded"
+                />
+                {/* Only on a window where it happened. A permanent zero tile is
+                    one the eye stops reading — including on the day it matters. */}
+                {showLiquidated ? (
                   <BacktestKpi
                     label="Liquidated"
-                    value={formatSignedUsd(summary.liquidatedUsd)}
-                    sub={`${summary.tradesLiquidated} ${summary.tradesLiquidated === 1 ? "trade" : "trades"} taken by the exchange`}
-                    tone={summary.liquidatedUsd}
+                    value={signedUsd(stats?.liquidatedUsd ?? 0)}
+                    sub={`${liquidatedCount} ${plural(liquidatedCount, "trade", "trades")} taken by the exchange`}
+                    tone={-1}
                   />
                 ) : null}
                 <BacktestKpi
-                  label="In coins"
-                  value={formatUsd(summary.openAtEndUsd)}
+                  label="Peak wallet"
+                  value={stats ? `${Math.round(stats.peakWalletPct)}%` : "—"}
                   sub={
-                    (figure(summary.coinsOpenAtEnd) ?? 0) > 0
-                      ? `${summary.coinsOpenAtEnd} ${summary.coinsOpenAtEnd === 1 ? "coin" : "coins"} open`
-                      : "everything closed"
+                    stats
+                      ? `${usd(stats.peakWalletUsd)} · ${formatDate(new Date(stats.peakWalletAt))}`
+                      : ""
                   }
                 />
+                <BacktestKpi
+                  label="Avg wallet"
+                  value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
+                  sub={
+                    stats ? `${usd(stats.typicalWalletUsd)} typically` : ""
+                  }
+                />
+                <BacktestKpi
+                  label="Time in market"
+                  value={
+                    stats && stats.timeInMarketPct !== null
+                      ? `${Math.round(stats.timeInMarketPct)}%`
+                      : "—"
+                  }
+                  sub={
+                    stats && stats.avgHoldMs !== null
+                      ? `avg hold ${Math.round(stats.avgHoldMs / 3_600_000)}h`
+                      : "needs the run's trades"
+                  }
+                />
+                <BacktestKpi
+                  label="In markets now"
+                  // The pot's line records the margin a position put up, so at
+                  // 2× the money in the market is twice it.
+                  value={stats ? usd(stats.inCoinsUsd * leverage) : "—"}
+                  sub={
+                    stats?.openNow === null || stats?.openNow === undefined
+                      ? "at the end of the window"
+                      : `${stats.openNow} ${plural(stats.openNow, "position", "positions")} open`
+                  }
+                />
+                <BacktestKpi
+                  label="Markets tested"
+                  value={
+                    scoped && stats?.coinsTraded !== null && stats?.coinsTraded !== undefined
+                      ? `${stats.coinsTraded}/${coinsTotal}`
+                      : `${summary.coinsTested}/${coinsTotal}`
+                  }
+                  sub={scoped ? "traded in this window" : "in this run"}
+                />
+                {/* Holds the last row up when the Liquidated tile is away and
+                    the count is odd, so the rule between the columns does not
+                    run down past the last figure into nothing. */}
+                {showLiquidated ? null : <div className="border-b" />}
               </div>
 
-              {result && result.equity.length > 1 ? (
-                <section className="grid gap-1 rounded-lg border p-3">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h3 className="text-xs font-semibold">The pot</h3>
-                    <span className="text-[11px] text-muted-foreground">
-                      {formatDate(new Date(spec.from))} –{" "}
-                      {formatDate(new Date(spec.to))}
-                    </span>
-                  </div>
-                  <div className="h-28 w-full min-w-0">
-                    <ChartContainer config={potConfig} className="h-full w-full">
-                      <AreaChart
-                        data={result.equity.map((point) => ({
-                          label: formatDate(new Date(point.t)),
-                          usd: Math.round(point.usd),
-                        }))}
-                        margin={{ top: 4, right: 4, left: 0, bottom: 0 }}
-                      >
-                        {/* Hidden, and only here so the tooltip has a date to
-                            show. Without an axis naming the category, the
-                            chart hands the tooltip a row NUMBER, which falls
-                            back to the series name — so pointing at the line
-                            read "The pot / The pot 11,676" and the one thing
-                            it could not tell you was when. */}
-                        <XAxis dataKey="label" hide />
-                        {/* **Log, not linear.** A run that ends at a million
-                            draws its first two years as four pixels of flat
-                            line on a linear axis — so a fall from $51,655 to
-                            $10,716, four fifths of everything there was, is
-                            invisible while the headline figure reports it at
-                            79%. The better the run did, the more of its own
-                            history the chart erased.
-
-                            On a log axis a halving is the same height wherever
-                            it happens, which is how a fall is actually judged.
-                            The floor is explicit because a log scale cannot
-                            draw zero, and it sits below the lowest point the
-                            pot reached so nothing is clipped off the bottom. */}
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{ fontSize: 9 }}
-                          width={52}
-                          scale="log"
-                          domain={[potFloor(result.equity), "auto"]}
-                          allowDataOverflow={false}
-                        />
-                        {/* What it started with, so the line above or below it
-                            is the whole answer at a glance. */}
-                        <ReferenceLine
-                          y={spec.startingUsd}
-                          stroke="currentColor"
-                          strokeDasharray="4 4"
-                          className="text-muted-foreground"
-                        />
-                        {/* Just the money, in the colour of what it means.
-                            The row used to read "The pot  11,676" — the
-                            series name repeated from the heading directly
-                            above it, and a swatch for a chart with one line.
-                            Neither said anything. What it is worth, and
-                            whether that is above or below what you started
-                            with, is the whole question. */}
-                        <ChartTooltip
-                          content={
-                            <ChartTooltipContent
-                              // Fixed, and narrow. The shared tooltip reserves
-                              // 8rem for charts with several series and a
-                              // swatch each; this one has a date and one
-                              // number, so that floor left half the box empty.
-                              // A fixed width also stops it resizing as the
-                              // number under the pointer changes length.
-                              // Overridden here rather than in `ui/chart.tsx`,
-                              // which belongs to the shell — editing that would
-                              // fork a file every app shares.
-                              className="w-28 gap-0.5"
-                              hideIndicator
-                              formatter={(value) => {
-                                const usd = Number(value)
-                                const up = usd >= spec.startingUsd
-                                return (
-                                  <span
-                                    className={
-                                      up
-                                        ? "font-medium text-teal-600 dark:text-teal-400"
-                                        : "font-medium text-red-600 dark:text-red-400"
-                                    }
-                                  >
-                                    {formatUsd(usd)}
-                                  </span>
-                                )
-                              }}
-                            />
-                          }
-                        />
-                        <Area
-                          dataKey="usd"
-                          type="natural"
-                          isAnimationActive={false}
-                          stroke="var(--color-usd)"
-                          strokeWidth={1.5}
-                          fill="var(--color-usd)"
-                          fillOpacity={0.08}
-                        />
-                      </AreaChart>
-                    </ChartContainer>
-                  </div>
-                </section>
+              {series ? (
+                <BacktestPotMini
+                  series={series}
+                  window={window}
+                  onReset={() =>
+                    onWindow({ preset: "all", from: null, to: null, sel: null })
+                  }
+                />
               ) : null}
 
               <dl className="grid gap-1 border-t pt-3 text-[11px]">
@@ -335,7 +342,7 @@ export function BacktestStatsPanel({
                       value={String(spec.strategy.params.rungs.length)}
                     />
                     <Line
-                      label="Most of the pot, per coin"
+                      label="Most of the pot, per market"
                       value={`${spec.strategy.params.maxPositionPct}%`}
                     />
                     <Line
@@ -350,7 +357,7 @@ export function BacktestStatsPanel({
                       value={String(signalIndicatorsOn(spec.strategy.indicators))}
                     />
                     <Line
-                      label="Per coin, per arrow"
+                      label="Per market, per arrow"
                       value={`${spec.strategy.stakePct}%`}
                     />
                     <Line
@@ -367,29 +374,57 @@ export function BacktestStatsPanel({
                   label="Costs"
                   value={`${spec.takerFeePct}% / ${spec.makerFeePct}% / ${spec.slippagePct}%`}
                 />
+                {/* The engine counts a charge as positive and a payment to
+                    us as negative. Shown as "-$1,489" under a label reading
+                    "paid" it looks like an enormous cost, when it is money the
+                    run took in — so the label follows the sign. */}
                 <Line
-                  label="Funding paid"
+                  label={
+                    figure(summary.fundingPaid) !== null &&
+                    summary.fundingPaid < 0
+                      ? "Funding earned"
+                      : "Funding paid"
+                  }
                   value={
                     figure(summary.fundingPaid) === null
                       ? "—"
-                      : summary.fundingPaid >= 0
-                        ? formatUsd(summary.fundingPaid)
-                        : `-${formatUsd(Math.abs(summary.fundingPaid))}`
+                      : usd(Math.abs(summary.fundingPaid))
                   }
                 />
+                {/* Not saved anywhere as one figure — it is the coins' own fee
+                    totals added up, and a run too old to carry them says so
+                    rather than reporting nothing spent. */}
+                <Line label="Fees paid" value={feesPaid(result)} />
               </dl>
 
+              {/* Shut by default, and it says how many there are on the line
+                  you open it with. Three paragraphs about missing history sat
+                  permanently under the figures and pushed the pot's own chart
+                  off the bottom of the panel — and a warning you scroll past
+                  every visit is one you stop reading. It still cannot be
+                  missed: the count is in the heading. */}
               {summary.warnings.length > 0 ? (
-                <div className="grid gap-1.5 border-t pt-3">
-                  <p className="text-xs font-semibold">
+                <Collapsible className="border-t pt-3">
+                  <CollapsibleTrigger
+                    className={cn(
+                      "group flex w-full items-center gap-2 text-left text-xs font-semibold",
+                      focusRing
+                    )}
+                  >
+                    <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                     Read this before you believe the top number
-                  </p>
-                  <ul className="grid list-disc gap-1.5 pl-4 text-[11px] leading-4 text-muted-foreground">
-                    {summary.warnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                </div>
+                    <span className="ml-auto font-normal text-muted-foreground">
+                      {summary.warnings.length}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <ul className="grid list-disc gap-1.5 pt-2 pl-4 text-[11px] leading-4 text-muted-foreground">
+                      {summary.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
               ) : null}
             </>
           )}
@@ -399,6 +434,21 @@ export function BacktestStatsPanel({
   )
 }
 
+/** Every coin's fees added up, or a dash when no coin recorded any. */
+function feesPaid(result: BacktestResult | null): string {
+  if (!result) return "—"
+  let total = 0
+  let known = false
+  for (const coin of result.coins) {
+    const fees = figure(coin.stats?.fees)
+    if (fees === null) continue
+    known = true
+    total += fees
+  }
+  if (!known) return "—"
+  return total > 0 ? `-${usd(total)}` : usd(0)
+}
+
 function Line({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline gap-3">
@@ -406,26 +456,4 @@ function Line({ label, value }: { label: string; value: string }) {
       <dd className="shrink-0 tabular-nums">{value}</dd>
     </div>
   )
-}
-
-/**
- * "$33,440 in trades · Jun 6 2026 · held 12h" — what was in trades when the
- * wallet was stretched furthest, when that was, and how long it stayed there.
- *
- * **"in trades" is not decoration.** Without it the figure reads as the size of
- * the wallet rather than the amount put to work, which is the opposite of what
- * it is, and the percent above it then looks like nonsense.
- *
- * The date is what makes the number checkable: it names the crash the wallet
- * was answering. The dollars lead because a run saved before the share was
- * worked out shows a dash above this line, and the dollars are then the only
- * thing the tile can still say.
- */
-function peakSub(summary: BacktestSummary): string {
-  const at = figure(summary.peakInPlayAt)
-  const held = figure(summary.peakInPlayHeldMs)
-  const parts = [`${formatUsd(summary.peakInPlayUsd)} in trades`]
-  if (at !== null) parts.push(formatDate(new Date(at)))
-  if (held !== null) parts.push(heldFor(held))
-  return parts.join(" · ")
 }

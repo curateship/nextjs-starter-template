@@ -73,6 +73,7 @@ const { advanceSignalFlow, resetSignalPacing, workingSignals } = await import(
   "@/server/trade/signal-run"
 )
 
+const runId = "run-1"
 const BTC = "hyperliquid:mainnet:BTC"
 const ETH = "hyperliquid:mainnet:ETH"
 
@@ -144,6 +145,7 @@ async function pass(over: Partial<TradeFlowRunSpec> = {}, acted = {}) {
       userId,
       wallet,
       spec: runSpec,
+      flowRunId: runId,
       working: await workingSignals(
         userId,
         wallet.id,
@@ -393,6 +395,7 @@ describe("a sell arrow", () => {
         userId,
         wallet,
         spec: sellSpec(),
+        flowRunId: runId,
         working: await workingSignals(userId, "w1", [BTC], database),
         lookedAt: {},
         acted: {},
@@ -415,6 +418,7 @@ describe("a sell arrow", () => {
         userId,
         wallet,
         spec: sellSpec(),
+        flowRunId: runId,
         working: new Map(),
         lookedAt: {},
         acted: {},
@@ -435,6 +439,7 @@ describe("which coin it looks at", () => {
         userId,
         wallet,
         spec: spec({ marketKeys: [BTC, ETH] }),
+        flowRunId: runId,
         working: new Map(),
         // BTC was looked at a moment ago; ETH has never been.
         lookedAt: { [BTC]: now - 1_000 },
@@ -456,6 +461,7 @@ describe("which coin it looks at", () => {
         userId,
         wallet,
         spec: spec(),
+        flowRunId: runId,
         working: await workingSignals(userId, "w1", [BTC], database),
         lookedAt: {},
         acted: {},

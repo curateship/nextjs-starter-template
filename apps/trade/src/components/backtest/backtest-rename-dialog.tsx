@@ -116,7 +116,7 @@ function RenameForm({
                     id="backtest-name"
                     value={name}
                     maxLength={120}
-                    placeholder="e.g. Five rungs, base stop, 20 big coins"
+                    placeholder="e.g. Five rungs, base stop, 20 big markets"
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>

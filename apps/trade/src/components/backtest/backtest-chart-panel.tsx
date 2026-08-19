@@ -2,12 +2,14 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  ChevronLeftIcon,
+  CandlestickChartIcon,
   SlidersHorizontalIcon,
+  TrendingUpIcon,
 } from "lucide-react"
 
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
 import { BacktestMarksLayer } from "@/components/backtest/backtest-marks-layer"
+import { BacktestGraph } from "@/components/backtest/backtest-graph"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
@@ -23,13 +25,16 @@ import type {
   BacktestFillMark,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
+import type {
+  BacktestRunTrade,
+  GraphSeries,
+  GraphWindow,
+} from "@/lib/trade/backtest/graph"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
-import { focusRing } from "@/lib/layout/focus-ring"
-import { cn } from "@/lib/utils"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
 import { indicatorPaint } from "@/lib/trade/indicators/registry"
@@ -37,7 +42,13 @@ import { indicatorPaint } from "@/lib/trade/indicators/registry"
 import type { BacktestCoinRow } from "./backtest-run-page"
 
 /**
- * The middle panel: one coin's candles with the run's buys and sells on them.
+ * The middle panel, which shows one of two things: the **Graph** — the pot's
+ * line over the whole run — or the **Chart**, one coin's candles with the
+ * run's buys and sells on them.
+ *
+ * It opens on the Graph, because that is the picture that answers "did this
+ * work", and one button in the header swaps between the two. A coin's candles
+ * are the second question, asked once a coin has been picked.
  *
  * The candles come from the store rather than the exchange, so what is drawn is
  * exactly what the run walked — asking the exchange again could answer with a
@@ -52,8 +63,16 @@ export function BacktestChartPanel({
   openCoin,
   bars,
   fills,
+  trades,
   focusTrade,
   spec,
+  leverage,
+  graphSeries,
+  runTrades,
+  window,
+  onWindow,
+  view,
+  onSwapView,
   interval,
   loading,
   error,
@@ -65,10 +84,24 @@ export function BacktestChartPanel({
   openCoin: string | null
   bars: readonly CandleBar[]
   fills: readonly BacktestFillMark[]
+  /** Every round trip on this coin — where the picked trade's ladder-mates are found. */
+  trades: readonly BacktestTrade[]
   /** The trade picked in the list below, joined up on the chart. */
   focusTrade: BacktestTrade | null
   /** The run's own settings — what a base is, for this run. */
   spec: BacktestSpecSnapshot
+  /** How much the run borrows — the graph reads it for "In markets". */
+  leverage: number
+  /** The pot's lines, worked out once by the page. */
+  graphSeries: GraphSeries | null
+  /** Every trade in the run. Null until they arrive, or on an older run. */
+  runTrades: readonly BacktestRunTrade[] | null
+  window: GraphWindow
+  onWindow: (next: GraphWindow) => void
+  /** Which of the two this panel is showing. */
+  view: "graph" | "chart"
+  /** Swap to the other one. */
+  onSwapView: () => void
   interval: string
   loading: boolean
   error: string | null
@@ -79,6 +112,11 @@ export function BacktestChartPanel({
   onRetry: () => void
 }) {
   const chartable = coins.filter((coin) => coin.summary)
+  // A run with nothing to draw has no Graph to offer: no button, and the
+  // candles whatever the page asked for. One point is not a line — the same
+  // guard the left panel used when this chart lived there.
+  const hasGraph = graphSeries !== null && graphSeries.usd.length > 1
+  const showGraph = hasGraph && view === "graph"
   // The same drawings, tools and ruler as the trading chart, saved against the
   // same market key — a line drawn on ETH while reading a backtest is still a
   // line on ETH, and having two sets of them per market would be two answers to
@@ -140,12 +178,29 @@ export function BacktestChartPanel({
   // Off the candles themselves, so no timeframe is written down twice.
   const barMs = bars.length > 1 ? bars[1].openTime - bars[0].openTime : 0
 
+  // The picked trade AND every other rung its exit closed. A sell that took
+  // out three rungs is three round trips sharing one exit arrow, and picking
+  // any of them is picking the same event — so all of them get their dotted
+  // line, and the zoom below reaches back to the earliest of their buys.
+  const focusTrades = React.useMemo<readonly BacktestTrade[]>(() => {
+    if (!focusTrade) return []
+    if (focusTrade.exitAt === null) return [focusTrade]
+    return trades.filter(
+      (trade) =>
+        trade.exitAt === focusTrade.exitAt && trade.exitPx === focusTrade.exitPx
+    )
+  }, [focusTrade, trades])
+
   const focusView = React.useMemo<ChartView | null>(() => {
     if (!focusTrade || !(barMs > 0)) return null
 
     const newest = bars[bars.length - 1].openTime
     const endsAt = focusTrade.exitAt ?? newest
-    const spanBars = Math.max(1, (endsAt - focusTrade.entryAt) / barMs)
+    const startsAt = Math.min(
+      ...focusTrades.map((trade) => trade.entryAt),
+      focusTrade.entryAt
+    )
+    const spanBars = Math.max(1, (endsAt - startsAt) / barMs)
     // Room either side, and never so tight that a four-candle trade fills the
     // screen — the point is to see the trade IN its market, not on its own.
     const pad = Math.max(10, spanBars * 0.75)
@@ -155,38 +210,65 @@ export function BacktestChartPanel({
       marginTop: DEFAULT_MARGIN_TOP,
       marginBottom: DEFAULT_MARGIN_BOTTOM,
     }
-  }, [focusTrade, bars, barMs])
+  }, [focusTrade, focusTrades, bars, barMs])
 
   return (
     <>
       <WorkspacePanelHeader
-        // Back to the canvas this run came from, in the panel's own icon slot.
-        // The one place anybody wants to go from a result is the flow that
-        // produced it, so it is the first thing on the row rather than a
-        // separate strip above the panels.
-        icon={
-          <Link
-            to="/backtests"
-            aria-label="Back to every backtest"
-            // Pulled out by a quarter on each side. The header's icon slot is
-            // 16px and this target is 24px, so without the negative margin the
-            // hover box grew out of its slot and sat off-centre against the
-            // title beside it.
-            className={cn(
-              "-m-1 flex size-6 items-center justify-center rounded-md hover:bg-muted hover:text-foreground",
-              focusRing
-            )}
-          >
-            <ChevronLeftIcon className="size-4" />
-          </Link>
+        // The way back to the other picture: from the Graph to the market's
+        // candles, and from the candles to the Graph. On a run with no Graph to
+        // go to it falls back to the list of runs, which is the only other
+        // place there is. The header draws it, so this arrow is the same one
+        // an automation and a newsletter get.
+        icon={null}
+        back={
+          hasGraph
+            ? {
+                onClick: onSwapView,
+                label: showGraph
+                  ? "Back to the market's chart"
+                  : "Back to the graph",
+              }
+            : { to: "/backtests", label: "Back to every backtest" }
         }
         title={
-          coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
-          "No coin picked"
+          showGraph
+            ? "Graph"
+            : (coins.find((coin) => coin.marketKey === openCoin)?.symbol ??
+              "No market picked")
         }
-        meta={`${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`}
+        // The Graph carries no meta: the dates it covers are along its own
+        // bottom axis, and saying them again up here was the same fact twice.
+        meta={
+          showGraph
+            ? undefined
+            : `${interval} candles · ${fills.length} ${fills.length === 1 ? "order" : "orders"}`
+        }
         action={
           <div className="flex items-center gap-2">
+            {/* The two pictures are called the Graph — the pot's line over the
+                whole run — and the Chart, one coin's candles.
+
+                One button, two labels: it always names the one you are not
+                looking at, so it reads as the way over to that one. Two
+                buttons sitting there permanently would mean one of them never
+                does anything. Hidden entirely on a run with no line to draw,
+                where there is only ever one thing to show. */}
+            {hasGraph ? (
+              <Button type="button" variant="outline" onClick={onSwapView}>
+                {showGraph ? (
+                  <>
+                    <CandlestickChartIcon className="size-4" />
+                    Chart
+                  </>
+                ) : (
+                  <>
+                    <TrendingUpIcon className="size-4" />
+                    Graph
+                  </>
+                )}
+              </Button>
+            ) : null}
             {/* Straight back to the settings this run was made from, with
                 the ladder step already chosen. Picking a coin lives in the
                 Coins tab below, where the whole list is; a dropdown up here
@@ -205,22 +287,32 @@ export function BacktestChartPanel({
         }
       />
 
-      {live ? (
+      {live && !showGraph ? (
         <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
           This run is still going, so more marks may appear on this chart.
         </div>
       ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {error ? (
+        {showGraph && graphSeries ? (
+          // The candles keep loading behind this, so the swap is instant.
+          <BacktestGraph
+            series={graphSeries}
+            trades={runTrades}
+            startingUsd={spec.startingUsd}
+            leverage={leverage}
+            window={window}
+            onWindow={onWindow}
+          />
+        ) : error ? (
           <div className="p-4 sm:p-5">
             <ErrorBanner message={error} onRetry={onRetry} />
           </div>
         ) : !openCoin ? (
           <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
             {chartable.length === 0
-              ? "No coin was tested, so there is nothing to chart."
-              : "Pick a coin above, or click a row in the Coins tab below."}
+              ? "No market was tested, so there is nothing to chart."
+              : "Pick a market above, or click a row in the Results tab below."}
           </p>
         ) : loading ? (
           <div
@@ -251,7 +343,11 @@ export function BacktestChartPanel({
                   <BacktestMarksLayer surface={surface} fills={fills} />
                   {/* Over the arrows: a picked trade is what you are looking
                       at, and its box has to be readable through them. */}
-                  <BacktestFocusLayer surface={surface} trade={focusTrade} />
+                  <BacktestFocusLayer
+                    surface={surface}
+                    trades={trades}
+                    focus={focusTrades}
+                  />
                   <PaintLayer
                     surface={surface}
                     drawings={paint.drawings}

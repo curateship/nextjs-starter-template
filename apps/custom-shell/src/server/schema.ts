@@ -406,7 +406,7 @@ export const customShellNotifications = pgTable(
   (table) => [
     check(
       "notifications_type_check",
-      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update')`
+      sql`${table.type} in ('feedback_vote', 'feedback_comment', 'feedback_merged', 'changelog', 'announcement', 'ai_limit_warning', 'ai_limit_reached', 'automation_approval', 'automation_failed', 'account_update', 'system_email_failed')`
     ),
     index("ix_notifications_recipient_created").on(
       table.recipientUserId,
@@ -2024,6 +2024,49 @@ export const customShellSystemEmailSends = pgTable(
       sql`${table.status} in ('sent', 'failed')`
     ),
     index("ix_system_email_sends_kind_created").on(table.kind, table.createdAt),
+  ]
+)
+
+/**
+ * An app email that Resend may accept on a later attempt.
+ *
+ * The encrypted payload contains account links, so it is never stored as
+ * readable JSON. A claim prevents two app processes from delivering the same
+ * row together; the id is also Resend's idempotency key for the whole retry
+ * window.
+ */
+export const customShellPendingEmailSends = pgTable(
+  "pending_email_sends",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    workspaceId: varchar("workspace_id", { length: 36 }).references(
+      () => customShellWorkspaces.id,
+      { onDelete: "cascade" }
+    ),
+    kind: varchar("kind", { length: 60 }).notNull(),
+    toEmail: varchar("to_email", { length: 255 }).notNull(),
+    encryptedPayload: text("encrypted_payload").notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("pending"),
+    attempts: integer("attempts").notNull().default(1),
+    nextAttemptAt: timestamp("next_attempt_at", {
+      withTimezone: true,
+    }).notNull(),
+    lastError: text("last_error").notNull(),
+    claimToken: varchar("claim_token", { length: 36 }),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "pending_email_sends_status_check",
+      sql`${table.status} in ('pending', 'exhausted')`
+    ),
+    check(
+      "pending_email_sends_attempts_check",
+      sql`${table.attempts} between 1 and 5`
+    ),
+    index("ix_pending_email_sends_due").on(table.status, table.nextAttemptAt),
   ]
 )
 

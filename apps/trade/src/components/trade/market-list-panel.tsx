@@ -2,14 +2,13 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { focusRing } from "@/lib/layout/focus-ring"
-import { BellIcon, LayoutGridIcon, StarIcon } from "lucide-react"
+import { LayoutGridIcon, StarIcon } from "lucide-react"
 
 import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
 } from "@/components/shared/workspace-panel-header"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -98,7 +97,6 @@ export function MarketListPanel({
   onRetry: () => void
 }) {
   const [tab, setTab] = React.useState<MarketTab>("fav")
-  const [query, setQuery] = React.useState("")
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
     key: "vol",
     desc: true,
@@ -118,7 +116,6 @@ export function MarketListPanel({
   )
 
   const visible = React.useMemo(() => {
-    const trimmed = query.trim().toUpperCase()
     let list = rows.filter(
       (row) =>
         // A market nobody trades is noise — unless it is yours: the selected
@@ -126,11 +123,10 @@ export function MarketListPanel({
         (row.volume24hUsd > 0 ||
           row.key === selectedKey ||
           favorites.has(row.key) ||
-          watched.has(row.key)) &&
-        (!trimmed || row.symbol.toUpperCase().includes(trimmed))
+          watched.has(row.key))
     )
     list = list.filter((row) =>
-      marketBelongsInTab(tab, row.key, favorites, watched)
+      marketBelongsInTab(tab, row.key, favorites)
     )
     const direction = sort.desc ? -1 : 1
     return [...list].sort((a, b) => {
@@ -140,11 +136,7 @@ export function MarketListPanel({
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, query, tab, sort, favorites, watched, selectedKey])
-
-  const sourceLabels = catalogs
-    .map((catalog) => `${catalog.protocolLabel} ${catalog.networkLabel}`)
-    .join(", ")
+  }, [rows, tab, sort, favorites, watched, selectedKey])
 
   const list = (
     // `[&>div]:block!` because Radix wraps what it is given in a `display:
@@ -158,13 +150,12 @@ export function MarketListPanel({
         </div>
       ) : visible.length === 0 ? (
         <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-          {query.trim()
-            ? "No market matches that search."
-            : tab === "fav"
-              ? "Nothing starred yet. Open a market and press the star beside its name — it stays here."
-              : tab === "watch"
-                ? "No active smart orders yet. Place one from a chart and its market appears here."
-              : "The exchange listed no markets."}
+          {/* Searching lives in the market name at the top of the chart,
+              which opens the whole catalogue with its own search — one search
+              box for markets rather than two that filter different lists. */}
+          {tab === "fav"
+            ? "Nothing starred yet. Open a market and press the star beside its name — it stays here."
+            : "The exchange listed no markets."}
         </p>
       ) : (
         <div className="flex flex-col p-1">
@@ -199,11 +190,6 @@ export function MarketListPanel({
             value="all"
             icon={<LayoutGridIcon className="size-4" />}
             label="All"
-          />
-          <WorkspacePanelTab
-            value="watch"
-            icon={<BellIcon className="size-4" />}
-            label="Watch"
           />
         </WorkspacePanelTabsHeader>
       </div>
@@ -255,9 +241,6 @@ export function MarketListPanel({
       <TabsContent value="all" className="min-h-0 flex-1">
         {list}
       </TabsContent>
-      <TabsContent value="watch" className="min-h-0 flex-1">
-        {list}
-      </TabsContent>
 
       {/* The practice network has no switch on screen any more — paper
           wallets are the everyday practice path, and the rehearsal gate the
@@ -292,22 +275,6 @@ export function MarketListPanel({
         </div>
       ) : null}
 
-      {/* The search names the exchange, so what the list covers stays clear
-          without spending another row or control on it. */}
-      <div className="shrink-0 border-t p-2">
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={
-            sourceLabels ? `Search ${sourceLabels}` : "No exchange connected"
-          }
-          aria-label={
-            sourceLabels ? `Search ${sourceLabels}` : "Search markets"
-          }
-          className="h-8 min-w-0"
-        />
-      </div>
     </Tabs>
   )
 }

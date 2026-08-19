@@ -1,8 +1,25 @@
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
-import type { BacktestFillMark } from "@/lib/trade/backtest/result"
 import { cn } from "@/lib/utils"
+
+/**
+ * What this layer actually draws: a moment, a price, a side, a size and the
+ * two lines of words shown when it is pointed at.
+ *
+ * Written out here rather than taking a backtest's own mark, because a live
+ * run's fills draw the same arrows and carry the same five things under
+ * different names elsewhere. Both `BacktestFillMark` and `LiveFillMark` fit,
+ * and neither has to know about the other.
+ */
+export type ChartFillMark = {
+  at: number
+  side: "buy" | "sell"
+  px: number
+  sz: number
+  label: string
+  detail: string | null
+}
 
 /**
  * Every fill the run made, drawn over its candles.
@@ -71,14 +88,14 @@ function arrow(x: number, y: number, side: "buy" | "sell"): string {
 const LABEL_HALF_WIDTH = 100
 const LABEL_HEIGHT = 52
 
-type Hovered = { mark: BacktestFillMark; x: number; y: number }
+type Hovered = { mark: ChartFillMark; x: number; y: number }
 
 export function BacktestMarksLayer({
   surface,
   fills,
 }: {
   surface: ChartSurface
-  fills: readonly BacktestFillMark[]
+  fills: readonly ChartFillMark[]
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
 

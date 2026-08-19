@@ -124,6 +124,7 @@ export type EmailEditableFields = {
  */
 export function EmailBlockEditor({
   title,
+  back,
   fields: incomingFields,
   fieldsVersion = 0,
   initialBlockDefaults,
@@ -137,6 +138,10 @@ export function EmailBlockEditor({
 }: {
   /** Shown in the middle of the canvas header. */
   title: string
+  /** Where the canvas header's arrow goes. Without it the header keeps its
+   *  envelope, which is what the editors that are already inside something
+   *  else — an automation's email step — want. */
+  back?: { to: string; label: string }
   fields: EmailEditableFields
   /**
    * Bumped by the owner to say "throw away what is in the boxes and take these
@@ -509,6 +514,7 @@ export function EmailBlockEditor({
   const canvasHeader = (
     <WorkspacePanelHeader
       icon={<MailIcon className="size-4" />}
+      back={back}
       title={title}
       action={
         <div className="flex items-center gap-2">

@@ -14,10 +14,14 @@ export const tradePanelLayoutKey = {
   workspaceHorizontal: "trade-workspace-horizontal",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
-  /** The wallets above the Automation list, in the right-hand column. */
+  /** The wallets above, and the empty panel under them, in the right column. */
   accountColumn: "trade-account-column",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal",
   /** The backtest workspace above, its coins and trades below. */
   backtestVertical: "trade-backtest-vertical",
+  /** A live run: figures | chart | coins, across the workspace. */
+  flowRunHorizontal: "trade-flow-run-horizontal",
+  /** The live-run workspace above, its trades below. */
+  flowRunVertical: "trade-flow-run-vertical",
 }

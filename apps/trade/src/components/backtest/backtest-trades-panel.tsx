@@ -1,7 +1,12 @@
 import * as React from "react"
 import { ListIcon } from "lucide-react"
 
-import { toneClass } from "@/components/backtest/backtest-kpi"
+import {
+  signedPct,
+  signedUsd,
+  toneClass,
+  usd,
+} from "@/components/backtest/backtest-kpi"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -17,7 +22,6 @@ import {
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import type { BacktestTrade } from "@/lib/trade/backtest/result"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
 /**
@@ -112,7 +116,9 @@ export function BacktestTradesPanel({
         active={sort === column}
         direction={direction}
         onClick={() => toggleSort(column)}
-        className={cn(right && "ml-auto flex-row-reverse")}
+        // Matched to the figures under it. The shared button is 14px, so on a
+        // 12px table every heading sat a size above its own column.
+        className={cn("text-xs sm:text-xs", right && "ml-auto flex-row-reverse")}
       >
         {label}
       </TableSortButton>
@@ -138,7 +144,7 @@ export function BacktestTradesPanel({
       >
         {!symbol ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
-            Pick a coin in Results to see its trades.
+            Pick a market in Results to see its trades.
           </p>
         ) : loading ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
@@ -146,10 +152,19 @@ export function BacktestTradesPanel({
           </p>
         ) : trades.length === 0 ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
-            This coin never traded in the window.
+            This market never traded in the window.
           </p>
         ) : (
-          <Table>
+          // The same type and cell spacing as the Positions, Orders and
+          // Journal tables in the bottom panel of the Trade screen: small text,
+          // 12px each side, 8px top and bottom. It is the same panel in the
+          // same place doing the same job, and it was reading a size larger
+          // than all three of them.
+          //
+          // The outside edges are named separately because the shared table
+          // gives its first and last columns 24px there, which is the dashboard
+          // rule — twice what this panel's neighbours use.
+          <Table className="text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:px-3 [&_td]:py-2 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:px-3 [&_th]:text-xs">
             <TableHeader>
               <TableRow>
                 {head("#", "n")}
@@ -224,13 +239,13 @@ function Row({
         {open ? "still open" : formatDateTime(new Date(trade.exitAt!))}
       </TableCell>
       <TableCell column="meta" className="text-right tabular-nums">
-        {formatUsd(trade.amountUsd)}
+        {usd(trade.amountUsd)}
       </TableCell>
       <TableCell
         column="meta"
         className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
       >
-        {open ? "—" : formatSignedUsd(trade.pnl)}
+        {open ? "—" : signedUsd(trade.pnl)}
       </TableCell>
       <TableCell
         column="meta"
@@ -244,17 +259,17 @@ function Row({
         ) : trade.exitReason === "liquidated" ? (
           <span className="inline-flex items-center gap-1.5">
             <Badge variant="destructive">Liquidated</Badge>
-            {`${trade.returnPct.toFixed(2)}%`}
+            {signedPct(trade.returnPct)}
           </span>
         ) : (
-          `${trade.returnPct.toFixed(2)}%`
+          signedPct(trade.returnPct)
         )}
       </TableCell>
       <TableCell
         column="meta"
         className={cn("text-right tabular-nums", toneClass(cumPnl ?? 0))}
       >
-        {cumPnl === null ? "—" : formatSignedUsd(cumPnl)}
+        {cumPnl === null ? "—" : signedUsd(cumPnl)}
       </TableCell>
     </TableRow>
   )

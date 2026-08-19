@@ -3,6 +3,7 @@ import {
   GaugeIcon,
   GitMergeIcon,
   MegaphoneIcon,
+  MailWarningIcon,
   MessageSquareIcon,
   SparklesIcon,
   ThumbsUpIcon,
@@ -52,6 +53,7 @@ function isFromTheApp(item: NotificationItem) {
     item.type === "automation_approval" ||
     item.type === "automation_failed" ||
     item.type === "account_update" ||
+    item.type === "system_email_failed" ||
     isAiLimitNotification(item.type)
   )
 }
@@ -72,7 +74,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
         <AvatarFallback
           className={cn(
             "bg-secondary text-secondary-foreground",
-            item.type === "automation_failed" &&
+            (item.type === "automation_failed" ||
+              item.type === "system_email_failed") &&
               "text-destructive-foreground bg-destructive"
           )}
         >
@@ -86,6 +89,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
             <CircleAlertIcon className="h-4 w-4" />
           ) : item.type === "account_update" ? (
             <UserRoundCogIcon className="h-4 w-4" />
+          ) : item.type === "system_email_failed" ? (
+            <MailWarningIcon className="h-4 w-4" />
           ) : (
             <GaugeIcon className="h-4 w-4" />
           )}
@@ -102,8 +107,8 @@ function NotificationAvatar({ item }: { item: NotificationItem }) {
 }
 
 function NotificationMessage({ item }: { item: NotificationItem }) {
-  if (item.type === "account_update") {
-    return <strong>{item.message ?? "Your account was updated"}</strong>
+  if (item.type === "account_update" || item.type === "system_email_failed") {
+    return <strong>{item.message ?? "The app needs attention"}</strong>
   }
   if (item.type === "changelog") {
     return <>New update shipped</>
@@ -160,6 +165,9 @@ function NotificationIcon({ item }: { item: NotificationItem }) {
   if (item.type === "account_update") {
     return <UserRoundCogIcon className="h-3.5 w-3.5" />
   }
+  if (item.type === "system_email_failed") {
+    return <MailWarningIcon className="h-3.5 w-3.5" />
+  }
   if (item.type === "changelog") {
     return <SparklesIcon className="h-3.5 w-3.5" />
   }
@@ -194,7 +202,7 @@ function notificationPreview(item: NotificationItem) {
   const approvalText = automationApprovalNotificationText[approvalState(item)]
   const approvalSummary = item.automation_approval_summary?.trim()
   const text =
-    item.type === "account_update"
+    item.type === "account_update" || item.type === "system_email_failed"
       ? (item.detail ?? "")
       : item.type === "changelog"
         ? (item.changelog_title ?? "")

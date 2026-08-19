@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
@@ -10,6 +11,8 @@ import {
   loadChartView,
   loadChartOptions,
   loadLastMarketKey,
+  loadQuickOrder,
+  saveQuickOrder,
   saveChartView,
   saveChartOptions,
   saveLastMarketKey,
@@ -53,6 +56,37 @@ describe("the remembered chart options", () => {
       orderArrows: false,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
+  })
+})
+
+describe("the remembered order window", () => {
+  it("opens on the plain defaults before anything is placed", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadQuickOrder(id)).toEqual(DEFAULT_QUICK_ORDER)
+  })
+
+  it("comes back the way the last order was sized", async () => {
+    const { id } = await insertUser(database)
+    const prefs = {
+      sizeUnit: "pct" as const,
+      size: "25",
+      leverage: 3,
+      bracketOn: true,
+      stopPct: "4",
+      targetPct: "9",
+    }
+    await saveQuickOrder(id, prefs)
+    expect(await loadQuickOrder(id)).toEqual(prefs)
+  })
+
+  it("falls back to the defaults on a value it cannot read", async () => {
+    const { id } = await insertUser(database)
+    await saveQuickOrder(id, DEFAULT_QUICK_ORDER)
+    await database
+      .update(tradePrefs)
+      .set({ quickOrder: { sizeUnit: "bananas" } as never })
+      .where(eq(tradePrefs.userId, id))
+    expect(await loadQuickOrder(id)).toEqual(DEFAULT_QUICK_ORDER)
   })
 })
 

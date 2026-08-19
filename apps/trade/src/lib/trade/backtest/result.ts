@@ -538,6 +538,27 @@ export const backtestCoinSummarySchema = z.object({
 
 export type BacktestCoinSummary = z.infer<typeof backtestCoinSummarySchema>
 
+/**
+ * The warning a run carries when it did not reach the end of its window.
+ *
+ * **Written once, here, because two places depend on the exact words.** The
+ * engine puts it in the summary; the run page matches on it to raise a toast,
+ * because a result that covers less time than it was asked for is not the
+ * result of that run — a strategy that ends up well ahead can report almost
+ * nothing if its run was cut off while the pot was down. A sentence copied
+ * into both places would drift, and the day it drifted the toast would go
+ * quiet without anybody noticing.
+ */
+export const BACKTEST_STOPPED_EARLY =
+  "This run was stopped early, so it covers less time than it was set to."
+
+/** True when a run's own summary says it never reached the end of its window. */
+export function stoppedEarly(
+  summary: Pick<BacktestSummary, "warnings"> | null
+): boolean {
+  return summary?.warnings.includes(BACKTEST_STOPPED_EARLY) ?? false
+}
+
 /** A coin that could not be tested, and the plain reason. */
 export const backtestSkipSchema = z.object({
   marketKey: z.string(),

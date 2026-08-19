@@ -74,7 +74,41 @@ export function emailDeliveryError(
     failure.kind === "needs_attention"
       ? EMAIL_DELIVERY_NEEDS_ATTENTION
       : EMAIL_DELIVERY_RETRYABLE
-  return new Error(showReasonToAdmin ? `${code}: ${failure.reason}` : code)
+  const error = new Error(
+    showReasonToAdmin ? `${code}: ${failure.reason}` : code
+  )
+  Object.assign(error, {
+    emailDeliveryFailure: failure,
+  })
+  return error
+}
+
+/** Reads the server-only detail carried by `emailDeliveryError`. */
+export function emailDeliveryFailureFrom(
+  error: unknown
+): EmailDeliveryFailure | null {
+  if (
+    !error ||
+    typeof error !== "object" ||
+    !("emailDeliveryFailure" in error)
+  ) {
+    return null
+  }
+  const failure = (error as { emailDeliveryFailure?: unknown })
+    .emailDeliveryFailure
+  if (!failure || typeof failure !== "object") return null
+  const kind = (failure as { kind?: unknown }).kind
+  const reason = (failure as { reason?: unknown }).reason
+  if (
+    (kind !== "retryable" && kind !== "needs_attention") ||
+    typeof reason !== "string"
+  ) {
+    return null
+  }
+  return {
+    kind,
+    reason: cleanReason(reason),
+  }
 }
 
 /** Specific admin wording for an email action, or null for another failure. */

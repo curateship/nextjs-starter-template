@@ -1,6 +1,8 @@
 import * as React from "react"
+import { Link } from "@tanstack/react-router"
 import { toast } from "sonner"
 import {
+  ActivityIcon,
   Loader2Icon,
   PauseIcon,
   PlayIcon,
@@ -358,6 +360,20 @@ export default function FlowStatusHeader({
             with. Stop it and start it again to use the new ones.
           </p>
         ) : null}
+
+        {/* The way through to everything this run has actually done: its
+            trades, what it is holding, and what its money has done since it
+            was switched on. The chip answers "is it working"; that page
+            answers "is it working WELL", and there is no room for the second
+            question in a popover. */}
+        {live.runId === null ? null : (
+          <Button asChild type="button" variant="outline" className="w-full">
+            <Link to="/flow-runs/$runId" params={{ runId: live.runId }}>
+              <ActivityIcon className="size-4" />
+              Open the dashboard
+            </Link>
+          </Button>
+        )}
 
         {/* The three things you can do to a running flow, together, at the
             bottom of the thing that says what it is doing.

@@ -8,6 +8,7 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import { fillMarksFromStored } from "@/lib/trade/backtest/result"
+import type { BacktestRunTrade } from "@/lib/trade/backtest/graph"
 import { userGet, userPost } from "@/server/guards"
 import { db } from "@/server/db"
 import {
@@ -367,6 +368,77 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
     }
   })
 
+/**
+ * Every round trip the whole run made, stripped to the six things the Graph
+ * needs to answer a question about a stretch of time.
+ *
+ * **One request, not one per coin.** The figures on the run page — win rate,
+ * profit factor, how long it was in the market, which coins made money — are
+ * all questions about trades, and the answer changes the moment you drag a box
+ * across the graph. Asking coin by coin would be 154 requests to draw one row
+ * of tiles.
+ *
+ * It is not the heavy column even so. A trade without its fills, its candles
+ * and its prices is six numbers; a 353-trade run is a few tens of kilobytes,
+ * against the megabytes of candles behind it. `readBacktestCoinFn` still owns
+ * the heavy half, and still answers one coin at a time.
+ *
+ * Old runs answer too, which is the whole reason this reads the stored trades
+ * rather than asking the engine to record something new: nothing has to be run
+ * again.
+ */
+const readBacktestRunTradesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(groupIdSchema)
+  .handler(async ({ data, context }) => {
+    // Proves the run is this user's before a single trade is read — the same
+    // first move as every other door in this file.
+    const found = await readBacktestGroup(context.user.id, data.groupId)
+    if (!found) throw new Error("BACKTEST_NOT_FOUND")
+
+    const rows = await db
+      .select({
+        symbol: tradeBacktests.symbol,
+        trades: tradeBacktests.trades,
+      })
+      .from(tradeBacktests)
+      .where(
+        and(
+          eq(tradeBacktests.userId, context.user.id),
+          eq(tradeBacktests.groupId, data.groupId)
+        )
+      )
+
+    const trades: BacktestRunTrade[] = []
+    for (const row of rows) {
+      for (const trade of (row.trades ?? []) as BacktestTrade[]) {
+        trades.push({
+          coin: row.symbol,
+          entryAt: trade.entryAt,
+          exitAt: trade.exitAt,
+          amountUsd: trade.amountUsd,
+          pnl: trade.pnl,
+          // The only place this fact exists per trade. The summary counts
+          // liquidations; it cannot say which one, or when.
+          liquidated: trade.exitReason === "liquidated",
+        })
+      }
+    }
+    // In the order they finished, so the page can sweep them once against the
+    // pot's own line instead of sorting on every drag. Still-open trades have
+    // no exit, and go last.
+    //
+    // The open ones are compared by hand rather than by standing in for their
+    // exit with `Infinity`: two of those subtract to NaN, and a comparator that
+    // answers NaN leaves the sort free to order them however it likes.
+    trades.sort((one, two) => {
+      if (one.exitAt === null) return two.exitAt === null ? 0 : 1
+      if (two.exitAt === null) return -1
+      return one.exitAt - two.exitAt
+    })
+    return { trades }
+  })
+
 const renameSchema = z.object({
   groupId: z.string().max(36),
   /** Empty clears the name, which also puts the run back in line to be replaced. */
@@ -488,6 +560,10 @@ export function loadBacktest(groupId: string) {
 
 export function loadBacktestCoin(groupId: string, marketKey: string) {
   return readBacktestCoinFn({ data: { groupId, marketKey } })
+}
+
+export function loadBacktestRunTrades(groupId: string) {
+  return readBacktestRunTradesFn({ data: { groupId } })
 }
 
 export function renameBacktest(groupId: string, name: string) {

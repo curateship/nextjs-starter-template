@@ -499,7 +499,13 @@ export async function advanceFlowRuns(
       if (started >= STARTS_PER_PASS || looked >= allowed) break
       looked += 1
       try {
-        await placeLadderForFlow(run.userId, wallet, run.spec, marketKey)
+        await placeLadderForFlow(
+          run.userId,
+          wallet,
+          run.spec,
+          marketKey,
+          run.id
+        )
         started += 1
         placedNow.push(marketKey)
         delete waiting[marketKey]
@@ -615,6 +621,7 @@ async function advanceSignalRun(
         userId: run.userId,
         wallet,
         spec: run.spec,
+        flowRunId: run.id,
         working,
         lookedAt: Object.fromEntries(
           Object.entries(run.waiting).map(([key, one]) => [key, one.at])
@@ -689,7 +696,9 @@ async function placeLadderForFlow(
   userId: string,
   wallet: TradeWallet,
   spec: TradeFlowRunSpec,
-  marketKey: string
+  marketKey: string,
+  /** Stamped onto the ladder, so its trades can be told from anybody else's. */
+  flowRunId: string
 ): Promise<void> {
   // Only ever called for a ladder flow — the pass forks on the strategy long
   // before here — so anything else is a bug worth stopping on rather than a
@@ -704,10 +713,10 @@ async function placeLadderForFlow(
     potUsd: spec.capUsd,
   }
   if (wallet.kind === "live") {
-    await placeLiveDcaLadder(userId, wallet, input)
+    await placeLiveDcaLadder(userId, wallet, { ...input, flowRunId })
     return
   }
-  await placeDcaLadder(userId, wallet, input)
+  await placeDcaLadder(userId, wallet, { ...input, flowRunId })
 }
 
 /**

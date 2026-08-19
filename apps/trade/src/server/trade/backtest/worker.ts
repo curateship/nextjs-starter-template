@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm"
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import { firstOpenAtOrAfter } from "@/lib/trade/candle-window"
 import {
+  BACKTEST_STOPPED_EARLY,
   coinWorstDip,
   middleOf,
   pairTrades,
@@ -733,9 +734,7 @@ async function credibilityWarnings(
   const warnings: string[] = []
 
   if (outcome?.stoppedEarly) {
-    warnings.push(
-      "This run was stopped early, so it covers less time than it was set to."
-    )
+    warnings.push(BACKTEST_STOPPED_EARLY)
   }
   if (skipped.length > 0) {
     warnings.push(

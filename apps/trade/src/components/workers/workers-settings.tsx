@@ -1,5 +1,5 @@
 import * as React from "react"
-import { BanknoteIcon, CpuIcon } from "lucide-react"
+import { BanknoteIcon, ClockIcon, CpuIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import {
@@ -19,7 +19,19 @@ import {
   getWorkersErrorMessage,
   loadWorkers,
 } from "@/lib/api/workers"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { formatRelativeTime } from "@/lib/format/format-time"
+import {
+  loadRememberedOrderStyle,
+  saveRememberedOrderStyle,
+} from "@/lib/api/quick-order"
+import type { OrderStyle } from "@/lib/trade/order-style"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   WORKER_STATE_LABELS,
@@ -60,6 +72,36 @@ const STATE_TONE: Record<WorkerState, string> = {
 export default function WorkersSettings() {
   const [data, setData] = React.useState<WorkersDashboard | null>(null)
   const [busy, setBusy] = React.useState(false)
+  const [orderStyle, setOrderStyle] = React.useState<OrderStyle>("rest")
+  const [styleBusy, setStyleBusy] = React.useState(false)
+
+  React.useEffect(() => {
+    let stopped = false
+    void loadRememberedOrderStyle()
+      .then((answer) => {
+        if (!stopped) setOrderStyle(answer.orderStyle)
+      })
+      // Falls back to resting, which is what it has always been. A setting
+      // that failed to load must not silently change how orders are placed.
+      .catch(() => {})
+    return () => {
+      stopped = true
+    }
+  }, [])
+
+  const changeStyle = async (next: OrderStyle) => {
+    const was = orderStyle
+    setOrderStyle(next)
+    setStyleBusy(true)
+    try {
+      await saveRememberedOrderStyle(next)
+    } catch (error) {
+      setOrderStyle(was)
+      showErrorToast(getWorkersErrorMessage(error))
+    } finally {
+      setStyleBusy(false)
+    }
+  }
 
   React.useEffect(() => {
     let stopped = false
@@ -238,6 +280,40 @@ export default function WorkersSettings() {
               here.
             </p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ClockIcon className="size-4" />
+            How a plain order waits
+          </CardTitle>
+          <CardDescription>
+            A right-clicked buy or sell either sits on the exchange until it
+            fills, or waits here until the price is reached. Ladders and grids
+            are unaffected — they have always been watched.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <Select
+            value={orderStyle}
+            disabled={styleBusy}
+            onValueChange={(next) => void changeStyle(next as OrderStyle)}
+          >
+            <SelectTrigger className="w-fit" aria-label="How a plain order waits">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="rest">Rests on the exchange</SelectItem>
+              <SelectItem value="watch">Watched by the engine</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {orderStyle === "rest"
+              ? "It fills whether or not this app is running, and the money behind it is committed while it waits."
+              : "Nothing reaches the exchange until the price is touched, so the money stays free and the level is nobody else's business — but it only fills while the engine above is running."}
+          </p>
         </CardContent>
       </Card>
 

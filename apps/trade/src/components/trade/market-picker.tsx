@@ -94,6 +94,36 @@ export function MarketPicker({
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const [open, setOpen] = React.useState(false)
+  /**
+   * Opening by hovering, with a pause at each end.
+   *
+   * The pause going in stops the list flying open when the pointer only
+   * crosses the name on its way somewhere else; the pause coming out is what
+   * lets you travel the gap between the button and the panel without it
+   * shutting in your face. Mouse only — a tap has no hover, and on a phone
+   * this would open on the press that was meant to select.
+   */
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const hoverTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openedByHover = React.useRef(false)
+  const clearHover = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    hoverTimer.current = null
+  }
+  const hoverOpen = (event: React.PointerEvent) => {
+    if (event.pointerType !== "mouse") return
+    clearHover()
+    hoverTimer.current = setTimeout(() => {
+      openedByHover.current = true
+      setOpen(true)
+    }, 120)
+  }
+  const hoverClose = (event: React.PointerEvent) => {
+    if (event.pointerType !== "mouse") return
+    clearHover()
+    hoverTimer.current = setTimeout(() => setOpen(false), 220)
+  }
+  React.useEffect(() => clearHover, [])
   const [borderColor, setBorderColor] = React.useState<string>()
   const [query, setQuery] = React.useState("")
   const [view, setView] = React.useState<PickerView>("all")
@@ -163,7 +193,10 @@ export function MarketPicker({
           )
         }
         setOpen(next)
-        if (!next) setQuery("")
+        if (!next) {
+          setQuery("")
+          openedByHover.current = false
+        }
       }}
     >
       <PopoverTrigger asChild>
@@ -171,6 +204,18 @@ export function MarketPicker({
           ref={triggerRef}
           type="button"
           aria-label="Choose market"
+          onPointerEnter={hoverOpen}
+          onPointerLeave={hoverClose}
+          // Pressing the name while hovering has already opened it must not
+          // shut it again — the press means "I want this", not "undo that".
+          // It keeps the list up and hands over the keyboard, which is the one
+          // thing a hover deliberately does not do.
+          onClick={(event) => {
+            if (!open || !openedByHover.current) return
+            event.preventDefault()
+            openedByHover.current = false
+            searchRef.current?.focus()
+          }}
           className="flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <span className="truncate">{selected.symbol}-PERP</span>
@@ -180,6 +225,17 @@ export function MarketPicker({
       <PopoverContent
         align="start"
         sideOffset={8}
+        onPointerEnter={clearHover}
+        onPointerLeave={hoverClose}
+        // Hovering must not take the keyboard. Opened by hand it still lands
+        // in the search box, which is where somebody who pressed the button
+        // wants to be; opened by a passing pointer, focus stays where it was.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault()
+          // Pressed the button: land in the search box, which is what it is
+          // for. Drifted over it: leave the keyboard where it was.
+          if (!openedByHover.current) searchRef.current?.focus()
+        }}
         style={
           borderColor
             ? ({ "--border": borderColor } as React.CSSProperties)
@@ -191,7 +247,7 @@ export function MarketPicker({
           <div className="relative">
             <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              autoFocus
+              ref={searchRef}
               type="search"
               value={query}
               placeholder="Search markets"

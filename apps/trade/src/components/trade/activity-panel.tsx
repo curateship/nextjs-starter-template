@@ -73,11 +73,35 @@ export function ActivityPanel({
     return byKey
   }, [catalogs])
 
+  /**
+   * Positions nobody is managing — which is what this tab is for.
+   *
+   * A coin a ladder or a grid is working is not something you are holding: it
+   * is one step of something still happening, with its own next move already
+   * decided. Those live in the Smart orders panel beside the wallets, where
+   * what they are doing can be said properly. Mixed in here they read as
+   * ordinary trades left unattended.
+   */
+  const byHand = React.useMemo(() => {
+    const managed = new Set(
+      trading.smartOrders.map((order) => `${order.walletId}:${order.marketKey}`)
+    )
+    return trading.positions.filter(
+      (position) => !managed.has(`${position.walletId}:${position.marketKey}`)
+    )
+  }, [trading.positions, trading.smartOrders])
+
   // Resolved against the live list every render, so a position closed by its
   // own stop while its window is open closes the window instead of editing
   // something that is no longer there.
   const editingNow =
     trading.positions.find((one) => one.id === editing?.id) ?? null
+
+  // A count that is not known yet shows nothing rather than a zero — before
+  // the first read, and after a first read that failed, "0" would be claiming
+  // an answer the panel does not have.
+  const countOf = (length: number) =>
+    trading.loading || trading.failed ? undefined : length
 
   return (
     <Tabs
@@ -90,19 +114,19 @@ export function ActivityPanel({
           value="positions"
           icon={<LayersIcon className="size-4" />}
           label="Positions"
-          count={trading.positions.length}
+          count={countOf(byHand.length)}
         />
         <WorkspacePanelTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
-          count={trading.orders.length}
+          count={countOf(trading.orders.length)}
         />
         <WorkspacePanelTab
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
           label="Journal"
-          count={trading.trades.length}
+          count={countOf(trading.trades.length)}
         />
         {/* Close all is the practice engine's sweep; real positions are
             closed one by one, each with its own question. */}
@@ -123,11 +147,13 @@ export function ActivityPanel({
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <PositionsTable
-            positions={trading.positions}
+            positions={byHand}
             markets={markets}
             walletName={walletName}
-            smartOrders={trading.smartOrders}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onEdit={setEditing}
             onFlip={setFlipping}
@@ -145,6 +171,9 @@ export function ActivityPanel({
             markets={markets}
             walletName={walletName}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onCancel={(order) => void trading.cancel(order.walletId, order.id)}
           />
@@ -159,6 +188,9 @@ export function ActivityPanel({
             walletName={walletName}
             selectedId={shownTrade?.id ?? null}
             busy={trading.busy}
+            loading={trading.loading}
+            failed={trading.failed}
+            onRetry={trading.retry}
             // Pressing the row already drawn puts the chart back to itself,
             // so the same press both shows and hides.
             onSelectTrade={(trade) =>

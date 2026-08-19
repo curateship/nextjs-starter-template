@@ -7,10 +7,15 @@ import type { MarketRules } from "@/server/trade/market-rules"
  * Whether a ladder should go on this coin right now, and what it would be.
  *
  * The QFL rule in one place: a coin with no ladder working gets one the moment
- * a base is confirmed and price has not already fallen under it. Everything
- * that decides that already lives in `draftDcaLadder` — it refuses with
- * `SMART_LADDER_NO_BASE` when there is no level and `SMART_LADDER_UNDER_BASE`
- * when the level has gone — so this asks, and reads a refusal as "not yet".
+ * a base is confirmed. Everything that decides that already lives in
+ * `draftDcaLadder` — it refuses with `SMART_LADDER_NO_BASE` when there is no
+ * level and `SMART_LADDER_ABOVE_MARKET` when every rung is above today's price
+ * — so this asks, and reads a refusal as "not yet".
+ *
+ * Price being under the base is deliberately NOT a refusal. It was until
+ * 18 August 2026, and it skipped coins whose rungs were all still far below
+ * the market. Runs measured before that date armed fewer ladders than the same
+ * settings would arm now, so they cannot be compared with runs made after.
  *
  * Its own small function on purpose. Switching a flow on for real later needs
  * exactly this decision, and writing it twice is how the tested strategy and

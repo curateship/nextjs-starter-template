@@ -1,6 +1,7 @@
 import { ladderPlanSchema, type LadderPlan } from "@/lib/trade/dca"
 import { readGridPlan, type GridPlan } from "@/lib/trade/grid"
 import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
+import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
 
 /**
  * The three kinds of smart order, and the one door every stored plan is read
@@ -21,10 +22,10 @@ import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
  * and adding a kind makes the compiler walk you round every caller.
  */
 
-export const SMART_ORDER_KINDS = ["dca", "grid", "signal"] as const
+export const SMART_ORDER_KINDS = ["dca", "grid", "signal", "watch"] as const
 export type SmartOrderKind = (typeof SMART_ORDER_KINDS)[number]
 
-export type SmartPlan = LadderPlan | GridPlan | SignalPlan
+export type SmartPlan = LadderPlan | GridPlan | SignalPlan | WatchPlan
 
 /**
  * A stored smart order, whichever kind it is, as the screens see it.
@@ -38,6 +39,15 @@ type SmartOrderShared = {
   walletId: string
   marketKey: string
   status: "active" | "done"
+  /**
+   * The switched-on flow that placed it, or null when a person did.
+   *
+   * What separates the two lists on screen: a flow's orders belong to that
+   * run's dashboard, where the whole strategy can be read at once, and this
+   * one is what somebody placed themselves. Rows written before this was
+   * recorded read as placed by hand, which is what they look like anyway.
+   */
+  flowRunId: string | null
   createdAt: number
   updatedAt: number
 }
@@ -51,7 +61,10 @@ export type SmartGrid = SmartOrderShared & { kind: "grid"; plan: GridPlan }
 /** One coin being traded on an indicator's say-so, as the screens see it. */
 export type SmartSignal = SmartOrderShared & { kind: "signal"; plan: SignalPlan }
 
-export type SmartOrder = SmartLadder | SmartGrid | SmartSignal
+/** One price being watched, and the trade taken when it is reached. */
+export type SmartWatch = SmartOrderShared & { kind: "watch"; plan: WatchPlan }
+
+export type SmartOrder = SmartLadder | SmartGrid | SmartSignal | SmartWatch
 
 /** The kind a stored row claims to be, or null when it is not one we know. */
 export function readSmartOrderKind(value: unknown): SmartOrderKind | null {
@@ -72,6 +85,7 @@ export function readSmartPlan(
 ): SmartPlan | null {
   if (kind === "grid") return readGridPlan(value)
   if (kind === "signal") return readSignalPlan(value)
+  if (kind === "watch") return readWatchPlan(value)
   const parsed = ladderPlanSchema.safeParse(value)
   return parsed.success ? parsed.data : null
 }
@@ -90,6 +104,7 @@ export type SmartEntry =
   | { kind: "dca"; plan: LadderPlan }
   | { kind: "grid"; plan: GridPlan }
   | { kind: "signal"; plan: SignalPlan }
+  | { kind: "watch"; plan: WatchPlan }
 
 export function readSmartEntry(
   kind: SmartOrderKind,
@@ -99,7 +114,8 @@ export function readSmartEntry(
   if (!plan) return null
   if (kind === "grid") return { kind, plan: plan as GridPlan }
   if (kind === "signal") return { kind, plan: plan as SignalPlan }
-  return { kind, plan: plan as LadderPlan }
+  if (kind === "watch") return { kind, plan: plan as WatchPlan }
+  return { kind: "dca", plan: plan as LadderPlan }
 }
 
 /**
@@ -131,6 +147,19 @@ export function forEachPlanOrderId(
     if (signal.orderId) {
       visit(signal.orderId, (next) => {
         signal.orderId = next
+      })
+    }
+    return
+  }
+  // A watch rests nothing until its price is touched, and exactly one order
+  // after that — and it has to be walked for the same reason a signal trade's
+  // does: a temporary id left in the saved plan makes the next pass believe
+  // the order vanished and place another.
+  if (kind === "watch") {
+    const watch = plan as WatchPlan
+    if (watch.orderId) {
+      visit(watch.orderId, (next) => {
+        watch.orderId = next
       })
     }
     return

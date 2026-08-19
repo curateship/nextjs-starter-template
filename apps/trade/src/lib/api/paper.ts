@@ -18,7 +18,11 @@ import {
   setPaperBrackets as setBracketsRow,
   updatePaperOrder as updateOrderRow,
 } from "@/server/trade/paper"
-import { listActiveSmartOrders } from "@/server/trade/smart-orders"
+import { loadOrderStyle } from "@/server/trade/prefs"
+import {
+  listActiveSmartOrders,
+  placeWatchOrder,
+} from "@/server/trade/smart-orders"
 import {
   findTradingWallet,
   findWallet,
@@ -143,6 +147,13 @@ const placePaperOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<{ placed: true }> => {
     const wallet = await paperWallet(context.user.id, data.walletId, true)
+    // Asked here rather than sent up from the window: which way an order waits
+    // is an account setting, and a browser that could name it could place an
+    // order the setting says it may not.
+    if ((await loadOrderStyle(context.user.id)) === "watch") {
+      await placeWatchOrder(context.user.id, wallet, data)
+      return { placed: true }
+    }
     await placeOrderRow(context.user.id, wallet, data)
     return { placed: true }
   })
@@ -277,6 +288,8 @@ export const getPaperErrorMessage = createErrorMessage(
       "Hyperliquid would not give a price for that market, so nothing was done.",
     PAPER_PRICE: "That price cannot be used. Pick a level on the chart again.",
     PAPER_SIZE: "That size is too small to be an order.",
+    SMART_LADDER_EXISTS:
+      "This market already has a ladder, grid or watched price in that wallet. There can only be one of them per market — cancel it before setting another.",
     PAPER_LEVERAGE: "That is more leverage than this market allows.",
     PAPER_MARGIN:
       "There is not enough free cash for that. Use a smaller size, more leverage, or close something first.",

@@ -373,17 +373,22 @@ export async function createAccountByAdmin(
   let delivered: boolean
   try {
     delivered = (
-      await sendAuthEmail({
-        kind: "new-account",
-        to: email,
-        recipientName: name,
-        workspaceId: linkContext?.workspaceId ?? undefined,
-        linkExpiry: linkContext?.expiry,
-        showFailureReasonToAdmin: true,
-        actionUrl: appUrlFor(
-          `/reset-password?token=${encodeURIComponent(token)}`
-        ),
-      })
+      await sendAuthEmail(
+        {
+          kind: "new-account",
+          to: email,
+          recipientName: name,
+          workspaceId: linkContext?.workspaceId ?? undefined,
+          linkExpiry: linkContext?.expiry,
+          showFailureReasonToAdmin: true,
+          actionUrl: appUrlFor(
+            `/reset-password?token=${encodeURIComponent(token)}`
+          ),
+        },
+        // A failed send removes the fresh account below so the admin can try
+        // again. Keeping its now-invalid password link for retry would lie.
+        { retryOnFailure: false }
+      )
     ).delivered
   } catch (deliveryError) {
     // The mail never went out, so the person could never get in. Dropping the

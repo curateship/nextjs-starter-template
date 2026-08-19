@@ -17,6 +17,8 @@ import {
   type LadderRungState,
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
+import type { PaperSide } from "@/lib/trade/paper"
+import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
@@ -30,6 +32,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
+import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
 import {
   exposedMarketKeys,
   freeCash,
@@ -39,6 +42,7 @@ import {
 } from "@/server/trade/paper"
 import { wantedStopPx } from "./smart-ladders"
 import {
+  tradeFlowRuns,
   tradePaperOrders,
   tradePaperPositions,
   tradeSmartLadders,
@@ -74,6 +78,14 @@ export type PlaceLadderInput = {
    * optional rather than a fourth meaning bolted onto an existing field.
    */
   potUsd?: number
+  /**
+   * The switched-on flow placing this, when a flow is placing it.
+   *
+   * Left out by every hand-placed ladder, and that is the whole point: it is
+   * what lets a run's dashboard show its own trades and leave alone the ones
+   * somebody placed themselves on the same wallet.
+   */
+  flowRunId?: string | null
 }
 
 export type PlacedLadder = {
@@ -146,10 +158,22 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     if (input.base === null) throw new Error("SMART_LADDER_NO_BASE")
     anchorPx = roundPx(input.base)
     if (!(anchorPx > 0)) throw new Error("PAPER_PRICE")
-    // Price under the base means the level has already gone. The ladder arms
-    // when price is AT OR ABOVE a confirmed base and buys the fall from there;
-    // starting it halfway down is a different trade nobody asked for.
-    if (mark < anchorPx) throw new Error("SMART_LADDER_UNDER_BASE")
+    // **Price being under the base is not a reason to refuse.**
+    //
+    // It used to be: "the level has gone, wait for a new one". In practice it
+    // threw away coins it had no reason to. A ladder's rungs sit 20% or more
+    // below the base, so a coin a few percent under it still has every rung
+    // far below today's price and buys nothing today — NEO sat refused at
+    // $1.65 against a base of $1.72 while its rungs were $1.38, $1.06 and
+    // $0.78.
+    //
+    // The case the rule was really about — price so far under the base that
+    // the rungs are above the market, so the ladder buys instantly into a
+    // fall — is already handled below and better: each rung price is compared
+    // with today's price, one that has been passed is marked skipped, and a
+    // ladder with nothing left below the market is refused outright with
+    // `SMART_LADDER_ABOVE_MARKET`. That asks about the prices being bought at
+    // rather than about the level they were measured from.
   }
 
   if (input.heldSzi !== null && input.heldSzi < 0) {
@@ -249,6 +273,17 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
   })
 
   if (rungs.every((rung) => rung.status === "skipped")) {
+    throw new Error("SMART_LADDER_ABOVE_MARKET")
+  }
+
+  // Two-green mode marks nothing as skipped — price being under a rung is its
+  // trigger — so the check above can never fire for it. That was covered by
+  // the under-base refusal until it was removed, and without this a two-green
+  // ladder placed on a coin that has fallen under its deepest rung would buy
+  // EVERY rung at once on the next two green candles: the cascade of buys at
+  // one price the skip rule above exists to prevent, arriving through the one
+  // door that rule does not watch.
+  if (twoGreen && rungs.every((rung) => isMarketable("buy", rung.px, mark))) {
     throw new Error("SMART_LADDER_ABOVE_MARKET")
   }
 
@@ -427,16 +462,29 @@ export async function placeDcaLadder(
       )
     }
 
+    const ladderId = randomUUID()
     await tx.insert(tradeSmartLadders).values({
       userId,
-      id: randomUUID(),
+      id: ladderId,
       walletId: wallet.id,
       marketKey: input.marketKey,
       kind: "dca",
       status: "active",
       plan,
+      flowRunId: input.flowRunId ?? null,
       createdAt: new Date(now),
       updatedAt: new Date(now),
+    })
+    // The rungs that were placed resting belong to the run from this moment.
+    // Recorded now rather than when they fill, because by then the plan has
+    // let go of the id.
+    await recordFlowRunOrders(tx, {
+      userId,
+      walletId: wallet.id,
+      flowRunId: input.flowRunId ?? null,
+      ladderId,
+      marketKey: input.marketKey,
+      orderIds: waiting.map((rung) => rung.orderId as string),
     })
   })
 
@@ -707,6 +755,17 @@ export async function updateLadderExits(
   await settleWallet(userId, wallet)
 }
 
+/** The run that placed this order, where only the flow's own record says so. */
+function placedByFlow(
+  row: { walletId: string; marketKey: string; createdAt: Date },
+  placed: ReadonlyMap<string, { runId: string; since: number }>
+): string | null {
+  const owner = placed.get(`${row.walletId}:${row.marketKey}`)
+  if (!owner) return null
+  // Older than the run itself, so the run cannot have placed it.
+  return row.createdAt.getTime() >= owner.since ? owner.runId : null
+}
+
 /** Every smart order still worth drawing, of any kind, across these wallets. */
 export async function listActiveSmartOrders(
   userId: string,
@@ -724,6 +783,51 @@ export async function listActiveSmartOrders(
       )
     )
 
+  /**
+   * Which switched-on flow placed each coin's order, for rows carrying no stamp.
+   *
+   * A ladder placed before the stamp existed says nothing about who placed it,
+   * and on an account whose flow watches a hundred and fifty coins that is a
+   * hundred and fifty orders reading as hand-placed.
+   *
+   * **Read off `placed`, which is the flow's own record of what it put in the
+   * market — never off its coin list.** The list is what it is watching, and a
+   * ladder somebody placed by hand on one of those coins is theirs: the flow
+   * finds the coin taken and skips it. Going by the list would have hidden
+   * that order from its owner on every screen, which is the worst thing this
+   * could do with a real order.
+   *
+   * Still not proof, and it does not pretend to be — a coin the flow placed
+   * on months ago, whose ladder finished, and which somebody then placed by
+   * hand, reads as the flow's. The order having been created after the run
+   * started narrows that to the life of one run. Anything placed from here on
+   * carries the stamp and needs none of this.
+   */
+  const running = await db
+    .select({
+      id: tradeFlowRuns.id,
+      walletId: tradeFlowRuns.walletId,
+      placed: tradeFlowRuns.placed,
+      startedAt: tradeFlowRuns.startedAt,
+    })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.status, "running"),
+        inArray(tradeFlowRuns.walletId, [...walletIds])
+      )
+    )
+  const flowPlaced = new Map<string, { runId: string; since: number }>()
+  for (const run of running) {
+    for (const marketKey of run.placed) {
+      flowPlaced.set(`${run.walletId}:${marketKey}`, {
+        runId: run.id,
+        since: run.startedAt.getTime(),
+      })
+    }
+  }
+
   const orders: SmartOrder[] = []
   for (const row of rows) {
     const kind = readSmartOrderKind(row.kind)
@@ -735,6 +839,7 @@ export async function listActiveSmartOrders(
       walletId: row.walletId,
       marketKey: row.marketKey,
       status: "active" as const,
+      flowRunId: row.flowRunId ?? placedByFlow(row, flowPlaced),
       createdAt: row.createdAt.getTime(),
       updatedAt: row.updatedAt.getTime(),
     }
@@ -743,8 +848,147 @@ export async function listActiveSmartOrders(
         ? { ...shared, kind, plan: plan as GridPlan }
         : kind === "signal"
           ? { ...shared, kind, plan: plan as SignalPlan }
-          : { ...shared, kind, plan: plan as LadderPlan }
+          : kind === "watch"
+            ? { ...shared, kind, plan: plan as WatchPlan }
+            : { ...shared, kind: "dca" as const, plan: plan as LadderPlan }
     )
   }
   return orders
+}
+
+/**
+ * Sets a price to watch, and what to do when the market reaches it.
+ *
+ * **Nothing is sent anywhere.** One row is written; the engine's next pass is
+ * what notices the level being touched and starts asking for a price. That is
+ * the whole difference from a resting order, and it is why this works the same
+ * on a practice wallet and a real one — neither of them has anything on a book
+ * until the moment it is wanted.
+ *
+ * One smart order per coin per wallet, checked under the same lock every other
+ * placement takes: a watch and a ladder on one coin would both write that
+ * position's stop and fight over it.
+ */
+export async function placeWatchOrder(
+  userId: string,
+  wallet: TradeWallet,
+  input: {
+    marketKey: string
+    side: PaperSide
+    /** The level to watch — the price that was clicked. */
+    px: number
+    sz: number
+    leverage: number
+    reduceOnly: boolean
+    tpPx: number | null
+    slPx: number | null
+  }
+): Promise<{ watching: true }> {
+  const ref = parseMarketKey(input.marketKey)
+  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+    throw new Error("PAPER_MARKET")
+  }
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("PAPER_MARKET")
+
+  const now = new Date()
+  const plan: WatchPlan = {
+    triggerPx: input.px,
+    side: input.side,
+    sz: input.sz,
+    leverage: input.leverage,
+    maxLeverage: rules.maxLeverage ?? 1,
+    sizeDecimals: rules.sizeDecimals,
+    tpPx: input.tpPx,
+    slPx: input.slPx,
+    reduceOnly: input.reduceOnly,
+    // It waits at the level rather than following the price away from it,
+    // which is the closest thing to the resting order this stands in for.
+    chaseGiveUp: 0,
+    phase: "waiting",
+    orderId: null,
+    orderPx: null,
+    chasedAt: 0,
+    chases: 0,
+    startedAt: now.getTime(),
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .for("update")
+    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
+    if (race) throw new Error("SMART_LADDER_EXISTS")
+
+    await tx.insert(tradeSmartLadders).values({
+      userId,
+      id: randomUUID(),
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "watch",
+      status: "active",
+      plan,
+      createdAt: now,
+      updatedAt: now,
+    })
+  })
+
+  return { watching: true }
+}
+
+/**
+ * Calls off a watched price.
+ *
+ * **It marks the row rather than deleting it**, and the engine's next pass does
+ * the cancelling — the same road a flow being switched off takes. While the
+ * level has not been touched there is nothing to cancel anywhere and the row
+ * simply ends; once it has, there may be an order resting on a real exchange,
+ * and only the engine has the wiring to take that back.
+ */
+export async function cancelWatchOrder(
+  userId: string,
+  walletId: string,
+  watchId: string
+): Promise<{ cancelled: true }> {
+  const [row] = await db
+    .select()
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.id, watchId),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+
+  const plan = readWatchPlan(row.plan)
+  if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
+
+  // Nothing has been sent, so nothing has to be taken back: the row is the
+  // whole of the order and it ends here.
+  if (plan.phase === "waiting" && plan.orderId === null) {
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "done", updatedAt: new Date() })
+      .where(
+        and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+      )
+    return { cancelled: true }
+  }
+
+  await db
+    .update(tradeSmartLadders)
+    .set({
+      plan: { ...plan, phase: "stopping" },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+    )
+  return { cancelled: true }
 }

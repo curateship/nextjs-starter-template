@@ -174,6 +174,18 @@ export type PaperOrder = {
    * writes one, and nothing offers to change or cancel it.
    */
   placing?: true
+  /**
+   * A watched price wearing an order's clothes, so the chart can draw it as
+   * the order it stands in for.
+   *
+   * **It has no order behind it**, so everything that reaches for one has to
+   * step aside: it cannot be dragged to a new price, its stop and target
+   * cannot be dragged, and the edit window has nothing to open. Only the × is
+   * offered, and that goes through the smart-order door. Marked rather than
+   * dressed up as `live`, because a lie there would send a practice cancel to
+   * a real exchange.
+   */
+  watched?: true
 }
 
 /** One fill the practice engine made, and why it made it. */

@@ -47,6 +47,7 @@ import {
 } from "@/server/trade/prefs"
 import {
   cancelLadderRest as cancelRestRows,
+  cancelWatchOrder as cancelWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
   updateLadderExits as updateExitsRows,
@@ -191,6 +192,19 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
       : await cancelRestRows(context.user.id, wallet, data)
   })
 
+/**
+ * Calls off a watched price. One door for both kinds of wallet: nothing is on
+ * an exchange until the level is touched, and after that it is the engine that
+ * takes the order back either way.
+ */
+const cancelWatchFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(ladderSchema)
+  .handler(async ({ data, context }): Promise<{ cancelled: true }> => {
+    await tradingWallet(context.user.id, data.walletId)
+    return await cancelWatchRow(context.user.id, data.walletId, data.ladderId)
+  })
+
 const updateLadderExitsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(exitsSchema)
@@ -229,6 +243,10 @@ export function placeDcaLadder(input: z.infer<typeof placeSchema>) {
 
 export function cancelLadderRung(input: z.infer<typeof rungSchema>) {
   return cancelLadderRungFn({ data: input })
+}
+
+export function cancelWatch(input: z.infer<typeof ladderSchema>) {
+  return cancelWatchFn({ data: input })
 }
 
 export function cancelLadderRest(input: z.infer<typeof ladderSchema>) {
@@ -463,8 +481,6 @@ export const getSmartOrderErrorMessage = createErrorMessage(
       "Every rung sits above the price right now, so there is nothing left to wait for — nothing was placed.",
     SMART_LADDER_NO_BASE:
       "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
-    SMART_LADDER_UNDER_BASE:
-      "Price is already below the base, so that level has gone — nothing was placed. The ladder starts when price is at or above a base and buys the fall from there.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",

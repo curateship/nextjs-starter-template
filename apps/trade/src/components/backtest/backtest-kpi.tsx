@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 
 /**
@@ -8,6 +7,16 @@ import { cn } from "@/lib/utils"
  * Ported from the old app's `Kpi`, and deliberately the same three-line shape —
  * a figure with no caption is a number nobody can check, and the caption is
  * where "of 2 tested" and "$49,583 in pot" live.
+ *
+ * **A cell in a ruled grid, not a card.** Fourteen cards down a narrow panel is
+ * fourteen boxes with fourteen shadows, and the eye spends its time on the
+ * boxes rather than the numbers. Ruled off from its neighbours by a single
+ * hairline instead, the figures line up in columns and the panel reads as one
+ * table of results — which is what it is. The extra room a card spent on its
+ * own border goes into the number, which is the thing being read.
+ *
+ * The rules are bare `border-b` / `border-r` with no colour named, so they
+ * follow the Divider lines setting like every other line in the app.
  */
 export function BacktestKpi({
   label,
@@ -22,22 +31,22 @@ export function BacktestKpi({
   tone?: number
 }) {
   return (
-    <Card size="sm">
-      <CardContent className="flex flex-col gap-1">
-        <span className="text-[10px] text-muted-foreground">{label}</span>
-        <span
-          className={cn(
-            "font-mono text-base font-semibold tabular-nums",
-            toneClass(tone)
-          )}
-        >
-          {value}
-        </span>
-        <span className="font-mono text-[9px] text-muted-foreground">
-          {sub}
-        </span>
-      </CardContent>
-    </Card>
+    // `odd:border-r` rules the left column off from the right one: in a
+    // two-column grid the odd children are the left column.
+    <div className="flex flex-col gap-0.5 border-b px-5 py-2 odd:border-r">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span
+        className={cn(
+          "text-sm leading-tight font-semibold tracking-tight tabular-nums",
+          toneClass(tone)
+        )}
+      >
+        {value}
+      </span>
+      <span className="text-[10px] leading-tight text-muted-foreground">
+        {sub}
+      </span>
+    </div>
   )
 }
 
@@ -55,9 +64,60 @@ export function sharePct(won: number, of: number): string {
   return `${Math.round((won / of) * 100)}%`
 }
 
-/** "+15.46%" / "-21.51%" — the old app's `signedPct`. */
+/**
+ * "+1,118%" / "-22%" / "-0.2%" — a percent at the precision it is worth
+ * reading at.
+ *
+ * **Two decimals were noise on every figure this screen shows.** A run up
+ * eleven times over reported "+1117.82%", where the last three characters are
+ * a rounding artefact of a made-up pot, and a drawdown of "-22.04%" is a
+ * drawdown of 22%. Under ten it keeps one decimal, because there the small
+ * part is the whole story: a trade that returned 0.2% must not read as 0%.
+ */
 export function signedPct(value: number): string {
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+  return `${value >= 0 ? "+" : "-"}${roundedPct(Math.abs(value))}`
+}
+
+const WHOLE_USD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
+
+/**
+ * "$111,782" / "-$1,250" — whole dollars, always.
+ *
+ * **Always, because a column is read down.** The shared `formatUsdRounded`
+ * keeps the pence under a hundred dollars, which is right for one figure on
+ * its own and wrong for a table: a P&L column came out as -$52.68, -$92.01,
+ * -$207, $2,199 — half the rows carrying decimals the others did not, which
+ * reads as a broken column rather than a considered one.
+ *
+ * Under a dollar rounds to "$0", and that is the right answer here: against a
+ * pot in the tens of thousands, forty-five cents is nothing, and the colour of
+ * the figure already says which way it went.
+ */
+export function usd(value: number): string {
+  const whole = Math.round(Math.abs(value))
+  // No sign on a rounded-away figure. Forty-five pence lost is "$0", never
+  // "-$0", which reads as a broken minus rather than as nothing.
+  const sign = whole > 0 && value < 0 ? "-" : ""
+  return `${sign}$${WHOLE_USD.format(whole)}`
+}
+
+/** The same, with its sign always shown — "+$111,782". */
+export function signedUsd(value: number): string {
+  const whole = Math.round(Math.abs(value))
+  if (whole === 0) return usd(0)
+  return `${value > 0 ? "+" : ""}${usd(value)}`
+}
+
+/** The same rounding without a sign in front — "22%", "0.2%". */
+export function roundedPct(value: number): string {
+  const size = Math.abs(value)
+  if (size < 10) return `${trimZero(size.toFixed(1))}%`
+  return `${Math.round(size).toLocaleString("en-US")}%`
+}
+
+/** "0.0" reads as a figure measured to a tenth; "0" is the honest version. */
+function trimZero(text: string): string {
+  return text.endsWith(".0") ? text.slice(0, -2) : text
 }
 
 /**

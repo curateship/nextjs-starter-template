@@ -19,6 +19,7 @@ const notificationSettingLabels: Record<NotificationType, string> = {
   automation_approval: "Automation approvals",
   automation_failed: "Failed automations",
   account_update: "Account changes made by an admin",
+  system_email_failed: "Account emails that stopped retrying",
 }
 
 export function NotificationSettings({
