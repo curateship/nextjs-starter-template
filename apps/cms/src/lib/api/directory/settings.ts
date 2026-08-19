@@ -1,12 +1,17 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import {
+  DIRECTORY_CATEGORY_SOURCES,
+  MAX_DIRECTORY_CATEGORY_CARDS,
+} from "@/lib/directory/category-cards"
 import { DIRECTORY_DEFAULT_SORTS } from "@/lib/directory/public-search"
 import { adminGet, adminPost } from "@/server/guards"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import {
   directorySettingsFor,
   saveDirectoryBadgesEnabled,
+  saveDirectoryBrowseCategories,
   saveDirectoryBrowseSettings,
   directoryGeocodingKeyStatus,
   directoryMapDisplayKeyStatus,
@@ -25,6 +30,12 @@ export const getDirectorySettingsErrorMessage = createErrorMessage(
       "Choose a listing order from the available options.",
     "Give the directory browse page a title.":
       "Give the directory browse page a title.",
+    "Choose which categories the row should show.":
+      "Choose which categories the row should show.",
+    "Choose at least one category, or show the top-level ones instead.":
+      "Choose at least one category, or show the top-level ones instead.",
+    "That category is not on this site.":
+      "That category is not on this site.",
   },
   "The directory settings could not be saved."
 )
@@ -113,6 +124,33 @@ const saveBrowseSettingsFn = createServerFn({ method: "POST" })
 
 export function saveBrowseSettings(input: DirectoryBrowseSettingsInput) {
   return saveBrowseSettingsFn({ data: input })
+}
+
+const browseCategoriesInput = z.object({
+  browseCategoriesEnabled: z.boolean(),
+  browseCategorySource: z.enum(DIRECTORY_CATEGORY_SOURCES),
+  browsePickedCategoryIds: z
+    .array(z.string().min(1).max(36))
+    .max(MAX_DIRECTORY_CATEGORY_CARDS),
+})
+
+export type DirectoryBrowseCategoriesInput = z.infer<
+  typeof browseCategoriesInput
+>
+
+const saveBrowseCategoriesFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(browseCategoriesInput)
+  .handler(async ({ data, context }) =>
+    saveDirectoryBrowseCategories(
+      await workspaceIdForRequest(context.user.id),
+      data
+    )
+  )
+
+/** Changes the row of category cards at the top of the browse page. */
+export function saveBrowseCategories(input: DirectoryBrowseCategoriesInput) {
+  return saveBrowseCategoriesFn({ data: input })
 }
 
 export type { DirectorySettings }

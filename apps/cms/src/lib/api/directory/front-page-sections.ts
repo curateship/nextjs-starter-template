@@ -2,10 +2,15 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  DIRECTORY_CATEGORY_SOURCES,
+  MAX_DIRECTORY_CATEGORY_CARDS,
+} from "@/lib/directory/category-cards"
+import {
   DIRECTORY_FRONT_PAGE_COUNT_MAX,
   DIRECTORY_FRONT_PAGE_COUNT_MIN,
   DIRECTORY_FRONT_PAGE_HEADING_MAX,
   DIRECTORY_FRONT_PAGE_INTRO_MAX,
+  DIRECTORY_FRONT_PAGE_KINDS,
   DIRECTORY_FRONT_PAGE_LAYOUTS,
   DIRECTORY_FRONT_PAGE_SORTS,
   MAX_DIRECTORY_FRONT_PAGE_SECTIONS,
@@ -58,6 +63,9 @@ const idInput = z.string().min(1).max(36)
 const sectionInput = z.object({
   heading: z.string().min(1).max(DIRECTORY_FRONT_PAGE_HEADING_MAX),
   intro: z.string().max(DIRECTORY_FRONT_PAGE_INTRO_MAX),
+  kind: z.enum(DIRECTORY_FRONT_PAGE_KINDS),
+  categorySource: z.enum(DIRECTORY_CATEGORY_SOURCES),
+  pickedCategoryIds: z.array(idInput).max(MAX_DIRECTORY_CATEGORY_CARDS),
   categoryId: idInput.nullable(),
   sort: z.enum(DIRECTORY_FRONT_PAGE_SORTS),
   listingCount: z

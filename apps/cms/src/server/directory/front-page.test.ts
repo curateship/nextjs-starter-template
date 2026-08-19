@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { uuid } from "@/server/auth/security"
 import { readDirectoryFrontPage } from "@/server/directory/front-page"
 import { createFrontPageSection } from "@/server/directory/front-page-sections"
+import type { DirectoryFrontPageRow } from "@/lib/directory/front-page"
 import { resetPublicDirectoryCacheForTests } from "@/server/directory/public-cache"
 import {
   categories,
@@ -69,7 +70,11 @@ async function insertListing(
   return id
 }
 
-async function insertCategory(name: string, slug: string) {
+async function insertCategory(
+  name: string,
+  slug: string,
+  overrides: { parentId?: string; displayOrder?: number } = {}
+) {
   const id = uuid()
   const at = new Date()
   await database.insert(categories).values({
@@ -77,6 +82,8 @@ async function insertCategory(name: string, slug: string) {
     workspaceId: site.id,
     name,
     slug,
+    parentId: overrides.parentId,
+    displayOrder: overrides.displayOrder ?? 0,
     createdAt: at,
     updatedAt: at,
   })
@@ -105,6 +112,34 @@ async function browseSettings(overrides: Record<string, unknown> = {}) {
     updatedAt: at,
     ...overrides,
   })
+}
+
+/**
+ * A row's listings, insisting it is a row of listings.
+ *
+ * The two kinds of row are one union now, so a test that reads `listings` has to
+ * say which kind it expected — and fail loudly rather than read `undefined` if a
+ * row came back as the wrong kind.
+ */
+function listingsIn(row: DirectoryFrontPageRow | undefined): string[] {
+  if (!row || row.kind !== "listings") {
+    throw new Error(`Expected a row of listings, got ${row?.kind ?? "nothing"}`)
+  }
+  return row.listings.map((listing) => listing.title)
+}
+
+function listingsRow(row: DirectoryFrontPageRow | undefined) {
+  if (!row || row.kind !== "listings") {
+    throw new Error(`Expected a row of listings, got ${row?.kind ?? "nothing"}`)
+  }
+  return row
+}
+
+function cardsIn(row: DirectoryFrontPageRow | undefined) {
+  if (!row || row.kind !== "categories") {
+    throw new Error(`Expected a row of categories, got ${row?.kind ?? "nothing"}`)
+  }
+  return row.cards
 }
 
 /** Counts every round trip the read makes, whatever shape it takes. */
@@ -161,15 +196,13 @@ describe("directory listings front page", () => {
       "New this week",
       "Cafés",
     ])
-    expect(page?.rows[0]?.listings.map((listing) => listing.title)).toEqual([
-      "New",
-      "Middle",
-    ])
-    expect(page?.rows[1]?.listings.map((listing) => listing.title)).toEqual([
-      "Middle",
-    ])
-    expect(page?.rows[0]?.listings[1]?.rating).toBe(4.5)
-    expect(page?.rows[1]?.browse).toEqual({ category: "cafes", sort: "newest" })
+    expect(listingsIn(page?.rows[0])).toEqual(["New", "Middle"])
+    expect(listingsIn(page?.rows[1])).toEqual(["Middle"])
+    expect(listingsRow(page?.rows[0]).listings[1]?.rating).toBe(4.5)
+    expect(listingsRow(page?.rows[1]).browse).toEqual({
+      category: "cafes",
+      sort: "newest",
+    })
   })
 
   it("leaves out a row whose filter matches nothing", async () => {
@@ -201,9 +234,7 @@ describe("directory listings front page", () => {
     await createFrontPageSection(site.id, { heading: "Everything" }, database)
 
     const page = await readDirectoryFrontPage(site, database)
-    expect(page?.rows[0]?.listings.map((listing) => listing.title)).toEqual([
-      "Published",
-    ])
+    expect(listingsIn(page?.rows[0])).toEqual(["Published"])
   })
 
   it("orders a row by rating, then by name, when it is asked to", async () => {
@@ -223,20 +254,12 @@ describe("directory listings front page", () => {
     )
 
     const page = await readDirectoryFrontPage(site, database)
-    expect(page?.rows[0]?.listings.map((listing) => listing.title)).toEqual([
-      "Alpha",
-      "Bravo",
-      "Charlie",
-    ])
-    expect(page?.rows[1]?.listings.map((listing) => listing.title)).toEqual([
-      "Alpha",
-      "Bravo",
-      "Charlie",
-    ])
+    expect(listingsIn(page?.rows[0])).toEqual(["Alpha", "Bravo", "Charlie"])
+    expect(listingsIn(page?.rows[1])).toEqual(["Alpha", "Bravo", "Charlie"])
     // "A to Z" has no browse equivalent of its own beyond the title order.
-    expect(page?.rows[1]?.browse).toEqual({ sort: "title" })
+    expect(listingsRow(page?.rows[1]).browse).toEqual({ sort: "title" })
     // "Top rated" sends no order rather than a wrong one.
-    expect(page?.rows[0]?.browse).toEqual({})
+    expect(listingsRow(page?.rows[0]).browse).toEqual({})
   })
 
   it("shows only active featured listings in a featured row", async () => {
@@ -295,7 +318,7 @@ describe("directory listings front page", () => {
     )
 
     const page = await readDirectoryFrontPage(site, database)
-    expect(page?.rows[0]?.listings).toMatchObject([
+    expect(listingsRow(page?.rows[0]).listings).toMatchObject([
       { id: featuredId, title: "Featured place", featured: true, claimed: true },
     ])
   })
@@ -320,6 +343,119 @@ describe("directory listings front page", () => {
     const page = await readDirectoryFrontPage(site, countingDatabase(six))
     expect(page?.rows).toHaveLength(6)
     expect(six.queries).toBe(1)
+  })
+
+  it("draws a row of category cards, counting everything nested beneath", async () => {
+    await browseSettings()
+    const eat = await insertCategory("Eat", "eat", { displayOrder: 0 })
+    const italian = await insertCategory("Italian", "italian", {
+      parentId: eat,
+      displayOrder: 1,
+    })
+    const stay = await insertCategory("Stay", "stay", { displayOrder: 2 })
+    await insertCategory("Nightlife", "nightlife", { displayOrder: 3 })
+
+    const direct = await insertListing("Cafe", new Date("2026-01-01"))
+    const nested = await insertListing("Trattoria", new Date("2026-02-01"))
+    const hotel = await insertListing("Hotel", new Date("2026-03-01"))
+    await putInCategory(direct, eat)
+    await putInCategory(nested, italian)
+    await putInCategory(hotel, stay)
+
+    await createFrontPageSection(
+      site.id,
+      { heading: "Browse by category", kind: "categories" },
+      database
+    )
+
+    const page = await readDirectoryFrontPage(site, database)
+    const cards = cardsIn(page?.rows[0])
+    // Nightlife has nothing published under it, so it is not a card at all.
+    expect(cards.map((card) => card.name)).toEqual(["Eat", "Stay"])
+    // Eat's own listing plus the one under Italian, counted once each.
+    expect(cards.map((card) => card.listingCount)).toEqual([2, 1])
+  })
+
+  it("shows hand-picked categories in the admin's order", async () => {
+    await browseSettings()
+    const eat = await insertCategory("Eat", "eat", { displayOrder: 0 })
+    const stay = await insertCategory("Stay", "stay", { displayOrder: 1 })
+    await putInCategory(
+      await insertListing("Cafe", new Date("2026-01-01")),
+      eat
+    )
+    await putInCategory(
+      await insertListing("Hotel", new Date("2026-02-01")),
+      stay
+    )
+
+    await createFrontPageSection(
+      site.id,
+      {
+        heading: "Start here",
+        kind: "categories",
+        categorySource: "picked",
+        // Deliberately the reverse of the Categories screen's own order.
+        pickedCategoryIds: [stay, eat],
+      },
+      database
+    )
+
+    expect(cardsIn((await readDirectoryFrontPage(site, database))?.rows[0]).map(
+      (card) => card.name
+    )).toEqual(["Stay", "Eat"])
+  })
+
+  it("leaves out a category row whose categories are all empty", async () => {
+    await browseSettings()
+    await insertCategory("Nightlife", "nightlife")
+    await insertListing("Uncategorised", new Date("2026-01-01"))
+
+    await createFrontPageSection(
+      site.id,
+      { heading: "Browse by category", kind: "categories" },
+      database
+    )
+
+    // No cards means no row, rather than a heading over a blank space — and with
+    // that the only row gone, the site has no listings home page at all.
+    expect(await readDirectoryFrontPage(site, database)).toBeNull()
+  })
+
+  it("costs three queries with category rows, however many there are", async () => {
+    await browseSettings()
+    const eat = await insertCategory("Eat", "eat")
+    await putInCategory(await insertListing("Cafe", new Date("2026-01-01")), eat)
+
+    await createFrontPageSection(site.id, { heading: "Listings" }, database)
+    await createFrontPageSection(
+      site.id,
+      { heading: "Categories one", kind: "categories" },
+      database
+    )
+    await createFrontPageSection(
+      site.id,
+      { heading: "Categories two", kind: "categories" },
+      database
+    )
+    await createFrontPageSection(
+      site.id,
+      {
+        heading: "Categories three",
+        kind: "categories",
+        categorySource: "picked",
+        pickedCategoryIds: [eat],
+      },
+      database
+    )
+
+    resetPublicDirectoryCacheForTests()
+    const counter = { queries: 0 }
+    const page = await readDirectoryFrontPage(site, countingDatabase(counter))
+    expect(page?.rows).toHaveLength(4)
+    // One for every row of listings, then one for the categories and one for
+    // their counts — shared by all three category rows rather than run per row.
+    expect(counter.queries).toBe(3)
   })
 
   it("remembers that a site has no rows, rather than asking again", async () => {
@@ -353,7 +489,7 @@ describe("directory listings front page", () => {
     )
 
     const page = await readDirectoryFrontPage(site, database)
-    expect(page?.rows[0]?.layout).toBe("grid")
+    expect(listingsRow(page?.rows[0]).layout).toBe("grid")
     expect(page?.mapApiKey).toBeNull()
   })
 
@@ -363,18 +499,18 @@ describe("directory listings front page", () => {
     await createFrontPageSection(site.id, { heading: "Everything" }, database)
 
     const first = await readDirectoryFrontPage(site, database)
-    expect(first?.rows[0]?.listings).toHaveLength(1)
+    expect(listingsRow(first?.rows[0]).listings).toHaveLength(1)
 
     // Written straight to the table, so nothing clears the cache: the read must
     // still be the remembered one.
     await insertListing("Second", new Date("2026-02-01"))
     const cached = await readDirectoryFrontPage(site, database)
-    expect(cached?.rows[0]?.listings).toHaveLength(1)
+    expect(listingsRow(cached?.rows[0]).listings).toHaveLength(1)
 
     // Saving a row clears this site's public pages, the same way saving a
     // listing does.
     await createFrontPageSection(site.id, { heading: "And another" }, database)
     const fresh = await readDirectoryFrontPage(site, database)
-    expect(fresh?.rows[0]?.listings).toHaveLength(2)
+    expect(listingsRow(fresh?.rows[0]).listings).toHaveLength(2)
   })
 })

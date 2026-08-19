@@ -1,12 +1,18 @@
 import { eq } from "drizzle-orm"
 
 import {
+  cleanPickedCategoryIds,
+  isDirectoryCategorySource,
+  type DirectoryCategorySource,
+} from "@/lib/directory/category-cards"
+import {
   isDirectoryDefaultSort,
   type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
 import { now } from "@/server/auth/security"
 import { decryptSecret, encryptSecret } from "@/server/auth/encryption"
 import { db, type CustomShellDb } from "@/server/db"
+import { checkedPickedCategoryIds } from "@/server/directory/category-cards"
 import { clearPublicDirectoryCache } from "@/server/directory/public-cache"
 import { directorySettings } from "@/server/directory/schema"
 
@@ -35,6 +41,12 @@ export type DirectorySettings = {
   featuredFirst: boolean
   /** Whether the browse page offers the map view at all. */
   mapEnabled: boolean
+  /** Whether a row of category cards sits at the top of the browse page. */
+  browseCategoriesEnabled: boolean
+  /** Which categories that row shows. */
+  browseCategorySource: DirectoryCategorySource
+  /** The chosen categories for that row, in the admin's order. */
+  browsePickedCategoryIds: string[]
   /**
    * A map key is saved for this site. Read off the same row rather than asked
    * for separately, because the browse page needs it on every load and a
@@ -62,6 +74,10 @@ export const DIRECTORY_SETTING_DEFAULTS: DirectorySettings = {
   featuredFirst: true,
   // Off, so a site that already exists gains no map button by this shipping.
   mapEnabled: false,
+  // Off for the same reason: no existing browse page grows a row of cards.
+  browseCategoriesEnabled: false,
+  browseCategorySource: "top-level",
+  browsePickedCategoryIds: [],
   hasMapKey: false,
 }
 
@@ -106,6 +122,20 @@ function resolvedBrowseSettings(row: {
   }
 }
 
+function resolvedBrowseCategories(row: {
+  browseCategoriesEnabled: boolean
+  browseCategorySource: string | null
+  browsePickedCategoryIds: unknown
+}) {
+  return {
+    browseCategoriesEnabled: row.browseCategoriesEnabled,
+    browseCategorySource: isDirectoryCategorySource(row.browseCategorySource)
+      ? row.browseCategorySource
+      : DIRECTORY_SETTING_DEFAULTS.browseCategorySource,
+    browsePickedCategoryIds: cleanPickedCategoryIds(row.browsePickedCategoryIds),
+  }
+}
+
 export async function directorySettingsFor(
   workspaceId: string,
   database: CustomShellDb = db
@@ -134,6 +164,7 @@ export async function directorySettingsFor(
       DIRECTORY_SETTING_DEFAULTS.claimApprovedMessage
     ),
     ...resolvedBrowseSettings(row),
+    ...resolvedBrowseCategories(row),
     mapEnabled: row.mapEnabled,
     hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
   }
@@ -300,6 +331,7 @@ export async function savedDirectorySettings(
         claimPendingMessage: row.claimPendingMessage,
         claimApprovedMessage: row.claimApprovedMessage,
         ...resolvedBrowseSettings(row),
+        ...resolvedBrowseCategories(row),
         mapEnabled: row.mapEnabled,
         hasMapKey: Boolean(row.mapDisplayKeyEncrypted),
       }
@@ -315,6 +347,11 @@ export async function savedDirectorySettings(
         browseIntro: DIRECTORY_SETTING_DEFAULTS.browseIntro,
         featuredFirst: DIRECTORY_SETTING_DEFAULTS.featuredFirst,
         mapEnabled: DIRECTORY_SETTING_DEFAULTS.mapEnabled,
+        browseCategoriesEnabled:
+          DIRECTORY_SETTING_DEFAULTS.browseCategoriesEnabled,
+        browseCategorySource: DIRECTORY_SETTING_DEFAULTS.browseCategorySource,
+        browsePickedCategoryIds:
+          DIRECTORY_SETTING_DEFAULTS.browsePickedCategoryIds,
         hasMapKey: DIRECTORY_SETTING_DEFAULTS.hasMapKey,
       }
 }
@@ -389,6 +426,59 @@ export async function saveDirectoryBrowseSettings(
     featuredFirst: input.featuredFirst,
   }
 
+  await database
+    .insert(directorySettings)
+    .values({ workspaceId, ...values, createdAt: at, updatedAt: at })
+    .onConflictDoUpdate({
+      target: directorySettings.workspaceId,
+      set: { ...values, updatedAt: at },
+    })
+
+  clearPublicDirectoryCache(workspaceId)
+  return directorySettingsFor(workspaceId, database)
+}
+
+export type DirectoryBrowseCategoriesInput = Pick<
+  DirectorySettings,
+  "browseCategoriesEnabled" | "browseCategorySource" | "browsePickedCategoryIds"
+>
+
+/**
+ * Changes the row of category cards at the top of the browse page, and nothing
+ * else about the directory.
+ *
+ * The chosen categories are checked against this site's own tree, the same way a
+ * home page row's are: a row pointing at somebody else's categories cannot be
+ * drawn. A row that is not hand-picked stores an empty list rather than keeping a
+ * stale one behind a switch that stopped using it.
+ */
+export async function saveDirectoryBrowseCategories(
+  workspaceId: string,
+  input: DirectoryBrowseCategoriesInput,
+  database: CustomShellDb = db
+): Promise<DirectorySettings> {
+  if (!isDirectoryCategorySource(input.browseCategorySource)) {
+    throw new Error("Choose which categories the row should show.")
+  }
+
+  // Checked by the same rule a home page row of cards goes through, so the two
+  // cannot start refusing different things. A row that is switched off, or is
+  // not hand-picked, stores an empty list rather than keeping a stale one.
+  const picked =
+    input.browseCategoriesEnabled && input.browseCategorySource === "picked"
+      ? await checkedPickedCategoryIds(
+          workspaceId,
+          input.browsePickedCategoryIds,
+          database
+        )
+      : []
+
+  const at = now()
+  const values = {
+    browseCategoriesEnabled: input.browseCategoriesEnabled,
+    browseCategorySource: input.browseCategorySource,
+    browsePickedCategoryIds: picked,
+  }
   await database
     .insert(directorySettings)
     .values({ workspaceId, ...values, createdAt: at, updatedAt: at })

@@ -1,13 +1,50 @@
 /**
  * A site's home page rows, in the parts the browser and the server both need.
  *
- * A row is a heading, an optional line under it, a category, an order, how
- * many listings and how they draw. Everything that decides what is allowed
- * lives here, so the admin form, the endpoint and the server all refuse the
- * same things rather than three slightly different lists.
+ * A row is a heading, an optional line under it, and then either listings — a
+ * category, an order, how many, how they draw — or a card per category.
+ * Everything that decides what is allowed lives here, so the admin form, the
+ * endpoint and the server all refuse the same things rather than three slightly
+ * different lists.
  */
 
+import type {
+  DirectoryCategoryCard,
+  DirectoryCategorySource,
+} from "@/lib/directory/category-cards"
 import type { DirectorySort } from "@/lib/directory/public-search"
+
+/**
+ * The two kinds of row a home page is built from. The first one is the default,
+ * and it is what every row that existed before this was added.
+ */
+export const DIRECTORY_FRONT_PAGE_KINDS = ["listings", "categories"] as const
+
+export type DirectoryFrontPageKind =
+  (typeof DIRECTORY_FRONT_PAGE_KINDS)[number]
+
+export const DIRECTORY_FRONT_PAGE_KIND_LABELS: Record<
+  DirectoryFrontPageKind,
+  string
+> = {
+  listings: "Listings",
+  categories: "Category cards",
+}
+
+export const DIRECTORY_FRONT_PAGE_KIND_HINTS: Record<
+  DirectoryFrontPageKind,
+  string
+> = {
+  listings: "Cards for individual listings, chosen and ordered below.",
+  categories:
+    "A card per category, with its photo and how many listings are under it.",
+}
+
+export function isDirectoryFrontPageKind(
+  value: unknown
+): value is DirectoryFrontPageKind {
+  return (DIRECTORY_FRONT_PAGE_KINDS as readonly unknown[]).includes(value)
+}
 
 /** How a row picks and orders its listings. The first one is the default. */
 export const DIRECTORY_FRONT_PAGE_SORTS = [
@@ -76,10 +113,11 @@ export const DIRECTORY_FRONT_PAGE_INTRO_MAX = 500
 
 /** The sentence said when a seventh row is asked for, in one place. */
 export const DIRECTORY_FRONT_PAGE_FULL_MESSAGE =
-  `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows of listings. Delete one before adding another.`
+  `A home page can have ${MAX_DIRECTORY_FRONT_PAGE_SECTIONS} rows. Delete one before adding another.`
 
+/** "cards" rather than "listings": a row of categories is counted the same way. */
 export const DIRECTORY_FRONT_PAGE_COUNT_MESSAGE =
-  `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} listings.`
+  `A row shows between ${DIRECTORY_FRONT_PAGE_COUNT_MIN} and ${DIRECTORY_FRONT_PAGE_COUNT_MAX} cards.`
 
 export const DIRECTORY_FRONT_PAGE_HEADING_MESSAGE = "Give the row a heading."
 
@@ -101,6 +139,11 @@ export type DirectoryFrontPageSection = {
   displayOrder: number
   heading: string
   intro: string
+  kind: DirectoryFrontPageKind
+  /** Category rows only: where their categories come from. */
+  categorySource: DirectoryCategorySource
+  /** Category rows only: the chosen categories, in the admin's order. */
+  pickedCategoryIds: string[]
   /** Null is every category. */
   categoryId: string | null
   /** The chosen category's public address, or null. Read for the row's link. */
@@ -130,16 +173,30 @@ export function browseSortForFrontPageSort(
   return undefined
 }
 
-/** One row as the public page draws it. */
-export type DirectoryFrontPageRow = {
-  id: string
-  heading: string
-  intro: string
-  layout: DirectoryFrontPageLayout
-  /** What the row's "see them all" link should carry. */
-  browse: { category?: string; sort?: DirectorySort }
-  listings: Array<DirectoryFrontPageListing>
-}
+/**
+ * One row as the public page draws it.
+ *
+ * Two shapes in one, told apart by `kind`, because a page that draws rows in
+ * order should not have to hold two lists and interleave them by hand.
+ */
+export type DirectoryFrontPageRow =
+  | {
+      kind: "listings"
+      id: string
+      heading: string
+      intro: string
+      layout: DirectoryFrontPageLayout
+      /** What the row's "see them all" link should carry. */
+      browse: { category?: string; sort?: DirectorySort }
+      listings: DirectoryFrontPageListing[]
+    }
+  | {
+      kind: "categories"
+      id: string
+      heading: string
+      intro: string
+      cards: DirectoryCategoryCard[]
+    }
 
 /**
  * One card, in the shape the public grid and map already draw.

@@ -16,6 +16,10 @@ import {
   listFrontPageSections,
 } from "@/server/directory/front-page-sections"
 import {
+  directorySettingsFor,
+  saveDirectoryBrowseCategories,
+} from "@/server/directory/settings"
+import {
   categoriesForListing,
   createListing,
   findListing,
@@ -189,6 +193,7 @@ describe("copying CMS site content", () => {
     const rows = await listFrontPageSections(copied.id, database)
     expect(rows.map((row) => row.heading)).toEqual([
       "New this week",
+      "Start somewhere",
       "Restaurants",
     ])
     expect(rows[0]).toMatchObject({ categoryId: null, sort: "newest" })
@@ -199,8 +204,26 @@ describe("copying CMS site content", () => {
     )
     // The copy's own category, not the original's — a row that still pointed at
     // the source site would filter to a category this site cannot see.
-    expect(rows[1]?.categoryId).toBe(restaurants?.id)
-    expect(rows[1]).toMatchObject({ sort: "rating", layout: "list" })
+    expect(rows[2]?.categoryId).toBe(restaurants?.id)
+    expect(rows[2]).toMatchObject({ sort: "rating", layout: "list" })
+
+    // The hand-picked cards are re-pointed too, and keep their order. Ids left
+    // pointing at the original would filter to categories this site cannot see,
+    // and the copied row would silently draw nothing.
+    const food = copiedCategories.find((category) => category.name === "Food")
+    expect(rows[1]).toMatchObject({
+      kind: "categories",
+      categorySource: "picked",
+      pickedCategoryIds: [restaurants?.id, food?.id],
+    })
+
+    // And the browse page's own row of cards, the same way.
+    const settings = await directorySettingsFor(copied.id, database)
+    expect(settings).toMatchObject({
+      browseCategoriesEnabled: true,
+      browseCategorySource: "picked",
+      browsePickedCategoryIds: [food?.id],
+    })
   })
 })
 
@@ -275,6 +298,25 @@ async function seedSourceSite() {
   await createFrontPageSection(
     workspace.id,
     { heading: "New this week", listingCount: 3 },
+    database
+  )
+  await createFrontPageSection(
+    workspace.id,
+    {
+      heading: "Start somewhere",
+      kind: "categories",
+      categorySource: "picked",
+      pickedCategoryIds: [child.id, parent.id],
+    },
+    database
+  )
+  await saveDirectoryBrowseCategories(
+    workspace.id,
+    {
+      browseCategoriesEnabled: true,
+      browseCategorySource: "picked",
+      browsePickedCategoryIds: [parent.id],
+    },
     database
   )
   await createFrontPageSection(

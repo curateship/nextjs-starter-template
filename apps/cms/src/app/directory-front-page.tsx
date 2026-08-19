@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router"
 
+import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
@@ -10,11 +11,11 @@ import type {
 } from "@/lib/directory/front-page"
 
 /**
- * A site's home page: its own title, then the rows of listings it chose.
+ * A site's home page: its own title, then the rows it chose.
  *
- * Every row here has something in it — a row whose filter matched nothing is
- * dropped on the server, so there is no heading over an empty space and no
- * "there are no listings yet" inside a row somebody deliberately configured.
+ * Every row here has something in it — a row that matched nothing is dropped on
+ * the server, so there is no heading over an empty space and no "there are no
+ * listings yet" inside a row somebody deliberately configured.
  *
  * A page with no rows at all never reaches this component: the loader answers
  * "not mine" and the platform's own front page draws instead.
@@ -22,7 +23,10 @@ import type {
 export function DirectoryFrontPage({ data }: { data: DirectoryFrontPageData }) {
   return (
     <DirectoryFrame>
-      <section className="grid gap-4 md:gap-6" aria-labelledby="front-page-title">
+      <section
+        className="grid gap-4 md:gap-6"
+        aria-labelledby="front-page-title"
+      >
         <div className="grid gap-2">
           <h1
             id="front-page-title"
@@ -53,6 +57,37 @@ function FrontPageRow({
   mapApiKey: string | null
 }) {
   const headingId = `front-page-row-${row.id}`
+
+  return (
+    <section className="grid gap-2 md:gap-3" aria-labelledby={headingId}>
+      <div className="grid gap-1">
+        <h2 id={headingId} className="text-lg font-semibold tracking-tight">
+          {row.heading}
+        </h2>
+        {row.intro ? (
+          <p className="max-w-3xl text-sm text-muted-foreground">{row.intro}</p>
+        ) : null}
+      </div>
+
+      {row.kind === "categories" ? (
+        // No "see them all" under a row of categories: every card is already a
+        // way in, and the one below a row of listings exists because a row shows
+        // a handful of many.
+        <CategoryGrid categories={row.cards} />
+      ) : (
+        <ListingsRowBody row={row} mapApiKey={mapApiKey} />
+      )}
+    </section>
+  )
+}
+
+function ListingsRowBody({
+  row,
+  mapApiKey,
+}: {
+  row: Extract<DirectoryFrontPageRow, { kind: "listings" }>
+  mapApiKey: string | null
+}) {
   // A map row's listings always carry both numbers — the server refuses one
   // that does not — but the pins are counted rather than assumed. The map's
   // "showing 12 of 40" line compares these two, and on a home page row there is
@@ -73,16 +108,7 @@ function FrontPageRow({
       : []
 
   return (
-    <section className="grid gap-2 md:gap-3" aria-labelledby={headingId}>
-      <div className="grid gap-1">
-        <h2 id={headingId} className="text-lg font-semibold tracking-tight">
-          {row.heading}
-        </h2>
-        {row.intro ? (
-          <p className="max-w-3xl text-sm text-muted-foreground">{row.intro}</p>
-        ) : null}
-      </div>
-
+    <>
       {row.layout === "map" && mapApiKey ? (
         // The row's own limit is the only cap here, and it is the number the
         // site chose, so `total` matching the pin count is what says "nothing
@@ -105,6 +131,6 @@ function FrontPageRow({
           </Link>
         </Button>
       </div>
-    </section>
+    </>
   )
 }

@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
+import { CategoryPicker } from "@/components/directory/category-picker"
 import { FrontPageSectionsPanel } from "@/components/directory/front-page-sections-panel"
 import { CollapsibleSettingsCard } from "@/components/settings/collapsible-settings-card"
 import { Button } from "@/components/ui/button"
@@ -21,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   clearPublicPages,
   getClearPublicPagesErrorMessage,
+  saveBrowseCategories,
   getDirectorySettingsErrorMessage,
   loadDirectorySettings,
   saveBrowseSettings,
@@ -37,6 +39,8 @@ import {
   DIRECTORY_SORT_LABELS,
   type DirectoryDefaultSort,
 } from "@/lib/directory/public-search"
+import { loadCategories, type Category } from "@/lib/api/directory/categories"
+import type { DirectoryCategorySource } from "@/lib/directory/category-cards"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
@@ -49,6 +53,7 @@ export function DirectorySettings() {
   const [savedGeocodingKey, setSavedGeocodingKey] = React.useState<
     string | null
   >(null)
+  const [categories, setCategories] = React.useState<Category[]>([])
   const [mapKey, setMapKey] = React.useState("")
   const [savedMapKey, setSavedMapKey] = React.useState<string | null>(null)
   const [save, saving] = useAsyncAction(getDirectorySettingsErrorMessage)
@@ -68,12 +73,33 @@ export function DirectorySettings() {
       .catch(() =>
         showErrorToast("The directory settings could not be loaded.")
       )
+    // Read beside the settings rather than inside the card below: the card is
+    // collapsed to begin with, and a picker that fetched on first open would
+    // show an empty list for a moment every time.
+    void loadCategories()
+      .then(setCategories)
+      .catch(() => showErrorToast("The categories could not be loaded."))
   }, [])
 
   const persist = React.useCallback(
     (next: DirectoryBrowseSettingsInput) => {
       const queued = saveQueue.current.then(() =>
         save(() => saveBrowseSettings(next))
+      )
+      saveQueue.current = queued
+      return queued
+    },
+    [save]
+  )
+
+  const persistBrowseCategories = React.useCallback(
+    (next: {
+      browseCategoriesEnabled: boolean
+      browseCategorySource: DirectoryCategorySource
+      browsePickedCategoryIds: string[]
+    }) => {
+      const queued = saveQueue.current.then(() =>
+        save(() => saveBrowseCategories(next))
       )
       saveQueue.current = queued
       return queued
@@ -237,6 +263,81 @@ export function DirectorySettings() {
         <FrontPageSectionsPanel
           mapAvailable={settings.mapEnabled && settings.hasMapKey}
         />
+      </CollapsibleSettingsCard>
+
+      <CollapsibleSettingsCard
+        storageId="directory-browse-categories"
+        title="Category cards on the browse page"
+        description="A row of category cards at the top of the browse page, each with its photo and how many listings are under it."
+        contentClassName="space-y-4"
+      >
+        <div className="flex items-center gap-2">
+          <Switch
+            id="directory-browse-categories"
+            checked={settings.browseCategoriesEnabled}
+            disabled={saving}
+            onCheckedChange={(browseCategoriesEnabled) => {
+              const previous = settings.browseCategoriesEnabled
+              setSettings({ ...settings, browseCategoriesEnabled })
+              void persistBrowseCategories({
+                browseCategoriesEnabled,
+                browseCategorySource: settings.browseCategorySource,
+                browsePickedCategoryIds: settings.browsePickedCategoryIds,
+              }).then((saved) => {
+                if (!saved) {
+                  setSettings((current) =>
+                    current
+                      ? { ...current, browseCategoriesEnabled: previous }
+                      : current
+                  )
+                }
+              })
+            }}
+          />
+          <FieldLabel
+            htmlFor="directory-browse-categories"
+            hint="The cards only show when nothing is searched or filtered, so they never sit on top of somebody's results."
+          >
+            Show category cards on the browse page
+          </FieldLabel>
+        </div>
+
+        {settings.browseCategoriesEnabled ? (
+          <CategoryPicker
+            idPrefix="directory-browse-categories"
+            categories={categories}
+            source={settings.browseCategorySource}
+            pickedIds={settings.browsePickedCategoryIds}
+            disabled={saving}
+            onSourceChange={(browseCategorySource) => {
+              const next = { ...settings, browseCategorySource }
+              setSettings(next)
+              // A switch to hand-picked with nothing picked yet is refused by
+              // the server, so it is not sent until there is something to send.
+              if (
+                browseCategorySource === "top-level" ||
+                next.browsePickedCategoryIds.length
+              ) {
+                void persistBrowseCategories({
+                  browseCategoriesEnabled: next.browseCategoriesEnabled,
+                  browseCategorySource,
+                  browsePickedCategoryIds: next.browsePickedCategoryIds,
+                })
+              }
+            }}
+            onPickedChange={(browsePickedCategoryIds) => {
+              const next = { ...settings, browsePickedCategoryIds }
+              setSettings(next)
+              if (browsePickedCategoryIds.length) {
+                void persistBrowseCategories({
+                  browseCategoriesEnabled: next.browseCategoriesEnabled,
+                  browseCategorySource: next.browseCategorySource,
+                  browsePickedCategoryIds,
+                })
+              }
+            }}
+          />
+        ) : null}
       </CollapsibleSettingsCard>
 
       <CollapsibleSettingsCard

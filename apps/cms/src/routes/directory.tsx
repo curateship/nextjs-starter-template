@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { DirectoryRouteError } from "@/components/directory/public/directory-error"
 import { DirectoryFrame } from "@/components/directory/public/directory-frame"
 import { DirectoryPagination } from "@/components/directory/public/directory-pagination"
+import { CategoryGrid } from "@/components/directory/public/category-grid"
 import { DirectoryToolbar } from "@/components/directory/public/directory-toolbar"
 import { ListingGrid } from "@/components/directory/public/listing-grid"
 import { ListingMap } from "@/components/directory/public/listing-map"
@@ -120,6 +121,7 @@ function DirectoryRoute() {
     browseTitle,
     browseIntro,
     sort,
+    categoryCards,
     mapAvailable,
     map,
   } = Route.useLoaderData()
@@ -180,6 +182,28 @@ function DirectoryRoute() {
           )}
         </p>
       </header>
+
+      {/*
+       * A way in before the tools for narrowing down, and only while nothing has
+       * been narrowed down yet. Once a visitor has searched or picked a category
+       * they have already chosen where to start, and a row of big cards above
+       * their results would push the results they asked for off the screen.
+       *
+       * Empty for a site that never switched this on, and empty again when every
+       * category it chose has nothing published in it — so there is no heading
+       * over a blank space.
+       */}
+      {!anythingApplied && categoryCards.length ? (
+        <section className="grid gap-2 md:gap-3" aria-labelledby="browse-by-category">
+          <h2
+            id="browse-by-category"
+            className="text-lg font-semibold tracking-tight"
+          >
+            Browse by category
+          </h2>
+          <CategoryGrid categories={categoryCards} />
+        </section>
+      ) : null}
 
       <DirectoryToolbar
         current={current}
