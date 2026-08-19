@@ -527,6 +527,7 @@ export async function runBacktest(
     // The run's own rule, read off the ladder it is testing.
     entryLimit: ladder?.params.entryLimit ?? null,
     openedAt: [],
+    liquidatedThisPass: new Set(),
     // Set once a bar, below, from the crash rule the run is testing.
     crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
@@ -829,6 +830,11 @@ export async function runBacktest(
 
     const closeTime = time + barMs
     reachedTo = closeTime
+
+    // A liquidation is "just now" for the length of its own candle: the
+    // ladder must still see it at the candle's end, however many minute
+    // drains happened in between, and must not still see it a day later.
+    book.liquidatedThisPass.clear()
 
     // Funding between candles belongs to the position carried from the last
     // close. The settlement exactly on this close waits until this candle's

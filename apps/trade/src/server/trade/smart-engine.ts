@@ -163,19 +163,6 @@ export type LadderAdvanceInput = {
   ladderBars: LadderBars
   now: number
   /**
-   * The exchange's markets this wallet has money on, when the live feed has
-   * said. Undefined or null means "cannot say" and no buy is filtered —
-   * silence must never read as an empty wallet.
-   *
-   * Hyperliquid keeps each market's money separate, so a buy fired on a
-   * market holding none of the wallet's cash is refused every single time.
-   * The placement paths refuse such coins up front; this is the engine-side
-   * guard for ladders that already exist — without it, one of them sat in a
-   * fire-refused-undone loop, once a second, for as long as price stayed on
-   * a rung.
-   */
-  fundedMarkets?: ReadonlySet<string> | null
-  /**
    * The whole market is falling off a cliff right now.
    *
    * Worked out ONCE by the caller and handed to every order, because the

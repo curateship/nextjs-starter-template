@@ -73,7 +73,6 @@ export function BacktestStatsPanel({
   stats,
   window,
   onWindow,
-  leverage,
   coinsTotal,
   running,
   stopRequested,
@@ -89,7 +88,6 @@ export function BacktestStatsPanel({
   window: GraphWindow
   onWindow: (next: GraphWindow) => void
   /** How much the run borrows — see the tooltip in the graph. */
-  leverage: number
   coinsTotal: number
   /** The run has not finished, so these figures are still moving. */
   running: boolean
@@ -317,9 +315,11 @@ export function BacktestStatsPanel({
                 />
                 <BacktestKpi
                   label="In markets now"
-                  // The pot's line records the margin a position put up, so at
-                  // 2× the money in the market is twice it.
-                  value={stats ? usd(stats.inCoinsUsd * leverage) : "—"}
+                  // Already the coin bought, not the margin behind it —
+                  // `windowStats` multiplies the borrowing in. Multiplying
+                  // again here doubled the tile against the graph's own
+                  // tooltip: $13,541 on the card beside $6,770 on the chart.
+                  value={stats ? usd(stats.inCoinsUsd) : "—"}
                   sub={
                     stats?.openNow === null || stats?.openNow === undefined
                       ? "at the end of the window"

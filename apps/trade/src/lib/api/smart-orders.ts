@@ -48,6 +48,7 @@ import {
 import {
   cancelLadderRest as cancelRestRows,
   cancelWatchOrder as cancelWatchRow,
+  moveWatchOrder as moveWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
   updateLadderExits as updateExitsRows,
@@ -205,6 +206,22 @@ const cancelWatchFn = createServerFn({ method: "POST" })
     return await cancelWatchRow(context.user.id, data.walletId, data.ladderId)
   })
 
+/** Drags a watched price to a new level, while it is still watching. */
+const moveWatchFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    ladderSchema.extend({ px: z.number().positive().finite() })
+  )
+  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+    await tradingWallet(context.user.id, data.walletId)
+    return await moveWatchRow(
+      context.user.id,
+      data.walletId,
+      data.ladderId,
+      data.px
+    )
+  })
+
 const updateLadderExitsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(exitsSchema)
@@ -247,6 +264,14 @@ export function cancelLadderRung(input: z.infer<typeof rungSchema>) {
 
 export function cancelWatch(input: z.infer<typeof ladderSchema>) {
   return cancelWatchFn({ data: input })
+}
+
+export function moveWatch(input: {
+  walletId: string
+  ladderId: string
+  px: number
+}) {
+  return moveWatchFn({ data: input })
 }
 
 export function cancelLadderRest(input: z.infer<typeof ladderSchema>) {
@@ -447,8 +472,6 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     WALLET_INACTIVE: "Make this wallet active before placing a Smart order.",
     LIVE_WALLET_KEY: "This live wallet needs a trading key before it can place a Smart order.",
     LIVE_MARKET: "That market is not one this live wallet can trade.",
-    EXCHANGE_NO_MARGIN:
-      "This coin is on a market where the wallet holds no money — Hyperliquid keeps each market's money separate, so every buy there would be refused. Move margin to that market on Hyperliquid first.",
     LIVE_NO_PRICE: "Hyperliquid would not give a price for that market, so nothing was placed.",
     EXCHANGE_BUSY:
       "Hyperliquid is asking us to slow down, so it would not give a price. Nothing was placed. Try again in a minute — it clears on its own.",

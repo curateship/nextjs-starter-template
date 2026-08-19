@@ -33,6 +33,7 @@ import {
   fetchHyperliquidPortfolio,
   placeHyperliquidOrder,
   setHyperliquidBrackets,
+  modifyHyperliquidOrder,
 } from "@/server/protocols/hyperliquid/orders"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
 import {
@@ -142,6 +143,19 @@ export type ProtocolEntry = {
       auth: OrderAuth,
       params: { marketId: string; orderId: string }
     ): Promise<void>
+    /** Moves one resting real order to a new price, keeping its size and side. */
+    modify(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: {
+        marketId: string
+        orderId: string
+        side: "buy" | "sell"
+        px: number
+        sz: number
+        reduceOnly: boolean
+      }
+    ): Promise<void>
     /** Closes a real position at a capped market price. */
     close(
       network: NetworkId,
@@ -216,6 +230,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     orders: {
       place: placeHyperliquidOrder,
       cancel: cancelHyperliquidOrder,
+      modify: modifyHyperliquidOrder,
       close: closeHyperliquidPosition,
       setBrackets: setHyperliquidBrackets,
       portfolio: fetchHyperliquidPortfolio,

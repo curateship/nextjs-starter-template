@@ -12,6 +12,7 @@ import {
   loadLivePortfolio,
   placeLiveOrder as placeOrderRow,
   setLiveBrackets as setBracketsRow,
+  moveLiveOrder as moveOrderRow,
 } from "@/server/trade/live-orders"
 import { hideLiveTrade as hideTradeRows } from "@/server/trade/live-fills"
 import { loadOrderStyle } from "@/server/trade/prefs"
@@ -130,6 +131,27 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
     return { outcome: await placeOrderRow(context.user.id, data) }
   })
 
+const moveSchema = z.object({
+  walletId: z.string().max(36),
+  marketKey: z.string().max(120),
+  orderId: z.string().max(40),
+  px: z.number().positive().finite(),
+  // The rest of the order, from the row on screen — so the move is one
+  // exchange call instead of a read and then a call. It is the user's own
+  // order on their own account; the exchange checks the id belongs to them.
+  side: z.enum(["buy", "sell"]),
+  sz: z.number().positive().finite(),
+  reduceOnly: z.boolean(),
+})
+
+const moveLiveOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(moveSchema)
+  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+    await moveOrderRow(context.user.id, data)
+    return { moved: true }
+  })
+
 const cancelLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(cancelSchema)
@@ -173,6 +195,10 @@ const hideLiveTradeFn = createServerFn({ method: "POST" })
     await hideTradeRows(context.user.id, data.walletId, data.fillIds)
     return { hidden: true }
   })
+
+export function moveLiveOrder(input: z.infer<typeof moveSchema>) {
+  return moveLiveOrderFn({ data: input })
+}
 
 export function loadLiveTrading() {
   return loadLiveTradingFn()

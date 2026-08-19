@@ -40,9 +40,6 @@ export function flowStartProblem(code: string, walletLabel: string): string {
   if (code.includes("FLOW_ALREADY_RUNNING")) {
     return "This flow is already switched on. Stop it first if you want to start it again with different settings."
   }
-  if (code.includes("FLOW_UNFUNDED_MARKET")) {
-    return `Some of these coins are on markets where ${walletLabel} holds no money — Hyperliquid keeps each market's money separate, so every buy there would be refused. Open the Markets step and choose the coins again; the list now only offers what this wallet can pay for.`
-  }
   if (code.includes("FLOW_WALLET_BUSY")) {
     return `Another flow is already trading ${walletLabel}. Two flows on one wallet would double every position, so stop that one first.`
   }

@@ -20,8 +20,9 @@ export const ORDER_STYLES = ["rest", "watch"] as const
 
 export type OrderStyle = (typeof ORDER_STYLES)[number]
 
-/** Resting, unless somebody has chosen otherwise. */
-export const DEFAULT_ORDER_STYLE: OrderStyle = "rest"
+/** Watching, unless somebody has chosen otherwise: the level stays this
+ * app's own until the market actually reaches it. */
+export const DEFAULT_ORDER_STYLE: OrderStyle = "watch"
 
 export function readOrderStyle(value: unknown): OrderStyle {
   return ORDER_STYLES.includes(value as OrderStyle)

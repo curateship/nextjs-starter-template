@@ -26,9 +26,6 @@ import {
   tradeBacktests,
 } from "@/server/trade/schema"
 
-import { marketsWalletHasMoneyOn } from "@/server/protocols/hyperliquid/user-markets"
-import { findWallet } from "@/server/trade/wallets"
-
 import { createErrorMessage } from "./error-message"
 
 /**
@@ -55,11 +52,9 @@ const testableMarketsFn = createServerFn({ method: "GET" })
     z.object({
       network: z.enum(["mainnet", "testnet"]),
       protocol: z.string().min(1).max(30),
-      /** The wallet this list is for, so it can leave out what it cannot pay for. */
-      walletId: z.string().max(36).nullable().default(null),
     })
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data }) => {
     const entry = listProtocols().find(
       (one) => one.id === data.protocol && one.capabilities.markets
     )
@@ -69,64 +64,25 @@ const testableMarketsFn = createServerFn({ method: "GET" })
     if (!entry) throw new Error("MARKETS_PROTOCOL")
     const catalog = await entry.markets.fetch(data.network)
 
-    // Coins the wallet could not pay for are left out entirely.
-    //
-    // **Hyperliquid keeps each market's money separate.** It hosts a main
-    // market plus however many others people have opened, and cash in the main
-    // account does not back a trade on one of the others — the exchange
-    // refuses those with "Insufficient margin" however healthy the balance
-    // looks. Offering them is offering a coin that can never fill, and the
-    // refusal arrives days later on a flow that looks perfectly healthy.
-    //
-    // Only ever narrowed for a live wallet with a funded-markets answer to
-    // hand. Practice money is not on the exchange at all, and an answer that
-    // has not arrived is never treated as "nothing" — a coin hidden because
-    // the app had not heard yet is one nobody can find or explain.
-    const funded = data.walletId
-      ? await marketsWalletCanPayFor(context.user.id, data.walletId)
-      : null
-    const rows =
-      funded === null
-        ? catalog.rows
-        : catalog.rows.filter((row) => funded.has(marketOf(row.marketId)))
-
+    // Every coin, no funding filter. This list used to hide — then mark —
+    // coins on markets the wallet held no money on, built on the rule that
+    // Hyperliquid kept each market's money separate. The exchange has since
+    // unified the account: orders on any market margin against the one USDC
+    // pool, holds moving on their own as orders need them. Measured on
+    // 18 Aug 2026 — a wallet's five resting xyz buys held $10.01 straight
+    // from its spot balance. There is nothing left to warn about.
     return {
-      rows,
+      rows: catalog.rows,
       /** Whether coins from here can be traded, or only charted and tested. */
       tradeable: entry.capabilities.orders,
     }
   })
 
-/**
- * Which of the exchange's markets this wallet's money is actually on, or null
- * when that cannot be answered and nothing should be narrowed.
- */
-async function marketsWalletCanPayFor(
-  userId: string,
-  walletId: string
-): Promise<Set<string> | null> {
-  const wallet = await findWallet(userId, walletId)
-  // Practice money is not on the exchange, so nothing is out of reach.
-  if (!wallet || wallet.kind !== "live" || !wallet.address) return null
-  const funded = marketsWalletHasMoneyOn(wallet.network, wallet.address)
-  if (funded === null) return null
-  // The main market is always offered: it is where a wallet's cash sits, and a
-  // brand new wallet with nothing in it should still be able to pick a coin.
-  return new Set([...funded, ""])
-}
-
-/** The market a coin belongs to — "xyz" in `xyz:IBM`, "" on the main one. */
-function marketOf(marketId: string): string {
-  const colon = marketId.indexOf(":")
-  return colon > 0 ? marketId.slice(0, colon) : ""
-}
-
 export function loadTestableMarkets(
   network: "mainnet" | "testnet",
-  protocol: string,
-  walletId: string | null = null
+  protocol: string
 ) {
-  return testableMarketsFn({ data: { network, protocol, walletId } })
+  return testableMarketsFn({ data: { network, protocol } })
 }
 
 /** Every exchange that can list markets, for the step's exchange picker. */

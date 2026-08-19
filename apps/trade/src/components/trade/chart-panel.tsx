@@ -357,36 +357,15 @@ export function ChartPanel({
       // the price is touched, is not something a line on a chart can show. The
       // × cancels it and the settings pill opens it, exactly as they do for an
       // order, because both go through the same smart-order path underneath.
-      ...trading.smartOrders.flatMap((order) =>
-        order.kind === "watch" && order.plan.phase === "waiting"
-          ? [
-              {
-                id: order.id,
-                walletId: order.walletId,
-                marketKey: order.marketKey,
-                side: order.plan.side,
-                px: order.plan.triggerPx,
-                sz: order.plan.sz,
-                leverage: order.plan.leverage,
-                maxLeverage: order.plan.maxLeverage,
-                reduceOnly: order.plan.reduceOnly,
-                tpPx: order.plan.tpPx,
-                slPx: order.plan.slPx,
-                createdAt: order.createdAt,
-                updatedAt: order.updatedAt,
-                // No order exists behind this line — see `watched` on
-                // `PaperOrder`. Everything that would reach for one steps
-                // aside; the × still works and goes the smart-order way.
-                watched: true,
-              } satisfies PaperOrder,
-            ]
-          : []
-      ),
+      // Watched prices, from the one shared list — see `watchOrders` on the
+      // hook. Built there so this chart and the Open orders tab can never
+      // disagree about what exists.
+      ...trading.watchOrders,
       // Orders asked for whose answer has not landed yet, so a press shows on
       // the chart at once instead of a second or two later.
       ...trading.placing,
     ],
-    [trading.orders, trading.placing, trading.smartOrders, smartOrderIds]
+    [trading.orders, trading.placing, trading.watchOrders, smartOrderIds]
   )
 
   // The open window follows the poll, because the order under it can move: the
@@ -837,7 +816,6 @@ export function ChartPanel({
           wallet={trading.wallet?.label ?? ""}
           // Real money asks first — the window adds a confirm step that says
           // the order back in dollars before anything is sent.
-          real={trading.wallet?.kind === "live"}
           free={free}
           equity={equity}
           prefs={quickPrefs}

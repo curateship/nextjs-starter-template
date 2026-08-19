@@ -22,6 +22,7 @@ import {
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
   dropIdleWalletFeeds,
+  marketsWalletHasMoneyOn,
   marketsWalletUses,
   walletFeedWarmingUp,
 } from "@/server/protocols/hyperliquid/user-markets"
@@ -49,9 +50,10 @@ import { assertRealMoneySwitchOn } from "@/server/trade/workers"
  *   a protection leg was refused comes back saying exactly that.
  * - **Errors are scrubbed** before they travel — no exchange message can
  *   carry a key back out of this folder.
- * - **Main venue only, for now.** Positions on Hyperliquid's sub-exchanges
- *   would not show in the portfolio read, so placing there is refused rather
- *   than half-supported. The store refuses namespaced ids before calling in.
+ * - **Sub-exchanges are first-class.** Orders place on them, and the
+ *   portfolio read covers every market the wallet holds positions or money
+ *   on — a resting order's margin counts as money, so an order is always
+ *   readable on the market it was placed on.
  */
 
 /** How far through the price a "market" order may fill — 3%, the old app's cap. */
@@ -458,6 +460,52 @@ export async function cancelHyperliquidOrder(
   if (failed !== null) throw new Error(`LIVE_EXCHANGE:${failed}`)
 }
 
+/**
+ * Moves one resting real order to a new price, in place.
+ *
+ * The exchange's own modify action, not a cancel-and-place: the order keeps
+ * its queue identity and there is no moment where the level is unprotected
+ * because the old order died before the new one arrived. Size, side and
+ * reduce-only are re-sent exactly as they are — the drag on the chart only
+ * ever changes the price.
+ */
+export async function modifyHyperliquidOrder(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: {
+    marketId: string
+    orderId: string
+    side: "buy" | "sell"
+    px: number
+    sz: number
+    reduceOnly: boolean
+  }
+): Promise<void> {
+  // Whatever is cached is about to stop being true — same rule as placing.
+  forgetHyperliquidPortfolios()
+  const client = await exchangeClient(network, auth)
+  const asset = await resolveAsset(network, params.marketId)
+  const oid = Number(params.orderId)
+  if (!Number.isSafeInteger(oid) || oid <= 0) throw new Error("LIVE_ORDER_ID")
+
+  try {
+    await client.modify({
+      oid,
+      order: {
+        a: asset.assetId,
+        b: params.side === "buy",
+        p: formatPx(params.px, asset.szDecimals),
+        s: formatSize(params.sz, asset.szDecimals),
+        r: params.reduceOnly,
+        t: { limit: { tif: "Gtc" } },
+        c: newCloid(),
+      },
+    })
+  } catch (error) {
+    throw exchangeError(error)
+  }
+}
+
 // ----- Closing ------------------------------------------------------------
 
 export async function closeHyperliquidPosition(
@@ -813,7 +861,18 @@ async function readHyperliquidPortfolio(
   // entire allowance discovering markets this wallet has never touched and had
   // nothing left to ask a price with. The socket answers the same question for
   // free, and sooner.
-  const told = marketsWalletUses(network, user)
+  const held = marketsWalletUses(network, user)
+  // Money counts as using a market, not only positions. A resting order is
+  // not a position, but its margin is money sitting on that market — and a
+  // wallet whose only xyz activity was five resting buys read as "not using
+  // xyz", so the read below skipped xyz and the orders never showed anywhere
+  // in the app. Placing looked broken; the placing was fine, the reading was
+  // blind.
+  const moneyOn = marketsWalletHasMoneyOn(network, user)
+  const told =
+    held === null && moneyOn === null
+      ? null
+      : [...new Set([...(held ?? []), ...(moneyOn ?? [])])]
 
   // Never sweep while the feed is warming up. A fresh server always starts
   // cold, and sweeping every market the exchange hosts on boot was five

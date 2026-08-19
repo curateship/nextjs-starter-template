@@ -51,7 +51,6 @@ import {
 } from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
 import { pricesWereRationed } from "@/server/protocols/hyperliquid/prices"
-import { marketsWalletHasMoneyOn } from "@/server/protocols/hyperliquid/user-markets"
 import {
   activeSmartOrderId,
   ladderById,
@@ -183,20 +182,6 @@ async function placeLiveDcaLadderOnce(
   }
   if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
     throw new Error("SMART_LADDER_EXISTS")
-  }
-
-  // Hyperliquid keeps each market's money separate, and a rung fired on a
-  // market the wallet holds nothing on is refused every single time. Checked
-  // from the live feed when it has spoken; a feed that has not answered skips
-  // the check rather than reading silence as an empty wallet.
-  const funded = marketsWalletHasMoneyOn(wallet.network, wallet.address)
-  if (funded !== null) {
-    const marketName = ref.marketId.includes(":")
-      ? ref.marketId.slice(0, ref.marketId.indexOf(":"))
-      : ""
-    if (marketName !== "" && !funded.includes(marketName)) {
-      throw new Error("EXCHANGE_NO_MARGIN")
-    }
   }
 
   const protocol = getProtocol(wallet.protocol)
@@ -410,6 +395,7 @@ function ladderPlan(
     green: null,
     steppedDown: 0,
     awaitingSteppedRung: false,
+    awaitingRungAfterWipe: false,
     baseWatch: null,
     reclaim: null,
     // Same as the practice ladder: frozen at placement, see `smart-orders.ts`.
@@ -564,6 +550,21 @@ async function serializeLiveWallet<T>(
     if (reconciles.get(key) === started) reconciles.delete(key)
   }
 }
+
+/**
+ * Markets the exchange just refused an order on, and until when their rungs
+ * stay held back.
+ *
+ * **The loop this prevents makes no claim about WHY the refusal happened.**
+ * A refused rung is undone — put back to waiting — and the next pass would
+ * fire it again: one refused request a second, forever, which is how this app
+ * once rate-limited itself off the exchange. The old shield was a rule about
+ * sub-market money that turned out to be stale; this one simply believes a
+ * refusal for a minute, whatever its reason, so a persistent one costs one
+ * request a minute instead of sixty.
+ */
+const refusalHolds = new Map<string, number>()
+const REFUSAL_HOLD_MS = 60_000
 
 /** Advances live ladders from exchange truth using the same state engine as paper. */
 export async function reconcileLiveLadders(
@@ -833,6 +834,7 @@ async function reconcileLiveLaddersOnce(
     // Filled in by `advanceLadders`, off the plans actually on this wallet.
     entryLimit: null,
     openedAt,
+    liquidatedThisPass: new Set(),
     crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
     // The exchange's own prices for this pass, so what the wallet has left to
@@ -914,15 +916,6 @@ async function reconcileLiveLaddersOnce(
       marks,
       ladderBars: ladderBars as LadderBars,
       now,
-      // Which markets this wallet can actually pay on, from the live feed —
-      // null while it has not spoken, which switches the guard off rather
-      // than reading silence as an empty wallet.
-      fundedMarkets: (() => {
-        const funded = wallet.address
-          ? marketsWalletHasMoneyOn(wallet.network, wallet.address)
-          : null
-        return funded === null ? null : new Set(funded)
-      })(),
     },
     {
       fill: (heldBook, input) => {
@@ -991,6 +984,15 @@ async function reconcileLiveLaddersOnce(
             })
           }
           for (const input of pendingFills) {
+            // Still inside a refusal hold: skip the exchange entirely and put
+            // the rung back to waiting, exactly as a refusal would have.
+            const holdKey = `${wallet.id}:${input.marketKey}`
+            const heldUntil = refusalHolds.get(holdKey) ?? 0
+            if (!input.reduceOnly && Date.now() < heldUntil) {
+              input.undo?.()
+              book.touchedMarkets.delete(input.marketKey)
+              continue
+            }
             marketActionStarted = true
             const mark = marks.get(input.marketKey)
             try {
@@ -1005,6 +1007,7 @@ async function reconcileLiveLaddersOnce(
                 tpPx: null,
                 slPx: null,
               })
+              refusalHolds.delete(holdKey)
               // A rung bought at market. Its fill reaches the record through
               // the exchange like any other, so its order id is written down
               // here too — otherwise the flow's own buys would read as
@@ -1031,6 +1034,7 @@ async function reconcileLiveLaddersOnce(
               const message =
                 error instanceof Error ? error.message : String(error)
               if (!message.startsWith("LIVE_ORDER_REFUSED")) throw error
+              refusalHolds.set(holdKey, Date.now() + REFUSAL_HOLD_MS)
               input.undo?.()
               // The shadow book still holds the phantom fill; keep this pass's
               // bracket step away from it. The next pass rebuilds the book
@@ -1300,20 +1304,6 @@ async function placeLiveGridOrderOnce(
   }
   if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
     throw new Error("SMART_LADDER_EXISTS")
-  }
-
-  // Hyperliquid keeps each market's money separate, and a rung fired on a
-  // market the wallet holds nothing on is refused every single time. Checked
-  // from the live feed when it has spoken; a feed that has not answered skips
-  // the check rather than reading silence as an empty wallet.
-  const funded = marketsWalletHasMoneyOn(wallet.network, wallet.address)
-  if (funded !== null) {
-    const marketName = ref.marketId.includes(":")
-      ? ref.marketId.slice(0, ref.marketId.indexOf(":"))
-      : ""
-    if (marketName !== "" && !funded.includes(marketName)) {
-      throw new Error("EXCHANGE_NO_MARGIN")
-    }
   }
 
   const protocol = getProtocol(wallet.protocol)

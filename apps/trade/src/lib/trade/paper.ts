@@ -186,6 +186,12 @@ export type PaperOrder = {
    * a real exchange.
    */
   watched?: true
+  /**
+   * A real order that waits at a trigger price rather than resting in the
+   * book — a stop or target leg the exchange holds. Its price is not a limit
+   * and must never be rewritten into one.
+   */
+  trigger?: true
 }
 
 /** One fill the practice engine made, and why it made it. */

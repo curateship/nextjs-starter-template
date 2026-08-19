@@ -183,6 +183,87 @@ describe("walking a bar on real minute prices", () => {
     expect(zoomed.equity.length).toBeGreaterThan(BARS.length)
   })
 
+  it("keeps the rungs below alive through a liquidation inside the bar", async () => {
+    // Its own coin: no sell target, so nothing exits on the way down, and at
+    // 2x on a coin capped at 3x the position dies a third below its average
+    // entry — inside this candle. The rung below the wipe has spent nothing
+    // and must still buy. It used to hold only at candle ends: the minute
+    // walk drains its fills every minute, the "was that a liquidation?"
+    // question read the drained list, and the ladder died in exactly the
+    // candle it was built to survive.
+    // The wipe lands near 60 inside the third candle — which never reaches
+    // the deepest rung at 56.8. A FLAT candle follows, and only then does
+    // price dip to the rung. Two candles of "liquidated, holding nothing" is
+    // exactly the state that used to read as "the ladder is finished": the
+    // just-liquidated flag lasted one candle, and mid-crash the crash rule
+    // can hold the re-buy off far longer than that.
+    const crashBar = bar(2, 100, 100.5, 58, 65)
+    const deepBars: CandleBar[] = [
+      bar(0, 100, 101, 99, 100),
+      bar(1, 100, 101, 99, 100),
+      crashBar,
+      bar(3, 65, 66, 64, 65),
+      bar(4, 65, 66, 55, 60),
+      bar(5, 60, 62, 59, 61),
+    ]
+    // 100 → 90 → 58 → 65, minute by minute: rungs fill on the fall and the
+    // wipe lands near 60, above the deepest rung.
+    const path = [100, 90, 58, 65]
+    const perLeg = 240 / (path.length - 1)
+    const minutes: CandleBar[] = []
+    for (let m = 0; m < 240; m += 1) {
+      const leg = Math.min(Math.floor(m / perLeg), path.length - 2)
+      const within = (m - leg * perLeg) / perLeg
+      const from = path[leg]
+      const to = path[leg + 1]
+      const open = from + (to - from) * within
+      const close = from + (to - from) * (within + 1 / perLeg)
+      minutes.push({
+        openTime: crashBar.openTime + m * MINUTE,
+        open,
+        high: Math.max(open, close),
+        low: Math.min(open, close),
+        close,
+        volume: 10,
+      })
+    }
+    const deep = await runBacktest({
+      protocol: "hyperliquid" as const,
+      network: "mainnet" as const,
+      startingUsd: 10_000,
+      costs: defaultPaperCosts(),
+      strategy: {
+        kind: "dca" as const,
+        params: {
+          ...params(),
+          leverage: 2,
+          takeProfit: null,
+          rungs: [{ deviation: 5 }, { deviation: 8 }, { deviation: 35 }],
+        },
+      },
+      interval: "4h" as const,
+      coins: [
+        {
+          ...coin(),
+          bars: deepBars,
+          rules: { ...rules, maxLeverage: 3 },
+        },
+      ],
+      from: START,
+      to: START + deepBars.length * FOUR_HOURS,
+      zoomIn: async (_marketKey, barOpen) =>
+        barOpen === crashBar.openTime ? minutes : null,
+    })
+    const fills = deep.coins[0].fills
+    const wipe = fills.find((f) => f.reason === "liquidated")
+    expect(wipe).toBeDefined()
+    // The deepest rung bought after the wipe — the ladder lived on.
+    const later = fills.filter(
+      (f) => f.side === "buy" && (f.rung ?? -1) >= 2
+    )
+    expect(later.length).toBeGreaterThan(0)
+  })
+
   it("never asks about a bar no rung, target or stop can reach", async () => {
     const asked: number[] = []
     await run(async (_marketKey, barOpen) => {

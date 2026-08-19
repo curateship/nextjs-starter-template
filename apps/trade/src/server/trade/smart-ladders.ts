@@ -409,17 +409,17 @@ export async function advanceOne(
       // cancel by hand, or a buy the account could no longer afford.
       const exitId = exitOrderIdOf(rung.orderId)
       rung.orderId = null
-      // Half way down a candle a rung is never written off. Its order may have
-      // been dropped a minute ago because the account could not afford it, and
-      // "skipped" is for ever — that is what emptied every deep rung of every
-      // ladder on 10 October 2025 once the walk started working ladders inside
-      // the candle. Left waiting, the end-of-candle pass decides as it always
-      // did, at the price the candle finished on.
-      rung.status = fillFor("buy", rung.px, rung.sz)
-        ? "filled"
-        : input.midCandle
-          ? "waiting"
-          : "skipped"
+      // A rung whose order vanished without filling goes back to WAITING —
+      // never "skipped". The only thing that drops a rung's order besides a
+      // fill is the engine refusing it for money, and money comes back; a
+      // cancel by hand marks the rung "cancelled" itself and never comes
+      // through here. The revive pass owns a waiting rung from there: it
+      // re-arms it above the market, fires it at the market when price has
+      // already passed it and the wallet rules allow, and otherwise keeps
+      // waiting. "Skipped for ever" is what emptied CLO's deepest rung on
+      // 6 Feb 2026 — dropped for cash mid-crash, stamped skipped at the
+      // candle's end, never bought the bottom it was built for.
+      rung.status = fillFor("buy", rung.px, rung.sz) ? "filled" : "waiting"
       // The exit that rode along with the buy is already on the book, or has
       // already filled. Claiming it here is what stops the block below from
       // placing a second sell at the same price.
@@ -501,9 +501,22 @@ export async function advanceOne(
   //
   // Only the rungs that had already bought are gone with the position. The
   // ones still waiting have spent nothing, so nothing has happened to them.
-  const wipedOut = book.fills.some(
-    (fill) => fill.marketKey === row.marketKey && fill.reason === "liquidated"
-  )
+  // Off the sticky set, not off `fills`: a minute-walked candle drains its
+  // fills every minute, and the evidence disappeared before this question was
+  // asked — the ladder died in exactly the candle it was built to survive.
+  //
+  // And REMEMBERED ON THE PLAN, because one candle is not long enough either:
+  // mid-crash the crash rule itself can refuse the re-buy for candles on end
+  // — a 3x coin during a cascade with a 10x floor — and the pass after the
+  // flag faded read the ladder as finished. CLO on 6 Feb 2026 lost its rung 6
+  // exactly that way.
+  if (book.liquidatedThisPass.has(row.marketKey) && anyWaiting) {
+    if (!plan.awaitingRungAfterWipe) {
+      plan.awaitingRungAfterWipe = true
+      changed = true
+    }
+  }
+  const wipedOut = plan.awaitingRungAfterWipe
 
   const over =
     // The trade exited — stop, target, closed by hand, or every slice sold.
@@ -562,6 +575,11 @@ export async function advanceOne(
     // Something is held again, so whatever the stop took has been replaced.
     if (plan.awaitingSteppedRung) {
       plan.awaitingSteppedRung = false
+      changed = true
+    }
+    // And whatever the exchange took has been re-bought: the wipe is over.
+    if (plan.awaitingRungAfterWipe) {
+      plan.awaitingRungAfterWipe = false
       changed = true
     }
 
@@ -779,26 +797,47 @@ async function reviveRungs(
   for (const rung of plan.rungs) {
     if (rung.status !== "waiting" || rung.dead || rung.orderId) continue
     changed = true
-    // A rung the price has already gone past does NOT get its order back.
+    // A rung the price has already gone past FIRES AT THE MARKET, exactly as
+    // it would live — never as a resting order at its own stale price.
     //
-    // This looks like a rung being lost and it is not. Rungs are put back
-    // AFTER the bar is settled, so re-placing one below the market means an
-    // order at a price the market has already left — it fills on the next bar
-    // at the old price, and its "sell at the rung above" is higher still and
-    // fills at once too. The pair reads as a profitable round trip on a market
-    // that has done nothing but fall. Removing this check turned one DEXE
-    // crash into a column of buy-then-sell arrows all the way down.
+    // Live, a rung is a trigger: price at or under the level with money free
+    // means buy now, at whatever the price is. The replay used to write these
+    // rungs off instead ("skipped"), because re-resting a LIMIT below the
+    // market fills next bar at the price the market already left and
+    // manufactures money — one DEXE crash became a column of free round
+    // trips that way. Filling at the CURRENT mark keeps both truths: the
+    // rung still buys, and it pays today's price, not yesterday's. CLO on
+    // 6 Feb 2026 is the case this exists for — the crash rule rightly held
+    // its deepest rung back while price fell through the level, and "skipped
+    // for ever" was the replay lying about what live would have done.
     //
-    // The real cost — rungs the price passed inside one candle never buying —
-    // is a question of WHEN rungs are put back, not whether. Fixing it here
-    // manufactures money.
+    // The same gates as a live trigger: never mid-candle (the end-of-candle
+    // price is the honest one), never opening a coin the wallet-wide rules
+    // refuse, never with money that is not there — and a refusal leaves the
+    // rung WAITING, to try again when the rule lets go.
     if (mark !== null && mark <= rung.px) {
-      // Half way down a candle the moment has NOT passed — the candle is still
-      // happening. Left waiting, so the rung is still there when the cash that
-      // dropped its order comes back a few minutes later. Writing it off here
-      // is what left ACE holding one rung on 10 October 2025 while the four
-      // below it were cancelled three minutes after they were dropped.
-      if (!input.midCandle) rung.status = "skipped"
+      if (input.midCandle) continue
+      if (!mayOpenCoin(input.book, row.marketKey, plan.maxLeverage, input.now)) {
+        continue
+      }
+      const px = slippedPx(mark, "buy", input.book.costs.slippageRate)
+      if (px * rung.sz < MIN_ORDER_USD) continue
+      if ((px * rung.sz) / plan.leverage > deps.freeCash(input.book) + 1e-9) {
+        continue
+      }
+      deps.fill(input.book, {
+        marketKey: row.marketKey,
+        side: "buy",
+        px,
+        sz: rung.sz,
+        feeRate: input.book.costs.takerFeeRate,
+        leverage: plan.leverage,
+        maxLeverage: plan.maxLeverage,
+        reduceOnly: false,
+        reason: "order",
+        at: input.now,
+      })
+      rung.status = "filled"
       continue
     }
     rung.orderId = await deps.insertOrder({
@@ -1052,7 +1091,7 @@ function stepDownAfterStop(
  */
 function reclaimRung(
   plan: LadderPlan,
-  input: Pick<LadderAdvanceInput, "book" | "marks" | "now" | "fundedMarkets">,
+  input: Pick<LadderAdvanceInput, "book" | "marks" | "now">,
   deps: LadderEngineDeps,
   row: LadderRow
 ): boolean {
@@ -1069,7 +1108,6 @@ function reclaimRung(
   if (mark === null || !(mark > 0)) return false
 
   // Kept armed, not thrown away: money can be moved onto the market later.
-  if (!marketIsFunded(input, row.marketKey)) return false
 
   const sz = floorSize(reclaim.dollars / mark, plan.sizeDecimals)
   const cost = sz * mark
@@ -1123,10 +1161,7 @@ function reclaimRung(
  */
 function watchCandles(
   plan: LadderPlan,
-  input: Pick<
-    LadderAdvanceInput,
-    "book" | "ladderBars" | "now" | "fundedMarkets"
-  >,
+  input: Pick<LadderAdvanceInput, "book" | "ladderBars" | "now">,
   deps: LadderEngineDeps,
   marketKey: string
 ): boolean {
@@ -1179,7 +1214,6 @@ function watchCandles(
       (rung) => rung.status === "waiting" && !rung.dead && rung.touched
     )
     if (!next) continue
-    if (!marketIsFunded(input, marketKey)) continue
 
     // Bought at the confirming candle's close, at market — so it pays the
     // spread. And it spends the rung's DOLLARS at that price, rather than a
@@ -1238,24 +1272,6 @@ function watchCandles(
  * and the next look is seconds away.
  */
 /**
- * Whether this coin's market is one the wallet can actually pay on.
- *
- * True when nobody can say — the feed being cold is not an empty wallet — and
- * always true for the main market, where the cash lives.
- */
-function marketIsFunded(
-  input: Pick<LadderAdvanceInput, "fundedMarkets">,
-  marketKey: string
-): boolean {
-  if (input.fundedMarkets === undefined || input.fundedMarkets === null) {
-    return true
-  }
-  const parts = marketKey.split(":")
-  const market = parts.length > 3 ? parts[2] : ""
-  return market === "" || input.fundedMarkets.has(market)
-}
-
-/**
  * May this ladder open a NEW coin on this wallet right now?
  *
  * The wallet-wide rules — the entry cap and the crash rule's leverage floor —
@@ -1295,7 +1311,6 @@ function fireRungsOnMark(
 ): boolean {
   const mark = input.marks.get(marketKey)
   if (mark === undefined || !(mark > 0)) return false
-  if (!marketIsFunded(input, marketKey)) return false
 
   let changed = false
   for (const rung of plan.rungs) {

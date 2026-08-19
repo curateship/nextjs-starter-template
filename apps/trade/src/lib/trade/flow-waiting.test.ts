@@ -177,9 +177,10 @@ describe("the exchange refusing in its own words", () => {
       new Error("LIVE_EXCHANGE:order 0: Insufficient margin to place order. asset=2470001")
     )
     expect(code).toBe("EXCHANGE_NO_MARGIN")
-    // Hyperliquid keeps each market's money separate, so this is not "you are
-    // broke" — it is "your money is in the other market".
-    expect(flowWaitWords(code)).toContain("keeps each market's money separate")
+    // Since Hyperliquid unified its account this really does mean the money
+    // is short — the old words blamed a wall between markets that no longer
+    // exists.
+    expect(flowWaitWords(code)).toContain("not enough money free")
     expect(flowWaitIsProblem(code)).toBe(true)
   })
 

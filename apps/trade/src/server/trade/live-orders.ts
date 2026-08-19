@@ -245,6 +245,56 @@ export async function placeLiveOrder(
   }
 }
 
+/**
+ * Drags one resting real order to a new price.
+ *
+ * The exchange's modify action keeps the order itself alive — same id, same
+ * size, same side — so there is no gap where the level has nothing on it.
+ *
+ * **One exchange call, nothing read first.** Size, side and reduce-only come
+ * from the row on screen, because a drag has to land the moment the hand lets
+ * go — reading the portfolio back just to learn what the browser was already
+ * showing added seconds to every drop. The exchange still owns the truth: an
+ * order that filled or died mid-drag is its refusal to give, and the refusal
+ * path journals it like any other.
+ */
+export async function moveLiveOrder(
+  userId: string,
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    px: number
+    side: PaperSide
+    sz: number
+    reduceOnly: boolean
+  }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    await ordersOf(protocol).modify(row.network, authFor(row), {
+      marketId: ref.marketId,
+      orderId: input.orderId,
+      side: input.side,
+      px: input.px,
+      sz: input.sz,
+      reduceOnly: input.reduceOnly,
+    })
+    await journal(userId, row.id, input.marketKey, {
+      action: "placed",
+      side: input.side,
+      px: input.px,
+      sz: input.sz,
+      note: "Moved to a new price.",
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
 export async function cancelLiveOrder(
   userId: string,
   input: { walletId: string; marketKey: string; orderId: string }

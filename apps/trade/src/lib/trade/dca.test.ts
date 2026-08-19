@@ -215,6 +215,7 @@ describe("ladder plans", () => {
     green: null,
     steppedDown: 0,
     awaitingSteppedRung: false,
+    awaitingRungAfterWipe: false,
     baseWatch: null,
     reclaim: null,
   }

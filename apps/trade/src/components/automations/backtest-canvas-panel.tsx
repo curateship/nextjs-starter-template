@@ -475,7 +475,10 @@ export default function BacktestCanvasPanel({
               <div className="grid gap-1.5">
                 <Line
                   label="Made or lost"
-                  value={formatSignedUsd(summary.madeOrLost)}
+                  // The percent rides along because it is the half that can be
+                  // held against another run — the dollars only mean anything
+                  // next to the pot they came out of.
+                  value={`${formatSignedUsd(summary.madeOrLost)} (${summary.madeOrLostPct >= 0 ? "+" : ""}${Math.round(summary.madeOrLostPct)}%)`}
                   tone={toneClass(summary.madeOrLost)}
                 />
                 <Line
@@ -484,7 +487,13 @@ export default function BacktestCanvasPanel({
                 />
                 <Line
                   label="Worst dip"
-                  value={formatUsd(summary.worstDipUsd)}
+                  // Runs saved before the percent was recorded only have the
+                  // dollars, and dollars alone beat "-null%".
+                  value={
+                    summary.worstDipPct === null
+                      ? formatUsd(summary.worstDipUsd)
+                      : `${formatUsd(summary.worstDipUsd)} (-${Math.round(summary.worstDipPct)}%)`
+                  }
                 />
                 <Line
                   label="Buy and hold"
@@ -494,6 +503,21 @@ export default function BacktestCanvasPanel({
               </div>
 
               <div className="grid gap-1.5 border-t pt-3">
+                <Line
+                  label="Days tested"
+                  value={
+                    run
+                      ? String(
+                          Math.max(
+                            1,
+                            Math.round(
+                              (run.spec.to - run.spec.from) / 86_400_000
+                            )
+                          )
+                        )
+                      : "—"
+                  }
+                />
                 <Line label="Coins tested" value={String(summary.coinsTested)} />
                 <Line label="Trades" value={String(summary.trades)} />
                 <Line

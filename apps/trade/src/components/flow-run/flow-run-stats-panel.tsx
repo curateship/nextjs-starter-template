@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import type { FlowRunReport } from "@/lib/api/flow-runs"
 import { formatDate } from "@/lib/format/format-time"
+import { DCA_TP_MODE_LABELS } from "@/lib/trade/dca"
 import { formatHeld } from "@/lib/trade/live-trades"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
@@ -263,8 +264,15 @@ export function FlowRunStatsPanel({
                   {roundedPct(spec.strategy.params.maxPositionPct)}
                 </Line>
                 {spec.strategy.params.takeProfit ? (
-                  <Line label="Gets out at">
-                    {roundedPct(spec.strategy.params.takeProfit.pct)}
+                  // The percent only means something in "average" mode — the
+                  // rung modes aim at the rungs themselves, and printing the
+                  // unused 2% here read as a setting the run never had.
+                  <Line label="Gets out">
+                    {spec.strategy.params.takeProfit.mode === "average"
+                      ? `${roundedPct(spec.strategy.params.takeProfit.pct)} above its average`
+                      : DCA_TP_MODE_LABELS[
+                          spec.strategy.params.takeProfit.mode
+                        ].toLowerCase()}
                   </Line>
                 ) : null}
               </>

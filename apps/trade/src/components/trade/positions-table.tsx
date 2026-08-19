@@ -732,8 +732,11 @@ export function OpenOrdersTable({
           </TableStateRow>
         ) : (
         rows.map((order) => (
-          <tr
+          <TableRow
             key={order.id}
+            // The whole row charts its market, same as a position's row — one
+            // action the width of the panel. Cancel keeps its own click.
+            rowAction={() => onSelectMarket(order.marketKey)}
             className="border-t hover:bg-muted/40"
           >
             <MarketCell
@@ -769,7 +772,9 @@ export function OpenOrdersTable({
                   not the order's to say — a dash beats a made-up number. */}
               {order.live ? "—" : `${order.leverage}×`}
             </Cell>
-            <td className="px-3 py-2 text-left whitespace-nowrap">
+            {/* Named so a click on a DISABLED cancel — whose button lets the
+                click fall through — does not read as a click on the row. */}
+            <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
               <span className="flex items-center gap-0.5">
                 <Button
                   type="button"
@@ -783,7 +788,7 @@ export function OpenOrdersTable({
                 </Button>
               </span>
             </td>
-          </tr>
+          </TableRow>
         ))
         )}
       </tbody>

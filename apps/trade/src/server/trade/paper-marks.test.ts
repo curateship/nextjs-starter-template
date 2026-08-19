@@ -78,6 +78,7 @@ function bookWith(orders: PaperOrder[]): WalletBook {
     goneOrderIds: new Set(),
     entryLimit: null,
     openedAt: [],
+    liquidatedThisPass: new Set(),
     crashEntry: { cascading: false, leastLeverage: null },
     addedOrders: [],
     ordersVersion: 0,

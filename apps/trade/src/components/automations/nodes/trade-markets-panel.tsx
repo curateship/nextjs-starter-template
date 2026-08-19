@@ -313,11 +313,7 @@ export default function TradeMarketsFields({
       }
       for (let attempt = 0; ; attempt += 1) {
         try {
-          const loaded = await loadTestableMarkets(
-            network,
-            protocol,
-            wallet?.id ?? null
-          )
+          const loaded = await loadTestableMarkets(network, protocol)
           listCache.set(listKey, {
             at: Date.now(),
             rows: loaded.rows,

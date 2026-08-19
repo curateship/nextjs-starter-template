@@ -120,7 +120,7 @@ export function ActivityPanel({
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
-          count={countOf(trading.orders.length)}
+          count={countOf(trading.orders.length + trading.watchOrders.length)}
         />
         <WorkspacePanelTab
           value="journal"
@@ -167,7 +167,10 @@ export function ActivityPanel({
       <TabsContent value="orders" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <OpenOrdersTable
-            orders={trading.orders}
+            // Real, practice and watched in one list — a watched price IS an
+            // open order to the person who placed it, wherever it happens to
+            // be held.
+            orders={[...trading.orders, ...trading.watchOrders]}
             markets={markets}
             walletName={walletName}
             busy={trading.busy}

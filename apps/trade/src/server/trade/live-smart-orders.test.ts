@@ -26,14 +26,6 @@ const setBrackets = vi.fn()
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
 // call to nothing.
-/** What the exchange's feed says the wallet has money on. Null = no answer. */
-const fundedMarkets = vi.hoisted(() => ({ value: null as string[] | null }))
-
-vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
-  marketsWalletHasMoneyOn: () => fundedMarkets.value,
-  awaitMarketsWalletHasMoneyOn: async () => fundedMarkets.value,
-}))
-
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
@@ -146,7 +138,6 @@ beforeEach(async () => {
   fills.mockResolvedValue([])
   cancel.mockResolvedValue(undefined)
   setBrackets.mockResolvedValue(undefined)
-  fundedMarkets.value = null
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -258,21 +249,6 @@ describe("live Smart orders", () => {
     expect(fills.mock.calls[0][2]).toBe(started - 60_000)
   })
 
-  it("refuses placing on a market the wallet holds no money on", async () => {
-    fundedMarkets.value = [""]
-    await expect(
-      placeLiveDcaLadder(userId, wallet, {
-        marketKey: "hyperliquid:testnet:magm:OBOA4",
-        clickPx: 100,
-        interval: "1m",
-        params: params(),
-      })
-    ).rejects.toThrow("EXCHANGE_NO_MARGIN")
-    expect(
-      await database.select().from(tradeSmartLadders)
-    ).toHaveLength(0)
-  })
-
   it("puts a rung back when the exchange definitely refused its buy", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
@@ -301,33 +277,6 @@ describe("live Smart orders", () => {
     expect(place).toHaveBeenCalled()
     const rows = await database.select().from(tradeSmartLadders)
     expect(rows[0].status).toBe("active")
-  })
-
-  it("never fires a rung on a market the wallet holds no money on", async () => {
-    // A ladder that already exists on an unfunded market — placed before the
-    // guard, or while the feed was cold. Without this the dip fired it, the
-    // exchange refused it, the undo put it back, and the next pass fired it
-    // again: one refused order a second for as long as price sat there.
-    await placeLiveDcaLadder(userId, wallet, {
-      marketKey: MARKET,
-      clickPx: 100,
-      interval: "1m",
-      params: params(),
-    })
-    await database
-      .update(tradeSmartLadders)
-      .set({
-        marketKey: "hyperliquid:testnet:magm:OBOA4",
-        updatedAt: new Date(Date.now() - 3_000),
-      })
-      .where(eq(tradeSmartLadders.userId, userId))
-    fundedMarkets.value = [""]
-    prices.mockResolvedValue(new Map([["magm:OBOA4", 94]]))
-
-    await reconcileLiveLadders(userId, wallet)
-
-    expect(place).not.toHaveBeenCalled()
-    expect((await ladder()).rungs[0].status).toBe("waiting")
   })
 
   it("does not claim an unrelated manual fill at the same price", async () => {

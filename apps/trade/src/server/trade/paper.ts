@@ -206,6 +206,17 @@ export type WalletBook = {
   /** Every moment this wallet went from flat to holding, oldest first. */
   openedAt: number[]
   /**
+   * Markets liquidated inside the current pass.
+   *
+   * The ladder asks "did a liquidation just take my position?" to keep its
+   * waiting rungs alive — and it used to read the answer off `fills`, which a
+   * minute-walked candle drains every minute. The evidence vanished before
+   * the question was asked, and the ladder died exactly where it was built to
+   * survive. This set is cleared by whoever owns the pass, never by the
+   * drain.
+   */
+  liquidatedThisPass: Set<string>
+  /**
    * The whole market is falling off a cliff right now, and the least leverage
    * the exchange must allow on a coin before a NEW one may be opened while it
    * lasts. Null is off.
@@ -391,6 +402,9 @@ export function fill(
     orderId: input.orderId ?? null,
   })
   book.touchedMarkets.add(input.marketKey)
+  if (input.reason === "liquidated") {
+    book.liquidatedThisPass.add(input.marketKey)
+  }
 }
 
 function dropOrder(book: WalletBook, orderId: string): void {
@@ -843,6 +857,7 @@ async function readBook(
     openedAt: positions
       .map((row) => row.createdAt.getTime())
       .sort((left, right) => left - right),
+    liquidatedThisPass: new Set(),
     crashEntry: { cascading: false, leastLeverage: null },
     ordersVersion: 0,
     addedOrders: [],

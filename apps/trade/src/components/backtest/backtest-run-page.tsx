@@ -394,7 +394,6 @@ export function BacktestRunPage({
       stats={graphStats}
       window={window}
       onWindow={setWindow}
-      leverage={leverage}
       coinsTotal={coins.length}
       running={!done}
       stopRequested={run.stopRequested || stopping}

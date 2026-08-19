@@ -73,7 +73,15 @@ export function SmartOrdersPanel({
   // written before that was recorded reads as a hand-placed one — which is
   // what it looks like on screen anyway.
   const mine = React.useMemo(
-    () => smartOrders.filter((order) => order.flowRunId === null),
+    () =>
+      smartOrders.filter(
+        // A watched price is a plain order that has not fired yet — it shares
+        // the smart orders' table because the engine watches it the same way,
+        // but it is not a strategy and it already has a line on the chart and
+        // a row under Open orders. Listing it here too made one order read as
+        // two things.
+        (order) => order.flowRunId === null && order.kind !== "watch"
+      ),
     [smartOrders]
   )
   const marks = useLiveMarks(mine.map((one) => one.marketKey))

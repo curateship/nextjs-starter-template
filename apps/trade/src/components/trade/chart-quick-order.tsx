@@ -14,7 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import { type MarketRow } from "@/lib/protocols/contracts"
 import { bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
@@ -58,8 +58,6 @@ export function ChartQuickOrder({
   market,
   /** The wallet this order will go to — not always the one whose lines you are looking at. */
   wallet,
-  /** Real money: the window asks first, saying the order back in dollars. */
-  real,
   /** Cash free to put behind a trade, from the account panel's own figures. */
   free,
   /** Everything the wallet is worth — cash and open positions together. */
@@ -72,7 +70,6 @@ export function ChartQuickOrder({
   quick: QuickOrderState
   market: MarketRow
   wallet: string
-  real: boolean
   free: number
   equity: number
   /** How the window was set up the last time it placed an order. */
@@ -101,12 +98,6 @@ export function ChartQuickOrder({
 }) {
   const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
 
-  // Whether this is the practice network, straight off the market's own key —
-  // a live wallet can only trade markets on its own network, so the market is
-  // the truth. It only changes the WORDS: a testnet confirm must never read
-  // as real money.
-  const testnet = parseMarketKey(market.key)?.network === "testnet"
-
   // What the market costs right now. An order asking for a price already
   // through it is taken immediately at this instead, so this — not the level
   // clicked — is the price the stop and the target have to be measured from.
@@ -134,7 +125,6 @@ export function ChartQuickOrder({
   const [reduceOnly, setReduceOnly] = React.useState(false)
   // Real money only: the first press turns the button into the question, the
   // second press answers it. Any edit takes the question back.
-  const [confirming, setConfirming] = React.useState(false)
 
   const buy = quick.side === "buy"
 
@@ -239,12 +229,6 @@ export function ChartQuickOrder({
 
   const submit = () => {
     if (!ready) return
-    // Real money asks first: the same button, now carrying the order said
-    // back in dollars. Nothing is sent until it is pressed again.
-    if (real && !confirming) {
-      setConfirming(true)
-      return
-    }
     // Sent and let go of. The window shuts on the press rather than sitting
     // there spinning through a round trip to the exchange — the order is
     // already on the chart, and a refusal arrives as a toast if one comes.
@@ -271,8 +255,6 @@ export function ChartQuickOrder({
     onClose()
   }
 
-  /** Any edit takes the confirm question back — it was about the old order. */
-  const unconfirm = () => setConfirming(false)
 
   return (
     <>
@@ -324,9 +306,7 @@ export function ChartQuickOrder({
           </span>
         </div>
 
-        {/* Typing anywhere takes a pending real-money confirm back — the
-            question was about the order as it stood when it was asked. */}
-        <div className="grid gap-4 p-3" onInput={unconfirm}>
+        <div className="grid gap-4 p-3">
           <div className="grid gap-2">
             <div className="flex items-start gap-2">
               <Label htmlFor="quick-size" className="sr-only">
@@ -371,7 +351,6 @@ export function ChartQuickOrder({
                 value={sizeUnit}
                 onValueChange={(next) => {
                   setSizeUnit(next as SizeUnit)
-                  unconfirm()
                 }}
               >
                 <SelectTrigger className="w-fit" aria-label="How size is measured">
@@ -395,7 +374,6 @@ export function ChartQuickOrder({
                   onClick={() => {
                     setSizeUnit("pct")
                     setSizeInput(String(share))
-                    unconfirm()
                   }}
                 >
                   {share}%
@@ -428,7 +406,6 @@ export function ChartQuickOrder({
                 value={[leverage]}
                 onValueChange={([next]) => {
                   setLeverage(next)
-                  unconfirm()
                 }}
                 aria-label="Leverage"
               />
@@ -447,7 +424,6 @@ export function ChartQuickOrder({
                   disabled={byRisk}
                   onCheckedChange={(next) => {
                     setBracketOn(next === true)
-                    unconfirm()
                   }}
                 />
               </DisabledReason>
@@ -495,30 +471,10 @@ export function ChartQuickOrder({
               checked={reduceOnly}
               onCheckedChange={(next) => {
                 setReduceOnly(next === true)
-                unconfirm()
               }}
             />
             <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
           </div>
-
-          {real && confirming ? (
-            // The order said back in dollars — what a real exchange order asks
-            // for before it moves. Pressing the button again is the answer.
-            // On the practice network the question still gets asked (it is the
-            // rehearsal for the real thing) but says plainly it is pretend.
-            <p className="rounded-md bg-amber-500/10 px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400">
-              {testnet ? `Testnet order in ${wallet} — pretend money` : `Real money in ${wallet}`}
-              : {buy ? "buy" : "sell"} about{" "}
-              {formatUsd(sizeCoin * entryPx)} of {market.symbol}
-              {takenNow
-                ? `, filling straight away at about ${formatPrice(mark)}`
-                : `, waiting at ${formatPrice(quick.px)}`}
-              {bracketOn && stopPx && targetPx
-                ? `, with a stop at ${formatPrice(stopPx)} and a target at ${formatPrice(targetPx)}`
-                : ""}
-              .
-            </p>
-          ) : null}
 
           <Button
             type="button"
@@ -531,11 +487,7 @@ export function ChartQuickOrder({
                 : "bg-red-600 hover:bg-red-600/90"
             )}
           >
-            {real && confirming
-              ? testnet
-                ? `Confirm — ${buy ? "buy" : "sell"} on testnet`
-                : `Confirm — ${buy ? "buy" : "sell"} for real`
-              : `${buy ? "Buy" : "Sell"} ${market.symbol}`}
+            {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
           </Button>
         </div>
       </div>

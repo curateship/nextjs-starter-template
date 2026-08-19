@@ -44,7 +44,10 @@ describe("the limit a replay is closed out by", () => {
     // limit is the one that will really apply.
     fetchMarkets.mockImplementation((id: string) =>
       Promise.resolve({
-        rows: [row("SIREN", id === "hyperliquid" ? 3 : null)],
+        // A lookup, not a comparison — the protocol fence bans comparing
+        // against a protocol name anywhere, tests included, and a record
+        // says the same thing.
+        rows: [row("SIREN", { hyperliquid: 3 }[id] ?? null)],
       })
     )
 

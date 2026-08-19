@@ -27,10 +27,18 @@ const perpDexs = vi.fn()
 const allPerpMetas = vi.fn()
 const userFillsByTime = vi.fn()
 /** The funding feed, controllable. Warming = just opened, nothing pushed yet. */
-const feedState = vi.hoisted(() => ({ warming: false }))
+const feedState = vi.hoisted(
+  () => ({ warming: false, moneyOn: null }) as {
+    warming: boolean
+    moneyOn: string[] | null
+  }
+)
 
 vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
   marketsWalletUses: () => null,
+  // Steerable, and null by default so the other tests keep driving venue
+  // coverage through `marketsWalletUses` and the warm-up flag alone.
+  marketsWalletHasMoneyOn: () => feedState.moneyOn,
   walletFeedWarmingUp: () => feedState.warming,
   dropIdleWalletFeeds: () => {},
 }))
@@ -407,6 +415,48 @@ describe("reading the portfolio", () => {
     expect(portfolio.positions).toHaveLength(1)
     expect(portfolio.positions[0].marketId).toBe("xyz:IBM")
     expect(portfolio.positions[0].marginUsed).toBe(155)
+  })
+
+  it("reads a market the wallet only has money on — a resting order is not a position", async () => {
+    // The day this is for: five buys resting on xyz, nothing filled yet. No
+    // position anywhere, so the positions feed says nothing — but the orders'
+    // margin is money on xyz, and a market the app never reads is a market
+    // whose orders never show. Placing looked broken; the reading was blind.
+    feedState.moneyOn = ["xyz"]
+    try {
+      perpDexs.mockResolvedValue([null, { name: "xyz" }])
+      allPerpMetas.mockResolvedValue([
+        { universe: [{ name: "BTC", szDecimals: 5 }] },
+        { universe: [{ name: "IBM", szDecimals: 2 }] },
+      ])
+      clearinghouseState.mockResolvedValue({ assetPositions: [] })
+      frontendOpenOrders.mockImplementation(async ({ dex }: { dex: string }) =>
+        dex === "xyz"
+          ? [
+              {
+                oid: 7,
+                coin: "xyz:IBM",
+                side: "B",
+                limitPx: "220",
+                sz: "1",
+                isTrigger: false,
+                triggerPx: "0",
+                reduceOnly: false,
+                orderType: "Limit",
+                isPositionTpsl: false,
+              },
+            ]
+          : []
+      )
+
+      const portfolio = await fetchHyperliquidPortfolio(
+        "testnet",
+        `0x${"8".repeat(40)}`
+      )
+      expect(portfolio.orders.map((one) => one.marketId)).toContain("xyz:IBM")
+    } finally {
+      feedState.moneyOn = null
+    }
   })
 
   it("skips flat positions and fails loudly on unreadable figures", async () => {

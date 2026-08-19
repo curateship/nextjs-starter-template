@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, ne } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -325,6 +325,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     green: null,
     steppedDown: 0,
     awaitingSteppedRung: false,
+    awaitingRungAfterWipe: false,
     baseWatch: null,
     reclaim: null,
     // Frozen onto the ladder at placement, like every other rule here: editing
@@ -536,7 +537,14 @@ export async function activeSmartOrderId(
         eq(tradeSmartLadders.userId, userId),
         eq(tradeSmartLadders.walletId, walletId),
         eq(tradeSmartLadders.marketKey, marketKey),
-        eq(tradeSmartLadders.status, "active")
+        eq(tradeSmartLadders.status, "active"),
+        // A watched price is a plain order that shares this table, not a
+        // strategy. The one-per-coin rule exists so two strategies cannot
+        // both manage the same position — a plain order manages nothing, so
+        // it neither blocks a ladder nor is blocked by one. Before plain
+        // orders became watches, they rested on the book and this rule never
+        // saw them; becoming a row here must not change what they may do.
+        ne(tradeSmartLadders.kind, "watch")
       )
     )
     .limit(1)
@@ -922,9 +930,9 @@ export async function placeWatchOrder(
       .from(tradeWallets)
       .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
       .for("update")
-    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
-    if (race) throw new Error("SMART_LADDER_EXISTS")
-
+    // No one-per-coin check: several plain orders on one coin were always
+    // allowed when they rested on the book, and a ladder on the coin is no
+    // reason to refuse a hand-placed order beside it.
     await tx.insert(tradeSmartLadders).values({
       userId,
       id: randomUUID(),
@@ -994,4 +1002,48 @@ export async function cancelWatchOrder(
       and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
     )
   return { cancelled: true }
+}
+
+/**
+ * Drags a watched price to a new level.
+ *
+ * Only while it is still WATCHING. Once the level has been touched the chase
+ * is working the exchange, and the thing on screen is an order in flight, not
+ * a line to reposition — moving the trigger then would be rewriting history.
+ */
+export async function moveWatchOrder(
+  userId: string,
+  walletId: string,
+  watchId: string,
+  px: number
+): Promise<{ moved: true }> {
+  if (!(px > 0)) throw new Error("SMART_ORDER_PRICE")
+  const [row] = await db
+    .select()
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.id, watchId),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+  const plan = readWatchPlan(row.plan)
+  if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
+  if (plan.phase !== "waiting" || plan.orderId !== null) {
+    throw new Error("SMART_WATCH_TAKING")
+  }
+  await db
+    .update(tradeSmartLadders)
+    .set({
+      plan: { ...plan, triggerPx: px },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+    )
+  return { moved: true }
 }

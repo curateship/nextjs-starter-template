@@ -755,6 +755,17 @@ export const ladderPlanSchema = z.object({
    */
   awaitingSteppedRung: z.boolean().default(false),
   /**
+   * The position was liquidated and a waiting rung has not re-bought yet.
+   *
+   * ON THE PLAN, because "just liquidated" can last for days: mid-crash the
+   * crash rule itself may refuse the re-buy for candles on end, and a flag
+   * that only lived for the liquidation's own candle let the ladder be read
+   * as "bought something, holding nothing — done" one bar later. A ladder
+   * ends when its rungs are used up, never because the exchange took the
+   * position. Cleared the moment something is held again.
+   */
+  awaitingRungAfterWipe: z.boolean().default(false),
+  /**
    * The 4h base the stop is riding, and how far the watch has read. Kept so a
    * settle four seconds after the last one costs no candles: the level can
    * only change when a 4h bar closes.

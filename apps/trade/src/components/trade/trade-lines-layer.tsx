@@ -360,8 +360,13 @@ export function TradeLinesLayer({
         `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
           orderCostUsd(order)
         )}${tag}${settled ? "" : " · sending"}`,
+      // Every kind drags except a real trigger leg. A practice order
+      // re-prices its row, a real resting order is moved in place by the
+      // exchange's modify, and a watched price changes the level the app is
+      // watching — the hook routes each to its own door. A trigger's price is
+      // not a limit, and the modify door would rewrite it into one.
       onMove:
-        settled && !order.live && !order.watched
+        settled && !order.trigger
           ? (price) => onMoveOrder(order.walletId, order.id, price)
           : undefined,
       onRemove: settled

@@ -55,6 +55,17 @@ const rateLimitOnce = new Set<string>()
 
 // Only `getProtocol` is replaced. The store still chooses the adapter from the
 // full market key, while this scripted adapter keeps the worker test offline.
+// The worker's own concerns are claiming, retries and finishing. The minute
+// zoom has its own tests; here its fetches would only relabel the mock's
+// 4-hour bars as minutes and grind the store for nothing.
+vi.mock("@/server/trade/backtest/zoom", () => ({
+  createBarZoom: () => ({
+    read: async () => null,
+    zoomedBars: () => 0,
+    coinsWithoutMinutes: () => [],
+  }),
+}))
+
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
@@ -589,6 +600,10 @@ describe("a run the worker picks up", () => {
     expect(left.map((group) => group.id)).toEqual([newer.groupId])
   })
 
+  // Sixty seconds for the same reason the config gives hooks sixty: twenty
+  // coins of real store reads is ten-plus seconds on its own, and under a
+  // parallel suite it was the one test that timed out, in a different run
+  // each week.
   it("finishes a run with far more coins than the failure limit", async () => {
     // The bug this is here for: `attempts` counted CLAIMS, and a run lets go of
     // its claim every few coins on purpose — so anything past a couple of
@@ -620,7 +635,7 @@ describe("a run the worker picks up", () => {
       .where(eq(tradeBacktests.groupId, groupId))
     expect(coins).toHaveLength(20)
     expect(coins.every((coin) => coin.status === "done")).toBe(true)
-  })
+  }, 60_000)
 
   it("says so out loud when it really has run out of tries", async () => {
     // A group at the limit is never claimed again, so without this it sits

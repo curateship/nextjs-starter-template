@@ -92,6 +92,9 @@ export function livePortfolioRows(
     createdAt: now,
     updatedAt: now,
     live: true,
+    // Kept on the row so the chart knows this line is a trigger: dragging it
+    // through the modify door would rewrite a stop into a resting limit.
+    ...(order.trigger ? { trigger: true as const } : {}),
   }))
 
   return { positions, orders }

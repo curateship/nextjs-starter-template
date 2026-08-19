@@ -9,6 +9,7 @@ import {
   placeLiveOrder,
   setLiveBrackets,
   hideLiveTrade,
+  moveLiveOrder,
 } from "@/lib/api/live"
 import {
   cancelPaperOrder,
@@ -38,6 +39,7 @@ import {
   cancelWatch,
   reconcileLiveSmartOrders,
   updateLadderExits,
+  moveWatch,
 } from "@/lib/api/smart-orders"
 import {
   parseMarketKey,
@@ -115,6 +117,14 @@ export type Trading = {
   /** Held across every wallet, practice and real alike. */
   positions: PaperPosition[]
   orders: PaperOrder[]
+  /**
+   * Watched prices drawn as the orders they stand in for. A plain order is a
+   * watch by default now, so it has to sit in the Open orders tab and on the
+   * chart like any other — one list built HERE, because two screens each
+   * building their own was how the tab ended up empty while the chart drew
+   * the line.
+   */
+  watchOrders: PaperOrder[]
   /**
    * Orders asked for whose answer has not come back yet. Kept apart from the
    * ones that really exist: the chart draws them so a press is seen at once,
@@ -481,6 +491,38 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     })
   }, [allOrders, dropped])
 
+  const watchOrders = React.useMemo(
+    () =>
+      smartOrders.flatMap((order): PaperOrder[] =>
+        order.kind === "watch" && order.plan.phase === "waiting"
+          ? [
+              {
+                id: order.id,
+                walletId: order.walletId,
+                marketKey: order.marketKey,
+                side: order.plan.side,
+                // A drag's dropped price holds here the same way it does for a
+                // real order, so the line never blinks back mid-save.
+                px: dropped.get(order.id) ?? order.plan.triggerPx,
+                sz: order.plan.sz,
+                leverage: order.plan.leverage,
+                maxLeverage: order.plan.maxLeverage,
+                reduceOnly: order.plan.reduceOnly,
+                tpPx: order.plan.tpPx,
+                slPx: order.plan.slPx,
+                createdAt: order.createdAt,
+                updatedAt: order.updatedAt,
+                // No order exists behind this row — see `watched` on
+                // `PaperOrder`. Everything that would reach for one steps
+                // aside; the × still works and goes the smart-order way.
+                watched: true,
+              },
+            ]
+          : []
+      ),
+    [smartOrders, dropped]
+  )
+
   const positions = React.useMemo(() => {
     if (droppedBrackets.size === 0) return allPositions
     return allPositions.map((position) => {
@@ -576,13 +618,6 @@ export function useTrading(wallet: TradeWallet | null): Trading {
   const move: Trading["move"] = React.useCallback(
     async (walletId, orderId, px) => {
       const order = findOrder(orderId)
-      if (order?.live) {
-        // The chart never offers this drag; the guard is for any other path.
-        showErrorToast(
-          "A real order cannot be dragged to a new price yet — cancel it and place a new one."
-        )
-        return
-      }
       // Let go only of this drop. A second drag while the first is still
       // saving owns the line now, and releasing its hold here would show the
       // first price again for as long as the second save takes.
@@ -596,9 +631,31 @@ export function useTrading(wallet: TradeWallet | null): Trading {
 
       setDropped((held) => new Map(held).set(orderId, px))
       try {
-        await movePaperOrder({ walletId, orderId, px })
+        if (order?.watched) {
+          // A watched price is a row of ours, not an order anywhere — moving
+          // it is rewriting the level the app is watching for.
+          await moveWatch({ walletId, ladderId: orderId, px })
+        } else if (order?.live) {
+          // A real order moves on the exchange itself — same order, same
+          // size, new price. The refusal path journals anything it disliked.
+          await moveLiveOrder({
+            walletId,
+            marketKey: order.marketKey,
+            orderId,
+            px,
+            side: order.side,
+            sz: order.sz,
+            reduceOnly: order.reduceOnly,
+          })
+        } else {
+          await movePaperOrder({ walletId, orderId, px })
+        }
       } catch (error) {
-        showErrorToast(getPaperErrorMessage(error))
+        showErrorToast(
+          order?.live
+            ? getLiveErrorMessage(error)
+            : getPaperErrorMessage(error)
+        )
       } finally {
         // Held until a read has actually landed, so the line never flicks back
         // to where it was for a frame — a read the poll overtook does not count.
@@ -932,6 +989,7 @@ export function useTrading(wallet: TradeWallet | null): Trading {
     failed: failed && paperAnswer === null && liveAnswer === null,
     retry: () => void refresh(),
     place,
+    watchOrders,
     move,
     cancel,
     editOrder,

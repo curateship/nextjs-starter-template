@@ -6,6 +6,9 @@ The code lives in `src/server/trade/backtest/engine.ts` (the walk),
 `src/server/trade/backtest/zoom.ts` (fetching the minutes), and
 `src/server/trade/paper.ts` (the wallet the walk spends from).
 
+The rules this machinery must add up to are stated once, in
+`trading-rules.md` — that file outranks both this doc and the code.
+
 ## How it worked before
 
 A backtest walked one 4-hour candle at a time, one coin at a time.

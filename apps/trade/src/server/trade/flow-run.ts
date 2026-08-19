@@ -30,7 +30,6 @@ import {
   assertRealOrdersAllowed,
   scrubSecrets,
 } from "@/server/protocols/hyperliquid/signing"
-import { awaitMarketsWalletHasMoneyOn } from "@/server/protocols/hyperliquid/user-markets"
 import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
@@ -85,7 +84,6 @@ export type FlowStartRefusal =
   | "FLOW_WRONG_EXCHANGE"
   | "FLOW_ALREADY_RUNNING"
   | "FLOW_WALLET_BUSY"
-  | "FLOW_UNFUNDED_MARKET"
   | "FLOW_MAINNET_OFF"
   | "FLOW_NO_INDICATORS"
   | "FLOW_STRATEGY_UNREADABLE"
@@ -155,28 +153,6 @@ export async function flowRunSpec(
   })
   if (wrong || markets.data.protocol !== wallet.protocol) {
     throw new Error("FLOW_WRONG_EXCHANGE")
-  }
-
-  // Hyperliquid keeps each of its markets' money separate: cash in the main
-  // account does not back a trade on a market somebody else opened, and the
-  // exchange refuses those buys one by one, at fire time, forever. Asked here
-  // — the one moment a human is pressing a button and can fix the list — so
-  // the flow never carries coins it can only ever be refused on. The exchange
-  // is given a moment to answer; silence skips the check rather than treating
-  // no answer as an empty wallet.
-  if (wallet.kind === "live" && wallet.address) {
-    const funded = await awaitMarketsWalletHasMoneyOn(
-      wallet.network,
-      wallet.address
-    )
-    if (funded !== null) {
-      const allowed = new Set([...funded, ""])
-      const unfunded = markets.data.marketKeys.some((key) => {
-        const parts = key.split(":")
-        return !allowed.has(parts.length > 3 ? parts[2] : "")
-      })
-      if (unfunded) throw new Error("FLOW_UNFUNDED_MARKET")
-    }
   }
 
   // Mainnet signing is gated twice — the environment master lock and the
