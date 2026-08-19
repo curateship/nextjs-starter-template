@@ -65,6 +65,8 @@ export const signalPlanSchema = z.object({
   stakeUsd: z.number().positive(),
   /** The market's rules, frozen at placement — the engine sizes from these. */
   sizeDecimals: z.number().nullable(),
+  /** The market's smallest price step, frozen with the rest. Null: no tick stated. */
+  priceTick: z.number().nullable().default(null),
   maxLeverage: z.number().positive(),
   phase: z.enum(SIGNAL_PHASES),
   /** The order resting on the book right now, and where it is resting. */

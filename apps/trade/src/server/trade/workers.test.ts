@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import type { CustomShellDb } from "@/server/db"
+import { assertRealMoneySwitchOn } from "@/server/protocols/real-money"
 import { createTestDatabase } from "@/server/test-support"
 import {
-  assertRealMoneySwitchOn,
   realMoneySwitch,
   setRealMoneySwitch,
 } from "@/server/trade/workers"

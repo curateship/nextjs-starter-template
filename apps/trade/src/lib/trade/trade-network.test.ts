@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  marketKeyOnNetwork,
+  marketKeyOnDashboard,
   resolveTradeNetwork,
 } from "@/lib/trade/trade-network"
 
@@ -32,9 +32,18 @@ describe("which network the page is on", () => {
     expect(resolveTradeNetwork(undefined, "moonnet")).toBe("mainnet")
   })
 
-  it("knows which network a saved market belongs to", () => {
-    expect(marketKeyOnNetwork("hyperliquid:mainnet:BTC", "mainnet")).toBe(true)
-    expect(marketKeyOnNetwork("hyperliquid:mainnet:BTC", "testnet")).toBe(false)
-    expect(marketKeyOnNetwork("junk", "mainnet")).toBe(false)
+  it("knows which dashboard a saved market belongs to", () => {
+    expect(
+      marketKeyOnDashboard("hyperliquid:mainnet:BTC", "hyperliquid", "mainnet")
+    ).toBe(true)
+    expect(
+      marketKeyOnDashboard("hyperliquid:mainnet:BTC", "hyperliquid", "testnet")
+    ).toBe(false)
+    // The memory is shared across dashboards, so another exchange's coin must
+    // read as "nothing remembered here", never as a missing market.
+    expect(
+      marketKeyOnDashboard("hyperliquid:mainnet:BTC", "phemex", "mainnet")
+    ).toBe(false)
+    expect(marketKeyOnDashboard("junk", "hyperliquid", "mainnet")).toBe(false)
   })
 })

@@ -369,7 +369,7 @@ export async function advanceOne(
   const { book, now } = input
   const plan = row.plan
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals)
+    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
   let changed = false
 
   // ----- Is the market falling off a cliff? ------------------------------

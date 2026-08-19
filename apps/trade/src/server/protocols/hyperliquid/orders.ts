@@ -26,13 +26,10 @@ import {
   marketsWalletUses,
   walletFeedWarmingUp,
 } from "@/server/protocols/hyperliquid/user-markets"
-import {
-  agentSigner,
-  assertRealOrdersAllowed,
-  scrubbedMessage,
-} from "@/server/protocols/hyperliquid/signing"
+import { agentSigner } from "@/server/protocols/hyperliquid/signing"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
-import { assertRealMoneySwitchOn } from "@/server/trade/workers"
+import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
+import { scrubbedMessage } from "@/server/protocols/scrub"
 
 /**
  * Real orders against Hyperliquid — the one file that signs.
@@ -250,12 +247,11 @@ export function orderTimeInForce(
  * life is the length of one request. See `signing.ts` for why.
  */
 async function exchangeClient(network: NetworkId, auth: OrderAuth) {
-  assertRealOrdersAllowed(network)
-  // The Settings toggle sits behind that master lock: real money also has to
-  // be switched on in the app itself. Checked here on the one path that
-  // signs, so no screen and no future endpoint can route around it. Testnet
-  // skips both layers, exactly as before.
-  if (network !== "testnet") await assertRealMoneySwitchOn()
+  // Both real-money layers — the deploy-time master lock and the Settings
+  // toggle — checked here on the one path that signs, so no screen and no
+  // future endpoint can route around them. Testnet skips both, exactly as
+  // before.
+  await assertRealMoneyAllowed(network)
   const signer = agentSigner(auth.agentKey)
   return new ExchangeClient({
     transport: new HttpTransport({ isTestnet: network === "testnet" }),

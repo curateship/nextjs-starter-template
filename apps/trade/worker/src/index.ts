@@ -26,10 +26,7 @@ import {
   advanceWorkingLadders,
   lastPass,
 } from "@/server/trade/ladder-worker"
-import {
-  livePrices,
-  livePricesFresh,
-} from "@/server/protocols/hyperliquid/live-prices"
+import { listProtocols } from "@/server/protocols/registry"
 import { tryBecomeLeader, type Leadership } from "@/server/trade/leadership"
 import { writeHeartbeat } from "@/server/trade/workers"
 
@@ -63,9 +60,19 @@ let stopping = false
  * Workers screen is the difference between a spare and a mistake.
  */
 async function sayAlive(role: "leader" | "standby"): Promise<void> {
-  const feed = livePricesFresh("mainnet")
-    ? `Live, ${livePrices("mainnet").prices.size} markets`
-    : "Asking for prices"
+  // One line per exchange that has a pushed-price hub at all, whatever
+  // network it is serving — the heartbeat is about the machinery being up,
+  // and mainnet is where the engine's wallets live.
+  const feed = listProtocols()
+    .filter((protocol) => protocol.livePrices)
+    .map((protocol) => {
+      const hub = protocol.livePrices!
+      const state = hub.fresh("mainnet")
+        ? `live, ${hub.read("mainnet").prices.size} markets`
+        : "asking"
+      return `${protocol.label}: ${state}`
+    })
+    .join(" · ")
   await writeHeartbeat({
     id: WORKER_ID,
     kind: "ladders",

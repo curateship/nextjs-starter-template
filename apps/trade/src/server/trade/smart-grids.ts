@@ -58,7 +58,7 @@ export async function advanceGrid(
   const { book, now } = input
   const plan = row.plan
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals)
+    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
   const mark = input.marks.get(row.marketKey) ?? null
   let changed = false
 

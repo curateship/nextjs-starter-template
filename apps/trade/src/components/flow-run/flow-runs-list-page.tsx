@@ -1,6 +1,12 @@
 import * as React from "react"
 import { Link, useRouter } from "@tanstack/react-router"
-import { ActivityIcon, Trash2Icon } from "lucide-react"
+import {
+  ActivityIcon,
+  PauseIcon,
+  PlayIcon,
+  SquareIcon,
+  Trash2Icon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
@@ -23,6 +29,11 @@ import {
   removeFlowRuns,
   type FlowRunListRow,
 } from "@/lib/api/flow-runs"
+import {
+  flowActionProblem,
+  pauseFlow,
+  stopFlow,
+} from "@/lib/api/flow-trading"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -43,9 +54,11 @@ import { cn } from "@/lib/utils"
  * list would spend the whole minute's allowance on a page nobody is trading
  * from. The run's own page adds what is open, and says so where it does.
  *
- * There is no rename, pin or delete here, deliberately. A backtest is a
- * document somebody made; a run is a record of money that moved, and tidying
- * one away is not a thing this screen should offer.
+ * There is no rename or pin here, deliberately. A backtest is a document
+ * somebody made; a run is a record of money that moved. What a running row
+ * DOES offer is the two acts somebody comes to this page for: pause it where
+ * it stands, or stop it — the same two buttons its canvas carries, because a
+ * run that needs you should not first need the walk back to its canvas.
  */
 type Column = "flow" | "wallet" | "working" | "net" | "started"
 
@@ -61,6 +74,9 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
   const [direction, setDirection] = React.useState<"asc" | "desc">("desc")
   const [deleting, setDeleting] = React.useState<string[] | null>(null)
   const [deleteBusy, setDeleteBusy] = React.useState(false)
+  /** The run whose Stop is being confirmed, and the row an action is busy on. */
+  const [stopping, setStopping] = React.useState<FlowRunListRow | null>(null)
+  const [actingId, setActingId] = React.useState<string | null>(null)
   const { selected, toggle, toggleVisible, clear, selectAllState } =
     useSelection()
 
@@ -101,6 +117,21 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
     [runs]
   )
   const chosen = [...selected].filter((id) => deletable.includes(id))
+
+  /** Pause, resume and stop share one shape: do it, say so, redraw at once. */
+  const act = async (row: FlowRunListRow, what: () => Promise<{ summary: string }>) => {
+    setActingId(row.id)
+    try {
+      const answer = await what()
+      toast.success(answer.summary)
+      setStopping(null)
+      await refresh()
+    } catch (error) {
+      showErrorToast(flowActionProblem(error, row.walletLabel))
+    } finally {
+      setActingId(null)
+    }
+  }
 
   const remove = async (ids: string[]) => {
     setDeleteBusy(true)
@@ -286,6 +317,40 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
           </TableCell>
           <TableCell column="actions">
             <div className="flex justify-end gap-1">
+              {row.status === "running" ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={actingId === row.id}
+                    aria-label={
+                      row.paused
+                        ? `Resume ${row.automationName}`
+                        : `Pause ${row.automationName}`
+                    }
+                    onClick={() =>
+                      void act(row, () => pauseFlow(row.automationId, !row.paused))
+                    }
+                  >
+                    {row.paused ? (
+                      <PlayIcon className="size-3.5" />
+                    ) : (
+                      <PauseIcon className="size-3.5" />
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={actingId === row.id}
+                    aria-label={`Stop ${row.automationName}`}
+                    onClick={() => setStopping(row)}
+                  >
+                    <SquareIcon className="size-3.5" />
+                  </Button>
+                </>
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"
@@ -304,6 +369,28 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
         </TableRow>
       ))}
     </DashboardTable>
+
+      <ConfirmDialog
+        open={stopping !== null}
+        onOpenChange={(open) => {
+          if (!open) setStopping(null)
+        }}
+        title="Stop this flow?"
+        description={
+          <>
+            It stops looking for coins and calls off the{" "}
+            {plural(stopping?.working ?? 0, "ladder", "ladders")} it placed
+            that have not bought anything. A coin already held keeps its
+            position, its stop and its target. To leave everything exactly as
+            it is, use <strong>Pause</strong> instead.
+          </>
+        }
+        confirmLabel="Stop it"
+        loading={stopping !== null && actingId === stopping.id}
+        onConfirm={() => {
+          if (stopping) void act(stopping, () => stopFlow(stopping.automationId))
+        }}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

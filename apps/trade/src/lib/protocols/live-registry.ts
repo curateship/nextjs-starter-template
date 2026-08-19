@@ -6,6 +6,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import * as hyperliquidStream from "@/lib/protocols/hyperliquid/stream"
+import * as phemexStream from "@/lib/protocols/phemex/stream"
 
 /**
  * The browser-side twin of the server's protocol registry: hand it a
@@ -42,6 +43,7 @@ export type LiveAdapter = {
  */
 const LIVE_ADAPTERS: Partial<Record<ProtocolId, LiveAdapter>> = {
   hyperliquid: hyperliquidStream,
+  phemex: phemexStream,
 }
 
 export function getLiveAdapter(id: ProtocolId): LiveAdapter | undefined {

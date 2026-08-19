@@ -45,6 +45,7 @@ function coins(howMany: number): BacktestCoin[] {
     symbol: `C${i}`,
     rules: {
       sizeDecimals: 3,
+      priceTick: null,
       maxLeverage: i % 2 === 0 ? 3 : 10,
       volume24hUsd: 1_000_000_000,
     },

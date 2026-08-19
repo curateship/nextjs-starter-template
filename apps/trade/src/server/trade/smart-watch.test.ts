@@ -87,6 +87,7 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     leverage: 1,
     maxLeverage: 50,
     sizeDecimals: 3,
+    priceTick: null,
     tpPx: null,
     slPx: null,
     reduceOnly: false,

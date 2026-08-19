@@ -238,8 +238,8 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_MAINNET_OFF:
     "Real-money trading is switched off on this server. It stays off until the funded test run passes and TRADE_ENABLE_MAINNET is deliberately set.",
   LIVE_NO_PRICE:
-    "Hyperliquid would not give a price for that market, so nothing was sent.",
-  LIVE_UNLISTED: "Hyperliquid does not list that market for orders.",
+    "The exchange would not give a price for that market, so nothing was sent.",
+  LIVE_UNLISTED: "The exchange does not list that market for orders.",
   LIVE_TAKE_PROFIT_SIDE:
     "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
   LIVE_TAKE_PROFIT_SIZE:
@@ -253,7 +253,7 @@ const LIVE_SENTENCES: Record<string, string> = {
     "That order is not on the exchange any more — it may have filled or been cancelled elsewhere.",
   LIVE_POSITION_GONE: "That position is not on the exchange any more.",
   LIVE_UNREADABLE:
-    "Hyperliquid answered with figures that could not be read, so nothing was done.",
+    "The exchange answered with figures that could not be read, so nothing was done.",
   SECRET_UNREADABLE:
     "The stored trading key could not be unlocked on this server. Open the wallet's settings and paste the key again.",
   ENCRYPTION_NOT_CONFIGURED:

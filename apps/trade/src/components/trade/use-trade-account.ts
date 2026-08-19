@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import type { ProtocolId } from "@/lib/protocols/contracts"
 import { loadWalletAccounts, pickWallet } from "@/lib/api/wallets"
 import { keepGoodSummaries } from "@/lib/trade/wallets"
 import type {
@@ -17,6 +18,11 @@ import type {
  * request went out. A poll that fails keeps the last good figures on screen
  * and tries again next tick; only a first load with nothing to show yet
  * surfaces an error.
+ *
+ * Scoped to ONE exchange — the page's. Every dashboard belongs to exactly
+ * one, and a Hyperliquid wallet sitting in the Phemex page's account column
+ * reads as money that page could trade, which it cannot. Wallets on other
+ * exchanges stay untouched server-side; this page simply does not show them.
  */
 
 const REFRESH_MS = 15_000
@@ -40,7 +46,7 @@ export type TradeAccount = {
   switchWallet: (walletId: string) => void
 }
 
-export function useTradeAccount(): TradeAccount {
+export function useTradeAccount(protocol: ProtocolId): TradeAccount {
   const [wallets, setWallets] = React.useState<TradeWallet[] | null>(null)
   const [summaries, setSummaries] = React.useState<
     ReadonlyMap<string, WalletAccountSummary>
@@ -65,7 +71,7 @@ export function useTradeAccount(): TradeAccount {
     try {
       const answer = await loadWalletAccounts()
       if (requestRef.current !== request) return
-      setWallets(answer.wallets)
+      setWallets(answer.wallets.filter((one) => one.protocol === protocol))
       // A wallet the exchange would not answer for keeps the figures it last
       // had, until it has missed enough reads to be worth saying out loud.
       const merged = keepGoodSummaries(
@@ -84,7 +90,7 @@ export function useTradeAccount(): TradeAccount {
       // figures already up, the next tick is the retry.
       setFailed(true)
     }
-  }, [])
+  }, [protocol])
 
   React.useEffect(() => {
     // The first read is scheduled rather than called in the effect body, so

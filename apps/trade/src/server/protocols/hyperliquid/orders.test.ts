@@ -13,11 +13,11 @@ import {
   venueAssetId,
 } from "@/server/protocols/hyperliquid/orders"
 import {
-  assertRealOrdersAllowed,
   agentAddress,
   normalizeAgentKey,
-  scrubSecrets,
 } from "@/server/protocols/hyperliquid/signing"
+import { assertRealOrdersAllowed } from "@/server/protocols/real-money"
+import { scrubSecrets } from "@/server/protocols/scrub"
 
 // The portfolio read is tested against fixtures, not the network.
 const clearinghouseState = vi.fn()

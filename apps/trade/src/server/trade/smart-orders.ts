@@ -113,6 +113,7 @@ export type LadderDraftInput = {
   base: number | null
   rules: {
     sizeDecimals: number | null
+    priceTick: number | null
     maxLeverage: number | null
     volume24hUsd: number | null
   }
@@ -293,6 +294,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     anchor: params.anchor,
     baseDetection: params.baseDetection,
     sizeDecimals: rules.sizeDecimals,
+    priceTick: rules.priceTick,
     maxLeverage,
     leverage,
     rungs,
@@ -373,7 +375,7 @@ export async function placeDcaLadder(
   if (existing) throw new Error("SMART_LADDER_EXISTS")
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals)
+  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
   // One mark fetch covers the settle, the sizing and the marketable check.
   const keys = await exposedMarketKeys(userId, [wallet.id])
@@ -698,7 +700,7 @@ export async function updateLadderExits(
 
   const protocol = getProtocol(wallet.protocol)
   const roundPx = (px: number) =>
-    protocol.markets.roundPx(px, plan.sizeDecimals)
+    protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
   // Leaving "sell at previous rung" takes its resting sells off the book.
   const leavingPrevRung =
@@ -910,6 +912,7 @@ export async function placeWatchOrder(
     leverage: input.leverage,
     maxLeverage: rules.maxLeverage ?? 1,
     sizeDecimals: rules.sizeDecimals,
+    priceTick: rules.priceTick,
     tpPx: input.tpPx,
     slPx: input.slPx,
     reduceOnly: input.reduceOnly,

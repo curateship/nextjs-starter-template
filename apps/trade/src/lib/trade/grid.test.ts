@@ -228,6 +228,7 @@ describe("reading a stored grid back", () => {
     maxOrderVolPct: 0,
     startedAt: 1,
     sizeDecimals: 4,
+    priceTick: null,
     maxLeverage: 20,
     levels: [
       {

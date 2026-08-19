@@ -17,10 +17,46 @@
  * adding an exchange is a deliberate edit here — the one shared file — plus a
  * new module behind it, never a stray name invented at a call site.
  */
-export type ProtocolId = "hyperliquid" | "binance"
+export type ProtocolId = "hyperliquid" | "binance" | "phemex"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
+
+/**
+ * How one exchange signs a person in, as data the wallet dialog renders —
+ * labels, patterns and help copy, never a protocol id to compare against.
+ *
+ * Two families exist so far. Hyperliquid is wallet-shaped: a public account
+ * address plus a separate trading key. A centralized exchange is API-key
+ * shaped: the key's id (public enough to sit in the `address` column) plus a
+ * secret, and on some venues a third value, the passphrase. The dialog draws
+ * whichever fields the form names and sends them; the server packs them into
+ * one encrypted blob whose format belongs to the protocol alone.
+ */
+export type CredentialForm = {
+  /** What the public identifier is called: "Account address", "API key id". */
+  addressLabel: string
+  /** Example text for the identifier field. */
+  addressHint: string
+  /**
+   * What the identifier must look like, as a regular expression source the
+   * SERVER checks (the dialog may use it for early feedback). Kept simple on
+   * purpose — shape, not truth; the verify call is what proves a credential.
+   */
+  addressPattern: string
+  /** What the secret is called: "Trading key (agent key)", "API secret". */
+  secretLabel: string
+  /** True on an exchange that needs a passphrase beside the secret. */
+  needsPassphrase: boolean
+  /**
+   * True when the secret is an EVM agent key — the dialog then applies the
+   * agent-key shape checks and the "never your main key" warning that only
+   * make sense for that family.
+   */
+  secretIsAgentKey: boolean
+  /** One short paragraph: where to make the credential and what it may do. */
+  keyHelp: string
+}
 
 /**
  * What one protocol can and cannot do. Screens read these flags instead of
@@ -56,7 +92,31 @@ export type MarketRef = {
   marketId: string
 }
 
-const KNOWN_PROTOCOLS: readonly ProtocolId[] = ["hyperliquid", "binance"]
+/**
+ * Every id, as a value — exported so the endpoints that accept a protocol
+ * from the browser build their allow-lists from this one list instead of
+ * hardcoding a copy that would silently miss the next exchange.
+ */
+export const KNOWN_PROTOCOLS = [
+  "hyperliquid",
+  "binance",
+  "phemex",
+] as const satisfies readonly ProtocolId[]
+
+/**
+ * Each exchange's printed name. A lookup rather than capitalising the id,
+ * because real names do not follow from ids ("KuCoin" will not), and kept in
+ * this one protocol-aware file so no screen ever spells an exchange itself.
+ */
+const PROTOCOL_LABELS: Record<ProtocolId, string> = {
+  hyperliquid: "Hyperliquid",
+  binance: "Binance",
+  phemex: "Phemex",
+}
+
+export function protocolLabel(id: ProtocolId): string {
+  return PROTOCOL_LABELS[id]
+}
 const KNOWN_NETWORKS: readonly NetworkId[] = ["mainnet", "testnet"]
 
 /** The one way a market key is ever built. */
@@ -128,6 +188,13 @@ export type MarketRow = {
    * size step is 0.001 of the coin. Null when the exchange does not say.
    */
   sizeDecimals: number | null
+  /**
+   * The smallest price step this market accepts — 0.5 means $100.5 is a
+   * legal price and $100.3 is not. Null on an exchange that states no tick
+   * and rounds by its own rule instead (Hyperliquid's five significant
+   * figures). `roundPx` is where either answer is applied.
+   */
+  priceTick: number | null
   /** The most leverage this market allows, or null when the exchange does not say. */
   maxLeverage: number | null
   /** This market only trades isolated: a trade's stake is all it can lose. */
@@ -306,10 +373,17 @@ export type WalletOrderInfo = {
 }
 
 /**
- * What a protocol needs before it may sign anything: the trading key, alive
- * for this one call only, and the counter that hands out order numbers. The
- * counter lives with the app's database so two requests — or a future
- * background worker — can never hand the exchange the same number twice.
+ * What a protocol needs before it may sign anything: the decrypted
+ * credentials, alive for this one call only, and the counter that hands out
+ * order numbers. The counter lives with the app's database so two requests —
+ * or a future background worker — can never hand the exchange the same
+ * number twice.
+ *
+ * `agentKey` is the decrypted credential blob, and it is OPAQUE outside the
+ * protocol's own folder: Hyperliquid reads it as a hex trading key, an
+ * API-key exchange reads it as the JSON its own `credentials.pack` wrote —
+ * `{"secret":…}`, plus a passphrase where the venue demands one. Nothing
+ * between the decrypt and the connector may look inside it.
  */
 export type OrderAuth = {
   agentKey: string

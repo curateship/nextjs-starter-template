@@ -130,20 +130,10 @@ export async function setRealMoneySwitch(
     })
 }
 
-/**
- * Refuses real-money signing unless BOTH layers say yes: the environment
- * master lock and the Settings toggle. Thrown with the same code the env-only
- * gate uses, so every screen's "switched off on this server" wording stays
- * true whichever layer said no.
- */
-export async function assertRealMoneySwitchOn(
-  database: CustomShellDb = db
-): Promise<void> {
-  const real = await realMoneySwitch(database)
-  if (!real.masterAllowed || !real.enabled) {
-    throw new Error("LIVE_MAINNET_OFF")
-  }
-}
+// The refusal built on this switch — assertRealMoneySwitchOn — lives in
+// `@/server/protocols/real-money` with the rest of the real-money gate, so
+// every exchange connector finds the whole gate in one place. This file keeps
+// only what the Workers screen needs: reading and setting the toggle.
 
 /**
  * A running copy saying it is alive. Called by the worker itself every few

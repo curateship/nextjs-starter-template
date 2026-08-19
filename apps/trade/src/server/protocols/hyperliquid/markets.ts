@@ -122,6 +122,9 @@ export function toMarketRows(
       subExchange: dex?.fullName || dex?.name || null,
       category: normalizeMarketCategory(categories.get(asset.name), !dex),
       sizeDecimals: asset.szDecimals ?? null,
+      // Hyperliquid states no tick — its rule is five significant figures,
+      // applied in `roundOrderPx`, so there is no per-market number to carry.
+      priceTick: null,
       maxLeverage: asset.maxLeverage ?? null,
       isolatedOnly: asset.onlyIsolated ?? false,
       // Sub-exchange art keeps its venue namespace. Asking for the bare stock

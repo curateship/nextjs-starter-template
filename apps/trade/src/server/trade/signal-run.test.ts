@@ -379,6 +379,7 @@ describe("a sell arrow", () => {
         chaseGiveUp: 0.01,
         stakeUsd: 1_000,
         sizeDecimals: 3,
+        priceTick: null,
         maxLeverage: 50,
         phase: "holding",
         orderId: null,

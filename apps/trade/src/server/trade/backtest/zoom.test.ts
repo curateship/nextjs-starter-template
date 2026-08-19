@@ -27,7 +27,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   }),
 }))
 
-const rules = { sizeDecimals: 3, maxLeverage: 10, volume24hUsd: 1_000_000_000 }
+const rules = { sizeDecimals: 3, priceTick: null, maxLeverage: 10, volume24hUsd: 1_000_000_000 }
 
 function bar(i: number, o: number, h: number, l: number, c: number): CandleBar {
   return {

@@ -252,6 +252,7 @@ async function openSignalTrade(
     chaseGiveUp: spec.strategy.chaseGiveUp,
     stakeUsd,
     sizeDecimals: rules.sizeDecimals,
+    priceTick: rules.priceTick,
     // No leverage on a signal trade: it spends the cash it was given. One is
     // the honest fallback for a market that will not say its own limit.
     maxLeverage: rules.maxLeverage ?? 1,

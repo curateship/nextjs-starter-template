@@ -77,6 +77,7 @@ export type GridDraftInput = {
   mark: number
   rules: {
     sizeDecimals: number | null
+    priceTick: number | null
     maxLeverage: number | null
     volume24hUsd: number | null
   }
@@ -225,6 +226,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     potPct: params.potPct,
     startedAt: input.startedAt ?? 0,
     sizeDecimals: rules.sizeDecimals,
+    priceTick: rules.priceTick,
     maxLeverage,
     levels,
     stopLoss: params.stopLoss
@@ -265,7 +267,7 @@ export async function placeGridOrder(
   if (existing) throw new Error("SMART_LADDER_EXISTS")
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals)
+  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
   const keys = await exposedMarketKeys(userId, [wallet.id])
   const marks = await marksForKeys([...new Set([...keys, input.marketKey])])
@@ -470,7 +472,7 @@ export async function updateGridStop(
   const plan = grid.plan
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, plan.sizeDecimals)
+  const roundPx = (px: number) => protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
   plan.stopLoss = input.stopLoss
     ? {
@@ -589,7 +591,7 @@ export async function reshapeGrid(
     bottomPx: input.bottomPx ?? plan.bottomPx,
     mark,
     rules,
-    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals),
+    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: figures.equity,
     freeCash: freeCash(book) + held,
     takerFeeRate: book.costs.takerFeeRate,
@@ -694,7 +696,7 @@ export async function moveGridExit(
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
   const protocol = getProtocol(wallet.protocol)
-  const px = protocol.markets.roundPx(input.px, plan.sizeDecimals)
+  const px = protocol.markets.roundPx(input.px, plan.sizeDecimals, plan.priceTick)
   if (!(px > 0)) throw new Error("PAPER_PRICE")
 
   if (input.which === "takeProfit") {

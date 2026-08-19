@@ -431,6 +431,8 @@ export const gridPlanSchema = z.object({
   startedAt: z.number().default(0),
   /** The market's rules, frozen at placement — the engine re-sizes from these. */
   sizeDecimals: z.number().nullable(),
+  /** The market's smallest price step, frozen with the rest. Null: no tick stated. */
+  priceTick: z.number().nullable().default(null),
   maxLeverage: z.number().positive(),
   levels: z.array(gridLevelStateSchema).min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS),
   stopLoss: gridPlanStopSchema.nullable(),

@@ -45,6 +45,7 @@ import {
 import {
   parseMarketKey,
   type CandleInterval,
+  type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { keepUnreachableRows } from "@/lib/trade/live"
@@ -315,7 +316,35 @@ type LiveAnswer = {
   unreachable: string[]
 }
 
-export function useTrading(wallet: TradeWallet | null): Trading {
+/**
+ * Everything the answers carry is keyed by market key, and a market key
+ * names its exchange — so one filter at the moment an answer lands is what
+ * scopes the whole bottom panel (positions, orders, journal, smart orders)
+ * to the page's exchange. Rows on other exchanges live on their own pages.
+ */
+function scopedToProtocol<
+  T extends Pick<
+    PaperAnswer,
+    "positions" | "orders" | "fills" | "trades" | "smartOrders"
+  >,
+>(answer: T, protocol: ProtocolId): T {
+  const mine = (marketKey: string) =>
+    parseMarketKey(marketKey)?.protocol === protocol
+  return {
+    ...answer,
+    positions: answer.positions.filter((one) => mine(one.marketKey)),
+    orders: answer.orders.filter((one) => mine(one.marketKey)),
+    fills: answer.fills.filter((one) => mine(one.marketKey)),
+    trades: answer.trades.filter((one) => mine(one.marketKey)),
+    smartOrders: answer.smartOrders.filter((one) => mine(one.marketKey)),
+  }
+}
+
+export function useTrading(
+  wallet: TradeWallet | null,
+  /** The page's exchange — the only one whose rows this hook answers with. */
+  protocol: ProtocolId
+): Trading {
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
   // The whole read came back with nothing — both halves refused. With rows
@@ -365,15 +394,21 @@ export function useTrading(wallet: TradeWallet | null): Trading {
       loadLiveTrading(),
     ])
     if (requestRef.current !== request) return false
-    if (paper.status === "fulfilled") setPaperAnswer(paper.value)
+    if (paper.status === "fulfilled") {
+      setPaperAnswer(scopedToProtocol(paper.value, protocol))
+    }
     if (live.status === "fulfilled") {
-      setLiveAnswer((was) => keepUnreachableRows(was, live.value))
+      // Scoped BEFORE the unreachable-rows merge, so kept-alive rows from a
+      // wallet the exchange missed are already this page's rows and nothing
+      // foreign can ride back in through the merge.
+      const scoped = scopedToProtocol(live.value, protocol)
+      setLiveAnswer((was) => keepUnreachableRows(was, scoped))
     }
     setFailed(
       paper.status === "rejected" && live.status === "rejected"
     )
     return paper.status === "fulfilled" && live.status === "fulfilled"
-  }, [])
+  }, [protocol])
 
   /** Reads until one lands, so a dragged price is never let go too early. */
   const refreshUntilLanded = React.useCallback(async () => {

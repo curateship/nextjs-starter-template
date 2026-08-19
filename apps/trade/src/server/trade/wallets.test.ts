@@ -27,8 +27,28 @@ const verifyAgent = vi.fn()
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    networks: ["mainnet", "testnet"],
+    defaultNetwork: "mainnet",
     account: { fetch: fetchAccount },
     agent: { verify: verifyAgent },
+    credentials: {
+      form: {
+        addressLabel: "Account address",
+        addressHint: "0x…",
+        addressPattern: "^0x[0-9a-fA-F]{40}$",
+        secretLabel: "Trading key",
+        needsPassphrase: false,
+        secretIsAgentKey: true,
+        keyHelp: "",
+      },
+      // The store's own tests speak the wallet-shaped dialect: the blob IS
+      // the pasted key, exactly as the Hyperliquid entry packs it.
+      pack: (input: { agentKey?: string }) => {
+        const agentKey = input.agentKey?.trim() ?? ""
+        if (!agentKey) throw new Error("KEY_REQUIRED")
+        return agentKey
+      },
+    },
   }),
 }))
 

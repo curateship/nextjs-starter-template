@@ -688,6 +688,12 @@ export const ladderPlanSchema = z.object({
   baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
   /** The market's rules, frozen at placement — the engine re-aims from these. */
   sizeDecimals: z.number().nullable(),
+  /**
+   * The market's smallest price step, frozen with the rest of the rules. Null
+   * on an exchange that states none — which is every ladder placed before a
+   * second exchange existed, so old rows read exactly as they did.
+   */
+  priceTick: z.number().nullable().default(null),
   maxLeverage: z.number().positive(),
   /**
    * What this ladder buys at, frozen at placement and already clamped to the

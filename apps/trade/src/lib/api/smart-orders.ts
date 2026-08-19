@@ -502,9 +502,9 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     WALLET_INACTIVE: "Make this wallet active before placing a Smart order.",
     LIVE_WALLET_KEY: "This live wallet needs a trading key before it can place a Smart order.",
     LIVE_MARKET: "That market is not one this live wallet can trade.",
-    LIVE_NO_PRICE: "Hyperliquid would not give a price for that market, so nothing was placed.",
+    LIVE_NO_PRICE: "The exchange would not give a price for that market, so nothing was placed.",
     EXCHANGE_BUSY:
-      "Hyperliquid is asking us to slow down, so it would not give a price. Nothing was placed. Try again in a minute — it clears on its own.",
+      "The exchange is asking us to slow down, so it would not give a price. Nothing was placed. Try again in a minute — it clears on its own.",
     LIVE_MAINNET_OFF:
       "Real-money trading is switched off until the funded test run passes and TRADE_ENABLE_MAINNET is deliberately set.",
     LIVE_ORDER_GONE:
@@ -516,9 +516,9 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     LIVE_SMART_ORDER_NOT_RESTING:
       "A Smart-order rung did not rest as expected, so the ladder was rolled back.",
     LIVE_SMART_ROLLBACK_FAILED:
-      "Hyperliquid accepted part of the ladder and would not cancel all of it. Check the open orders now.",
+      "The exchange accepted part of the ladder and would not cancel all of it. Check the open orders now.",
     PAPER_MARKET: "That market is not one this wallet can trade.",
-    PAPER_NO_PRICE: "Hyperliquid would not give a price for that market, so nothing was placed.",
+    PAPER_NO_PRICE: "The exchange would not give a price for that market, so nothing was placed.",
     PAPER_PRICE: "That price cannot be used. Pick a level on the chart again.",
     PAPER_ORDER_LIMIT:
       "That many rungs would pass the fifty-order cap. Cancel some orders or use fewer rungs.",

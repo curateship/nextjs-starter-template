@@ -25,7 +25,7 @@ What Trade has added to the shell, and what each piece is for:
 
 | Where | What |
 | --- | --- |
-| `src/routes/_authenticated/trade.tsx` | The page. Loads the market list, carries the picked market in the address. |
+| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's. |
 | `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
 | `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
 | `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
@@ -49,9 +49,10 @@ The one idea: **screens never know which exchange they are talking to.**
   its endpoints, its response checking and its quirks stop at that folder's
   edge.
 - `src/server/protocols/registry.ts` is the lookup: protocol id in, adapters
-  out. It also records that the current Trade dashboard belongs to
-  Hyperliquid; Binance remains available to backtests without entering this
-  dashboard.
+  out. Every exchange in it gets its own dashboard route; Binance carries no
+  dashboard and serves backtests. The real-money gate and the secret
+  scrubbers live beside it (`real-money.ts`, `scrub.ts`) — policy shared by
+  every exchange, above the per-exchange folders.
 - **The rule is a test, not a hope.** `src/server/protocols/fence.test.ts`
   fails the suite if the exchange package is imported anywhere else, or if
   shared code compares against a protocol id.
@@ -148,8 +149,13 @@ into the saved value, so it compounded. Deleting them made the code shorter
 
 **Adding another exchange** is: one new folder under `src/server/protocols/`
 that produces the same shapes, one new entry in the registry, and its own
-dashboard route. Shared panels may be reused, but market lists from different
-protocols are never combined into this Hyperliquid dashboard.
+dashboard route under `src/routes/_authenticated/admin/`. Shared panels are
+reused as-is, but market lists from different protocols are never combined
+into one list. Phemex (added 19 Aug 2026) is the worked example: an API-key
+exchange, so its wallet signs in with a key id and secret packed into the one
+encrypted blob, and its account reads carry that credential — the registry's
+authenticated reads take a credential thunk that wallet-shaped venues simply
+never call.
 
 ## Saved data
 

@@ -1107,6 +1107,7 @@ export async function runBacktest(
             chaseGiveUp: signals.chaseGiveUp,
             stakeUsd,
             sizeDecimals: coin.rules.sizeDecimals,
+            priceTick: coin.rules.priceTick,
             maxLeverage: coin.rules.maxLeverage ?? 1,
             phase: "buying",
             orderId: null,
@@ -1136,7 +1137,7 @@ export async function runBacktest(
         mark,
         base: baseAt(coin, closeTime, detection),
         rules: coin.rules,
-        roundPx: (px) => protocol.markets.roundPx(px, coin.rules.sizeDecimals),
+        roundPx: (px) => protocol.markets.roundPx(px, coin.rules.sizeDecimals, coin.rules.priceTick),
         // Compound sizes a fresh ladder from the shared pot as it stands now.
         // Fixed keeps every new ladder on the run's opening dollars. The plan
         // then freezes those rung sizes, so an active ladder never shifts.

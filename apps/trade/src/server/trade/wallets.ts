@@ -20,8 +20,10 @@ import {
   accountOf,
   agentOf,
   getProtocol,
+  credentialsOf,
 } from "@/server/protocols/registry"
 import { paperWalletFigures } from "@/server/trade/paper"
+import { credentialFor } from "@/server/trade/wallet-auth"
 import { tradeWallets } from "@/server/trade/schema"
 
 /**
@@ -120,13 +122,25 @@ export async function createWallet(
     network: NetworkId
     /** Paper only: the pretend cash it starts with. */
     startingBalance?: number
-    /** Live only. */
+    /** Live only: the public identifier — a wallet address or an API key id. */
     address?: string
+    /** Live only: the trading key, on an exchange whose credential is one. */
     agentKey?: string
+    /** Live only: the API secret, on an API-key exchange. */
+    secret?: string
+    /** Live only: the passphrase, where the exchange demands a third value. */
+    passphrase?: string
   }
 ): Promise<TradeWallet> {
   const existing = await listWallets(userId)
   if (existing.length >= MAX_WALLETS) throw new Error("WALLET_LIMIT")
+
+  const entry = getProtocol(input.protocol)
+  // A network the exchange does not run must be refused at the door — a
+  // wallet saved on one would poll an endpoint that does not exist, forever.
+  if (!entry.networks.includes(input.network)) {
+    throw new Error("WALLET_NETWORK")
+  }
 
   let startingBalance: number
   let address: string | null = null
@@ -137,29 +151,37 @@ export async function createWallet(
     if (!input.startingBalance) throw new Error("WALLET_BALANCE_REQUIRED")
     startingBalance = input.startingBalance
   } else {
-    if (!input.address || !input.agentKey) {
-      throw new Error("WALLET_CREDENTIALS_REQUIRED")
+    // `credentialsOf` also refuses a live wallet on an exchange that cannot
+    // hold accounts at all (Binance), with the exchange's name in the error.
+    const creds = credentialsOf(entry)
+    if (!input.address) throw new Error("WALLET_CREDENTIALS_REQUIRED")
+    if (!new RegExp(creds.form.addressPattern).test(input.address.trim())) {
+      throw new Error("WALLET_ADDRESS_SHAPE")
     }
+    address = input.address.trim()
+    // The protocol folds the pasted fields into its own blob — and refuses a
+    // missing required field with a KEY_ code before anything is stored.
+    const blob = creds.pack({
+      address,
+      agentKey: input.agentKey,
+      secret: input.secret,
+      passphrase: input.passphrase,
+    })
     // Encrypt before anything can fail after it: a wallet is only ever
     // inserted with ciphertext, and a missing encryption key stops the whole
     // add rather than quietly storing nothing.
-    agentKeyEncrypted = encryptSecret(input.agentKey)
-    address = input.address
-    // The key is proved before it is kept: the exchange must list it as
-    // approved to trade for this account, and the account's own key is
-    // refused outright. Codes travel up as they are — each has its own
-    // sentence in the dialog.
-    const verified = await agentOf(getProtocol(input.protocol)).verify(
-      input.network,
-      input.address,
-      input.agentKey
-    )
+    agentKeyEncrypted = encryptSecret(blob)
+    // The credential is proved before it is kept: the exchange must accept
+    // it for this account, and an account's own master key is refused
+    // outright where the venue can tell. Codes travel up as they are — each
+    // has its own sentence in the dialog.
+    const verified = await agentOf(entry).verify(input.network, address, blob)
     agentValidUntil = verified.validUntil !== null ? new Date(verified.validUntil) : null
     // Reading the account is both the reachability check and the baseline:
     // "Since it started" measures from the value the account had right now.
-    // An address Hyperliquid cannot answer for is refused, not saved broken.
-    const figures = await accountOf(getProtocol(input.protocol))
-      .fetch(input.network, input.address)
+    // An account the exchange cannot answer for is refused, not saved broken.
+    const figures = await accountOf(entry)
+      .fetch(input.network, address, () => blob)
       .catch(() => null)
     if (!figures) throw new Error("WALLET_UNREACHABLE")
     startingBalance = figures.equity
@@ -189,8 +211,10 @@ export async function updateWallet(
     label?: string
     /** Paper only — rewriting a live wallet's baseline would rewrite its history. */
     startingBalance?: number
-    /** Live only: a replacement trading key. */
+    /** Live only: a replacement credential, in the wallet's own fields. */
     agentKey?: string
+    secret?: string
+    passphrase?: string
     status?: TradeWallet["status"]
   }
 ): Promise<TradeWallet> {
@@ -205,7 +229,11 @@ export async function updateWallet(
   if (input.startingBalance !== undefined && row.kind !== "paper") {
     throw new Error("WALLET_BALANCE_KIND")
   }
-  if (input.agentKey !== undefined && row.kind !== "live") {
+  const replacingKey =
+    input.agentKey !== undefined ||
+    input.secret !== undefined ||
+    input.passphrase !== undefined
+  if (replacingKey && row.kind !== "live") {
     throw new Error("WALLET_KEY_KIND")
   }
 
@@ -217,16 +245,23 @@ export async function updateWallet(
   if (input.startingBalance !== undefined) {
     set.startingBalance = input.startingBalance
   }
-  if (input.agentKey !== undefined) {
-    // A replacement key is proved exactly like a first one — against the
-    // wallet's own stored address and network, so a key for some other
-    // account can never slide in through the edit window.
-    const verified = await agentOf(getProtocol(row.protocol)).verify(
+  if (replacingKey) {
+    const entry = getProtocol(row.protocol)
+    const blob = credentialsOf(entry).pack({
+      address: row.address ?? undefined,
+      agentKey: input.agentKey,
+      secret: input.secret,
+      passphrase: input.passphrase,
+    })
+    // A replacement credential is proved exactly like a first one — against
+    // the wallet's own stored address and network, so a credential for some
+    // other account can never slide in through the edit window.
+    const verified = await agentOf(entry).verify(
       row.network,
       row.address ?? "",
-      input.agentKey
+      blob
     )
-    set.agentKeyEncrypted = encryptSecret(input.agentKey)
+    set.agentKeyEncrypted = encryptSecret(blob)
     set.agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
   }
@@ -266,6 +301,11 @@ export async function loadWalletSummaries(
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
 
   const wallets = rows.map(toWallet)
+  // The ciphertext rides along from the same read, decrypted only if the
+  // wallet's exchange needs a key to answer an account question at all.
+  const cipherById = new Map(
+    rows.map((row) => [row.id, row.agentKeyEncrypted ?? null])
+  )
   // **Only the wallets in use are read.** Every live wallet costs three
   // requests to the exchange on every poll, and the exchange counts every
   // request from this machine together — so wallets switched off were
@@ -295,7 +335,9 @@ export async function loadWalletSummaries(
         return summarizeWallet(wallet, figures)
       }
       const figures = await accountOf(getProtocol(wallet.protocol))
-        .fetch(wallet.network, wallet.address ?? "")
+        .fetch(wallet.network, wallet.address ?? "", () =>
+          credentialFor({ agentKeyEncrypted: cipherById.get(wallet.id) ?? null })
+        )
         .catch((error: unknown) => {
           console.error(
             `Wallet "${wallet.label}" (${wallet.protocol} ${wallet.network}) could not be read`,

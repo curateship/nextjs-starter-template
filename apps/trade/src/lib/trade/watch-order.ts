@@ -35,8 +35,10 @@ export const watchPlanSchema = z.object({
   sz: z.number().positive(),
   leverage: z.number().positive(),
   maxLeverage: z.number().positive(),
-  /** The market's price step, frozen the same way every other plan freezes it. */
+  /** The market's size step, frozen the same way every other plan freezes it. */
   sizeDecimals: z.number().nullable(),
+  /** The market's smallest price step, frozen with the rest. Null: no tick stated. */
+  priceTick: z.number().nullable().default(null),
   /** Handed to the position this opens, once it opens one. */
   tpPx: z.number().positive().nullable(),
   slPx: z.number().positive().nullable(),

@@ -1,7 +1,8 @@
-import type {
-  NetworkId,
-  ProtocolId,
-  WalletAccountFigures,
+import {
+  protocolLabel,
+  type NetworkId,
+  type ProtocolId,
+  type WalletAccountFigures,
 } from "@/lib/protocols/contracts"
 
 /**
@@ -234,11 +235,11 @@ export function shortenAddress(address: string): string {
 /**
  * The venue line under a wallet's name — "Hyperliquid", or "Hyperliquid
  * Testnet" so practice-network money can never read as the real thing.
- * Derived from the id rather than compared against it, so no screen ever
- * holds a protocol name of its own.
+ * Looked up rather than compared against, so no screen ever holds a
+ * protocol name of its own.
  */
 export function venueLabel(protocol: ProtocolId, network: NetworkId): string {
-  const name = protocol.charAt(0).toUpperCase() + protocol.slice(1)
+  const name = protocolLabel(protocol)
   return network === "testnet" ? `${name} Testnet` : name
 }
 

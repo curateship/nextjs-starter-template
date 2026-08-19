@@ -20,6 +20,8 @@ const CACHE_MS = 5 * 60_000
 
 export type MarketRules = {
   sizeDecimals: number | null
+  /** The market's smallest price step, or null where the exchange states none. */
+  priceTick: number | null
   maxLeverage: number | null
   /** Dollars traded in the last day — what the DCA liquidity guard caps by. */
   volume24hUsd: number | null
@@ -48,6 +50,7 @@ async function rulesFor(
       row.marketId,
       {
         sizeDecimals: row.sizeDecimals,
+        priceTick: row.priceTick,
         maxLeverage: row.maxLeverage,
         volume24hUsd: row.volume24hUsd,
       },

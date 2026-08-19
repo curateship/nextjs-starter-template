@@ -182,6 +182,7 @@ describe("ladder plans", () => {
     entryLimit: null,
     startedAt: 0,
     sizeDecimals: 3,
+    priceTick: null,
     maxLeverage: 50,
     leverage: 1,
     rungs: [

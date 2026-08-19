@@ -89,6 +89,7 @@ function plan(over: Partial<SignalPlan> = {}): SignalPlan {
     chaseGiveUp: 0.02,
     stakeUsd: 1_000,
     sizeDecimals: 3,
+    priceTick: null,
     maxLeverage: 50,
     phase: "buying",
     orderId: null,

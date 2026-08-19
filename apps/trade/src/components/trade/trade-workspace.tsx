@@ -48,6 +48,7 @@ import {
   type MarketCatalog,
   type MarketRow,
   type NetworkId,
+  type ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
@@ -121,6 +122,7 @@ function resolveSelection(
  * protocol layer grows accounts.
  */
 export function TradeWorkspace({
+  protocol,
   catalogs,
   marketsError,
   network,
@@ -134,6 +136,12 @@ export function TradeWorkspace({
   onSelectMarket,
   onRetryMarkets,
 }: {
+  /**
+   * The exchange this whole page belongs to — the route says which. Carried
+   * as data into every wallet- and trading-scoped hook, so the account
+   * column and the bottom panel only ever show this exchange's money.
+   */
+  protocol: ProtocolId
   catalogs: MarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
@@ -193,7 +201,7 @@ export function TradeWorkspace({
   const selection = resolveSelection(catalogs, selectedKey)
 
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
-  const account = useTradeAccount()
+  const account = useTradeAccount(protocol)
   const [addingWallet, setAddingWallet] = React.useState(false)
   const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
     null
@@ -214,7 +222,7 @@ export function TradeWorkspace({
   // ----- Trading: one owner for the chart's lines and the panel ------------
   // Practice and real wallets flow through the same hook; it is the wallet a
   // row belongs to that decides which road an action takes.
-  const trading = useTrading(account.activeWallet)
+  const trading = useTrading(account.activeWallet, protocol)
   const watchedMarkets = React.useMemo(
     () => new Set(trading.ladders.map((ladder) => ladder.marketKey)),
     [trading.ladders]
@@ -571,6 +579,7 @@ export function TradeWorkspace({
       {/* One instance of each wallet window, owned here beside the one
           account state, so the sheet and the desktop column share them. */}
       <AddWalletDialog
+        protocol={protocol}
         open={addingWallet}
         onClose={() => setAddingWallet(false)}
         onAdded={(wallet) => {

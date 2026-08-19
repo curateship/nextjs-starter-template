@@ -21,7 +21,7 @@ import {
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
-import { decryptSecret } from "@/server/auth/encryption"
+import { credentialFor, walletCredential } from "@/server/trade/wallet-auth"
 import {
   getProtocol,
   ordersOf,
@@ -102,8 +102,10 @@ function checkedMarket(row: LiveWalletRow, marketKey: string) {
 
 /** The one moment plaintext exists: decrypt, hand over, done. */
 function authFor(row: LiveWalletRow): OrderAuth {
+  const credential = credentialFor(row)
+  if (!credential) throw new Error("LIVE_WALLET_KEY")
   return {
-    agentKey: decryptSecret(row.agentKeyEncrypted ?? ""),
+    agentKey: credential,
     allocateNonce: (signerAddress) => allocateNonce(signerAddress, row.network),
   }
 }
@@ -207,7 +209,11 @@ export async function placeLiveOrder(
     // Leverage is set only when this opens fresh; adding to a position
     // inherits what the position already runs at — the practice engine's
     // rule, kept identical for real money.
-    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
 
     const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
@@ -307,7 +313,11 @@ export async function cancelLiveOrder(
     const ref = checkedMarket(row, input.marketKey)
     // Named for the journal: the order being cancelled, as the exchange
     // lists it right now. Gone already is its own honest refusal.
-    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
     const order = portfolio.orders.find((one) => one.orderId === input.orderId)
     if (!order) throw new Error("LIVE_ORDER_GONE")
     side = order.side
@@ -366,7 +376,11 @@ export async function closeLivePosition(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
@@ -407,7 +421,11 @@ export async function setLiveBrackets(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    const portfolio = await ordersOf(protocol).portfolio(row.network, row.address ?? "")
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
     const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "buy" : "sell"
@@ -493,9 +511,11 @@ export async function loadLivePortfolio(
   await Promise.all(
     live.map(async (wallet) => {
       try {
+        const credential = await walletCredential(userId, wallet.id)
         const portfolio = await ordersOf(getProtocol(wallet.protocol)).portfolio(
           wallet.network,
-          wallet.address ?? ""
+          wallet.address ?? "",
+          credential
         )
         const rows = livePortfolioRows(wallet, portfolio, now)
         positions.push(...rows.positions)
@@ -503,7 +523,7 @@ export async function loadLivePortfolio(
         // The Journal's history rides along with this read. It has its own
         // rate limit inside and cannot throw, so a wallet still answers for
         // what it holds even when its history will not come.
-        await sweepLiveFills(userId, wallet, portfolio)
+        await sweepLiveFills(userId, wallet, portfolio, credential)
       } catch {
         unreachable.push(wallet.id)
       }

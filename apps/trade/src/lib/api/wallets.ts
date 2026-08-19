@@ -1,9 +1,8 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
 import {
-  isAgentKey,
-  isWalletAddress,
   MAX_STARTING_BALANCE,
   WALLET_LABEL_MAX,
   type TradeWallet,
@@ -37,25 +36,29 @@ const walletLabelSchema = z
   .min(1, "Give the wallet a name.")
   .max(WALLET_LABEL_MAX)
 
+/**
+ * The credential fields are shape-checked lightly here and properly in the
+ * store, where the wallet's exchange is in hand: each exchange declares what
+ * its identifier looks like and which fields its sign-in needs, and the
+ * server refuses against THAT — this schema only keeps junk and novels out.
+ */
+const credentialFieldSchema = z.string().trim().min(1).max(256)
+
 const createWalletSchema = z
   .object({
     label: walletLabelSchema,
     kind: z.enum(["paper", "live"]),
-    protocol: z.enum(["hyperliquid"]),
+    protocol: z.enum(KNOWN_PROTOCOLS),
     network: z.enum(["mainnet", "testnet"]),
     startingBalance: z
       .number()
       .positive()
       .max(MAX_STARTING_BALANCE)
       .optional(),
-    address: z
-      .string()
-      .refine(isWalletAddress, { message: "Not a wallet address." })
-      .optional(),
-    agentKey: z
-      .string()
-      .refine(isAgentKey, { message: "Not a trading key." })
-      .optional(),
+    address: z.string().trim().min(1).max(64).optional(),
+    agentKey: credentialFieldSchema.optional(),
+    secret: credentialFieldSchema.optional(),
+    passphrase: credentialFieldSchema.optional(),
   })
   // The per-kind requirements are enforced again in the store; checking here
   // too means a half-filled form is refused before it costs a round trip.
@@ -63,7 +66,9 @@ const createWalletSchema = z
     message: "WALLET_BALANCE_REQUIRED",
   })
   .refine(
-    (input) => input.kind !== "live" || (input.address && input.agentKey),
+    (input) =>
+      input.kind !== "live" ||
+      (input.address && (input.agentKey || input.secret)),
     { message: "WALLET_CREDENTIALS_REQUIRED" }
   )
 
@@ -71,10 +76,9 @@ const updateWalletSchema = z.object({
   id: z.string().max(36),
   label: walletLabelSchema.optional(),
   startingBalance: z.number().positive().max(MAX_STARTING_BALANCE).optional(),
-  agentKey: z
-    .string()
-    .refine(isAgentKey, { message: "Not a trading key." })
-    .optional(),
+  agentKey: credentialFieldSchema.optional(),
+  secret: credentialFieldSchema.optional(),
+  passphrase: credentialFieldSchema.optional(),
   status: z.enum(["active", "inactive"]).optional(),
 })
 
@@ -156,16 +160,24 @@ const baseWalletErrorMessage = createErrorMessage(
     WALLET_BALANCE_REQUIRED: "Enter the cash a practice wallet starts with.",
     WALLET_CREDENTIALS_REQUIRED:
       "A live wallet needs its address and its trading key.",
+    WALLET_NETWORK:
+      "That exchange does not run this network, so the wallet was not saved.",
+    WALLET_ADDRESS_SHAPE:
+      "That does not look like this exchange's identifier — check it against the hint under the field.",
+    KEY_REQUIRED: "Paste the key before saving.",
+    KEY_SECRET_REQUIRED: "Paste the API secret before saving.",
+    KEY_PASSPHRASE_REQUIRED:
+      "This exchange also needs the passphrase you set when creating the key.",
     WALLET_UNREACHABLE:
-      "Hyperliquid did not answer for that address. Check the address and try again.",
+      "The exchange did not answer for that account. Check what you pasted and try again.",
     KEY_IS_ACCOUNT:
-      "That is the account's MAIN key — the one that can move money out — and it is never stored here. On Hyperliquid, create an API key (a limited trading key) and paste that instead.",
+      "That is the account's MAIN key — the one that can move money out — and it is never stored here. On the exchange, create an API key (a limited trading key) and paste that instead.",
     KEY_NOT_APPROVED:
-      "Hyperliquid does not list that key as approved for this account. The usual cause: Hyperliquid only shows a key at the moment it is generated, and only the generation you pressed Authorize on counts — if you generated more than once, copy the key and authorize in the same breath, then paste that one.",
+      "The exchange does not accept that key for this account. On Hyperliquid the usual cause: a key only counts if you pressed Authorize on that exact generation — copy the key and authorize in the same breath, then paste that one. On an API-key exchange: check the key id, the secret, and that the key has trade permission.",
     KEY_EXPIRED:
-      "That trading key's approval has run out. Create a fresh API key on Hyperliquid and paste it.",
+      "That key's approval has run out. Create a fresh API key on the exchange and paste it.",
     KEY_CHECK_UNAVAILABLE:
-      "Hyperliquid could not be reached to check the key, so nothing was saved. Try again in a moment.",
+      "The exchange could not be reached to check the key, so nothing was saved. Try again in a moment.",
     WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     WALLET_INACTIVE: "Make this wallet active before trading with it.",
@@ -173,10 +185,6 @@ const baseWalletErrorMessage = createErrorMessage(
     WALLET_KEY_KIND: "Only a live wallet has a trading key.",
     ENCRYPTION_NOT_CONFIGURED:
       "Secret storage is not set up on this server, so a trading key cannot be saved. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY first.",
-    "Not a wallet address.":
-      "That address does not look right — it should be 0x followed by 40 characters.",
-    "Not a trading key.":
-      "That key does not look right — it should be 64 characters of hex.",
   },
   "That did not save. Try it again."
 )

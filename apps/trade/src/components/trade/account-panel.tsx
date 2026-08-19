@@ -169,7 +169,7 @@ function ActiveWalletView({
       ) : (
         <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
           <p>
-            Hyperliquid did not answer for this wallet, so there are no figures
+            The exchange did not answer for this wallet, so there are no figures
             to show — showing zeros would be making them up.
           </p>
           <Button size="sm" variant="outline" onClick={onRetry}>
@@ -540,7 +540,7 @@ function NoWalletsYet() {
       title="No wallets yet"
     >
       Add one with the + above — a practice wallet with pretend cash, or a live
-      Hyperliquid account.
+      exchange account.
     </PanelPlaceholder>
   )
 }

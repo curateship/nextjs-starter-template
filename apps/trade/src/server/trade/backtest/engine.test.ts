@@ -39,7 +39,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   }),
 }))
 
-const rules = { sizeDecimals: 3, maxLeverage: 10, volume24hUsd: 1_000_000_000 }
+const rules = { sizeDecimals: 3, priceTick: null, maxLeverage: 10, volume24hUsd: 1_000_000_000 }
 
 /**
  * A price that falls from 100 for `fall` bars, then climbs back. Enough for a

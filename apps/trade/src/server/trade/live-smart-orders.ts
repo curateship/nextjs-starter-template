@@ -50,7 +50,7 @@ import {
   setLiveBrackets,
 } from "@/server/trade/live-orders"
 import { marketRules } from "@/server/trade/market-rules"
-import { pricesWereRationed } from "@/server/protocols/hyperliquid/prices"
+import { walletCredential } from "@/server/trade/wallet-auth"
 import {
   activeSmartOrderId,
   ladderById,
@@ -144,7 +144,8 @@ let lastCandleFeedAt = 0
 async function accountAndOrders(
   protocol: ReturnType<typeof getProtocol>,
   network: TradeWallet["network"],
-  address: string
+  address: string,
+  credential: () => string | null
 ): Promise<[AccountAnswer, OrdersAnswer]> {
   const key = `${network}:${address.toLowerCase()}`
   const cached = accountCache.get(key)
@@ -152,8 +153,8 @@ async function accountAndOrders(
 
   const at = Date.now()
   const answer = Promise.all([
-    accountOf(protocol).fetch(network, address),
-    ordersOf(protocol).portfolio(network, address),
+    accountOf(protocol).fetch(network, address, credential),
+    ordersOf(protocol).portfolio(network, address, credential),
   ]) as Promise<[AccountAnswer, OrdersAnswer]>
   // A failed read must not be remembered as an answer, or one 429 would be
   // repeated to every caller for the next two seconds.
@@ -197,22 +198,25 @@ async function placeLiveDcaLadderOnce(
     // was the first sent somebody hunting for a delisted coin that was
     // trading perfectly well.
     throw new Error(
-      pricesWereRationed(wallet.network, ref.marketId)
+      (protocol.markets.pricesWereRationed?.(wallet.network, ref.marketId) ??
+      false)
         ? "EXCHANGE_BUSY"
         : "LIVE_NO_PRICE"
     )
   }
 
+  const credential = await walletCredential(userId, wallet.id)
   const [account, portfolio] = await accountAndOrders(
     protocol,
     wallet.network,
-    wallet.address
+    wallet.address,
+    credential
   )
   const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
   if (held && held.szi < 0) throw new Error("SMART_SHORT_HELD")
 
   const roundPx = (px: number) =>
-    protocol.markets.roundPx(px, rules.sizeDecimals)
+    protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
   let anchorPx: number
   if (input.params.anchor === "click") {
     anchorPx = roundPx(input.clickPx)
@@ -300,6 +304,7 @@ async function placeLiveDcaLadderOnce(
   const plan = ladderPlan(
     input,
     rules.sizeDecimals,
+    rules.priceTick,
     rules.maxLeverage ?? 1,
     anchorPx,
     rungs
@@ -345,6 +350,7 @@ async function placeLiveDcaLadderOnce(
 function ladderPlan(
   input: PlaceLadderInput,
   sizeDecimals: number | null,
+  priceTick: number | null,
   maxLeverage: number,
   anchorPx: number,
   rungs: LadderRungState[]
@@ -368,6 +374,7 @@ function ladderPlan(
     startedAt: Date.now(),
     baseDetection: input.params.baseDetection,
     sizeDecimals,
+    priceTick,
     maxLeverage,
     // Cash, deliberately, and not read from the settings. A real wallet's
     // ladder taking leverage would hand the exchange a price at which it can
@@ -618,9 +625,14 @@ async function reconcileLiveLaddersOnce(
   }
 
   const protocol = getProtocol(wallet.protocol)
+  const credential = await walletCredential(userId, wallet.id)
   const portfolio =
     currentPortfolio ??
-    (await ordersOf(protocol).portfolio(wallet.network, wallet.address))
+    (await ordersOf(protocol).portfolio(
+      wallet.network,
+      wallet.address,
+      credential
+    ))
   const now = Date.now()
   const keys = rows.map((row) => row.marketKey)
   const refs = new Map(
@@ -630,7 +642,7 @@ async function reconcileLiveLaddersOnce(
     })
   )
   const [account, prices, fills] = await Promise.all([
-    accountOf(protocol).fetch(wallet.network, wallet.address),
+    accountOf(protocol).fetch(wallet.network, wallet.address, credential),
     protocol.markets.prices(wallet.network, [...refs.keys()]),
     ordersOf(protocol).fills(
       wallet.network,
@@ -653,7 +665,8 @@ async function reconcileLiveLaddersOnce(
               : row.createdAt.getTime()
           return to
         })
-      ) - 60_000
+      ) - 60_000,
+      credential
     ),
   ])
   const marks = new Map<string, number>()
@@ -711,7 +724,7 @@ async function reconcileLiveLaddersOnce(
     const entry = parsed.get(row.id)
     if (!entry) continue
     const roundPx = (px: number) =>
-      protocol.markets.roundPx(px, entry.plan.sizeDecimals)
+      protocol.markets.roundPx(px, entry.plan.sizeDecimals, entry.plan.priceTick)
 
     // A grid manages no exchange orders — its levels are watched prices — so
     // there is nothing of its to match fills against.
@@ -1193,7 +1206,7 @@ async function reconcileLiveLaddersOnce(
           walletId: wallet.id,
           marketKey: raw.marketKey,
           side: "sell",
-          px: protocol.markets.roundPx(exits[index], plan.sizeDecimals),
+          px: protocol.markets.roundPx(exits[index], plan.sizeDecimals, plan.priceTick),
           sz: rung.sz,
           fee: 0,
           closedPnl: 0,
@@ -1319,15 +1332,17 @@ async function placeLiveGridOrderOnce(
     // was the first sent somebody hunting for a delisted coin that was
     // trading perfectly well.
     throw new Error(
-      pricesWereRationed(wallet.network, ref.marketId)
+      (protocol.markets.pricesWereRationed?.(wallet.network, ref.marketId) ??
+      false)
         ? "EXCHANGE_BUSY"
         : "LIVE_NO_PRICE"
     )
   }
 
+  const credential = await walletCredential(userId, wallet.id)
   const [account, portfolio] = await Promise.all([
-    accountOf(protocol).fetch(wallet.network, wallet.address),
-    ordersOf(protocol).portfolio(wallet.network, wallet.address),
+    accountOf(protocol).fetch(wallet.network, wallet.address, credential),
+    ordersOf(protocol).portfolio(wallet.network, wallet.address, credential),
   ])
   const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
 
@@ -1342,7 +1357,7 @@ async function placeLiveGridOrderOnce(
     bottomPx: input.bottomPx,
     mark,
     rules,
-    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals),
+    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: input.params.compound ? account.equity : wallet.startingBalance,
     freeCash: account.free,
     takerFeeRate: defaultPaperCosts().takerFeeRate,
@@ -1476,7 +1491,7 @@ export async function updateLiveGridStop(
     const slPx =
       wanted === null
         ? null
-        : protocol.markets.roundPx(wanted, plan.sizeDecimals)
+        : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
     await setLiveBrackets(userId, {
       walletId: wallet.id,
       marketKey: grid.marketKey,
@@ -1522,15 +1537,25 @@ export async function reshapeLiveGrid(
     // was the first sent somebody hunting for a delisted coin that was
     // trading perfectly well.
     throw new Error(
-      pricesWereRationed(wallet.network, ref.marketId)
+      (protocol.markets.pricesWereRationed?.(wallet.network, ref.marketId) ??
+      false)
         ? "EXCHANGE_BUSY"
         : "LIVE_NO_PRICE"
     )
   }
 
+    const credential = await walletCredential(userId, wallet.id)
     const [account, portfolio] = await Promise.all([
-      accountOf(protocol).fetch(wallet.network, wallet.address as string),
-      ordersOf(protocol).portfolio(wallet.network, wallet.address as string),
+      accountOf(protocol).fetch(
+        wallet.network,
+        wallet.address as string,
+        credential
+      ),
+      ordersOf(protocol).portfolio(
+        wallet.network,
+        wallet.address as string,
+        credential
+      ),
     ])
     const held = plan.levels.reduce((sum, level) => sum + level.budget, 0)
 
@@ -1556,7 +1581,7 @@ export async function reshapeLiveGrid(
       bottomPx: input.bottomPx ?? plan.bottomPx,
       mark,
       rules,
-      roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals),
+      roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
       equity: account.equity,
       freeCash: account.free + held,
       takerFeeRate: defaultPaperCosts().takerFeeRate,
@@ -1626,7 +1651,7 @@ export async function moveLiveGridExit(
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
     const protocol = getProtocol(wallet.protocol)
-    const px = protocol.markets.roundPx(input.px, plan.sizeDecimals)
+    const px = protocol.markets.roundPx(input.px, plan.sizeDecimals, plan.priceTick)
     if (!(px > 0)) throw new Error("LIVE_PRICE")
 
     if (input.which === "takeProfit") {

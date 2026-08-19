@@ -1499,7 +1499,7 @@ export async function placePaperOrder(
   }
 
   const protocol = getProtocol(wallet.protocol)
-  const px = protocol.markets.roundPx(input.px, rules.sizeDecimals)
+  const px = protocol.markets.roundPx(input.px, rules.sizeDecimals, rules.priceTick)
   const sz = roundSize(input.sz, rules.sizeDecimals)
   if (!(px > 0)) throw new Error("PAPER_PRICE")
   if (!(sz > 0) || px * sz < MIN_ORDER_VALUE_USD) throw new Error("PAPER_SIZE")
@@ -1536,12 +1536,12 @@ export async function placePaperOrder(
     ? null
     : input.tpPx === null
       ? null
-      : protocol.markets.roundPx(input.tpPx, rules.sizeDecimals)
+      : protocol.markets.roundPx(input.tpPx, rules.sizeDecimals, rules.priceTick)
   const slPx = input.reduceOnly
     ? null
     : input.slPx === null
       ? null
-      : protocol.markets.roundPx(input.slPx, rules.sizeDecimals)
+      : protocol.markets.roundPx(input.slPx, rules.sizeDecimals, rules.priceTick)
 
   if (tpPx !== null && (long ? tpPx <= entryPx : tpPx >= entryPx)) {
     throw new Error("PAPER_TAKE_PROFIT_SIDE")
@@ -1605,7 +1605,8 @@ export async function movePaperOrder(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   const px = getProtocol(wallet.protocol).markets.roundPx(
     input.px,
-    rules?.sizeDecimals ?? null
+    rules?.sizeDecimals ?? null,
+    rules?.priceTick ?? null
   )
   if (!(px > 0)) throw new Error("PAPER_PRICE")
 
@@ -1685,7 +1686,7 @@ export async function updatePaperOrder(
   // A reduce-only order never opens a position, so there is nothing for a stop
   // or a target to ride on. Dropped at the door, exactly as when placing one.
   const round = (px: number | null) =>
-    px === null ? null : protocol.markets.roundPx(px, rules.sizeDecimals)
+    px === null ? null : protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
   const tpPx = order.reduceOnly ? null : round(input.tpPx)
   const slPx = order.reduceOnly ? null : round(input.slPx)
   const long = order.side === "buy"
@@ -1761,7 +1762,8 @@ export async function setPaperBrackets(
       ? null
       : getProtocol(wallet.protocol).markets.roundPx(
           px,
-          rules?.sizeDecimals ?? null
+          rules?.sizeDecimals ?? null,
+          rules?.priceTick ?? null
         )
 
   const tpPx = round(input.tpPx)

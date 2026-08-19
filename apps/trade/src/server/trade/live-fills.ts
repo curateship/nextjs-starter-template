@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 
 import {
   marketKey,
+  parseMarketKey,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import {
@@ -90,7 +91,9 @@ const writtenTriggers = new Set<string>()
 export async function sweepLiveFills(
   userId: string,
   wallet: TradeWallet,
-  portfolio: WalletPortfolio
+  portfolio: WalletPortfolio,
+  /** Decrypts on demand, for venues whose history needs the key. */
+  credential: () => string | null
 ): Promise<void> {
   try {
     await recordTriggers(userId, wallet, portfolio)
@@ -102,7 +105,7 @@ export async function sweepLiveFills(
     if (now - last < SWEEP_EVERY_MS) return
     sweptAt.set(walletKey, now)
 
-    await resolveClosingOrders(userId, wallet)
+    await resolveClosingOrders(userId, wallet, credential)
 
     const seen = await db
       .select({ at: sql<number>`coalesce(max(${tradeLiveFills.at}), 0)` })
@@ -120,7 +123,8 @@ export async function sweepLiveFills(
     const fills = await ordersOf(getProtocol(wallet.protocol)).fills(
       wallet.network,
       wallet.address,
-      since > 0 ? Math.max(0, since - OVERLAP_MS) : 0
+      since > 0 ? Math.max(0, since - OVERLAP_MS) : 0,
+      credential
     )
     if (fills.length === 0) return
 
@@ -173,7 +177,8 @@ export async function sweepLiveFills(
  */
 async function resolveClosingOrders(
   userId: string,
-  wallet: TradeWallet
+  wallet: TradeWallet,
+  credential: () => string | null
 ): Promise<void> {
   if (!wallet.address) return
 
@@ -215,7 +220,14 @@ async function resolveClosingOrders(
   }> = []
 
   for (const one of unknown) {
-    const info = await ask(wallet.network, wallet.address, one.orderId)
+    const marketId = parseMarketKey(one.marketKey)?.marketId ?? ""
+    const info = await ask(
+      wallet.network,
+      wallet.address,
+      one.orderId,
+      marketId,
+      credential
+    )
     rows.push({
       userId,
       walletId: wallet.id,

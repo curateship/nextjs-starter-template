@@ -1,6 +1,7 @@
 import type {
   CandleBar,
   CandleInterval,
+  CredentialForm,
   FundingRate,
   MarketCatalog,
   NetworkId,
@@ -35,11 +36,54 @@ import {
   setHyperliquidBrackets,
   modifyHyperliquidOrder,
 } from "@/server/protocols/hyperliquid/orders"
-import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
+import {
+  fetchHyperliquidPrices,
+  pricesWereRationed as hyperliquidPricesWereRationed,
+} from "@/server/protocols/hyperliquid/prices"
+import {
+  livePrices as readHyperliquidLivePrices,
+  livePricesFresh as hyperliquidLivePricesFresh,
+  openLivePrices as openHyperliquidLivePrices,
+} from "@/server/protocols/hyperliquid/live-prices"
 import {
   binanceFundingIntervalMs,
   fetchBinanceFunding,
 } from "@/server/protocols/binance/funding"
+import {
+  phemexIntervalMs,
+  roundPhemexPx,
+} from "@/lib/protocols/phemex/translate"
+import { fetchPhemexAccount } from "@/server/protocols/phemex/account"
+import { verifyPhemexAgentKey } from "@/server/protocols/phemex/agent"
+import {
+  fetchPhemexCandleHistory,
+  fetchPhemexCandles,
+} from "@/server/protocols/phemex/candles"
+import { packPhemexCredential } from "@/server/protocols/phemex/client"
+import {
+  fetchPhemexFunding,
+  phemexFundingIntervalMs,
+} from "@/server/protocols/phemex/funding"
+import {
+  closePhemexPosition,
+  cancelPhemexOrder,
+  fetchPhemexOrderFills,
+  fetchPhemexOrderInfo,
+  fetchPhemexPortfolio,
+  modifyPhemexOrder,
+  placePhemexOrder,
+  setPhemexBrackets,
+} from "@/server/protocols/phemex/orders"
+import {
+  fetchPhemexMarkets,
+  fetchPhemexPrices,
+  phemexPricesWereRationed,
+} from "@/server/protocols/phemex/markets"
+import {
+  openPhemexLivePrices,
+  phemexLivePricesFresh,
+  readPhemexLivePrices,
+} from "@/server/protocols/phemex/live-prices"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -90,10 +134,49 @@ export type ProtocolEntry = {
     /**
      * The nearest price this exchange would accept for an order. Every
      * protocol has its own rule about how fine a price may be; asking here is
-     * how the engine stays blind to which one it is talking to.
+     * how the engine stays blind to which one it is talking to. Exchanges
+     * that state a per-market tick read `priceTick`; exchanges with a rule
+     * instead (Hyperliquid's five significant figures) ignore it.
      */
-    roundPx(px: number, sizeDecimals: number | null): number
+    roundPx(
+      px: number,
+      sizeDecimals: number | null,
+      priceTick: number | null
+    ): number
+    /**
+     * Whether the last `prices` answer for this market was served from a
+     * stale cache because the exchange was rationing requests — the
+     * difference between "this coin has no price" (permanent, worth looking
+     * at) and "the exchange is busy" (clears on its own). Absent where the
+     * prices layer never rations.
+     */
+    pricesWereRationed?(network: NetworkId, marketId: string): boolean
   }
+  /**
+   * The pushed-price line the trading engine reads instead of asking — one
+   * websocket per network, opened on first use and shared by everything.
+   * Absent on a protocol nothing trades on yet: the engine then falls back
+   * to `markets.prices`, which is correct, just rationed.
+   */
+  livePrices?: {
+    /** Makes sure the line for this network is up. Free once it is open. */
+    open(network: NetworkId): void
+    /** The pushed prices by the exchange's own market id. */
+    read(network: NetworkId): { prices: ReadonlyMap<string, number> }
+    /** Whether the feed is currently worth reading — data arriving, not claims. */
+    fresh(network: NetworkId): boolean
+  }
+  /**
+   * A one-use ticket for the browser's live stream, on an exchange whose
+   * socket demands a token the browser cannot fetch itself (KuCoin's
+   * bullet-token handshake is cross-origin). Absent where the public socket
+   * is open to anyone.
+   */
+  liveTicket?(network: NetworkId): Promise<{
+    endpoint: string
+    token: string
+    pingIntervalMs: number
+  }>
   /** Absent where a market has no periodic position funding. */
   funding?: {
     fetch(
@@ -109,23 +192,59 @@ export type ProtocolEntry = {
    * Absent on an exchange that cannot hold an account. `capabilities.accounts` is the flag; this is the code behind it. Optional so a markets-only exchange is a shorter entry rather than a set of stubs that throw — a stub is a door that looks open.
    */
   account?: {
-    /** What the account at this public address holds and is worth. */
-    fetch(network: NetworkId, address: string): Promise<WalletAccountFigures>
+    /**
+     * What the account holds and is worth. `credential` hands over the
+     * decrypted blob for an exchange whose accounts cannot be read without
+     * it — an API-key venue. It is a function on purpose: a venue whose
+     * accounts are public by address (Hyperliquid) never calls it, so the
+     * plaintext never even exists on that path. A connector that calls it
+     * and gets null throws `LIVE_WALLET_KEY` rather than answering with a
+     * guess.
+     */
+    fetch(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<WalletAccountFigures>
   }
   /**
    * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
    */
   agent?: {
     /**
-     * Proves a pasted trading key before it is stored: refuses the account's
-     * own key outright, and asks the exchange whether this key is really
-     * approved to trade for that account. Answers the approval's expiry.
+     * Proves a pasted credential before it is stored. On Hyperliquid:
+     * refuses the account's own key outright, and asks the exchange whether
+     * this key is really approved to trade for that account. On an API-key
+     * exchange: one signed harmless read with the packed blob. Answers the
+     * approval's expiry where the venue states one.
      */
     verify(
       network: NetworkId,
       accountAddress: string,
       agentKey: string
     ): Promise<{ validUntil: number | null }>
+  }
+  /**
+   * How this exchange's sign-in fields are drawn and packed. Present exactly
+   * where `account` is — a venue that cannot hold an account has nothing to
+   * sign in to.
+   */
+  credentials?: {
+    /** The dialog's labels, patterns and help copy, as data. */
+    form: CredentialForm
+    /**
+     * Folds the dialog's fields into the ONE string that gets encrypted into
+     * `agent_key_encrypted` and later handed back as `OrderAuth.agentKey`.
+     * The format belongs to this protocol alone; a missing required field is
+     * refused here with a named `KEY_…` error, before anything is stored.
+     */
+    pack(input: {
+      /** The public identifier the dialog collected — some blobs carry it. */
+      address?: string
+      agentKey?: string
+      secret?: string
+      passphrase?: string
+    }): string
   }
   /**
    * Absent on an exchange that cannot place one. See `account` above.
@@ -175,22 +294,34 @@ export type ProtocolEntry = {
         slPx: number | null
       }
     ): Promise<void>
-    /** What a live wallet holds and has waiting, from the exchange itself. */
-    portfolio(network: NetworkId, address: string): Promise<WalletPortfolio>
+    /**
+     * What a live wallet holds and has waiting, from the exchange itself.
+     * `credential` as on `account.fetch`: needed by API-key venues, ignored
+     * by venues whose accounts are public by address.
+     */
+    portfolio(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<WalletPortfolio>
     fills(
       network: NetworkId,
       address: string,
-      since: number
+      since: number,
+      credential: () => string | null
     ): Promise<WalletOrderFill[]>
     /**
      * What one order was, asked after it is gone — the only way to tell a
      * stop firing from an ordinary sell once the order itself has been
-     * cancelled and forgotten.
+     * cancelled and forgotten. `marketId` rides along because some venues
+     * only answer this per market (Phemex); venues that don't ignore it.
      */
     orderInfo(
       network: NetworkId,
       address: string,
-      orderId: string
+      orderId: string,
+      marketId: string,
+      credential: () => string | null
     ): Promise<WalletOrderInfo>
   }
 }
@@ -218,6 +349,12 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       intervalMs: candleIntervalMs,
       prices: fetchHyperliquidPrices,
       roundPx: roundOrderPx,
+      pricesWereRationed: hyperliquidPricesWereRationed,
+    },
+    livePrices: {
+      open: openHyperliquidLivePrices,
+      read: readHyperliquidLivePrices,
+      fresh: hyperliquidLivePricesFresh,
     },
     funding: {
       fetch: fetchHyperliquidFunding,
@@ -228,6 +365,28 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     agent: {
       verify: verifyHyperliquidAgentKey,
+    },
+    credentials: {
+      form: {
+        addressLabel: "Account address",
+        addressHint: "0x…",
+        addressPattern: "^0x[0-9a-fA-F]{40}$",
+        secretLabel: "Trading key (agent key)",
+        needsPassphrase: false,
+        secretIsAgentKey: true,
+        keyHelp:
+          "An agent key made on the exchange's API page — approved to trade " +
+          "for this account and nothing more. Never the account's own key, " +
+          "which can move money out and is refused here.",
+      },
+      // The blob IS the agent key: one hex string, stored as-is. The shape
+      // and never-your-main-key checks run in `verify` before anything is
+      // stored, so pack only refuses emptiness.
+      pack: (input) => {
+        const agentKey = input.agentKey?.trim() ?? ""
+        if (!agentKey) throw new Error("KEY_REQUIRED")
+        return agentKey
+      },
     },
     orders: {
       place: placeHyperliquidOrder,
@@ -254,6 +413,74 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * anything that ignored the flag should fail loudly at the missing block
    * rather than quietly at a thrown error deep in a settle.
    */
+  /**
+   * A full trading venue, spoken through its dollar-settled (USDT-margined)
+   * perpetual API only — real decimal prices. Unlike Hyperliquid it signs
+   * with an API key id and secret, and its accounts cannot be read without
+   * the secret.
+   *
+   * Mainnet only, decided 19 Aug 2026: the practice network is not worth
+   * carrying, so the order path is proven the way KuCoin's will be — reads
+   * first (free), then one deliberately tiny real order behind both
+   * real-money switches.
+   */
+  phemex: {
+    id: "phemex",
+    label: "Phemex",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: { markets: true, accounts: true, orders: true },
+    markets: {
+      fetch: fetchPhemexMarkets,
+      candles: fetchPhemexCandles,
+      history: fetchPhemexCandleHistory,
+      intervalMs: phemexIntervalMs,
+      prices: fetchPhemexPrices,
+      roundPx: roundPhemexPx,
+      pricesWereRationed: phemexPricesWereRationed,
+    },
+    livePrices: {
+      open: openPhemexLivePrices,
+      read: readPhemexLivePrices,
+      fresh: phemexLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchPhemexFunding,
+      intervalMs: phemexFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchPhemexAccount,
+    },
+    agent: {
+      verify: verifyPhemexAgentKey,
+    },
+    credentials: {
+      form: {
+        addressLabel: "API key ID",
+        addressHint: "The key's ID from Phemex's API Management page",
+        // Phemex issues UUID-shaped ids; kept tolerant on purpose — shape,
+        // not truth. The verify call is what proves the credential.
+        addressPattern: "^[0-9A-Za-z-]{16,42}$",
+        secretLabel: "API secret",
+        needsPassphrase: false,
+        secretIsAgentKey: false,
+        keyHelp:
+          "Made on Phemex under API Management — give it trade permission, " +
+          "and copy both the ID and the secret while they are shown.",
+      },
+      pack: packPhemexCredential,
+    },
+    orders: {
+      place: placePhemexOrder,
+      cancel: cancelPhemexOrder,
+      modify: modifyPhemexOrder,
+      close: closePhemexPosition,
+      setBrackets: setPhemexBrackets,
+      portfolio: fetchPhemexPortfolio,
+      fills: fetchPhemexOrderFills,
+      orderInfo: fetchPhemexOrderInfo,
+    },
+  },
   binance: {
     id: "binance",
     label: "Binance",
@@ -284,17 +511,6 @@ export function getProtocol(id: ProtocolId): ProtocolEntry {
 /** Every protocol this build ships, for screens that show one list per protocol. */
 export function listProtocols(): ProtocolEntry[] {
   return Object.values(PROTOCOLS)
-}
-
-/**
- * The owner of the current Trade dashboard.
- *
- * Other protocols keep their own dashboards instead of being folded into
- * this market list. Keeping that decision inside the registry also preserves
- * the rule that screens never compare protocol ids themselves.
- */
-export function tradeDashboardProtocol(): ProtocolEntry {
-  return PROTOCOLS.hyperliquid
 }
 
 /**
@@ -336,4 +552,12 @@ export function agentOf(protocol: ProtocolEntry) {
     throw new Error(`PROTOCOL_NO_AGENT:${protocol.id}`)
   }
   return protocol.agent
+}
+
+/** The sign-in form and blob packer for an exchange that holds accounts. */
+export function credentialsOf(protocol: ProtocolEntry) {
+  if (!protocol.credentials) {
+    throw new Error(`PROTOCOL_NO_CREDENTIALS:${protocol.id}`)
+  }
+  return protocol.credentials
 }

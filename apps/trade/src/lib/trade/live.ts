@@ -113,11 +113,11 @@ export function keyExpiryWarning(
   if (keyValidUntil === null) return null
   const msLeft = keyValidUntil - now
   if (msLeft <= 0) {
-    return "The trading key has expired — orders will be refused. Create a fresh API key on Hyperliquid and save it here."
+    return "The trading key has expired — orders will be refused. Create a fresh API key on the exchange and save it here."
   }
   const daysLeft = Math.ceil(msLeft / 86_400_000)
   if (daysLeft > 14) return null
-  return `The trading key expires in ${daysLeft === 1 ? "1 day" : `${daysLeft} days`}. Renew it on Hyperliquid and save the new key here.`
+  return `The trading key expires in ${daysLeft === 1 ? "1 day" : `${daysLeft} days`}. Renew it on the exchange and save the new key here.`
 }
 
 /**

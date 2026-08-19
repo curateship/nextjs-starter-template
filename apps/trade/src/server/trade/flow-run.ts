@@ -27,14 +27,14 @@ import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import {
+  assertRealMoneySwitchOn,
   assertRealOrdersAllowed,
-  scrubSecrets,
-} from "@/server/protocols/hyperliquid/signing"
+} from "@/server/protocols/real-money"
+import { scrubSecrets } from "@/server/protocols/scrub"
 import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
-import { assertRealMoneySwitchOn } from "@/server/trade/workers"
 
 /**
  * Switching a flow on, off, and the pass that gives it something to do.

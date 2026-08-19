@@ -1,9 +1,15 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { parseMarketKey, type MarketCatalog } from "@/lib/protocols/contracts"
+import {
+  KNOWN_PROTOCOLS,
+  parseMarketKey,
+  type MarketCatalog,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { userGet, userPost } from "@/server/guards"
-import { tradeDashboardProtocol } from "@/server/protocols/registry"
+import { getProtocol } from "@/server/protocols/registry"
 import {
   loadMarketFavoriteKeys,
   saveMarketFavoriteKeys,
@@ -23,18 +29,27 @@ import { createErrorMessage } from "./error-message"
  */
 
 /**
- * Which network to list. One choice for the whole read: the screens show one
- * network at a time, clearly labelled, and the labelling rule ("a pretend
- * dollar must never be readable as a real one") is easiest to keep when the
- * two never share a list.
+ * Which exchange and which network to list. One choice each for the whole
+ * read: every dashboard belongs to exactly one exchange (the route says
+ * which), and the screens show one network at a time, clearly labelled — the
+ * labelling rule ("a pretend dollar must never be readable as a real one")
+ * is easiest to keep when the two never share a list.
  */
-const networkSchema = z.object({ network: z.enum(["mainnet", "testnet"]) })
+const marketsSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS),
+  network: z.enum(["mainnet", "testnet"]),
+})
 
 const loadMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .inputValidator(networkSchema)
+  .inputValidator(marketsSchema)
   .handler(async ({ data }): Promise<{ catalogs: MarketCatalog[] }> => {
-    const protocol = tradeDashboardProtocol()
+    const protocol = getProtocol(data.protocol)
+    // A network the exchange does not run is refused, not answered with an
+    // empty list that reads as "no markets today".
+    if (!protocol.networks.includes(data.network)) {
+      throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
+    }
     return { catalogs: [await protocol.markets.fetch(data.network)] }
   })
 
@@ -102,8 +117,8 @@ const saveLastMarketFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
-export function loadMarkets(network: "mainnet" | "testnet") {
-  return loadMarketsFn({ data: { network } })
+export function loadMarkets(protocol: ProtocolId, network: NetworkId) {
+  return loadMarketsFn({ data: { protocol, network } })
 }
 
 export function loadLastMarket() {

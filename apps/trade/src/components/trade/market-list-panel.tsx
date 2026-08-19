@@ -263,7 +263,7 @@ export function MarketListPanel({
               on screen took you home again. This is that door, and it only
               exists on the side that needs it. */}
           <Link
-            to="/trade"
+            to="."
             search={{ network: "mainnet" }}
             className={cn(
               "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:bg-amber-500/10 dark:text-amber-400",
