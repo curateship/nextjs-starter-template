@@ -1005,6 +1005,48 @@ export async function cancelWatchOrder(
 }
 
 /**
+ * Changes what a watched price is for — its size, stop and target — while it
+ * is still watching. The drag on the chart resizes a stop the same way a
+ * practice order's does, so the trade keeps risking the same money.
+ */
+export async function editWatchOrder(
+  userId: string,
+  walletId: string,
+  watchId: string,
+  changes: { sz: number; tpPx: number | null; slPx: number | null }
+): Promise<{ saved: true }> {
+  if (!(changes.sz > 0)) throw new Error("SMART_ORDER_PRICE")
+  const [row] = await db
+    .select()
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.id, watchId),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+  const plan = readWatchPlan(row.plan)
+  if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
+  if (plan.phase !== "waiting" || plan.orderId !== null) {
+    throw new Error("SMART_WATCH_TAKING")
+  }
+  await db
+    .update(tradeSmartLadders)
+    .set({
+      plan: { ...plan, sz: changes.sz, tpPx: changes.tpPx, slPx: changes.slPx },
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+    )
+  return { saved: true }
+}
+
+/**
  * Drags a watched price to a new level.
  *
  * Only while it is still WATCHING. Once the level has been touched the chase

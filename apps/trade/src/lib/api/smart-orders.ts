@@ -48,6 +48,7 @@ import {
 import {
   cancelLadderRest as cancelRestRows,
   cancelWatchOrder as cancelWatchRow,
+  editWatchOrder as editWatchRow,
   moveWatchOrder as moveWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
@@ -206,6 +207,25 @@ const cancelWatchFn = createServerFn({ method: "POST" })
     return await cancelWatchRow(context.user.id, data.walletId, data.ladderId)
   })
 
+/** Changes a watched price's size, stop and target, while it is still watching. */
+const editWatchFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    ladderSchema.extend({
+      sz: z.number().positive().finite(),
+      tpPx: z.number().positive().finite().nullable(),
+      slPx: z.number().positive().finite().nullable(),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await tradingWallet(context.user.id, data.walletId)
+    return await editWatchRow(context.user.id, data.walletId, data.ladderId, {
+      sz: data.sz,
+      tpPx: data.tpPx,
+      slPx: data.slPx,
+    })
+  })
+
 /** Drags a watched price to a new level, while it is still watching. */
 const moveWatchFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -264,6 +284,16 @@ export function cancelLadderRung(input: z.infer<typeof rungSchema>) {
 
 export function cancelWatch(input: z.infer<typeof ladderSchema>) {
   return cancelWatchFn({ data: input })
+}
+
+export function editWatch(input: {
+  walletId: string
+  ladderId: string
+  sz: number
+  tpPx: number | null
+  slPx: number | null
+}) {
+  return editWatchFn({ data: input })
 }
 
 export function moveWatch(input: {

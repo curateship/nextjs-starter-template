@@ -383,7 +383,7 @@ export function TradeLinesLayer({
       // nothing else — the amount stays where it was put, because the target
       // has no say in what the trade can lose.
       const move =
-        settled && !order.live && !order.watched && onMoveOrderTarget
+        settled && !order.live && onMoveOrderTarget
           ? (price: number) => onMoveOrderTarget(order.walletId, order.id, price)
           : undefined
       lines.push({
@@ -401,7 +401,7 @@ export function TradeLinesLayer({
       // line above: a real resting order cannot be changed in place, it has to
       // be cancelled and placed again.
       const resize =
-        settled && !order.live && !order.watched && onMoveOrderStop
+        settled && !order.live && onMoveOrderStop
           ? (price: number) => onMoveOrderStop(order.walletId, order.id, price)
           : undefined
       lines.push({

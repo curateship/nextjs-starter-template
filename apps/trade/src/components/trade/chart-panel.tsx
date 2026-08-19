@@ -660,9 +660,9 @@ export function ChartPanel({
                   // front of you rather than from a remembered setting, so it
                   // holds whether the order was sized by risk or typed by hand.
                   onMoveOrderTarget={(walletId, orderId, price) => {
-                    const order = trading.orders.find(
-                      (one) => one.id === orderId
-                    )
+                    const order =
+                      trading.orders.find((one) => one.id === orderId) ??
+                      trading.watchOrders.find((one) => one.id === orderId)
                     if (!order) return
                     void trading.editOrder(walletId, orderId, {
                       sz: order.sz,
@@ -671,9 +671,9 @@ export function ChartPanel({
                     })
                   }}
                   onMoveOrderStop={(walletId, orderId, price) => {
-                    const order = trading.orders.find(
-                      (one) => one.id === orderId
-                    )
+                    const order =
+                      trading.orders.find((one) => one.id === orderId) ??
+                      trading.watchOrders.find((one) => one.id === orderId)
                     if (!order || order.slPx === null) return
                     void trading.editOrder(walletId, orderId, {
                       // Floored to the market's own step, never rounded up:

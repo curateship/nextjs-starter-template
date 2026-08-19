@@ -40,6 +40,7 @@ import {
   reconcileLiveSmartOrders,
   updateLadderExits,
   moveWatch,
+  editWatch,
 } from "@/lib/api/smart-orders"
 import {
   parseMarketKey,
@@ -535,8 +536,13 @@ export function useTrading(wallet: TradeWallet | null): Trading {
 
   /** The row an action is aimed at decides which road the action takes. */
   const findOrder = React.useCallback(
-    (orderId: string) => allOrders.find((one) => one.id === orderId) ?? null,
-    [allOrders]
+    (orderId: string) =>
+      allOrders.find((one) => one.id === orderId) ??
+      // Watched prices are orders to everything that asks by id — the drags
+      // and edits route on the `watched` flag this lookup carries back.
+      watchOrders.find((one) => one.id === orderId) ??
+      null,
+    [allOrders, watchOrders]
   )
   const findPosition = React.useCallback(
     (walletId: string, marketKey: string) =>
@@ -602,13 +608,21 @@ export function useTrading(wallet: TradeWallet | null): Trading {
 
   const editOrder: Trading["editOrder"] = React.useCallback(
     async (walletId, orderId, changes) => {
-      if (findOrder(orderId)?.live) {
+      const order = findOrder(orderId)
+      if (order?.live) {
         // The chart never offers this on a real order; the guard is for any
         // other path that might.
         showErrorToast(
           "A real order cannot be changed in place yet — cancel it and place a new one."
         )
         return false
+      }
+      if (order?.watched) {
+        // A watched price is a row of ours — its size, stop and target change
+        // in the row, and nothing goes near the exchange until it fires.
+        return await run(() =>
+          editWatch({ walletId, ladderId: orderId, ...changes })
+        )
       }
       return await run(() => updatePaperOrder({ walletId, orderId, ...changes }))
     },
