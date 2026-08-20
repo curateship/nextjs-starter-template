@@ -198,6 +198,101 @@ describe("placing", () => {
     expect(outcome.avgPx).toBe(69_000)
   })
 
+  it("makes the account's leverage match what was asked, on cross margin", async () => {
+    // **On cross the order's own leverage is ignored.** KuCoin keeps a
+    // leverage per market on the account and a cross order takes that, so an
+    // order asking for 1x on a market set to 3x is accepted, opens at 3x, and
+    // says nothing. A real position ended up on three times the leverage it
+    // was asked for on 20 Aug 2026.
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v2/getCrossUserLeverage", answer: ok({ symbol: "XBTUSDTM", leverage: 3 }) },
+        { path: "/api/v2/changeCrossUserLeverage", answer: ok(true) },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-11" }) },
+        {
+          path: "/api/v1/orders/ord-11",
+          answer: ok({
+            id: "ord-11",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: 1,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const changed = sent.find(
+      (one) => one.url.pathname === "/api/v2/changeCrossUserLeverage"
+    )
+    expect(changed).toBeDefined()
+    expect((changed?.body as Record<string, unknown>).leverage).toBe("1")
+    // And it happened BEFORE the order, not after.
+    const orderAt = sent.findIndex(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    expect(sent.indexOf(changed!)).toBeLessThan(orderAt)
+  })
+
+  it("refuses the order rather than opening at a leverage nobody chose", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v2/getCrossUserLeverage", answer: ok({ symbol: "XBTUSDTM", leverage: 3 }) },
+        {
+          path: "/api/v2/changeCrossUserLeverage",
+          answer: { code: "300009", msg: "cannot change with a position open" },
+        },
+      ],
+      sent
+    )
+
+    await expect(
+      placeKucoinOrder("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        side: "buy",
+        kind: "limit",
+        px: 60_000,
+        sz: 0.012,
+        reduceOnly: false,
+        leverage: 1,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow(/LIVE_LEVERAGE/)
+    // Nothing was ordered.
+    expect(
+      sent.some((one) => one.url.pathname === "/api/v1/orders" && one.method === "POST")
+    ).toBe(false)
+  })
+
   it("names the market's own margin mode on every order it sends", async () => {
     // KuCoin keeps this per market. An order that says nothing is taken as
     // isolated, and on a market set to cross the exchange refuses it with

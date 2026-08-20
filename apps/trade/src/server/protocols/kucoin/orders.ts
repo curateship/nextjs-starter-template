@@ -273,6 +273,57 @@ export function clearKucoinMarginModes(): void {
   marginModes.clear()
 }
 
+/**
+ * Making the leverage asked for the leverage actually used.
+ *
+ * **On cross margin the order's own leverage is ignored.** KuCoin keeps a
+ * leverage per market on the account, and a cross-margin order takes that
+ * whatever the order says. An order asking for 1x on a market set to 3x is
+ * accepted, opens at 3x, and says nothing — which is how a position ended up
+ * on three times the leverage it was asked for on 20 Aug 2026.
+ *
+ * So on cross the account's setting is changed to what was asked before the
+ * order goes, and if it cannot be changed the order is refused rather than
+ * placed at a leverage nobody chose. On isolated the order's own field is
+ * honoured and this does nothing.
+ */
+async function useAskedLeverage(
+  network: NetworkId,
+  credential: KucoinCredential,
+  symbol: string,
+  leverage: number
+): Promise<void> {
+  const answer = (await kucoinSigned(
+    network,
+    credential,
+    "GET",
+    "/api/v2/getCrossUserLeverage",
+    { symbol }
+  )) as { leverage?: unknown } | null
+  const now = num(answer?.leverage)
+  if (now !== null && Math.abs(now - leverage) < 1e-9) return
+
+  try {
+    await kucoinSigned(
+      network,
+      credential,
+      "POST",
+      "/api/v2/changeCrossUserLeverage",
+      {},
+      { symbol, leverage: decimalString(leverage) }
+    )
+  } catch (error) {
+    // Named so the screens can say the true thing: the order was not placed,
+    // and why. Silently opening at the account's leverage would be worse than
+    // any refusal.
+    throw new Error(
+      `LIVE_LEVERAGE:This market is on cross margin and its leverage could not be set to ${leverage}x, so nothing was ordered. Change it on KuCoin, or switch the market to isolated. (${
+        error instanceof Error ? error.message : String(error)
+      })`
+    )
+  }
+}
+
 async function sendOrder(
   network: NetworkId,
   credential: KucoinCredential,
@@ -349,6 +400,16 @@ export async function placeKucoinOrder(
     : snapToTick(params.px, priceTick)
   if (!(px > 0)) throw new Error("LIVE_PRICE")
 
+  // Before anything is ordered: on cross margin the order's own leverage is
+  // ignored, so the account's setting is made to match what was asked. See
+  // `useAskedLeverage`.
+  if (
+    params.leverage !== null &&
+    (await marginModeOf(network, credential, params.marketId)) === "CROSS"
+  ) {
+    await useAskedLeverage(network, credential, params.marketId, params.leverage)
+  }
+
   const body: Record<string, unknown> = {
     symbol: params.marketId,
     side: params.side,
@@ -358,9 +419,10 @@ export async function placeKucoinOrder(
     timeInForce: isMarket ? "IOC" : "GTC",
     reduceOnly: params.reduceOnly,
     ...(params.kind === "postOnly" ? { postOnly: true } : {}),
-    // Leverage is stated only when this opens fresh; adding to a position
-    // inherits what the position already runs at — the caller sends null then,
-    // and the account's own setting stands.
+    // Honoured on isolated margin; on cross the account's own setting decides
+    // and `useAskedLeverage` above has already made it match. Stated only when
+    // this opens fresh — adding to a position inherits what it already runs at,
+    // and the caller sends null then.
     ...(params.leverage !== null ? { leverage: params.leverage } : {}),
   }
 
