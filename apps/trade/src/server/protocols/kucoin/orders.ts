@@ -223,18 +223,81 @@ async function orderById(
 type PlacedLeg = { orderId: string }
 
 /** One order body sent, and its id back. Never retried. */
+/**
+ * Which margin mode a market is set to on this account, and how long that
+ * answer stands.
+ *
+ * **The order has to name it.** KuCoin keeps this per market — cross, where
+ * the whole balance backs the position, or isolated, where only what is put
+ * behind the trade can be lost. An order that says nothing is treated as
+ * isolated, and on a market set to cross the exchange refuses it outright:
+ * `330005 The order's margin mode does not match the selected one`. That is
+ * what stopped a plain buy on 20 Aug 2026.
+ *
+ * The account's own setting is sent back rather than a preference of ours.
+ * Changing somebody's margin mode from inside an order is not a thing this
+ * app should do quietly: it decides how much of the balance is at risk.
+ */
+const MARGIN_MODE_GOOD_FOR_MS = 5 * 60_000
+
+type MarginMode = "CROSS" | "ISOLATED"
+
+const marginModes = new Map<string, { at: number; mode: MarginMode }>()
+
+async function marginModeOf(
+  network: NetworkId,
+  credential: KucoinCredential,
+  symbol: string
+): Promise<MarginMode> {
+  const key = `${network}:${credential.keyId}:${symbol}`
+  const held = marginModes.get(key)
+  if (held && Date.now() - held.at < MARGIN_MODE_GOOD_FOR_MS) return held.mode
+
+  const answer = (await kucoinSigned(
+    network,
+    credential,
+    "GET",
+    "/api/v2/position/getMarginMode",
+    { symbol }
+  )) as { marginMode?: unknown } | null
+  // Isolated is the assumption when the exchange will not say, because it is
+  // the smaller promise: an order refused for saying the wrong thing is far
+  // better than one that quietly puts the whole balance behind a trade.
+  const mode: MarginMode = answer?.marginMode === "CROSS" ? "CROSS" : "ISOLATED"
+  marginModes.set(key, { at: Date.now(), mode })
+  return mode
+}
+
+/** Tests drive their own clock; a held answer across them would leak. */
+export function clearKucoinMarginModes(): void {
+  marginModes.clear()
+}
+
 async function sendOrder(
   network: NetworkId,
   credential: KucoinCredential,
   body: Record<string, unknown>
 ): Promise<PlacedLeg> {
+  // Every order names the market's margin mode, entries and protection legs
+  // and closes alike — see `marginModeOf`. Doing it here rather than at each
+  // call site means a leg added later cannot forget and be refused on its own,
+  // leaving a position open with no stop.
+  const symbol = typeof body.symbol === "string" ? body.symbol : ""
+  const marginMode = symbol
+    ? await marginModeOf(network, credential, symbol)
+    : null
+
   const answer = (await kucoinSigned(
     network,
     credential,
     "POST",
     "/api/v1/orders",
     {},
-    { clientOid: randomUUID(), ...body }
+    {
+      clientOid: randomUUID(),
+      ...(marginMode ? { marginMode } : {}),
+      ...body,
+    }
   )) as { orderId?: unknown } | null
   const orderId = typeof answer?.orderId === "string" ? answer.orderId : ""
   if (!orderId) throw new Error("LIVE_UNREADABLE")

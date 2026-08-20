@@ -37,6 +37,7 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
 })
 
 const {
+  clearKucoinMarginModes,
   fetchKucoinOrderFills,
   fetchKucoinPortfolio,
   placeKucoinOrder,
@@ -102,6 +103,9 @@ const ok = (data: unknown) => ({ code: "200000", data })
 beforeEach(() => {
   delete process.env.TRADE_ENABLE_MAINNET
   vi.resetModules()
+  // The account's margin mode is held for five minutes, and a held answer
+  // from one test is a wrong answer in the next.
+  clearKucoinMarginModes()
 })
 
 afterEach(() => {
@@ -192,6 +196,103 @@ describe("placing", () => {
     // is the price it actually got.
     expect(outcome.filledSz).toBeCloseTo(0.012, 12)
     expect(outcome.avgPx).toBe(69_000)
+  })
+
+  it("names the market's own margin mode on every order it sends", async () => {
+    // KuCoin keeps this per market. An order that says nothing is taken as
+    // isolated, and on a market set to cross the exchange refuses it with
+    // "the order's margin mode does not match the selected one" — which is
+    // what stopped a plain buy on 20 Aug 2026. The account's setting is sent
+    // back rather than a preference of ours: it decides how much of the
+    // balance is at risk, and an order is no place to change that quietly.
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-9" }) },
+        {
+          path: "/api/v1/orders/ord-9",
+          answer: ok({
+            id: "ord-9",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: 70_000,
+      slPx: 50_000,
+    })
+
+    const placed = sent.filter(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    expect(placed.length).toBeGreaterThan(1)
+    // The entry AND its protection legs — a leg refused on its own would
+    // leave the position open with no stop.
+    for (const one of placed) {
+      expect((one.body as Record<string, unknown>).marginMode).toBe("CROSS")
+    }
+  })
+
+  it("assumes the smaller promise when the exchange will not say", async () => {
+    // Isolated risks only what is put behind the trade. Guessing cross would
+    // quietly put the whole balance behind it.
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-10" }) },
+        {
+          path: "/api/v1/orders/ord-10",
+          answer: ok({
+            id: "ord-10",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const placed = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    expect((placed?.body as Record<string, unknown>).marginMode).toBe("ISOLATED")
   })
 
   it("lets a resting order actually rest, at the price asked", async () => {
