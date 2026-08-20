@@ -7,10 +7,12 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { encryptSecret } from "@/server/auth/encryption"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
   placeLiveDcaLadder,
   reconcileLiveLadders,
 } from "@/server/trade/live-smart-orders"
+import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import {
   tradeLiveJournal,
@@ -105,6 +107,67 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
   }
 }
 
+
+/** A live watch mid-chase: its order is resting and the gates are long open. */
+async function chasingWatch(): Promise<void> {
+  const plan: WatchPlan = {
+    triggerPx: 100,
+    side: "buy",
+    sz: 1,
+    leverage: 1,
+    maxLeverage: 50,
+    sizeDecimals: 3,
+    priceTick: null,
+    tpPx: null,
+    slPx: null,
+    reduceOnly: false,
+    chaseGiveUp: 0,
+    phase: "taking",
+    sent: true,
+    orderId: "ord-old",
+    orderPx: 100,
+    chasedAt: Date.now() - 60_000,
+    chases: 0,
+    startedAt: Date.now() - 120_000,
+  }
+  await database.insert(tradeSmartLadders).values({
+    userId,
+    id: "watch-1",
+    walletId: "live-1",
+    marketKey: MARKET,
+    kind: "watch",
+    status: "active",
+    plan,
+    createdAt: new Date(Date.now() - 120_000),
+    updatedAt: new Date(Date.now() - 60_000),
+  })
+  // The order really is resting, exactly as the exchange would report it.
+  portfolio.mockResolvedValue({
+    positions: [],
+    orders: [
+      {
+        orderId: "ord-old",
+        marketId: "BTC",
+        side: "buy",
+        px: 100,
+        sz: 1,
+        reduceOnly: false,
+      },
+    ],
+  })
+  // Price walked up, so the chase wants to re-price the resting buy.
+  prices.mockResolvedValue(new Map([["BTC", 105]]))
+}
+
+async function watchPlanNow(): Promise<WatchPlan> {
+  const rows = await database
+    .select()
+    .from(tradeSmartLadders)
+    .where(eq(tradeSmartLadders.id, "watch-1"))
+  expect(rows).toHaveLength(1)
+  return rows[0].plan as WatchPlan
+}
+
 async function ladder(): Promise<LadderPlan> {
   const rows = await database
     .select()
@@ -119,6 +182,7 @@ beforeEach(async () => {
   client = testDb.client
   database = testDb.db
   clearMarketRulesCache()
+  resetWatchChaseGate()
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
   for (const mock of [
     prices,
@@ -288,6 +352,45 @@ describe("live Smart orders", () => {
         (row) => row.marketKey === MARKET && row.action === "refused"
       )
     ).toBe(true)
+  })
+
+  it("voids the chase's replacement when the cancel did not cancel", async () => {
+    // **The other half of the 20 Aug 2026 money bug.** The chase re-prices by
+    // cancelling and re-placing, and a cancel usually fails because the order
+    // already FILLED — placing the replacement then buys the same thing
+    // twice. A failed cancel must void the replacement and leave the watch
+    // waiting for the position that fill is about to become.
+    await chasingWatch()
+    cancel.mockRejectedValue(new Error("KUCOIN_100004:order cannot be cancelled"))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).not.toHaveBeenCalled()
+    const plan = await watchPlanNow()
+    expect(plan.orderId).toBeNull()
+    // Still true: money may be standing on the exchange, and only a proven
+    // cancel may say otherwise.
+    expect(plan.sent).toBe(true)
+  })
+
+  it("still swaps the order when the cancel really cancelled", async () => {
+    // The counterpart, so the guard cannot quietly freeze every chase.
+    await chasingWatch()
+    cancel.mockResolvedValue(undefined)
+    place.mockResolvedValue({
+      status: "resting",
+      orderId: "ord-new",
+      avgPx: null,
+      filledSz: null,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(place).toHaveBeenCalledTimes(1)
+    const plan = await watchPlanNow()
+    expect(plan.orderId).toBe("ord-new")
+    expect(plan.sent).toBe(true)
   })
 
   it("puts a rung back when the exchange definitely refused its buy", async () => {

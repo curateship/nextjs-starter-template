@@ -1033,12 +1033,29 @@ async function reconcileLiveLaddersOnce(
         const accepted: string[] = []
         let marketActionStarted = false
         try {
+          let cancelFailed = false
           for (const orderId of pendingCancels) {
-            await rollbackLiveOrder(userId, {
+            const cancelled = await rollbackLiveOrder(userId, {
               walletId: wallet.id,
               marketKey: row.marketKey,
               orderId,
             })
+            if (!cancelled) cancelFailed = true
+          }
+          // **A cancel that did not cancel voids the replacement.** The chase
+          // swaps an order by dropping the old one and placing a new one, and
+          // the swap is only safe when the drop really happened — a cancel
+          // usually fails because the order already FILLED, and placing the
+          // replacement then is buying the same thing twice. The plan keeps
+          // `sent`, so the watch waits for the position that fill is about to
+          // become instead of spending again.
+          if (cancelFailed && entry.kind === "watch") {
+            for (const pending of pendingPlaces) {
+              forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
+                if (orderId === pending.tempId) set(null)
+              })
+            }
+            pendingPlaces.length = 0
           }
           for (const pending of pendingPlaces) {
             const outcome = await placeLiveOrder(userId, {
@@ -1053,6 +1070,29 @@ async function reconcileLiveLaddersOnce(
               slPx: null,
               restingOnly: true,
             })
+            // A resting-only order that the venue reports FILLED anyway is
+            // not a failure to unwind — the money moved, and unwinding the
+            // plan is how the next pass buys it a second time. The watch is
+            // told its order is gone (it is: it became a fill) and waits for
+            // the position; `sent` on its plan is what keeps it waiting.
+            if (
+              entry.kind === "watch" &&
+              outcome.status === "filled" &&
+              outcome.orderId
+            ) {
+              forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
+                if (orderId === pending.tempId) set(null)
+              })
+              await rememberFlowRunOrders({
+                userId,
+                walletId: wallet.id,
+                flowRunId: raw.flowRunId,
+                ladderId: row.id,
+                marketKey: pending.input.marketKey,
+                orderIds: [outcome.orderId],
+              })
+              continue
+            }
             if (outcome.status !== "resting" || !outcome.orderId)
               throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
             accepted.push(outcome.orderId)
@@ -1340,13 +1380,15 @@ async function restoreLiveOrders(input: {
 }): Promise<boolean> {
   let failed = false
   for (const orderId of input.accepted.reverse()) {
-    await rollbackLiveOrder(input.userId, {
+    // The rollback ANSWERS whether it cancelled rather than throwing — a
+    // failed cancel here usually means the order filled in the gap, and the
+    // caller has to know the recovery is incomplete either way.
+    const cancelled = await rollbackLiveOrder(input.userId, {
       walletId: input.wallet.id,
       marketKey: input.marketKey,
       orderId,
-    }).catch(() => {
-      failed = true
-    })
+    }).catch(() => false)
+    if (!cancelled) failed = true
   }
   for (const order of input.cancelled) {
     await placeLiveOrder(input.userId, {

@@ -50,6 +50,22 @@ export const watchPlanSchema = z.object({
    */
   chaseGiveUp: z.number().min(0).default(0),
   phase: z.enum(WATCH_PHASES),
+  /**
+   * An order reached the exchange and its fate has not been proven since.
+   *
+   * **This is what makes a watch spend its money at most once.** The engine
+   * used to treat "my order is not in the open-orders read" as proof it was
+   * gone and place a fresh one at full size — but an order can be missing
+   * from that read while it rests (the exchange's list lags a moment), or
+   * while it has already filled and the position has not shown yet. Either
+   * way, placing again is how one $50 watch bought $150 of coin on
+   * 20 Aug 2026. While this is true and no order is in sight, the watch
+   * WAITS — for the position, for a fill record, or for a person — and
+   * places nothing. It goes false only when a cancel provably succeeded,
+   * which is the one moment "nothing of mine stands" is a fact rather than
+   * a guess.
+   */
+  sent: z.boolean().default(false),
   /** The order resting right now, and where it is resting. */
   orderId: z.string().nullable().default(null),
   orderPx: z.number().positive().nullable().default(null),

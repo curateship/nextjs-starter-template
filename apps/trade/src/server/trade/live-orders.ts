@@ -26,7 +26,12 @@ import {
   getProtocol,
   ordersOf,
 } from "@/server/protocols/registry"
-import { loadLiveHistory, sweepLiveFills } from "@/server/trade/live-fills"
+import {
+  loadLiveHistory,
+  sweepIsWaitedFor,
+  sweepLiveFills,
+  sweepSoon,
+} from "@/server/trade/live-fills"
 import {
   tradeLiveJournal,
   tradeWalletNonces,
@@ -345,7 +350,7 @@ export async function cancelLiveOrder(
 export async function rollbackLiveOrder(
   userId: string,
   input: { walletId: string; marketKey: string; orderId: string }
-): Promise<void> {
+): Promise<boolean> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
   const side: PaperSide | null = null
@@ -361,8 +366,22 @@ export async function rollbackLiveOrder(
       side,
       note: "A partly placed Smart order was rolled back.",
     })
+    return true
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, side, error)
+    // **Whether it cancelled is the answer, not a thrown fit.** A cancel that
+    // failed usually failed because the order had already FILLED — and a
+    // caller about to place a replacement must know that, or it buys the
+    // same thing twice. This used to rethrow, and the throw landed in the
+    // smart-order recovery path, which "restored" the cancelled original by
+    // PLACING IT AGAIN — an order that was never cancelled got a sibling.
+    // So the refusal is journalled and the answer is returned, calmly.
+    const message = error instanceof Error ? error.message : String(error)
+    await journal(userId, row.id, input.marketKey, {
+      action: "refused",
+      side,
+      note: message.replace(/^LIVE_(EXCHANGE|ORDER_REFUSED):/, ""),
+    })
+    return false
   }
 }
 
@@ -389,6 +408,9 @@ export async function closeLivePosition(
       marketId: ref.marketId,
       szi: held.szi,
     })
+    // The Journal row for this trade is built from the fill this close just
+    // made, so the next read must not sit behind the idle wait.
+    sweepSoon(userId, row.id)
     await journal(userId, row.id, input.marketKey, {
       action: "close",
       side,
@@ -557,7 +579,15 @@ export async function loadLivePortfolio(
         // the whole panel sit on a spinner while an exchange was asked about
         // months of old trades nobody was looking at. It cannot throw, it
         // paces itself, and whatever it brings in shows on the next poll.
-        void sweepLiveFills(userId, wallet, portfolio, credential)
+        // ...unless this wallet has just made a fill. Then the row the
+        // Journal is about to draw comes from that very sweep, and answering
+        // without it means the trade shows a poll later and reads as not
+        // having been recorded at all.
+        if (sweepIsWaitedFor(userId, wallet.id)) {
+          await sweepLiveFills(userId, wallet, portfolio, credential)
+        } else {
+          void sweepLiveFills(userId, wallet, portfolio, credential)
+        }
           })(),
           WALLET_READ_DEADLINE_MS
         )

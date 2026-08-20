@@ -93,6 +93,7 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     reduceOnly: false,
     chaseGiveUp: 0,
     phase: "waiting",
+    sent: false,
     orderId: null,
     orderPx: null,
     chasedAt: 0,
@@ -254,6 +255,59 @@ describe("a price being watched", () => {
     const [held] = await positions()
     expect(held.tpPx).toBe(110)
     expect(held.slPx).toBe(88)
+  })
+
+  it("never places a second order while the first one's fate is unknown", async () => {
+    // **The money bug of 20 Aug 2026, pinned.** An order was placed, and the
+    // next pass could not see it — the exchange's open-orders list lags a
+    // freshly placed order, and a filled one's position takes a moment to
+    // show. The engine read that absence as proof the order was gone and
+    // placed a fresh one at full size, every pass, until one $50 watch had
+    // bought $150 of coin. A watch that has sent money and lost sight of it
+    // must WAIT, not spend again.
+    await watchAt({ phase: "taking", sent: true, orderId: null })
+    await priceTo(95)
+    await priceTo(94)
+    await priceTo(93)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).status).toBe("active")
+  })
+
+  it("still places when nothing was ever sent, even mid-taking", async () => {
+    // The hold is about unaccounted money, not about the phase. A watch that
+    // reached its level but could not place that pass — no cash, say — must
+    // try again, or it would stand at a touched level doing nothing forever.
+    await watchAt({ phase: "taking", sent: false, orderId: null })
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+  })
+
+  it("finishes the moment its lost order turns out to have filled", async () => {
+    // The position is the proof. The instant it shows, the watch hands over
+    // the stop and target it was keeping and ends — it does not stay stuck
+    // just because it once lost sight of the order.
+    await watchAt({ phase: "taking", sent: true, orderId: null, tpPx: 110, slPx: 88 })
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-1",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 1,
+      entryPx: 95,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await priceTo(96)
+
+    const held = await row()
+    expect(held.status).toBe("done")
+    const [position] = await positions()
+    expect(position.tpPx).toBe(110)
+    expect(position.slPx).toBe(88)
+    expect(await orders()).toHaveLength(0)
   })
 
   it("takes its order back when it is called off", async () => {

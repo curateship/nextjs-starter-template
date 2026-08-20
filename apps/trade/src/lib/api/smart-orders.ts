@@ -15,6 +15,7 @@ import {
 } from "@/lib/trade/grid"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
+import { tryBecomeLeader } from "@/server/trade/leadership"
 import {
   cancelLiveGridLevel,
   cancelLiveGridRest,
@@ -255,15 +256,37 @@ const updateLadderExitsFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+/**
+ * The browser asking for the smart orders to be looked at now.
+ *
+ * **It takes the engine's own lock, or it does nothing.** Only one thing may
+ * ever advance a smart order: two that both see a level reached will both
+ * place its order, and the account ends up in double the position. The engine
+ * holds an advisory lock for exactly this reason — but this door never went
+ * near it, so a dashboard left open advanced the same ladders the server was
+ * advancing. On 20 Aug 2026 that put the same real order on six times in
+ * sixteen seconds, twice inside the same second, and a later fix that checked
+ * the engine's HEARTBEAT still left a thirty-second window where a freshly
+ * dead engine read as alive. The lock has no window: while any engine holds
+ * it this cannot take it, and the moment none does, this becomes the engine
+ * for one pass — which is the whole reason the door exists, for a laptop
+ * with no worker running beside it.
+ */
 const reconcileLiveLaddersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }): Promise<{ checked: true }> => {
-    const wallets = await listWallets(context.user.id)
-    await Promise.allSettled(
-      wallets
-        .filter((wallet) => wallet.kind === "live" && wallet.hasKey)
-        .map((wallet) => reconcileLiveLadders(context.user.id, wallet))
-    )
+    const leadership = await tryBecomeLeader()
+    if (!leadership.held) return { checked: true }
+    try {
+      const wallets = await listWallets(context.user.id)
+      await Promise.allSettled(
+        wallets
+          .filter((wallet) => wallet.kind === "live" && wallet.hasKey)
+          .map((wallet) => reconcileLiveLadders(context.user.id, wallet))
+      )
+    } finally {
+      await leadership.release()
+    }
     return { checked: true }
   })
 

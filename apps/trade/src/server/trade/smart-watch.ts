@@ -130,6 +130,20 @@ export async function advanceWatch(
     return
   }
 
+  // **Placed once, and nothing of it in sight: wait.** The order is not in
+  // the open-orders read, but that is absence, not proof — the exchange's
+  // list can lag a freshly placed order, and a filled order's position can
+  // take a moment to show. The one thing that is certain is that money was
+  // sent, so nothing more is sent until the world says what happened: the
+  // position appears (handled above), a proven cancel clears `sent` (the
+  // live lane does that only when the exchange confirmed the cancel), or a
+  // person calls the watch off. Placing here instead is how one $50 watch
+  // bought $150 of coin on 20 Aug 2026.
+  if (plan.orderId === null && plan.sent) {
+    if (changed) await deps.saveLadder(row, "active", now)
+    return
+  }
+
   const wanted = restingChasePx(plan.side, mark, roundPx)
   if (wanted === null) {
     // This coin's prices are too coarse to sit just off the market. Saying
@@ -198,6 +212,11 @@ async function moveOrder(
     reduceOnly: plan.reduceOnly,
     now,
   })
+  // From this moment money may be on the exchange, and only a proven cancel
+  // may say otherwise. The live lane clears it when a cancel really
+  // cancelled; a place that provably failed is rolled back to the plan as it
+  // was before this pass, which puts the flag back with everything else.
+  plan.sent = true
   plan.orderPx = wanted
   plan.chasedAt = now
   return true
