@@ -171,6 +171,56 @@ export async function advanceWatch(
     return
   }
 
+  // ----- Already through the market: take it ------------------------------
+  //
+  // **A level the price has gone past cannot be waited for.** Draw a buy
+  // ABOVE the market and you are saying "get me in, I will pay up to here" —
+  // the market is already cheaper than that, so there is nothing to wait for
+  // and nothing to rest. A limit at your level would cross the book, and a
+  // post-only order that crosses is refused outright, which is why this used
+  // to quietly rest just under the market instead and sit there: the line was
+  // drawn well above the price and the app bought nothing.
+  //
+  // Same rule mirrored for a sell drawn below the market, and the same rule a
+  // ladder rung already follows — it fires at market the moment price crosses
+  // it. This makes a watched price behave like the rest of the app.
+  const throughAlready =
+    plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx
+  if (throughAlready && plan.orderId === null && !plan.sent) {
+    const takeSz = floorSize(plan.sz, plan.sizeDecimals)
+    if (takeSz <= 0 || mark * takeSz < MIN_ORDER_USD) {
+      if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
+    if (
+      plan.side === "buy" &&
+      !plan.reduceOnly &&
+      (mark * takeSz) / Math.max(1, plan.leverage) > deps.freeCash(book) + 1e-9
+    ) {
+      if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
+    // Marked as sent BEFORE the fill, for the same reason the resting path
+    // does it: from here money may be on the exchange, and a watch that
+    // forgets that buys twice.
+    plan.sent = true
+    plan.heldWhenPlaced = book.positions.get(row.marketKey)?.szi ?? 0
+    deps.fill(book, {
+      marketKey: row.marketKey,
+      side: plan.side,
+      px: mark,
+      sz: takeSz,
+      feeRate: book.costs.takerFeeRate,
+      leverage: plan.leverage,
+      maxLeverage: plan.maxLeverage,
+      reduceOnly: plan.reduceOnly,
+      reason: "order",
+      at: now,
+    })
+    await deps.saveLadder(row, "active", now)
+    return
+  }
+
   const wanted = restingChasePx(plan.side, mark, roundPx)
   if (wanted === null) {
     // This coin's prices are too coarse to sit just off the market. Saying

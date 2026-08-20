@@ -1121,22 +1121,29 @@ async function reconcileLiveLaddersOnce(
             // plan is how the next pass buys it a second time. The watch is
             // told its order is gone (it is: it became a fill) and waits for
             // the position; `sent` on its plan is what keeps it waiting.
-            if (
-              entry.kind === "watch" &&
-              outcome.status === "filled" &&
-              outcome.orderId
-            ) {
+            //
+            // **The venue does not always name it.** Phemex answers a
+            // marketable post-only order with a fill and no order id at all,
+            // and requiring one here threw `LIVE_SMART_ORDER_NOT_RESTING` and
+            // rolled the whole thing back — leaving the exchange holding a
+            // trade the app had just decided never happened. Seen on
+            // 20 Aug 2026 at 23:17. The id is worth having and never worth
+            // waiting for: the fills sweep carries the trade into the Journal
+            // either way.
+            if (entry.kind === "watch" && outcome.status === "filled") {
               forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
                 if (orderId === pending.tempId) set(null)
               })
-              await rememberFlowRunOrders({
-                userId,
-                walletId: wallet.id,
-                flowRunId: raw.flowRunId,
-                ladderId: row.id,
-                marketKey: pending.input.marketKey,
-                orderIds: [outcome.orderId],
-              })
+              if (outcome.orderId) {
+                await rememberFlowRunOrders({
+                  userId,
+                  walletId: wallet.id,
+                  flowRunId: raw.flowRunId,
+                  ladderId: row.id,
+                  marketKey: pending.input.marketKey,
+                  orderIds: [outcome.orderId],
+                })
+              }
               continue
             }
             if (outcome.status !== "resting" || !outcome.orderId)

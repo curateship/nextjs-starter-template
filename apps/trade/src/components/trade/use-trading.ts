@@ -808,15 +808,22 @@ export function useTrading(
     () =>
       smartOrders.flatMap((order): PaperOrder[] =>
         order.kind === "watch" &&
-        // **Still drawn while it is being taken.** The moment a level is
-        // reached the watch stops waiting and starts buying, and the position
-        // it becomes only appears on the read after that — so dropping the
-        // line the instant it fired left the chart empty for a few seconds
-        // and then an Entry bar arrived out of nowhere. It is held until the
-        // position it turns into is really there, the same rule the rest of
-        // this file follows.
+        // **Still drawn while it is being taken, but never beside its own
+        // order.** The moment a level is reached the watch stops waiting and
+        // starts buying, and what it becomes — an order on the exchange, or
+        // a position — only appears on the read after that. Dropping the line
+        // the instant it fired left the chart empty for a few seconds and
+        // then a bar arrived out of nowhere, so it is held until the thing it
+        // turned into is really there.
+        //
+        // Once the exchange has named that order, the order IS the row: it
+        // carries the real price and can be dragged and cancelled. Drawing
+        // the watch as well put the same single order on the chart twice
+        // under two labels — one LINK order on Phemex showed as two rows in
+        // the app on 20 Aug 2026.
         (order.plan.phase === "waiting" ||
           (order.plan.phase === "taking" &&
+            order.plan.orderId === null &&
             !allPositions.some(
               (position) =>
                 position.walletId === order.walletId &&

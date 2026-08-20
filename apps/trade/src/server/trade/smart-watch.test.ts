@@ -215,6 +215,47 @@ describe("a price being watched", () => {
     expect(await positions()).toHaveLength(0)
   })
 
+  it("takes the market when the buy level is already above the price", async () => {
+    // **A level the price has gone past cannot be waited for.** Drawing a buy
+    // above the market means "get me in, I will pay up to here" — the market
+    // is already cheaper, so there is nothing to wait for. A limit at that
+    // level would cross the book and a post-only order that crosses is
+    // refused, which is why this used to rest just under the market instead
+    // and sit there unfilled: on 20 Aug 2026 a buy drawn well above the price
+    // bought nothing at all.
+    await watchAt({ triggerPx: 105 })
+    await priceTo(100)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(1)
+    // Bought at the market, not at the level that was drawn.
+    expect(held.entryPx).toBeCloseTo(100, 1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("takes the market when the sell level is already below the price", async () => {
+    // The same rule mirrored. Nothing about a sell makes it different.
+    await watchAt({ side: "sell", triggerPx: 95, reduceOnly: false })
+    await priceTo(100)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(-1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("rests rather than taking when price merely arrives at the level", async () => {
+    // The other half, so the market-take cannot swallow the ordinary case.
+    // Price coming DOWN to a buy level is what a watch is for, and paying the
+    // spread there is exactly what resting avoids.
+    await watchAt()
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+    expect(await positions()).toHaveLength(0)
+  })
+
   it("keeps waiting at the level when price ticks back away", async () => {
     // What separates a watch from an order that gives up: it stands in for one
     // that would have rested on the exchange until it filled.
