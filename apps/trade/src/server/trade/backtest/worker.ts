@@ -180,6 +180,16 @@ export async function backtestTick(now: number = Date.now()): Promise<void> {
     // the next tick has another go — a stumbling exchange should not lose a run.
     const message =
       error instanceof Error ? error.message : "The run could not be finished."
+    // **Being told to slow down is not a failure of the run.** The exchange
+    // rations us, refuses everything for twenty seconds, and the next tick
+    // comes round sooner than that — so all three tries were spent inside one
+    // hold and a 426-coin run died in four minutes without a single coin
+    // being at fault. A rationed pass hands the run back untouched instead,
+    // and the next tick carries on from where the coins already are.
+    if (message.includes("EXCHANGE_BUSY")) {
+      await releaseBacktestGroup(userId, groupId, claimed.attempts)
+      return
+    }
     if (claimed.attempts >= 3) {
       await failBacktestGroup(userId, groupId, message, Date.now())
       return

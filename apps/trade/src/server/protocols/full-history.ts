@@ -25,16 +25,50 @@ import type { CandleBar } from "@/lib/protocols/contracts"
  */
 export const PAGES_AT_ONCE = 6
 
+/**
+ * How many page reads are in flight across the WHOLE process, not per call.
+ *
+ * **Per call was not enough.** A backtest loads six coins at once, each
+ * needing two stretches of history, and each of those fanning out six pages —
+ * seventy-two requests in one breath. KuCoin rationed us within seconds, and
+ * because a rationed read refuses instantly, every coin in the run failed at
+ * once. A 426-coin run died three times over in four minutes on 20 Aug 2026.
+ *
+ * One gate for everything means a lone chart still gets all six slots, and a
+ * bulk run shares the same six rather than multiplying them.
+ */
+let inFlight = 0
+const waiting: (() => void)[] = []
+
+async function takeSlot(): Promise<void> {
+  if (inFlight < PAGES_AT_ONCE) {
+    inFlight += 1
+    return
+  }
+  await new Promise<void>((resolve) => waiting.push(resolve))
+  inFlight += 1
+}
+
+function freeSlot(): void {
+  inFlight -= 1
+  const next = waiting.shift()
+  if (next) next()
+}
+
 /** Runs the pages a few at a time, keeping the order they were asked in. */
 export async function inBatches<T>(
   jobs: readonly (() => Promise<T>)[]
 ): Promise<T[]> {
-  const done: T[] = []
-  for (let at = 0; at < jobs.length; at += PAGES_AT_ONCE) {
-    const batch = jobs.slice(at, at + PAGES_AT_ONCE)
-    done.push(...(await Promise.all(batch.map((job) => job()))))
-  }
-  return done
+  return await Promise.all(
+    jobs.map(async (job) => {
+      await takeSlot()
+      try {
+        return await job()
+      } finally {
+        freeSlot()
+      }
+    })
+  )
 }
 
 /** How long a full history stands in for the next request for the same one. */
