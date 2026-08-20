@@ -18,4 +18,8 @@ WHERE "last_market_key" IS NOT NULL
   AND split_part("last_market_key", ':', 1) <> ''
   AND "last_market_keys" = '{}'::jsonb;
 
-ALTER TABLE "trade_prefs" DROP COLUMN IF EXISTS "last_market_key";
+-- The old column is LEFT IN PLACE on purpose. The release running right now
+-- still reads it, and Coolify keeps that container serving while the new one
+-- starts — so dropping it here would break the site for the minute the two
+-- overlap. Removing it is a later release, once nothing reads it. See
+-- "Why that order matters" in docs/deployment.md.

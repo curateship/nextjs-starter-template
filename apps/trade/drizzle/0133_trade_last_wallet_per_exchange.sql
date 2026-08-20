@@ -17,4 +17,8 @@ WHERE w."id" = p."last_wallet_id"
   AND p."last_wallet_id" IS NOT NULL
   AND p."last_wallet_ids" = '{}'::jsonb;
 
-ALTER TABLE "trade_prefs" DROP COLUMN IF EXISTS "last_wallet_id";
+-- The old column is LEFT IN PLACE on purpose. The release running right now
+-- still reads it, and Coolify keeps that container serving while the new one
+-- starts — so dropping it here would break the site for the minute the two
+-- overlap. Removing it is a later release, once nothing reads it. See
+-- "Why that order matters" in docs/deployment.md.
