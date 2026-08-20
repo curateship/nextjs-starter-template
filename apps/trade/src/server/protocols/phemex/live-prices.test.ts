@@ -87,7 +87,7 @@ class FakeSocket {
     for (const listener of this.listeners.get(kind) ?? []) listener(event)
   }
 
-  /** One pack, in the shape the exchange really uses. */
+  /** The first message: every market, with the legend. */
   pack(rows: unknown[][], fields: readonly string[] = FIELDS) {
     this.fire("message", {
       data: JSON.stringify({
@@ -96,6 +96,18 @@ class FakeSocket {
         method: "perp_market24h_pack_p.update",
         timestamp: 1_787_261_161_461_883_600,
         type: "snapshot",
+      }),
+    })
+  }
+
+  /** Every message after it: only the rows that moved, and NO legend. */
+  update(rows: unknown[][]) {
+    this.fire("message", {
+      data: JSON.stringify({
+        data: rows,
+        method: "perp_market24h_pack_p.update",
+        timestamp: 1_787_261_161_461_883_600,
+        type: "incremental",
       }),
     })
   }
@@ -155,11 +167,28 @@ describe("the Phemex price feed", () => {
     expect(readPhemexLivePrices("mainnet").prices.size).toBe(0)
   })
 
-  it("ignores a message with no legend rather than guessing the columns", () => {
+  it("keeps reading updates after the one and only legend", () => {
+    // **Why the feed died eight seconds after connecting.** Phemex names its
+    // columns once, on the snapshot, and every update after it is a bare set
+    // of rows. The hub demanded a legend on every message, so it applied the
+    // snapshot, threw away every update, and went stale for good — while the
+    // socket sat there healthy and the whole app went back to polling.
     const socket = open()
-    socket?.fire("message", {
-      data: JSON.stringify({ data: [ADA_ROW], method: "no.legend" }),
-    })
+    socket?.pack([ADA_ROW])
+
+    const moved = [...ADA_ROW]
+    moved[FIELDS.indexOf("markRp")] = "0.1955"
+    socket?.update([moved])
+
+    expect(readPhemexLivePrices("mainnet").prices.get("ADAUSDT")).toBe(0.1955)
+    expect(phemexLivePricesFresh("mainnet")).toBe(true)
+  })
+
+  it("ignores rows that arrive before any legend has", () => {
+    // Nothing names the columns yet, and guessing their order is how the
+    // wrong number gets traded on.
+    const socket = open()
+    socket?.update([ADA_ROW])
     socket?.fire("message", { data: JSON.stringify({ id: 1, result: "ok" }) })
     socket?.fire("message", { data: "not json" })
 
