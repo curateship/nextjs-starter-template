@@ -395,6 +395,48 @@ describe("live Smart orders", () => {
     expect(plan.sent).toBe(true)
   })
 
+  it("keeps working the wallet when the fill feed refuses to answer", async () => {
+    // **Why Phemex watches never fired, 20 Aug 2026.** That exchange refused
+    // the fill feed all day with a plain 400, and the refusal took the whole
+    // wallet's pass with it — so a watched level was never once compared
+    // against the price. KuCoin's fill feed answered, and KuCoin's watches
+    // fired all day, which is what pinned it to this read.
+    //
+    // Fills are the record of what already happened. A pass that misses them
+    // catches up on the next one; a pass that dies trades nothing at all.
+    await chasingWatch()
+    fills.mockRejectedValue(
+      new Error("PHEMEX_HTTP_400:/api-data/g-futures/trades")
+    )
+    cancel.mockResolvedValue(undefined)
+    place.mockResolvedValue({
+      status: "resting",
+      orderId: "ord-new",
+      avgPx: null,
+      filledSz: null,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    // The chase ran: the level is still being worked despite the bad read.
+    expect(place).toHaveBeenCalledTimes(1)
+    expect((await watchPlanNow()).orderId).toBe("ord-new")
+  })
+
+  it("watches the level but spends nothing when the account will not answer", async () => {
+    // The same rule where money is involved, drawn the other way: without a
+    // cash figure the wallet cannot know it can afford anything, so it must
+    // not buy — but that is a reason to wait a pass, not to stop watching.
+    await chasingWatch()
+    account.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+    cancel.mockResolvedValue(undefined)
+
+    await reconcileLiveLadders(userId, wallet)
+
+    // Nothing bought on an unknown balance, and nothing thrown either.
+    expect(place).not.toHaveBeenCalled()
+  })
+
   it("puts a rung back when the exchange definitely refused its buy", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,

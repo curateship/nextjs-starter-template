@@ -93,6 +93,14 @@ export function closePhemexLivePrices(network: NetworkId): void {
     clearInterval(hub.watchdog)
     hub.watchdog = null
   }
+  // Everything the line was carrying goes with it. Without this a shut feed
+  // went on answering "fresh" with the last prices it ever had — the KuCoin
+  // hub beside this one already clears, and the two are meant to be the same
+  // shape.
+  hub.prices.clear()
+  hub.lastMessageAt = 0
+  hub.reconnectAt = 0
+  hub.attempts = 0
 }
 
 function teardown(hub: Hub): void {
@@ -131,10 +139,19 @@ function applyPack(hub: Hub, message: unknown): void {
   const symbolAt = packet.fields.indexOf("symbol")
   // Mark price first — it is what every other price in the app is — with the
   // last trade as the fallback on packs that carry only one.
+  //
+  // **These two names were measured against the live exchange on
+  // 20 Aug 2026, because the guessed ones cost a day of trading.** The hub
+  // asked for `markPriceRp` and `closeRp`; Phemex sends `markRp` and
+  // `lastRp`. Neither guess was ever in a message, so every pack arrived and
+  // was discarded, the feed never carried a single price, and every screen
+  // and the engine fell back to asking over and over — until Phemex rationed
+  // the asking and watched orders on that account stopped being looked at
+  // altogether. The socket was open and healthy the whole time.
   const priceAt = (() => {
-    const mark = packet.fields.indexOf("markPriceRp")
+    const mark = packet.fields.indexOf("markRp")
     if (mark >= 0) return mark
-    return packet.fields.indexOf("closeRp")
+    return packet.fields.indexOf("lastRp")
   })()
   if (symbolAt < 0 || priceAt < 0) return
 

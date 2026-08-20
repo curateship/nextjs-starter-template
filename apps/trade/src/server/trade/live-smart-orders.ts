@@ -49,6 +49,7 @@ import {
   rollbackLiveOrder,
   setLiveBrackets,
 } from "@/server/trade/live-orders"
+import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import {
@@ -705,9 +706,37 @@ async function reconcileLiveLaddersOnce(
       return ref ? [[ref.marketId, key] as const] : []
     })
   )
-  const [account, prices, fills] = await Promise.all([
-    accountOf(protocol).fetch(wallet.network, wallet.address, credential),
-    protocol.markets.prices(wallet.network, [...refs.keys()]),
+  // **Prices come off the open line, and asking is the fallback.**
+  //
+  // Calling this also OPENS the line, so a live wallet is what gets the
+  // socket up. Until it is up, and any time it goes quiet, this answers null
+  // and the ordinary ask below still happens.
+  const pushed = pushedMarks(keys)
+  const [account, asked, fills] = await Promise.all([
+    accountOf(protocol)
+      .fetch(wallet.network, wallet.address, credential)
+      .catch((error) => {
+        // **Not knowing what the account holds means not spending, not
+        // stopping.** Cash of zero fails the affordability check, so a buy
+        // waits for the next pass rather than going out on a guess — while
+        // everything needing no cash carries on: levels are still watched,
+        // stops and targets are still set, exits still leave. Before this,
+        // one refused read stopped the whole wallet dead.
+        console.error(`Account read failed for wallet ${wallet.id}`, error)
+        return null
+      }),
+    pushed
+      ? null
+      : protocol.markets
+          .prices(wallet.network, [...refs.keys()])
+          .catch((error) => {
+            // No price this pass is a quiet pass, not a broken one: every
+            // smart order stands still without one, which is exactly what
+            // should happen. Letting it through stopped the rest of the
+            // wallet being worked at all.
+            console.error(`Price read failed for wallet ${wallet.id}`, error)
+            return null
+          }),
     ordersOf(protocol).fills(
       wallet.network,
       wallet.address,
@@ -731,12 +760,29 @@ async function reconcileLiveLaddersOnce(
         })
       ) - 60_000,
       credential
-    ),
+    ).catch((error) => {
+      // **A fill feed that will not answer must not stop the trading.**
+      // Fills are the record of what already happened — they fill the
+      // Journal and move the watermark, and a pass that misses them catches
+      // up on the next one. Letting the failure through killed the whole
+      // wallet's pass instead, so a level was never compared against the
+      // price and nothing fired. Phemex refused this exact read all day on
+      // 20 Aug 2026 with a plain 400, while KuCoin's answered and KuCoin's
+      // watches fired all day — which is what pinned it to this read.
+      console.error(`Fills read failed for wallet ${wallet.id}`, error)
+      return []
+    }),
   ])
   const marks = new Map<string, number>()
-  for (const [marketId, px] of prices) {
-    const key = refs.get(marketId)
-    if (key) marks.set(key, px)
+  // The open line already speaks in market keys; the ask answers per market
+  // id and has to be translated back.
+  if (pushed) {
+    for (const [key, px] of pushed) marks.set(key, px)
+  } else if (asked) {
+    for (const [marketId, px] of asked) {
+      const key = refs.get(marketId)
+      if (key) marks.set(key, px)
+    }
   }
 
   const positions = new Map<string, PaperPosition>()
@@ -862,7 +908,7 @@ async function reconcileLiveLaddersOnce(
     // the shape the engine works in wants them.
     costs: defaultPaperCosts(),
     cash:
-      account.free +
+      (account?.free ?? 0) +
       [...positions.values()].reduce(
         (sum, position) =>
           sum + Math.abs(position.szi * position.entryPx) / position.leverage,
