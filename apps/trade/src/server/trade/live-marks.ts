@@ -14,7 +14,8 @@ import { getProtocol } from "@/server/protocols/registry"
  * that stream into the shape `settleWallet` wants.
  *
  * Routed by the market key: each exchange's own `livePrices` hub answers for
- * its own markets. An exchange without a hub answers null the same way a
+ * its own markets, and is told which markets are wanted — one exchange here
+ * has no all-markets feed and subscribes to them one at a time. An exchange without a hub answers null the same way a
  * quiet feed does — the caller falls back to asking the ordinary way, which
  * is correct, just rationed. The fallback is per wallet, so a wallet on an
  * exchange with no hub never degrades one on an exchange with one.
@@ -29,14 +30,22 @@ export function pushedMarks(
 ): ReadonlyMap<string, number> | null {
   if (marketKeys.length === 0) return null
 
-  const lines = new Map<string, { protocol: ProtocolId; network: NetworkId }>()
+  const lines = new Map<
+    string,
+    { protocol: ProtocolId; network: NetworkId; marketIds: string[] }
+  >()
   for (const key of marketKeys) {
     const ref = parseMarketKey(key)
     if (!ref) continue
-    lines.set(`${ref.protocol}:${ref.network}`, {
-      protocol: ref.protocol,
-      network: ref.network,
-    })
+    const line = `${ref.protocol}:${ref.network}`
+    const found = lines.get(line)
+    if (found) found.marketIds.push(ref.marketId)
+    else
+      lines.set(line, {
+        protocol: ref.protocol,
+        network: ref.network,
+        marketIds: [ref.marketId],
+      })
   }
   if (lines.size === 0) return null
 
@@ -44,10 +53,12 @@ export function pushedMarks(
   // for the exchanges and networks we actually trade is up". Every line must
   // exist and be fresh, or the whole answer is null — half an answer would
   // settle some of a wallet on live prices and the rest on nothing.
-  for (const { protocol, network } of lines.values()) {
+  for (const { protocol, network, marketIds } of lines.values()) {
     const hub = getProtocol(protocol).livePrices
     if (!hub) return null
-    hub.open(network)
+    // The markets go with the request: an exchange with no all-markets feed
+    // subscribes to exactly these, and the others ignore the list.
+    hub.open(network, marketIds)
     if (!hub.fresh(network)) return null
   }
 

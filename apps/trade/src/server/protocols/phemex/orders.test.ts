@@ -192,6 +192,59 @@ describe("placing", () => {
     expect(outcome.avgPx).toBe(51_000)
   })
 
+  it("lets a resting order actually rest, at the price asked", async () => {
+    // The other half of the same rule. A market order is capped and taken
+    // immediately; a postOnly order must sit on the book at the price asked
+    // and never cross. Sent as an ordinary limit by mistake it would cross
+    // and pay the taker fee, quietly, on every rung of every ladder.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
+        },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-2", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "postOnly",
+      px: 49_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const create = sent.find((one) => one.url.pathname === "/g-orders/create")
+    expect(create?.url.searchParams.get("ordType")).toBe("Limit")
+    // Not ImmediateOrCancel: it is meant to wait on the book.
+    expect(create?.url.searchParams.get("timeInForce")).toBe("PostOnly")
+    // The price asked for, untouched — never capped through the market.
+    expect(create?.url.searchParams.get("priceRp")).toBe("49000")
+  })
+
   it("refuses a size the step floors to nothing", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []

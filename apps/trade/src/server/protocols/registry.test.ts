@@ -33,4 +33,42 @@ describe("the protocol registry", () => {
       expect(Boolean(entry.credentials)).toBe(entry.capabilities.accounts)
     }
   })
+
+  it("gives every exchange the app trades on a pushed price feed", () => {
+    // The engine looks at trigger prices every second with real money behind
+    // them. A pushed price arrives the moment it changes; an asked-for one
+    // can be seconds old and is rationed by the exchange, and the exchange
+    // rations the whole app rather than one screen. An exchange that can take
+    // an order and has no feed is the gap this closes.
+    for (const entry of listProtocols()) {
+      if (!entry.capabilities.orders) continue
+      expect(entry.livePrices, `${entry.label} has no pushed price feed`).toBeTruthy()
+    }
+  })
+
+  it("lets every exchange say when the price it gave was a stale one", () => {
+    // The engine asks this before acting on a price it had to ask for. An
+    // exchange that cannot say would have its rationed, stale price treated
+    // as today's — which is how a trigger fires on a number from a minute
+    // ago.
+    for (const entry of listProtocols()) {
+      if (!entry.capabilities.orders) continue
+      expect(
+        typeof entry.markets.pricesWereRationed,
+        `${entry.label} cannot say when a price was stale`
+      ).toBe("function")
+    }
+  })
+
+  it("names each feed for the worker's heartbeat", () => {
+    // The Workers screen shows one line per open feed. It is built from the
+    // registry, so a new exchange appears there by existing rather than by
+    // anybody remembering to add it.
+    const named = listProtocols()
+      .filter((entry) => entry.livePrices)
+      .map((entry) => entry.label)
+    expect(named).toContain("Hyperliquid")
+    expect(named).toContain("Phemex")
+    expect(named).toContain("KuCoin")
+  })
 })

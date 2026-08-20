@@ -92,6 +92,11 @@ import {
 } from "@/server/protocols/kucoin/candles"
 import { packKucoinCredential } from "@/server/protocols/kucoin/client"
 import { fetchKucoinFunding } from "@/server/protocols/kucoin/funding"
+import {
+  kucoinLivePricesFresh,
+  openKucoinLivePrices,
+  readKucoinLivePrices,
+} from "@/server/protocols/kucoin/live-prices"
 import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
 import {
   fetchKucoinMarkets,
@@ -188,8 +193,15 @@ export type ProtocolEntry = {
    * to `markets.prices`, which is correct, just rationed.
    */
   livePrices?: {
-    /** Makes sure the line for this network is up. Free once it is open. */
-    open(network: NetworkId): void
+    /**
+     * Makes sure the line for this network is up, and carrying these markets.
+     * Free once it is open and they are already on it.
+     *
+     * Most exchanges push every market down one feed and ignore the list.
+     * KuCoin subscribes per market, so it is told which ones matter — the
+     * ones the engine is actually settling, never the whole catalogue.
+     */
+    open(network: NetworkId, marketIds?: readonly string[]): void
     /** The pushed prices by the exchange's own market id. */
     read(network: NetworkId): { prices: ReadonlyMap<string, number> }
     /** Whether the feed is currently worth reading — data arriving, not claims. */
@@ -519,9 +531,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * Two of its habits show up in this entry. Its accounts need three values
    * to sign rather than two, so the credential form asks for a passphrase.
    * And its socket will not open without a ticket the browser cannot fetch,
-   * which is what `liveTicket` is for. It has no `livePrices` hub: the
-   * exchange publishes no all-markets mark-price feed, so the engine reads
-   * `markets.prices` — correct, just asked for rather than pushed.
+   * which is what `liveTicket` is for. Its price hub is told which markets
+   * to carry for the same reason: the exchange publishes no all-markets feed,
+   * so it is subscribed per market rather than to everything.
    */
   kucoin: {
     id: "kucoin",
@@ -539,6 +551,11 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       pricesWereRationed: kucoinPricesWereRationed,
     },
     liveTicket: kucoinLiveTicket,
+    livePrices: {
+      open: openKucoinLivePrices,
+      read: readKucoinLivePrices,
+      fresh: kucoinLivePricesFresh,
+    },
     funding: {
       fetch: fetchKucoinFunding,
       // Eight hours on every KuCoin market seen so far. The contract states

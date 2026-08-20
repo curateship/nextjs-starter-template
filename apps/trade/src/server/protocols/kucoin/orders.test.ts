@@ -194,6 +194,55 @@ describe("placing", () => {
     expect(outcome.avgPx).toBe(69_000)
   })
 
+  it("lets a resting order actually rest, at the price asked", async () => {
+    // The other half of the same rule. A market order is capped and taken
+    // immediately; a postOnly order must sit on the book at the price asked
+    // and never cross. Sent as an ordinary limit by mistake it would cross
+    // and pay the taker fee, quietly, on every rung of every ladder.
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/orders", answer: ok({ orderId: "ord-2" }) },
+        {
+          path: "/api/v1/orders/ord-2",
+          answer: ok({
+            id: "ord-2",
+            symbol: "XBTUSDTM",
+            status: "open",
+            isActive: true,
+            filledSize: 0,
+            filledValue: 0,
+          }),
+        },
+      ],
+      sent
+    )
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "buy",
+      kind: "postOnly",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const placed = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )
+    const body = placed?.body as Record<string, unknown>
+    expect(body.postOnly).toBe(true)
+    // Good till cancelled, not immediate-or-cancel: it is meant to wait.
+    expect(body.timeInForce).toBe("GTC")
+    // The price asked for, untouched — never capped through the market.
+    expect(body.price).toBe("60000")
+  })
+
   it("refuses a size smaller than one contract", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []

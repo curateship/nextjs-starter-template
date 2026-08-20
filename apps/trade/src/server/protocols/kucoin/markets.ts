@@ -198,92 +198,129 @@ export function roundKucoinPx(
   return snapToTick(px, priceTick)
 }
 
-// ----- Today's price, the cheap way ----------------------------------------
+// ----- Today's price ---------------------------------------------------------
 
-/** How long one all-tickers answer stands in for the next. */
+/** How long one market's price stands in for the next ask. */
 const PRICES_GOOD_FOR_MS = 2_000
 
-const tickerSchema = z.object({
+/** How many of these tiny reads go out together. */
+const PRICES_AT_ONCE = 6
+
+const markPriceSchema = z.object({
   symbol: z.string(),
-  price: z.union([z.string(), z.number()]).optional(),
+  value: z.union([z.string(), z.number()]).optional(),
 })
 
-type PriceCache = {
+type Held = {
   at: number
-  prices: Map<string, number>
-  /** True while answers are being served stale because the exchange rationed us. */
+  price: number
+  /** True while this answer is being served stale because we were rationed. */
   rationed: boolean
-  inFlight: Promise<Map<string, number>> | null
 }
 
-const priceCaches = new Map<NetworkId, PriceCache>()
+const priceCaches = new Map<NetworkId, Map<string, Held>>()
 
-function priceCache(network: NetworkId): PriceCache {
+function priceCache(network: NetworkId): Map<string, Held> {
   const found = priceCaches.get(network)
   if (found) return found
-  const made: PriceCache = {
-    at: 0,
-    prices: new Map(),
-    rationed: false,
-    inFlight: null,
-  }
+  const made = new Map<string, Held>()
   priceCaches.set(network, made)
   return made
 }
 
 /**
- * Today's price for these markets, from the all-tickers read — 150 KB rather
- * than the rulebook's 1.3 MB, shared by every caller inside a two-second
- * window.
+ * Today's price for these markets — **the mark price**, one small read each.
  *
- * **This is the last traded price, where the catalogue's column is the mark
- * price.** They sit within a hair of each other on a book anyone is trading,
- * and KuCoin publishes no all-markets mark-price read at all; asking per
- * market would be one request per coin. Said out loud because it is the one
- * place this exchange answers a slightly different question from the others.
+ * **The mark price, because that is what the engine acts on.** Both other
+ * exchanges push the mark price down their live feed, and a trigger that
+ * fires on one number while the rest of the app values the position with
+ * another is a bug nobody can see. KuCoin's all-markets read carries the last
+ * traded price instead, and the two are not interchangeable: measured across
+ * its whole catalogue on 20 Aug 2026 they were 2.8% apart at the worst — a
+ * hair on Bitcoin, a real difference on a thin book, and the thin books are
+ * exactly where a rung sits waiting.
+ *
+ * One request per market sounds expensive and is not, because of who asks.
+ * Every caller here is the engine, and the engine asks about the one market
+ * it is settling, or the handful a wallet holds — never the catalogue. Each
+ * read is a tenth of a kilobyte, they go six at a time, and each market's
+ * answer stands for two seconds.
  */
 export async function fetchKucoinPrices(
   network: NetworkId,
   marketIds: readonly string[]
 ): Promise<Map<string, number>> {
   const cache = priceCache(network)
-  if (Date.now() - cache.at > PRICES_GOOD_FOR_MS) {
-    cache.inFlight ??= kucoinPublic(network, "/api/v1/allTickers")
-      .then((answer) => {
-        const prices = new Map<string, number>()
-        for (const raw of Array.isArray(answer) ? answer : []) {
-          const row = tickerSchema.safeParse(raw)
-          if (!row.success) continue
-          const price = num(row.data.price)
-          if (price !== null && price > 0) prices.set(row.data.symbol, price)
+  const now = Date.now()
+  const stale = [...new Set(marketIds)].filter(
+    (marketId) => now - (cache.get(marketId)?.at ?? 0) > PRICES_GOOD_FOR_MS
+  )
+
+  for (let at = 0; at < stale.length; at += PRICES_AT_ONCE) {
+    await Promise.all(
+      stale.slice(at, at + PRICES_AT_ONCE).map(async (marketId) => {
+        try {
+          const answer = await kucoinPublic(
+            network,
+            `/api/v1/mark-price/${encodeURIComponent(marketId)}/current`
+          )
+          const row = markPriceSchema.safeParse(answer)
+          const price = row.success ? num(row.data.value) : null
+          if (price !== null && price > 0) {
+            cache.set(marketId, { at: Date.now(), price, rationed: false })
+          }
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : ""
+          const held = cache.get(marketId)
+          // Rationed: serve the stale answer, and say out loud that it is
+          // stale so the engine can decide whether to act on it.
+          if (message === "EXCHANGE_BUSY" && held) {
+            cache.set(marketId, { ...held, rationed: true })
+            return
+          }
+          // A market this exchange will not price is not a failure of the
+          // read — it is one market with no price, and the others asked for
+          // in the same breath must still come back. A wallet holding one
+          // delisted coin would otherwise lose the prices for everything
+          // else it holds, and the engine settles none of it.
+          if (unpriced(message)) {
+            // Remembered AS having no price, rather than forgotten. Forgetting
+            // it means the next pass asks again — and the engine's pass is
+            // every second, so one delisted coin in a wallet would knock on
+            // this exchange's door once a second for as long as the app runs.
+            cache.set(marketId, { at: Date.now(), price: 0, rationed: false })
+            return
+          }
+          // Anything else means the exchange itself is unwell, and a silent
+          // "no prices" would read as a market that simply has none.
+          throw error
         }
-        cache.prices = prices
-        cache.at = Date.now()
-        cache.rationed = false
-        return prices
       })
-      .catch((error: unknown) => {
-        // Serve the stale answer while saying so, but only for a rationing —
-        // any other failure means the stale answer may be WRONG, not just old.
-        const message = error instanceof Error ? error.message : ""
-        if (message === "EXCHANGE_BUSY") {
-          cache.rationed = true
-          return cache.prices
-        }
-        throw error
-      })
-      .finally(() => {
-        cache.inFlight = null
-      })
-    await cache.inFlight
+    )
   }
 
   const answer = new Map<string, number>()
   for (const marketId of marketIds) {
-    const price = cache.prices.get(marketId)
-    if (price !== undefined) answer.set(marketId, price)
+    const held = cache.get(marketId)
+    // Zero is how "this exchange will not price that market" is remembered,
+    // and it is never an answer.
+    if (held && held.price > 0) answer.set(marketId, held.price)
   }
   return answer
+}
+
+/**
+ * Whether a refusal means "no such price here" rather than "we are broken".
+ * `415000` is what the exchange answers for a market it does not mark-price,
+ * and a plain 404 is what a bad path gives; both are about the one market.
+ */
+function unpriced(message: string): boolean {
+  return message.startsWith("KUCOIN_415000") || message.startsWith("KUCOIN_HTTP_404")
+}
+
+/** Tests drive their own clock; a held price across them would leak. */
+export function clearKucoinPriceCache(): void {
+  priceCaches.clear()
 }
 
 /** Whether the last price answer for this market was a rationed, stale one. */
@@ -291,6 +328,5 @@ export function kucoinPricesWereRationed(
   network: NetworkId,
   marketId: string
 ): boolean {
-  const cache = priceCache(network)
-  return cache.rationed && cache.prices.has(marketId)
+  return priceCache(network).get(marketId)?.rationed ?? false
 }

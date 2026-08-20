@@ -75,10 +75,14 @@ export const getCandlesErrorMessage = createErrorMessage(
     // The exchange rations requests, and the chart's own pull is what gets
     // refused when browsing spends the minute's allowance. Named, because
     // "could not load" sent people hunting for a broken chart.
+    //
+    // It says "the exchange" rather than naming one: this chart draws three
+    // of them now, and being told Hyperliquid is busy while looking at a
+    // KuCoin coin sends somebody hunting for the wrong problem.
     "429":
-      "Hyperliquid is asking us to slow down — give it a few seconds and try again.",
+      "The exchange is asking us to slow down — give it a few seconds and try again.",
     "rate limit":
-      "Hyperliquid is asking us to slow down — give it a few seconds and try again.",
+      "The exchange is asking us to slow down — give it a few seconds and try again.",
   },
   "The chart could not load. Nothing is wrong on your side — try again in a moment."
 )
