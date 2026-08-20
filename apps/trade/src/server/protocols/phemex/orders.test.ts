@@ -265,6 +265,78 @@ describe("placing", () => {
     expect(lev?.url.searchParams.get("shortLeverageRr")).toBe("5")
   })
 
+  it("asks for leverage in the margin mode the account is already on", async () => {
+    // **Phemex writes the margin mode into the sign.** Positive is isolated,
+    // negative is cross, and the two sides of a hedged symbol have to agree —
+    // the exchange refuses the pair with `39108 invalid leverages` when they
+    // do not, before the order is looked at.
+    //
+    // Measured on the real account on 20 Aug 2026, where ADA sat on cross:
+    // `1` for the long with the short left on `-1` was refused, and `-1` with
+    // `-1` was accepted. A watched order fired every few seconds for ten
+    // minutes and was refused every time because of it.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  leverageRr: "-3",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  leverageRr: "-1",
+                },
+              ],
+            },
+          },
+        },
+        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-4", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: 2,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const lev = sent.find((one) => one.url.pathname === "/g-positions/leverage")
+    // 2x as asked, but written as cross because that is what this symbol is
+    // on. Sending "2" here is the refusal.
+    expect(lev?.url.searchParams.get("longLeverageRr")).toBe("-2")
+    // The other side goes back untouched, cross and all.
+    expect(lev?.url.searchParams.get("shortLeverageRr")).toBe("-1")
+  })
+
   it("lets a resting order actually rest, at the price asked", async () => {
     // The other half of the same rule. A market order is capped and taken
     // immediately; a postOnly order must sit on the book at the price asked

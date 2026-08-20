@@ -431,7 +431,6 @@ export async function placePhemexOrder(
     // mode. Sending the asked-for number for both would quietly change the
     // leverage on the other side's open position, which moves where it gets
     // liquidated.
-    const leverageRr = decimalString(params.leverage)
     const forSide = posSideFor(mode, params.side, params.reduceOnly)
     const state = await symbolStateOf(
       network,
@@ -439,6 +438,27 @@ export async function placePhemexOrder(
       orderAuth.agentKey,
       params.marketId
     )
+    // **Phemex writes the margin mode into the sign of the leverage.**
+    // Positive is isolated — the trade's stake is all it can lose — and
+    // NEGATIVE is cross, where the whole balance backs the position. The two
+    // sides of a hedged symbol must be in the same mode as each other, and
+    // the exchange refuses the pair outright when they are not: `39108
+    // invalid leverages`, thrown before the order is looked at.
+    //
+    // Measured on the real account on 20 Aug 2026. ADA sat on cross (`-3`
+    // long, `-1` short). Sending `1` for the long and leaving the short at
+    // `-1` was refused; sending `-1` and `-1` was accepted; sending the
+    // existing pair back unchanged was accepted. So the mode belongs to the
+    // account and the app follows it — a watched order fired every few
+    // seconds for ten minutes and was refused every time, because this asked
+    // for isolated on an account set to cross.
+    //
+    // Changing somebody's margin mode for them is not this code's business:
+    // it decides where a position gets liquidated, and they set it on the
+    // exchange deliberately.
+    const cross = (state.longRr ?? state.shortRr ?? "").startsWith("-")
+    const asked = Math.abs(params.leverage)
+    const leverageRr = decimalString(cross ? -asked : asked)
     const bothSides = {
       longLeverageRr:
         forSide === "Long" ? leverageRr : (state.longRr ?? leverageRr),
