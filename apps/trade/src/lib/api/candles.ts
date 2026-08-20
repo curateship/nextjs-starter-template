@@ -7,6 +7,7 @@ import {
   type CandleBar,
   type CandleInterval,
 } from "@/lib/protocols/contracts"
+import { earliestAskable } from "@/lib/trade/chart-history"
 import { userGet } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
 
@@ -28,6 +29,17 @@ const candlesInputSchema = z.object({
       message: "Not a market key.",
     }),
   interval: z.enum(CANDLE_INTERVALS),
+  /**
+   * The oldest moment worth asking for, in epoch milliseconds. The chart
+   * sends it for its FIRST look at a timeframe that loads in full: two years
+   * arrives in well under a second where the whole history takes a second or
+   * two, so something is on screen while the rest is still coming.
+   *
+   * Pulled forward to a sane limit below before it reaches an exchange — the
+   * value arrives from a browser, and a far enough past turns one request
+   * into a hundred thousand. See `earliestAskable`.
+   */
+  since: z.number().int().positive().optional(),
 })
 
 const loadCandlesFn = createServerFn({ method: "GET" })
@@ -42,13 +54,20 @@ const loadCandlesFn = createServerFn({ method: "GET" })
       candles: await protocol.markets.candles(
         ref.network,
         ref.marketId,
-        data.interval
+        data.interval,
+        data.since === undefined
+          ? undefined
+          : earliestAskable(data.interval, data.since)
       ),
     }
   })
 
-export function loadCandles(marketKey: string, interval: CandleInterval) {
-  return loadCandlesFn({ data: { marketKey, interval } })
+export function loadCandles(
+  marketKey: string,
+  interval: CandleInterval,
+  since?: number
+) {
+  return loadCandlesFn({ data: { marketKey, interval, since } })
 }
 
 export const getCandlesErrorMessage = createErrorMessage(

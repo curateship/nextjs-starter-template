@@ -39,6 +39,11 @@ import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import {
+  FIRST_PAINT_MS,
+  intervalMs,
+  wantsFullHistory,
+} from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
   CANDLE_INTERVALS,
@@ -84,18 +89,6 @@ const CANDLE_LOAD_SETTLE_MS = 250
  */
 const drawnCharts = new Map<string, CandleBar[]>()
 
-/**
- * How long one bar of each timeframe lasts, for scheduling the refresh that
- * appends it when it closes.
- */
-const BAR_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
 const DRAWN_CHARTS_KEPT = 40
 
 function rememberDrawnChart(key: string, candles: CandleBar[]) {
@@ -527,12 +520,36 @@ export function ChartPanel({
     // Let rapid market or timeframe changes settle before asking the
     // exchange. A request that has already reached the server cannot be
     // cancelled from here, so starting only the last intended one matters.
+    const draw = (candles: CandleBar[]) => {
+      if (stale) return
+      rememberDrawnChart(wanted, candles)
+      setAnswer({ key: wanted, candles, error: null })
+    }
+
     const timeout = setTimeout(() => {
-      loadCandles(selectedKey, interval)
+      // On a timeframe that loads its whole history, the last two years are
+      // drawn first and the rest replaces them a moment later. The whole
+      // history takes a second or two to gather, and a chart showing nothing
+      // for two seconds reads as a chart that is broken; two years arrives in
+      // well under one. Nothing flickers on the swap — the newer bars are the
+      // same bars, and the chart keeps its own zoom.
+      const staged = wantsFullHistory(interval)
+      const first = staged
+        ? loadCandles(selectedKey, interval, Date.now() - FIRST_PAINT_MS)
+        : loadCandles(selectedKey, interval)
+
+      first
         .then(({ candles }) => {
-          if (stale) return
-          rememberDrawnChart(wanted, candles)
-          setAnswer({ key: wanted, candles, error: null })
+          draw(candles)
+          if (!staged || stale) return
+          // The deeper read is a bonus, not the answer: it is already drawn
+          // without it, so a refusal here changes nothing on screen and must
+          // not put an error card over bars that are perfectly good.
+          return loadCandles(selectedKey, interval)
+            .then(({ candles: deeper }) => {
+              if (deeper.length > candles.length) draw(deeper)
+            })
+            .catch(() => {})
         })
         .catch((error: unknown) => {
           if (stale) return
@@ -564,7 +581,7 @@ export function ChartPanel({
     if (!wanted) return
     let timer = 0
     const arm = () => {
-      const barMs = BAR_MS[interval]
+      const barMs = intervalMs(interval)
       const untilClose = barMs - (Date.now() % barMs) + 2_000
       timer = window.setTimeout(() => {
         // A hidden tab skips the refresh but MUST re-arm itself: bumping

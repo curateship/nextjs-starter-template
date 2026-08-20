@@ -358,12 +358,18 @@ export function useTrading(
   // Only the newest request may write state: an older answer landing after a
   // newer one would put stale trades over fresh ones.
   const requestRef = React.useRef(0)
+  /** A read still on its way — the clock's poll skips its turn while it is. */
+  const inFlightRef = React.useRef<Promise<boolean> | null>(null)
   // Prices dropped by a drag, still waiting for the server to agree.
   const [dropped, setDropped] = React.useState<ReadonlyMap<string, number>>(
     new Map()
   )
   // Orders asked for whose answer is still on its way.
   const [placing, setPlacing] = React.useState<PaperOrder[]>([])
+  // Orders whose × has been pressed, still being told to the exchange.
+  const [cancelling, setCancelling] = React.useState<ReadonlySet<string>>(
+    new Set()
+  )
   // Keyed by wallet *and* market: two wallets can hold the same coin, and a
   // drag on one must not move the other one's lines while it saves.
   const [droppedBrackets, setDroppedBrackets] = React.useState<
@@ -388,8 +394,14 @@ export function useTrading(
    */
   const refresh = React.useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current
-    await reconcileLiveSmartOrders().catch(() => undefined)
-    const [paper, live] = await Promise.allSettled([
+    // The nudge goes out ALONGSIDE the reads, not before them. It tells the
+    // engine to look at this wallet's ladders; the panel's rows do not come
+    // from it, so waiting for it only meant the whole panel sat on a spinner
+    // for as long as the slowest exchange took to answer a question nobody
+    // on this screen had asked. Anything it changes shows on the next poll,
+    // seconds later.
+    const [, paper, live] = await Promise.allSettled([
+      reconcileLiveSmartOrders(),
       loadPaperPortfolio(),
       loadLiveTrading(),
     ])
@@ -416,23 +428,37 @@ export function useTrading(
     await refresh()
   }, [refresh])
 
+  /**
+   * One poll's turn, skipped outright while the last one is still running.
+   *
+   * A read against a slow or rate-limited exchange can outlast the gap
+   * between polls. Starting another anyway stacked them: each waiting request
+   * held a database connection, the pool ran out, and every read in the app
+   * — wallets, drawings, this panel — hung behind them with a spinner that
+   * never ended. An action's own refresh is untouched; only the clock's turn
+   * is skipped, and the next one is seconds away.
+   */
+  const poll = React.useCallback(() => {
+    if (document.hidden || inFlightRef.current) return
+    const running = refresh().finally(() => {
+      if (inFlightRef.current === running) inFlightRef.current = null
+    })
+    inFlightRef.current = running
+  }, [refresh])
+
   React.useEffect(() => {
     // Scheduled rather than called in the effect body, so mounting never sets
     // state mid-render — the same shape the account poll uses.
-    const first = window.setTimeout(() => void refresh(), 0)
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void refresh()
-    }, REFRESH_MS)
-    const onVisible = () => {
-      if (!document.hidden) void refresh()
-    }
+    const first = window.setTimeout(poll, 0)
+    const timer = window.setInterval(poll, REFRESH_MS)
+    const onVisible = () => poll()
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       window.clearTimeout(first)
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [refresh])
+  }, [poll])
 
   /**
    * One shape for every action: run it, say what went wrong if it did, and
@@ -467,6 +493,55 @@ export function useTrading(
     [runWith]
   )
 
+  /**
+   * Calling something off: an order, a rung, a level, a whole ladder or grid.
+   *
+   * **The line goes the moment it is pressed and the server is told behind
+   * it.** Telling it takes a second or more — a read of what is open, then the
+   * cancel itself, then the journal row — and waiting for all of that before
+   * anything moved made the × feel broken enough to press twice. Nothing else
+   * on the panel is dimmed meanwhile either, for the same reason: there is
+   * nothing here for anyone to wait for.
+   *
+   * A refusal puts the line straight back and says why. That is the one time
+   * calling something off says anything at all, because a line returning on
+   * its own would otherwise look like the × had been missed.
+   *
+   * `key` is what is being held as already gone — an order id, or an id and
+   * the rung's place in it. It is let go only once a read has landed without
+   * it, so a poll that was already in flight cannot flash the line back.
+   */
+  const callOff = React.useCallback(
+    async (
+      key: string,
+      action: () => Promise<unknown>,
+      describeError: (error: unknown) => string,
+      done?: string
+    ): Promise<void> => {
+      setCancelling((held) => new Set(held).add(key))
+      const forget = () =>
+        setCancelling((held) => {
+          if (!held.has(key)) return held
+          const next = new Set(held)
+          next.delete(key)
+          return next
+        })
+
+      try {
+        await action()
+      } catch (error) {
+        forget()
+        showErrorToast(describeError(error))
+        void refresh()
+        return
+      }
+      if (done) toast.success(done)
+      await refreshUntilLanded()
+      forget()
+    },
+    [refresh, refreshUntilLanded]
+  )
+
   /** A wallet's name, for the messages that have to say which one they mean. */
   const walletNames = React.useMemo(
     () =>
@@ -490,13 +565,63 @@ export function useTrading(
     () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
     [paperAnswer, liveAnswer]
   )
-  const smartOrders = React.useMemo(
+  /** Exactly what the server last said, for the lookups an action does. */
+  const allSmartOrders = React.useMemo(
     () => [
       ...(paperAnswer?.smartOrders ?? []),
       ...(liveAnswer?.smartOrders ?? []),
     ],
     [paperAnswer?.smartOrders, liveAnswer?.smartOrders]
   )
+
+  /**
+   * The same list with anything already called off taken out of it, so a ×
+   * lands the moment it is pressed instead of a second later.
+   *
+   * A whole ladder or grid goes altogether. A single rung or level is marked
+   * the way the server is about to mark it — a rung called off by hand is
+   * `skipped`, which the chart draws faded, and a grid level is `cancelled`,
+   * which the chart does not draw at all. Guessing the same answer the server
+   * will give is what keeps the line from jumping when the real one lands.
+   */
+  const smartOrders = React.useMemo(() => {
+    if (cancelling.size === 0) return allSmartOrders
+    return allSmartOrders
+      .filter((order) => !cancelling.has(order.id))
+      .map((order) => {
+        if (order.kind === "dca") {
+          if (!order.plan.rungs.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+            return order
+          return {
+            ...order,
+            plan: {
+              ...order.plan,
+              rungs: order.plan.rungs.map((rung, at) =>
+                cancelling.has(`${order.id}#${at}`) && rung.status === "waiting"
+                  ? { ...rung, status: "skipped" as const }
+                  : rung
+              ),
+            },
+          }
+        }
+        if (order.kind === "grid") {
+          if (!order.plan.levels.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+            return order
+          return {
+            ...order,
+            plan: {
+              ...order.plan,
+              levels: order.plan.levels.map((level, at) =>
+                cancelling.has(`${order.id}#${at}`) && level.status === "waiting"
+                  ? { ...level, status: "cancelled" as const }
+                  : level
+              ),
+            },
+          }
+        }
+        return order
+      })
+  }, [allSmartOrders, cancelling])
   // Derived rather than fetched separately: the screens that predate the grid
   // still want ladders alone, and one list of both is the truth they filter.
   const ladders = React.useMemo(
@@ -530,17 +655,23 @@ export function useTrading(
   )
 
   const orders = React.useMemo(() => {
-    if (dropped.size === 0) return allOrders
-    return allOrders.map((order) => {
+    const shown =
+      cancelling.size === 0
+        ? allOrders
+        : allOrders.filter((order) => !cancelling.has(order.id))
+    if (dropped.size === 0) return shown
+    return shown.map((order) => {
       const held = dropped.get(order.id)
       return held === undefined ? order : { ...order, px: held }
     })
-  }, [allOrders, dropped])
+  }, [allOrders, dropped, cancelling])
 
   const watchOrders = React.useMemo(
     () =>
       smartOrders.flatMap((order): PaperOrder[] =>
-        order.kind === "watch" && order.plan.phase === "waiting"
+        order.kind === "watch" &&
+        order.plan.phase === "waiting" &&
+        !cancelling.has(order.id)
           ? [
               {
                 id: order.id,
@@ -566,7 +697,7 @@ export function useTrading(
             ]
           : []
       ),
-    [smartOrders, dropped]
+    [smartOrders, dropped, cancelling]
   )
 
   const positions = React.useMemo(() => {
@@ -727,29 +858,32 @@ export function useTrading(
 
   const cancel: Trading["cancel"] = React.useCallback(
     async (walletId, orderId) => {
-      // Cancelling costs nothing and the × on the chart has to stay instant,
-      // so there is no question asked first — and nothing is said afterwards
-      // either: the line disappearing is the answer.
-      // A watched price is drawn as an order and cancelled as one, but there
-      // is no order anywhere to cancel — the row IS the order until its level
-      // is touched, so it goes back through the smart-order door.
-      const watch = smartOrders.find(
+      // Cancelling costs nothing, so there is no question asked first — and
+      // nothing is said afterwards either: the row disappearing is the answer.
+      const watch = allSmartOrders.find(
         (one) => one.kind === "watch" && one.id === orderId
       )
-      if (watch) {
-        await run(() => cancelWatch({ walletId, ladderId: orderId }))
-        return
-      }
       const order = findOrder(orderId)
-      if (order?.live) {
-        await runWith(getLiveErrorMessage, () =>
-          cancelLiveOrder({ walletId, marketKey: order.marketKey, orderId })
-        )
-        return
-      }
-      await run(() => cancelPaperOrder(walletId, orderId))
+      await callOff(
+        orderId,
+        () => {
+          // A watched price is drawn as an order and cancelled as one, but
+          // there is no order anywhere to cancel — the row IS the order until
+          // its level is touched, so it goes back through the smart-order door.
+          if (watch) return cancelWatch({ walletId, ladderId: orderId })
+          if (order?.live) {
+            return cancelLiveOrder({
+              walletId,
+              marketKey: order.marketKey,
+              orderId,
+            })
+          }
+          return cancelPaperOrder(walletId, orderId)
+        },
+        order?.live ? getLiveErrorMessage : getPaperErrorMessage
+      )
     },
-    [run, runWith, findOrder, smartOrders]
+    [callOff, findOrder, allSmartOrders]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -871,24 +1005,26 @@ export function useTrading(
 
   const cancelRung: Trading["cancelRung"] = React.useCallback(
     async (walletId, ladderId, rungIndex) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        `${ladderId}#${rungIndex}`,
         () => cancelLadderRung({ walletId, ladderId, rungIndex }),
+        getTradingSmartOrderError,
         `Rung ${rungIndex + 1} called off in ${nameOf(walletId)}.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const cancelLadder: Trading["cancelLadder"] = React.useCallback(
     async (walletId, ladderId) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        ladderId,
         () => cancelLadderRest({ walletId, ladderId }),
+        getTradingSmartOrderError,
         `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const setLadderExits: Trading["setLadderExits"] = React.useCallback(
@@ -928,24 +1064,26 @@ export function useTrading(
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
     async (walletId, gridId, levelIndex) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        `${gridId}#${levelIndex}`,
         () => cancelGridLevelApi({ walletId, gridId, levelIndex }),
+        getTradingSmartOrderError,
         `Level ${levelIndex + 1} called off in ${nameOf(walletId)}.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const cancelGrid: Trading["cancelGrid"] = React.useCallback(
     async (walletId, gridId) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        gridId,
         () => cancelGridRest({ walletId, gridId }),
+        getTradingSmartOrderError,
         `Grid stopped in ${nameOf(walletId)} — what's held stays.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const moveGridRange: Trading["moveGridRange"] = React.useCallback(

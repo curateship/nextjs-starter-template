@@ -3,6 +3,7 @@ import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
+import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
@@ -55,8 +56,7 @@ const placeSchema = z.object({
 const cancelSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
-  /** The exchange's own order id — digits, not a uuid. */
-  orderId: z.string().max(24).regex(/^\d+$/),
+  orderId: orderIdSchema,
 })
 
 const bracketsSchema = z.object({
@@ -136,7 +136,7 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
 const moveSchema = z.object({
   walletId: z.string().max(36),
   marketKey: z.string().max(120),
-  orderId: z.string().max(40),
+  orderId: orderIdSchema,
   px: z.number().positive().finite(),
   // The rest of the order, from the row on screen — so the move is one
   // exchange call instead of a read and then a call. It is the user's own

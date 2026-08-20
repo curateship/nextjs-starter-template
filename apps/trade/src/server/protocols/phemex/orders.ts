@@ -156,37 +156,69 @@ function cappedPx(
 // ----- Position mode -------------------------------------------------------
 
 /**
- * Symbols this process has already forced to one-way, per network — the
- * switch is idempotent but not free, and an account that is already one-way
- * refuses the call, so once per symbol per process is exactly enough.
+ * Which way this account keeps positions, and what that means for an order.
+ *
+ * **Phemex accounts come in two shapes and the wrong one is refused outright.**
+ * A one-way account holds a single position per market and labels every order
+ * `Merged`. A hedged account holds a long AND a short at once, and every
+ * order must say which of the two it belongs to — `Merged` there comes back
+ * as `TE_ERR_INCONSISTENT_POS_MODE`, which is what stopped an order placed on
+ * the exchange's own website from being cancelled here.
+ *
+ * The mode is the account's to choose, not this app's. An earlier version
+ * tried to switch accounts to one-way on first use; that is somebody else's
+ * setting, it cannot change while a position is open, and it was silently
+ * failing anyway. So the account is asked which mode it is in, and the app
+ * speaks that.
  */
-const onewaySymbols = new Map<NetworkId, Set<string>>()
+type PosMode = "OneWay" | "Hedged"
 
-async function ensureOneWay(
+/** How long the account's mode stands before it is asked for again. */
+const POS_MODE_GOOD_FOR_MS = 5 * 60_000
+
+const posModes = new Map<string, { at: number; bySymbol: Map<string, PosMode> }>()
+
+async function posModeOf(
   network: NetworkId,
-  credential: { keyId: string; secret: string },
+  address: string,
+  blob: string,
   symbol: string
-): Promise<void> {
-  const done = onewaySymbols.get(network) ?? new Set<string>()
-  onewaySymbols.set(network, done)
-  if (done.has(symbol)) return
-  try {
-    await phemexSigned(
-      network,
-      credential,
-      "PUT",
-      "/g-positions/switch-pos-mode-sync",
-      { symbol, targetPosMode: "OneWay" },
-      undefined,
-      false
-    )
-  } catch {
-    // Already one-way, or a position is open (the mode cannot change under
-    // one) — either way the account is in a mode orders will state
-    // explicitly (`posSide: "Merged"`), and a genuinely hedged account
-    // refuses THAT loudly rather than double-booking here.
+): Promise<PosMode> {
+  const key = `${network}:${parsePhemexCredential(blob).keyId}`
+  const held = posModes.get(key)
+  if (!held || Date.now() - held.at > POS_MODE_GOOD_FOR_MS) {
+    const { positions } = await phemexAccountPositions(network, address, () => blob)
+    const bySymbol = new Map<string, PosMode>()
+    for (const raw of positions) {
+      const row = raw as { symbol?: unknown; posMode?: unknown }
+      if (typeof row.symbol !== "string") continue
+      if (row.posMode === "Hedged" || row.posMode === "OneWay") {
+        bySymbol.set(row.symbol, row.posMode)
+      }
+    }
+    posModes.set(key, { at: Date.now(), bySymbol })
   }
-  done.add(symbol)
+  // A market the account has never touched carries no row. Hedged is the
+  // safer guess of the two: it names a side, and a one-way account tells us
+  // so plainly rather than doing something unintended.
+  return posModes.get(key)?.bySymbol.get(symbol) ?? "Hedged"
+}
+
+/**
+ * Which position an order belongs to, in the exchange's words.
+ *
+ * On a hedged account the side alone does not say: a sell either opens a
+ * short or closes a long, and only `reduceOnly` tells them apart. Opening
+ * buys and closing sells belong to the Long; opening sells and closing buys
+ * belong to the Short.
+ */
+export function posSideFor(
+  mode: PosMode,
+  side: "buy" | "sell",
+  reduceOnly: boolean
+): "Merged" | "Long" | "Short" {
+  if (mode === "OneWay") return "Merged"
+  return (side === "buy") !== reduceOnly ? "Long" : "Short"
 }
 
 // ----- Reading orders back -------------------------------------------------
@@ -200,7 +232,10 @@ const orderRowSchema = z.object({
   // than a listed row; anything read as a LIST is filtered to rows that
   // actually name their market.
   symbol: z.string().default(""),
-  side: z.string().default(""),
+  // Words on most endpoints, NUMBERS on the by-currency order list — and a
+  // schema that insisted on words threw every one of those rows away, so a
+  // limit order placed on the exchange's own website never appeared here.
+  side: z.union([z.string(), z.number()]).default(""),
   ordType: z.union([z.string(), z.number()]).optional(),
   ordStatus: z.union([z.string(), z.number()]).optional(),
   priceRp: z.union([z.string(), z.number()]).optional(),
@@ -216,6 +251,18 @@ const orderRowSchema = z.object({
 type OrderRow = z.infer<typeof orderRowSchema>
 
 const idOf = (row: OrderRow) => row.orderId ?? row.orderID ?? ""
+
+/**
+ * Which way an order or a position goes, in the app's words.
+ *
+ * Phemex says this two ways: "Buy"/"Sell" on most endpoints, and 1/2 on the
+ * by-currency order list. Both are read here so no caller has to know which
+ * endpoint its row came from.
+ */
+function sideOf(side: string | number | undefined): "buy" | "sell" {
+  if (typeof side === "number") return side === 2 ? "sell" : "buy"
+  return String(side ?? "").toLowerCase().startsWith("s") ? "sell" : "buy"
+}
 
 /**
  * Phemex speaks two dialects for the same enums: the per-order endpoints
@@ -309,7 +356,12 @@ export async function placePhemexOrder(
   const sz = floorToStep(params.sz, rules.qtyStepSize)
   if (!(sz > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
 
-  await ensureOneWay(network, credential, params.marketId)
+  const mode = await posModeOf(
+    network,
+    "",
+    orderAuth.agentKey,
+    params.marketId
+  )
 
   if (params.leverage !== null) {
     // Set only when opening fresh — the caller already sends null when the
@@ -324,9 +376,7 @@ export async function placePhemexOrder(
         {
           symbol: params.marketId,
           leverageRr: decimalString(params.leverage),
-        },
-        undefined,
-        false
+        }
       )
     } catch (error) {
       throw refusedError(error)
@@ -343,7 +393,7 @@ export async function placePhemexOrder(
     clOrdID: randomUUID(),
     symbol: params.marketId,
     side: params.side === "buy" ? "Buy" : "Sell",
-    posSide: "Merged",
+    posSide: posSideFor(mode, params.side, params.reduceOnly),
     ordType: "Limit",
     priceRp: decimalString(px),
     orderQtyRq: decimalString(sz),
@@ -378,9 +428,7 @@ export async function placePhemexOrder(
       credential,
       "PUT",
       "/g-orders/create",
-      query,
-      undefined,
-      false
+      query
     )
     const parsed = orderRowSchema.safeParse(answer)
     if (!parsed.success) throw new Error("LIVE_UNREADABLE")
@@ -437,6 +485,48 @@ export async function placePhemexOrder(
 
 // ----- Cancel, modify, close ------------------------------------------------
 
+/**
+ * Cancelling one order, whichever mode the account is in.
+ *
+ * A hedged account wants the side the order belongs to, and a cancel does not
+ * carry one — the app knows an order by its market and its id. So the mode is
+ * asked first, and on a hedged account the Long is tried and then the Short.
+ * "No such order" is the exchange telling us to look on the other side, not a
+ * failure; anything else is reported as it is.
+ */
+async function cancelOne(
+  network: NetworkId,
+  credential: { keyId: string; secret: string },
+  blob: string,
+  marketId: string,
+  orderId: string
+): Promise<void> {
+  const mode = await posModeOf(network, "", blob, marketId)
+  const sides = mode === "OneWay" ? ["Merged"] : ["Long", "Short"]
+  let lastMissing: unknown = null
+  for (const posSide of sides) {
+    try {
+      await phemexSigned(
+        network,
+        credential,
+        "DELETE",
+        "/g-orders/cancel",
+        { symbol: marketId, orderID: orderId, posSide }
+      )
+      return
+    } catch (error) {
+      const message = error instanceof Error ? error.message : ""
+      // 10002 is the venue's "no order by that id here".
+      if (message.startsWith("PHEMEX_10002")) {
+        lastMissing = error
+        continue
+      }
+      throw error
+    }
+  }
+  if (lastMissing) throw lastMissing
+}
+
 export async function cancelPhemexOrder(
   network: NetworkId,
   orderAuth: OrderAuth,
@@ -444,14 +534,12 @@ export async function cancelPhemexOrder(
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
   try {
-    await phemexSigned(
+    await cancelOne(
       network,
       auth(orderAuth),
-      "DELETE",
-      "/g-orders/cancel",
-      { symbol: params.marketId, orderID: params.orderId, posSide: "Merged" },
-      undefined,
-      false
+      orderAuth.agentKey,
+      params.marketId,
+      params.orderId
     )
   } catch (error) {
     throw exchangeError(error)
@@ -487,10 +575,12 @@ export async function modifyPhemexOrder(
         orderID: params.orderId,
         priceRp: decimalString(roundPhemexPx(params.px, null, rules.tickSize)),
         orderQtyRq: decimalString(sz),
-        posSide: "Merged",
-      },
-      undefined,
-      false
+        posSide: posSideFor(
+          await posModeOf(network, "", orderAuth.agentKey, params.marketId),
+          params.side,
+          params.reduceOnly
+        ),
+      }
     )
   } catch (error) {
     throw exchangeError(error)
@@ -544,6 +634,14 @@ export async function setPhemexBrackets(
   const size = Math.abs(params.position.szi)
   if (!(size > 0)) throw new Error("LIVE_POSITION_GONE")
   const exitSide = params.position.szi > 0 ? "Sell" : "Buy"
+  // A stop or a target only ever reduces, so it belongs to the very position
+  // it guards — the long on a long, the short on a short. On a one-way
+  // account this is simply "Merged" and the distinction does not arise.
+  const legPosSide = posSideFor(
+    await posModeOf(network, "", orderAuth.agentKey, params.marketId),
+    params.position.szi > 0 ? "sell" : "buy",
+    true
+  )
 
   // Old legs first, so the position is never guarded twice. A leg already
   // gone is fine — that is the state being aimed for.
@@ -554,9 +652,7 @@ export async function setPhemexBrackets(
       credential,
       "DELETE",
       "/g-orders/cancel",
-      { symbol: params.marketId, orderID: orderId, posSide: "Merged" },
-      undefined,
-      false
+      { symbol: params.marketId, orderID: orderId, posSide: legPosSide }
     ).catch(() => {})
   }
 
@@ -574,7 +670,7 @@ export async function setPhemexBrackets(
         clOrdID: randomUUID(),
         symbol: params.marketId,
         side: exitSide,
-        posSide: "Merged",
+        posSide: legPosSide,
         ordType: leg.ordType,
         stopPxRp: decimalString(
           roundPhemexPx(leg.triggerPx, null, rules.tickSize)
@@ -584,9 +680,7 @@ export async function setPhemexBrackets(
         timeInForce: "ImmediateOrCancel",
         reduceOnly: true,
         closeOnTrigger: true,
-      },
-      undefined,
-      false
+      }
     )
   }
 
@@ -606,11 +700,21 @@ export async function setPhemexBrackets(
   }
 }
 
+/**
+ * Empties the short-lived answer caches. Tests drive their own time, and a
+ * two-second answer carried from one case into the next would make them lie
+ * to each other — the same reason `clearMarketRulesCache` exists.
+ */
+export function clearPhemexOrderCaches(): void {
+  openOrdersCache.clear()
+  fillsCache.clear()
+}
+
 // ----- Reading the account back ---------------------------------------------
 
 const positionSchema = z.object({
   symbol: z.string(),
-  side: z.string().optional(),
+  side: z.union([z.string(), z.number()]).optional(),
   size: z.union([z.string(), z.number()]).optional(),
   avgEntryPriceRp: z.union([z.string(), z.number()]).optional(),
   positionMarginRv: z.union([z.string(), z.number()]).optional(),
@@ -628,6 +732,21 @@ const positionSchema = z.object({
 const ORDER_LIST_PAGE = 200
 
 /**
+ * How many pages any paged read here may walk before it stops.
+ *
+ * **A page loop with no ceiling is worse than a slow one.** Every request
+ * answers perfectly well, so no deadline ever fires; if the exchange keeps
+ * handing back a full page — because it ignored the offset, or because the
+ * account has more history than a screen needs — the loop runs forever,
+ * holding its caller open and hammering the exchange. A reconcile that never
+ * returned was exactly this, and it froze the two panels that wait on it.
+ *
+ * Five thousand rows is far past anything these screens read, so stopping
+ * there is a bound rather than a truncation anyone will notice.
+ */
+const MAX_PAGES = 25
+
+/**
  * The by-currency order list, walked to the end. Paged because a truncated
  * answer here is a truncated protection-legs read — a stop the portfolio
  * cannot see is a stop `setBrackets` would double-place beside.
@@ -638,28 +757,55 @@ async function orderListPages(
   params: Record<string, string | number | boolean>
 ): Promise<OrderRow[]> {
   const rows: OrderRow[] = []
-  for (let offset = 0; ; offset += ORDER_LIST_PAGE) {
+  const seen = new Set<string>()
+  for (let page = 0; page < MAX_PAGES; page += 1) {
     const answer = await phemexSigned(
       network,
       credential,
       "GET",
       "/exchange/order/v2/orderList",
-      { ...params, offset, limit: ORDER_LIST_PAGE }
+      { ...params, offset: page * ORDER_LIST_PAGE, limit: ORDER_LIST_PAGE }
     )
-    const page = rowsOf(answer)
-    rows.push(...page)
-    if (page.length < ORDER_LIST_PAGE) return rows
+    const back = rowsOf(answer)
+    // An exchange that ignores the offset hands back the same page forever.
+    // Keeping only rows never seen turns that into a stop rather than a loop
+    // with no end.
+    const fresh = back.filter((row) => !seen.has(idOf(row)))
+    for (const row of fresh) seen.add(idOf(row))
+    rows.push(...fresh)
+    if (back.length < ORDER_LIST_PAGE || fresh.length === 0) break
   }
+  return rows
 }
+
+/** The open-order list is asked for as often as the account is, and shared
+ * for the same reason and the same two seconds. */
+const OPEN_ORDERS_GOOD_FOR_MS = 2_000
+
+const openOrdersCache = new Map<
+  string,
+  { at: number; answer: Promise<OrderRow[]> }
+>()
 
 async function openOrders(
   network: NetworkId,
   credential: { keyId: string; secret: string }
 ): Promise<OrderRow[]> {
-  return orderListPages(network, credential, {
+  const key = `${network}:${credential.keyId}`
+  const cached = openOrdersCache.get(key)
+  if (cached && Date.now() - cached.at < OPEN_ORDERS_GOOD_FOR_MS) {
+    return cached.answer
+  }
+  const at = Date.now()
+  const answer = orderListPages(network, credential, {
     currency: "USDT",
     ordStatus: "1,5,6",
   })
+  answer.catch(() => {
+    if (openOrdersCache.get(key)?.at === at) openOrdersCache.delete(key)
+  })
+  openOrdersCache.set(key, { at, answer })
+  return answer
 }
 
 export async function fetchPhemexPortfolio(
@@ -689,7 +835,7 @@ export async function fetchPhemexPortfolio(
     if (!row.success) continue
     const size = num(row.data.size) ?? 0
     if (!(size > 0)) continue
-    const szi = row.data.side === "Sell" ? -size : size
+    const szi = sideOf(row.data.side) === "sell" ? -size : size
 
     // The protection legs are the untriggered exit orders sitting on the
     // same symbol: a stop-family order guards the downside, a touched-family
@@ -727,7 +873,7 @@ export async function fetchPhemexPortfolio(
     return {
       orderId: idOf(row),
       marketId: row.symbol,
-      side: row.side === "Sell" ? "sell" : "buy",
+      side: sideOf(row.side),
       px: (trigger ? num(row.stopPxRp) : num(row.priceRp)) ?? 0,
       sz,
       reduceOnly: row.reduceOnly ?? false,
@@ -758,6 +904,17 @@ const fillSchema = z.object({
 const FILL_PAGE = 200
 
 /**
+ * How far back a FIRST sweep reaches, when the app has no fill of its own to
+ * count from.
+ *
+ * Asking an exchange for all of history, per symbol, is the slowest thing
+ * this connector can do — and on a newly added wallet that is exactly what
+ * "since the beginning" means. A month is more than the Journal shows at a
+ * glance, and it finishes.
+ */
+const FIRST_SWEEP_MS = 30 * 24 * 3_600_000
+
+/**
  * Every trade the account made since the watermark.
  *
  * Phemex only answers trades PER SYMBOL, so the symbols are discovered
@@ -765,7 +922,52 @@ const FILL_PAGE = 200
  * order list) plus every symbol it holds. A trade on a symbol with no order
  * and no position in the window cannot exist — an execution IS an order.
  */
+/**
+ * How long one fills answer stands in for the next, and how many coins one
+ * sweep asks about.
+ *
+ * **Phemex answers trades one coin at a time.** Every other venue here
+ * answers the whole account in one call, so the engine asks for fills on
+ * every pass without thinking about it — and on Phemex that same habit
+ * became a request per coin the account has ever touched, several times a
+ * minute, until the exchange started refusing the key altogether and the
+ * wallet card said it could not be reached.
+ *
+ * Sharing one answer for a few seconds collapses the engine's ask and the
+ * screen's into one, and a ceiling on coins keeps a long history from
+ * turning one sweep into fifty requests. Older trades are not lost — they
+ * are read on later sweeps, oldest watermark first.
+ */
+const FILLS_GOOD_FOR_MS = 10_000
+const SYMBOLS_PER_SWEEP = 8
+
+const fillsCache = new Map<
+  string,
+  { at: number; answer: Promise<WalletOrderFill[]> }
+>()
+
 export async function fetchPhemexOrderFills(
+  network: NetworkId,
+  address: string,
+  since: number,
+  credential: () => string | null
+): Promise<WalletOrderFill[]> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const key = `${network}:${parsePhemexCredential(blob).keyId}:${Math.floor(since / 60_000)}`
+  const cached = fillsCache.get(key)
+  if (cached && Date.now() - cached.at < FILLS_GOOD_FOR_MS) return cached.answer
+
+  const at = Date.now()
+  const answer = readPhemexFills(network, address, since, credential)
+  answer.catch(() => {
+    if (fillsCache.get(key)?.at === at) fillsCache.delete(key)
+  })
+  fillsCache.set(key, { at, answer })
+  return answer
+}
+
+async function readPhemexFills(
   network: NetworkId,
   address: string,
   since: number,
@@ -775,6 +977,9 @@ export async function fetchPhemexOrderFills(
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parsePhemexCredential(blob)
   const end = Date.now()
+  // A watermark of zero is a wallet that has never been swept, not a request
+  // for everything the venue remembers.
+  const from = since > 0 ? since : end - FIRST_SWEEP_MS
 
   const symbols = new Set<string>()
   const [{ positions }, touched] = await Promise.all([
@@ -784,18 +989,36 @@ export async function fetchPhemexOrderFills(
     // list is the one read that names every market the account touched.
     orderListPages(network, parsed, {
       currency: "USDT",
-      start: Math.max(0, since),
+      start: Math.max(0, from),
     }).catch(() => null),
   ])
   for (const raw of positions) {
     const row = positionSchema.safeParse(raw)
     if (row.success) symbols.add(row.data.symbol)
   }
-  for (const row of touched ?? []) symbols.add(row.symbol)
+  // Coins held come first — they are the ones a trade can still be made on —
+  // then the most recently touched, up to the ceiling.
+  for (const row of touched ?? []) {
+    if (symbols.size >= SYMBOLS_PER_SWEEP) break
+    symbols.add(row.symbol)
+  }
 
+  /**
+   * How many symbols are asked about at once.
+   *
+   * Phemex answers trades per symbol, so a wallet that has touched a dozen
+   * coins is a dozen round trips — one after another, that was most of the
+   * time this sweep took. A handful at a time is quick without becoming the
+   * burst that gets a key rationed.
+   */
+  const AT_A_TIME = 4
   const fills: WalletOrderFill[] = []
-  for (const symbol of symbols) {
-    for (let offset = 0; ; offset += FILL_PAGE) {
+  const queue = [...symbols]
+
+  const walkOne = async (symbol: string) => {
+    const seenFills = new Set<string>()
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      const offset = page * FILL_PAGE
       const answer = await phemexSigned(
         network,
         parsed,
@@ -803,7 +1026,7 @@ export async function fetchPhemexOrderFills(
         "/api-data/g-futures/trades",
         {
           symbol,
-          start: Math.max(0, since),
+          start: Math.max(0, from),
           end,
           offset,
           limit: FILL_PAGE,
@@ -814,7 +1037,14 @@ export async function fetchPhemexOrderFills(
         .filter((row) => row.success)
         .map((row) => row.data)
 
-      for (const row of rows) {
+      // The same guard the order list uses: a page carrying nothing new
+      // means the exchange is not advancing, and the walk stops.
+      const fresh = rows.filter(
+        (row) => !seenFills.has(row.execID ?? row.execId ?? "")
+      )
+      for (const row of fresh) seenFills.add(row.execID ?? row.execId ?? "")
+
+      for (const row of fresh) {
         // Funding settlements arrive in the same feed; they are not fills
         // and the journal accounts for funding elsewhere.
         if (row.tradeType === "Funding") continue
@@ -835,9 +1065,17 @@ export async function fetchPhemexOrderFills(
           liquidation,
         })
       }
-      if (rows.length < FILL_PAGE) break
+      if (rows.length < FILL_PAGE || fresh.length === 0) break
     }
   }
+
+  await Promise.all(
+    Array.from({ length: Math.min(AT_A_TIME, queue.length) }, async () => {
+      for (let symbol = queue.pop(); symbol; symbol = queue.pop()) {
+        await walkOne(symbol)
+      }
+    })
+  )
 
   fills.sort((a, b) => a.at - b.at)
   return fills

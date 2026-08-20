@@ -6,6 +6,7 @@ import type {
   NetworkId,
 } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/hyperliquid/translate"
+import { intervalMs, wantsFullHistory } from "@/lib/trade/chart-history"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -17,6 +18,8 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
  */
 
 const CANDLE_COUNT = 500
+/** All the exchange keeps per timeframe, measured on 19 Aug 2026. */
+const HYPERLIQUID_BARS_KEPT = 5_000
 const CHART_RETRIES = 3
 const CHART_RETRY_BASE_MS = 500
 
@@ -40,15 +43,6 @@ const chartLoads = new Map<
  */
 let historyTail: Promise<void> = Promise.resolve()
 
-/** How long one bar of each timeframe lasts, for working out the start time. */
-const INTERVAL_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
 
 /**
  * The slice of a candle this module reads, checked at runtime: open time and
@@ -201,12 +195,18 @@ async function loadRecentCandles(
   marketId: string,
   interval: CandleInterval
 ): Promise<CandleBar[]> {
+  // The timeframes that load in full need no paging here: the exchange keeps
+  // five thousand bars and hands all of them over in one answer, so asking
+  // for more than it has costs nothing and returns everything it does have.
+  const count = wantsFullHistory(interval)
+    ? HYPERLIQUID_BARS_KEPT
+    : CANDLE_COUNT
   for (let attempt = 0; ; attempt += 1) {
     try {
       const response = await infoClient(network).candleSnapshot({
         coin: marketId,
         interval,
-        startTime: Date.now() - INTERVAL_MS[interval] * CANDLE_COUNT,
+        startTime: Date.now() - intervalMs(interval) * count,
       })
       return toCandleBars(candlesSchema.parse(response))
     } catch (error) {
@@ -275,5 +275,5 @@ export async function fetchHyperliquidCandleHistory(
 
 /** How long one bar of a timeframe lasts, in milliseconds. */
 export function candleIntervalMs(interval: CandleInterval): number {
-  return INTERVAL_MS[interval]
+  return intervalMs(interval)
 }

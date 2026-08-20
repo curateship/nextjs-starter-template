@@ -19,10 +19,12 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
   }
 })
 import {
+  clearPhemexOrderCaches,
   fetchPhemexOrderInfo,
   fetchPhemexPortfolio,
   placePhemexOrder,
 } from "@/server/protocols/phemex/orders"
+import { clearPhemexAccountCache } from "@/server/protocols/phemex/account"
 
 /**
  * The order path against canned exchange answers. What is pinned down:
@@ -78,6 +80,10 @@ function stubExchange(
 
 beforeEach(() => {
   delete process.env.TRADE_ENABLE_MAINNET
+  // The connector shares an answer for two seconds; without this, one case's
+  // reply would still be standing when the next one asks.
+  clearPhemexOrderCaches()
+  clearPhemexAccountCache()
 })
 
 afterEach(() => {
@@ -113,8 +119,17 @@ describe("placing", () => {
       [
         { path: "/public/products", answer: PRODUCTS },
         {
-          path: "/g-positions/switch-pos-mode-sync",
-          answer: { code: 0, msg: "", data: {} },
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              // A hedged account, which is what Tyler's really is: every
+              // order must name the position it belongs to.
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
         },
         {
           path: "/g-orders/create",
@@ -164,7 +179,10 @@ describe("placing", () => {
     expect(create?.method).toBe("PUT")
     expect(create?.url.searchParams.get("ordType")).toBe("Limit")
     expect(create?.url.searchParams.get("timeInForce")).toBe("ImmediateOrCancel")
-    expect(create?.url.searchParams.get("posSide")).toBe("Merged")
+    // Hedged account: an opening buy belongs to the Long. Sending "Merged"
+    // here is what the exchange refused with TE_ERR_INCONSISTENT_POS_MODE,
+    // which is why an order placed on phemex.com could not be cancelled.
+    expect(create?.url.searchParams.get("posSide")).toBe("Long")
     expect(create?.url.searchParams.get("orderQtyRq")).toBe("0.012")
     // 3% through $50,000 is $51,500 — already on the half-dollar tick.
     expect(create?.url.searchParams.get("priceRp")).toBe("51500")
@@ -199,6 +217,63 @@ describe("placing", () => {
 })
 
 describe("reading the account back", () => {
+  it("shows an order placed on the exchange's own website", async () => {
+    // The row below is verbatim from Tyler's account on 19 Aug 2026, after he
+    // placed a limit buy on phemex.com and it did not appear here. This
+    // endpoint answers in CODE NUMBERS — side 1 is a buy, ordType 2 a limit,
+    // ordStatus 5 resting — and a parser that insisted on words threw the
+    // whole row away, so the order was invisible.
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1290.5", totalUsedBalanceRv: "0" },
+              positions: [],
+            },
+          },
+        },
+        {
+          path: "/exchange/order/v2/orderList",
+          answer: {
+            code: 0,
+            msg: "",
+            data: [
+              {
+                orderID: "3124000e-6d99-4a88-91f2-fc0ec46c2454",
+                symbol: "HYPEUSDT",
+                side: 1,
+                ordType: 2,
+                ordStatus: 5,
+                priceRp: "61",
+                orderQtyRq: "1",
+              },
+            ],
+          },
+        },
+      ],
+      []
+    )
+
+    const portfolio = await fetchPhemexPortfolio(
+      "mainnet",
+      "key-id",
+      () => AUTH.agentKey
+    )
+    expect(portfolio.orders).toHaveLength(1)
+    const order = portfolio.orders[0]
+    expect(order.marketId).toBe("HYPEUSDT")
+    expect(order.side).toBe("buy")
+    expect(order.px).toBe(61)
+    expect(order.sz).toBe(1)
+    // Resting on the book, not a trigger waiting to be armed.
+    expect(order.trigger).toBe(false)
+  })
+
+
   it("hangs the untriggered protection legs back on the position", async () => {
     stubExchange(
       [

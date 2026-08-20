@@ -4,7 +4,6 @@ import {
   phemexFundingSymbol,
   phemexIntervalMs,
   roundPhemexPx,
-  stepToDecimals,
   toPhemexBar,
   toPhemexFigures,
 } from "@/lib/protocols/phemex/translate"
@@ -22,24 +21,6 @@ describe("Phemex price rounding", () => {
     // An old plan row from before ticks existed: the exchange refuses a bad
     // price out loud, which beats guessing a tick here.
     expect(roundPhemexPx(123.456, 3, null)).toBe(123.456)
-  })
-})
-
-describe("Phemex size steps", () => {
-  it("reads a power-of-ten step as its decimal places", () => {
-    expect(stepToDecimals(0.001)).toBe(3)
-    expect(stepToDecimals(1)).toBe(0)
-  })
-
-  it("reports 0 for a step that is not a power of ten", () => {
-    // 0.5-coin steps cannot be said as "decimal places"; the order path
-    // enforces the real step, and 0 keeps the shared sizing conservative.
-    expect(stepToDecimals(0.5)).toBe(0)
-    expect(stepToDecimals(10)).toBe(0)
-  })
-
-  it("answers null when the exchange did not say", () => {
-    expect(stepToDecimals(null)).toBe(null)
   })
 })
 
