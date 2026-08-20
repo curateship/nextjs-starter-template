@@ -750,9 +750,18 @@ async function reconcileLiveLaddersOnce(
     const roundPx = (px: number) =>
       protocol.markets.roundPx(px, entry.plan.sizeDecimals, entry.plan.priceTick)
 
-    // A grid manages no exchange orders — its levels are watched prices — so
-    // there is nothing of its to match fills against.
-    if (entry.kind === "grid") continue
+    // Only a ladder has rungs to match fills against.
+    //
+    // **A grid and a watch both used to fall through here**, and a watch has
+    // no rungs at all — so reading them threw, the whole pass died before a
+    // single trigger was looked at, and nothing said a word. One watched
+    // order on a wallet stopped that wallet's engine completely: levels were
+    // crossed and held for twenty minutes on 20 Aug 2026 and nothing fired,
+    // on two exchanges, while the app looked perfectly healthy.
+    //
+    // Named the safe way round — only `dca` goes on — so a kind added later
+    // is skipped rather than read as a ladder it is not.
+    if (entry.kind !== "dca") continue
 
     const plan = entry.plan as LadderPlan
     const exits = ladderExitLevels(plan)
