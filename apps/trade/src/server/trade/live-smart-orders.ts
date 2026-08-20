@@ -574,14 +574,38 @@ const refusalHolds = new Map<string, number>()
 const REFUSAL_HOLD_MS = 60_000
 
 /** Advances live ladders from exchange truth using the same state engine as paper. */
+/**
+ * Wallets a reconcile is running for right now.
+ *
+ * **A reconcile that is already running is not worth queueing behind.** Two
+ * screens poll this every few seconds, and a pass against a slow or
+ * rate-limited exchange can outlast the gap between polls. Waiting our turn
+ * meant each poll added another request that sat holding a database
+ * connection until its turn came, and once the pool was spent EVERY read in
+ * the app — wallets, drawings, positions — waited with it. The panels showed
+ * a spinner that never ended and the page stopped responding.
+ *
+ * So a caller that finds one already in flight is told "being done" and
+ * leaves. Nothing is lost: the pass in flight is doing the same work, and the
+ * next poll is seconds away.
+ */
+const reconciling = new Set<string>()
+
 export async function reconcileLiveLadders(
   userId: string,
   wallet: TradeWallet,
   currentPortfolio?: WalletPortfolio
 ): Promise<void> {
-  await serializeLiveWallet(userId, wallet, () =>
-    reconcileLiveLaddersOnce(userId, wallet, currentPortfolio)
-  )
+  const key = `${userId}:${wallet.id}`
+  if (reconciling.has(key)) return
+  reconciling.add(key)
+  try {
+    await serializeLiveWallet(userId, wallet, () =>
+      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio)
+    )
+  } finally {
+    reconciling.delete(key)
+  }
 }
 
 async function reconcileLiveLaddersOnce(

@@ -77,7 +77,9 @@ export const Route = createFileRoute("/_authenticated/admin/phemex")({
         loadMarketFavorites().catch(() => ({ marketKeys: [] as string[] })),
         // Losing the memory only means a blank middle panel, never a broken
         // page.
-        loadLastMarket().catch(() => ({ marketKey: null as string | null })),
+        loadLastMarket(PROTOCOL).catch(() => ({
+          marketKey: null as string | null,
+        })),
         // Read here rather than after the chart is up: arriving late would
         // frame the whole history first and jump to the remembered zoom a
         // beat later. Losing it only means the chart frames its own history.

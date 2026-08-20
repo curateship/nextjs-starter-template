@@ -25,7 +25,7 @@ What Trade has added to the shell, and what each piece is for:
 
 | Where | What |
 | --- | --- |
-| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's. |
+| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's. |
 | `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
 | `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
 | `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
@@ -146,6 +146,15 @@ here", "do not zoom in further than this market has candles". Both quietly
 overrode what the user had set, and one of them fed its own clamped answer back
 into the saved value, so it compounded. Deleting them made the code shorter
 *and* correct. The guard rails were the bug.
+
+**What an exchange may leave out.** The registry's optional blocks are how a
+venue says what it cannot do, and three of them are now used in anger: an
+exchange with no pushed-price feed omits `livePrices` and the engine asks for
+prices instead; one whose socket needs a handshake the browser cannot make
+fills in `liveTicket`; and one whose feed cannot follow a whole list at once
+omits `watchFigures`, so its market list redraws rather than ticking. Each is
+absent rather than stubbed, because a subscription that never fires looks
+exactly like a broken socket.
 
 **Adding another exchange** is: one new folder under `src/server/protocols/`
 that produces the same shapes, one new entry in the registry, and its own

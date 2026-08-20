@@ -1,5 +1,9 @@
 import * as React from "react"
-import { createFileRoute, useRouter } from "@tanstack/react-router"
+import {
+  createFileRoute,
+  stripSearchParams,
+  useRouter,
+} from "@tanstack/react-router"
 
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
 import type { ProtocolId } from "@/lib/protocols/contracts"
@@ -21,28 +25,33 @@ import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
   marketKeyOnDashboard,
-  readTradeSearch,
-  resolveTradeNetwork,
+  readMarketSearch,
 } from "@/lib/trade/trade-network"
 
 /**
- * The Hyperliquid dashboard. Every exchange gets a page of exactly this
- * shape — same panels, same loader, its own address — and market lists from
- * different exchanges are never combined into one list.
+ * The KuCoin dashboard — the same page as every other exchange's, at its own
+ * address, showing only KuCoin's markets. The one thing that makes it
+ * KuCoin's is the constant below, held as DATA and handed to `loadMarkets`;
+ * nothing here ever compares a protocol id. The search params are documented
+ * in `@/lib/trade/trade-network`.
  *
- * The one thing that makes this page Hyperliquid's is the constant below. It
- * is held as DATA and handed to `loadMarkets`; nothing here ever asks "is
- * this Hyperliquid?", which is the comparison the protocol fence exists to
- * prevent. The search params are documented in `@/lib/trade/trade-network`.
+ * Mainnet only, and not by choice: KuCoin shut its practice environment down
+ * in 2023. So this page has no `?network` param at all — `readMarketSearch`
+ * knows only `?market`, and anything else typed into the address is dropped
+ * from it rather than accepted and overridden.
  */
-const PROTOCOL: ProtocolId = "hyperliquid"
+const PROTOCOL: ProtocolId = "kucoin"
 
-export const Route = createFileRoute("/_authenticated/admin/hyper-liquid")({
-  validateSearch: readTradeSearch,
-  // The loader re-runs only when the RESOLVED network changes — clicking
-  // between markets on one network keeps the catalog it already has.
-  loaderDeps: ({ search }) => ({
-    network: resolveTradeNetwork(search.market, search.network),
+export const Route = createFileRoute("/_authenticated/admin/kucoin")({
+  validateSearch: readMarketSearch,
+  search: {
+    // A pasted `?network=…` is removed from the URL itself, not just left
+    // unread — the address stays the one honest description of a page that
+    // has exactly one network.
+    middlewares: [stripSearchParams(["network"])],
+  },
+  loaderDeps: () => ({
+    network: "mainnet" as const,
   }),
   loader: async ({ deps }) => {
     const [

@@ -1,0 +1,925 @@
+import { randomUUID } from "node:crypto"
+
+import { z } from "zod"
+
+import type {
+  NetworkId,
+  OrderAuth,
+  PlaceOrderOutcome,
+  PlaceOrderParams,
+  WalletOpenOrder,
+  WalletOrderFill,
+  WalletOrderInfo,
+  WalletPortfolio,
+  WalletPosition,
+} from "@/lib/protocols/contracts"
+import {
+  coinsOf,
+  lotsOf,
+  num,
+  type KucoinLotRule,
+} from "@/lib/protocols/kucoin/translate"
+import { snapToTick } from "@/lib/protocols/tick"
+import {
+  isKucoinCredentialRefusal,
+  kucoinSigned,
+  parseKucoinCredential,
+  type KucoinCredential,
+} from "@/server/protocols/kucoin/client"
+import { kucoinMarketRules } from "@/server/protocols/kucoin/markets"
+import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
+import { scrubbedMessage } from "@/server/protocols/scrub"
+
+/**
+ * Real orders against KuCoin Futures — the one file in this folder that
+ * changes an account.
+ *
+ * The rules it keeps, in the order they bite:
+ *
+ * - **The real-money gate is called first, always**, and it is doubly
+ *   load-bearing here: KuCoin has no practice network, so this gate is the
+ *   only thing between a click and money.
+ * - **Sizes are whole contracts.** The app speaks coins; KuCoin trades lots
+ *   of `multiplier` coins each. Every size is floored to a legal lot, and an
+ *   order that floors to nothing is refused out loud rather than sent as a
+ *   surprise nothing.
+ * - **A "market" order is a capped IOC limit**, sent 3% through the asked
+ *   price, so a thin book cannot fill one far from what was on screen — the
+ *   same rule as every other venue here.
+ * - **Protection is a separate order book.** A stop or a target is an
+ *   untriggered order of its own, triggered on the mark price to match how
+ *   the other venues trigger, and read back from `/stopOrders`.
+ * - **Nothing retries.** A rate-limited mutate throws `EXCHANGE_BUSY`; a
+ *   retried order is a possible double order.
+ *
+ * **The one behavioural difference from the other exchanges**: KuCoin has no
+ * amend-an-order call, so moving an order is a cancel followed by a fresh
+ * place. `modify` says so where it does it, and fails loudly if the replace
+ * is refused after the cancel succeeded, rather than leaving a caller
+ * believing an order still rests when it does not.
+ */
+
+const MARKET_SLIPPAGE = 0.03
+
+/** How a just-placed order's outcome is chased before the sweep tells it. */
+const PLACE_POLLS = 3
+const PLACE_POLL_WAIT_MS = 400
+
+// ----- Small shared pieces -------------------------------------------------
+
+function auth(orderAuth: OrderAuth): KucoinCredential {
+  return parseKucoinCredential(orderAuth.agentKey)
+}
+
+/** An exchange refusal as a thrown, scrubbed, code-prefixed error. */
+function exchangeError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
+  if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
+  return new Error(`LIVE_EXCHANGE:${scrubbedMessage(error)}`)
+}
+
+/** A refusal at the door — nothing was placed. Carries that promise as its code. */
+function refusedError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
+  if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
+  if (message.startsWith("KUCOIN_")) {
+    return new Error(`LIVE_ORDER_REFUSED:${scrubbedMessage(error)}`)
+  }
+  return exchangeError(error)
+}
+
+/** The exchange's decimal string for a number — never scientific notation. */
+function decimalString(value: number): string {
+  return value.toLocaleString("en-US", {
+    useGrouping: false,
+    maximumFractionDigits: 12,
+  })
+}
+
+/** The capped price a "market" order is really sent at. */
+function cappedPx(
+  side: "buy" | "sell",
+  px: number,
+  tick: number | null
+): number {
+  const capped =
+    side === "buy" ? px * (1 + MARKET_SLIPPAGE) : px * (1 - MARKET_SLIPPAGE)
+  return snapToTick(capped, tick)
+}
+
+/**
+ * Which way an untriggered order must be crossed to fire.
+ *
+ * KuCoin says "up" or "down" rather than "stop" or "target", so what a leg
+ * MEANS depends on the position it guards: on a long, the exit is a sell, and
+ * a sell that fires on the way down is the stop while one that fires on the
+ * way up is the target. On a short both are the other way round. Getting this
+ * backwards would arm a stop where the profit was meant to be, so it is one
+ * function and it is tested.
+ */
+export function triggerDirection(
+  leg: "stop" | "target",
+  long: boolean
+): "up" | "down" {
+  if (leg === "stop") return long ? "down" : "up"
+  return long ? "up" : "down"
+}
+
+/** Which leg an untriggered order is, read back off a position it guards. */
+function legOf(
+  stop: string | undefined,
+  long: boolean
+): "stop" | "target" | null {
+  if (stop !== "up" && stop !== "down") return null
+  return triggerDirection("stop", long) === stop ? "stop" : "target"
+}
+
+// ----- Reading orders back -------------------------------------------------
+
+const orderRowSchema = z.object({
+  id: z.string(),
+  symbol: z.string(),
+  side: z.string().optional(),
+  type: z.string().optional(),
+  price: z.union([z.string(), z.number()]).optional(),
+  size: z.union([z.string(), z.number()]).optional(),
+  filledSize: z.union([z.string(), z.number()]).optional(),
+  dealSize: z.union([z.string(), z.number()]).optional(),
+  dealValue: z.union([z.string(), z.number()]).optional(),
+  filledValue: z.union([z.string(), z.number()]).optional(),
+  value: z.union([z.string(), z.number()]).optional(),
+  status: z.string().optional(),
+  isActive: z.boolean().optional(),
+  cancelExist: z.boolean().optional(),
+  reduceOnly: z.boolean().optional(),
+  closeOrder: z.boolean().optional(),
+  stop: z.string().optional(),
+  stopPrice: z.union([z.string(), z.number()]).optional(),
+  stopPriceType: z.string().optional(),
+  stopTriggered: z.boolean().optional(),
+})
+
+type OrderRow = z.infer<typeof orderRowSchema>
+
+/** How many rows one page of a paged list carries. */
+const PAGE_SIZE = 200
+
+/**
+ * How many pages any paged read may walk before it stops. A loop with no
+ * ceiling is worse than a slow one: every request answers fine, so no
+ * deadline fires, and an exchange that keeps handing back a full page holds
+ * its caller open forever.
+ */
+const MAX_PAGES = 25
+
+/** A paged list walked to the end — a truncated read is a missing stop. */
+async function pagedItems(
+  network: NetworkId,
+  credential: KucoinCredential,
+  path: string,
+  params: Record<string, string | number | boolean> = {}
+): Promise<unknown[]> {
+  const items: unknown[] = []
+  for (let page = 1; page <= MAX_PAGES; page += 1) {
+    const answer = (await kucoinSigned(network, credential, "GET", path, {
+      ...params,
+      currentPage: page,
+      pageSize: PAGE_SIZE,
+    })) as { items?: unknown; totalPage?: number } | null
+    const rows = Array.isArray(answer?.items) ? answer.items : []
+    items.push(...rows)
+    const totalPage = answer?.totalPage ?? 1
+    if (rows.length === 0 || page >= totalPage) break
+  }
+  return items
+}
+
+function orderRows(rows: unknown[]): OrderRow[] {
+  return rows
+    .map((row) => orderRowSchema.safeParse(row))
+    .filter((row) => row.success)
+    .map((row) => row.data)
+}
+
+async function orderById(
+  network: NetworkId,
+  credential: KucoinCredential,
+  orderId: string
+): Promise<OrderRow | null> {
+  const answer = await kucoinSigned(
+    network,
+    credential,
+    "GET",
+    `/api/v1/orders/${encodeURIComponent(orderId)}`
+  )
+  const parsed = orderRowSchema.safeParse(answer)
+  return parsed.success ? parsed.data : null
+}
+
+// ----- Placing --------------------------------------------------------------
+
+type PlacedLeg = { orderId: string }
+
+/** One order body sent, and its id back. Never retried. */
+async function sendOrder(
+  network: NetworkId,
+  credential: KucoinCredential,
+  body: Record<string, unknown>
+): Promise<PlacedLeg> {
+  const answer = (await kucoinSigned(
+    network,
+    credential,
+    "POST",
+    "/api/v1/orders",
+    {},
+    { clientOid: randomUUID(), ...body }
+  )) as { orderId?: unknown } | null
+  const orderId = typeof answer?.orderId === "string" ? answer.orderId : ""
+  if (!orderId) throw new Error("LIVE_UNREADABLE")
+  return { orderId }
+}
+
+/** The body of one protection leg, for whichever position it guards. */
+function protectionBody(input: {
+  marketId: string
+  long: boolean
+  leg: "stop" | "target"
+  triggerPx: number
+  tick: number | null
+  /** Whole contracts, or null to close whatever the position holds. */
+  lots: number | null
+}): Record<string, unknown> {
+  return {
+    symbol: input.marketId,
+    side: input.long ? "sell" : "buy",
+    type: "market",
+    stop: triggerDirection(input.leg, input.long),
+    // Mark price, so a wick on this one exchange cannot fire a stop the rest
+    // of the market never reached — the same trigger the other venues use.
+    stopPriceType: "MP",
+    stopPrice: decimalString(snapToTick(input.triggerPx, input.tick)),
+    ...(input.lots === null
+      ? // Closes whatever is held at the moment it fires, and holds no margin
+        // meanwhile — which is what a guard on a whole position should do.
+        { closeOrder: true }
+      : { reduceOnly: true, size: input.lots }),
+  }
+}
+
+export async function placeKucoinOrder(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: PlaceOrderParams
+): Promise<PlaceOrderOutcome> {
+  await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
+  const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
+
+  const lots = lotsOf(params.sz, lot)
+  if (!(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
+
+  const isMarket = params.kind === "market"
+  const px = isMarket
+    ? cappedPx(params.side, params.px, priceTick)
+    : snapToTick(params.px, priceTick)
+  if (!(px > 0)) throw new Error("LIVE_PRICE")
+
+  const body: Record<string, unknown> = {
+    symbol: params.marketId,
+    side: params.side,
+    type: "limit",
+    size: lots,
+    price: decimalString(px),
+    timeInForce: isMarket ? "IOC" : "GTC",
+    reduceOnly: params.reduceOnly,
+    ...(params.kind === "postOnly" ? { postOnly: true } : {}),
+    // Leverage is stated only when this opens fresh; adding to a position
+    // inherits what the position already runs at — the caller sends null then,
+    // and the account's own setting stands.
+    ...(params.leverage !== null ? { leverage: params.leverage } : {}),
+  }
+
+  let placed: PlacedLeg
+  try {
+    placed = await sendOrder(network, credential, body)
+  } catch (error) {
+    throw refusedError(error)
+  }
+
+  // The entry stands from here on. A refused protection leg must therefore be
+  // reported as exactly that — an entry that is not protected — and never
+  // folded into a success or turned into a failure that hides the position.
+  let protection: PlaceOrderOutcome["protection"] = null
+  let protectionNote: string | null = null
+  if (params.tpPx !== null || params.slPx !== null) {
+    const long = params.side === "buy"
+    const failed: string[] = []
+    for (const leg of ["stop", "target"] as const) {
+      const triggerPx = leg === "stop" ? params.slPx : params.tpPx
+      if (triggerPx === null) continue
+      try {
+        await sendOrder(
+          network,
+          credential,
+          protectionBody({
+            marketId: params.marketId,
+            long,
+            leg,
+            triggerPx,
+            tick: priceTick,
+            lots: null,
+          })
+        )
+      } catch (error) {
+        failed.push(`${leg}: ${scrubbedMessage(error)}`)
+      }
+    }
+    protection = failed.length === 0 ? "ok" : "partial"
+    protectionNote =
+      failed.length === 0
+        ? null
+        : `The order was placed but its protection was refused (${failed.join("; ")}). The position is not protected — set it by hand.`
+  }
+
+  // KuCoin answers a placement with an id and nothing else, so what actually
+  // happened is read back. An order still working after the polls is reported
+  // resting, and the fills sweep carries the truth forward either way.
+  for (let poll = 0; poll < PLACE_POLLS; poll += 1) {
+    await new Promise((resolve) => setTimeout(resolve, PLACE_POLL_WAIT_MS))
+    const row = await orderById(network, credential, placed.orderId).catch(
+      () => null
+    )
+    if (!row) continue
+    const filledLots = num(row.filledSize) ?? num(row.dealSize) ?? 0
+    const filledValue = num(row.filledValue) ?? num(row.dealValue)
+    const filledSz = coinsOf(filledLots, lot)
+    const done = row.isActive === false || row.status === "done"
+    if (filledLots > 0 && done) {
+      return {
+        status: "filled",
+        orderId: placed.orderId,
+        avgPx:
+          filledValue !== null && filledSz > 0 ? filledValue / filledSz : px,
+        filledSz,
+        protection,
+        protectionNote,
+      }
+    }
+    if (done && filledLots === 0) {
+      // An immediate-or-cancel that met nobody. Nothing was bought, and the
+      // caller is told rather than left believing an order rests.
+      if (isMarket) {
+        throw new Error("LIVE_ORDER_REFUSED:The order missed and was cancelled.")
+      }
+      break
+    }
+  }
+
+  return {
+    status: "resting",
+    orderId: placed.orderId,
+    avgPx: null,
+    filledSz: null,
+    protection,
+    protectionNote,
+  }
+}
+
+// ----- Cancel, modify, close ------------------------------------------------
+
+export async function cancelKucoinOrder(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; orderId: string }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  try {
+    await kucoinSigned(
+      network,
+      auth(orderAuth),
+      "DELETE",
+      `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
+      {}
+    )
+  } catch (error) {
+    throw exchangeError(error)
+  }
+}
+
+/**
+ * Moving an order, the only way KuCoin allows: cancel it, then place a fresh
+ * one. The two halves are not one act, so the gap is stated rather than
+ * hidden — if the cancel worked and the replace did not, the caller is told
+ * loudly that the old order is GONE and no new one stands, which is the one
+ * fact it needs to decide what to do next.
+ */
+export async function modifyKucoinOrder(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: {
+    marketId: string
+    orderId: string
+    side: "buy" | "sell"
+    px: number
+    sz: number
+    reduceOnly: boolean
+  }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
+  const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
+
+  const lots = lotsOf(params.sz, lot)
+  if (!(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
+  const px = snapToTick(params.px, priceTick)
+  if (!(px > 0)) throw new Error("LIVE_PRICE")
+
+  try {
+    await kucoinSigned(
+      network,
+      credential,
+      "DELETE",
+      `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
+      {}
+    )
+  } catch (error) {
+    // Nothing has changed yet, so this is an ordinary refusal.
+    throw exchangeError(error)
+  }
+
+  try {
+    await sendOrder(network, credential, {
+      symbol: params.marketId,
+      side: params.side,
+      type: "limit",
+      size: lots,
+      price: decimalString(px),
+      timeInForce: "GTC",
+      reduceOnly: params.reduceOnly,
+    })
+  } catch (error) {
+    throw new Error(
+      `LIVE_MOVE_HALF_DONE:The old order was cancelled and the new one was refused (${scrubbedMessage(error)}). Nothing is resting on that market now.`
+    )
+  }
+}
+
+export async function closeKucoinPosition(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; szi: number }
+): Promise<{ avgPx: number | null; filledSz: number | null }> {
+  await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
+  const { lot } = await kucoinMarketRules(network, params.marketId)
+
+  // `closeOrder` closes whatever is actually held at the moment it runs,
+  // which is what "close this position" means — sizing it ourselves would
+  // leave a remainder behind whenever the position moved in between.
+  let placed: PlacedLeg
+  try {
+    placed = await sendOrder(network, credential, {
+      symbol: params.marketId,
+      side: params.szi > 0 ? "sell" : "buy",
+      type: "market",
+      closeOrder: true,
+    })
+  } catch (error) {
+    throw refusedError(error)
+  }
+
+  for (let poll = 0; poll < PLACE_POLLS; poll += 1) {
+    await new Promise((resolve) => setTimeout(resolve, PLACE_POLL_WAIT_MS))
+    const row = await orderById(network, credential, placed.orderId).catch(
+      () => null
+    )
+    if (!row) continue
+    const filledLots = num(row.filledSize) ?? num(row.dealSize) ?? 0
+    if (filledLots <= 0) continue
+    const filledValue = num(row.filledValue) ?? num(row.dealValue)
+    const filledSz = coinsOf(filledLots, lot)
+    return {
+      avgPx: filledValue !== null && filledSz > 0 ? filledValue / filledSz : null,
+      filledSz,
+    }
+  }
+  // It went, but the fill had not landed by the time we looked. The sweep
+  // reports it a moment later; claiming a price here would be inventing one.
+  return { avgPx: null, filledSz: null }
+}
+
+// ----- Brackets -------------------------------------------------------------
+
+export async function setKucoinBrackets(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: {
+    marketId: string
+    position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+    tpPx: number | null
+    tpSz: number | null
+    slPx: number | null
+  }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
+  const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
+  const size = Math.abs(params.position.szi)
+  if (!(size > 0)) throw new Error("LIVE_POSITION_GONE")
+  const long = params.position.szi > 0
+
+  // Old legs first, so the position is never guarded twice. A leg already
+  // gone is fine — that is the state being aimed for.
+  const replacing = [params.position.tpOrderId, params.position.slOrderId]
+    .filter((id): id is string => Boolean(id))
+  for (const orderId of replacing) {
+    await kucoinSigned(
+      network,
+      credential,
+      "DELETE",
+      `/api/v1/orders/${encodeURIComponent(orderId)}`,
+      {}
+    ).catch(() => {})
+  }
+
+  // Read the untriggered book back before arming anything new. A cancel that
+  // quietly failed would otherwise leave the position with two stops, and two
+  // stops sell it twice — the one mistake here that costs real money.
+  if (replacing.length > 0) {
+    const still = orderRows(
+      await pagedItems(network, credential, "/api/v1/stopOrders", {
+        symbol: params.marketId,
+      })
+    ).filter((row) => replacing.includes(row.id))
+    if (still.length > 0) {
+      throw new Error(
+        "LIVE_EXCHANGE:The old stop or target would not cancel, so no new one was placed — the position still carries the one it had."
+      )
+    }
+  }
+
+  try {
+    if (params.slPx !== null) {
+      await sendOrder(
+        network,
+        credential,
+        protectionBody({
+          marketId: params.marketId,
+          long,
+          leg: "stop",
+          triggerPx: params.slPx,
+          tick: priceTick,
+          lots: null,
+        })
+      )
+    }
+    if (params.tpPx !== null) {
+      // A target may cover part of the position; a stop never does.
+      const partial =
+        params.tpSz !== null && params.tpSz < size * (1 - 1e-6)
+          ? lotsOf(params.tpSz, lot)
+          : null
+      if (partial !== null && !(partial > 0)) {
+        throw new Error("LIVE_SIZE_TOO_SMALL")
+      }
+      await sendOrder(
+        network,
+        credential,
+        protectionBody({
+          marketId: params.marketId,
+          long,
+          leg: "target",
+          triggerPx: params.tpPx,
+          tick: priceTick,
+          lots: partial,
+        })
+      )
+    }
+  } catch (error) {
+    throw exchangeError(error)
+  }
+}
+
+// ----- Reading the account back ---------------------------------------------
+
+const positionSchema = z.object({
+  symbol: z.string(),
+  currentQty: z.union([z.string(), z.number()]).optional(),
+  avgEntryPrice: z.union([z.string(), z.number()]).optional(),
+  liquidationPrice: z.union([z.string(), z.number()]).optional(),
+  posMargin: z.union([z.string(), z.number()]).optional(),
+  posInit: z.union([z.string(), z.number()]).optional(),
+  realLeverage: z.union([z.string(), z.number()]).optional(),
+  isOpen: z.boolean().optional(),
+})
+
+export async function fetchKucoinPortfolio(
+  network: NetworkId,
+  _address: string,
+  credential: () => string | null
+): Promise<WalletPortfolio> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const parsed = parseKucoinCredential(blob)
+
+  const [rawPositions, activeRows, stopRows] = await Promise.all([
+    kucoinSigned(network, parsed, "GET", "/api/v1/positions", {
+      currency: "USDT",
+    }),
+    pagedItems(network, parsed, "/api/v1/orders", { status: "active" }),
+    // Untriggered stops and targets live in their own book on KuCoin, so a
+    // portfolio read that asked only for orders would show a position with no
+    // protection on it at all.
+    pagedItems(network, parsed, "/api/v1/stopOrders"),
+  ])
+
+  const open = orderRows(activeRows)
+  const untriggered = orderRows(stopRows)
+
+  const bySymbol = new Map<string, OrderRow[]>()
+  for (const row of untriggered) {
+    const list = bySymbol.get(row.symbol) ?? []
+    list.push(row)
+    bySymbol.set(row.symbol, list)
+  }
+
+  const positions: WalletPosition[] = []
+  for (const raw of Array.isArray(rawPositions) ? rawPositions : []) {
+    const row = positionSchema.safeParse(raw)
+    if (!row.success) continue
+    const lots = num(row.data.currentQty) ?? 0
+    if (lots === 0 || row.data.isOpen === false) continue
+
+    const { lot } = await kucoinMarketRules(network, row.data.symbol).catch(
+      () => ({ lot: { multiplier: 0, lotSize: 1 } as KucoinLotRule })
+    )
+    // A market whose rules cannot be read cannot have its size stated in
+    // coins, and a position drawn at the wrong size is worse than one that
+    // waits for the next read.
+    if (!(lot.multiplier > 0)) continue
+    const szi = coinsOf(lots, lot)
+    const long = szi > 0
+
+    const legs = bySymbol.get(row.data.symbol) ?? []
+    const stop = legs.find((one) => legOf(one.stop, long) === "stop")
+    const target = legs.find((one) => legOf(one.stop, long) === "target")
+    const targetLots = target ? num(target.size) : null
+
+    positions.push({
+      marketId: row.data.symbol,
+      szi,
+      entryPx: num(row.data.avgEntryPrice) ?? 0,
+      leverage: Math.abs(num(row.data.realLeverage) ?? 1),
+      marginUsed: num(row.data.posMargin) ?? num(row.data.posInit) ?? 0,
+      liquidationPx: num(row.data.liquidationPrice),
+      tpPx: target ? num(target.stopPrice) : null,
+      // Null when the target covers the whole position — a `closeOrder` leg
+      // carries no size at all, which is exactly what "all of it" means.
+      tpSz:
+        target && targetLots !== null && targetLots > 0
+          ? coinsOf(targetLots, lot)
+          : null,
+      slPx: stop ? num(stop.stopPrice) : null,
+      tpOrderId: target?.id ?? null,
+      slOrderId: stop?.id ?? null,
+    })
+  }
+
+  const orders: WalletOpenOrder[] = []
+  for (const row of [...open, ...untriggered]) {
+    const { lot } = await kucoinMarketRules(network, row.symbol).catch(() => ({
+      lot: { multiplier: 0, lotSize: 1 } as KucoinLotRule,
+    }))
+    if (!(lot.multiplier > 0)) continue
+    const trigger = Boolean(row.stop)
+    const lots = num(row.size) ?? 0
+    const filled = num(row.filledSize) ?? num(row.dealSize) ?? 0
+    orders.push({
+      orderId: row.id,
+      marketId: row.symbol,
+      side: row.side === "sell" ? "sell" : "buy",
+      px: (trigger ? num(row.stopPrice) : num(row.price)) ?? 0,
+      sz: coinsOf(Math.max(0, lots - filled), lot),
+      reduceOnly: row.reduceOnly ?? row.closeOrder ?? false,
+      trigger,
+    })
+  }
+
+  return { positions, orders }
+}
+
+// ----- Fills and old orders --------------------------------------------------
+
+const fillSchema = z.object({
+  tradeId: z.string().optional(),
+  orderId: z.string().optional(),
+  symbol: z.string(),
+  side: z.string().optional(),
+  price: z.union([z.string(), z.number()]).optional(),
+  size: z.union([z.string(), z.number()]).optional(),
+  fee: z.union([z.string(), z.number()]).optional(),
+  openFeePay: z.union([z.string(), z.number()]).optional(),
+  closeFeePay: z.union([z.string(), z.number()]).optional(),
+  tradeTime: z.union([z.string(), z.number()]).optional(),
+  createdAt: z.union([z.string(), z.number()]).optional(),
+  tradeType: z.string().optional(),
+  liquidity: z.string().optional(),
+})
+
+const closedPositionSchema = z.object({
+  closeId: z.string().optional(),
+  symbol: z.string(),
+  closeTime: z.union([z.string(), z.number()]).optional(),
+  pnl: z.union([z.string(), z.number()]).optional(),
+  tradeFee: z.union([z.string(), z.number()]).optional(),
+})
+
+/** KuCoin only answers seven days of closed positions per call. */
+const CLOSED_WINDOW_MS = 7 * 24 * 3_600_000
+
+/** As far back as the money is chased — the exchange keeps three months. */
+const CLOSED_MAX_WINDOWS = 13
+
+/**
+ * What each closed position banked, by symbol and close time.
+ *
+ * **Why this read exists at all.** KuCoin's fills carry a price, a size and a
+ * fee — and no profit. Every other venue states what a closing fill banked,
+ * and the Journal is built on that number, so without this a KuCoin trade
+ * would report its fees as its whole result: every finished trade a small
+ * loss, which is worse than saying nothing. KuCoin does state the money, just
+ * one level up — per position closed — and that is what this fetches.
+ */
+async function closedPositionMoney(
+  network: NetworkId,
+  credential: KucoinCredential,
+  since: number,
+  until: number
+): Promise<Array<{ symbol: string; closeTime: number; money: number }>> {
+  const closed: Array<{ symbol: string; closeTime: number; money: number }> = []
+  // Counted once each, whatever the paging does. The windows are asked back
+  // to back and a position that closed on a boundary comes back in both, so
+  // without this its result would be added to the Journal twice — the kind of
+  // wrong number that is worse than no number at all.
+  const seen = new Set<string>()
+  let from = Math.max(since, until - CLOSED_MAX_WINDOWS * CLOSED_WINDOW_MS)
+
+  while (from < until) {
+    const to = Math.min(until, from + CLOSED_WINDOW_MS)
+    const answer = (await kucoinSigned(
+      network,
+      credential,
+      "GET",
+      "/api/v1/history-positions",
+      { from, to, limit: 200 }
+    ).catch(() => null)) as { items?: unknown } | unknown[] | null
+    const rows = Array.isArray(answer)
+      ? answer
+      : Array.isArray((answer as { items?: unknown })?.items)
+        ? ((answer as { items: unknown[] }).items)
+        : []
+
+    for (const raw of rows) {
+      const row = closedPositionSchema.safeParse(raw)
+      if (!row.success) continue
+      const closeTime = num(row.data.closeTime)
+      const pnl = num(row.data.pnl)
+      if (closeTime === null || pnl === null) continue
+      // The exchange's own id where it gave one; a position cannot close
+      // twice on the same market in the same millisecond, so the pair stands
+      // in for it where it did not.
+      const identity = row.data.closeId ?? `${row.data.symbol}:${closeTime}`
+      if (seen.has(identity)) continue
+      seen.add(identity)
+      // The trading fee is added back because the app subtracts each fill's
+      // own fee again when it totals a trade. Adding it here means the
+      // Journal's figure lands on the exchange's own realised number rather
+      // than one fee below it. If a finished trade ever reads exactly its
+      // fees below KuCoin's own screen, this line is the one to change.
+      closed.push({
+        symbol: row.data.symbol,
+        closeTime,
+        money: pnl + (num(row.data.tradeFee) ?? 0),
+      })
+    }
+    from = to
+  }
+  return closed
+}
+
+/**
+ * Every trade the account made since the watermark, with the money attached.
+ *
+ * The money comes from the closed-position record above and lands on the fill
+ * that CLOSED each position — the last closing fill at or before the moment
+ * the exchange says the position went flat. A position closed by one sell
+ * therefore carries its whole result on that sell, which is the common case
+ * and exactly what the Journal wants; a position closed in pieces reports the
+ * whole result on the final piece, so the finished trade totals correctly
+ * even though the earlier pieces say nothing.
+ */
+export async function fetchKucoinOrderFills(
+  network: NetworkId,
+  _address: string,
+  since: number,
+  credential: () => string | null
+): Promise<WalletOrderFill[]> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const parsed = parseKucoinCredential(blob)
+  const end = Date.now()
+  const start = Math.max(0, since)
+
+  const [rawFills, closed] = await Promise.all([
+    pagedItems(network, parsed, "/api/v1/fills", {
+      startAt: start,
+      endAt: end,
+    }),
+    closedPositionMoney(network, parsed, start, end),
+  ])
+
+  const fills: WalletOrderFill[] = []
+  for (const raw of rawFills) {
+    const row = fillSchema.safeParse(raw)
+    if (!row.success) continue
+    const one = row.data
+    const { lot } = await kucoinMarketRules(network, one.symbol).catch(() => ({
+      lot: { multiplier: 0, lotSize: 1 } as KucoinLotRule,
+    }))
+    if (!(lot.multiplier > 0)) continue
+
+    // KuCoin states the moment in nanoseconds on some rows and milliseconds
+    // on others; a number that large is nanoseconds and nothing else.
+    const rawAt = num(one.tradeTime) ?? num(one.createdAt) ?? 0
+    const at = rawAt > 1e14 ? Math.floor(rawAt / 1e6) : rawAt
+    const liquidation =
+      one.tradeType === "liquid" ||
+      one.tradeType === "adl" ||
+      one.tradeType === "liquidation"
+
+    fills.push({
+      fillId: one.tradeId ?? "",
+      orderId: one.orderId ?? "",
+      marketId: one.symbol,
+      side: one.side === "sell" ? "sell" : "buy",
+      px: num(one.price) ?? 0,
+      sz: coinsOf(num(one.size) ?? 0, lot),
+      at,
+      // Filled in below, once every fill's time is known.
+      closedPnl: 0,
+      fee:
+        num(one.fee) ??
+        (num(one.openFeePay) ?? 0) + (num(one.closeFeePay) ?? 0),
+      dir: liquidation
+        ? "Liquidation"
+        : one.side === "sell"
+          ? "Sell"
+          : "Buy",
+      liquidation,
+    })
+  }
+
+  fills.sort((a, b) => a.at - b.at || a.fillId.localeCompare(b.fillId))
+
+  // Each closed position's money goes on the last fill of that market at or
+  // before the moment it closed. A close the fills feed does not carry —
+  // older than the watermark — simply finds nobody and is left alone.
+  for (const one of closed) {
+    let landed: WalletOrderFill | null = null
+    for (const fill of fills) {
+      if (fill.marketId !== one.symbol) continue
+      if (fill.at > one.closeTime + 60_000) break
+      landed = fill
+    }
+    if (landed) landed.closedPnl += one.money
+  }
+
+  return fills
+}
+
+export async function fetchKucoinOrderInfo(
+  network: NetworkId,
+  _address: string,
+  orderId: string,
+  _marketId: string,
+  credential: () => string | null
+): Promise<WalletOrderInfo> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const row = await orderById(network, parseKucoinCredential(blob), orderId)
+  if (!row || !row.stop) return { kind: "none", triggerPx: null }
+
+  // Which leg it was depends on the position it guarded, and that position is
+  // long gone by the time this is asked. The side is what survives: a stop
+  // that fired downwards on a sell guarded a long, and so did a target that
+  // fired upwards — so the side plus the direction still name the leg.
+  const long = row.side === "sell"
+  const kind = legOf(row.stop, long) ?? "none"
+  const triggerPx = num(row.stopPrice)
+  return {
+    kind,
+    triggerPx: triggerPx !== null && triggerPx > 0 ? triggerPx : null,
+  }
+}

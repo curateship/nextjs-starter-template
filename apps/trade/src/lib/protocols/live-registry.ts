@@ -6,6 +6,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import * as hyperliquidStream from "@/lib/protocols/hyperliquid/stream"
+import * as kucoinStream from "@/lib/protocols/kucoin/stream"
 import * as phemexStream from "@/lib/protocols/phemex/stream"
 
 /**
@@ -19,8 +20,18 @@ import * as phemexStream from "@/lib/protocols/phemex/stream"
  */
 
 export type LiveAdapter = {
-  /** Every market's moving figures, pushed as they change, keyed by market id. */
-  watchFigures(
+  /**
+   * Every market's moving figures, pushed as they change, keyed by market id.
+   *
+   * Absent on an exchange whose feed can only be asked about one market at a
+   * time. KuCoin is the case: its futures socket has no all-markets topic, so
+   * following a list of six hundred coins would mean six hundred
+   * subscriptions. Its list therefore does not tick — it redraws when the
+   * page reloads — while its chart, which watches one market, does. Absent
+   * rather than a do-nothing function, because a subscription that never
+   * fires looks exactly like a broken socket.
+   */
+  watchFigures?(
     network: NetworkId,
     listener: (updates: ReadonlyMap<string, LiveFigures>) => void
   ): () => void
@@ -44,6 +55,7 @@ export type LiveAdapter = {
 const LIVE_ADAPTERS: Partial<Record<ProtocolId, LiveAdapter>> = {
   hyperliquid: hyperliquidStream,
   phemex: phemexStream,
+  kucoin: kucoinStream,
 }
 
 export function getLiveAdapter(id: ProtocolId): LiveAdapter | undefined {

@@ -489,6 +489,30 @@ function describeBrackets(
  * will not answer for contributes nothing this tick and is named in
  * `unreachable`; it never blanks the others and never throws the read.
  */
+/**
+ * How long one wallet's read may take before the screen stops waiting on it.
+ *
+ * Giving up does not cancel the work — it only stops the panel hanging on
+ * it, and the request already in flight warms the caches the next poll uses.
+ * The wallet says "could not be reached", which is both true and something a
+ * person can act on, where a spinner that never ends is neither.
+ *
+ * Eight seconds, because this is the wait a person watches. One wallet that
+ * cannot answer in that time must not hold up the ones that can — it keeps
+ * the figures it last had, marked as a moment old, and the next poll is four
+ * seconds away.
+ */
+const WALLET_READ_DEADLINE_MS = 8_000
+
+function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_resolve, reject) =>
+      setTimeout(() => reject(new Error("LIVE_WALLET_SLOW")), ms).unref?.()
+    ),
+  ])
+}
+
 export async function loadLivePortfolio(
   userId: string,
   wallets: readonly TradeWallet[]
@@ -511,6 +535,13 @@ export async function loadLivePortfolio(
   await Promise.all(
     live.map(async (wallet) => {
       try {
+        // One wallet may not hold the whole screen up. A venue that is slow
+        // or rationing us can take longer than anyone will sit and watch, and
+        // the panel already has an honest way to say so — this wallet is
+        // reported unreachable and the next poll tries again, rather than
+        // every other wallet's figures waiting behind it.
+        await withDeadline(
+          (async () => {
         const credential = await walletCredential(userId, wallet.id)
         const portfolio = await ordersOf(getProtocol(wallet.protocol)).portfolio(
           wallet.network,
@@ -520,10 +551,16 @@ export async function loadLivePortfolio(
         const rows = livePortfolioRows(wallet, portfolio, now)
         positions.push(...rows.positions)
         orders.push(...rows.orders)
-        // The Journal's history rides along with this read. It has its own
-        // rate limit inside and cannot throw, so a wallet still answers for
-        // what it holds even when its history will not come.
-        await sweepLiveFills(userId, wallet, portfolio, credential)
+        // The Journal's history is kept up to date ALONGSIDE this read, not
+        // inside it. What the panel draws comes from `trade_live_fills`,
+        // which the sweep writes into — so waiting for the sweep only made
+        // the whole panel sit on a spinner while an exchange was asked about
+        // months of old trades nobody was looking at. It cannot throw, it
+        // paces itself, and whatever it brings in shows on the next poll.
+        void sweepLiveFills(userId, wallet, portfolio, credential)
+          })(),
+          WALLET_READ_DEADLINE_MS
+        )
       } catch {
         unreachable.push(wallet.id)
       }

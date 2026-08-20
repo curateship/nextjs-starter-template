@@ -84,6 +84,35 @@ import {
   phemexLivePricesFresh,
   readPhemexLivePrices,
 } from "@/server/protocols/phemex/live-prices"
+import { fetchKucoinAccount } from "@/server/protocols/kucoin/account"
+import { verifyKucoinAgentKey } from "@/server/protocols/kucoin/agent"
+import {
+  fetchKucoinCandleHistory,
+  fetchKucoinCandles,
+} from "@/server/protocols/kucoin/candles"
+import { packKucoinCredential } from "@/server/protocols/kucoin/client"
+import { fetchKucoinFunding } from "@/server/protocols/kucoin/funding"
+import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
+import {
+  fetchKucoinMarkets,
+  fetchKucoinPrices,
+  kucoinPricesWereRationed,
+  roundKucoinPx,
+} from "@/server/protocols/kucoin/markets"
+import {
+  cancelKucoinOrder,
+  closeKucoinPosition,
+  fetchKucoinOrderFills,
+  fetchKucoinOrderInfo,
+  fetchKucoinPortfolio,
+  modifyKucoinOrder,
+  placeKucoinOrder,
+  setKucoinBrackets,
+} from "@/server/protocols/kucoin/orders"
+import {
+  KUCOIN_DEFAULT_FUNDING_MS,
+  kucoinIntervalMs,
+} from "@/lib/protocols/kucoin/translate"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -479,6 +508,78 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchPhemexPortfolio,
       fills: fetchPhemexOrderFills,
       orderInfo: fetchPhemexOrderInfo,
+    },
+  },
+  /**
+   * A full trading venue, dollar-settled perpetuals only, and mainnet only —
+   * KuCoin shut its practice environment down in 2023, so there is nowhere to
+   * rehearse and the real-money gate is the only thing standing between a
+   * click and money.
+   *
+   * Two of its habits show up in this entry. Its accounts need three values
+   * to sign rather than two, so the credential form asks for a passphrase.
+   * And its socket will not open without a ticket the browser cannot fetch,
+   * which is what `liveTicket` is for. It has no `livePrices` hub: the
+   * exchange publishes no all-markets mark-price feed, so the engine reads
+   * `markets.prices` — correct, just asked for rather than pushed.
+   */
+  kucoin: {
+    id: "kucoin",
+    label: "KuCoin",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: { markets: true, accounts: true, orders: true },
+    markets: {
+      fetch: fetchKucoinMarkets,
+      candles: fetchKucoinCandles,
+      history: fetchKucoinCandleHistory,
+      intervalMs: kucoinIntervalMs,
+      prices: fetchKucoinPrices,
+      roundPx: roundKucoinPx,
+      pricesWereRationed: kucoinPricesWereRationed,
+    },
+    liveTicket: kucoinLiveTicket,
+    funding: {
+      fetch: fetchKucoinFunding,
+      // Eight hours on every KuCoin market seen so far. The contract states
+      // its own granularity and the catalogue reads it; this answer is the
+      // one the shared funding store asks for without a market in hand.
+      intervalMs: () => KUCOIN_DEFAULT_FUNDING_MS,
+    },
+    account: {
+      fetch: fetchKucoinAccount,
+    },
+    agent: {
+      verify: verifyKucoinAgentKey,
+    },
+    credentials: {
+      form: {
+        addressLabel: "API key",
+        addressHint: "The key from KuCoin's API Management page",
+        // KuCoin issues 24-character hex ids; kept tolerant on purpose —
+        // shape, not truth. The verify call proves the credential.
+        addressPattern: "^[0-9A-Za-z]{16,42}$",
+        secretLabel: "API secret",
+        needsPassphrase: true,
+        secretIsAgentKey: false,
+        keyHelp:
+          "Made on KuCoin under API Management, with Futures trading " +
+          "permission. Copy all three — the key, the secret and the " +
+          "passphrase you chose — while they are shown. If the key is " +
+          "restricted to certain addresses, this server's address must be " +
+          "on that list.",
+      },
+      pack: packKucoinCredential,
+    },
+    orders: {
+      place: placeKucoinOrder,
+      cancel: cancelKucoinOrder,
+      modify: modifyKucoinOrder,
+      close: closeKucoinPosition,
+      setBrackets: setKucoinBrackets,
+      portfolio: fetchKucoinPortfolio,
+      fills: fetchKucoinOrderFills,
+      orderInfo: fetchKucoinOrderInfo,
     },
   },
   binance: {

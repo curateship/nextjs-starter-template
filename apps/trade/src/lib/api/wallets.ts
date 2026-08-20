@@ -10,7 +10,7 @@ import {
   describeKeyMismatch,
 } from "@/lib/trade/wallets"
 import { userGet, userPost } from "@/server/guards"
-import { loadLastWalletId, saveLastWalletId } from "@/server/trade/prefs"
+import { loadLastWalletIds, saveLastWalletId } from "@/server/trade/prefs"
 import {
   createWallet as createWalletRow,
   deleteWallet as deleteWalletRow,
@@ -92,13 +92,14 @@ const loadWalletAccountsFn = createServerFn({ method: "GET" })
     }): Promise<{
       wallets: TradeWallet[]
       summaries: WalletAccountSummary[]
-      lastWalletId: string | null
+      /** The active wallet on each exchange, keyed by protocol id. */
+      lastWalletIds: Record<string, string>
     }> => {
-      const [{ wallets, summaries }, lastWalletId] = await Promise.all([
+      const [{ wallets, summaries }, lastWalletIds] = await Promise.all([
         loadWalletSummaries(context.user.id),
-        loadLastWalletId(context.user.id),
+        loadLastWalletIds(context.user.id),
       ])
-      return { wallets, summaries, lastWalletId }
+      return { wallets, summaries, lastWalletIds }
     }
   )
 
@@ -130,7 +131,7 @@ const pickWalletFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
     const wallet = await findTradingWallet(context.user.id, data.id)
     if (!wallet) throw new Error("WALLET_NOT_FOUND")
-    await saveLastWalletId(context.user.id, data.id)
+    await saveLastWalletId(context.user.id, wallet.protocol, data.id)
     return { saved: true }
   })
 
