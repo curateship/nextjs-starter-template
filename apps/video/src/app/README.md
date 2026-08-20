@@ -26,8 +26,8 @@ draws in one, what it does in the other.
 Each catalogue defines what can be set and what each option means. Anything not
 offered there is a compile error, on purpose: the shell always knows every way
 an app can deviate from it. Need something that is not on offer? Add it to
-custom-shell first, defaulting to today's behaviour — the procedure is in
-`apps/custom-shell/CLAUDE.md`.
+custom-shell first, defaulting to today's behaviour — the procedure is in the
+repo's `docs/shell/shell-and-apps.md`.
 
 A public page the app adds is a new route plus a `*.page.ts` beside it, and it
 belongs in `src/routes` like any other — no option, no entry in this folder.

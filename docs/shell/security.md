@@ -1,7 +1,7 @@
 # Security
 
 The account, role, and billing behaviour summarised here is documented in full
-in `docs/saas-foundation.md`.
+in `saas-foundation.md`.
 
 ## Accounts and sessions
 

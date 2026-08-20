@@ -25,7 +25,7 @@ Its job is to be the base UI for future admin and internal apps in this repo, so
 - plans and entitlements, managed from the admin area
 - Stripe subscriptions, the member billing area, and the revenue summary
 
-See `docs/saas-foundation.md` for how those pieces fit together, how to run and
+See `saas-foundation.md` for how those pieces fit together, how to run and
 test them, and how another app adopts them.
 
 ## Navigation Model

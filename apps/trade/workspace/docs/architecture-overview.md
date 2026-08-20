@@ -3,8 +3,8 @@
 How the Trade app is put together. The current dashboard belongs to
 Hyperliquid; another protocol gets its own dashboard while reusing the shared
 contracts and panels. The shell's own architecture — layout, navigation,
-accounts, roles, billing — is `docs/architecture-overview.md`; this file only
-covers what Trade adds on top of it.
+accounts, roles, billing — is the repo's `docs/shell/architecture-overview.md`;
+this file only covers what Trade adds on top of it.
 
 ## What Trade is
 
