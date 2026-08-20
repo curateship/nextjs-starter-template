@@ -176,7 +176,73 @@ type PosMode = "OneWay" | "Hedged"
 /** How long the account's mode stands before it is asked for again. */
 const POS_MODE_GOOD_FOR_MS = 5 * 60_000
 
-const posModes = new Map<string, { at: number; bySymbol: Map<string, PosMode> }>()
+/**
+ * What the account says about one market: which mode it is in, and what
+ * leverage each side is currently running. The leverage is carried because a
+ * hedged account will only accept BOTH sides at once when one is being
+ * changed, and the other side must go back exactly as it was — it belongs to
+ * a position this order has nothing to do with.
+ */
+type SymbolState = {
+  mode: PosMode
+  longRr: string | null
+  shortRr: string | null
+}
+
+const posModes = new Map<
+  string,
+  { at: number; bySymbol: Map<string, SymbolState> }
+>()
+
+async function symbolStateOf(
+  network: NetworkId,
+  address: string,
+  blob: string,
+  symbol: string
+): Promise<SymbolState> {
+  const key = `${network}:${parsePhemexCredential(blob).keyId}`
+  const held = posModes.get(key)
+  if (!held || Date.now() - held.at > POS_MODE_GOOD_FOR_MS) {
+    const { positions } = await phemexAccountPositions(network, address, () => blob)
+    const bySymbol = new Map<string, SymbolState>()
+    for (const raw of positions) {
+      const row = raw as {
+        symbol?: unknown
+        posMode?: unknown
+        posSide?: unknown
+        leverageRr?: unknown
+      }
+      if (typeof row.symbol !== "string") continue
+      if (row.posMode !== "Hedged" && row.posMode !== "OneWay") continue
+      const found = bySymbol.get(row.symbol) ?? {
+        mode: row.posMode,
+        longRr: null,
+        shortRr: null,
+      }
+      found.mode = row.posMode
+      // A hedged account sends one row per side, each carrying that side's
+      // own leverage.
+      const rr =
+        typeof row.leverageRr === "string" || typeof row.leverageRr === "number"
+          ? String(row.leverageRr)
+          : null
+      if (rr !== null && row.posSide === "Long") found.longRr = rr
+      if (rr !== null && row.posSide === "Short") found.shortRr = rr
+      bySymbol.set(row.symbol, found)
+    }
+    posModes.set(key, { at: Date.now(), bySymbol })
+  }
+  // A market the account has never touched carries no row. Hedged is the
+  // safer guess of the two: it names a side, and a one-way account tells us
+  // so plainly rather than doing something unintended.
+  return (
+    posModes.get(key)?.bySymbol.get(symbol) ?? {
+      mode: "Hedged",
+      longRr: null,
+      shortRr: null,
+    }
+  )
+}
 
 async function posModeOf(
   network: NetworkId,
@@ -184,24 +250,7 @@ async function posModeOf(
   blob: string,
   symbol: string
 ): Promise<PosMode> {
-  const key = `${network}:${parsePhemexCredential(blob).keyId}`
-  const held = posModes.get(key)
-  if (!held || Date.now() - held.at > POS_MODE_GOOD_FOR_MS) {
-    const { positions } = await phemexAccountPositions(network, address, () => blob)
-    const bySymbol = new Map<string, PosMode>()
-    for (const raw of positions) {
-      const row = raw as { symbol?: unknown; posMode?: unknown }
-      if (typeof row.symbol !== "string") continue
-      if (row.posMode === "Hedged" || row.posMode === "OneWay") {
-        bySymbol.set(row.symbol, row.posMode)
-      }
-    }
-    posModes.set(key, { at: Date.now(), bySymbol })
-  }
-  // A market the account has never touched carries no row. Hedged is the
-  // safer guess of the two: it names a side, and a one-way account tells us
-  // so plainly rather than doing something unintended.
-  return posModes.get(key)?.bySymbol.get(symbol) ?? "Hedged"
+  return (await symbolStateOf(network, address, blob, symbol)).mode
 }
 
 /**
@@ -375,11 +424,27 @@ export async function placePhemexOrder(
     // stopped a plain "buy $100 of Bitcoin" on 20 Aug 2026, and it looked
     // exactly like the order being rejected rather than the leverage.
     //
-    // Only the side being opened is set. The other side is left as it is,
-    // because it is a real setting on a position this order has nothing to
-    // do with.
+    // **Both sides go together or neither does.** The exchange says so
+    // outright — "longLeverageRr and shortLeverageRr must exist or not exist
+    // at the same time" — so the side NOT being opened is sent back exactly
+    // as it already is, read from the same account snapshot that told us the
+    // mode. Sending the asked-for number for both would quietly change the
+    // leverage on the other side's open position, which moves where it gets
+    // liquidated.
     const leverageRr = decimalString(params.leverage)
     const forSide = posSideFor(mode, params.side, params.reduceOnly)
+    const state = await symbolStateOf(
+      network,
+      "",
+      orderAuth.agentKey,
+      params.marketId
+    )
+    const bothSides = {
+      longLeverageRr:
+        forSide === "Long" ? leverageRr : (state.longRr ?? leverageRr),
+      shortLeverageRr:
+        forSide === "Short" ? leverageRr : (state.shortRr ?? leverageRr),
+    }
     try {
       await phemexSigned(
         network,
@@ -388,11 +453,7 @@ export async function placePhemexOrder(
         "/g-positions/leverage",
         {
           symbol: params.marketId,
-          ...(mode === "Hedged"
-            ? forSide === "Short"
-              ? { shortLeverageRr: leverageRr }
-              : { longLeverageRr: leverageRr }
-            : { leverageRr }),
+          ...(mode === "Hedged" ? bothSides : { leverageRr }),
         }
       )
     } catch (error) {
@@ -725,6 +786,10 @@ export async function setPhemexBrackets(
 export function clearPhemexOrderCaches(): void {
   openOrdersCache.clear()
   fillsCache.clear()
+  // What the account said about each market's mode and leverage is held for
+  // five minutes too, and a held answer from one test is a wrong answer in
+  // the next.
+  posModes.clear()
 }
 
 // ----- Reading the account back ---------------------------------------------

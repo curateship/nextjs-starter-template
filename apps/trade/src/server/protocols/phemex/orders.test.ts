@@ -209,7 +209,20 @@ describe("placing", () => {
             msg: "",
             data: {
               account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
-              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  leverageRr: "2",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  leverageRr: "5",
+                },
+              ],
             },
           },
         },
@@ -244,9 +257,12 @@ describe("placing", () => {
     expect(lev?.url.searchParams.get("longLeverageRr")).toBe("3")
     // Never the one-way field, which is what the exchange refuses.
     expect(lev?.url.searchParams.get("leverageRr")).toBeNull()
-    // And the short side is left alone — it is a real setting on a position
-    // this order has nothing to do with.
-    expect(lev?.url.searchParams.get("shortLeverageRr")).toBeNull()
+    // Both sides go together or neither does — the exchange refuses one on
+    // its own with "must exist or not exist at the same time". The short side
+    // goes back exactly as the account already had it (5), not as the number
+    // being asked for, because changing it would move where an open short
+    // gets liquidated.
+    expect(lev?.url.searchParams.get("shortLeverageRr")).toBe("5")
   })
 
   it("lets a resting order actually rest, at the price asked", async () => {
