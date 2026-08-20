@@ -126,6 +126,8 @@ async function chasingWatch(): Promise<void> {
     sent: true,
     orderId: "ord-old",
     orderPx: 100,
+    missingSince: 0,
+    heldWhenPlaced: 0,
     chasedAt: Date.now() - 60_000,
     chases: 0,
     startedAt: Date.now() - 120_000,

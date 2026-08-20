@@ -1,4 +1,5 @@
 import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
 import {
   CHASE_EVERY_MS,
@@ -78,20 +79,45 @@ export async function advanceSignal(
 
   let changed = false
   const live = liveOrderIds(book)
+  const position = book.positions.get(row.marketKey) ?? null
 
   // ----- Did the order we were chasing go? -------------------------------
   //
   // Filled, or dropped — by a cancel from here last pass, by a hand, or by a
   // wallet that could no longer afford it. Which of those it was does not
-  // matter: the position below is the truth either way, and reading it is how
-  // a partial fill is handled without counting anything.
-  if (plan.orderId && !live.has(plan.orderId)) {
-    plan.orderId = null
-    plan.orderPx = null
-    changed = true
+  // matter: the position is the truth either way, and reading it is how a
+  // partial fill is handled without counting anything.
+  //
+  // **What does matter is not deciding it on one absent read.** An exchange's
+  // open-orders list lags an order that was just placed, and a chase that
+  // treats that gap as "my order is gone" buys the same coin again. The whole
+  // rule, and the day it cost money, are in `judgeOrder`.
+  if (plan.orderId) {
+    const seen = judgeOrder({
+      seenOnTheBook: live.has(plan.orderId),
+      // The amount held CHANGED, which no lagging list can fake — and one
+      // number that covers a buy, a sell and a part fill alike.
+      accountShowsItDone:
+        Math.abs((position?.szi ?? 0) - plan.heldWhenPlaced) > 1e-9,
+      missingSince: plan.missingSince,
+      now,
+    })
+    if (seen.missingSince !== plan.missingSince) {
+      plan.missingSince = seen.missingSince
+      changed = true
+    }
+    if (seen.presence === "gone") {
+      plan.orderId = null
+      plan.orderPx = null
+      changed = true
+    } else if (seen.presence === "unproven" && plan.phase !== "stopping") {
+      // Missing, and nothing yet says what became of it. Anything this pass
+      // would do next — chase it, replace it, call the trade finished — rests
+      // on knowing, and it does not know yet.
+      if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
   }
-
-  const position = book.positions.get(row.marketKey) ?? null
 
   // ----- Called off ------------------------------------------------------
   //
@@ -252,6 +278,10 @@ async function moveOrder(
     walletChasedAt.set(book.wallet.id, now)
   }
 
+  // Read BEFORE the order goes out, because the whole point of the number is
+  // to be the "before" that a fill can be measured against.
+  plan.heldWhenPlaced = book.positions.get(marketKey)?.szi ?? 0
+  plan.missingSince = 0
   plan.orderId = await deps.insertOrder({
     marketKey,
     side,

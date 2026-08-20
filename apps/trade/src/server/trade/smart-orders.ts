@@ -924,6 +924,8 @@ export async function placeWatchOrder(
     sent: false,
     orderId: null,
     orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
     chasedAt: 0,
     chases: 0,
     startedAt: now.getTime(),

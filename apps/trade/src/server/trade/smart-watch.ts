@@ -1,4 +1,5 @@
 import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
 import {
   CHASE_EVERY_MS,
@@ -56,14 +57,41 @@ export async function advanceWatch(
 
   let changed = false
   const live = liveOrderIds(book)
+  const position = book.positions.get(row.marketKey) ?? null
 
-  // The order we were chasing has gone — filled, cancelled by a hand, or
-  // dropped by a wallet that could no longer afford it. What is held below is
-  // the truth either way.
-  if (plan.orderId && !live.has(plan.orderId)) {
-    plan.orderId = null
-    plan.orderPx = null
-    changed = true
+  // ----- Is the order we placed still out there? -------------------------
+  //
+  // Never decided by one absent read. `judgeOrder` holds the whole rule and
+  // the reason it exists; all this does is act on its answer, and "wait" is
+  // one of the answers. Being called off is the exception below: a person
+  // asking for it back outranks the wait.
+  if (plan.orderId) {
+    const seen = judgeOrder({
+      seenOnTheBook: live.has(plan.orderId),
+      // The amount held CHANGED, which no lagging list can fake. Reading it
+      // this way covers every case with one number: a buy that opened a
+      // position, a sell that closed one, a part fill, and a watch adding to
+      // a coin the wallet already held — where "is there a position" would
+      // have said yes from the very first pass and protected nothing.
+      accountShowsItDone:
+        Math.abs((position?.szi ?? 0) - plan.heldWhenPlaced) > 1e-9,
+      missingSince: plan.missingSince,
+      now,
+    })
+    if (seen.missingSince !== plan.missingSince) {
+      plan.missingSince = seen.missingSince
+      changed = true
+    }
+    if (seen.presence === "gone") {
+      plan.orderId = null
+      plan.orderPx = null
+      changed = true
+    } else if (seen.presence === "unproven" && plan.phase !== "stopping") {
+      // Missing, and nothing yet says what became of it. Placing a
+      // replacement here is exactly how the same money gets spent twice.
+      if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
   }
 
   // Called off. Anything asked for and not got is taken back; a position it
@@ -83,7 +111,6 @@ export async function advanceWatch(
   // filled carried no brackets, and this row is the only thing that still
   // remembers what was asked for. Written onto the position here, which is
   // also what the live lane reads when it sets them on the exchange.
-  const position = book.positions.get(row.marketKey) ?? null
   if (plan.phase === "taking" && position) {
     if (plan.tpPx !== null) position.tpPx = plan.tpPx
     if (plan.slPx !== null) position.slPx = plan.slPx
@@ -202,6 +229,10 @@ async function moveOrder(
     walletChasedAt.set(book.wallet.id, now)
   }
 
+  // Read BEFORE the order goes out, because the whole point of the number is
+  // to be the "before" that a fill can be measured against.
+  plan.heldWhenPlaced = book.positions.get(marketKey)?.szi ?? 0
+  plan.missingSince = 0
   plan.orderId = await deps.insertOrder({
     marketKey,
     side: plan.side,

@@ -1,3 +1,4 @@
+import { ORDER_GONE_AFTER_MS } from "@/lib/trade/order-presence"
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -96,6 +97,8 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     sent: false,
     orderId: null,
     orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
     chasedAt: 0,
     chases: 0,
     startedAt: 0,
@@ -308,6 +311,94 @@ describe("a price being watched", () => {
     expect(position.tpPx).toBe(110)
     expect(position.slPx).toBe(88)
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("waits out a lagging open-orders list instead of buying again", async () => {
+    // **What actually happened to PRL on 20 Aug 2026.** One watch worth $50
+    // placed SIX orders between 18:54:30 and 18:54:48, each a few seconds
+    // apart at a slightly different price, and three of them filled together
+    // when the price arrived. Every pass placed one, because every pass
+    // looked for the previous order, did not find it in the exchange's list,
+    // and concluded it was gone. The list was simply behind.
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    // The list loses sight of the order — exactly the gap the exchange left.
+    // The order itself is untouched on the exchange; nothing has filled and
+    // nothing has been cancelled.
+    for (let pass = 0; pass < 6; pass += 1) {
+      await database
+        .delete(tradePaperOrders)
+        .where(eq(tradePaperOrders.userId, userId))
+      vi.setSystemTime(new Date(Date.now() + 2_000))
+      await priceTo(95 - pass * 0.01)
+      expect(await orders()).toHaveLength(0)
+    }
+
+    // Not one replacement in twelve seconds, and the watch is still alive
+    // rather than quietly finished.
+    expect(await positions()).toHaveLength(0)
+    const held = await row()
+    expect(held.status).toBe("active")
+    expect(held.plan.orderId).toBe(placed.id)
+    expect(held.plan.missingSince).toBeGreaterThan(0)
+  })
+
+  it("still waits out a lagging list when the coin was already held", async () => {
+    // The hole the first version of this fix left. Proof of a fill used to be
+    // "there is a position" — but a watch that ADDS to a coin already held
+    // sees one from its very first pass, so every absent read read as a fill
+    // and the protection did nothing on exactly the coins most likely to be
+    // traded twice. What is measured now is the amount held CHANGING.
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-held",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 5,
+      entryPx: 99,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    vi.setSystemTime(new Date(Date.now() + 2_000))
+    await priceTo(94.99)
+
+    // Nothing new placed, and the order is still remembered.
+    expect(await orders()).toHaveLength(0)
+    expect((await row()).plan.orderId).toBe(placed.id)
+  })
+
+  it("lets go of an order that has been missing far too long", async () => {
+    // The other half of the rule: a wait with no end would leave a watch
+    // holding an id for an order somebody cancelled on the exchange's own
+    // website, doing nothing forever.
+    await watchAt()
+    await priceTo(95)
+    expect(await orders()).toHaveLength(1)
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    // One pass to notice it is missing — the clock starts when the engine
+    // first cannot see it, not when it actually vanished — then long enough
+    // that a lagging list is no longer a possible explanation.
+    await priceTo(95)
+    expect((await row()).plan.orderId).not.toBeNull()
+
+    vi.setSystemTime(new Date(Date.now() + ORDER_GONE_AFTER_MS + 1_000))
+    await priceTo(95)
+
+    expect((await row()).plan.orderId).toBeNull()
   })
 
   it("takes its order back when it is called off", async () => {
