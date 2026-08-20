@@ -192,6 +192,63 @@ describe("placing", () => {
     expect(outcome.avgPx).toBe(51_000)
   })
 
+  it("sets leverage the way a hedged account demands", async () => {
+    // A hedged account holds a long and a short at once, each with its own
+    // leverage, and it refuses the one-way field with the same complaint it
+    // gives a wrongly-labelled order: TE_ERR_INCONSISTENT_POS_MODE. Sent that
+    // way, "buy $100 of Bitcoin" was refused before the order was looked at,
+    // and the message pointed at the order rather than the leverage.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
+        },
+        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-3", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: 3,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const lev = sent.find((one) => one.url.pathname === "/g-positions/leverage")
+    // The long side, because this buy opens a long.
+    expect(lev?.url.searchParams.get("longLeverageRr")).toBe("3")
+    // Never the one-way field, which is what the exchange refuses.
+    expect(lev?.url.searchParams.get("leverageRr")).toBeNull()
+    // And the short side is left alone — it is a real setting on a position
+    // this order has nothing to do with.
+    expect(lev?.url.searchParams.get("shortLeverageRr")).toBeNull()
+  })
+
   it("lets a resting order actually rest, at the price asked", async () => {
     // The other half of the same rule. A market order is capped and taken
     // immediately; a postOnly order must sit on the book at the price asked

@@ -367,6 +367,19 @@ export async function placePhemexOrder(
     // Set only when opening fresh — the caller already sends null when the
     // position exists. Positive is isolated margin: the trade's stake is all
     // it can lose, which is the promise the app's screens make.
+    //
+    // **A hedged account names the side here too.** It holds a long and a
+    // short at once, each with its own leverage, so it has its own field for
+    // each and refuses the one-way field outright — `TE_ERR_INCONSISTENT_POS_
+    // MODE`, thrown before the order is even looked at. That refusal is what
+    // stopped a plain "buy $100 of Bitcoin" on 20 Aug 2026, and it looked
+    // exactly like the order being rejected rather than the leverage.
+    //
+    // Only the side being opened is set. The other side is left as it is,
+    // because it is a real setting on a position this order has nothing to
+    // do with.
+    const leverageRr = decimalString(params.leverage)
+    const forSide = posSideFor(mode, params.side, params.reduceOnly)
     try {
       await phemexSigned(
         network,
@@ -375,7 +388,11 @@ export async function placePhemexOrder(
         "/g-positions/leverage",
         {
           symbol: params.marketId,
-          leverageRr: decimalString(params.leverage),
+          ...(mode === "Hedged"
+            ? forSide === "Short"
+              ? { shortLeverageRr: leverageRr }
+              : { longLeverageRr: leverageRr }
+            : { leverageRr }),
         }
       )
     } catch (error) {
