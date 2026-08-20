@@ -814,10 +814,27 @@ export function clearPhemexOrderCaches(): void {
 
 // ----- Reading the account back ---------------------------------------------
 
+/**
+ * One row of the account's position read.
+ *
+ * **The size field is `sizeRq`, and getting that wrong cost a whole day.**
+ * This schema asked for `size`, which the endpoint does not send — so every
+ * row read as size zero, every position was skipped, and the app showed
+ * "Positions 0" while Phemex held real coin. Nothing said so: an optional
+ * field that is absent is not an error, it is just nought.
+ *
+ * The damage went further than a wrong screen. A watched order learns that
+ * its buy filled by seeing the position appear; with no position ever
+ * appearing it kept waiting, and each failed pass rolled it back to unspent,
+ * so it bought again. That is how one XRP watch bought 78.76 coins in two
+ * goes on 20 Aug 2026 when it was asked for 39.
+ *
+ * Every name here is copied from a real row rather than a document.
+ */
 const positionSchema = z.object({
   symbol: z.string(),
   side: z.union([z.string(), z.number()]).optional(),
-  size: z.union([z.string(), z.number()]).optional(),
+  sizeRq: z.union([z.string(), z.number()]).optional(),
   avgEntryPriceRp: z.union([z.string(), z.number()]).optional(),
   positionMarginRv: z.union([z.string(), z.number()]).optional(),
   liquidationPriceRp: z.union([z.string(), z.number()]).optional(),
@@ -935,7 +952,7 @@ export async function fetchPhemexPortfolio(
   for (const raw of rawPositions) {
     const row = positionSchema.safeParse(raw)
     if (!row.success) continue
-    const size = num(row.data.size) ?? 0
+    const size = num(row.data.sizeRq) ?? 0
     if (!(size > 0)) continue
     const szi = sideOf(row.data.side) === "sell" ? -size : size
 

@@ -486,10 +486,18 @@ describe("reading the account back", () => {
                 totalUsedBalanceRv: "100",
               },
               positions: [
+                // Field names copied from a real row on 20 Aug 2026. The size
+                // is `sizeRq`; this fixture used to say `size`, which the
+                // exchange has never sent — so the schema read every position
+                // as nought, the app showed "Positions 0" while Phemex held
+                // real coin, and the test agreed with the bug because it was
+                // written from the same guess.
                 {
                   symbol: "BTCUSDT",
                   side: "Buy",
-                  size: "0.01",
+                  posSide: "Long",
+                  posMode: "Hedged",
+                  sizeRq: "0.01",
                   avgEntryPriceRp: "50000",
                   positionMarginRv: "100",
                   liquidationPriceRp: "25000",

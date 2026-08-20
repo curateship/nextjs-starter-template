@@ -28,6 +28,7 @@ import {
   type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   defaultPaperCosts,
@@ -1244,6 +1245,14 @@ async function reconcileLiveLaddersOnce(
             kind: entry.kind,
             plan: originalPlan,
           })
+          // **Money sent is never un-sent by an unwind.** Everything else in
+          // the plan goes back to how this pass found it, but a watch that
+          // has spent has spent — and if the rollback forgets that, the very
+          // next pass buys the same thing again. A watch bought XRP twice in
+          // 55 seconds on 20 Aug 2026 through exactly this door.
+          if (entry.kind === "watch" && entry.plan.sent) {
+            ;(originalPlan as WatchPlan).sent = true
+          }
           await saveLadderPlan(userId, row.id, originalPlan, "active")
           if (recoveryFailed) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
           throw error
@@ -1256,9 +1265,23 @@ async function reconcileLiveLaddersOnce(
         // A signal trade manages no protection. Its exit is the next arrow, so
         // writing a stop or a target for it here would be putting orders on a
         // position that nobody asked for and nothing would ever move again.
+        // **Nothing to set and nothing to clear means nothing to say.** A
+        // watch with no stop and no target used to call the exchange anyway,
+        // to remove protection that was never there — and a position bought
+        // at market a moment earlier is not visible to that call yet, so it
+        // answered `LIVE_POSITION_GONE`. That refusal then unwound a buy that
+        // had really happened. Asking for nothing is not worth a request, let
+        // alone that.
+        const wantsProtection =
+          position !== undefined &&
+          (position.tpPx !== null ||
+            position.slPx !== null ||
+            originalBrackets?.tpPx != null ||
+            originalBrackets?.slPx != null)
         if (
           entry.kind !== "signal" &&
           position &&
+          wantsProtection &&
           book.touchedMarkets.has(row.marketKey)
         ) {
           try {
