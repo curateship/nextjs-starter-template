@@ -430,6 +430,32 @@ working bar streams beside it.
 
 ## Rules that hold everywhere
 
+- **Every action shows its answer at once, and the exchange is told
+  afterwards.** Opening, closing, cancelling, and dragging a price, a stop or
+  a target all change the screen on the press. Nothing waits on a round trip
+  to the venue, because a venue takes one to four seconds and a screen that
+  sits still for that long reads as a press that did not land — which is how
+  people end up pressing twice.
+
+  **A held answer ends when the data agrees, never when a read merely lands.**
+  Each of those actions keeps a hold — a note saying "show it this way for
+  now". A read already on its way when the action started knows nothing about
+  it, so letting that read end the hold snapped the line back to where it was
+  and then forward again a moment later. It looked like a delay, and it looked
+  like a *different* delay on every exchange, because it was really a race
+  with whichever venue's read happened to be slowest.
+
+  So a cancelled row stays hidden until it is really gone, a dragged price is
+  held until a row comes back carrying it, and a just-placed order is held on
+  screen until the real one appears — never a gap between the two, and never
+  a "sending" row that vanishes before its replacement arrives. A hold gives
+  up after thirty seconds so a venue that never agrees cannot keep the truth
+  off the screen, and a refusal releases it at once and says why.
+
+  **This lives in one place on purpose** — `use-trading.ts`, which never knows
+  which venue a row came from. An exchange added tomorrow inherits all of it
+  without writing a line, and no exchange can get it subtly wrong on its own.
+
 - **Never swap a missing market for a different one.** If a saved market is gone
   or unavailable, say so. Never quietly fall back to BTC or anything else.
 - **An unavailable action explains itself.** Never hide the reason, and never
