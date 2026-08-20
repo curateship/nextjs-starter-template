@@ -12,7 +12,11 @@ import {
   reconcileLiveLadders,
 } from "@/server/trade/live-smart-orders"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
-import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveJournal,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 const prices = vi.fn()
 const account = vi.fn()
@@ -247,6 +251,43 @@ describe("live Smart orders", () => {
     await reconcileLiveLadders(userId, wallet)
 
     expect(fills.mock.calls[0][2]).toBe(started - 60_000)
+  })
+
+  it("survives a smart order it cannot advance, and writes it down", async () => {
+    // **A throw must not take the wallet with it.** Ladders, grids and
+    // watches share a pass because they share one look at the exchange, and a
+    // throw anywhere in that pass used to stop all of it: no triggers, no
+    // rungs, no stops, and nothing said so. On 20 Aug 2026 a single watched
+    // order did exactly that on two exchanges for twenty minutes, while the
+    // Workers screen went on calling the engine healthy.
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+
+    // Price crosses the first rung and the exchange breaks in a way nothing
+    // along the way catches.
+    prices.mockResolvedValue(new Map([["BTC", 94]]))
+    place.mockRejectedValue(new TypeError("something broke"))
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+
+    // The pass finishes rather than throwing, so every other row on this
+    // wallet still gets its turn.
+    await expect(reconcileLiveLadders(userId, wallet)).resolves.toBeUndefined()
+
+    // And it is written down rather than passed over in silence, which is the
+    // half that made this cost an afternoon.
+    const noted = await database.select().from(tradeLiveJournal)
+    expect(
+      noted.some(
+        (row) => row.marketKey === MARKET && row.action === "refused"
+      )
+    ).toBe(true)
   })
 
   it("puts a rung back when the exchange definitely refused its buy", async () => {

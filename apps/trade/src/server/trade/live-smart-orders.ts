@@ -83,7 +83,11 @@ import {
   freeCash,
   type WalletBook,
 } from "@/server/trade/paper"
-import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveJournal,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 /** The flow's cap when it has one, never more than the account holds. */
 function livePotOf(
@@ -590,6 +594,42 @@ const REFUSAL_HOLD_MS = 60_000
  * next poll is seconds away.
  */
 const reconciling = new Set<string>()
+
+/**
+ * A smart order that could not be advanced, said out loud.
+ *
+ * **Silence is the thing that made this expensive.** The pass that died took
+ * the whole wallet with it and reported nothing at all: no journal row, no
+ * error on the heartbeat, no mark on the order. From the outside the engine
+ * looked healthy and the market looked quiet. Every failure now leaves a
+ * trace in the one place a person already looks when an order did not do what
+ * it was meant to.
+ */
+async function noteRowFailure(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  error: unknown
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error("trade engine: could not advance", marketKey, message)
+  try {
+    await db.insert(tradeLiveJournal).values({
+      id: randomUUID(),
+      userId,
+      walletId,
+      marketKey,
+      action: "refused",
+      side: "buy",
+      px: 0,
+      sz: 0,
+      note: `The engine could not work this order: ${message}`.slice(0, 500),
+    })
+  } catch {
+    // A journal that will not take the row is not a reason to stop the pass;
+    // the console line above still carries it.
+  }
+}
 
 export async function reconcileLiveLadders(
   userId: string,
@@ -1168,56 +1208,92 @@ async function reconcileLiveLaddersOnce(
   }
 
   for (const raw of rows) {
-    // A just-accepted exchange order can take a moment to appear in the
-    // portfolio read. Treating that short delay as a disappearance would
-    // place its replacement twice.
-    if (!force && now - raw.updatedAt.getTime() < EXCHANGE_VISIBILITY_GRACE_MS)
-      continue
-    const entry = parsed.get(raw.id)
-    if (!entry) continue
+    // **One smart order failing must not stop the others.**
+    //
+    // They share a pass because they share one look at the exchange — the
+    // account, the open orders and the fills are read once and every row on
+    // the wallet is advanced from them. That sharing is right; what was
+    // wrong is that a throw anywhere in here took the whole wallet with it.
+    // On 20 Aug 2026 a single watched order stopped that wallet completely:
+    // no triggers, no rungs, no stops, and the Workers screen still called
+    // the worker healthy. Levels were crossed and held for twenty minutes.
+    //
+    // Now a row that throws is written down and stepped over, and the rest
+    // of the wallet carries on.
+    try {
+      // A just-accepted exchange order can take a moment to appear in the
+      // portfolio read. Treating that short delay as a disappearance would
+      // place its replacement twice.
+      if (!force && now - raw.updatedAt.getTime() < EXCHANGE_VISIBILITY_GRACE_MS)
+        continue
+      const entry = parsed.get(raw.id)
+      if (!entry) continue
 
-    if (entry.kind === "grid") {
-      // A grid has no orders on the exchange to match fills against: its
-      // levels are watched prices and it buys when one is reached.
-      await advanceRow(raw, entry, advanceGrid)
-      continue
-    }
+      if (entry.kind === "grid") {
+        // A grid has no orders on the exchange to match fills against: its
+        // levels are watched prices and it buys when one is reached.
+        await advanceRow(raw, entry, advanceGrid)
+        continue
+      }
 
-    if (entry.kind === "signal") {
-      // A signal trade has exactly one order on the exchange and does not need
-      // its fills matched back to anything. It decides what to do next by
-      // looking at the POSITION, which this book has just rebuilt from the
-      // exchange — so a partial fill needs no arithmetic here to be understood.
-      await advanceRow(raw, entry, advanceSignal)
-      continue
-    }
+      if (entry.kind === "signal") {
+        // A signal trade has exactly one order on the exchange and does not need
+        // its fills matched back to anything. It decides what to do next by
+        // looking at the POSITION, which this book has just rebuilt from the
+        // exchange — so a partial fill needs no arithmetic here to be understood.
+        await advanceRow(raw, entry, advanceSignal)
+        continue
+      }
 
-    if (entry.kind === "watch") {
-      // Nothing is on the exchange at all until the level is touched, and from
-      // then on it is the same single chased order a signal trade has. Same
-      // reasoning, same path.
-      await advanceRow(raw, entry, advanceWatch)
-      continue
-    }
+      if (entry.kind === "watch") {
+        // Nothing is on the exchange at all until the level is touched, and from
+        // then on it is the same single chased order a signal trade has. Same
+        // reasoning, same path.
+        await advanceRow(raw, entry, advanceWatch)
+        continue
+      }
 
-    const plan = entry.plan as LadderPlan
-    const exits = ladderExitLevels(plan)
-    for (const [index, rung] of plan.rungs.entries()) {
-      if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
-        const total = managedFillTotals.get(rung.orderId)
-        if (total && total.sz > 0) {
+      const plan = entry.plan as LadderPlan
+      const exits = ladderExitLevels(plan)
+      for (const [index, rung] of plan.rungs.entries()) {
+        if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
+          const total = managedFillTotals.get(rung.orderId)
+          if (total && total.sz > 0) {
+            if (total.sz < rung.sz - 1e-9) {
+              rung.sz = floorSize(total.sz, plan.sizeDecimals)
+              rung.budget = rung.px * rung.sz
+            }
+            book.fills.push({
+              id: `managed:${total.fillId}`,
+              orderId: rung.orderId,
+              walletId: wallet.id,
+              marketKey: raw.marketKey,
+              side: "buy",
+              px: rung.px,
+              sz: Math.min(total.sz, rung.sz),
+              fee: 0,
+              closedPnl: 0,
+              reason: "order",
+              fillTime: total.at,
+            })
+          }
+        }
+        if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
+          const total = managedFillTotals.get(rung.sellOrderId)
+          if (!total || !(total.sz > 0)) continue
           if (total.sz < rung.sz - 1e-9) {
-            rung.sz = floorSize(total.sz, plan.sizeDecimals)
+            rung.sz = floorSize(rung.sz - total.sz, plan.sizeDecimals)
             rung.budget = rung.px * rung.sz
+            continue
           }
           book.fills.push({
             id: `managed:${total.fillId}`,
-            orderId: rung.orderId,
+            orderId: rung.sellOrderId,
             walletId: wallet.id,
             marketKey: raw.marketKey,
-            side: "buy",
-            px: rung.px,
-            sz: Math.min(total.sz, rung.sz),
+            side: "sell",
+            px: protocol.markets.roundPx(exits[index], plan.sizeDecimals, plan.priceTick),
+            sz: rung.sz,
             fee: 0,
             closedPnl: 0,
             reason: "order",
@@ -1225,30 +1301,11 @@ async function reconcileLiveLaddersOnce(
           })
         }
       }
-      if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
-        const total = managedFillTotals.get(rung.sellOrderId)
-        if (!total || !(total.sz > 0)) continue
-        if (total.sz < rung.sz - 1e-9) {
-          rung.sz = floorSize(rung.sz - total.sz, plan.sizeDecimals)
-          rung.budget = rung.px * rung.sz
-          continue
-        }
-        book.fills.push({
-          id: `managed:${total.fillId}`,
-          orderId: rung.sellOrderId,
-          walletId: wallet.id,
-          marketKey: raw.marketKey,
-          side: "sell",
-          px: protocol.markets.roundPx(exits[index], plan.sizeDecimals, plan.priceTick),
-          sz: rung.sz,
-          fee: 0,
-          closedPnl: 0,
-          reason: "order",
-          fillTime: total.at,
-        })
-      }
+      await advanceRow(raw, entry, advanceOne as never)
+    } catch (error) {
+      await noteRowFailure(userId, wallet.id, raw.marketKey, error)
+      continue
     }
-    await advanceRow(raw, entry, advanceOne as never)
   }
 }
 
