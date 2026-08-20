@@ -710,12 +710,22 @@ export function useTrading(
   const trades = React.useMemo((): LiveTrade[] => {
     const paper = paperAnswer?.trades ?? EMPTY_TRADES
     const live = liveAnswer?.trades ?? EMPTY_TRADES
-    if (paper.length === 0) return live
-    if (live.length === 0) return paper
-    return [...paper, ...live].sort(
-      (left, right) => right.closedAt - left.closedAt
+    const all =
+      paper.length === 0
+        ? live
+        : live.length === 0
+          ? paper
+          : [...paper, ...live].sort(
+              (left, right) => right.closedAt - left.closedAt
+            )
+    // A row being removed leaves the Journal at once, and stays gone until a
+    // read comes back without it.
+    if (cancelling.size === 0) return all
+    return all.filter(
+      (trade) =>
+        !cancelling.has(trade.id) || holdExpired(cancelling.get(trade.id))
     )
-  }, [paperAnswer, liveAnswer])
+  }, [paperAnswer, liveAnswer, cancelling, holdExpired])
 
   const fills = React.useMemo(
     () => [
@@ -740,6 +750,22 @@ export function useTrading(
     const real = [...allOrders, ...allSmartOrders]
     return placing.filter((ghost) => {
       if (holdExpired(ghost.createdAt)) return false
+      // **An order that filled at once became a POSITION, not an order.**
+      // Looking only for a resting order or a watched price left the ghost
+      // drawn beside the Entry line it had already turned into — two lines
+      // for one trade until the ghost timed out.
+      //
+      // The price is not compared here: what was paid is rarely what was
+      // asked, and the position's entry is an average once anything is added
+      // to it. The market and the direction are enough, because the Entry
+      // line the ghost would sit beside is the very thing being looked for.
+      const filled = allPositions.some(
+        (position) =>
+          position.walletId === ghost.walletId &&
+          position.marketKey === ghost.marketKey &&
+          (position.szi > 0) === (ghost.side === "buy")
+      )
+      if (filled) return false
       return !real.some((one) => {
         const px =
           "px" in one
@@ -757,7 +783,7 @@ export function useTrading(
         )
       })
     })
-  }, [placing, allOrders, allSmartOrders, holdExpired])
+  }, [placing, allOrders, allSmartOrders, allPositions, holdExpired])
 
   const orders = React.useMemo(() => {
     const shown =
@@ -782,7 +808,20 @@ export function useTrading(
     () =>
       smartOrders.flatMap((order): PaperOrder[] =>
         order.kind === "watch" &&
-        order.plan.phase === "waiting" &&
+        // **Still drawn while it is being taken.** The moment a level is
+        // reached the watch stops waiting and starts buying, and the position
+        // it becomes only appears on the read after that — so dropping the
+        // line the instant it fired left the chart empty for a few seconds
+        // and then an Entry bar arrived out of nowhere. It is held until the
+        // position it turns into is really there, the same rule the rest of
+        // this file follows.
+        (order.plan.phase === "waiting" ||
+          (order.plan.phase === "taking" &&
+            !allPositions.some(
+              (position) =>
+                position.walletId === order.walletId &&
+                position.marketKey === order.marketKey
+            ))) &&
         (!cancelling.has(order.id) || holdExpired(cancelling.get(order.id)))
           ? [
               {
@@ -809,7 +848,7 @@ export function useTrading(
             ]
           : []
       ),
-    [smartOrders, dropped, cancelling, holdExpired]
+    [smartOrders, dropped, cancelling, holdExpired, allPositions]
   )
 
   const positions = React.useMemo(() => {
@@ -1263,24 +1302,23 @@ export function useTrading(
 
   const hideTrade: Trading["hideTrade"] = React.useCallback(
     async (trade) => {
-      setPending((count) => count + 1)
       const fillIds = [...new Set(trade.fills.map((fill) => fill.fillId))]
-      try {
-        // A trade is not stored; its fills are. Hiding them is what makes the
-        // row go. One list, two stores — the row says which it came from.
-        if (trade.live) await hideLiveTrade(trade.walletId, fillIds)
-        else await hidePaperTrade(fillIds)
-        toast.success("Removed from the Journal.")
-      } catch (error) {
-        showErrorToast(
-          trade.live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
-        )
-      } finally {
-        setPending((count) => count - 1)
-        void refresh()
-      }
+      // The row goes on the press like everything else — see the note at the
+      // top of this file. It used to wait for the exchange and then for the
+      // next read, so a removed row sat there until the page was reloaded.
+      await callOff(
+        trade.id,
+        () =>
+          // A trade is not stored; its fills are. Hiding them is what makes
+          // the row go. One list, two stores — the row says which it came from.
+          trade.live
+            ? hideLiveTrade(trade.walletId, fillIds)
+            : hidePaperTrade(fillIds),
+        trade.live ? getLiveErrorMessage : getPaperErrorMessage,
+        "Removed from the Journal."
+      )
     },
-    [refresh]
+    [callOff]
   )
 
   /**

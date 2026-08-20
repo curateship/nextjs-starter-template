@@ -46,6 +46,7 @@ import {
 } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
+  parseMarketKey,
   CANDLE_INTERVALS,
   type CandleBar,
   type CandleInterval,
@@ -67,7 +68,7 @@ import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import {
   indicatorPaint,
   type IndicatorSettings,
@@ -263,6 +264,10 @@ export function ChartPanel({
     null
   )
   const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
+  // The position whose × on the Entry line was pressed. Closing costs real
+  // money, so it asks first — the same question the Positions table asks.
+  const [closingPosition, setClosingPosition] =
+    React.useState<PaperPosition | null>(null)
   const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(null)
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
@@ -685,6 +690,7 @@ export function ChartPanel({
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
                   positions={linePositions}
+                  onClosePosition={setClosingPosition}
                   orders={looseOrders}
                   walletName={(walletId) =>
                     trading.walletNames.get(walletId) ?? "Another wallet"
@@ -946,6 +952,28 @@ export function ChartPanel({
           trading.reshapeGrid(one.walletId, one.id, shape)
         }
         onClose={() => setStopFor(null)}
+      />
+      <ConfirmDialog
+        open={closingPosition !== null}
+        onOpenChange={(open) => {
+          if (!open) setClosingPosition(null)
+        }}
+        title="Close this position?"
+        description={
+          closingPosition
+            ? `${parseMarketKey(closingPosition.marketKey)?.marketId ?? "This position"} is closed at whatever the market pays right now, and whatever it has made or lost is settled. Its stop and target go with it.`
+            : ""
+        }
+        confirmLabel="Close it"
+        onConfirm={() => {
+          if (closingPosition) {
+            void trading.close(
+              closingPosition.walletId,
+              closingPosition.marketKey
+            )
+          }
+          setClosingPosition(null)
+        }}
       />
       <ConfirmDialog
         open={cancelGridFor !== null}
