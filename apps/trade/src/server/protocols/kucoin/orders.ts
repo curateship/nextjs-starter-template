@@ -883,6 +883,12 @@ async function closedPositionMoney(
  * whole result on the final piece, so the finished trade totals correctly
  * even though the earlier pieces say nothing.
  */
+/**
+ * The furthest back this exchange answers for fills. A first sweep therefore
+ * picks up a day and carries on from there, which is all this door offers.
+ */
+const FILLS_WINDOW_MS = 24 * 60 * 60_000
+
 export async function fetchKucoinOrderFills(
   network: NetworkId,
   _address: string,
@@ -893,7 +899,14 @@ export async function fetchKucoinOrderFills(
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseKucoinCredential(blob)
   const end = Date.now()
-  const start = Math.max(0, since)
+  // **Never further back than the exchange will answer.**
+  //
+  // KuCoin refuses a wide window outright — `100001 When viewing completed
+  // data...` — rather than returning what it has. The sweep asks from zero
+  // the first time a wallet is read, which made that refusal permanent: the
+  // read threw, nothing was stored, so the next sweep asked from zero again.
+  // Not one KuCoin fill was ever kept, and closes never reached the Journal.
+  const start = Math.max(since, end - FILLS_WINDOW_MS)
 
   const [rawFills, closed] = await Promise.all([
     pagedItems(network, parsed, "/api/v1/fills", {
