@@ -38,6 +38,7 @@ import { Route as AuthenticatedSavedListingsRouteImport } from './routes/_authen
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiDirectoryOutreachUnsubscribeRouteImport } from './routes/api/directory-outreach-unsubscribe'
 import { Route as ApiDirectoryVerifyRouteImport } from './routes/api/directory-verify'
+import { Route as DirectorySitemapsChunkRouteImport } from './routes/directory-sitemaps.$chunk'
 import { Route as DirectorySlugRouteImport } from './routes/directory_.$slug'
 import { Route as ProfileProfileIdRouteImport } from './routes/profile_.$profileId'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -231,6 +232,11 @@ const ApiDirectoryOutreachUnsubscribeRoute =
 const ApiDirectoryVerifyRoute = ApiDirectoryVerifyRouteImport.update({
   id: '/api/directory-verify',
   path: '/api/directory-verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DirectorySitemapsChunkRoute = DirectorySitemapsChunkRouteImport.update({
+  id: '/directory-sitemaps/$chunk',
+  path: '/directory-sitemaps/$chunk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DirectorySlugRoute = DirectorySlugRouteImport.update({
@@ -534,6 +540,7 @@ export interface FileRoutesByFullPath {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -610,6 +617,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory/$slug': typeof DirectorySlugRoute
   '/profile/$profileId': typeof ProfileProfileIdRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -690,6 +698,7 @@ export interface FileRoutesById {
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/directory-outreach-unsubscribe': typeof ApiDirectoryOutreachUnsubscribeRoute
   '/api/directory-verify': typeof ApiDirectoryVerifyRoute
+  '/directory-sitemaps/$chunk': typeof DirectorySitemapsChunkRoute
   '/directory_/$slug': typeof DirectorySlugRoute
   '/profile_/$profileId': typeof ProfileProfileIdRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -770,6 +779,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -846,6 +856,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/directory-sitemaps/$chunk'
     | '/directory/$slug'
     | '/profile/$profileId'
     | '/admin/ai'
@@ -925,6 +936,7 @@ export interface FileRouteTypes {
     | '/_authenticated/workspaces'
     | '/api/directory-outreach-unsubscribe'
     | '/api/directory-verify'
+    | '/directory-sitemaps/$chunk'
     | '/directory_/$slug'
     | '/profile_/$profileId'
     | '/_authenticated/admin/ai'
@@ -998,6 +1010,7 @@ export interface RootRouteChildren {
   VerifyEmailRoute: typeof VerifyEmailRoute
   ApiDirectoryOutreachUnsubscribeRoute: typeof ApiDirectoryOutreachUnsubscribeRoute
   ApiDirectoryVerifyRoute: typeof ApiDirectoryVerifyRoute
+  DirectorySitemapsChunkRoute: typeof DirectorySitemapsChunkRoute
   DirectorySlugRoute: typeof DirectorySlugRoute
   ProfileProfileIdRoute: typeof ProfileProfileIdRoute
   ApiAuthGoogleRoute: typeof ApiAuthGoogleRoute
@@ -1215,6 +1228,13 @@ declare module '@tanstack/react-router' {
       path: '/api/directory-verify'
       fullPath: '/api/directory-verify'
       preLoaderRoute: typeof ApiDirectoryVerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/directory-sitemaps/$chunk': {
+      id: '/directory-sitemaps/$chunk'
+      path: '/directory-sitemaps/$chunk'
+      fullPath: '/directory-sitemaps/$chunk'
+      preLoaderRoute: typeof DirectorySitemapsChunkRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/directory_/$slug': {
@@ -1726,6 +1746,7 @@ const rootRouteChildren: RootRouteChildren = {
   VerifyEmailRoute: VerifyEmailRoute,
   ApiDirectoryOutreachUnsubscribeRoute: ApiDirectoryOutreachUnsubscribeRoute,
   ApiDirectoryVerifyRoute: ApiDirectoryVerifyRoute,
+  DirectorySitemapsChunkRoute: DirectorySitemapsChunkRoute,
   DirectorySlugRoute: DirectorySlugRoute,
   ProfileProfileIdRoute: ProfileProfileIdRoute,
   ApiAuthGoogleRoute: ApiAuthGoogleRoute,

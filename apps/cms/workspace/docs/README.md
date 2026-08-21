@@ -14,6 +14,8 @@ every app built on the shell is in the repo's `docs/shell/` instead.
   each column counts.
 - `import-eatdrinktoronto.md` — the one-off command that copies one old
   Directory site into one CMS site.
+- `sitemap-files.md` — the numbered sitemap files a site's listings come in,
+  and what happens at the edges of them.
 
 ## Adding a doc
 

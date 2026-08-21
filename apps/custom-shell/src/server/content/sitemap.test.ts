@@ -5,6 +5,7 @@ import { setPageVisibility } from "@/server/content/pages"
 import {
   publicRequestOrigin,
   readSitemapEntries,
+  renderSitemapIndexXml,
   renderSitemapXml,
 } from "@/server/content/sitemap"
 import { createWrittenPage } from "@/server/content/written-pages"
@@ -98,6 +99,34 @@ describe("writing the public files", () => {
   it("refuses an app entry that points at another site", () => {
     expect(() =>
       renderSitemapXml("https://alpha.example.com", [
+        { path: "//somebody-else.example.com/stolen" },
+      ])
+    ).toThrow("must stay on this site")
+  })
+
+  it("lists every numbered file plus the site's pages in the index", () => {
+    const updatedAt = new Date("2026-08-19T09:00:00.000Z")
+    const xml = renderSitemapIndexXml("https://alpha.example.com", [
+      { path: "/directory-sitemaps/0", updatedAt },
+      { path: "/directory-sitemaps/1" },
+    ])
+
+    expect(xml).toContain("<sitemapindex")
+    expect(xml).toContain(
+      "<loc>https://alpha.example.com/sitemap.xml?part=pages</loc>"
+    )
+    expect(xml).toContain(
+      "<loc>https://alpha.example.com/directory-sitemaps/0</loc>"
+    )
+    expect(xml).toContain(
+      "<loc>https://alpha.example.com/directory-sitemaps/1</loc>"
+    )
+    expect(xml).toContain(`<lastmod>${updatedAt.toISOString()}</lastmod>`)
+  })
+
+  it("refuses a numbered file that points at another site", () => {
+    expect(() =>
+      renderSitemapIndexXml("https://alpha.example.com", [
         { path: "//somebody-else.example.com/stolen" },
       ])
     ).toThrow("must stay on this site")

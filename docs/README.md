@@ -36,6 +36,8 @@ sat in thirteen app folders, and nothing read them.
 - `security.md` — sessions, passwords, authorization, payments, uploads.
 - `user-interface.md` — the shell's own UI rules. The full standard is the
   `Ui-standards` skill in `.agents/skills/`.
+- `public-files.md` — `robots.txt` and the sitemap, including what happens when
+  a site has more addresses than one sitemap file can hold.
 
 ## Writing a doc
 

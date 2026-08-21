@@ -68,6 +68,9 @@ the guess that one might:
   them, keyed by the same `kind`
 - `sitemap.extraEntries` (server) — public addresses from the app's own tables,
   read for the site whose domain is being answered
+- `sitemap.chunkFiles` (server) — the numbered sitemap files an app serves when
+  it has more addresses than one file can hold, which turns `/sitemap.xml` into
+  an index of them and moves the site's pages to `/sitemap.xml?part=pages`
 - `automations.canvasHeaderStatus` — a piece of the app's own in the canvas
   header, for what the flow IS right now rather than what a run produced
 - `automations.runControl` — the app's own control in place of Run

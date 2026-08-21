@@ -1,5 +1,8 @@
 import type { AppServerOptions } from "@/server/app-options"
-import { directorySitemapEntries } from "@/server/directory/sitemap"
+import {
+  directorySitemapChunkFiles,
+  directorySitemapEntries,
+} from "@/server/directory/sitemap"
 import { directorySearchResults } from "@/server/directory/public"
 import { runFeaturedRenewalReminders } from "@/server/directory/featured"
 import { copyDirectoryWorkspace } from "@/server/directory/workspace-copy"
@@ -24,7 +27,10 @@ export const appServerOptions: AppServerOptions = {
     copyChoices: [{ key: "listings", label: "Copy listings" }],
     onCopy: copyDirectoryWorkspace,
   },
-  sitemap: { extraEntries: directorySitemapEntries },
+  sitemap: {
+    extraEntries: directorySitemapEntries,
+    chunkFiles: directorySitemapChunkFiles,
+  },
   search: { sources: [directorySearchResults] },
   background: {
     workers: [
