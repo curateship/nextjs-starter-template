@@ -301,6 +301,10 @@ An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
 
+A live take-profit or stop-loss order appears once, as its coloured target or
+stop bar. This includes a grid's own STOP LOSS line. The chart does not draw
+the exchange's copy of that order as a second gray Sell bar.
+
 A position's stop can be dragged past its entry after price moves in the
 trade's favour. This trailing stop protects profit. It must remain below the
 current price for a long, or above the current price for a short, so setting it

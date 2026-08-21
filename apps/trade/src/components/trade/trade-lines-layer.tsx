@@ -250,7 +250,28 @@ export function TradeLinesLayer({
   }, [surface, onSurface])
 
   const held = positions.filter((one) => one.marketKey === marketKey)
-  const waiting = orders.filter((one) => one.marketKey === marketKey)
+  const bracketOrderIds = new Map<string, Set<string>>()
+  for (const position of held) {
+    if (!position.live) continue
+    const ids = [position.live.tpOrderId, position.live.slOrderId].filter(
+      (orderId): orderId is string => orderId !== null
+    )
+    if (ids.length === 0) continue
+    const walletIds = bracketOrderIds.get(position.walletId) ?? new Set<string>()
+    for (const orderId of ids) walletIds.add(orderId)
+    bracketOrderIds.set(position.walletId, walletIds)
+  }
+  // Live portfolios include a position's target and stop both on the position
+  // and in the exchange's open-order list. The coloured bracket or smart-order
+  // line already carries the amount and the correct action, so drawing that
+  // order a second time as a gray Sell bar says the same thing twice. Grid
+  // stops still have their order id here after chart-panel masks slPx, because
+  // the grid layer draws that stop itself.
+  const waiting = orders.filter(
+    (one) =>
+      one.marketKey === marketKey &&
+      !bracketOrderIds.get(one.walletId)?.has(one.id)
+  )
 
   // More than one wallet in this market means every line has to say which
   // wallet it belongs to, or two entry lines sit there with nothing to tell
