@@ -13,6 +13,7 @@ import {
   moveLiveGridExit,
   placeLiveDcaLadder,
   reconcileLiveLadders,
+  resetRefusalHolds,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -110,6 +111,49 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
 }
 
 
+/**
+ * A live watch on a level the price has already gone past, so the next pass
+ * takes the market rather than resting anything.
+ */
+async function watchThroughTheLevel(): Promise<void> {
+  const plan: WatchPlan = {
+    triggerPx: 100,
+    side: "buy",
+    sz: 1,
+    leverage: 1,
+    maxLeverage: 50,
+    sizeDecimals: 3,
+    priceTick: null,
+    tpPx: null,
+    slPx: null,
+    reduceOnly: false,
+    chaseGiveUp: 0,
+    phase: "waiting",
+    sent: false,
+    orderId: null,
+    orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
+    chasedAt: 0,
+    chases: 0,
+    startedAt: Date.now() - 10_000,
+  }
+  await database.insert(tradeSmartLadders).values({
+    userId,
+    id: "watch-1",
+    walletId: "live-1",
+    marketKey: MARKET,
+    kind: "watch",
+    status: "active",
+    plan,
+    createdAt: new Date(Date.now() - 10_000),
+    updatedAt: new Date(Date.now() - 10_000),
+  })
+  portfolio.mockResolvedValue({ positions: [], orders: [] })
+  // Cheaper than the level. "Get me in, I will pay up to 100" is already met.
+  prices.mockResolvedValue(new Map([["BTC", 94]]))
+}
+
 /** A live watch mid-chase: its order is resting and the gates are long open. */
 async function chasingWatch(): Promise<void> {
   const plan: WatchPlan = {
@@ -187,6 +231,9 @@ beforeEach(async () => {
   database = testDb.db
   clearMarketRulesCache()
   resetWatchChaseGate()
+  // Held per wallet and market in module state, so one test's refused buy
+  // silently skipped the next test's.
+  resetRefusalHolds()
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
   for (const mock of [
     prices,
@@ -467,6 +514,75 @@ describe("live Smart orders", () => {
     expect(place).toHaveBeenCalled()
     const rows = await database.select().from(tradeSmartLadders)
     expect(rows[0].status).toBe("active")
+  })
+
+  it("puts a watched level back when its market buy was refused", async () => {
+    // **The 21 Aug 2026 freeze.** A Phemex watch on NFLX was drawn above the
+    // price, so the engine went to take the market; the exchange refused it;
+    // and the plan was saved carrying `sent` with no order to point at.
+    // Nothing but a fill or a person ever clears that flag, so the level did
+    // nothing for the next seventy-seven minutes while the price sat a dollar
+    // under it.
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      new Error("LIVE_ORDER_REFUSED:PHEMEX_11150:TE_OI_LIMIT_REDUCE_ONLY")
+    )
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(1)
+    const plan = await watchPlanNow()
+    expect(plan.sent).toBe(false)
+    expect(plan.phase).toBe("waiting")
+    const rows = await database.select().from(tradeSmartLadders)
+    expect(rows[0].status).toBe("active")
+  })
+
+  it("puts a watched level back when the exchange was too busy to look", async () => {
+    // A rate limit is refused before a request is even built, so it is every
+    // bit as certain as a refusal that nothing was placed. Treating it as a
+    // maybe is what froze the same NFLX level a second time, eighty minutes
+    // after the first.
+    await watchThroughTheLevel()
+    place.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const plan = await watchPlanNow()
+    expect(plan.sent).toBe(false)
+    expect(plan.phase).toBe("waiting")
+
+    // And the moment the exchange answers again, it buys — no minute's hold,
+    // because the hold belongs to a refusal that would repeat.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    place.mockReset()
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "ord-1",
+      avgPx: 94,
+      filledSz: 1,
+    })
+    await reconcileLiveLadders(userId, wallet)
+    expect(place).toHaveBeenCalledTimes(1)
+    expect((await watchPlanNow()).sent).toBe(true)
+  })
+
+  it("keeps a watched level spent when the refusal promises nothing", async () => {
+    // The counterpart, and the reason the flag exists: a timeout mid-order
+    // may have filled. That one stays `sent`, because buying twice is worse
+    // than waiting.
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      Object.assign(new Error("LIVE_ORDER_UNKNOWN"), { name: "TimeoutError" })
+    )
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const plan = await watchPlanNow()
+    expect(plan.sent).toBe(true)
   })
 
   it("does not claim an unrelated manual fill at the same price", async () => {

@@ -164,6 +164,32 @@ time, so this matters most when trading against a dev machine.
   seconds instead of retrying every pass — a persistent refusal costs one
   request a minute, not sixty. The app once rate-limited itself off the
   exchange with exactly that loop. A fill clears the hold.
+
+  A rate limit is not held that way. "Too fast" is already held off inside the
+  exchange's own client — for the whole key rather than for one market, and
+  the next attempt costs no request at all — so a minute on top of it would
+  only make the level late once the allowance came back.
+- **A refusal puts the level back to waiting.** The moment a watch asks for an
+  order it writes down that it has spent, and while that is written and no
+  order is in sight it does nothing at all: that is what stops one level
+  buying the same coin twice. Nothing clears it but the fill arriving or a
+  person calling the order off — so the wait is forever, and a level that
+  writes it down for an order that never went out is a level that will never
+  fire again.
+
+  So the two answers that promise nothing happened are believed, and only
+  those two. The exchange read the order and refused it; or the exchange was
+  too busy to look, which is refused before a request is even built. Either
+  way no money moved, the level goes back to waiting, and it tries again.
+  Everything else — a timeout above all — may have filled, and those still
+  stop the level dead, because buying twice is worse than waiting.
+
+  Both doors were open until 21 Aug 2026. A watch drawn above the price on
+  Phemex NFLX was refused at 17:40 because the exchange had put that market
+  into reduce-only, and stood still for the next seventy-seven minutes while
+  the price sat a dollar under the level it was told to buy at. Re-drawn at
+  18:57, it was rate-limited on its first attempt and froze again in four
+  seconds.
 - **Wallet-wide entry rules fire where the trigger fires.** The cap on how
   many coins open per hour, and the crash rule's "only coins the exchange
   allows 10× or more on", are checked at the moment a trigger would open a

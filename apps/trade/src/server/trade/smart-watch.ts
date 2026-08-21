@@ -56,6 +56,12 @@ export async function advanceWatch(
   if (mark === undefined || !(mark > 0)) return
 
   let changed = false
+  // The row as this pass found it. The market-take below hands these back to
+  // the live lane as its `undo`, for the one case where the exchange says
+  // plainly that it took nothing.
+  const enteredPhase = plan.phase
+  const enteredSent = plan.sent
+  const enteredHeld = plan.heldWhenPlaced
   const live = liveOrderIds(book)
   const position = book.positions.get(row.marketKey) ?? null
 
@@ -216,6 +222,21 @@ export async function advanceWatch(
       reduceOnly: plan.reduceOnly,
       reason: "order",
       at: now,
+      // **A refusal puts the level back to waiting.** `sent` is raised before
+      // the order goes out because from that moment money may be on the
+      // exchange — but when the exchange answers that it took nothing, none
+      // did, and a watch left holding `sent` with no order to point at waits
+      // for a fill that is never coming. Nothing clears it but that fill or a
+      // person, so the wait is forever: on 21 Aug 2026 a Phemex watch on
+      // NFLX was refused at 17:40 and stood still for seventy-seven minutes
+      // while the price sat a dollar under the level it was told to buy at.
+      // The live lane calls this only for the answers that promise nothing
+      // stood — see `nothingStood` there.
+      undo: () => {
+        plan.phase = enteredPhase
+        plan.sent = enteredSent
+        plan.heldWhenPlaced = enteredHeld
+      },
     })
     await deps.saveLadder(row, "active", now)
     return

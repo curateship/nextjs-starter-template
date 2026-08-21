@@ -579,6 +579,43 @@ async function serializeLiveWallet<T>(
 const refusalHolds = new Map<string, number>()
 const REFUSAL_HOLD_MS = 60_000
 
+/**
+ * Test support: forgets every market's hold.
+ *
+ * The map is keyed by wallet and market and lives for the life of the module,
+ * so one test's refused buy quietly skipped the exchange in the next — which
+ * read as "the engine did nothing" and hid a real fix behind a green run.
+ */
+export function resetRefusalHolds(): void {
+  refusalHolds.clear()
+}
+
+/**
+ * The exchange took nothing, and said so in a way that leaves no doubt.
+ *
+ * Two messages qualify and nothing else does.
+ *
+ * - `LIVE_ORDER_REFUSED` is the exchange reading the order and refusing it.
+ * - `EXCHANGE_BUSY` is a rate limit, and it is just as certain: either the
+ *   request was never built at all — `rationing.ts` answers "busy" before a
+ *   socket is opened — or the exchange answered 429, which is a request it
+ *   declined to look at. Neither one can have matched.
+ *
+ * Everything else stays ambiguous on purpose. A timeout mid-order may have
+ * filled, and undoing that is how the same thing gets bought twice.
+ *
+ * **Ambiguity is not free either.** A watch that marks itself `sent` and then
+ * loses the order it was sent for waits for a fill that is never coming, and
+ * waits forever: there is no clock on it. So the two answers that promise
+ * nothing happened have to be believed, or a rate limit at the wrong second
+ * ends the order for good. That is what happened to a Phemex watch on
+ * 21 Aug 2026 — twice in eighty minutes, on the same coin.
+ */
+function nothingStood(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.startsWith("LIVE_ORDER_REFUSED") || message === "EXCHANGE_BUSY"
+}
+
 /** Advances live ladders from exchange truth using the same state engine as paper. */
 /**
  * Wallets a reconcile is running for right now.
@@ -1203,18 +1240,26 @@ async function reconcileLiveLaddersOnce(
                 })
               }
             } catch (error) {
-              // Only the one error that PROMISES nothing stood: the exchange
-              // processed our order and its own status refused it. The engine's
-              // bookkeeping is put back so the rung is not recorded as bought
-              // with nothing behind it — which used to end the ladder and let
-              // the flow place a fresh one into the same refusal, forever.
-              // Anything more ambiguous keeps the conservative advanced state:
-              // a transport error mid-order may still have filled, and undoing
-              // that is how a rung gets bought twice.
+              // Only the errors that PROMISE nothing stood — see
+              // `nothingStood`. The engine's bookkeeping is put back so the
+              // rung is not recorded as bought with nothing behind it, which
+              // used to end the ladder and let the flow place a fresh one into
+              // the same refusal, forever. Anything more ambiguous keeps the
+              // conservative advanced state: a transport error mid-order may
+              // still have filled, and undoing that is how a rung gets bought
+              // twice.
+              if (!nothingStood(error)) throw error
               const message =
                 error instanceof Error ? error.message : String(error)
-              if (!message.startsWith("LIVE_ORDER_REFUSED")) throw error
-              refusalHolds.set(holdKey, Date.now() + REFUSAL_HOLD_MS)
+              // The minute's hold is for a refusal, which will be refused
+              // again for the same reason a second later. A rate limit is
+              // already held off inside the exchange client, per key rather
+              // than per market, and the next attempt costs no request at
+              // all — so holding this market for a minute on top would only
+              // make the order late once the allowance came back.
+              if (message !== "EXCHANGE_BUSY") {
+                refusalHolds.set(holdKey, Date.now() + REFUSAL_HOLD_MS)
+              }
               input.undo?.()
               // The shadow book still holds the phantom fill; keep this pass's
               // bracket step away from it. The next pass rebuilds the book
@@ -1250,7 +1295,15 @@ async function reconcileLiveLaddersOnce(
           // has spent has spent — and if the rollback forgets that, the very
           // next pass buys the same thing again. A watch bought XRP twice in
           // 55 seconds on 20 Aug 2026 through exactly this door.
-          if (entry.kind === "watch" && entry.plan.sent) {
+          //
+          // Unless the exchange said outright that it took nothing. Then no
+          // money was sent this pass, and carrying `sent` out of a refusal is
+          // not caution — it is a watch that can never fire again, because
+          // nothing but a fill or a person ever clears the flag. Note what is
+          // NOT touched: `originalPlan` is the row as this pass found it, so a
+          // watch that was already `sent` before the pass stays `sent`. Only a
+          // flag raised by this pass and refused by the exchange goes back.
+          if (entry.kind === "watch" && entry.plan.sent && !nothingStood(error)) {
             ;(originalPlan as WatchPlan).sent = true
           }
           await saveLadderPlan(userId, row.id, originalPlan, "active")
