@@ -667,12 +667,21 @@ describe("moving an order never uncovers its level", () => {
       .map((one) => `${one.method} ${one.url.pathname}`)
   }
 
+  /**
+   * A refusal the exchange made at the HTTP level — a bare status code — as
+   * opposed to a body it answered 200 with. Told apart by a guard rather than
+   * by `"status" in refusal`, because a union with `unknown` in it collapses
+   * to `unknown` and narrowing it gives an `unknown` status back.
+   */
+  const isHttpRefusal = (value: unknown): value is { status: number } =>
+    typeof value === "object" &&
+    value !== null &&
+    "status" in value &&
+    typeof (value as { status: unknown }).status === "number"
+
   /** An exchange that refuses whichever calls the test names. */
   function stubMovingExchange(
-    refuse: (
-      method: string,
-      path: string
-    ) => unknown | { status: number } | null,
+    refuse: (method: string, path: string) => unknown,
     sent: Sent[],
     oldOrder: unknown = null
   ) {
@@ -687,7 +696,7 @@ describe("moving an order never uncovers its level", () => {
           body: init?.body ? JSON.parse(String(init.body)) : null,
         })
         const refusal = refuse(method, url.pathname)
-        if (refusal && typeof refusal === "object" && "status" in refusal) {
+        if (isHttpRefusal(refusal)) {
           return new Response("{}", { status: refusal.status })
         }
         if (refusal) return Response.json(refusal)

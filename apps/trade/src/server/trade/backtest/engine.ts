@@ -1112,6 +1112,11 @@ export async function runBacktest(
             phase: "buying",
             orderId: null,
             orderPx: null,
+            // Both zero, the same start the live engine gives them. A backtest
+            // has no book for an order to go missing from and no wallet to
+            // read a holding off, so neither ever moves from here.
+            missingSince: 0,
+            heldWhenPlaced: 0,
             chasedAt: 0,
             chases: 0,
             startedAt: closeTime,
