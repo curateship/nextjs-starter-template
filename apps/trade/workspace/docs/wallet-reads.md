@@ -22,9 +22,9 @@ about the active ones**. An inactive wallet answers `state: "inactive"`
 without a single request being sent, and its practice equivalent is not
 settled either.
 
-**This was not always true, and it was expensive.** Every live wallet costs
-three requests each time it is read, and the exchange counts every request
-from this machine together. Five wallets meant up to sixty requests a minute
+**This was not always true, and it was expensive.** Every live wallet costs the
+exchange's own allowance each time it is read, and the exchange counts every
+request from this machine together. Five wallets meant sixty requests a minute
 from this one panel, most of them about wallets nobody was trading with.
 Running out of allowance is exactly what makes a wallet answer with nothing —
 so the wasted reads were causing the very "Can't reach it" they were paying
@@ -37,14 +37,27 @@ wallet nobody is using, the other is a wallet that would not answer.
 
 ## What one wallet costs
 
-A live wallet's figures are three calls to Hyperliquid, made together:
+A live wallet on a classic account is **one cheap call**, and that is 2 of the
+1,200 request-weight Hyperliquid allows a minute:
 
-- `userAbstraction` — which margin mode the account is in. In the unified
-  modes the perp summary's totals stop being meaningful and the figures come
-  from the spot side instead, which is why this is asked at all.
 - `clearinghouseState` — equity, margin used, withdrawable, and every open
-  position's unrealized profit.
-- `spotClearinghouseState` — the spot balances, needed by the unified modes.
+  position's unrealized profit. Weight 2.
+
+Two more are asked for, and neither on every read:
+
+- `userAbstraction` — which margin mode the account is in. In the unified modes
+  the perp summary's totals stop being meaningful and the figures come from the
+  spot side instead, which is why this is asked at all. It costs 20, the most
+  of anything here, and it answers a setting a person changes on Hyperliquid's
+  own site perhaps once ever — so it is asked **once a minute**, not once a
+  read. The price of that: somebody who switches their account into or out of a
+  unified mode while this app is open sees the figures read from the wrong side
+  of it for up to a minute, and then it corrects itself.
+- `spotClearinghouseState` — the spot balances. **Only the unified modes need
+  them**, so only those accounts pay for them. A classic account used to read
+  them on every poll and throw the answer away.
+
+`hyperliquid-rate-limits.md` has the before-and-after figures, counted.
 
 A practice wallet costs nothing per wallet. The engine settles them together
 and asks the exchange once for every market they are collectively in — see

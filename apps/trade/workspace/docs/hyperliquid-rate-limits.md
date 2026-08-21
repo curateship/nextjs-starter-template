@@ -15,7 +15,8 @@ Hyperliquid measures requests in "weight" — cheap questions cost 2, most cost
 - **Per machine (IP): 1,200 weight a minute.** This is the one we kept
   hitting. It resets every minute.
   - Cheap, weight 2: prices (`allMids`), your positions
-    (`clearinghouseState`), order status, the order book.
+    (`clearinghouseState`), your spot balances (`spotClearinghouseState`),
+    order status, the order book, the exchange's own status.
   - Normal, weight 20: almost everything else — market metadata, open
     orders, fills.
   - Candles (`candleSnapshot`): 20, **plus 1 more per 60 candles asked
@@ -153,13 +154,96 @@ cannot have changed (pace / don't ask).
   (`flow-run.ts`, `live-smart-orders.ts`, `smart-ladders.ts`,
   `hyperliquid/orders.ts`)
 
+## Reading an account, counted again on 21 Aug 2026
+
+The fixes above left one spender standing, and it was the biggest one. Reading
+a wallet — its positions, its resting orders and its own figures — was costing
+more than a third of the whole allowance for a single wallet nobody was even
+trading with.
+
+Counted, not guessed. `src/server/protocols/hyperliquid/account-cost.test.ts`
+drives the real read paths against a fake exchange and adds up Hyperliquid's
+own published weights, so the same figure comes back every time and the build
+fails the day it goes up. The live counter needs a real account and a real
+minute; this needs neither, and it measures the same thing.
+
+**The scenario, stated so the two figures compare.** One Trade tab left open,
+one active real wallet, the wallet using only the main market, the market
+socket up, nothing placed or cancelled. The chart and the bottom panel ask for
+positions and orders every four seconds; the account card asks for its figures
+every fifteen. The market catalogue is excluded — it is one pair of calls every
+ten minutes for the whole app.
+
+| One minute of watching | Before | After |
+| --- | --- | --- |
+| One wallet | 426 weight | 58 weight |
+| Three wallets on three accounts | 1,278 weight | 174 weight |
+
+1,278 is more than the entire 1,200-a-minute budget, spent before a single
+price or candle was asked for. That is the shape of the August failure, still
+sitting there.
+
+**And counted again live, on the real account.** The dev server run with
+`TRADE_COUNT_EXCHANGE_CALLS=true`, the Trade workspace left open on the real
+network for two and a half minutes, the same wallets both times, and the third
+thirty-second window taken from each so the boot traffic is out of it:
+
+| Steady state, per minute | Before | After |
+| --- | --- | --- |
+| Real network | 1,088 weight | 221 weight |
+| Practice network | 285 weight | 56 weight |
+
+The before figure is over the cap. 1,088 of the 1,200 went on the real network
+alone, with the practice network on top of it, in ordinary running with nothing
+being traded — which is what makes an otherwise harmless burst of chart
+browsing turn into refusals. There were no refusals in either run.
+
+`frontendOpenOrders` went from 18 calls in thirty-two seconds to **zero**: the
+socket is doing the work, and the fallback to asking the exchange never fired.
+
+Where the 426 went, and what each cut was:
+
+- **Resting orders: 300 weight a minute, seventy per cent of the whole thing.**
+  `frontendOpenOrders` costs 20 and was asked fifteen times a minute, for an
+  answer that usually had not changed. Hyperliquid pushes the same list over a
+  socket for nothing, in full rather than as a stream of changes, so there is
+  no running total to get out of step. It is used only when it can be trusted,
+  and every doubt falls back to asking the exchange the way it always did:
+  nothing until a push has landed, nothing pushed before this app last changed
+  an order, and nothing from a feed that has gone quiet for five minutes. The
+  worst that feed can do is save nothing. (`open-orders-feed.ts`)
+- **The margin mode: 80 weight a minute.** `userAbstraction` costs 20 — the
+  most expensive question this read asks — and it answers which margin mode the
+  account is in, a setting a person changes on Hyperliquid's own site perhaps
+  once ever. Now asked once a minute instead of once a read. The price is
+  stated plainly: somebody who switches their account into or out of a unified
+  mode while this app is open sees the figures read from the wrong side of it
+  for up to a minute. (`account.ts`)
+- **Spot balances read and thrown away: 8 weight a minute.** Only the unified
+  modes use them. A classic account was paying for them on every read and
+  discarding the answer. Now the mode decides whether they are asked for at
+  all. (`account.ts`)
+
+**Two wallets pointed at one account already share their reads**, and always
+did — both caches are keyed on the address, not on the wallet, and the entry
+goes in before the read is awaited, so the second wallet joins the first one's
+answer rather than paying for its own. Pinned by a test rather than left as a
+claim.
+
+The five-second rule for wallet reads is untouched: a failed read is still
+never remembered, and a stale answer is still marked as a moment old rather
+than served as fresh. See `wallet-reads.md`.
+
 ## The result, measured
 
 - Before: bursts of ~5,500 weight, a log with **43,653** refusals in one
   session, and a chart that could not load its candles.
-- After: roughly **500 weight a minute** in normal running — under half the
-  budget — and **zero** refusals over a multi-minute watch with a live flow
-  working 118 ladders.
+- After the August work: roughly **500 weight a minute** in normal running —
+  under half the budget — and **zero** refusals over a multi-minute watch with
+  a live flow working 118 ladders.
+- After the account-read cuts of 21 Aug 2026: **277 weight a minute** across
+  both networks, measured live with the counter. See the section above for how
+  that was counted and what it replaced.
 
 ## Where the wallet panel fits
 

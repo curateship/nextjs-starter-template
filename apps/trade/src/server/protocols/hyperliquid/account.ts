@@ -5,13 +5,13 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
 /**
  * How long one account read stands in for the next, in ms.
  *
- * **Because this is three requests per wallet, and several things ask.** The
+ * **Because several things ask the same question.** The
  * account panel polls every fifteen seconds for every wallet, and the flow
  * runner and the wallet picker ask the same question on their own beats — so
- * five wallets could cost forty-five requests a minute from the panel alone,
- * on an exchange that counts every request from one machine together. Running
- * out is what makes a wallet answer with nothing, which is exactly the
- * "Can't reach it" this cache exists to stop causing.
+ * without this each of them would pay separately for the same answer, on an
+ * exchange that counts every request from one machine together. Running out is
+ * what makes a wallet answer with nothing, which is exactly the "Can't reach
+ * it" this cache exists to stop causing.
  *
  * Five seconds: shorter than the panel's own poll, so nothing on screen is
  * staler than it has always been, and long enough that everything asking at
@@ -43,6 +43,54 @@ export function fetchHyperliquidAccount(
   return answer
 }
 
+/** Every remembered answer forgotten. For tests, which must not share state. */
+export function forgetHyperliquidAccounts(): void {
+  accountCache.clear()
+  modeCache.clear()
+}
+
+/**
+ * How long the account's margin mode stands before it is asked for again.
+ *
+ * **Because it is the most expensive question on the cheapest subject.**
+ * Hyperliquid charges 20 request-weight for `userAbstraction` and 2 for
+ * everything else this read asks, so on the panel's own beat the margin mode
+ * was ninety per cent of what reading a wallet's figures cost — for a setting
+ * a person changes on Hyperliquid's own site perhaps once ever.
+ *
+ * A minute, not longer. Somebody who does switch their account into or out of
+ * a unified mode while this app is open sees the figures read from the wrong
+ * side of it until the minute is up, and a minute of that is a price worth
+ * paying where five would not be.
+ */
+const MODE_CACHE_MS = 60_000
+
+/** Whatever the exchange calls its margin modes, as the SDK types them. */
+type MarginMode = Awaited<
+  ReturnType<ReturnType<typeof infoClient>["userAbstraction"]>
+>
+
+const modeCache = new Map<string, { at: number; mode: Promise<MarginMode> }>()
+
+/** Which margin mode this account is in, from the cache when it is warm. */
+function marginModeOf(
+  client: ReturnType<typeof infoClient>,
+  key: string,
+  user: `0x${string}`
+): Promise<MarginMode> {
+  const cached = modeCache.get(key)
+  if (cached && Date.now() - cached.at < MODE_CACHE_MS) return cached.mode
+
+  const at = Date.now()
+  const mode = client.userAbstraction({ user })
+  // A failed read is never remembered, exactly as everywhere else here.
+  mode.catch(() => {
+    if (modeCache.get(key)?.at === at) modeCache.delete(key)
+  })
+  modeCache.set(key, { at, mode })
+  return mode
+}
+
 /**
  * What one Hyperliquid account holds and is worth, translated to the app's
  * figures. Read-only — the address is public data and this asks nothing that
@@ -64,11 +112,16 @@ async function readHyperliquidAccount(
 ): Promise<WalletAccountFigures> {
   const client = infoClient(network)
   const user = address as `0x${string}`
+  const key = `${network}:${address.toLowerCase()}`
 
-  const [mode, clearinghouse, spot] = await Promise.all([
-    client.userAbstraction({ user }),
+  // The mode first, because it decides whether the spot balances are worth
+  // asking for at all. On a classic account they are read and thrown away,
+  // and the exchange charges for them either way.
+  const mode = await marginModeOf(client, key, user)
+  const unified = mode === "unifiedAccount" || mode === "portfolioMargin"
+  const [clearinghouse, spot] = await Promise.all([
     client.clearinghouseState({ user }),
-    client.spotClearinghouseState({ user }),
+    unified ? client.spotClearinghouseState({ user }) : null,
   ])
 
   // A position whose profit cannot be read fails the whole account rather
@@ -88,7 +141,7 @@ async function readHyperliquidAccount(
   let equity = num(clearinghouse.marginSummary.accountValue)
   let free = num(clearinghouse.withdrawable)
 
-  if (mode === "unifiedAccount" || mode === "portfolioMargin") {
+  if (spot) {
     // Collateral is token 0 (USDC) on the spot side in these modes.
     // https://hyperliquid.gitbook.io/hyperliquid-docs/trading/account-abstraction-modes
     const collateral = spot.balances.find(

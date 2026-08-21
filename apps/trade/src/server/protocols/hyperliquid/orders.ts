@@ -26,6 +26,11 @@ import {
   marketsWalletUses,
   walletFeedWarmingUp,
 } from "@/server/protocols/hyperliquid/user-markets"
+import {
+  distrustOpenOrderFeeds,
+  dropIdleOpenOrderFeeds,
+  restingOrdersFromFeed,
+} from "@/server/protocols/hyperliquid/open-orders-feed"
 import { agentSigner } from "@/server/protocols/hyperliquid/signing"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
@@ -889,6 +894,48 @@ export async function fetchHyperliquidPortfolio(
 /** Forget every wallet's figures, because something just changed them. */
 export function forgetHyperliquidPortfolios(): void {
   portfolioCache.clear()
+  // The socket's pushed order lists go with it. They were true a moment ago
+  // and the thing that just happened is exactly what made them stop being
+  // true, so nothing pushed before now may be shown again.
+  distrustOpenOrderFeeds()
+}
+
+/**
+ * This wallet's resting orders on one market.
+ *
+ * The socket's own list when it is trustworthy, and the exchange asked
+ * directly when it is not — which is also what happens when a pushed list
+ * turns out not to be the shape this app reads. Every doubt ends the same
+ * way, on the call that was always being made.
+ */
+let saidPushUnreadable = false
+
+async function restingOrders(
+  client: ReturnType<typeof infoClient>,
+  network: NetworkId,
+  user: `0x${string}`,
+  dex: string
+): Promise<z.infer<typeof openOrdersSchema>> {
+  const told = restingOrdersFromFeed(network, user, dex)
+  if (told) {
+    const parsed = openOrdersSchema.safeParse(told)
+    if (parsed.success) return parsed.data
+    // Said once and then never again. A push whose shape this app cannot read
+    // is not an outage — the exchange gets asked directly and the answer is
+    // right either way — but it silently costs the whole saving, and a quiet
+    // hole is the most expensive kind. Once, because this runs fifteen times
+    // a minute per wallet.
+    if (!saidPushUnreadable) {
+      saidPushUnreadable = true
+      console.error(
+        "Hyperliquid pushed an open-orders list this app cannot read; falling back to asking the exchange",
+        // The complaints only, never the values they were about: an order row
+        // is not a secret, but a log is not the place to find out.
+        parsed.error.issues.slice(0, 3).map((issue) => issue.message)
+      )
+    }
+  }
+  return openOrdersSchema.parse(await client.frontendOpenOrders({ user, dex }))
 }
 
 async function readHyperliquidPortfolio(
@@ -944,14 +991,14 @@ async function readHyperliquidPortfolio(
 
   const reads = await Promise.all(
     names.map(async (dex) => {
-      const [clearinghouseRaw, ordersRaw] = await Promise.all([
+      const [clearinghouseRaw, open] = await Promise.all([
         client.clearinghouseState({ user, dex }),
-        client.frontendOpenOrders({ user, dex }),
+        restingOrders(client, network, user, dex),
       ])
       return {
         dex,
         clearinghouse: clearinghouseSchema.parse(clearinghouseRaw),
-        open: openOrdersSchema.parse(ordersRaw),
+        open,
       }
     })
   )
@@ -999,6 +1046,7 @@ async function readHyperliquidPortfolio(
   // than on a timer of their own, which would keep this module alive in a
   // process that has finished with it.
   dropIdleWalletFeeds()
+  dropIdleOpenOrderFeeds()
 
   const orders: WalletOpenOrder[] = []
   for (const { dex, order: rawOrder } of openAcrossVenues) {
