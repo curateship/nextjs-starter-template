@@ -1,4 +1,9 @@
-import type { CandleBar } from "@/lib/protocols/contracts"
+import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
+import {
+  clockTimeOfMinutes,
+  minutesOfClockTime,
+  type TradingZoneId,
+} from "@/lib/trade/chart-timezone"
 
 /**
  * What an indicator is, in this app.
@@ -43,8 +48,39 @@ export type IndicatorMark = {
   side: IndicatorSide
 }
 
+/**
+ * A see-through rectangle across a stretch of time.
+ *
+ * Deliberately without a side. A dash is a floor or a ceiling and reads as one;
+ * a box is an AREA price spent time in, and colouring it up or down would be
+ * this shape claiming something it does not know. What the area meant is said
+ * by the arrow that comes out of it.
+ *
+ * `fromTime` is the open of the first candle it covers and `toTime` is the end
+ * of the last — the span, not two candle stamps — so a box over one candle
+ * still has a width.
+ */
+export type IndicatorBox = {
+  fromTime: number
+  toTime: number
+  /**
+   * The top and the bottom of it, or null for every price — a band the whole
+   * height of the plot, however far the chart is scrolled up or down.
+   *
+   * The two read as different things and are drawn as different things. A box
+   * with prices is round something and gets an edge; a band is behind
+   * everything and gets no edge, because an edge across a chart is a level and
+   * a band is not claiming one.
+   */
+  price: { high: number; low: number } | null
+}
+
 /** Everything an indicator wants drawn, in the market's own coordinates. */
-export type IndicatorPaint = { dashes: IndicatorDash[]; marks: IndicatorMark[] }
+export type IndicatorPaint = {
+  dashes: IndicatorDash[]
+  marks: IndicatorMark[]
+  boxes: IndicatorBox[]
+}
 
 /**
  * A moment an indicator calls, at the close of the candle that confirmed it.
@@ -62,8 +98,14 @@ export type IndicatorPaint = { dashes: IndicatorDash[]; marks: IndicatorMark[] }
  */
 export type IndicatorSignal = { time: number; side: "buy" | "sell" }
 
-/** What one setting holds. Nothing else is storable, on purpose. */
-export type IndicatorParams = Record<string, number | boolean>
+/**
+ * What one setting holds. Nothing else is storable, on purpose.
+ *
+ * A string is either a clock time — "09:30" — or the value of one option from
+ * a pick-one list. It is never free text: a box somebody can type anything
+ * into is a box that needs rules of its own, and no indicator wants one.
+ */
+export type IndicatorParams = Record<string, number | boolean | string>
 
 /**
  * One setting: what it is called, what it means, and what it may hold.
@@ -80,7 +122,18 @@ export type IndicatorField = {
 } & (
   | { kind: "number"; min: number; max: number; fallback: number }
   | { kind: "switch"; fallback: boolean }
+  /** A time of day on the chart's own clock, stored and shown as "09:30". */
+  | { kind: "time"; fallback: string }
+  /** One of a short written-down list. Anything else falls back. */
+  | {
+      kind: "choice"
+      options: readonly IndicatorChoice[]
+      fallback: string
+    }
 )
+
+/** One option on a pick-one setting: what is stored, and what is shown. */
+export type IndicatorChoice = { value: string; label: string }
 
 /**
  * One card of settings in the menu, and the fields on it.
@@ -91,6 +144,25 @@ export type IndicatorField = {
  * `registry.test.ts` is there to catch.
  */
 export type IndicatorGroup = { title: string; keys: string[] }
+
+/**
+ * What the chart an indicator is drawing on is set to.
+ *
+ * Two things every indicator may need and neither of which is a setting of its
+ * own: which clock the chart is on, and how long one of its candles lasts.
+ *
+ * **Handed in rather than saved on the indicator, so they cannot disagree.**
+ * A session indicator carrying its own timezone would draw a box at 09:30 New
+ * York on an axis labelled in UTC, and the picture would be internally
+ * inconsistent with no way to tell which half was wrong. There is one clock,
+ * it is picked in the chart's View options, and everything reads it.
+ */
+export type IndicatorContext = {
+  /** The chart's one timezone. See `chart-timezone.ts`. */
+  zone: TradingZoneId
+  /** How long one candle lasts, so a setting in minutes can be checked. */
+  interval: CandleInterval
+}
 
 /** One indicator. The registry holds these; nothing else builds one. */
 export type IndicatorModule = {
@@ -106,7 +178,11 @@ export type IndicatorModule = {
    * settings through `readIndicatorParams` first, so it can never be handed a
    * number it did not ask for.
    */
-  compute(candles: IndicatorCandle[], params: IndicatorParams): IndicatorPaint
+  compute(
+    candles: IndicatorCandle[],
+    params: IndicatorParams,
+    context: IndicatorContext
+  ): IndicatorPaint
   /**
    * The buy and sell moments this indicator calls, if it calls any.
    *
@@ -149,7 +225,7 @@ export type IndicatorModule = {
    * how to draw a field and a sentence, and nothing about what any of them
    * mean.
    */
-  note?(params: IndicatorParams): string | null
+  note?(params: IndicatorParams, context: IndicatorContext): string | null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -165,8 +241,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * answers a missing field: every field in the list comes back, with the stored
  * value when it can be read and the fallback when it cannot.
  *
- * Numbers are whole and inside their range, because every setting here is a
- * count of candles. A fraction of a candle is not a thing.
+ * Numbers are whole and inside their range, because every number setting here
+ * is a count of something — candles, minutes. A fraction of a candle is not a
+ * thing. A clock time is checked as one and normalised to "09:30"; a pick-one
+ * setting has to name an option that still exists, so an option dropped in a
+ * later build reads back as the fallback rather than drawing as nothing.
  */
 export function readIndicatorParams(
   fields: IndicatorField[],
@@ -178,6 +257,19 @@ export function readIndicatorParams(
     const stored = held[field.key]
     if (field.kind === "switch") {
       params[field.key] = typeof stored === "boolean" ? stored : field.fallback
+      continue
+    }
+    if (field.kind === "time") {
+      const minutes =
+        typeof stored === "string" ? minutesOfClockTime(stored) : null
+      params[field.key] =
+        minutes === null ? field.fallback : clockTimeOfMinutes(minutes)
+      continue
+    }
+    if (field.kind === "choice") {
+      params[field.key] = field.options.some((one) => one.value === stored)
+        ? (stored as string)
+        : field.fallback
       continue
     }
     params[field.key] =

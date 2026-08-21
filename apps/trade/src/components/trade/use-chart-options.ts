@@ -5,11 +5,15 @@ import {
   saveRememberedChartOptions,
 } from "@/lib/api/chart-options"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { TradingZoneId } from "@/lib/trade/chart-timezone"
+import type { ChartOptions, ChartOptionToggle } from "@/lib/trade/chart-options"
 
 const SETTLE_MS = 500
 
-/** The chart's visible parts, changed immediately and remembered per account. */
+/**
+ * How the chart is read — its visible parts and its clock — changed
+ * immediately and remembered per account.
+ */
 export function useChartOptions(initial: ChartOptions) {
   const [options, setOptions] = React.useState(initial)
   const optionsRef = React.useRef(initial)
@@ -30,10 +34,10 @@ export function useChartOptions(initial: ChartOptions) {
     }
   }, [write])
 
-  const setOption = React.useCallback(
-    (key: keyof ChartOptions, visible: boolean) => {
-      if (optionsRef.current[key] === visible) return
-      const next = { ...optionsRef.current, [key]: visible }
+  // The chart follows straight away; the write waits for the clicking to
+  // settle, so a run through the checkboxes is one save rather than five.
+  const change = React.useCallback(
+    (next: ChartOptions) => {
       optionsRef.current = next
       setOptions(next)
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -45,7 +49,23 @@ export function useChartOptions(initial: ChartOptions) {
     [write]
   )
 
-  return { options, setOption }
+  const setOption = React.useCallback(
+    (key: ChartOptionToggle, visible: boolean) => {
+      if (optionsRef.current[key] === visible) return
+      change({ ...optionsRef.current, [key]: visible })
+    },
+    [change]
+  )
+
+  const setZone = React.useCallback(
+    (zone: TradingZoneId) => {
+      if (optionsRef.current.zone === zone) return
+      change({ ...optionsRef.current, zone })
+    },
+    [change]
+  )
+
+  return { options, setOption, setZone }
 }
 
 export type ChartOptionsControl = ReturnType<typeof useChartOptions>

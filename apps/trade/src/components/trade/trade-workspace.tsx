@@ -65,6 +65,7 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
+import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { useWideScreen } from "@/lib/layout/wide-screen"
@@ -298,9 +299,35 @@ export function TradeWorkspace({
     tradePanelLayoutKey.accountColumn
   )
 
+  // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
+  // the same resizable panel the divider drags. It also takes over saving the
+  // vertical layout, because a grown height is never the remembered one.
+  const activityFit = usePanelFit(
+    activityPanelRef,
+    verticalLayout.onLayoutChanged
+  )
+
   const toggleMarkets = usePanelToggle(marketsPanelRef)
   const toggleAccount = usePanelToggle(accountPanelRef)
-  const toggleActivity = usePanelToggle(activityPanelRef)
+  // Double-clicking the bottom panel's blank space shuts it, and this is the
+  // one panel where that has to be spelled out rather than handed to
+  // `usePanelToggle`.
+  //
+  // **Whether it was open is read BEFORE the growing is undone**, and the
+  // panel is told plainly to shut or to open rather than to toggle. A toggle
+  // asked afterwards judges a panel that undoing the growing has already
+  // moved, and one gesture then did two things and came back to where it
+  // started: a double-click shut the panel and opened it again in the same
+  // motion, on alternate tries, with nothing on screen explaining why.
+  const shrinkActivity = activityFit.shrink
+  const toggleActivity = React.useCallback(() => {
+    const panel = activityPanelRef.current
+    if (!panel) return
+    const wasOpen = !panel.isCollapsed()
+    shrinkActivity()
+    if (wasOpen) panel.collapse()
+    else panel.expand()
+  }, [shrinkActivity])
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -377,7 +404,10 @@ export function TradeWorkspace({
           selection.kind === "market" ? (
             <>
               <IntervalPicker value={interval} onChange={setInterval} />
-              <IndicatorsMenu indicators={indicators} />
+              <IndicatorsMenu
+                indicators={indicators}
+                context={{ zone: chartOptions.options.zone, interval }}
+              />
               <ChartOptionsMenu control={chartOptions} />
             </>
           ) : undefined
@@ -523,7 +553,7 @@ export function TradeWorkspace({
         orientation="vertical"
         className="min-h-0 flex-1"
         defaultLayout={verticalLayout.defaultLayout}
-        onLayoutChanged={verticalLayout.onLayoutChanged}
+        onLayoutChanged={activityFit.onLayoutChanged}
       >
         <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
           <div className="flex h-full min-h-0">{upper}</div>
@@ -550,6 +580,7 @@ export function TradeWorkspace({
               onSelectMarket={onSelectMarket}
               shownTrade={shownTrade}
               onShowTrade={showTrade}
+              fit={activityFit}
             />
           </WorkspacePanel>
         </ResizablePanel>

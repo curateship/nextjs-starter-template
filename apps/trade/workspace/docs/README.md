@@ -14,6 +14,10 @@ Two files outrank the rest, and outrank the code:
 ## The rest
 
 - `architecture-overview.md` — how Trade is put together on top of the shell.
+- `chart-timezone.md` — the one clock the chart is on, where it is set, and why
+  it is stored as a place rather than as an offset.
+- `opening-range-indicator.md` — what the opening range is, its settings, and
+  the rules it follows about breaks, gaps and the session in progress.
 - `smart-orders-never-rest.md` — why a smart order sends nothing until the price
   is reached, and what a backtest does differently.
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is

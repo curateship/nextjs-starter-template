@@ -448,7 +448,8 @@ function basePaint(
   }
   // Both sides' arrows, back in the order they happened.
   marks.sort((a, b) => a.time - b.time)
-  return { dashes, marks }
+  // No boxes. A base is a level, and a level is a dash.
+  return { dashes, marks, boxes: [] }
 }
 
 export const baseIndicator: IndicatorModule = {
@@ -504,6 +505,7 @@ export const baseIndicator: IndicatorModule = {
       marks: paint.marks.filter((mark) =>
         mark.side === "up" ? settings.showLongArrows : settings.showShortArrows
       ),
+      boxes: [],
     }
   },
   /**

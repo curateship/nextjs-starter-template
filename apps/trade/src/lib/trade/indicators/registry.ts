@@ -1,10 +1,12 @@
 import { z } from "zod"
 
 import { baseIndicator } from "@/lib/trade/indicators/base"
+import { orbIndicator } from "@/lib/trade/indicators/orb"
 import {
   defaultIndicatorParams,
   readIndicatorParams,
   type IndicatorCandle,
+  type IndicatorContext,
   type IndicatorModule,
   type IndicatorPaint,
   type IndicatorParams,
@@ -22,7 +24,10 @@ import {
  */
 
 /** The whole library, in the order the menu lists them. */
-export const INDICATOR_LIST: readonly IndicatorModule[] = [baseIndicator]
+export const INDICATOR_LIST: readonly IndicatorModule[] = [
+  baseIndicator,
+  orbIndicator,
+]
 
 /**
  * The ones that call trades, in the same order.
@@ -42,10 +47,10 @@ export const SIGNAL_INDICATORS: readonly IndicatorModule[] =
 /**
  * The most indicators, or settings on one, a save may name.
  *
- * Generosity rather than a limit anybody meets — the library has one indicator
- * with six settings. It is here because this is the only door into the row, and
- * an unbounded one would let a made-up request hand the server a hundred
- * thousand entries to read before it throws them all away.
+ * Generosity rather than a limit anybody meets — no indicator in the library
+ * has more than nine settings. It is here because this is the only door into
+ * the row, and an unbounded one would let a made-up request hand the server a
+ * hundred thousand entries to read before it throws them all away.
  */
 const MAX_ENTRIES = 100
 
@@ -134,7 +139,10 @@ export const indicatorSettingsSchema: z.ZodType<IndicatorSettings> = z
       params: z
         .record(
           z.string().max(40),
-          z.union([z.number().finite(), z.boolean()])
+          // A string is a clock time or the value of a pick-one option, and
+          // both are short. What it MEANS is decided by the field list a line
+          // later; this only stops a made-up request posting an essay.
+          z.union([z.number().finite(), z.boolean(), z.string().max(40)])
         )
         .refine((params) => Object.keys(params).length <= MAX_ENTRIES)
         .optional(),
@@ -152,15 +160,17 @@ export const indicatorSettingsSchema: z.ZodType<IndicatorSettings> = z
 /** What every switched-on indicator wants drawn over these candles. */
 export function indicatorPaint(
   settings: IndicatorSettings,
-  candles: IndicatorCandle[]
+  candles: IndicatorCandle[],
+  context: IndicatorContext
 ): IndicatorPaint {
-  const paint: IndicatorPaint = { dashes: [], marks: [] }
+  const paint: IndicatorPaint = { dashes: [], marks: [], boxes: [] }
   if (candles.length === 0) return paint
   for (const module of INDICATOR_LIST) {
     if (!settings[module.kind]?.on) continue
-    const drawn = module.compute(candles, settings[module.kind].params)
+    const drawn = module.compute(candles, settings[module.kind].params, context)
     paint.dashes.push(...drawn.dashes)
     paint.marks.push(...drawn.marks)
+    paint.boxes.push(...drawn.boxes)
   }
   return paint
 }

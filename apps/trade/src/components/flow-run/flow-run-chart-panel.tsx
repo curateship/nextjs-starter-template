@@ -117,7 +117,10 @@ export function FlowRunChartPanel({
   // run's own frozen settings, so changing the flow since cannot redraw this.
   const indicators = React.useMemo(() => {
     if (spec.strategy.kind === "signals") {
-      return indicatorPaint(spec.strategy.indicators, [...bars])
+      return indicatorPaint(spec.strategy.indicators, [...bars], {
+        zone: DEFAULT_CHART_OPTIONS.zone,
+        interval: spec.strategy.interval,
+      })
     }
     return {
       dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
@@ -125,6 +128,7 @@ export function FlowRunChartPanel({
       // level, and on this chart that reads as an order — which is what the
       // fill arrows beside it already are.
       marks: [],
+      boxes: [],
     }
   }, [bars, spec])
 

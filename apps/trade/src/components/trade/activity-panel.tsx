@@ -35,6 +35,7 @@ import {
 import { parseMarketKey, type MarketCatalog, type MarketRow } from "@/lib/protocols/contracts"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
+import type { PanelFit } from "@/lib/trade/panel-fit"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
   positionProfit,
@@ -44,6 +45,33 @@ import {
 import { cn } from "@/lib/utils"
 
 type ActivityTab = "positions" | "orders" | "journal"
+
+/** Whatever is highlighted right now, dropped. */
+function clearHighlight(): void {
+  if (typeof window === "undefined") return
+  const selection = window.getSelection()
+  if (selection && !selection.isCollapsed) selection.removeAllRanges()
+}
+
+/**
+ * Any stray highlight a tab press leaves behind, dropped once the press ends.
+ *
+ * **Pressing a tab moves everything under the pointer.** The divider jumps,
+ * the rows slide up, and the browser — still working out what the press meant
+ * — finishes by highlighting everything between where the press started and
+ * whatever ended up under the pointer afterwards. That is a whole table turned
+ * blue by a press that was only ever asking for a taller panel.
+ *
+ * It waits for the pointer to come up, because that is when the browser
+ * settles the highlight. Only ever hung on a press made with a pointer: a tab
+ * reached with the arrow keys highlights nothing, and a listener left waiting
+ * from one would go off on some later click and take a highlight somebody
+ * meant to keep.
+ */
+function dropStrayHighlightAfter(): void {
+  if (typeof window === "undefined") return
+  window.addEventListener("pointerup", clearHighlight, { once: true })
+}
 
 /**
  * The bottom panel: what you are holding, what you have asked for, and how the
@@ -60,6 +88,7 @@ export function ActivityPanel({
   onSelectMarket,
   shownTrade,
   onShowTrade,
+  fit,
 }: {
   trading: Trading
   catalogs: MarketCatalog[]
@@ -67,6 +96,8 @@ export function ActivityPanel({
   /** The trade drawn on the chart right now, owned by the workspace. */
   shownTrade: LiveTrade | null
   onShowTrade: (trade: LiveTrade | null) => void
+  /** How the panel changes its own height when a tab is pressed. */
+  fit: PanelFit
 }) {
   const [tab, setTab] = React.useState<ActivityTab>("positions")
   // Every position, or only the ones placed by hand. Everything by default:
@@ -126,10 +157,79 @@ export function ActivityPanel({
   const countOf = (length: number) =>
     trading.loading || trading.failed ? undefined : length
 
+  // ----- Growing the panel to fit the tab you just pressed -----------------
+  //
+  // Asking for the panel's height bumps this counter and the effect below
+  // does the measuring, because the rows can only be measured once the tab
+  // holding them is on screen and an inactive tab holds nothing at all.
+  const root = React.useRef<HTMLDivElement | null>(null)
+  const [landed, setLanded] = React.useState(0)
+  const measured = React.useRef(0)
+
+  React.useEffect(() => {
+    // Only ever once per press. The other things this effect reads move on
+    // their own — a poll finishing flips `loading` — and the panel must not
+    // change height under somebody who is reading it.
+    if (landed === measured.current) return
+    measured.current = landed
+    // A table still loading, or one whose read failed, has no row count. Both
+    // draw a single message where the rows would be, so measuring one would
+    // fit the panel to a sentence. Leave it alone instead.
+    if (trading.loading || trading.failed) return
+
+    // **Waited for, frame by frame, rather than measured straight away.** The
+    // tab panel's own element appears in the render that switches tabs, and
+    // its rows appear in the one after it — so anything measuring immediately
+    // measures an empty box and grows the panel by nothing. A handful of
+    // frames is plenty and stops before it could become a loop.
+    let frames = 0
+    let raf = 0
+    const look = () => {
+      const viewport = root.current?.querySelector<HTMLElement>(
+        '[data-slot="tabs-content"][data-state="active"] [data-slot="scroll-area-viewport"]'
+      )
+      if (viewport && viewport.scrollHeight > 0) {
+        fit.grow(viewport.scrollHeight - viewport.clientHeight)
+        clearHighlight()
+        return
+      }
+      frames += 1
+      if (frames <= 5) raf = requestAnimationFrame(look)
+    }
+    raf = requestAnimationFrame(look)
+    return () => cancelAnimationFrame(raf)
+  }, [landed, fit, trading.loading, trading.failed])
+
+  /**
+   * Pressing the tab you are already on, caught on the way down.
+   *
+   * **It opens the panel, and pressing it again shuts it back.** The tab you
+   * are on is the one you press when the rows you want are already in front of
+   * you and there are not enough of them on screen, so doing nothing there
+   * would be the one press that felt broken.
+   *
+   * Caught on pointer-down because Radix switches tab on mouse-down: by the
+   * time a click handler ran, the tab it was pressed from would already be the
+   * tab it landed on, and "the one you were already on" could never be told
+   * apart. Pointer-down runs first.
+   */
+  const pressTab = (value: ActivityTab) => (event: React.PointerEvent) => {
+    if (event.button !== 0 || value !== tab) return
+    clearHighlight()
+    dropStrayHighlightAfter()
+    if (fit.grown()) fit.shrink()
+    else setLanded((count) => count + 1)
+  }
+
   return (
     <Tabs
+      ref={root}
       value={tab}
-      onValueChange={(value) => setTab(value as ActivityTab)}
+      onValueChange={(value) => {
+        setTab(value as ActivityTab)
+        setLanded((count) => count + 1)
+        clearHighlight()
+      }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       <WorkspacePanelTabsHeader>
@@ -139,6 +239,7 @@ export function ActivityPanel({
             icon={<LayersIcon className="size-4" />}
             label="Positions"
             count={countOf(visible.length)}
+            onPointerDown={pressTab("positions")}
           />
         </PositionsGlance>
         <WorkspacePanelTab
@@ -146,12 +247,14 @@ export function ActivityPanel({
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
           count={countOf(trading.orders.length + trading.watchOrders.length)}
+          onPointerDown={pressTab("orders")}
         />
         <WorkspacePanelTab
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
           label="Journal"
           count={countOf(trading.trades.length)}
+          onPointerDown={pressTab("journal")}
         />
         <div className="ml-auto flex items-center gap-2">
           {/* Whether ladder- and flow-run positions are listed too. On the

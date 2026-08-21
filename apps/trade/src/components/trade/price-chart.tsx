@@ -5,11 +5,14 @@ import type {
   IChartApi,
   ISeriesApi,
   Logical,
+  TickMarkType,
+  Time,
   UTCTimestamp,
 } from "lightweight-charts"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import { zoneAxisLabel, zoneCrosshairLabel } from "@/lib/trade/chart-timezone"
 import { barOfTime, timeOfBar } from "@/lib/trade/chart-time"
 import { readChartColors, type ChartColors } from "@/lib/trade/chart-theme"
 import {
@@ -286,6 +289,9 @@ export function PriceChart({
       })
     }
     volumeSeriesRef.current?.applyOptions({ visible: options.volume })
+    // The clock. Applied in place like everything else here — a chart rebuilt
+    // to change a label would throw away the zoom somebody set.
+    chart.applyOptions(clockOptions(options.zone))
   }, [options])
 
   React.useEffect(() => {
@@ -484,6 +490,10 @@ export function PriceChart({
         rightPriceScale: { borderColor: colors.border },
         timeScale: { borderColor: colors.border, timeVisible: true },
       })
+      // The clock the times on it are read against. Applied here as well as in
+      // the effect above because that effect runs before the library has
+      // finished loading, and so cannot have reached this chart.
+      chart.applyOptions(clockOptions(optionsRef.current.zone))
 
       const price = chart.addSeries(CandlestickSeries, {
         upColor: colors.up,
@@ -668,6 +678,47 @@ export function PriceChart({
       ) : null}
     </div>
   )
+}
+
+/**
+ * The label shapes the library asks for, in its own order.
+ *
+ * It thins labels out as the chart zooms and says which shape it wants by the
+ * number beside them. Its fifth — a time with seconds — has no entry here
+ * because no timeframe this app charts is finer than a minute, and it falls
+ * back to the plain time.
+ */
+const TICK_SHAPES = ["year", "month", "day", "time"] as const
+
+function shapeOf(mark: TickMarkType): (typeof TICK_SHAPES)[number] {
+  return TICK_SHAPES.at(mark) ?? "time"
+}
+
+/**
+ * Every time this chart is handed back is one it set itself, and it only ever
+ * sets seconds — see `applyCandles`. The library's own type allows a calendar
+ * date as well, which nothing here ever produces.
+ */
+function msOf(time: Time): number {
+  return (time as UTCTimestamp) * 1000
+}
+
+/**
+ * How the axis and the crosshair say a time, on the chart's own clock.
+ *
+ * Rebuilt whenever the zone changes and applied to the live chart, never by
+ * rebuilding the chart.
+ */
+function clockOptions(zone: string) {
+  return {
+    localization: {
+      timeFormatter: (time: Time) => zoneCrosshairLabel(zone, msOf(time)),
+    },
+    timeScale: {
+      tickMarkFormatter: (time: Time, shape: TickMarkType) =>
+        zoneAxisLabel(zone, msOf(time), shapeOf(shape)),
+    },
+  }
 }
 
 function applyCandles(

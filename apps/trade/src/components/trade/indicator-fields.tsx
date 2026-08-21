@@ -10,8 +10,16 @@ import {
 } from "@/components/ui/collapsible"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import type {
+  IndicatorContext,
   IndicatorField,
   IndicatorGroup,
   IndicatorModule,
@@ -30,8 +38,8 @@ import { cn } from "@/lib/utils"
  * exists to prevent. An indicator that gains a setting gains it in both places
  * or in neither.
  *
- * It knows how to draw a number, a switch and a sentence, and nothing about
- * what any indicator means.
+ * It knows how to draw a number, a switch, a clock time, a pick-one list and a
+ * sentence, and nothing about what any indicator means.
  */
 
 /**
@@ -66,6 +74,7 @@ function fieldsOn(
 export function IndicatorRow({
   module,
   state,
+  context,
   tone = "menu",
   idPrefix = "indicator",
   description,
@@ -77,6 +86,13 @@ export function IndicatorRow({
 }: {
   module: IndicatorModule
   state: IndicatorState
+  /**
+   * What the chart these settings belong to is set to — its clock and its
+   * timeframe. An indicator's own sentence about its settings can depend on
+   * both: a fifteen-minute opening range means nothing on four-hour candles,
+   * and a session start means nothing without a timezone.
+   */
+  context: IndicatorContext
   tone?: IndicatorFieldsTone
   /**
    * What the field ids are built from. Two of these on one screen — a chart
@@ -95,11 +111,11 @@ export function IndicatorRow({
   onOpenChange: (open: boolean) => void
   onCardOpenChange: (title: string, open: boolean) => void
   onToggle: (on: boolean) => void
-  onSet: (key: string, value: number | boolean) => void
+  onSet: (key: string, value: number | boolean | string) => void
   onReset: () => void
 }) {
   const params = state.params
-  const note = module.note?.(params) ?? null
+  const note = module.note?.(params, context) ?? null
 
   return (
     <Collapsible
@@ -188,7 +204,7 @@ function SettingsCard({
   fields: IndicatorField[]
   idPrefix: string
   params: IndicatorParams
-  onSet: (key: string, value: number | boolean) => void
+  onSet: (key: string, value: number | boolean | string) => void
 }) {
   return (
     <Collapsible
@@ -234,9 +250,60 @@ function Setting({
 }: {
   id: string
   field: IndicatorField
-  value: number | boolean | undefined
-  onSet: (value: number | boolean) => void
+  value: number | boolean | string | undefined
+  onSet: (value: number | boolean | string) => void
 }) {
+  if (field.kind === "choice") {
+    return (
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={id} hint={field.hint}>
+          {field.label}
+        </FieldLabel>
+        <Select
+          value={typeof value === "string" ? value : field.fallback}
+          onValueChange={onSet}
+        >
+          {/* Full width rather than content-width: these sit in a narrow card
+              inside a dropdown, where a trigger that resizes itself as the
+              choice changes makes the whole card jump. */}
+          <SelectTrigger id={id} className="w-full bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    )
+  }
+
+  if (field.kind === "time") {
+    return (
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={id} hint={field.hint}>
+          {field.label}
+        </FieldLabel>
+        {/* The browser's own clock box. It only ever hands back a real time or
+            an empty string, which is why this one needs none of the
+            half-typed-value care the number box below does. */}
+        <Input
+          id={id}
+          type="time"
+          value={typeof value === "string" ? value : field.fallback}
+          className="bg-background"
+          onChange={(event) => {
+            if (event.target.value === "") return
+            onSet(event.target.value)
+          }}
+        />
+      </div>
+    )
+  }
+
   if (field.kind === "switch") {
     return (
       <div className="flex items-center gap-2">

@@ -43,6 +43,7 @@ describe("the remembered chart options", () => {
       volume: true,
       crosshair: false,
       orderArrows: false,
+      zone: "America/New_York" as const,
     }
     await saveChartOptions(id, options)
     expect(await loadChartOptions(id)).toEqual(options)
@@ -56,6 +57,7 @@ describe("the remembered chart options", () => {
       volume: false,
       crosshair: false,
       orderArrows: false,
+      zone: "Europe/London" as const,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
   })

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import type { IndicatorCandle } from "@/lib/trade/indicators/contract"
+import type {
+  IndicatorCandle,
+  IndicatorContext,
+} from "@/lib/trade/indicators/contract"
 import {
   INDICATOR_LIST,
   SIGNAL_INDICATORS,
@@ -14,6 +17,9 @@ import {
 } from "@/lib/trade/indicators/registry"
 
 const HOUR = 3_600_000
+
+/** What the chart these candles came off is set to. */
+const CHART: IndicatorContext = { zone: "UTC", interval: "1h" }
 
 const CANDLES: IndicatorCandle[] = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10].map(
   (low, index) => ({
@@ -30,7 +36,13 @@ describe("the indicator library", () => {
     expect(indicatorsOn(settings)).toBe(0)
     for (const module of INDICATOR_LIST) {
       expect(settings[module.kind].on).toBe(false)
-      expect(settings[module.kind].params.searchBars).toBeDefined()
+      // Its OWN settings, not any one indicator's. Asserting on a Base field
+      // here passed for exactly as long as Base was the only indicator, and
+      // would have failed the moment a second one arrived without saying
+      // anything true about it.
+      for (const field of module.fields) {
+        expect(settings[module.kind].params[field.key]).toBeDefined()
+      }
       // The menu opens compact; the cards inside are open once you get to them.
       expect(settings[module.kind].open).toBe(false)
       expect(settings[module.kind].shutCards).toEqual([])
@@ -82,9 +94,10 @@ describe("the indicator library", () => {
   })
 
   it("draws nothing while nothing is switched on", () => {
-    expect(indicatorPaint(defaultIndicatorSettings(), CANDLES)).toEqual({
+    expect(indicatorPaint(defaultIndicatorSettings(), CANDLES, CHART)).toEqual({
       dashes: [],
       marks: [],
+      boxes: [],
     })
   })
 
@@ -103,14 +116,18 @@ describe("the indicator library", () => {
       },
     })
     expect(indicatorsOn(settings)).toBe(1)
-    const paint = indicatorPaint(settings, CANDLES)
+    const paint = indicatorPaint(settings, CANDLES, CHART)
     expect(paint.marks).toHaveLength(1)
     expect(paint.dashes).toHaveLength(1)
   })
 
   it("has nothing to draw over a chart with no candles", () => {
     const settings = readIndicatorSettings({ base: { on: true, params: {} } })
-    expect(indicatorPaint(settings, [])).toEqual({ dashes: [], marks: [] })
+    expect(indicatorPaint(settings, [], CHART)).toEqual({
+      dashes: [],
+      marks: [],
+      boxes: [],
+    })
   })
 
   it("drops an indicator this build does not have", () => {

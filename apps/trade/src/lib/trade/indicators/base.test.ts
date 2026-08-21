@@ -9,9 +9,19 @@ import {
   cappedHold,
 } from "@/lib/trade/indicators/base"
 import { readIndicatorParams } from "@/lib/trade/indicators/contract"
-import type { IndicatorCandle } from "@/lib/trade/indicators/contract"
+import type {
+  IndicatorCandle,
+  IndicatorContext,
+} from "@/lib/trade/indicators/contract"
 
 const HOUR = 3_600_000
+
+/**
+ * What the chart these candles came off is set to. The base indicator reads
+ * neither of them — it counts candles and never asks what time it is — so this
+ * is here to satisfy the contract every indicator is called through.
+ */
+const CHART: IndicatorContext = { zone: "UTC", interval: "1h" }
 
 /**
  * Candles built from their lows alone (or their highs, for the ceiling side).
@@ -49,7 +59,7 @@ const TWO_BASES = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10, 4, 5, 6, 7, 8, 9]
 
 describe("the base indicator", () => {
   it("marks a floor on the candle its wait finishes on", () => {
-    const paint = baseIndicator.compute(bars(ONE_BASE), settings())
+    const paint = baseIndicator.compute(bars(ONE_BASE), settings(), CHART)
 
     // At candle 5's own close — the candle the wait finished on, which sits
     // well above the level itself. Timing an entry near a level is a different
@@ -69,7 +79,8 @@ describe("the base indicator", () => {
         highs.map((high) => high - 100),
         highs
       ),
-      settings({ showBases: false, showCeilings: true })
+      settings({ showBases: false, showCeilings: true }),
+      CHART
     )
 
     expect(paint.marks).toEqual([{ time: 5 * HOUR, price: -90.5, side: "down" }])
@@ -81,19 +92,21 @@ describe("the base indicator", () => {
   it("draws nothing at all for a side that is switched off", () => {
     const paint = baseIndicator.compute(
       bars(ONE_BASE),
-      settings({ showBases: false })
+      settings({ showBases: false }),
+      CHART
     )
-    expect(paint).toEqual({ dashes: [], marks: [] })
+    expect(paint).toEqual({ dashes: [], marks: [], boxes: [] })
   })
 
   it("keeps the dash but drops the arrow on a floor that is lower than the last", () => {
     const candles = bars(TWO_BASES)
-    const both = baseIndicator.compute(candles, settings())
+    const both = baseIndicator.compute(candles, settings(), CHART)
     expect(both.marks.map((mark) => mark.time)).toEqual([5 * HOUR, 11 * HOUR])
 
     const withTrend = baseIndicator.compute(
       candles,
-      settings({ withTrendOnly: true })
+      settings({ withTrendOnly: true }),
+      CHART
     )
     // The second floor is at 4, below the first at 5 — no arrow.
     expect(withTrend.marks.map((mark) => mark.time)).toEqual([5 * HOUR])
@@ -105,7 +118,7 @@ describe("the base indicator", () => {
   it("never lets two arrows land closer together than the spacing", () => {
     const candles = bars(TWO_BASES)
     // The two arrows are 6 candles apart, so 10 is more than they can clear.
-    const spaced = baseIndicator.compute(candles, settings({ minBarsApart: 10 }))
+    const spaced = baseIndicator.compute(candles, settings({ minBarsApart: 10 }), CHART)
     expect(spaced.marks.map((mark) => mark.time)).toEqual([5 * HOUR])
     // Spacing thins the arrows and never the dashes.
     expect(spaced.dashes).toHaveLength(2)
@@ -115,9 +128,10 @@ describe("the base indicator", () => {
     const candles = bars(ONE_BASE)
     const hidden = baseIndicator.compute(
       candles,
-      settings({ showLongArrows: false })
+      settings({ showLongArrows: false }),
+      CHART
     )
-    const shown = baseIndicator.compute(candles, settings())
+    const shown = baseIndicator.compute(candles, settings(), CHART)
     expect(hidden.marks).toEqual([])
     expect(hidden.dashes).toEqual(shown.dashes)
   })
@@ -130,23 +144,27 @@ describe("the base indicator", () => {
   })
 
   it("says nothing about a chart with less history than the search needs", () => {
-    expect(baseIndicator.compute(bars([10, 9, 8]), settings())).toEqual({
+    expect(baseIndicator.compute(bars([10, 9, 8]), settings(), CHART)).toEqual({
       dashes: [],
       marks: [],
+      boxes: [],
     })
-    expect(baseIndicator.compute([], settings())).toEqual({
+    expect(baseIndicator.compute([], settings(), CHART)).toEqual({
       dashes: [],
       marks: [],
+      boxes: [],
     })
   })
 
   it("reads its own settings, so junk in a saved row draws the defaults", () => {
-    const fromJunk = baseIndicator.compute(bars(ONE_BASE), {
-      searchBars: Number.NaN,
-    } as never)
+    const fromJunk = baseIndicator.compute(
+      bars(ONE_BASE),
+      { searchBars: Number.NaN } as never,
+      CHART
+    )
     // 36 candles of search over 10 candles of history finds nothing, which is
     // the honest answer — not a crash, and not a chart drawn from NaN.
-    expect(fromJunk).toEqual({ dashes: [], marks: [] })
+    expect(fromJunk).toEqual({ dashes: [], marks: [], boxes: [] })
   })
 
   it("caps the wait below the search, because there is nothing longer to wait for", () => {
@@ -210,7 +228,7 @@ describe("the base in force", () => {
 
   it("answers the same level the chart draws a dash at", () => {
     const candles = bars(ONE_BASE)
-    const paint = baseIndicator.compute(candles, settings())
+    const paint = baseIndicator.compute(candles, settings(), CHART)
     expect(baseInForce(candles, settings())).toBeCloseTo(paint.dashes[0].price, 9)
   })
 })
@@ -303,7 +321,7 @@ describe("the chart and the ladder mean the same thing by a base", () => {
           showCeilings: false,
         })
 
-        const drawn = baseIndicator.compute(candles, params).marks
+        const drawn = baseIndicator.compute(candles, params, CHART).marks
         const levels = baseLevelsInForce(candles, params)
 
         // Every moment the ladder's level MOVES is a moment the chart drew an
@@ -363,7 +381,7 @@ describe("the bases a backtest chart draws", () => {
   it("draws one for every base the chart puts an arrow on, and no others", () => {
     const params = withApart(20)
     expect(baseDashes(candles, params)).toHaveLength(
-      baseIndicator.compute(candles, params).marks.length
+      baseIndicator.compute(candles, params, CHART).marks.length
     )
   })
 
@@ -429,7 +447,7 @@ describe("an arrow and a signal are the same event", () => {
           showCeilings: true,
         })
 
-        const arrows = baseIndicator.compute(candles, params).marks
+        const arrows = baseIndicator.compute(candles, params, CHART).marks
         const called = baseIndicator.signals?.(candles, params) ?? []
 
         expect(called).toHaveLength(arrows.length)

@@ -77,7 +77,7 @@ export function useChartIndicators(initial: IndicatorSettings) {
 
   /** Change one of an indicator's settings. */
   const setParam = React.useCallback(
-    (kind: string, key: string, value: number | boolean) => {
+    (kind: string, key: string, value: number | boolean | string) => {
       revise((current) => ({
         ...current,
         [kind]: {

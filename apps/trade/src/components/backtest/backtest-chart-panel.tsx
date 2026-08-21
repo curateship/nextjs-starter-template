@@ -149,7 +149,14 @@ export function BacktestChartPanel({
     // so drawing them says exactly what the run acted on. The dashes are the
     // ladder's business and would mean nothing here.
     if (spec.strategy.kind === "signals") {
-      return indicatorPaint(spec.strategy.indicators, [...bars])
+      // The same clock this chart's own axis is on, which is the default one:
+      // a saved run is looked at wherever, and reading it against whatever the
+      // trading chart happens to be set to would make the same run look
+      // different to two people.
+      return indicatorPaint(spec.strategy.indicators, [...bars], {
+        zone: DEFAULT_CHART_OPTIONS.zone,
+        interval: spec.interval,
+      })
     }
     return {
       dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
@@ -158,6 +165,7 @@ export function BacktestChartPanel({
       // arrows beside it already are. Two different things in one shape is
       // worse than one of them being missing.
       marks: [],
+      boxes: [],
     }
   }, [bars, spec])
 

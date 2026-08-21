@@ -17,16 +17,20 @@ describe("chart view options", () => {
         volume: true,
         crosshair: false,
         orderArrows: false,
+        zone: "Europe/London",
       })
     ).toEqual({
       grid: false,
       volume: true,
       crosshair: false,
       orderArrows: false,
+      zone: "Europe/London",
     })
   })
 
-  it("shows arrows without resetting older saved choices", () => {
+  it("fills in a setting an older build never saved, keeping the rest", () => {
+    // A row from before the arrows and before the clock existed. Every other
+    // choice on it survives; the missing ones come back as their defaults.
     expect(
       readChartOptions({ grid: false, volume: true, crosshair: false })
     ).toEqual({
@@ -34,7 +38,17 @@ describe("chart view options", () => {
       volume: true,
       crosshair: false,
       orderArrows: true,
+      zone: "UTC",
     })
+  })
+
+  it("falls back to UTC for a timezone this build no longer offers", () => {
+    // A chart that will not draw is worse than a chart on the wrong clock.
+    expect(readChartOptions({ ...DEFAULT_CHART_OPTIONS, zone: "Mars/Olympus" }))
+      .toEqual(DEFAULT_CHART_OPTIONS)
+    expect(readChartOptions({ ...DEFAULT_CHART_OPTIONS, zone: 7 })).toEqual(
+      DEFAULT_CHART_OPTIONS
+    )
   })
 
   it("does not partly apply an invalid saved choice", () => {

@@ -515,8 +515,12 @@ export function ChartPanel({
    * an answer that cannot have changed.
    */
   const indicatorPainted = React.useMemo(
-    () => indicatorPaint(indicators, current?.candles ?? []),
-    [indicators, current?.candles]
+    () =>
+      indicatorPaint(indicators, current?.candles ?? [], {
+        zone: options.zone,
+        interval,
+      }),
+    [indicators, current?.candles, options.zone, interval]
   )
 
   React.useEffect(() => {

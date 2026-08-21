@@ -6,6 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import type { IndicatorContext } from "@/lib/trade/indicators/contract"
 import { INDICATOR_LIST, indicatorsOn } from "@/lib/trade/indicators/registry"
 
 /**
@@ -23,8 +24,11 @@ import { INDICATOR_LIST, indicatorsOn } from "@/lib/trade/indicators/registry"
  */
 export function IndicatorsMenu({
   indicators,
+  context,
 }: {
   indicators: ChartIndicators
+  /** What the chart below is set to — its clock and its timeframe. */
+  context: IndicatorContext
 }) {
   const on = indicatorsOn(indicators.settings)
 
@@ -50,6 +54,7 @@ export function IndicatorsMenu({
             key={module.kind}
             module={module}
             state={indicators.settings[module.kind]}
+            context={context}
             onOpenChange={(next) => indicators.setOpen(module.kind, next)}
             onCardOpenChange={(title, next) =>
               indicators.setCardOpen(module.kind, title, next)

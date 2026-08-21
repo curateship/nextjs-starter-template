@@ -25,6 +25,7 @@ import {
   tradeWalletNode,
 } from "@/lib/automations/nodes/trade-wallet"
 import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
+import { DEFAULT_TRADING_ZONE } from "@/lib/trade/chart-timezone"
 import { formatUsdRounded } from "@/lib/trade/format"
 import {
   SIGNAL_INDICATORS,
@@ -89,6 +90,14 @@ export default function TradeSignalsFields({
             key={module.kind}
             module={module}
             state={settings.indicators[module.kind]}
+            // A flow runs on the server, where there is no chart and so no
+            // clock somebody picked. UTC is the honest answer, and no indicator
+            // offered on this step reads it: the opening range draws but does
+            // not trade, so it is not in this list.
+            context={{
+              zone: DEFAULT_TRADING_ZONE,
+              interval: settings.interval,
+            }}
             tone="panel"
             idPrefix={`signals-${node.id}`}
             // The library describes what an indicator DRAWS, which is the right
