@@ -155,7 +155,7 @@ export function ActivityPanel({
   // the first read, and after a first read that failed, "0" would be claiming
   // an answer the panel does not have.
   const countOf = (length: number) =>
-    trading.loading || trading.failed ? undefined : length
+    !trading.settled || trading.failed ? undefined : length
 
   // ----- Growing the panel to fit the tab you just pressed -----------------
   //
@@ -168,14 +168,14 @@ export function ActivityPanel({
 
   React.useEffect(() => {
     // Only ever once per press. The other things this effect reads move on
-    // their own — a poll finishing flips `loading` — and the panel must not
+    // their own — a poll finishing flips `settled` — and the panel must not
     // change height under somebody who is reading it.
     if (landed === measured.current) return
     measured.current = landed
     // A table still loading, or one whose read failed, has no row count. Both
     // draw a single message where the rows would be, so measuring one would
     // fit the panel to a sentence. Leave it alone instead.
-    if (trading.loading || trading.failed) return
+    if (!trading.settled || trading.failed) return
 
     // **Waited for, frame by frame, rather than measured straight away.** The
     // tab panel's own element appears in the render that switches tabs, and
@@ -198,7 +198,7 @@ export function ActivityPanel({
     }
     raf = requestAnimationFrame(look)
     return () => cancelAnimationFrame(raf)
-  }, [landed, fit, trading.loading, trading.failed])
+  }, [landed, fit, trading.settled, trading.failed])
 
   /**
    * Pressing the tab you are already on, caught on the way down.
@@ -296,7 +296,7 @@ export function ActivityPanel({
             markets={markets}
             walletName={walletName}
             busy={trading.busy}
-            loading={trading.loading}
+            settled={trading.settled}
             failed={trading.failed}
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
@@ -319,7 +319,7 @@ export function ActivityPanel({
             markets={markets}
             walletName={walletName}
             busy={trading.busy}
-            loading={trading.loading}
+            settled={trading.settled}
             failed={trading.failed}
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
@@ -336,7 +336,7 @@ export function ActivityPanel({
             walletName={walletName}
             selectedId={shownTrade?.id ?? null}
             busy={trading.busy}
-            loading={trading.loading}
+            settled={trading.settled}
             failed={trading.failed}
             onRetry={trading.retry}
             // Pressing the row already drawn puts the chart back to itself,

@@ -103,8 +103,8 @@ export function MarketListPanel({
     rows: readonly PaperOrder[]
     /** Which account and exchange the cached list belongs to. */
     cacheScope: string
-    /** The first trading read has not come back yet. */
-    loading: boolean
+    /** Both halves of the trading read have landed — see `Trading`. */
+    settled: boolean
     /** That read failed and there is nothing to fall back on. */
     failed: boolean
     /** The last refusal on each market, so a stuck level can say why. */
@@ -287,7 +287,7 @@ export function MarketListPanel({
           markets={marketsByKey}
           refusals={watchedOrders.refusals}
           walletName={walletName}
-          loading={watchedOrders.loading}
+          settled={watchedOrders.settled}
           failed={watchedOrders.failed}
           onRetry={watchedOrders.onRetry}
           onSelectMarket={onSelect}

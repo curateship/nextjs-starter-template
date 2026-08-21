@@ -501,7 +501,7 @@ export function PositionsTable({
   markets,
   walletName,
   busy,
-  loading,
+  settled,
   failed,
   onRetry,
   onSelectMarket,
@@ -513,8 +513,14 @@ export function PositionsTable({
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   busy: boolean
-  /** The first read has not come back yet — nothing may claim to be empty. */
-  loading: boolean
+  /**
+   * Both halves of the read have landed — see `settled` on `Trading`.
+   *
+   * Not `loading`: that turns false when EITHER half lands, and this table
+   * draws practice rows and real ones together. Half an answer in hand is not
+   * an answer, and "nothing here" is a claim about money.
+   */
+  settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
@@ -564,7 +570,7 @@ export function PositionsTable({
 
   // Empty is only claimed once a read has landed; before that the frame shows
   // it is still reading, and a failed first read says so instead.
-  if (positions.length === 0 && !loading && !failed) {
+  if (positions.length === 0 && settled && !failed) {
     return <EmptyTable>No open positions. Anything you are holding shows up here.</EmptyTable>
   }
 
@@ -594,7 +600,7 @@ export function PositionsTable({
           {rows.length === 0 ? (
             <TableStateRow
               span={POSITION_COLUMNS.length + 1}
-              loading={loading}
+              loading={!settled}
               loadingLabel="Reading what you are holding"
               onRetry={onRetry}
             >
@@ -648,7 +654,7 @@ export function OpenOrdersTable({
   markets,
   walletName,
   busy,
-  loading,
+  settled,
   failed,
   onRetry,
   onSelectMarket,
@@ -658,8 +664,14 @@ export function OpenOrdersTable({
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   busy: boolean
-  /** The first read has not come back yet — nothing may claim to be empty. */
-  loading: boolean
+  /**
+   * Both halves of the read have landed — see `settled` on `Trading`.
+   *
+   * Not `loading`: that turns false when EITHER half lands, and this table
+   * draws practice rows and real ones together. Half an answer in hand is not
+   * an answer, and "nothing here" is a claim about money.
+   */
+  settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
@@ -694,7 +706,7 @@ export function OpenOrdersTable({
     }
   })
 
-  if (orders.length === 0 && !loading && !failed) {
+  if (orders.length === 0 && settled && !failed) {
     return <EmptyTable>No open orders. Orders waiting to fill show up here.</EmptyTable>
   }
 
@@ -723,7 +735,7 @@ export function OpenOrdersTable({
         {rows.length === 0 ? (
           <TableStateRow
             span={ORDER_COLUMNS.length + 1}
-            loading={loading}
+            loading={!settled}
             loadingLabel="Reading your open orders"
             onRetry={onRetry}
           >
@@ -838,7 +850,7 @@ export function TradesTable({
   walletName,
   selectedId,
   busy,
-  loading,
+  settled,
   failed,
   onRetry,
   onSelectTrade,
@@ -851,8 +863,14 @@ export function TradesTable({
   /** The trade drawn on the chart right now, or null. */
   selectedId: string | null
   busy: boolean
-  /** The first read has not come back yet — nothing may claim to be empty. */
-  loading: boolean
+  /**
+   * Both halves of the read have landed — see `settled` on `Trading`.
+   *
+   * Not `loading`: that turns false when EITHER half lands, and this table
+   * draws practice rows and real ones together. Half an answer in hand is not
+   * an answer, and "nothing here" is a claim about money.
+   */
+  settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
@@ -892,7 +910,7 @@ export function TradesTable({
     }
   })
 
-  if (trades.length === 0 && !loading && !failed) {
+  if (trades.length === 0 && settled && !failed) {
     return (
       <EmptyTable>
         No finished trades yet. Once a position is closed it lands here, with
@@ -926,7 +944,7 @@ export function TradesTable({
         {rows.length === 0 ? (
           <TableStateRow
             span={TRADE_COLUMNS.length + 1}
-            loading={loading}
+            loading={!settled}
             loadingLabel="Reading your finished trades"
             onRetry={onRetry}
           >

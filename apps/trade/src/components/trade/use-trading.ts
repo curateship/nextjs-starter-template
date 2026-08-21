@@ -210,6 +210,23 @@ export type Trading = {
    * to be empty. Same shape as `use-trade-account`, on purpose.
    */
   loading: boolean
+  /**
+   * BOTH halves of the read have landed — practice and real alike.
+   *
+   * `loading` turns false the moment EITHER half lands, because a table that
+   * draws one kind of row has its whole answer as soon as its own half is in.
+   * A list spanning both halves does not: with `loading` false and the
+   * exchange still on its way, a screen whose every waiting level is on a real
+   * wallet holds an empty practice answer and cannot tell that apart from
+   * having nothing. Whatever is about to say "there is nothing here" waits for
+   * this instead.
+   *
+   * A half that REFUSED has not landed and does not count. It leaves its
+   * answer null, exactly as it did before it was ever asked, and a half that
+   * was never seen is the one thing that must not pass as "none". Both
+   * refusing is `failed`, which has its own wording.
+   */
+  settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   /** The button on the failed state; the poll retries on its own too. */
@@ -1511,6 +1528,11 @@ export function useTrading(
     // Never both: an answered half is something to show, a failure with rows
     // still up stays quiet, and only a screen with nothing yet says either.
     loading: paperAnswer === null && liveAnswer === null && !failed,
+    // Read off the two answers rather than kept beside them: a flag set when
+    // the reads finish would be one more thing that can disagree with what
+    // they actually hold, and a half that refused leaves its answer null,
+    // which is already the fact this is asking about.
+    settled: paperAnswer !== null && liveAnswer !== null,
     failed: failed && paperAnswer === null && liveAnswer === null,
     retry: () => void refresh(),
     place,

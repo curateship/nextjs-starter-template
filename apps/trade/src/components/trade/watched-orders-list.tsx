@@ -55,7 +55,7 @@ export function WatchedOrdersList({
   markets,
   refusals,
   walletName,
-  loading,
+  settled,
   failed,
   onRetry,
   onSelectMarket,
@@ -72,8 +72,15 @@ export function WatchedOrdersList({
    */
   refusals: ReadonlyMap<string, LiveRefusal>
   walletName: (walletId: string) => string
-  /** The first read has not come back — nothing may claim to be empty yet. */
-  loading: boolean
+  /**
+   * Both halves of the read have landed. See `settled` on `Trading`.
+   *
+   * Not `loading`, which turns false the moment EITHER half lands. This list
+   * spans practice wallets and real ones together, so half an answer is not
+   * an answer: with every waiting level on a real wallet, the practice half
+   * landing on its own says "none" and means "not yet".
+   */
+  settled: boolean
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
@@ -93,9 +100,9 @@ export function WatchedOrdersList({
   // `writeWatchedCache`'s problem, not this component's — it compares before
   // it writes, so a poll that changed nothing costs one string comparison.
   React.useEffect(() => {
-    if (loading || failed) return
+    if (!settled || failed) return
     writeWatchedCache(cacheScope, orders)
-  }, [orders, loading, failed, cacheScope])
+  }, [orders, settled, failed, cacheScope])
 
   // Newest first, and it stays that way while prices move. Sorting by how
   // close each level is would reshuffle the list under the pointer every
@@ -108,18 +115,18 @@ export function WatchedOrdersList({
     [orders]
   )
 
-  // **The cache stands in only until this session gets an answer of its own,
+  // **The cache stands in until this session has a WHOLE answer of its own,
   // and never again after that.** A read that refuses halfway through the
   // afternoon must not quietly put this morning's levels back over the ones
   // on screen, and a read that came back with nothing must not have old rows
-  // resurrected over it. Tracked here rather than off `loading`, which turns
-  // false on a failure as well as on an answer.
+  // resurrected over it. Tracked here rather than off `settled`, which turns
+  // true on a failure as well as on an answer.
   //
   // Adjusted during render, the way `MarketIcon` does it: React re-runs the
   // render immediately without painting in between, so the swap from the
   // cached rows to the real ones happens in one frame.
   const [answered, setAnswered] = React.useState(false)
-  if (!answered && !loading && !failed) setAnswered(true)
+  if (!answered && settled && !failed) setAnswered(true)
   //
   // **A cache that says "you had none waiting" stands in too.** It is the same
   // answer at the same age as a cache of three levels, and leaving it out was
@@ -142,9 +149,7 @@ export function WatchedOrdersList({
     // a `display: table` box that sizes to its widest row instead of to the
     // panel, which would push the dollar figure out of sight.
     <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-      {loading && !standingIn ? (
-        <LoadingRow label="Reading your watched prices" className="py-8 text-xs" />
-      ) : failed && !standingIn ? (
+      {failed && !standingIn ? (
         // "Nothing is waiting" and "I could not find out" are different
         // answers, and only one of them is safe to act on.
         <p className="px-3 py-8 text-center text-xs text-muted-foreground">
@@ -154,6 +159,12 @@ export function WatchedOrdersList({
             Try again
           </button>
         </p>
+      ) : !answered && !standingIn && rows.length === 0 ? (
+        // Only when there is genuinely nothing to draw. A half-landed read
+        // that DID bring levels draws them at once — the spinner is what
+        // stands between somebody and their own levels, and this tab was
+        // built to get rid of it.
+        <LoadingRow label="Reading your watched prices" className="py-8 text-xs" />
       ) : (
         <div className="flex flex-col">
           {/* Above whatever follows, rows or the empty wording alike: a read

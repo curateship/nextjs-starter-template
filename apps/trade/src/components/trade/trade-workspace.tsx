@@ -388,7 +388,10 @@ export function TradeWorkspace({
         // flash up for the next person to sign in on this machine, and one
         // exchange's never flash up on another's page.
         cacheScope: `${user.id}:${protocol}`,
-        loading: trading.loading,
+        // NOT `trading.loading`: that turns false when the practice half lands
+        // on its own, and a screen whose waiting levels are all on real
+        // wallets would say "nothing is waiting" until the exchange answered.
+        settled: trading.settled,
         failed: trading.failed,
         // Why a level has not fired. See `RefusalNote` — without it a level
         // the exchange keeps refusing reads as one quietly waiting.

@@ -185,6 +185,42 @@ answered in 1.4. Each half now lands on its own, which is why the Positions,
 Open orders and Journal tabs fill sooner too. The 3.5-second practice read is
 still 3.5 seconds; that is the database round trips and it is its own job.
 
+**But half a read is not an answer, and this tab is where that showed.**
+Somebody whose every waiting level is on a real wallet has an empty practice
+half in their hands for a second or two, and the tab read it as the answer: it
+said "Nothing is waiting at a price" on all three dashboards, and wrote that
+empty list into the cache, so the next visit opened on the same claim before
+the exchange had said a word.
+
+Every list that merges the two halves can be told the same lie, and the bottom
+panel's Positions, Open orders and Journal all merge them — they said "No open
+positions" off `loading` in exactly the same way, and the count on each tab
+said "0". It showed on the Watched tab first because that is the tab the panel
+opens on, and because that tab was also writing the half-answer down. All four
+wait for the whole read now.
+
+Measured in a browser on 21 Aug 2026, with the exchange half held back seven
+seconds the way a rate-limited venue holds it back: the old build showed both
+"Nothing is waiting at a price" and "No open positions" for 3.1 seconds of it,
+with every tab counting "0", while the account beside them read $5,898. The
+same test on the fixed build shows neither, says "Reading your watched prices"
+and "Reading what you are holding" instead, leaves the counts blank, and fills
+in the moment the exchange answers.
+
+So the tab waits for BOTH halves before it speaks. `settled` on the trading
+hook is the fact it waits for — both halves have answered, landed or refused —
+and it is what the empty wording and the cache write are allowed to speak from.
+`loading` still means "neither half is in", which is the right question for a
+spinner and the wrong one for a claim about what somebody is waiting on.
+
+**Waiting is not the same as showing nothing, and the cache is untouched by
+this.** It stands in for longer now, not less: it used to be shoved aside the
+moment the first half landed, which is the moment the tab had least to say.
+Levels the landed half DID bring are drawn straight away, whether or not the
+other half is in. The spinner is only ever what is left when a browser has no
+cached picture and neither half has brought a row — and the poisoned blobs
+correct themselves, because the very next whole read overwrites them.
+
 ## What it costs
 
 A watched order only fires **while the engine is running**. A resting order
