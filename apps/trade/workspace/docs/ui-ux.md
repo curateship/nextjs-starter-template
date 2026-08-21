@@ -403,6 +403,47 @@ fixed in one is fixed in both.
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.
 - **Sizes and shut panels survive a reload**, remembered per browser.
+- **Pressing a tab in the bottom panel grows it to fit that tab's rows.** Six
+  waiting buys means all six on screen without touching the divider. The panel
+  grows through the same resizable panel the divider drags, so there is one
+  thing setting the height rather than two fighting over it.
+- **It grows to the rows or to half the workspace, whichever is smaller.** The
+  chart always keeps the other half. Past that the table scrolls inside the
+  panel; the page itself never scrolls.
+- **The tab you are already on opens the panel too, and closes it again.**
+  Press it and the panel grows to fit that tab's rows; press it once more and
+  it goes back to the height you had dragged the divider to. That is the press
+  you make when the rows you want are already in front of you and there are not
+  enough of them on screen, so it can never be the press that does nothing.
+- **A panel shut down to its tab row opens when its tab is pressed**, to the
+  height the divider was left at. Pressing again then grows it to fit. It opens
+  rather than growing straight to the rows because the panel learns the height
+  to reopen on from whatever height it was shut at, so a panel shut while grown
+  would reopen on the grown height and then remember it, which is the one thing
+  the grown height must never become.
+- **A double-click on blank space shuts the panel from any height**, grown or
+  not, and opens it again on the dragged height. The gesture is told plainly to
+  shut or to open rather than to toggle, because a toggle judging the panel
+  after the growing had already been undone shut it and reopened it in the same
+  motion, on alternate tries.
+- **The grown height is never remembered.** A reload opens on the height the
+  divider was left at, which is what the rule above already promises. Dragging
+  the divider after growing wins: the new height is the one remembered and the
+  one a second press returns to.
+- **Growing never makes the panel smaller.** A tab with two rows in it leaves
+  the divider where it is.
+- **A table still loading grows nothing.** Neither does one whose read failed.
+  Both draw a single message where the rows would be, and fitting the panel to
+  a sentence is not fitting it to the rows.
+- **The panel jumps to the new height, with nothing animating.** So the
+  reduced-motion setting has nothing to switch off here, and a chart in the
+  middle of drawing is not redrawn thirty times on the way.
+- **A tab press never leaves the table highlighted.** The press moves
+  everything under the pointer, and the browser finishes by highlighting
+  whatever ended up between where the press started and where the content
+  landed, which turned a whole table blue. Any highlight left by a press is
+  dropped once the press is over. Nobody selects text by pressing a tab, so
+  there is nothing lost.
 
 ## Narrow screens
 
