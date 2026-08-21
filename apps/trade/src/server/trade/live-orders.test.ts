@@ -11,6 +11,8 @@ import {
   placeLiveOrder,
   setLiveBrackets,
 } from "@/server/trade/live-orders"
+import { loadLiveRefusals } from "@/server/trade/live-fills"
+import { randomUUID } from "node:crypto"
 import { tradeLiveJournal, tradeWallets } from "@/server/trade/schema"
 
 // The exchange is a mock: these tests are about the store's rails — the
@@ -518,5 +520,116 @@ describe("the portfolio read", () => {
     expect(answer.positions).toHaveLength(1)
     expect(answer.positions[0].live?.marginUsed).toBe(10_000)
     expect(answer.unreachable).toHaveLength(1)
+  })
+})
+
+describe("reading refusals back", () => {
+  /**
+   * The record was written and read by nothing for months, on the reasoning
+   * that a person could go digging when an order had gone wrong. Digging
+   * needs a database client, so in practice the answer was invisible: a
+   * Phemex level refused twenty times in eighteen minutes still drew as
+   * "waiting" with nothing on screen saying why.
+   */
+  async function refusal(
+    userId: string,
+    walletId: string,
+    marketKey: string,
+    note: string | null,
+    at: Date
+  ) {
+    await database.insert(tradeLiveJournal).values({
+      userId,
+      walletId,
+      id: randomUUID(),
+      marketKey,
+      action: "refused",
+      side: "buy",
+      px: 0,
+      sz: 0,
+      note,
+      createdAt: at,
+    })
+  }
+
+  it("keeps only the newest refusal on each market", async () => {
+    // A full market refuses every retry, so twenty identical rows are one
+    // fact. Twenty lines on screen would bury every other market.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const now = Date.now()
+    await refusal(userId, walletId, MARKET, "older", new Date(now - 120_000))
+    await refusal(userId, walletId, MARKET, "newest", new Date(now - 5_000))
+    await refusal(
+      userId,
+      walletId,
+      "hyperliquid:mainnet:ETH",
+      "a different market",
+      new Date(now - 60_000)
+    )
+
+    const rows = await loadLiveRefusals(userId, [walletId])
+
+    expect(rows).toHaveLength(2)
+    expect(rows.find((one) => one.marketKey === MARKET)?.note).toBe("newest")
+    expect(
+      rows.find((one) => one.marketKey === "hyperliquid:mainnet:ETH")?.note
+    ).toBe("a different market")
+  })
+
+  it("forgets a refusal older than the window", async () => {
+    // A market refused this morning and quietly working since is not news.
+    // The question this answers is why nothing is happening right now.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    await refusal(
+      userId,
+      walletId,
+      MARKET,
+      "yesterday",
+      new Date(Date.now() - 7 * 60 * 60_000)
+    )
+
+    expect(await loadLiveRefusals(userId, [walletId])).toEqual([])
+  })
+
+  it("skips a refusal with nothing written on it", async () => {
+    // An empty line under a level reads as a fault of its own.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    await refusal(userId, walletId, MARKET, null, new Date())
+
+    expect(await loadLiveRefusals(userId, [walletId])).toEqual([])
+  })
+
+  it("strikes out anything key-shaped before it can be drawn", async () => {
+    // These rows only ever sat in a table nobody read. Now they are drawn on
+    // a page and put in a tooltip, and `refuse()` journals whatever an error
+    // happened to say — an unexpected exception carries whatever was in scope
+    // when it was thrown.
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    await refusal(
+      userId,
+      walletId,
+      MARKET,
+      `The exchange refused: key=${"a".repeat(64)}`,
+      new Date()
+    )
+
+    const [row] = await loadLiveRefusals(userId, [walletId])
+
+    expect(row.note).not.toContain("a".repeat(64))
+    expect(row.note).toContain("The exchange refused")
+  })
+
+  it("never reaches another person's wallet", async () => {
+    const mine = await person()
+    const myWallet = await liveWallet(mine)
+    const theirs = await person()
+    const theirWallet = await liveWallet(theirs)
+    await refusal(theirs, theirWallet, MARKET, "not yours", new Date())
+
+    expect(await loadLiveRefusals(mine, [myWallet])).toEqual([])
   })
 })

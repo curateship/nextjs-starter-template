@@ -11,6 +11,7 @@ import {
 import {
   livePortfolioRows,
   type LiveJournalAction,
+  type LiveRefusal,
 } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/server/protocols/registry"
 import {
   loadLiveHistory,
+  loadLiveRefusals,
   sweepIsWaitedFor,
   sweepLiveFills,
   sweepSoon,
@@ -551,6 +553,8 @@ export async function loadLivePortfolio(
   orders: PaperOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
+  /** The last refusal on each market, so a stuck level can say why. */
+  refusals: LiveRefusal[]
   unreachable: string[]
 }> {
   const live = wallets.filter(
@@ -605,15 +609,18 @@ export async function loadLivePortfolio(
     })
   )
 
-  // `trade_live_journal` is deliberately NOT read here. It is still written on
-  // every instruction and every refusal — it is the record you go digging
-  // through when a real order has gone wrong, and the background engine trades
-  // with nobody watching and no toast to see. Nothing on screen reads it, so
-  // the poll does not pay for it either.
-  const history = await loadLiveHistory(
-    userId,
-    live.map((wallet) => wallet.id)
-  )
+  // **The refusals are read now.** For a long time `trade_live_journal` was
+  // written and read by nothing, on the reasoning that a person could go
+  // digging when an order had gone wrong. Digging needs a database client, so
+  // in practice the answer was invisible: a Phemex level refused twenty times
+  // in eighteen minutes still drew as "waiting", and the only way to learn
+  // why was to query the table by hand. One refusal per market, six hours
+  // back — see `loadLiveRefusals`.
+  const walletIds = live.map((wallet) => wallet.id)
+  const [history, refusals] = await Promise.all([
+    loadLiveHistory(userId, walletIds),
+    loadLiveRefusals(userId, walletIds),
+  ])
 
-  return { positions, orders, ...history, unreachable }
+  return { positions, orders, ...history, refusals, unreachable }
 }

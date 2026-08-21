@@ -247,10 +247,15 @@ export const tradeWalletNonces = pgTable(
  * Facts only, in plain figures, and NEVER a secret: every note written here
  * has already been through the scrubber. Nothing is ever removed.
  *
- * **Written, never read.** No screen shows this — the Journal is built from
- * fills. It is here because the background engine trades with nobody watching
- * and no toast to see, so when a real order has gone wrong this is the only
- * record of what was actually sent and what came back.
+ * **The refusals are read; the rest is the record.** The Journal tab is built
+ * from fills, not from here, and most of what this table holds is never drawn.
+ * The exception is the last refusal on each market, which `loadLiveRefusals`
+ * reads and the Watched tab and Open orders show under the level that did not
+ * fire — the background engine trades with nobody watching and no press to
+ * throw an error back to, so without that a refused level and a patient one
+ * look identical. For a long time nothing here was read at all, on the
+ * reasoning that a person could go digging; digging needs a database client,
+ * so in practice the answer was invisible.
  */
 export const tradeLiveJournal = pgTable(
   "trade_live_journal",

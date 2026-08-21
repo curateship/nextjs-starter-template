@@ -118,12 +118,43 @@ function exchangeError(error: unknown): Error {
   return new Error(`LIVE_EXCHANGE:${scrubbedMessage(error)}`)
 }
 
+/**
+ * Phemex's own refusal names, said in words.
+ *
+ * **The exchange's jargon is not an explanation.** These strings end up in
+ * front of a person, under the level that did not fire, and
+ * `TE_OI_LIMIT_REDUCE_ONLY` reads as the app being broken. The sentence is
+ * written here because this is the only file that knows what Phemex's numbers
+ * mean.
+ */
+const PHEMEX_REFUSALS: Array<{ match: RegExp; say: string }> = [
+  {
+    // Phemex publishes a `maxOI` per market and stops it accepting anything
+    // that OPENS a position once open interest reaches it. Nothing about the
+    // account, the size or the price is wrong. Measured 21 Aug 2026: ALAB
+    // stood at 1207% of its $100,000 cap and NFLX at 148% of its $1,000,000,
+    // and both refused every order for hours, while every market under its
+    // cap filled in seconds.
+    match: /\b11150\b|TE_OI_LIMIT_REDUCE_ONLY/,
+    say: "Phemex is full on this market — its open interest is at the exchange's cap, so until some of it clears the only orders it accepts here are ones that CLOSE a position. Nothing is wrong with this order.",
+  },
+  {
+    // The account holds a long and a short at once and every order has to say
+    // which it belongs to. Worth naming because it looks like the order being
+    // rejected rather than the account's shape.
+    match: /TE_ERR_INCONSISTENT_POS_MODE/,
+    say: "Phemex refused the order because of how this account holds positions — it is set to hedged, and the order did not name which side it belongs to.",
+  },
+]
+
 /** A refusal at the door — nothing was placed. Carries that promise as its code. */
 function refusedError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
   if (message.startsWith("PHEMEX_")) {
-    return new Error(`LIVE_ORDER_REFUSED:${scrubbedMessage(error)}`)
+    const said = scrubbedMessage(error)
+    const known = PHEMEX_REFUSALS.find((one) => one.match.test(said))
+    return new Error(`LIVE_ORDER_REFUSED:${known ? known.say : said}`)
   }
   return exchangeError(error)
 }

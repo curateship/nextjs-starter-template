@@ -49,7 +49,7 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { keepUnreachableRows } from "@/lib/trade/live"
+import { keepUnreachableRows, type LiveRefusal } from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
@@ -154,6 +154,7 @@ function getTradingSmartOrderError(error: unknown): string {
 
 /** One list, so a poll that finds nothing does not hand the panel a new array. */
 const EMPTY_TRADES: LiveTrade[] = []
+const EMPTY_REFUSALS: LiveRefusal[] = []
 const EMPTY_FILLS: LiveFill[] = []
 
 export type Trading = {
@@ -170,6 +171,16 @@ export type Trading = {
    * the line.
    */
   watchOrders: PaperOrder[]
+  /**
+   * The last refusal on each market, keyed by market key.
+   *
+   * **The engine trades with nobody watching, so this is the only way it can
+   * say no.** A refusal that comes back from a press throws to the hand that
+   * pressed and becomes a toast; one that happens during a background pass
+   * had nowhere to go, and a level the exchange had refused twenty times
+   * still drew as "waiting". Empty is the ordinary state.
+   */
+  refusals: ReadonlyMap<string, LiveRefusal>
   /**
    * Orders asked for whose answer has not come back yet. Kept apart from the
    * ones that really exist: the chart draws them so a press is seen at once,
@@ -366,6 +377,7 @@ type LiveAnswer = {
   trades: LiveTrade[]
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
+  refusals: LiveRefusal[]
   unreachable: string[]
 }
 
@@ -774,6 +786,16 @@ export function useTrading(
     () => smartOrders.filter((order): order is SmartGrid => order.kind === "grid"),
     [smartOrders]
   )
+
+  // Live only: a practice wallet's orders are filled from our own numbers and
+  // nothing outside can refuse one.
+  const refusals = React.useMemo(() => {
+    const byMarket = new Map<string, LiveRefusal>()
+    for (const one of liveAnswer?.refusals ?? EMPTY_REFUSALS) {
+      byMarket.set(one.marketKey, one)
+    }
+    return byMarket
+  }, [liveAnswer])
 
   const trades = React.useMemo((): LiveTrade[] => {
     const paper = paperAnswer?.trades ?? EMPTY_TRADES
@@ -1493,6 +1515,7 @@ export function useTrading(
     retry: () => void refresh(),
     place,
     watchOrders,
+    refusals,
     move,
     cancel,
     editOrder,

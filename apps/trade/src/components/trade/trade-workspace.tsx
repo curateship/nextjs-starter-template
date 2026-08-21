@@ -390,6 +390,9 @@ export function TradeWorkspace({
         cacheScope: `${user.id}:${protocol}`,
         loading: trading.loading,
         failed: trading.failed,
+        // Why a level has not fired. See `RefusalNote` — without it a level
+        // the exchange keeps refusing reads as one quietly waiting.
+        refusals: trading.refusals,
         onRetry: trading.retry,
       }}
       walletName={walletNameOf}

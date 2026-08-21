@@ -106,6 +106,42 @@ It is deliberately NOT in the Smart orders panel beside the wallets. That panel
 is for strategies being worked — a ladder, a grid — and a plain order waiting
 at a price is not one.
 
+### A level that was refused says so
+
+A watched level that the exchange keeps refusing used to look exactly like one
+waiting patiently. On 21 Aug 2026 a Phemex level was refused twenty times over
+eighteen minutes — the market had reached the exchange's cap on open interest
+and would not accept anything that opened a position — and the row said
+"waiting" the whole time. There was no way to find out from the app at all.
+
+The reason now sits under the level, on the Watched tab row.
+
+- **It comes from the record that was already being kept.** Every refusal has
+  always been written to `trade_live_journal`. Nothing read it, on the
+  reasoning that a person could go digging when an order had gone wrong —
+  and digging needs a database client, so the answer may as well not have
+  existed. `loadLiveRefusals` reads it now, one row per market, six hours
+  back.
+- **One line per market, not one per attempt.** A full market refuses every
+  retry, so twenty identical rows are one fact. The newest carries the reason
+  and the rest are noise that would bury every other market.
+- **A press gets a toast; the engine gets this.** A refusal that comes back
+  from a press throws to the hand that pressed. A refusal during a background
+  pass has nowhere to go — there is no channel from the engine to the browser
+  at all — so the browser's own poll carries it instead.
+- **The triangle says it as much as the colour does**, per the UI standard's
+  rule against saying anything in colour alone. The panel is about 300px wide,
+  so the sentence is clamped to two lines with the whole of it on the row's
+  tooltip, and it breaks anywhere it has to: an exchange code arrives as one
+  unbroken token and ran off the edge until it was allowed to.
+- **Nothing there offers a retry.** The engine is already retrying — that is
+  what made twenty rows — so a button promising to do again what is happening
+  anyway would be a lie about who is stuck.
+- **The words are ours, not the exchange's.** `TE_OI_LIMIT_REDUCE_ONLY` reads
+  as this app being broken. Each protocol folder turns its own exchange's
+  codes into a sentence, because that is the only place that knows what the
+  number means — Phemex's are in `src/server/protocols/phemex/orders.ts`.
+
 ### The Watched tab opens on last time's levels
 
 The rows come from the trading read, and that read takes about three and a half

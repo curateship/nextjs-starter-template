@@ -192,6 +192,58 @@ describe("placing", () => {
     expect(outcome.avgPx).toBe(51_000)
   })
 
+  it("says a full market in words rather than the exchange's code", async () => {
+    // Phemex publishes a `maxOI` per market and stops it accepting anything
+    // that OPENS a position once open interest reaches it. Measured
+    // 21 Aug 2026: ALAB stood at 1207% of its $100,000 cap and NFLX at 148%
+    // of its $1,000,000, and both refused every order for hours while every
+    // market under its cap filled in seconds. `TE_OI_LIMIT_REDUCE_ONLY` is
+    // what a person saw, and it reads as the app being broken.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
+        },
+        {
+          path: "/g-orders/create",
+          answer: { code: 11150, msg: "TE_OI_LIMIT_REDUCE_ONLY", data: null },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const refusal = (await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "market",
+      px: 50_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    }).catch((error: unknown) => error)) as Error
+
+    // Still the code that promises nothing stood, so the level goes back to
+    // waiting rather than freezing.
+    expect(refusal.message.startsWith("LIVE_ORDER_REFUSED:")).toBe(true)
+    expect(refusal.message).toContain("open interest is at the exchange's cap")
+    expect(refusal.message).toContain("CLOSE a position")
+    // The exchange's own jargon does not reach a person.
+    expect(refusal.message).not.toContain("TE_OI_LIMIT_REDUCE_ONLY")
+  })
+
   it("sets leverage the way a hedged account demands", async () => {
     // A hedged account holds a long and a short at once, each with its own
     // leverage, and it refuses the one-way field with the same complaint it

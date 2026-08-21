@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, sql } from "drizzle-orm"
 
 import {
   marketKey,
@@ -13,11 +13,17 @@ import {
   type LiveTriggerKind,
   type LiveTriggerRecord,
 } from "@/lib/trade/live-trades"
+import type { LiveRefusal } from "@/lib/trade/live"
 import type { PaperSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
+import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
-import { tradeLiveFills, tradeLiveTriggers } from "@/server/trade/schema"
+import {
+  tradeLiveFills,
+  tradeLiveJournal,
+  tradeLiveTriggers,
+} from "@/server/trade/schema"
 
 /**
  * The real trading history, kept.
@@ -338,6 +344,81 @@ async function recordTriggers(
  * is `buildLiveTrades`, which is tested on its own and knows nothing about a
  * database.
  */
+/**
+ * How far back a refusal is still worth showing. A market refused this morning
+ * and quietly working since is not news; the question this answers is "why is
+ * nothing happening RIGHT NOW".
+ */
+const REFUSAL_SHOWN_FOR_MS = 6 * 60 * 60_000
+
+/** Read cheaply: the newest few, then thinned to one per market in memory. */
+const MAX_REFUSAL_ROWS = 200
+
+/**
+ * The last refusal on each market, newest first.
+ *
+ * **One per market, not all of them.** A full market refuses every retry, so
+ * the honest reading of twenty identical rows is one fact — "this market is
+ * refusing" — and twenty lines on screen would bury the other markets. The
+ * newest carries the reason, and the count of how often is not something a
+ * person can act on.
+ *
+ * Latest-per-market is done in memory rather than in SQL on purpose: it is a
+ * handful of rows either way, and `distinct on` here would be a raw fragment
+ * with unqualified column names, which this codebase has been bitten by.
+ */
+export async function loadLiveRefusals(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<LiveRefusal[]> {
+  if (walletIds.length === 0) return []
+  const rows = await db
+    .select({
+      walletId: tradeLiveJournal.walletId,
+      marketKey: tradeLiveJournal.marketKey,
+      note: tradeLiveJournal.note,
+      createdAt: tradeLiveJournal.createdAt,
+    })
+    .from(tradeLiveJournal)
+    .where(
+      and(
+        eq(tradeLiveJournal.userId, userId),
+        inArray(tradeLiveJournal.walletId, [...walletIds]),
+        eq(tradeLiveJournal.action, "refused"),
+        gt(
+          tradeLiveJournal.createdAt,
+          new Date(Date.now() - REFUSAL_SHOWN_FOR_MS)
+        )
+      )
+    )
+    .orderBy(desc(tradeLiveJournal.createdAt))
+    .limit(MAX_REFUSAL_ROWS)
+
+  const newest = new Map<string, LiveRefusal>()
+  for (const row of rows) {
+    // Rows arrive newest first, so the first one seen for a market is the one
+    // to keep.
+    if (newest.has(row.marketKey)) continue
+    // A refusal with nothing written on it explains nothing, and an empty
+    // line under a level reads as a fault of its own.
+    if (!row.note) continue
+    newest.set(row.marketKey, {
+      walletId: row.walletId,
+      marketKey: row.marketKey,
+      // **Scrubbed again on the way out.** Everything written here has been
+      // through the scrubber once, but `refuse()` journals whatever an error
+      // happened to say, and an unexpected exception carries whatever was in
+      // scope when it was thrown. That was tolerable while these rows only
+      // ever sat in a table nobody read; now they are drawn on a page and
+      // put in a tooltip, so they go through it a second time. It costs one
+      // regex on a handful of rows.
+      note: scrubSecrets(row.note),
+      at: row.createdAt.getTime(),
+    })
+  }
+  return [...newest.values()]
+}
+
 export async function loadLiveHistory(
   userId: string,
   walletIds: readonly string[]

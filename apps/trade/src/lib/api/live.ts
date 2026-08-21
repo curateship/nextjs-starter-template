@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
+import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
@@ -88,6 +89,8 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       smartOrders: SmartOrder[]
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
+      /** The last refusal on each market, so a stuck level can say why. */
+      refusals: LiveRefusal[]
       unreachable: string[]
     }> => {
       const wallets = await listWallets(context.user.id)

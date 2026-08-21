@@ -19,6 +19,7 @@ import {
 } from "@/lib/trade/market-tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
+import type { LiveRefusal } from "@/lib/trade/live"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
   type MarketCatalog,
@@ -106,6 +107,8 @@ export function MarketListPanel({
     loading: boolean
     /** That read failed and there is nothing to fall back on. */
     failed: boolean
+    /** The last refusal on each market, so a stuck level can say why. */
+    refusals: ReadonlyMap<string, LiveRefusal>
     onRetry: () => void
   }
   /** Each wallet's name, so a waiting price says which wallet it is in. */
@@ -282,6 +285,7 @@ export function MarketListPanel({
           orders={watchedOrders.rows}
           cacheScope={watchedOrders.cacheScope}
           markets={marketsByKey}
+          refusals={watchedOrders.refusals}
           walletName={walletName}
           loading={watchedOrders.loading}
           failed={watchedOrders.failed}

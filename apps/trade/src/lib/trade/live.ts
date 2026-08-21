@@ -21,10 +21,9 @@ import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 /**
  * What a live journal row records was done.
  *
- * Nothing on screen reads this table any more — the Journal is built from
- * fills. It is still written on every instruction and every refusal, because
- * it is the record you go digging through when a real order has gone wrong,
- * and the background engine trades with nobody watching and no toast to see.
+ * The Journal tab is built from fills, not from this table. What IS read back
+ * is the last `refused` row on each market — see `LiveRefusal` below. The rest
+ * is the record you go digging through when a real order has gone wrong.
  */
 export type LiveJournalAction =
   /** An order that filled straight away — a real fill at a real price. */
@@ -38,6 +37,27 @@ export type LiveJournalAction =
   | "brackets"
   /** The exchange, or this app's own rails, said no. */
   | "refused"
+
+/**
+ * The last thing that went wrong on one market, for the screens to show.
+ *
+ * **The engine trades with nobody watching.** A refusal that arrives from a
+ * click throws back to the hand that clicked and becomes a toast; a refusal
+ * that arrives during a background pass had nowhere to go at all. It was
+ * written to `trade_live_journal` and read by nothing, so a level that the
+ * exchange had refused twenty times over eighteen minutes still drew as
+ * "waiting" — which is the app saying everything is fine while the exchange
+ * says no. This is the one row per market that answers "why has nothing
+ * happened".
+ */
+export type LiveRefusal = {
+  walletId: string
+  marketKey: string
+  /** Already in plain words — see each protocol's own refusal mapping. */
+  note: string
+  /** Epoch ms. */
+  at: number
+}
 
 /**
  * One live wallet's exchange answer as the rows the screens draw. Ids are

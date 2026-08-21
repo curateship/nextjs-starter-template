@@ -1,5 +1,7 @@
 import * as React from "react"
 
+import { TriangleAlertIcon } from "lucide-react"
+
 import { MarketIcon } from "@/components/trade/market-icon"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -7,6 +9,7 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 import { formatAway, formatPrice, formatUsd } from "@/lib/trade/format"
+import type { LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import type { PaperOrder } from "@/lib/trade/paper"
 import { watchReached } from "@/lib/trade/watch-order"
@@ -50,6 +53,7 @@ export function WatchedOrdersList({
   orders,
   cacheScope,
   markets,
+  refusals,
   walletName,
   loading,
   failed,
@@ -61,6 +65,12 @@ export function WatchedOrdersList({
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
   cacheScope: string
   markets: ReadonlyMap<string, MarketRow>
+  /**
+   * The last refusal on each market. A level whose order the exchange keeps
+   * refusing looks exactly like one quietly waiting, and that is the whole
+   * reason this list could not answer "why has nothing happened".
+   */
+  refusals: ReadonlyMap<string, LiveRefusal>
   walletName: (walletId: string) => string
   /** The first read has not come back — nothing may claim to be empty yet. */
   loading: boolean
@@ -172,6 +182,7 @@ export function WatchedOrdersList({
                   market={markets.get(row.marketKey) ?? null}
                   wallet={severalWallets ? walletName(row.walletId) : null}
                   mark={marks.get(row.marketKey) ?? null}
+                  refusal={refusals.get(row.marketKey) ?? null}
                   onSelect={() => onSelectMarket(row.marketKey)}
                 />
               ))}
@@ -232,6 +243,7 @@ function WatchedRow({
   market,
   wallet,
   mark,
+  refusal,
   onSelect,
 }: {
   level: WatchedLevel
@@ -240,6 +252,8 @@ function WatchedRow({
   wallet: string | null
   /** Today's price, or null when the feed has not said one yet. */
   mark: number | null
+  /** The last thing the exchange said no to on this market, if anything. */
+  refusal: LiveRefusal | null
   onSelect: () => void
 }) {
   const symbol = parseMarketKey(level.marketKey)?.marketId ?? level.marketKey
@@ -282,8 +296,48 @@ function WatchedRow({
           </span>
           <span className="shrink-0 tabular-nums">{line.away}</span>
         </span>
+        {refusal ? <RefusalNote refusal={refusal} /> : null}
       </span>
     </button>
+  )
+}
+
+/**
+ * Why this level has not fired, under the level it belongs to.
+ *
+ * **A refused level is indistinguishable from a patient one without it.** The
+ * engine works in the background with nobody watching, so a refusal has no
+ * press to throw back to and never became a toast; it went into a table
+ * nothing read. On 21 Aug 2026 a Phemex level was refused twenty times over
+ * eighteen minutes — the market was at the exchange's open-interest cap and
+ * would not accept anything that opened a position — and this row said
+ * "waiting" the whole time.
+ *
+ * **The triangle carries it as much as the colour does.** The panel is a
+ * couple of hundred pixels wide so the sentence is clamped to two lines, with
+ * the whole of it on the row's own tooltip; the standard's rule against
+ * saying anything in colour alone is why the icon is not decoration.
+ *
+ * Nothing here offers a way to retry. The engine is already retrying — that
+ * is what made twenty rows — and a button promising to do again what is
+ * happening anyway would be a lie about who is stuck.
+ */
+function RefusalNote({ refusal }: { refusal: LiveRefusal }) {
+  return (
+    <span
+      title={refusal.note}
+      className="mt-0.5 flex items-start gap-1 text-[11px] leading-4 text-destructive"
+    >
+      <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
+      {/* `anywhere` rather than plain wrapping: an exchange's own code comes
+          through as one unbroken token — `PHEMEX_11150:TE_OI_LIMIT_REDUCE_ONLY`
+          — and a word longer than the panel runs off the edge instead of
+          wrapping. Seen on the real panel at 296px on 21 Aug 2026. Ordinary
+          sentences are unaffected, because it only breaks where it must. */}
+      <span className="line-clamp-2 min-w-0 flex-1 [overflow-wrap:anywhere]">
+        {refusal.note}
+      </span>
+    </span>
   )
 }
 
