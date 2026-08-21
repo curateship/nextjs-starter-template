@@ -284,6 +284,11 @@ export function getLiveErrorMessage(error: unknown): string {
   if (auth) return auth
   const known = Object.keys(LIVE_SENTENCES).find((code) => message.includes(code))
   if (known) return LIVE_SENTENCES[known]
+  // A move on a venue with no amend command. Both endings carry their whole
+  // sentence from the rails, because what to do next differs: one says the
+  // order never moved, the other says two of them are resting.
+  const move = message.match(/LIVE_MOVE_(?:REFUSED|DOUBLED):(.*)$/s)
+  if (move) return move[1].trim()
   // The exchange's own refusal, already scrubbed server-side. Shown because
   // with real money the reason IS the answer.
   const exchange = message.match(/LIVE_(?:EXCHANGE|ORDER_REFUSED):(.*)$/s)

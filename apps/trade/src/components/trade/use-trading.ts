@@ -1020,6 +1020,7 @@ export function useTrading(
       // Let go only of this drop. A second drag while the first is still
       // saving owns the line now, and releasing its hold here would show the
       // first price again for as long as the second save takes.
+      const at = Date.now()
 
       setDropped((held) => {
         // Anything that has waited long enough is dropped as this one is
@@ -1027,7 +1028,7 @@ export function useTrading(
         const next = new Map(
           [...held].filter(([, one]) => !holdExpired(one.at))
         )
-        return next.set(orderId, { px, at: Date.now() })
+        return next.set(orderId, { px, at })
       })
       try {
         if (order?.watched) {
@@ -1055,10 +1056,22 @@ export function useTrading(
             ? getLiveErrorMessage(error)
             : getPaperErrorMessage(error)
         )
+        // A refusal releases the hold at once. Whatever the venue did with
+        // the order, the dropped price is not where it is, and holding the
+        // line there for the next thirty seconds shows a price that is not on
+        // the exchange — the one thing this hook must never do. Only this
+        // drop is let go: a second drag started since owns the line now.
+        setDropped((held) => {
+          if (held.get(orderId)?.at !== at) return held
+          const next = new Map(held)
+          next.delete(orderId)
+          return next
+        })
       } finally {
-        // Not released here: the line is held at the dropped price until a
-        // read comes back carrying it. A read already on its way knows
-        // nothing about this drag and would snap the line back for a moment.
+        // No release on the way through. A drag that worked keeps its line at
+        // the dropped price until a read comes back carrying it: a read
+        // already on its way knows nothing about this drag and would snap the
+        // line back for a moment.
         void refresh()
       }
     },

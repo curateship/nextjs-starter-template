@@ -57,11 +57,35 @@ message says why.
   Nothing touches the exchange. Once the level has been hit and the chase is
   working the exchange, the drag is refused — at that point it is an order in
   flight, not a line to reposition.
-- **A real resting order** (rest mode): the exchange's own *modify* command
-  moves it in place — same order, same size, new price, one call. It is never
-  cancel-and-replace, so there is no moment where the level has nothing on it.
-  For years the code said a real order "cannot be changed in place"; that was
-  never true, the modify command existed all along.
+- **A real resting order** (rest mode): the level never ends up with nothing
+  on it. On Hyperliquid and Phemex the exchange's own *modify* command moves
+  the order in place — same order, same size, new price, one call. For years
+  the code said a real order "cannot be changed in place"; that was never
+  true, the modify command existed all along.
+- **A real resting order on KuCoin**: KuCoin Futures has no modify command,
+  checked again on 21 Aug 2026 against the exchange's own SDK, whose futures
+  order list is add, cancel and read with nothing between them. So a move
+  there is two calls, and the new order goes on **first**. The old one comes
+  off after it, so for a fraction of a second that level is covered twice
+  rather than not at all. Three endings, and the screen says which:
+  - The usual one. The new order goes on, the old one comes off, the line is
+    where it was dropped and nothing is said.
+  - The new order is refused, most often because both orders need margin at
+    once and the wallet has not got it. Then **nothing moved**, the old order
+    is still resting at its old price, the line snaps back and the message
+    says why. A rate limit and a missing key are handed back as themselves
+    rather than dressed up as a move that could not be made.
+  - The new order goes on and the old one will not come off. Then **two orders
+    may be resting**, the message says so in those words and says to check
+    Open orders and cancel one. "May", because the old order might equally
+    have filled while the new one was going on: the exchange is asked once,
+    and only a straight answer that the old order has gone buys silence. An
+    exchange that will not say is not an exchange saying no.
+
+  `trading-rules.md` states what the doubled moment can cost in dollars. It
+  used to be the other way round — cancel first, place second — and the moment
+  in the middle was a level with nothing on it, which is the moment a fall can
+  reach it.
 - **A practice order**: re-prices its row, same as ever.
 - A waiting order's **stop** drags too, and the order resizes so it still
   risks the same money. Its **target** drags without touching the size.

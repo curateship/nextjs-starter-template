@@ -53,10 +53,11 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
  *   retried order is a possible double order.
  *
  * **The one behavioural difference from the other exchanges**: KuCoin has no
- * amend-an-order call, so moving an order is a cancel followed by a fresh
- * place. `modify` says so where it does it, and fails loudly if the replace
- * is refused after the cancel succeeded, rather than leaving a caller
- * believing an order still rests when it does not.
+ * amend-an-order call, so moving an order is two orders' worth of work. The
+ * new one goes on FIRST and the old one comes off after, so the level is
+ * covered twice for a moment rather than left empty. `modify` says so where it
+ * does it; `workspace/docs/trading-rules.md` states the rule and what the
+ * doubled moment can cost.
  */
 
 const MARKET_SLIPPAGE = 0.03
@@ -534,11 +535,24 @@ export async function cancelKucoinOrder(
 }
 
 /**
- * Moving an order, the only way KuCoin allows: cancel it, then place a fresh
- * one. The two halves are not one act, so the gap is stated rather than
- * hidden — if the cancel worked and the replace did not, the caller is told
- * loudly that the old order is GONE and no new one stands, which is the one
- * fact it needs to decide what to do next.
+ * Moving an order, the only way KuCoin allows, and in the only order of doing
+ * it that keeps the rule.
+ *
+ * KuCoin Futures has no amend command. Checked against the exchange's own
+ * SDK on 21 Aug 2026: its futures order list is add, cancel and read, with
+ * nothing between them. So a move is two calls, and which one goes first is
+ * the whole decision.
+ *
+ * **The new order goes on first and the old one comes off second.** For the
+ * fraction of a second between the two calls that level is covered twice,
+ * never not at all. The other way round — cancel, then place — is what this
+ * used to do, and it left the level empty at exactly the moment price can
+ * reach it.
+ *
+ * The failure that happens most often is the safe one. Both orders hold
+ * margin at once while they overlap, so a wallet with little free cash has
+ * the new order refused, nothing moves, and the old one is still resting
+ * where it was.
  */
 export async function modifyKucoinOrder(
   network: NetworkId,
@@ -562,19 +576,6 @@ export async function modifyKucoinOrder(
   if (!(px > 0)) throw new Error("LIVE_PRICE")
 
   try {
-    await kucoinSigned(
-      network,
-      credential,
-      "DELETE",
-      `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
-      {}
-    )
-  } catch (error) {
-    // Nothing has changed yet, so this is an ordinary refusal.
-    throw exchangeError(error)
-  }
-
-  try {
     await sendOrder(network, credential, {
       symbol: params.marketId,
       side: params.side,
@@ -585,9 +586,47 @@ export async function modifyKucoinOrder(
       reduceOnly: params.reduceOnly,
     })
   } catch (error) {
+    // A rate limit and a missing key mean the same thing on every call, and
+    // both tell the caller what to do next. Burying them inside a sentence
+    // about how KuCoin moves orders would lose that.
+    const refused = refusedError(error)
+    if (
+      refused.message === "EXCHANGE_BUSY" ||
+      refused.message === "LIVE_WALLET_KEY"
+    ) {
+      throw refused
+    }
     throw new Error(
-      `LIVE_MOVE_HALF_DONE:The old order was cancelled and the new one was refused (${scrubbedMessage(error)}). Nothing is resting on that market now.`
+      `LIVE_MOVE_REFUSED:The order has not moved and is still resting where it was. KuCoin cannot change an order's price, so the new one has to go on before the old one comes off, and it was refused (${scrubbedMessage(error)}).`
     )
+  }
+
+  try {
+    await kucoinSigned(
+      network,
+      credential,
+      "DELETE",
+      `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
+      {}
+    )
+  } catch (error) {
+    // The old order may simply have gone while the new one was going on —
+    // filled, or cancelled from somewhere else — and then nothing is doubled
+    // and there is nothing to say.
+    //
+    // **Only a straight answer that it has gone buys that silence.** An
+    // exchange that will not say is not an exchange saying no: a read that
+    // failed, or a row that cannot be parsed, leaves two orders possibly
+    // resting on real money, and the one place to be wrong is on the side
+    // that speaks up.
+    const gone = await orderById(network, credential, params.orderId)
+      .then((row) => row !== null && (row.isActive === false || row.status === "done"))
+      .catch(() => false)
+    if (!gone) {
+      throw new Error(
+        `LIVE_MOVE_DOUBLED:The order was moved but the old one could not be taken off (${scrubbedMessage(error)}), so TWO orders may be resting on that market. Check Open orders and cancel one — if both fill you hold twice the position you meant to.`
+      )
+    }
   }
 }
 

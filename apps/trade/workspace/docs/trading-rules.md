@@ -24,9 +24,23 @@ add up to.
 - **A plain order is not a strategy.** It coexists with a ladder on the same
   coin, several can sit on one coin, it counts and shows under Open orders,
   and it never appears in the Smart orders panel.
-- **A real resting order moves in place.** The exchange's modify command —
-  same order, same size, new price. Never cancel-and-replace: the level is
-  never left uncovered mid-move.
+- **A real resting order moves without ever leaving its level empty.** Where
+  the exchange has a modify command — Hyperliquid and Phemex — that is what is
+  used: same order, same size, new price. KuCoin Futures has no such command,
+  so there the new order goes on FIRST and the old one comes off after, and for
+  the fraction of a second between them that level is covered twice. Cancelling
+  first is banned everywhere. An empty level is the one thing a move may never
+  produce, because the moment a level is uncovered is exactly the moment price
+  can reach it.
+- **The doubled moment on KuCoin is a decision, and here is what it costs.**
+  Dragging a $250 buy means $250 of buying is on the exchange twice for about
+  a third of a second. If price falls through both prices inside that moment,
+  $500 of the coin is bought instead of $250, and nothing in this app agreed to
+  the second $250. That is the risk taken, deliberately, in exchange for never
+  missing a buy that a fall was about to fill. The far more common ending is
+  the harmless one: both orders need margin at once, so a wallet with little
+  free cash has the new order refused, nothing moves, and the old order is
+  still sitting exactly where it was.
 - **A trigger's price is never rewritten into a limit.** A stop or target leg
   the exchange holds is not a resting order, and no drag may turn it into one.
 - **A take profit can be sized.** By default it sells the whole position, as

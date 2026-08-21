@@ -649,3 +649,191 @@ describe("what a finished trade made", () => {
     expect(fills[0].sz).toBeCloseTo(0.01, 12)
   })
 })
+
+/**
+ * The rule these tests are for, in `trading-rules.md`'s words: a real resting
+ * order moves without ever leaving its level empty.
+ *
+ * They are written at the level of that rule and not of the mechanism under
+ * it. What is asserted is the ORDER of what left the machine — a level covered
+ * throughout, or covered twice, but never nothing. A later rewrite of how
+ * KuCoin is talked to cannot quietly put the cancel back in front.
+ */
+describe("moving an order never uncovers its level", () => {
+  /** The transcript, one line per request, in the order they went out. */
+  function transcript(sent: Sent[]): string[] {
+    return sent
+      .filter((one) => one.url.pathname.startsWith("/api/v1/orders"))
+      .map((one) => `${one.method} ${one.url.pathname}`)
+  }
+
+  /** An exchange that refuses whichever calls the test names. */
+  function stubMovingExchange(
+    refuse: (
+      method: string,
+      path: string
+    ) => unknown | { status: number } | null,
+    sent: Sent[],
+    oldOrder: unknown = null
+  ) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (rawUrl: string | URL, init?: RequestInit) => {
+        const url = new URL(String(rawUrl))
+        const method = init?.method ?? "GET"
+        sent.push({
+          method,
+          url,
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        })
+        const refusal = refuse(method, url.pathname)
+        if (refusal && typeof refusal === "object" && "status" in refusal) {
+          return new Response("{}", { status: refusal.status })
+        }
+        if (refusal) return Response.json(refusal)
+        if (url.pathname === "/api/v1/contracts/active") {
+          return Response.json(CONTRACTS)
+        }
+        if (url.pathname === "/api/v1/orders" && method === "POST") {
+          return Response.json(ok({ orderId: "ord-new" }))
+        }
+        if (url.pathname === "/api/v1/orders/ord-old" && method === "GET") {
+          return Response.json(ok(oldOrder))
+        }
+        return Response.json(ok(null))
+      })
+    )
+  }
+
+  const MOVE = {
+    marketId: "XBTUSDTM",
+    orderId: "ord-old",
+    side: "buy" as const,
+    px: 68_000,
+    sz: 0.01,
+    reduceOnly: false,
+  }
+
+  beforeEach(() => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+  })
+
+  it("puts the new order on before taking the old one off", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(() => null, sent)
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    await modifyKucoinOrder("mainnet", AUTH, MOVE)
+
+    expect(transcript(sent)).toEqual([
+      "POST /api/v1/orders",
+      "DELETE /api/v1/orders/ord-old",
+    ])
+  })
+
+  it("leaves the old order exactly where it was when the new one is refused", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(
+      (method, path) =>
+        method === "POST" && path === "/api/v1/orders"
+          ? { code: "300000", msg: "Balance insufficient" }
+          : null,
+      sent
+    )
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
+      /^LIVE_MOVE_REFUSED:/
+    )
+    // The one thing that matters: nothing was cancelled, so the level the
+    // order was resting on is still covered by that order.
+    expect(transcript(sent)).toEqual(["POST /api/v1/orders"])
+  })
+
+  it("says two orders are resting when the old one would not come off", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(
+      (method, path) =>
+        method === "DELETE" && path === "/api/v1/orders/ord-old"
+          ? { code: "100001", msg: "System busy" }
+          : null,
+      sent,
+      { id: "ord-old", symbol: "XBTUSDTM", status: "open", isActive: true }
+    )
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
+      /^LIVE_MOVE_DOUBLED:.*TWO orders/s
+    )
+  })
+
+  it("says nothing when the old order had already gone", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(
+      (method, path) =>
+        method === "DELETE" && path === "/api/v1/orders/ord-old"
+          ? { code: "100004", msg: "order_not_exist" }
+          : null,
+      sent,
+      { id: "ord-old", symbol: "XBTUSDTM", status: "done", isActive: false }
+    )
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    // The old order filled while the new one was going on. One order rests,
+    // which is what a move is supposed to leave behind, so there is no alarm.
+    await expect(
+      modifyKucoinOrder("mainnet", AUTH, MOVE)
+    ).resolves.toBeUndefined()
+  })
+
+  it("hands back a rate limit as itself, not as a KuCoin move story", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(
+      (method, path) =>
+        method === "POST" && path === "/api/v1/orders" ? { status: 429 } : null,
+      sent
+    )
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    // The whole message, not a message with the code buried in it. Wrapping a
+    // rate limit inside a sentence about how KuCoin moves orders reads as
+    // "your order cannot be moved" when the truth is "ask again in a moment",
+    // and a substring match would not tell the two apart.
+    await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
+      /^EXCHANGE_BUSY$/
+    )
+    expect(transcript(sent)).toEqual(["POST /api/v1/orders"])
+  })
+
+  it("speaks up when it cannot find out whether the old order went", async () => {
+    const sent: Sent[] = []
+    stubMovingExchange(
+      (method, path) =>
+        path === "/api/v1/orders/ord-old" && method !== "POST"
+          ? { code: "100001", msg: "System busy" }
+          : null,
+      sent
+    )
+    const { modifyKucoinOrder } = await import(
+      "@/server/protocols/kucoin/orders"
+    )
+
+    // The cancel failed and the read that would settle it failed too. An
+    // exchange that will not say is not an exchange saying the old order has
+    // gone, and being wrong quietly here means two live orders nobody knows
+    // about.
+    await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
+      /^LIVE_MOVE_DOUBLED:.*TWO orders/s
+    )
+  })
+})

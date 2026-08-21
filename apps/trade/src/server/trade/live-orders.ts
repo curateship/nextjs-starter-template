@@ -161,7 +161,12 @@ async function refuse(
   await journal(userId, walletId, marketKey, {
     action: "refused",
     side,
-    note: message.replace(/^LIVE_(EXCHANGE|ORDER_REFUSED):/, ""),
+    // The move codes carry a whole written sentence rather than a bare
+    // reason, so stripping the code leaves the Journal reading properly.
+    note: message.replace(
+      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED):/,
+      ""
+    ),
   })
   throw error
 }
@@ -259,8 +264,11 @@ export async function placeLiveOrder(
 /**
  * Drags one resting real order to a new price.
  *
- * The exchange's modify action keeps the order itself alive — same id, same
- * size, same side — so there is no gap where the level has nothing on it.
+ * **The level is never left with nothing on it.** Hyperliquid and Phemex have
+ * an amend command, so the order itself stays alive — same id, same size, new
+ * price. KuCoin has none, so its own `modify` puts the new order on before
+ * taking the old one off and the level is covered twice for a moment instead.
+ * Either way there is no gap, which is the rule in `trading-rules.md`.
  *
  * **One exchange call, nothing read first.** Size, side and reduce-only come
  * from the row on screen, because a drag has to land the moment the hand lets
