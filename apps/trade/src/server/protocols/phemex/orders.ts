@@ -1111,9 +1111,19 @@ async function readPhemexFills(
       start: Math.max(0, from),
     }).catch(() => null),
   ])
+  // **Only coins actually held.** Phemex answers this account with a row for
+  // every market it has ever touched — 134 of them on 20 Aug 2026, nearly all
+  // long closed and sitting at nought. Adding them all made one sweep ask
+  // about 134 coins, which is both the burst that gets the key rationed and
+  // the reason a single dead market could break everything: one of those
+  // symbols answers 400, and the whole sweep threw. Phemex fills stopped
+  // being recorded at 16:27 that day and nothing said so.
   for (const raw of positions) {
     const row = positionSchema.safeParse(raw)
-    if (row.success) symbols.add(row.data.symbol)
+    if (!row.success) continue
+    if (!((num(row.data.sizeRq) ?? 0) > 0)) continue
+    if (symbols.size >= SYMBOLS_PER_SWEEP) break
+    symbols.add(row.data.symbol)
   }
   // Coins held come first — they are the ones a trade can still be made on —
   // then the most recently touched, up to the ceiling.
@@ -1191,7 +1201,15 @@ async function readPhemexFills(
   await Promise.all(
     Array.from({ length: Math.min(AT_A_TIME, queue.length) }, async () => {
       for (let symbol = queue.pop(); symbol; symbol = queue.pop()) {
-        await walkOne(symbol)
+        // **One coin's refusal must not lose the other coins' trades.** This
+        // endpoint answers per symbol, and a market Phemex will no longer
+        // answer for — delisted, renamed — replies 400. Letting that through
+        // threw away the whole sweep, so a real fill on a live coin never
+        // reached the Journal and no arrow was ever drawn for it. Whatever
+        // this symbol was hiding is read again on the next sweep.
+        await walkOne(symbol).catch((error) => {
+          console.error(`Phemex fills refused for ${symbol}`, error)
+        })
       }
     })
   )
