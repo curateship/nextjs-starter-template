@@ -25,7 +25,7 @@ What Trade has added to the shell, and what each piece is for:
 
 | Where | What |
 | --- | --- |
-| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's. |
+| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`). Each loads its own market list and carries the picked market in the address. |
 | `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
 | `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
 | `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |

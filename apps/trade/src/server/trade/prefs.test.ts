@@ -8,6 +8,7 @@ import type { ChartView } from "@/lib/trade/chart-view"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
+  loadTradingDashboardWidgets,
   loadChartView,
   loadChartOptions,
   loadLastMarketKey,
@@ -18,6 +19,7 @@ import {
   saveChartOptions,
   saveLastMarketKey,
   saveLastWalletId,
+  saveTradingDashboardWidgets,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -91,6 +93,37 @@ describe("the remembered order window", () => {
       .set({ quickOrder: { sizeUnit: "bananas" } as never })
       .where(eq(tradePrefs.userId, id))
     expect(await loadQuickOrder(id)).toEqual(DEFAULT_QUICK_ORDER)
+  })
+})
+
+describe("the trading dashboard arrangement", () => {
+  it("opens on the trading default before anything is saved", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadTradingDashboardWidgets(id)).toEqual({
+      top: ["figures"],
+      left: ["wallets", "equity"],
+      right: ["trades"],
+    })
+  })
+
+  it("keeps each account's trading dashboard separate", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+    await saveTradingDashboardWidgets(theirs.id, {
+      top: [],
+      left: ["trades"],
+      right: [],
+    })
+    expect(await loadTradingDashboardWidgets(mine.id)).toEqual({
+      top: ["figures"],
+      left: ["wallets", "equity"],
+      right: ["trades"],
+    })
+    expect(await loadTradingDashboardWidgets(theirs.id)).toEqual({
+      top: [],
+      left: ["trades"],
+      right: [],
+    })
   })
 })
 

@@ -6,7 +6,8 @@ agreed yet.
 
 ## The Trade workspace
 
-Four areas on one screen, at `/trade`, which is also where signing in lands you.
+Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
+and `/admin/kucoin`.
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
@@ -641,11 +642,67 @@ working bar streams beside it.
   in front of the press; nothing is said afterwards, real or pretend — see
   "Orders on the chart".
 
+## The trading overview
+
+`/admin/trading-overview` answers the account-wide money question without
+belonging to one exchange. The headline card puts total balance, made or lost,
+settled money, and money still open in four large columns. Under it, draggable
+cards show the wallets, money over time, and every recorded real fill.
+The Wallets, Money over time, and Trades cards use the same shared
+workspace-panel header as the rest of the dashboard, including its icon,
+height, spacing, and divider; none carries a second descriptive line in the
+header. The Wallet and Made or lost columns stay left-aligned; the remaining
+money columns align their figures on the right.
+Headline and chart totals use the dashboard's shared stat typography: Inter
+for labels and the dashboard's semibold tabular monospace treatment for values.
+
+Practice wallets never enter a number on this screen. If one real wallet cannot
+be read, the rest of the screen stays up, the missing exchange is named, and
+every affected total says it is short. A failed read is never drawn as an empty
+wallet.
+
+The wallet card is one comparison table. Each wallet has its exchange, balance,
+made or lost, settled money, and money still open on one row. A switched-off
+wallet stays as a quiet row saying it was not asked or counted. Every column
+heading sorts the wallet rows, while wallets without figures stay at the end.
+Testnet wallets do not appear in this card. The Wallets heading tooltip states
+the money rule. Made or lost is settled trade money plus current open profit.
+The settled trades start at midnight yesterday in Toronto. Deposits and
+withdrawals can change Balance but never profit.
+
+The money-over-time card measures from the balance recorded when each wallet
+was added. Deposits and withdrawals after that moment are not recorded, so the
+card says what the starting point is rather than presenting the result as a
+full account history. The latest balance sits above the line. The 30D, 90D, and
+All controls change the period shown without changing any saved dashboard
+setting. The area under the line fades to transparent toward the bottom. The
+opening-balance explanation is in the Money over time heading tooltip.
+
+The trades table uses the money each exchange stated. A KuCoin sale that did
+not close the position has no stated profit, so its Money cell is a dash. The
+Money column's header tooltip and the chart header say how many trades their
+total is short of. An unstated figure never becomes zero. Trade rows are grouped
+by day and keep market, side, time, exchange, wallet, money, size, and fee in a
+compact four-column table. The Filter menu narrows the table to one exchange,
+one wallet, or both, and Clear all restores every trade. A fill hidden from the
+Journal stays hidden here too.
+Trade rows inherit the dashboard's Inter typeface, including market names and
+Money values. Their numbers keep tabular spacing without switching to a
+monospace face.
+
+Settings has two Widgets tabs and they do not share an arrangement. The
+trading Widgets tab sits in the "This app" card and saves its top, left, right,
+and hidden lists per account in `trade_prefs`. The platform Widgets tab sits in
+the "Platform" card and saves the platform Overview arrangement in the shell
+settings. Moving or resetting a card in one tab never changes the other.
+
 ## Where the navigation lives
 
 The sidebar and the signed-in home page are Settings, held in the app's
 database — not in code. Trade is a copy of Custom Shell, and an app never edits
 a shell file, so these are changed on the Settings screens:
 
-- Settings → Sidebar — the **Trade** link.
-- Settings → General settings — the admin and member home pages, both `/trade`.
+- Settings → Sidebar — the **Trading overview** link to
+  `/admin/trading-overview`.
+- Settings → General settings — the admin and member home pages, both
+  `/admin/trading-overview`.

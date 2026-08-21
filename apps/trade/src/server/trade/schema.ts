@@ -22,6 +22,7 @@ import type { CardFolds } from "@/lib/trade/card-folds"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
+import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
 import type { DrawingShape } from "@/lib/trade/drawings"
 import type {
   TradeFlowRunSpec,
@@ -122,6 +123,13 @@ export const tradePrefs = pgTable("trade_prefs", {
     .$type<Record<string, string>>()
     .notNull()
     .default({}),
+  /**
+   * The cards on this app's trading overview. Kept here per account and never
+   * in the shell's dashboard setting, so moving one cannot move the platform
+   * Overview for the same person.
+   */
+  dashboardWidgets:
+    jsonb("dashboard_widgets").$type<TradingDashboardWidgetLayout>(),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),

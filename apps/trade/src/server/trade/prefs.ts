@@ -13,6 +13,10 @@ import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
 import {
+  normalizeTradingDashboardWidgets,
+  type TradingDashboardWidgetLayout,
+} from "@/lib/trade/dashboard/widgets"
+import {
   readQuickOrderPrefs,
   type QuickOrderPrefs,
 } from "@/lib/trade/quick-order"
@@ -127,6 +131,34 @@ export async function saveLastWalletId(
       target: tradePrefs.userId,
       set: { lastWalletIds, updatedAt: new Date() },
     })
+}
+
+/** The trading dashboard arrangement, separate from the platform Overview. */
+export async function loadTradingDashboardWidgets(
+  userId: string
+): Promise<TradingDashboardWidgetLayout> {
+  const row = await db
+    .select({ dashboardWidgets: tradePrefs.dashboardWidgets })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return normalizeTradingDashboardWidgets(row[0]?.dashboardWidgets)
+}
+
+/** Remember the complete arrangement against this account. */
+export async function saveTradingDashboardWidgets(
+  userId: string,
+  value: unknown
+): Promise<TradingDashboardWidgetLayout> {
+  const dashboardWidgets = normalizeTradingDashboardWidgets(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, dashboardWidgets, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { dashboardWidgets, updatedAt: new Date() },
+    })
+  return dashboardWidgets
 }
 
 /**

@@ -38,6 +38,11 @@ export const appOptions: AppOptions = {
         // the panel reads the engine's state through `@/lib/api/*`.
         panel: () => import("@/components/workers/workers-settings"),
       },
+      {
+        id: "trading-widgets",
+        label: "Widgets",
+        panel: () => import("@/components/trade/dashboard-widget-settings"),
+      },
     ],
   },
   automations: {

@@ -32,7 +32,6 @@ import { Route as AuthenticatedBacktestsRouteImport } from './routes/_authentica
 import { Route as AuthenticatedChangelogRouteImport } from './routes/_authenticated/changelog'
 import { Route as AuthenticatedFlowRunsRouteImport } from './routes/_authenticated/flow-runs'
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
-import { Route as AuthenticatedTradeRouteImport } from './routes/_authenticated/trade'
 import { Route as AuthenticatedWorkspacesRouteImport } from './routes/_authenticated/workspaces'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
@@ -55,6 +54,7 @@ import { Route as AuthenticatedAdminPlansRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAdminSegmentsRouteImport } from './routes/_authenticated/admin/segments'
 import { Route as AuthenticatedAdminSettingsRouteImport } from './routes/_authenticated/admin/settings'
 import { Route as AuthenticatedAdminSystemEmailsRouteImport } from './routes/_authenticated/admin/system-emails'
+import { Route as AuthenticatedAdminTradingOverviewRouteImport } from './routes/_authenticated/admin/trading-overview'
 import { Route as AuthenticatedAdminTrafficRouteImport } from './routes/_authenticated/admin/traffic'
 import { Route as AuthenticatedAdminUsersRouteImport } from './routes/_authenticated/admin/users'
 import { Route as AuthenticatedBacktestsGroupIdRouteImport } from './routes/_authenticated/backtests_.$groupId'
@@ -190,11 +190,6 @@ const AuthenticatedHomeRoute = AuthenticatedHomeRouteImport.update({
   path: '/home',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedTradeRoute = AuthenticatedTradeRouteImport.update({
-  id: '/trade',
-  path: '/trade',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedWorkspacesRoute = AuthenticatedWorkspacesRouteImport.update({
   id: '/workspaces',
   path: '/workspaces',
@@ -318,6 +313,12 @@ const AuthenticatedAdminSystemEmailsRoute =
   AuthenticatedAdminSystemEmailsRouteImport.update({
     id: '/system-emails',
     path: '/system-emails',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminTradingOverviewRoute =
+  AuthenticatedAdminTradingOverviewRouteImport.update({
+    id: '/trading-overview',
+    path: '/trading-overview',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
 const AuthenticatedAdminTrafficRoute =
@@ -457,7 +458,6 @@ export interface FileRoutesByFullPath {
   '/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -479,6 +479,7 @@ export interface FileRoutesByFullPath {
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
@@ -522,7 +523,6 @@ export interface FileRoutesByTo {
   '/backtests': typeof AuthenticatedBacktestsRoute
   '/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/home': typeof AuthenticatedHomeRoute
-  '/trade': typeof AuthenticatedTradeRoute
   '/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -544,6 +544,7 @@ export interface FileRoutesByTo {
   '/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/admin/users': typeof AuthenticatedAdminUsersRoute
   '/backtests/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
@@ -591,7 +592,6 @@ export interface FileRoutesById {
   '/_authenticated/changelog': typeof AuthenticatedChangelogRouteWithChildren
   '/_authenticated/flow-runs': typeof AuthenticatedFlowRunsRoute
   '/_authenticated/home': typeof AuthenticatedHomeRoute
-  '/_authenticated/trade': typeof AuthenticatedTradeRoute
   '/_authenticated/workspaces': typeof AuthenticatedWorkspacesRoute
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
@@ -613,6 +613,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/segments': typeof AuthenticatedAdminSegmentsRoute
   '/_authenticated/admin/settings': typeof AuthenticatedAdminSettingsRouteWithChildren
   '/_authenticated/admin/system-emails': typeof AuthenticatedAdminSystemEmailsRoute
+  '/_authenticated/admin/trading-overview': typeof AuthenticatedAdminTradingOverviewRoute
   '/_authenticated/admin/traffic': typeof AuthenticatedAdminTrafficRoute
   '/_authenticated/admin/users': typeof AuthenticatedAdminUsersRoute
   '/_authenticated/backtests_/$groupId': typeof AuthenticatedBacktestsGroupIdRoute
@@ -660,7 +661,6 @@ export interface FileRouteTypes {
     | '/changelog'
     | '/flow-runs'
     | '/home'
-    | '/trade'
     | '/workspaces'
     | '/api/health'
     | '/admin/ai'
@@ -682,6 +682,7 @@ export interface FileRouteTypes {
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
+    | '/admin/trading-overview'
     | '/admin/traffic'
     | '/admin/users'
     | '/backtests/$groupId'
@@ -725,7 +726,6 @@ export interface FileRouteTypes {
     | '/backtests'
     | '/flow-runs'
     | '/home'
-    | '/trade'
     | '/workspaces'
     | '/api/health'
     | '/admin/ai'
@@ -747,6 +747,7 @@ export interface FileRouteTypes {
     | '/admin/segments'
     | '/admin/settings'
     | '/admin/system-emails'
+    | '/admin/trading-overview'
     | '/admin/traffic'
     | '/admin/users'
     | '/backtests/$groupId'
@@ -793,7 +794,6 @@ export interface FileRouteTypes {
     | '/_authenticated/changelog'
     | '/_authenticated/flow-runs'
     | '/_authenticated/home'
-    | '/_authenticated/trade'
     | '/_authenticated/workspaces'
     | '/api/health'
     | '/_authenticated/admin/ai'
@@ -815,6 +815,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/segments'
     | '/_authenticated/admin/settings'
     | '/_authenticated/admin/system-emails'
+    | '/_authenticated/admin/trading-overview'
     | '/_authenticated/admin/traffic'
     | '/_authenticated/admin/users'
     | '/_authenticated/backtests_/$groupId'
@@ -1029,13 +1030,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedHomeRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/trade': {
-      id: '/_authenticated/trade'
-      path: '/trade'
-      fullPath: '/trade'
-      preLoaderRoute: typeof AuthenticatedTradeRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/workspaces': {
       id: '/_authenticated/workspaces'
       path: '/workspaces'
@@ -1188,6 +1182,13 @@ declare module '@tanstack/react-router' {
       path: '/system-emails'
       fullPath: '/admin/system-emails'
       preLoaderRoute: typeof AuthenticatedAdminSystemEmailsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/trading-overview': {
+      id: '/_authenticated/admin/trading-overview'
+      path: '/trading-overview'
+      fullPath: '/admin/trading-overview'
+      preLoaderRoute: typeof AuthenticatedAdminTradingOverviewRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/traffic': {
@@ -1379,6 +1380,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminSegmentsRoute: typeof AuthenticatedAdminSegmentsRoute
   AuthenticatedAdminSettingsRoute: typeof AuthenticatedAdminSettingsRouteWithChildren
   AuthenticatedAdminSystemEmailsRoute: typeof AuthenticatedAdminSystemEmailsRoute
+  AuthenticatedAdminTradingOverviewRoute: typeof AuthenticatedAdminTradingOverviewRoute
   AuthenticatedAdminTrafficRoute: typeof AuthenticatedAdminTrafficRoute
   AuthenticatedAdminUsersRoute: typeof AuthenticatedAdminUsersRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
@@ -1409,6 +1411,8 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminSegmentsRoute: AuthenticatedAdminSegmentsRoute,
   AuthenticatedAdminSettingsRoute: AuthenticatedAdminSettingsRouteWithChildren,
   AuthenticatedAdminSystemEmailsRoute: AuthenticatedAdminSystemEmailsRoute,
+  AuthenticatedAdminTradingOverviewRoute:
+    AuthenticatedAdminTradingOverviewRoute,
   AuthenticatedAdminTrafficRoute: AuthenticatedAdminTrafficRoute,
   AuthenticatedAdminUsersRoute: AuthenticatedAdminUsersRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
@@ -1450,7 +1454,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedChangelogRoute: typeof AuthenticatedChangelogRouteWithChildren
   AuthenticatedFlowRunsRoute: typeof AuthenticatedFlowRunsRoute
   AuthenticatedHomeRoute: typeof AuthenticatedHomeRoute
-  AuthenticatedTradeRoute: typeof AuthenticatedTradeRoute
   AuthenticatedWorkspacesRoute: typeof AuthenticatedWorkspacesRoute
   AuthenticatedBacktestsGroupIdRoute: typeof AuthenticatedBacktestsGroupIdRoute
   AuthenticatedFlowRunsRunIdRoute: typeof AuthenticatedFlowRunsRunIdRoute
@@ -1463,7 +1466,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedChangelogRoute: AuthenticatedChangelogRouteWithChildren,
   AuthenticatedFlowRunsRoute: AuthenticatedFlowRunsRoute,
   AuthenticatedHomeRoute: AuthenticatedHomeRoute,
-  AuthenticatedTradeRoute: AuthenticatedTradeRoute,
   AuthenticatedWorkspacesRoute: AuthenticatedWorkspacesRoute,
   AuthenticatedBacktestsGroupIdRoute: AuthenticatedBacktestsGroupIdRoute,
   AuthenticatedFlowRunsRunIdRoute: AuthenticatedFlowRunsRunIdRoute,

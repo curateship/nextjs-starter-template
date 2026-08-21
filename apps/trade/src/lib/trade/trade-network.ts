@@ -18,8 +18,7 @@ import {
  * market's link, are how the door is opened when it is wanted.
  *
  * Shared here because every exchange's dashboard route reads the same two
- * params the same way — and the old `/trade` address keeps validating them
- * long enough to hand them to its redirect.
+ * params the same way.
  */
 export type TradeSearch = { market?: string; network?: "testnet" | "mainnet" }
 
