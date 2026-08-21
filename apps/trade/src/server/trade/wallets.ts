@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, eq, gte, inArray } from "drizzle-orm"
 
 import type {
   NetworkId,
@@ -9,7 +9,9 @@ import type {
 } from "@/lib/protocols/contracts"
 import {
   MAX_WALLETS,
+  moneyForWalletFill,
   summarizeWallet,
+  walletProfitWindowStart,
   type TradeWallet,
   type WalletAccountSummary,
   type WalletKind,
@@ -24,7 +26,11 @@ import {
 } from "@/server/protocols/registry"
 import { paperWalletFigures } from "@/server/trade/paper"
 import { credentialFor } from "@/server/trade/wallet-auth"
-import { tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveFills,
+  tradePaperJournal,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 /**
  * The wallet store. Two rules run through every function here:
@@ -176,9 +182,10 @@ export async function createWallet(
     // outright where the venue can tell. Codes travel up as they are — each
     // has its own sentence in the dialog.
     const verified = await agentOf(entry).verify(input.network, address, blob)
-    agentValidUntil = verified.validUntil !== null ? new Date(verified.validUntil) : null
-    // Reading the account is both the reachability check and the baseline:
-    // "Since it started" measures from the value the account had right now.
+    agentValidUntil =
+      verified.validUntil !== null ? new Date(verified.validUntil) : null
+    // Reading the account proves it is reachable and records the fixed sizing
+    // baseline used when compounding is off.
     // An account the exchange cannot answer for is refused, not saved broken.
     const figures = await accountOf(entry)
       .fetch(input.network, address, () => blob)
@@ -209,7 +216,7 @@ export async function updateWallet(
   input: {
     id: string
     label?: string
-    /** Paper only — rewriting a live wallet's baseline would rewrite its history. */
+    /** Paper only — a live wallet keeps the fixed sizing baseline saved at add. */
     startingBalance?: number
     /** Live only: a replacement credential, in the wallet's own fields. */
     agentKey?: string
@@ -313,13 +320,76 @@ export async function loadWalletSummaries(
   // is exactly what makes a wallet answer with nothing. A switched-off wallet
   // says so instead, which is the truth and costs nothing.
   const inUse = wallets.filter((wallet) => wallet.status === "active")
-  const paper = await paperWalletFigures(
-    userId,
-    inUse.filter((wallet) => wallet.kind === "paper")
-  ).catch((error) => {
-    console.error("Paper wallets could not be settled", error)
-    return new Map<string, WalletAccountFigures>()
-  })
+  const liveWallets = inUse.filter((wallet) => wallet.kind === "live")
+  const paperWallets = inUse.filter((wallet) => wallet.kind === "paper")
+  const since = walletProfitWindowStart(new Date())
+  const [paper, liveMoney, paperMoney] = await Promise.all([
+    paperWalletFigures(userId, paperWallets).catch((error) => {
+      console.error("Paper wallets could not be settled", error)
+      return new Map<string, WalletAccountFigures>()
+    }),
+    liveWallets.length
+      ? db
+          .select({
+            walletId: tradeLiveFills.walletId,
+            side: tradeLiveFills.side,
+            closedPnl: tradeLiveFills.closedPnl,
+            fee: tradeLiveFills.fee,
+          })
+          .from(tradeLiveFills)
+          .where(
+            and(
+              eq(tradeLiveFills.userId, userId),
+              inArray(
+                tradeLiveFills.walletId,
+                liveWallets.map((wallet) => wallet.id)
+              ),
+              eq(tradeLiveFills.hidden, false),
+              gte(tradeLiveFills.at, since)
+            )
+          )
+      : [],
+    paperWallets.length
+      ? db
+          .select({
+            walletId: tradePaperJournal.walletId,
+            closedPnl: tradePaperJournal.closedPnl,
+            fee: tradePaperJournal.fee,
+          })
+          .from(tradePaperJournal)
+          .where(
+            and(
+              eq(tradePaperJournal.userId, userId),
+              inArray(
+                tradePaperJournal.walletId,
+                paperWallets.map((wallet) => wallet.id)
+              ),
+              gte(tradePaperJournal.fillTime, new Date(since))
+            )
+          )
+      : [],
+  ])
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+  const settledByWallet = new Map<string, number>()
+  const unpricedByWallet = new Map<string, number>()
+  const addSettled = (walletId: string, money: number) =>
+    settledByWallet.set(walletId, (settledByWallet.get(walletId) ?? 0) + money)
+  for (const fill of liveMoney) {
+    const wallet = walletById.get(fill.walletId)
+    if (!wallet) continue
+    const money = moneyForWalletFill({ protocol: wallet.protocol, ...fill })
+    if (money === null) {
+      unpricedByWallet.set(
+        fill.walletId,
+        (unpricedByWallet.get(fill.walletId) ?? 0) + 1
+      )
+    } else {
+      addSettled(fill.walletId, money)
+    }
+  }
+  for (const fill of paperMoney) {
+    addSettled(fill.walletId, fill.closedPnl - fill.fee)
+  }
 
   const summaries = await Promise.all(
     wallets.map(async (wallet): Promise<WalletAccountSummary> => {
@@ -332,11 +402,16 @@ export async function loadWalletSummaries(
         // settle itself failed. Saying so beats reporting a balance worked out
         // from prices nobody could read.
         if (!figures) return { walletId: wallet.id, state: "unreachable" }
-        return summarizeWallet(wallet, figures)
+        return summarizeWallet(wallet, figures, {
+          settled: settledByWallet.get(wallet.id) ?? 0,
+          unpricedFills: 0,
+        })
       }
       const figures = await accountOf(getProtocol(wallet.protocol))
         .fetch(wallet.network, wallet.address ?? "", () =>
-          credentialFor({ agentKeyEncrypted: cipherById.get(wallet.id) ?? null })
+          credentialFor({
+            agentKeyEncrypted: cipherById.get(wallet.id) ?? null,
+          })
         )
         .catch((error: unknown) => {
           console.error(
@@ -346,7 +421,10 @@ export async function loadWalletSummaries(
           return null
         })
       if (!figures) return { walletId: wallet.id, state: "unreachable" }
-      return summarizeWallet(wallet, figures)
+      return summarizeWallet(wallet, figures, {
+        settled: settledByWallet.get(wallet.id) ?? 0,
+        unpricedFills: unpricedByWallet.get(wallet.id) ?? 0,
+      })
     })
   )
   return { wallets, summaries }

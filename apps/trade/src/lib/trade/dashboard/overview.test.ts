@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  buildTradingOverviewEquity,
+  buildTradingOverviewProfit,
   isTradingOverviewWallet,
-  moneyForOverviewFill,
-  tradingOverviewWindowStart,
   tradingOverviewWalletPerformance,
 } from "./overview"
+import { moneyForWalletFill, walletProfitWindowStart } from "../wallets"
 
 describe("trading overview money", () => {
   it("uses live mainnet wallets and excludes every kind of practice money", () => {
@@ -23,7 +22,7 @@ describe("trading overview money", () => {
 
   it("leaves a KuCoin partial sale unpriced", () => {
     expect(
-      moneyForOverviewFill({
+      moneyForWalletFill({
         protocol: "kucoin",
         side: "sell",
         closedPnl: 0,
@@ -34,7 +33,7 @@ describe("trading overview money", () => {
 
   it("uses the venue's stated profit less its fee", () => {
     expect(
-      moneyForOverviewFill({
+      moneyForWalletFill({
         protocol: "phemex",
         side: "sell",
         closedPnl: 12,
@@ -60,23 +59,28 @@ describe("trading overview money", () => {
 
   it("starts at midnight yesterday in Toronto", () => {
     expect(
-      tradingOverviewWindowStart(new Date("2026-08-21T16:00:00.000Z"))
+      walletProfitWindowStart(new Date("2026-08-21T16:00:00.000Z"))
     ).toBe(new Date("2026-08-20T04:00:00.000Z").getTime())
   })
 
-  it("builds one line from all opening balances and recorded fills", () => {
+  it("charts profit from yesterday through the current open profit", () => {
     expect(
-      buildTradingOverviewEquity(
-        [{ startingBalance: 100 }, { startingBalance: 50 }],
+      buildTradingOverviewProfit(
         [
-          { at: 20, fee: 1, money: 9 },
-          { at: 10, fee: 0.5, money: null },
-        ]
+          { at: 99, money: 500 },
+          { at: 101, money: 20 },
+          { at: 102, money: null },
+          { at: 103, money: 5.9 },
+        ],
+        100,
+        50,
+        104
       )
     ).toEqual([
-      { at: 9, money: 150 },
-      { at: 10, money: 149.5 },
-      { at: 20, money: 158.5 },
+      { at: 100, money: 0 },
+      { at: 101, money: 20 },
+      { at: 103, money: 25.9 },
+      { at: 104, money: 75.9 },
     ])
   })
 })

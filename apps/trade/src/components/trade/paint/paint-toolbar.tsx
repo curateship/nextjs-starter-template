@@ -5,6 +5,7 @@ import { MinusIcon, SlashIcon, Trash2Icon } from "lucide-react"
 import type { PaintTool } from "@/components/trade/paint/use-drawings"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 
 /**
  * The tools, as a small rail down the chart's left edge.
@@ -38,12 +39,15 @@ export function PaintToolbar({
   tool,
   onPickTool,
   drawingCount,
+  drawingsVisible,
   onClearAll,
 }: {
   tool: PaintTool | null
   onPickTool: (next: PaintTool | null) => void
   /** How many lines are on this chart; the bin appears once there is one. */
   drawingCount: number
+  /** Hidden drawings stay saved, but no paint tool can be picked. */
+  drawingsVisible: boolean
   onClearAll: () => void
 }) {
   const [confirming, setConfirming] = React.useState(false)
@@ -57,19 +61,25 @@ export function PaintToolbar({
       className="absolute top-2 left-2 z-20 flex flex-col gap-0.5 rounded-lg border bg-card/85 p-0.5 shadow-sm backdrop-blur-sm"
     >
       {TOOLS.map((entry) => (
-        <Button
+        <DisabledReason
           key={entry.kind}
-          type="button"
-          size="icon-xs"
-          variant={tool === entry.kind ? "secondary" : "ghost"}
-          aria-pressed={tool === entry.kind}
-          aria-label={entry.label}
-          // Pressing the tool that is already in hand puts it down, so
-          // there is always a way back to plain panning.
-          onClick={() => onPickTool(tool === entry.kind ? null : entry.kind)}
+          disabled={!drawingsVisible}
+          reason="Show your drawings in View options to use the paint tools."
         >
-          {entry.icon}
-        </Button>
+          <Button
+            type="button"
+            size="icon-xs"
+            variant={tool === entry.kind ? "secondary" : "ghost"}
+            aria-pressed={tool === entry.kind}
+            aria-label={entry.label}
+            disabled={!drawingsVisible}
+            // Pressing the tool that is already in hand puts it down, so
+            // there is always a way back to plain panning.
+            onClick={() => onPickTool(tool === entry.kind ? null : entry.kind)}
+          >
+            {entry.icon}
+          </Button>
+        </DisabledReason>
       ))}
       {drawingCount > 0 ? (
         <Button
@@ -93,7 +103,9 @@ export function PaintToolbar({
             : `All ${drawingCount} drawings on this market go. Other markets keep theirs, and this cannot be undone.`
         }
         confirmLabel={
-          drawingCount === 1 ? "Delete 1 drawing" : `Delete ${drawingCount} drawings`
+          drawingCount === 1
+            ? "Delete 1 drawing"
+            : `Delete ${drawingCount} drawings`
         }
         onConfirm={() => {
           setConfirming(false)

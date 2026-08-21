@@ -187,7 +187,8 @@ export function FlowRunChartPanel({
 
       {live && !showGraph ? (
         <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
-          This run is still switched on, so more orders may appear on this chart.
+          This run is still switched on, so more orders may appear on this
+          chart.
         </div>
       ) : null}
 
@@ -229,13 +230,14 @@ export function FlowRunChartPanel({
               viewKey={`${openCoin}:${spec.strategy.interval}`}
               readView={readView}
               onViewChange={onViewChange}
-              overlay={(surface) => (
+              overlay={(surface, colors) => (
                 <>
                   <IndicatorLayer surface={surface} paint={indicators} />
                   {/* Under the arrows: a rung is a price being waited for, and
                       a fill is something that happened. */}
                   <SmartLadderLayer
                     surface={surface}
+                    colors={colors}
                     marketKey={openCoin}
                     ladders={ladders}
                     preview={null}
@@ -266,6 +268,7 @@ export function FlowRunChartPanel({
               tool={paint.tool}
               onPickTool={paint.setTool}
               drawingCount={paint.drawings.length}
+              drawingsVisible
               onClearAll={() => void paint.clearAll()}
             />
           </div>

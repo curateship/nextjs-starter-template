@@ -29,6 +29,7 @@ const OPTIONS: { key: ChartOptionToggle; label: string }[] = [
   { key: "volume", label: "Volume" },
   { key: "crosshair", label: "Crosshair" },
   { key: "orderArrows", label: "Order arrows" },
+  { key: "drawings", label: "Your drawings" },
 ]
 
 /**
@@ -39,7 +40,11 @@ const OPTIONS: { key: ChartOptionToggle; label: string }[] = [
  * it, and the time axis, the crosshair and every session boundary all read it,
  * so a box drawn at 09:30 and an axis labelled 09:30 are the same 09:30.
  */
-export function ChartOptionsMenu({ control }: { control: ChartOptionsControl }) {
+export function ChartOptionsMenu({
+  control,
+}: {
+  control: ChartOptionsControl
+}) {
   return (
     <Popover>
       <Tooltip>

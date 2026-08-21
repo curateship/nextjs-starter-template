@@ -1,4 +1,3 @@
-
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
@@ -332,7 +331,7 @@ export function BacktestChartPanel({
           <div
             key={`${openCoin}:${interval}`}
             data-slot="chart-ready"
-            className="relative min-h-0 flex-1 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
+            className="relative min-h-0 flex-1 motion-safe:animate-in motion-safe:duration-300 motion-safe:fade-in-0"
           >
             <PriceChart
               candles={[...bars]}
@@ -382,6 +381,7 @@ export function BacktestChartPanel({
               tool={paint.tool}
               onPickTool={paint.setTool}
               drawingCount={paint.drawings.length}
+              drawingsVisible
               onClearAll={() => void paint.clearAll()}
             />
           </div>

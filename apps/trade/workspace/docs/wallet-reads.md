@@ -1,9 +1,16 @@
 # Wallet figures — who is asked, how often, and what a miss means
 
-The five rows on a wallet card — Free, In trades, Open profit, Settled, Since
-it started — come from the exchange, not from our database. This doc says
-which wallets get asked, how often, what it costs, and why a failed answer no
-longer wipes the card.
+The five rows on a wallet card are Free, In trades, Open profit, Settled, and
+Made or lost. The exchange supplies the account and open-position figures.
+Settled comes from its recorded fills since midnight yesterday in Toronto, and
+Made or lost adds that settled money to current open profit. Older profit and
+changes to the account balance never enter those two rows. This doc says which
+wallets get asked, how often, what it costs, and why a failed answer no longer
+wipes the card.
+
+KuCoin states profit when a position closes, not on every partial sale. When a
+recent sale is still unpriced, the info mark beside Settled says that Settled
+and Made or lost are short and names how many trades are missing.
 
 The rules this machinery must add up to are stated once, in
 `trading-rules.md` — that file outranks both this doc and the code. The
@@ -83,7 +90,7 @@ blanking the card.
 - After **three misses in a row** — about forty-five seconds of real silence —
   the card gives up and says "Can't reach it" with the Try again button.
 - A single good read clears the count immediately.
-- A wallet that has *never* answered shows "Can't reach it" at once. There are
+- A wallet that has _never_ answered shows "Can't reach it" at once. There are
   no old figures to stand on, and inventing zeros would be making them up.
 
 The merge rule is `keepGoodSummaries` in `src/lib/trade/wallets.ts`, and the
@@ -94,16 +101,15 @@ double-incremented by a re-render.
 card with "Can't reach it" until the next tick fifteen seconds later put it
 back — so the card flickered all day on an account that was never actually
 unreachable. This is the same rule `keepUnreachableRows` already applies to
-positions and orders, which was written after real *positions* blinked out the
+positions and orders, which was written after real _positions_ blinked out the
 same way. A read that failed and a wallet that holds nothing must never look
 alike.
 
 ## What is deliberately not softened
 
 - **A figure the exchange sends that cannot be read fails the whole wallet.**
-  Open profit is subtracted from the journey to get the settled figure, so one
-  silently-zeroed position would put a wrong number in two rows and still look
-  like an answer.
+  Open profit enters Made or lost, so silently replacing a missing position
+  figure with zero would still print a believable but wrong answer.
 - **The whole-list read failing is different from one wallet failing.** If the
   request itself throws, the panel keeps what is on screen and only announces
   a failure when there is nothing up yet; the next tick is the retry.

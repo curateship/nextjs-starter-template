@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
+import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
   formatPrice,
   formatSignedUsd,
@@ -109,20 +110,13 @@ export type EntryBadge = {
   onRemove: (() => void) | null
 }
 
-/**
- * One colour per kind, used for the line, its label and its price badge alike.
- * Fixed colours rather than theme tokens on purpose: these mean the same thing
- * on a dark chart as on a light one, and the label sits on the colour itself
- * with white text, so it has to stay dark enough to read against.
- */
-const COLOR: Record<LineKind, string> = {
-  entry: "#2962ff",
-  take_profit: "#089981",
-  stop_loss: "#f23645",
-  liquidation: "#f59e0b",
-  order: "#6b7280",
-  order_take_profit: "#089981",
-  order_stop_loss: "#f23645",
+/** One theme colour per meaning, shared with candles, grids and ladders. */
+function colorOf(kind: LineKind, colors: ChartColors): string {
+  if (kind === "entry") return colors.primary
+  if (kind === "take_profit" || kind === "order_take_profit") return colors.up
+  if (kind === "stop_loss" || kind === "order_stop_loss") return colors.down
+  if (kind === "liquidation") return colors.warning
+  return colors.neutral
 }
 
 /** A finer dash on the two that have not started yet — they are a plan, not a fact. */
@@ -177,6 +171,7 @@ function Grip({ x, y, color }: { x: number; y: number; color: string }) {
 
 export function TradeLinesLayer({
   surface,
+  colors,
   marketKey,
   positions,
   orders,
@@ -193,6 +188,7 @@ export function TradeLinesLayer({
   onSurface,
 }: {
   surface: ChartSurface
+  colors: ChartColors
   /** The market on screen — lines from other markets are not drawn here. */
   marketKey: string | null
   positions: readonly PaperPosition[]
@@ -257,7 +253,8 @@ export function TradeLinesLayer({
       (orderId): orderId is string => orderId !== null
     )
     if (ids.length === 0) continue
-    const walletIds = bracketOrderIds.get(position.walletId) ?? new Set<string>()
+    const walletIds =
+      bracketOrderIds.get(position.walletId) ?? new Set<string>()
     for (const orderId of ids) walletIds.add(orderId)
     bracketOrderIds.set(position.walletId, walletIds)
   }
@@ -276,9 +273,7 @@ export function TradeLinesLayer({
   // More than one wallet in this market means every line has to say which
   // wallet it belongs to, or two entry lines sit there with nothing to tell
   // them apart. With only one wallet involved the name would just be noise.
-  const involved = new Set(
-    [...held, ...waiting].map((one) => one.walletId)
-  )
+  const involved = new Set([...held, ...waiting].map((one) => one.walletId))
   const whose = (walletId: string) =>
     involved.size > 1 ? ` · ${walletName(walletId)}` : ""
 
@@ -306,7 +301,9 @@ export function TradeLinesLayer({
 
     // A real position's liquidation price is the exchange's own answer; the
     // formula is for practice positions, where this app IS the exchange.
-    const liq = position.live ? position.live.liquidationPx : liquidationPx(position)
+    const liq = position.live
+      ? position.live.liquidationPx
+      : liquidationPx(position)
     if (liq !== null) {
       lines.push({
         id: `liq:${position.id}`,
@@ -335,7 +332,10 @@ export function TradeLinesLayer({
           `Take Profit${share !== null ? ` ${share}%` : ""} ${formatSignedUsd(
             projectedProfit(
               tpSz !== null
-                ? { szi: Math.sign(position.szi) * tpSz, entryPx: position.entryPx }
+                ? {
+                    szi: Math.sign(position.szi) * tpSz,
+                    entryPx: position.entryPx,
+                  }
                 : position,
               at
             )
@@ -435,7 +435,8 @@ export function TradeLinesLayer({
       // has no say in what the trade can lose.
       const move =
         settled && !order.live && onMoveOrderTarget
-          ? (price: number) => onMoveOrderTarget(order.walletId, order.id, price)
+          ? (price: number) =>
+              onMoveOrderTarget(order.walletId, order.id, price)
           : undefined
       lines.push({
         id: `order-tp:${order.id}`,
@@ -444,7 +445,9 @@ export function TradeLinesLayer({
         label: (at) =>
           `Take Profit ${formatSignedUsd(projectedProfit(wouldHold, at))}${tag}`,
         onMove: move,
-        hint: move ? "Drag to move where this order takes its profit." : undefined,
+        hint: move
+          ? "Drag to move where this order takes its profit."
+          : undefined,
       })
     }
     if (order.slPx !== null) {
@@ -520,7 +523,7 @@ export function TradeLinesLayer({
         const y = surface.yOf(price)
         if (y === null) return null
         const held = grab?.id === line.id
-        const color = COLOR[line.kind]
+        const color = colorOf(line.kind, colors)
         const priceText = formatPrice(price)
         const label = line.label(price)
 
@@ -535,7 +538,8 @@ export function TradeLinesLayer({
         // line carries — with a gap of its own before them, so the words never
         // butt straight up against the gear.
         const controls =
-          (line.onRemove ? CLOSE_WIDTH : 0) + (line.onSettings ? CLOSE_WIDTH : 0)
+          (line.onRemove ? CLOSE_WIDTH : 0) +
+          (line.onSettings ? CLOSE_WIDTH : 0)
         const pillWidth =
           label.length * CHAR_WIDTH +
           20 +
@@ -602,7 +606,7 @@ export function TradeLinesLayer({
               <text
                 x={surface.width + BADGE_GAP + 6}
                 y={y + 4}
-                fill="#ffffff"
+                fill={colors.badgeText}
                 style={{ fontSize: 11, fontWeight: 600 }}
               >
                 {priceText.replace("$", "")}
@@ -762,13 +766,7 @@ function RemoveButton({
       }}
     >
       {/* Invisible, only so the × has something finger-sized to be pressed on. */}
-      <rect
-        x={x - 8}
-        y={y - 9}
-        width={18}
-        height={18}
-        fill="transparent"
-      />
+      <rect x={x - 8} y={y - 9} width={18} height={18} fill="transparent" />
       <path
         d={`M${x - 3.5} ${y - 3.5} L${x + 3.5} ${y + 3.5} M${x + 3.5} ${y - 3.5} L${x - 3.5} ${y + 3.5}`}
         stroke={color}

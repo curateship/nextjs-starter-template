@@ -2,15 +2,17 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
-  buildTradingOverviewEquity,
+  buildTradingOverviewProfit,
   isTradingOverviewWallet,
-  moneyForOverviewFill,
-  tradingOverviewWindowStart,
   tradingOverviewWalletPerformance,
   type TradingOverview,
   type TradingOverviewFill,
   type TradingOverviewWallet,
 } from "@/lib/trade/dashboard/overview"
+import {
+  moneyForWalletFill,
+  walletProfitWindowStart,
+} from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { tradeLiveFills } from "@/server/trade/schema"
 import { loadWalletSummaries } from "@/server/trade/wallets"
@@ -75,7 +77,7 @@ export async function loadTradingOverview(
         sz: row.sz,
         at: Number(row.at),
         fee: row.fee,
-        money: moneyForOverviewFill({
+        money: moneyForWalletFill({
           protocol,
           side: row.side,
           closedPnl: row.closedPnl,
@@ -93,7 +95,8 @@ export async function loadTradingOverview(
     ),
   ].sort()
 
-  const performanceSince = tradingOverviewWindowStart(new Date())
+  const now = new Date()
+  const performanceSince = walletProfitWindowStart(now)
   const wallets: TradingOverviewWallet[] = walletRows.map((wallet) => ({
     ...wallet,
     performance:
@@ -116,11 +119,20 @@ export async function loadTradingOverview(
   return {
     wallets,
     fills,
-    equity: buildTradingOverviewEquity(
-      wallets.filter((wallet) => wallet.performance),
-      countedFills
-    ),
+    profit: countedWalletIds.size
+      ? buildTradingOverviewProfit(
+          countedFills,
+          performanceSince,
+          wallets.reduce(
+            (total, wallet) => total + (wallet.performance?.open ?? 0),
+            0
+          ),
+          now.getTime()
+        )
+      : [],
     missingVenues,
-    unpricedFills: countedFills.filter((fill) => fill.money === null).length,
+    unpricedFills: countedFills.filter(
+      (fill) => fill.at >= performanceSince && fill.money === null
+    ).length,
   }
 }

@@ -1,0 +1,79 @@
+import { renderToStaticMarkup } from "react-dom/server"
+import { describe, expect, it } from "vitest"
+
+import { GridLayer } from "@/components/trade/grid-layer"
+import type { ChartSurface } from "@/components/trade/price-chart"
+import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
+import type { ChartColors } from "@/lib/trade/chart-theme"
+
+const colors: ChartColors = {
+  text: "theme-text",
+  grid: "theme-grid",
+  border: "theme-border",
+  primary: "theme-primary",
+  up: "theme-up",
+  down: "theme-down",
+  warning: "theme-warning",
+  neutral: "theme-neutral",
+  badgeText: "theme-badge-text",
+  upSoft: "theme-up-soft",
+  downSoft: "theme-down-soft",
+}
+
+const surface: ChartSurface = {
+  width: 480,
+  height: 240,
+  axisWidth: 60,
+  xOf: () => 0,
+  xOfContainingBar: () => 0,
+  timeAt: () => 0,
+  barAt: () => 0,
+  yOf: (price) => 200 - price,
+  priceAt: (y) => 200 - y,
+}
+
+describe("theme colours on chart overlays", () => {
+  it("uses the candle colour for a ladder rung", () => {
+    const html = renderToStaticMarkup(
+      <SmartLadderLayer
+        surface={surface}
+        colors={colors}
+        marketKey="market"
+        ladders={[]}
+        preview={[100]}
+        tool={null}
+        walletName={() => "Wallet"}
+      />
+    )
+
+    expect(html).toContain("theme-up")
+  })
+
+  it("uses the theme for every grid preview meaning", () => {
+    const html = renderToStaticMarkup(
+      <GridLayer
+        surface={surface}
+        colors={colors}
+        marketKey="market"
+        grids={[]}
+        preview={[
+          { px: 130, kind: "upper" },
+          { px: 120, kind: "level" },
+          { px: 110, kind: "takeProfit" },
+          { px: 100, kind: "stopLoss" },
+        ]}
+        tool={null}
+        walletName={() => "Wallet"}
+        onCancelLevel={() => undefined}
+        onCancelGrid={() => undefined}
+        onEditStop={() => undefined}
+        onMoveRange={async () => true}
+        onMoveExit={async () => true}
+      />
+    )
+
+    expect(html).toContain("theme-primary")
+    expect(html).toContain("theme-up")
+    expect(html).toContain("theme-down")
+  })
+})

@@ -229,7 +229,7 @@ export function PriceChart({
    * Drawn over the candles, handed the surface. Called again every time the
    * view moves, so it can render straight from the coordinates it is given.
    */
-  overlay?: (surface: ChartSurface) => React.ReactNode
+  overlay?: (surface: ChartSurface, colors: ChartColors) => React.ReactNode
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const chartRef = React.useRef<IChartApi | null>(null)
@@ -239,6 +239,7 @@ export function PriceChart({
   // may still be importing the library when they change.
   const candlesRef = React.useRef(candles)
   const colorsRef = React.useRef<ChartColors | null>(null)
+  const [colors, setColors] = React.useState<ChartColors | null>(null)
   // Every open-time on screen, in order — the candles plus any live bar that
   // has appended itself since. The sideways mapping is measured off this, so
   // it has to include the bar the live feed added or a drawing out to the
@@ -438,11 +439,13 @@ export function PriceChart({
       // The bar list is read as the answer is asked for, not captured here:
       // a live bar appending itself changes what lies to the right of the
       // last candle without moving anything already on screen.
-      xOf: (time) => next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
+      xOf: (time) =>
+        next.barZeroX + barOfTime(timesRef.current, time) * next.barWidth,
       xOfContainingBar: (time) =>
         next.barZeroX +
         Math.floor(barOfTime(timesRef.current, time)) * next.barWidth,
-      timeAt: (x) => timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
+      timeAt: (x) =>
+        timeOfBar(timesRef.current, (x - next.barZeroX) / next.barWidth),
       barAt: (time) => barOfTime(timesRef.current, time),
       yOf: (price) => series.priceToCoordinate(price),
       priceAt: (y) => series.coordinateToPrice(y),
@@ -520,6 +523,7 @@ export function PriceChart({
       priceSeriesRef.current = price
       volumeSeriesRef.current = volume
       colorsRef.current = colors
+      setColors(colors)
       applyCandles(price, volume, candlesRef.current, colors)
       timesRef.current = candlesRef.current.map((bar) => bar.openTime)
       lastTimeRef.current = candlesRef.current.at(-1)?.openTime ?? 0
@@ -541,12 +545,14 @@ export function PriceChart({
       })
       refreshSurface()
 
-      // The shell's theme toggle stamps a class on <html>; recolour in place
-      // rather than rebuilding the chart.
+      // The theme class lives on <html>, while Styling puts its Divider lines
+      // token on a shell wrapper. Watch the chart's ancestor chain so either
+      // change recolours the live chart and its overlays in place.
       themeWatcher = new MutationObserver(() => {
         if (!containerRef.current) return
         const next = readChartColors(containerRef.current)
         colorsRef.current = next
+        setColors(next)
         chart.applyOptions({
           layout: { textColor: next.text },
           grid: {
@@ -572,10 +578,16 @@ export function PriceChart({
         })
         applyCandles(price, volume, candlesRef.current, next)
       })
-      themeWatcher.observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ["class", "data-theme", "style"],
-      })
+      for (
+        let ancestor: HTMLElement | null = containerRef.current;
+        ancestor;
+        ancestor = ancestor.parentElement
+      ) {
+        themeWatcher.observe(ancestor, {
+          attributes: true,
+          attributeFilter: ["class", "data-theme", "style"],
+        })
+      }
     })()
 
     return () => {
@@ -655,7 +667,7 @@ export function PriceChart({
         className="absolute inset-0"
         onDoubleClick={resetChart}
       />
-      {overlay && surface ? (
+      {overlay && surface && colors ? (
         // As tall as the plot and as wide as the plot plus the price axis. The
         // extra strip is there for one thing only — a price badge sitting on
         // the axis beside the line it belongs to, the way every trading chart
@@ -673,7 +685,7 @@ export function PriceChart({
             height: surface.height,
           }}
         >
-          {overlay(surface)}
+          {overlay(surface, colors)}
         </div>
       ) : null}
     </div>
@@ -728,23 +740,19 @@ function applyCandles(
   colors: ChartColors
 ) {
   price.setData(
-    candles.map(
-      (bar): CandlestickData => ({
-        time: (bar.openTime / 1000) as UTCTimestamp,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-      })
-    )
+    candles.map((bar): CandlestickData => ({
+      time: (bar.openTime / 1000) as UTCTimestamp,
+      open: bar.open,
+      high: bar.high,
+      low: bar.low,
+      close: bar.close,
+    }))
   )
   volume.setData(
-    candles.map(
-      (bar): HistogramData => ({
-        time: (bar.openTime / 1000) as UTCTimestamp,
-        value: bar.volume,
-        color: bar.close >= bar.open ? colors.upSoft : colors.downSoft,
-      })
-    )
+    candles.map((bar): HistogramData => ({
+      time: (bar.openTime / 1000) as UTCTimestamp,
+      value: bar.volume,
+      color: bar.close >= bar.open ? colors.upSoft : colors.downSoft,
+    }))
   )
 }

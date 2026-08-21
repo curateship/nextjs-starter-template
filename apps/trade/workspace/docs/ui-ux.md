@@ -35,8 +35,11 @@ and `/admin/kucoin`.
   every row. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
-  off the page rather than hard-coded. Loading, no-history and failed-fetch
-  states stay inside the panel; the rest of the page stands. While candles are
+  off the page rather than hard-coded. Grid levels, ladder rungs and order
+  lines read those same theme colours. Their neutral lines read the Divider
+  lines setting, so light and dark themes and Styling changes repaint the
+  whole chart together. Loading, no-history and failed-fetch states stay
+  inside the panel; the rest of the page stands. While candles are
   loading, the whole empty chart surface gently fades in and out instead of
   showing an icon, spinner or loading screen. The completed chart fades in
   when ready. Reduced-motion settings keep both transitions still.
@@ -152,10 +155,13 @@ many are switched on.
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
-- **The eye after Indicators opens View options.** Its four checkboxes show or
-  hide the chart grid, volume bars, crosshair and order arrows. All four start
-  on, and each choice follows the account onto the next market, visit and
-  machine.
+- **The eye after Indicators opens View options.** Its five checkboxes show or
+  hide the chart grid, volume bars, crosshair, order arrows and your drawings.
+  All five start on, and each choice follows the account onto the next market,
+  visit and machine. Hiding drawings leaves every line saved in place, clears
+  the picked line and switches off the paint tools until drawings are shown
+  again. The bin still appears when hidden drawings exist because clearing and
+  hiding are different actions.
 - **A change is saved once the settings sit still for a moment**, because
   typing "150" into a field is three changes. A save that does not land is said
   in a toast and **does not undo what was just typed** — the chart is already
@@ -241,6 +247,9 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   where you clicked** with that price on it. Where levels sit above the price,
   the card says so and says plainly that placing still buys nothing. Both modes still show the range as
   two prices, the step between levels, and what the whole grid costs.
+  The range controls wait for the saved grid setup to arrive before they can be
+  changed, so a late saved answer never replaces a choice just made in the
+  window or moves its preview.
 - **Money** keeps Share of account % and gains **Split between levels**: "The
   same at every level" or "Double at every level down". When it is set to
   doubling, the readout under Range stops saying "Each buy spends" and says
@@ -609,7 +618,7 @@ working bar streams beside it.
   now". A read already on its way when the action started knows nothing about
   it, so letting that read end the hold snapped the line back to where it was
   and then forward again a moment later. It looked like a delay, and it looked
-  like a *different* delay on every exchange, because it was really a race
+  like a _different_ delay on every exchange, because it was really a race
   with whichever venue's read happened to be slowest.
 
   So a cancelled row stays hidden until it is really gone, a dragged price is
@@ -646,6 +655,13 @@ working bar streams beside it.
   in front of the press; nothing is said afterwards, real or pretend — see
   "Orders on the chart".
 
+The wallet card on each exchange dashboard shows settled trade profit since
+midnight yesterday in Toronto and current open profit. Its final row is Made or
+lost: those two figures added together. It does not use the wallet's opening
+balance, so older profit, deposits, and withdrawals cannot move either profit
+row. When KuCoin has not stated the profit for a partial sale, an info mark
+beside Settled says that both totals are short and names the missing trades.
+
 ## The trading overview
 
 `/admin/trading-overview` answers the account-wide money question without
@@ -674,13 +690,13 @@ the money rule. Made or lost is settled trade money plus current open profit.
 The settled trades start at midnight yesterday in Toronto. Deposits and
 withdrawals can change Balance but never profit.
 
-The money-over-time card measures from the balance recorded when each wallet
-was added. Deposits and withdrawals after that moment are not recorded, so the
-card says what the starting point is rather than presenting the result as a
-full account history. The latest balance sits above the line. The 30D, 90D, and
-All controls change the period shown without changing any saved dashboard
-setting. The area under the line fades to transparent toward the bottom. The
-opening-balance explanation is in the Money over time heading tooltip.
+The money-over-time card starts at zero at midnight yesterday in Toronto and
+charts priced settled trade money from then until now. Its final point adds the
+current open profit, so the value above the line is the same current profit as
+Made or lost. Opening balances, deposits, withdrawals, and older fills never
+enter the line. There are no longer historical range controls because the card
+has one stated period. The area under the line fades to transparent toward the
+bottom, and the profit rule is in the heading tooltip.
 
 The trades table uses the money each exchange stated. A KuCoin sale that did
 not close the position has no stated profit, so its Money cell is a dash. The

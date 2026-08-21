@@ -17,6 +17,7 @@ describe("chart view options", () => {
         volume: true,
         crosshair: false,
         orderArrows: false,
+        drawings: false,
         zone: "Europe/London",
       })
     ).toEqual({
@@ -24,6 +25,7 @@ describe("chart view options", () => {
       volume: true,
       crosshair: false,
       orderArrows: false,
+      drawings: false,
       zone: "Europe/London",
     })
   })
@@ -38,6 +40,7 @@ describe("chart view options", () => {
       volume: true,
       crosshair: false,
       orderArrows: true,
+      drawings: true,
       zone: "UTC",
     })
   })

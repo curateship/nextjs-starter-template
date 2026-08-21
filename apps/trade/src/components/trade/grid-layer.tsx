@@ -3,6 +3,7 @@ import { GripVerticalIcon, SettingsIcon, XIcon } from "lucide-react"
 
 import type { GridPreviewLine } from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
+import type { ChartColors } from "@/lib/trade/chart-theme"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import {
   gridLevels,
@@ -28,22 +29,9 @@ import { cn } from "@/lib/utils"
  * a ladder's rungs are, and the label says so on hover.
  */
 
-/**
- * One colour per meaning, and nothing shares one.
- *
- * The two ends of the range are BLUE and named, because they are the thing you
- * set and the thing you drag. The levels between them are quiet — a thin line
- * and a price, nothing to read. The two ways out are the colours everybody
- * already reads: green for the target, red for the stop.
- */
-const BOUND_COLOR = "#2563eb"
-const LEVEL_BUY_COLOR = "#059669"
-const LEVEL_SELL_COLOR = "#dc2626"
-const TAKE_PROFIT_COLOR = "#059669"
-const STOP_COLOR = "#dc2626"
-
 export function GridLayer({
   surface,
+  colors,
   marketKey,
   grids,
   preview,
@@ -56,6 +44,7 @@ export function GridLayer({
   onMoveExit,
 }: {
   surface: ChartSurface
+  colors: ChartColors
   marketKey: string | null
   /** Every live grid, whichever wallet holds it; this market's are drawn. */
   grids: readonly SmartGrid[]
@@ -105,7 +94,8 @@ export function GridLayer({
   const previewBand = (() => {
     if (!preview || preview.length === 0) return null
     const inRange = preview.filter(
-      (one) => one.kind === "upper" || one.kind === "lower" || one.kind === "level"
+      (one) =>
+        one.kind === "upper" || one.kind === "lower" || one.kind === "level"
     )
     if (inRange.length === 0) return null
     const top = yPinned(Math.max(...inRange.map((one) => one.px)))
@@ -134,7 +124,7 @@ export function GridLayer({
           style={{
             top: previewBand.top,
             height: previewBand.height,
-            backgroundColor: BOUND_COLOR,
+            backgroundColor: colors.primary,
             opacity: 0.05,
           }}
         />
@@ -142,7 +132,7 @@ export function GridLayer({
       {preview?.map((line, index) => {
         const y = yFor(line.px)
         if (y === null) return null
-        const look = LINE_LOOKS[line.kind]
+        const look = lineLook(line.kind, colors)
         return (
           <ChartLine
             key={`grid-preview-${index}`}
@@ -160,6 +150,7 @@ export function GridLayer({
         <GridLines
           key={grid.id}
           grid={grid}
+          colors={colors}
           yFor={yFor}
           yPinned={yPinned}
           tool={tool}
@@ -263,6 +254,7 @@ type DragEnd = "top" | "bottom" | "takeProfit" | "stopLoss"
 
 function GridLines({
   grid,
+  colors,
   yFor,
   yPinned,
   tool,
@@ -275,8 +267,11 @@ function GridLines({
   priceAt,
 }: {
   grid: SmartGrid
+  colors: ChartColors
   yFor: (price: number) => number | null
-  yPinned: (price: number) => { y: number; off: "above" | "below" | null } | null
+  yPinned: (
+    price: number
+  ) => { y: number; off: "above" | "below" | null } | null
   tool: string | null
   walletName: (walletId: string) => string
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
@@ -295,8 +290,12 @@ function GridLines({
   priceAt: (clientY: number) => number | null
 }) {
   const plan = grid.plan
-  const waiting = plan.levels.filter((level) => level.status === "waiting").length
-  const holding = plan.levels.filter((level) => level.status === "holding").length
+  const waiting = plan.levels.filter(
+    (level) => level.status === "waiting"
+  ).length
+  const holding = plan.levels.filter(
+    (level) => level.status === "holding"
+  ).length
   // While a paint tool is held, these controls must not steal its presses.
   const controls = tool ? "none" : "auto"
 
@@ -306,9 +305,10 @@ function GridLines({
   // to.
   const movable = gridRangeMovable(plan)
   // The end being dragged, as a price, while the pointer is down.
-  const [dragging, setDragging] = React.useState<
-    { end: DragEnd; px: number } | null
-  >(null)
+  const [dragging, setDragging] = React.useState<{
+    end: DragEnd
+    px: number
+  } | null>(null)
   /**
    * Where a line was just dropped, held until the server's answer comes back.
    *
@@ -318,9 +318,11 @@ function GridLines({
    * the dropped price on screen makes the move look instant, which it is: the
    * server is only catching up.
    */
-  const [pending, setPending] = React.useState<
-    { end: DragEnd; px: number; was: number | null } | null
-  >(null)
+  const [pending, setPending] = React.useState<{
+    end: DragEnd
+    px: number
+    was: number | null
+  } | null>(null)
 
   /**
    * Dragging one of the grid's four lines to a new price.
@@ -362,7 +364,10 @@ function GridLines({
         // A refused move never changes the plan, so nothing would clear the
         // held price and the line would sit at a price it never reached.
         if (!settled) setPending(null)
-        else void settled.then((ok) => { if (!ok) setPending(null) })
+        else
+          void settled.then((ok) => {
+            if (!ok) setPending(null)
+          })
       }
       window.addEventListener("pointermove", onMove)
       window.addEventListener("pointerup", onUp)
@@ -416,8 +421,7 @@ function GridLines({
     pinBottom !== null &&
     !(pinTop.off !== null && pinTop.off === pinBottom.off)
   // Is the range being moved right now — dragged, or dropped and waiting?
-  const rangeMoved =
-    shownTop !== plan.topPx || shownBottom !== plan.bottomPx
+  const rangeMoved = shownTop !== plan.topPx || shownBottom !== plan.bottomPx
 
   /**
    * The levels the moved range would have, worked out here rather than waited
@@ -449,7 +453,8 @@ function GridLines({
       ? shownTop * (plan.takeProfitPx / plan.topPx)
       : null
 
-  const shownTarget = movedTarget ?? showing("takeProfit", gridTakeProfitPx(plan))
+  const shownTarget =
+    movedTarget ?? showing("takeProfit", gridTakeProfitPx(plan))
   const shownStop = movedStop ?? showing("stopLoss", gridStopPx(plan))
   const stop = gridStopPx(plan)
   const stopY =
@@ -473,8 +478,6 @@ function GridLines({
         ? null
         : yFor(target)
 
-
-
   return (
     <>
       {/* The range, as a shaded band rather than two lines.
@@ -492,7 +495,7 @@ function GridLines({
           style={{
             top: bandTop,
             height: bandBottom - bandTop,
-            backgroundColor: BOUND_COLOR,
+            backgroundColor: colors.primary,
             opacity: dragging ? 0.1 : 0.05,
           }}
         />
@@ -511,7 +514,7 @@ function GridLines({
             key={`moving-${index}`}
             y={y}
             px={level.buyPx}
-            colour={LEVEL_BUY_COLOR}
+            colour={colors.up}
             name={null}
             dashed={false}
             faded
@@ -522,44 +525,44 @@ function GridLines({
       {(movingLevels ? [] : prices)
         .filter((at) => at !== bottomLevel)
         .map((at) => {
-        const y = yFor(at.px)
-        if (y === null) return null
-        const selling = at.sell !== null || at.holding !== null
-        return (
-          <ChartLine
-            key={priceKey(at.px)}
-            y={y}
-            px={at.px}
-            usd={at.usd}
-            colour={selling ? LEVEL_SELL_COLOR : LEVEL_BUY_COLOR}
-            name={null}
-            dashed={at.dead}
-            faded={at.dead}
-            title={
-              at.dead
-                ? "Below your stop — it cannot buy without the stop firing first. It wakes up if the stop moves down."
-                : selling
-                  ? `Selling here. When it fills, a buy goes back on at ${formatPrice(at.px)} one step down.`
-                  : `Waiting to buy ${formatPrice(at.px)}. When it fills, a sell goes on one step above — and when THAT fills, this buy comes back.`
-            }
-            action={
-              at.buy !== null ? (
-                <button
-                  type="button"
-                  aria-label={`Cancel the buy at ${formatPrice(at.px)}`}
-                  className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                  style={{ pointerEvents: controls }}
-                  onClick={() =>
-                    onCancelLevel(grid.walletId, grid.id, at.buy as number)
-                  }
-                >
-                  <XIcon className="size-3" />
-                </button>
-              ) : null
-            }
-          />
-        )
-      })}
+          const y = yFor(at.px)
+          if (y === null) return null
+          const selling = at.sell !== null || at.holding !== null
+          return (
+            <ChartLine
+              key={priceKey(at.px)}
+              y={y}
+              px={at.px}
+              usd={at.usd}
+              colour={selling ? colors.down : colors.up}
+              name={null}
+              dashed={at.dead}
+              faded={at.dead}
+              title={
+                at.dead
+                  ? "Below your stop — it cannot buy without the stop firing first. It wakes up if the stop moves down."
+                  : selling
+                    ? `Selling here. When it fills, a buy goes back on at ${formatPrice(at.px)} one step down.`
+                    : `Waiting to buy ${formatPrice(at.px)}. When it fills, a sell goes on one step above — and when THAT fills, this buy comes back.`
+              }
+              action={
+                at.buy !== null ? (
+                  <button
+                    type="button"
+                    aria-label={`Cancel the buy at ${formatPrice(at.px)}`}
+                    className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                    style={{ pointerEvents: controls }}
+                    onClick={() =>
+                      onCancelLevel(grid.walletId, grid.id, at.buy as number)
+                    }
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                ) : null
+              }
+            />
+          )
+        })}
 
       {/* The two ends of the range — named, blue, and draggable while nothing
           has bought. These are the thing you set, so they are the only lines
@@ -571,7 +574,7 @@ function GridLines({
           // The bottom of the range IS the deepest buy, so it carries that
           // level's money like every other level line.
           usd={bottomLevel?.usd}
-          colour={BOUND_COLOR}
+          colour={colors.primary}
           name="LOWER PRICE"
           dashed={pinBottom.off !== null}
           grip={movable && grippable}
@@ -589,7 +592,11 @@ function GridLines({
                 className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 style={{ pointerEvents: controls }}
                 onClick={() =>
-                  onCancelLevel(grid.walletId, grid.id, bottomLevel.buy as number)
+                  onCancelLevel(
+                    grid.walletId,
+                    grid.id,
+                    bottomLevel.buy as number
+                  )
                 }
               >
                 <XIcon className="size-3" />
@@ -602,7 +609,7 @@ function GridLines({
         <ChartLine
           y={pinTop.y}
           px={shownTop}
-          colour={BOUND_COLOR}
+          colour={colors.primary}
           name="UPPER PRICE"
           dashed={pinTop.off !== null}
           grip={movable && grippable}
@@ -614,15 +621,19 @@ function GridLines({
           }
           action={
             <span
-              className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[10px] font-semibold text-white"
-              style={{ backgroundColor: BOUND_COLOR, pointerEvents: controls }}
+              className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[10px] font-semibold"
+              style={{
+                backgroundColor: colors.primary,
+                color: colors.badgeText,
+                pointerEvents: controls,
+              }}
               title={`${walletName(grid.walletId)} — ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
             >
               {waiting}/{plan.levels.length}
               <button
                 type="button"
                 aria-label="Change the grid's exits"
-                className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
                 onClick={() => onEditStop(grid)}
               >
                 <SettingsIcon className="size-3" />
@@ -631,7 +642,7 @@ function GridLines({
                 <button
                   type="button"
                   aria-label="Stop the grid buying — cancel every waiting level"
-                  className="rounded p-0.5 hover:bg-white/20 focus-visible:bg-white/20 focus-visible:outline-none"
+                  className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
                   onClick={() => onCancelGrid(grid)}
                 >
                   <XIcon className="size-3" />
@@ -647,7 +658,7 @@ function GridLines({
         <ChartLine
           y={targetY}
           px={shownTarget ?? target}
-          colour={TAKE_PROFIT_COLOR}
+          colour={colors.up}
           name="FINISH"
           dashed={false}
           grip
@@ -659,7 +670,7 @@ function GridLines({
         <ChartLine
           y={stopY}
           px={shownStop ?? stop}
-          colour={STOP_COLOR}
+          colour={colors.down}
           name="STOP LOSS"
           dashed={false}
           grip
@@ -672,15 +683,23 @@ function GridLines({
 }
 
 /** What each kind of line looks like and what it is called. */
-const LINE_LOOKS: Record<
-  GridPreviewLine["kind"],
-  { colour: string; name: string | null; dashed: boolean }
-> = {
-  upper: { colour: BOUND_COLOR, name: "UPPER PRICE", dashed: false },
-  lower: { colour: BOUND_COLOR, name: "LOWER PRICE", dashed: false },
-  takeProfit: { colour: TAKE_PROFIT_COLOR, name: "FINISH", dashed: false },
-  stopLoss: { colour: STOP_COLOR, name: "STOP LOSS", dashed: false },
-  level: { colour: LEVEL_SELL_COLOR, name: null, dashed: false },
+function lineLook(
+  kind: GridPreviewLine["kind"],
+  colors: ChartColors
+): { colour: string; name: string | null; dashed: boolean } {
+  if (kind === "upper") {
+    return { colour: colors.primary, name: "UPPER PRICE", dashed: false }
+  }
+  if (kind === "lower") {
+    return { colour: colors.primary, name: "LOWER PRICE", dashed: false }
+  }
+  if (kind === "takeProfit") {
+    return { colour: colors.up, name: "FINISH", dashed: false }
+  }
+  if (kind === "stopLoss") {
+    return { colour: colors.down, name: "STOP LOSS", dashed: false }
+  }
+  return { colour: colors.down, name: null, dashed: false }
 }
 
 /**
@@ -729,7 +748,7 @@ function ChartLine({
         className={dashed ? "border-t border-dashed" : "border-t"}
         style={{ borderColor: colour }}
       />
-      <div className="absolute right-0 top-0 flex -translate-y-1/2 items-center gap-1">
+      <div className="absolute top-0 right-0 flex -translate-y-1/2 items-center gap-1">
         {name ? (
           <span
             className={cn(
@@ -758,13 +777,13 @@ function ChartLine({
             same order the rest of the app reads in: what it costs, then where.
             Left off the range's own edges, which buy nothing by themselves. */}
         {usd !== undefined && usd > 0 ? (
-          <span className="rounded-sm bg-muted px-1 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+          <span className="rounded-sm bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
             {formatUsdRounded(usd)}
           </span>
         ) : null}
         <span
-          className="rounded-sm px-1 py-0.5 text-[10px] font-medium tabular-nums text-white"
-          style={{ backgroundColor: colour }}
+          className="rounded-sm px-1 py-0.5 text-[10px] font-medium tabular-nums"
+          style={{ backgroundColor: colour, color: "var(--background)" }}
         >
           {formatPrice(px)}
         </span>

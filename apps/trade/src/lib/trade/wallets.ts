@@ -4,6 +4,9 @@ import {
   type ProtocolId,
   type WalletAccountFigures,
 } from "@/lib/protocols/contracts"
+import { runAtFromTimezoneInput } from "@/lib/automations/schedule"
+
+const WALLET_PROFIT_TIMEZONE = "America/Toronto"
 
 /**
  * Wallets, in the app's own words — browser-safe on purpose. The server file
@@ -27,10 +30,7 @@ export type TradeWallet = {
   status: WalletStatus
   protocol: ProtocolId
   network: NetworkId
-  /**
-   * Paper: the pretend cash it began with. Live: the account's value at the
-   * moment it was added here — the baseline "Since it started" measures from.
-   */
+  /** Paper: its opening cash. Live: its fixed non-compounding sizing baseline. */
   startingBalance: number
   /** The account's public address. Null on paper wallets. */
   address: string | null
@@ -51,10 +51,12 @@ export type WalletAccountSummary =
   | ({
       walletId: string
       state: "ok"
-      /** Equity minus the starting baseline: the whole journey, in dollars. */
-      sinceStart: number
-      /** The journey minus what is still open — the part already banked. */
+      /** Settled since yesterday plus what is still open now. */
+      madeOrLost: number
+      /** Trade money already banked since midnight yesterday in Toronto. */
       settled: number
+      /** Recent fills whose profit the venue has not stated. */
+      unpricedFills: number
       /**
        * These figures are the last ones that landed, not this second's — the
        * exchange has missed a read or two since. Set by `keepGoodSummaries`
@@ -129,22 +131,58 @@ export function keepGoodSummaries(
 }
 
 /**
- * Turns one account read into the five rows. The two derived figures answer
- * to each other on purpose: settled + open profit always equals the whole
- * journey, so the column can be checked by adding it up.
+ * Turns one account read and its recent settled money into the five rows.
+ * Settled plus open profit always equals made or lost.
  */
 export function summarizeWallet(
-  wallet: Pick<TradeWallet, "id" | "startingBalance">,
-  figures: WalletAccountFigures
+  wallet: Pick<TradeWallet, "id">,
+  figures: WalletAccountFigures,
+  performance: { settled: number; unpricedFills: number }
 ): WalletAccountSummary {
-  const sinceStart = figures.equity - wallet.startingBalance
   return {
     walletId: wallet.id,
     state: "ok",
     ...figures,
-    sinceStart,
-    settled: sinceStart - figures.openProfit,
+    madeOrLost: performance.settled + figures.openProfit,
+    ...performance,
   }
+}
+
+/** KuCoin gives a figure when a position closes, not when part is sold. */
+export function moneyForWalletFill(fill: {
+  protocol: ProtocolId
+  side: "buy" | "sell"
+  closedPnl: number
+  fee: number
+}): number | null {
+  if (
+    fill.protocol === "kucoin" &&
+    fill.side === "sell" &&
+    fill.closedPnl === 0
+  ) {
+    return null
+  }
+  return fill.closedPnl - fill.fee
+}
+
+/** Midnight at the start of yesterday in the account owner's timezone. */
+export function walletProfitWindowStart(now: Date): number {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: WALLET_PROFIT_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value)
+  const localDay = new Date(
+    Date.UTC(value("year"), value("month") - 1, value("day"))
+  )
+  localDay.setUTCDate(localDay.getUTCDate() - 1)
+  const input = `${localDay.getUTCFullYear()}-${String(localDay.getUTCMonth() + 1).padStart(2, "0")}-${String(localDay.getUTCDate()).padStart(2, "0")}T00:00`
+  const instant = runAtFromTimezoneInput(input, WALLET_PROFIT_TIMEZONE)
+  if (!instant) throw new Error("WALLET_PROFIT_WINDOW")
+  return new Date(instant).getTime()
 }
 
 /**
@@ -256,7 +294,9 @@ export function venueLabel(protocol: ProtocolId, network: NetworkId): string {
  * and the key never leaves the browser it was typed into.
  */
 export function describeKeyMismatch(message: string): string | null {
-  const match = /KEY_NOT_APPROVED:(0x[0-9a-f]{40})\|([0-9a-fx,]*)/i.exec(message)
+  const match = /KEY_NOT_APPROVED:(0x[0-9a-f]{40})\|([0-9a-fx,]*)/i.exec(
+    message
+  )
   if (!match) return null
   const mine = shortAddress(match[1])
   const approved = match[2]

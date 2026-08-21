@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ArchiveIcon,
   CreditCardIcon,
+  InfoIcon,
   LayersIcon,
   PlusIcon,
 } from "lucide-react"
@@ -13,6 +14,11 @@ import { WorkspacePanelTab } from "@/components/shared/workspace-panel-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryWarning } from "@/lib/trade/live"
 import {
@@ -46,7 +52,13 @@ export function KindBadge({ kind }: { kind: TradeWallet["kind"] }) {
 }
 
 /** A gain or loss in color: green up, red down, muted for a plain zero. */
-function SignedUsd({ value, className }: { value: number; className?: string }) {
+function SignedUsd({
+  value,
+  className,
+}: {
+  value: number
+  className?: string
+}) {
   return (
     <span
       className={cn(
@@ -68,7 +80,7 @@ function FigureRow({
   label,
   children,
 }: {
-  label: string
+  label: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -79,12 +91,21 @@ function FigureRow({
   )
 }
 
+function useKeyExpiryWarning(keyValidUntil: number | null) {
+  const [readAt, setReadAt] = React.useState(Date.now)
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
+  return keyExpiryWarning(keyValidUntil, readAt)
+}
+
 /**
  * The trading key is running out (or has). Said on the wallet itself, where
  * the fix is one click away, and only while it is worth saying.
  */
 function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
-  const warning = keyExpiryWarning(wallet.keyValidUntil, Date.now())
+  const warning = useKeyExpiryWarning(wallet.keyValidUntil)
   if (!warning) return null
   return (
     <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
@@ -159,11 +180,36 @@ function ActiveWalletView({
           <FigureRow label="Open profit">
             <SignedUsd value={summary.openProfit} />
           </FigureRow>
-          <FigureRow label="Settled">
+          <FigureRow
+            label={
+              <span className="flex items-center gap-1">
+                Settled
+                {summary.unpricedFills ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="About settled profit"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <InfoIcon className="size-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-64">
+                      Settled and Made or lost are short of{" "}
+                      {summary.unpricedFills.toLocaleString()}{" "}
+                      {summary.unpricedFills === 1 ? "trade" : "trades"} whose
+                      profit the exchange has not stated.
+                    </TooltipContent>
+                  </Tooltip>
+                ) : null}
+              </span>
+            }
+          >
             <SignedUsd value={summary.settled} />
           </FigureRow>
-          <FigureRow label="Since it started">
-            <SignedUsd value={summary.sinceStart} />
+          <FigureRow label="Made or lost">
+            <SignedUsd value={summary.madeOrLost} />
           </FigureRow>
         </div>
       ) : (
@@ -194,6 +240,7 @@ function WalletCard({
   onOpen: () => void
 }) {
   const ok = summary !== null && summary.state === "ok"
+  const expiryWarning = useKeyExpiryWarning(wallet.keyValidUntil)
   return (
     <button
       type="button"
@@ -225,7 +272,10 @@ function WalletCard({
         </span>
         {active ? (
           <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden />
+            <span
+              className="size-1.5 rounded-full bg-emerald-500"
+              aria-hidden
+            />
             Live
           </span>
         ) : wallet.status === "inactive" ? (
@@ -234,9 +284,9 @@ function WalletCard({
           </span>
         ) : null}
       </div>
-      {keyExpiryWarning(wallet.keyValidUntil, Date.now()) ? (
+      {expiryWarning ? (
         <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
-          {keyExpiryWarning(wallet.keyValidUntil, Date.now())}
+          {expiryWarning}
         </p>
       ) : null}
     </button>
@@ -286,7 +336,7 @@ function ChooseWalletView({
                 </span>
                 <KindBadge kind={wallet.kind} />
               </span>
-              <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
                 {ok
                   ? formatUsd(summary.equity)
                   : summary?.state === "inactive"
@@ -382,9 +432,7 @@ export function AccountPanel({
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
 }) {
-  const [tab, setTab] = React.useState<"active" | "all" | "inactive">(
-    "active"
-  )
+  const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
   const activeWallets = wallets.filter((wallet) => wallet.status === "active")
   const inactiveWallets = wallets.filter(
@@ -394,9 +442,7 @@ export function AccountPanel({
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) =>
-        setTab(value as "active" | "all" | "inactive")
-      }
+      onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       {/* The tab row is the header — same anatomy as the activity panel's,

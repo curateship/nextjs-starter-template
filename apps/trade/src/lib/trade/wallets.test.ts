@@ -43,11 +43,12 @@ const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 describe("the five account rows", () => {
   it("splits the journey into settled and still-open money", () => {
     const summary = summarizeWallet(
-      { id: "w1", startingBalance: 10_000 },
-      { equity: 10_500, free: 9_000, inTrades: 1_500, openProfit: 300 }
+      { id: "w1" },
+      { equity: 10_500, free: 9_000, inTrades: 1_500, openProfit: 300 },
+      { settled: 200, unpricedFills: 0 }
     )
     if (summary.state !== "ok") throw new Error("expected figures")
-    expect(summary.sinceStart).toBe(500)
+    expect(summary.madeOrLost).toBe(500)
     expect(summary.settled).toBe(200)
   })
 
@@ -59,12 +60,13 @@ describe("the five account rows", () => {
     ]
     for (const figures of cases) {
       const summary = summarizeWallet(
-        { id: "w1", startingBalance: 10_000 },
-        { ...figures, free: 0, inTrades: 0 }
+        { id: "w1" },
+        { ...figures, free: 0, inTrades: 0 },
+        { settled: 200, unpricedFills: 0 }
       )
       if (summary.state !== "ok") throw new Error("expected figures")
       expect(summary.settled + summary.openProfit).toBeCloseTo(
-        summary.sinceStart,
+        summary.madeOrLost,
         10
       )
     }
@@ -132,8 +134,9 @@ describe("the cap a freshly picked wallet starts at", () => {
     free: 1_000,
     inTrades: 200,
     openProfit: 0,
-    sinceStart: 200,
+    madeOrLost: 200,
     settled: 200,
+    unpricedFills: 0,
   }
 
   it("is what the wallet has free, not the backtest's pot", () => {
@@ -167,8 +170,9 @@ describe("holding a wallet's figures through a missed read", () => {
     free: 400,
     inTrades: 600,
     openProfit: 25,
-    sinceStart: 100,
+    madeOrLost: 100,
     settled: 75,
+    unpricedFills: 0,
   } as const
   const MISSED = { walletId: "w1", state: "unreachable" } as const
 

@@ -18,8 +18,15 @@ export type ChartColors = {
    * Styling settings' Divider lines colour reaches the chart's edges too.
    */
   border: string
+  /** The account's accent, used for prices that are neither a buy nor a sell. */
+  primary: string
   up: string
   down: string
+  warning: string
+  /** A quiet line that follows the same token as the app's dividers. */
+  neutral: string
+  /** Text drawn on a solid chart badge. */
+  badgeText: string
   upSoft: string
   downSoft: string
 }
@@ -36,12 +43,17 @@ export function readChartColors(host: HTMLElement): ChartColors {
 
   const up = resolve("text-emerald-600 dark:text-emerald-400")
   const down = resolve("text-destructive")
+  const border = resolve("text-border")
   return {
     text: resolve("text-muted-foreground"),
     grid: withAlpha(resolve("text-foreground"), 0.08),
-    border: resolve("text-border"),
+    border,
+    primary: resolve("text-primary"),
     up,
     down,
+    warning: resolve("text-amber-600 dark:text-amber-400"),
+    neutral: border,
+    badgeText: resolve("text-background"),
     upSoft: withAlpha(up, 0.4),
     downSoft: withAlpha(down, 0.4),
   }

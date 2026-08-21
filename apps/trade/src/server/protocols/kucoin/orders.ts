@@ -288,7 +288,7 @@ export function clearKucoinMarginModes(): void {
  * placed at a leverage nobody chose. On isolated the order's own field is
  * honoured and this does nothing.
  */
-async function useAskedLeverage(
+async function applyAskedLeverage(
   network: NetworkId,
   credential: KucoinCredential,
   symbol: string,
@@ -403,12 +403,17 @@ export async function placeKucoinOrder(
 
   // Before anything is ordered: on cross margin the order's own leverage is
   // ignored, so the account's setting is made to match what was asked. See
-  // `useAskedLeverage`.
+  // `applyAskedLeverage`.
   if (
     params.leverage !== null &&
     (await marginModeOf(network, credential, params.marketId)) === "CROSS"
   ) {
-    await useAskedLeverage(network, credential, params.marketId, params.leverage)
+    await applyAskedLeverage(
+      network,
+      credential,
+      params.marketId,
+      params.leverage
+    )
   }
 
   const body: Record<string, unknown> = {
@@ -421,7 +426,7 @@ export async function placeKucoinOrder(
     reduceOnly: params.reduceOnly,
     ...(params.kind === "postOnly" ? { postOnly: true } : {}),
     // Honoured on isolated margin; on cross the account's own setting decides
-    // and `useAskedLeverage` above has already made it match. Stated only when
+    // and `applyAskedLeverage` above has already made it match. Stated only when
     // this opens fresh — adding to a position inherits what it already runs at,
     // and the caller sends null then.
     ...(params.leverage !== null ? { leverage: params.leverage } : {}),
@@ -497,7 +502,9 @@ export async function placeKucoinOrder(
       // An immediate-or-cancel that met nobody. Nothing was bought, and the
       // caller is told rather than left believing an order rests.
       if (isMarket) {
-        throw new Error("LIVE_ORDER_REFUSED:The order missed and was cancelled.")
+        throw new Error(
+          "LIVE_ORDER_REFUSED:The order missed and was cancelled."
+        )
       }
       break
     }
@@ -620,7 +627,10 @@ export async function modifyKucoinOrder(
     // resting on real money, and the one place to be wrong is on the side
     // that speaks up.
     const gone = await orderById(network, credential, params.orderId)
-      .then((row) => row !== null && (row.isActive === false || row.status === "done"))
+      .then(
+        (row) =>
+          row !== null && (row.isActive === false || row.status === "done")
+      )
       .catch(() => false)
     if (!gone) {
       throw new Error(
@@ -665,7 +675,8 @@ export async function closeKucoinPosition(
     const filledValue = num(row.filledValue) ?? num(row.dealValue)
     const filledSz = coinsOf(filledLots, lot)
     return {
-      avgPx: filledValue !== null && filledSz > 0 ? filledValue / filledSz : null,
+      avgPx:
+        filledValue !== null && filledSz > 0 ? filledValue / filledSz : null,
       filledSz,
     }
   }
@@ -696,8 +707,10 @@ export async function setKucoinBrackets(
 
   // Old legs first, so the position is never guarded twice. A leg already
   // gone is fine — that is the state being aimed for.
-  const replacing = [params.position.tpOrderId, params.position.slOrderId]
-    .filter((id): id is string => Boolean(id))
+  const replacing = [
+    params.position.tpOrderId,
+    params.position.slOrderId,
+  ].filter((id): id is string => Boolean(id))
   for (const orderId of replacing) {
     await kucoinSigned(
       network,
@@ -942,7 +955,7 @@ async function closedPositionMoney(
     const rows = Array.isArray(answer)
       ? answer
       : Array.isArray((answer as { items?: unknown })?.items)
-        ? ((answer as { items: unknown[] }).items)
+        ? (answer as { items: unknown[] }).items
         : []
 
     for (const raw of rows) {
@@ -1049,11 +1062,7 @@ export async function fetchKucoinOrderFills(
       fee:
         num(one.fee) ??
         (num(one.openFeePay) ?? 0) + (num(one.closeFeePay) ?? 0),
-      dir: liquidation
-        ? "Liquidation"
-        : one.side === "sell"
-          ? "Sell"
-          : "Buy",
+      dir: liquidation ? "Liquidation" : one.side === "sell" ? "Sell" : "Buy",
       liquidation,
     })
   }

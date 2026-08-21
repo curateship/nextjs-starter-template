@@ -17,6 +17,7 @@ export const chartOptionsSchema = z.object({
   volume: z.boolean(),
   crosshair: z.boolean(),
   orderArrows: z.boolean(),
+  drawings: z.boolean(),
   /**
    * The one timezone — the axis, the crosshair and every session boundary read
    * it. See `chart-timezone.ts`; a name this build no longer offers falls back
@@ -35,6 +36,7 @@ export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   volume: true,
   crosshair: true,
   orderArrows: true,
+  drawings: true,
   zone: DEFAULT_TRADING_ZONE,
 }
 
@@ -50,6 +52,7 @@ export function readChartOptions(value: unknown): ChartOptions {
   const parsed = chartOptionsSchema
     .extend({
       orderArrows: z.boolean().optional(),
+      drawings: z.boolean().optional(),
       zone: z.string().max(40).optional(),
     })
     .safeParse(value)
@@ -57,6 +60,7 @@ export function readChartOptions(value: unknown): ChartOptions {
     ? {
         ...parsed.data,
         orderArrows: parsed.data.orderArrows ?? true,
+        drawings: parsed.data.drawings ?? true,
         zone: readTradingZone(parsed.data.zone),
       }
     : DEFAULT_CHART_OPTIONS

@@ -4,6 +4,7 @@ import type { ChartSurface } from "@/components/trade/price-chart"
 import { ladderExitLevels } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
+import type { ChartColors } from "@/lib/trade/chart-theme"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,10 +30,6 @@ import { cn } from "@/lib/utils"
  * the clicked price stops pretending to be anything.
  */
 
-/** The ladder's own green, a step apart from the take-profit green beside it. */
-const LADDER_COLOR = "#059669"
-const SELL_COLOR = "#089981"
-
 /**
  * The same tag every line on this chart wears: an outlined pill in the line's
  * own colour, on the chart's own background.
@@ -47,6 +44,7 @@ const TAG_CLASS =
 
 export function SmartLadderLayer({
   surface,
+  colors,
   marketKey,
   ladders,
   preview,
@@ -58,6 +56,7 @@ export function SmartLadderLayer({
   onEditExits,
 }: {
   surface: ChartSurface
+  colors: ChartColors
   marketKey: string | null
   /** Every live ladder, whichever wallet holds it; this market's are drawn. */
   ladders: readonly SmartLadder[]
@@ -89,14 +88,18 @@ export function SmartLadderLayer({
         const y = yFor(px)
         if (y === null) return null
         return (
-          <div key={`preview-${index}`} className="absolute inset-x-0" style={{ top: y }}>
+          <div
+            key={`preview-${index}`}
+            className="absolute inset-x-0"
+            style={{ top: y }}
+          >
             <div
               className="border-t border-dashed opacity-40"
-              style={{ borderColor: LADDER_COLOR }}
+              style={{ borderColor: colors.up }}
             />
             <span
               className={`${TAG_CLASS} tabular-nums opacity-70`}
-              style={{ borderColor: LADDER_COLOR, color: LADDER_COLOR }}
+              style={{ borderColor: colors.up, color: colors.up }}
             >
               Rung {index + 1} · {formatPrice(px)}
             </span>
@@ -108,6 +111,7 @@ export function SmartLadderLayer({
         <LadderLines
           key={ladder.id}
           ladder={ladder}
+          colors={colors}
           yFor={yFor}
           tool={tool}
           readOnly={readOnly}
@@ -123,6 +127,7 @@ export function SmartLadderLayer({
 
 function LadderLines({
   ladder,
+  colors,
   yFor,
   tool,
   readOnly,
@@ -132,6 +137,7 @@ function LadderLines({
   onEditExits,
 }: {
   ladder: SmartLadder
+  colors: ChartColors
   yFor: (price: number) => number | null
   tool: string | null
   readOnly: boolean
@@ -160,13 +166,13 @@ function LadderLines({
         <div className="absolute inset-x-0" style={{ top: tagY }}>
           <div
             className="border-t opacity-60"
-            style={{ borderColor: LADDER_COLOR }}
+            style={{ borderColor: colors.up }}
           />
           <span
             className={TAG_CLASS}
             style={{
-              borderColor: LADDER_COLOR,
-              color: LADDER_COLOR,
+              borderColor: colors.up,
+              color: colors.up,
               pointerEvents: controls,
             }}
             title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}. Rung prices are frozen; cancel and place again for a different ladder.`}
@@ -215,13 +221,13 @@ function LadderLines({
           >
             <div
               className="border-t border-dashed"
-              style={{ borderColor: LADDER_COLOR }}
+              style={{ borderColor: colors.up }}
             />
             <span
               className={TAG_CLASS}
               style={{
-                borderColor: LADDER_COLOR,
-                color: LADDER_COLOR,
+                borderColor: colors.up,
+                color: colors.up,
                 pointerEvents: controls,
               }}
               title={
@@ -265,16 +271,20 @@ function LadderLines({
         const y = yFor(exits[index])
         if (y === null) return null
         return (
-          <div key={`sell-${index}`} className="absolute inset-x-0" style={{ top: y }}>
+          <div
+            key={`sell-${index}`}
+            className="absolute inset-x-0"
+            style={{ top: y }}
+          >
             <div
               className="border-t border-dashed"
-              style={{ borderColor: SELL_COLOR }}
+              style={{ borderColor: colors.up }}
             />
             <span
               className={TAG_CLASS}
               style={{
-                borderColor: SELL_COLOR,
-                color: SELL_COLOR,
+                borderColor: colors.up,
+                color: colors.up,
                 pointerEvents: controls,
               }}
               title="Rung sell — managed by the ladder, so it cannot be dragged. Change the exit rules to move it."
@@ -287,4 +297,3 @@ function LadderLines({
     </>
   )
 }
-

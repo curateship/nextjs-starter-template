@@ -24,10 +24,7 @@ import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
 import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
 import type { DrawingShape } from "@/lib/trade/drawings"
-import type {
-  TradeFlowRunSpec,
-  TradeFlowRunStatus,
-} from "@/lib/trade/flow-run"
+import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
 import type { OrderStyle } from "@/lib/trade/order-style"
@@ -202,8 +199,8 @@ export const tradeWallets = pgTable(
       .default("active"),
     protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
     network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
-    // Paper: the pretend cash it began with. Live: the account's value the
-    // moment it was added — the baseline "Since it started" measures from.
+    // Paper: the pretend cash it began with. Live: the account value saved as
+    // its fixed sizing baseline for orders that do not compound.
     startingBalance: doublePrecision("starting_balance").notNull(),
     // Live wallets only: the public account address, 0x + 40 hex.
     address: varchar("address", { length: 42 }),
@@ -264,7 +261,9 @@ export const tradeLiveJournal = pgTable(
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
     // What was done: fill | placed | cancelled | close | brackets | refused.
-    action: varchar("action", { length: 16 }).$type<LiveJournalAction>().notNull(),
+    action: varchar("action", { length: 16 })
+      .$type<LiveJournalAction>()
+      .notNull(),
     // Null on the refusals that never got as far as having a side.
     side: varchar("side", { length: 4 }).$type<PaperSide>(),
     px: doublePrecision("px").notNull().default(0),
@@ -1034,10 +1033,7 @@ export const tradeFlowRuns = pgTable(
      * order is gone the moment the trade closes and the arrow that started it
      * is exactly what must not start a second one.
      */
-    acted: jsonb("acted")
-      .$type<Record<string, number>>()
-      .notNull()
-      .default({}),
+    acted: jsonb("acted").$type<Record<string, number>>().notNull().default({}),
     /**
      * Set when the same refusal keeps coming back, so it stops asking.
      *

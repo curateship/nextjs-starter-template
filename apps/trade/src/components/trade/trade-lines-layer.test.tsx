@@ -3,9 +3,23 @@ import { describe, expect, it } from "vitest"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
+import type { ChartColors } from "@/lib/trade/chart-theme"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 
 const MARKET = "hyperliquid:mainnet:BTC"
+const colors: ChartColors = {
+  text: "theme-text",
+  grid: "theme-grid",
+  border: "theme-border",
+  primary: "theme-primary",
+  up: "theme-up",
+  down: "theme-down",
+  warning: "theme-warning",
+  neutral: "theme-neutral",
+  badgeText: "theme-badge-text",
+  upSoft: "theme-up-soft",
+  downSoft: "theme-down-soft",
+}
 const surface: ChartSurface = {
   width: 480,
   height: 240,
@@ -77,6 +91,7 @@ function renderLines(
   return renderToStaticMarkup(
     <TradeLinesLayer
       surface={surface}
+      colors={colors}
       marketKey={MARKET}
       positions={[held]}
       orders={orders}
@@ -98,7 +113,7 @@ describe("chart bracket lines", () => {
 
     expect(html).toContain(label)
     expect(html).not.toContain("Sell $")
-    expect(html).not.toContain("#6b7280")
+    expect(html).not.toContain("theme-neutral")
   })
 
   it("keeps a separate order at the same price", () => {
@@ -106,7 +121,7 @@ describe("chart bracket lines", () => {
 
     expect(html).toContain("Take Profit")
     expect(html).toContain("Sell $110")
-    expect(html).toContain("#6b7280")
+    expect(html).toContain("theme-neutral")
   })
 
   it("keeps the same exchange order ID when it belongs to another wallet", () => {
@@ -115,7 +130,7 @@ describe("chart bracket lines", () => {
     ])
 
     expect(html).toContain("Sell $110")
-    expect(html).toContain("#6b7280")
+    expect(html).toContain("theme-neutral")
   })
 
   it("does not redraw a grid stop after the plain stop line is masked", () => {
@@ -125,6 +140,6 @@ describe("chart bracket lines", () => {
     const html = renderLines(held, [order(90)])
 
     expect(html).not.toContain("Sell $90")
-    expect(html).not.toContain("#6b7280")
+    expect(html).not.toContain("theme-neutral")
   })
 })

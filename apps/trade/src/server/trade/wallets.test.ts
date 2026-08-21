@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { tradeWallets } from "@/server/trade/schema"
+import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
+import { walletProfitWindowStart } from "@/lib/trade/wallets"
 import {
   createWallet,
   deleteWallet,
@@ -331,7 +332,8 @@ describe("the figures sweep", () => {
         inTrades: 0,
         openProfit: 0,
         settled: 0,
-        sinceStart: 0,
+        madeOrLost: 0,
+        unpricedFills: 0,
       },
     ])
   })
@@ -351,30 +353,74 @@ describe("the figures sweep", () => {
     expect(summaries).toEqual([{ walletId: wallet.id, state: "inactive" }])
   })
 
-  it("derives a live wallet's journey from its baseline", async () => {
+  it("uses settled profit since yesterday instead of the wallet baseline", async () => {
     const userId = await person()
-    const wallet = await createWallet(userId, liveInput())
-    // The account moved since it was added.
+    const wallet = await createWallet(userId, {
+      ...liveInput(),
+      protocol: "kucoin",
+    })
+    const since = walletProfitWindowStart(new Date())
+    await database.insert(tradeLiveFills).values([
+      {
+        userId,
+        walletId: wallet.id,
+        fillId: "old-profit",
+        orderId: "old-order",
+        marketKey: "kucoin:mainnet:XBTUSDTM",
+        side: "sell",
+        px: 100,
+        sz: 1,
+        at: since - 1,
+        closedPnl: 3_718.94,
+        fee: 1,
+      },
+      {
+        userId,
+        walletId: wallet.id,
+        fillId: "recent-profit",
+        orderId: "recent-order",
+        marketKey: "kucoin:mainnet:XBTUSDTM",
+        side: "sell",
+        px: 100,
+        sz: 1,
+        at: since + 1,
+        closedPnl: 67.88,
+        fee: 1,
+      },
+      {
+        userId,
+        walletId: wallet.id,
+        fillId: "recent-unpriced",
+        orderId: "partial-order",
+        marketKey: "kucoin:mainnet:XBTUSDTM",
+        side: "sell",
+        px: 100,
+        sz: 0.5,
+        at: since + 2,
+        closedPnl: 0,
+        fee: 0.25,
+      },
+    ])
     fetchAccount.mockResolvedValue({
       equity: 24_500,
       free: 19_000,
       inTrades: 5_500,
-      openProfit: 300,
+      openProfit: 9.02,
     })
 
     const { summaries } = await loadWalletSummaries(userId)
-    expect(summaries).toEqual([
-      {
-        walletId: wallet.id,
-        state: "ok",
-        equity: 24_500,
-        free: 19_000,
-        inTrades: 5_500,
-        openProfit: 300,
-        sinceStart: 500,
-        settled: 200,
-      },
-    ])
+    expect(summaries[0]).toMatchObject({
+      walletId: wallet.id,
+      state: "ok",
+      equity: 24_500,
+      free: 19_000,
+      inTrades: 5_500,
+      openProfit: 9.02,
+      settled: 66.88,
+      unpricedFills: 1,
+    })
+    if (summaries[0].state !== "ok") throw new Error("expected figures")
+    expect(summaries[0].madeOrLost).toBeCloseTo(75.9, 10)
   })
 
   it("lets one unreachable wallet stay its own problem", async () => {

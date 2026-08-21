@@ -126,9 +126,7 @@ export function GridOrderDialog({
   // ----- The settings, remembered server-side ----------------------------
 
   const [loaded, setLoaded] = React.useState(false)
-  const [levels, setLevels] = React.useState(
-    String(defaultGridParams().levels)
-  )
+  const [levels, setLevels] = React.useState(String(defaultGridParams().levels))
   const [potPct, setPotPct] = React.useState(String(defaultGridParams().potPct))
   const [maxOrderVolPct, setMaxOrderVolPct] = React.useState("0")
   const [spacing, setSpacing] = React.useState<GridSpacing>("even")
@@ -143,9 +141,7 @@ export function GridOrderDialog({
   // same thing on the next coin you open — "8% either side" is a grid you can
   // picture — while a price is only meaningful on the coin it came from, and
   // was remembered onto charts where it was nonsense.
-  const [abovePct, setAbovePct] = React.useState(
-    String(DEFAULT_GRID_ABOVE_PCT)
-  )
+  const [abovePct, setAbovePct] = React.useState(String(DEFAULT_GRID_ABOVE_PCT))
   const [belowPct, setBelowPct] = React.useState(String(DEFAULT_GRID_BELOW_PCT))
   const [tpOn, setTpOn] = React.useState(true)
   const [tpPct, setTpPct] = React.useState(
@@ -179,7 +175,8 @@ export function GridOrderDialog({
         setBelowPct(String(params.rangePct))
         // A following grid has no finish line, so a remembered one stays off.
         setTpOn(!params.follow && params.takeProfitPct !== null)
-        if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
+        if (params.takeProfitPct !== null)
+          setTpPct(String(params.takeProfitPct))
         setSlOn(params.stopLoss !== null)
         if (params.stopLoss) {
           setSlUnderPct(String(params.stopLoss.underPct))
@@ -204,7 +201,10 @@ export function GridOrderDialog({
   // ----- Where the window sits, and moving it ----------------------------
 
   const [at, setAt] = React.useState(() => ({
-    x: Math.max(EDGE, Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)),
+    x: Math.max(
+      EDGE,
+      Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)
+    ),
     y: Math.max(EDGE, Math.min(state.y, window.innerHeight - PANEL_HEIGHT)),
   }))
   const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
@@ -216,7 +216,10 @@ export function GridOrderDialog({
       setAt({
         x: Math.max(
           EDGE,
-          Math.min(event.clientX - grab.dx, window.innerWidth - PANEL_WIDTH - EDGE)
+          Math.min(
+            event.clientX - grab.dx,
+            window.innerWidth - PANEL_WIDTH - EDGE
+          )
         ),
         y: Math.max(
           EDGE,
@@ -297,9 +300,7 @@ export function GridOrderDialog({
       // solved for. A leftover from a bad typing session must not block a grid
       // that no longer looks at it.
       abovePct:
-        anchor === "click"
-          ? (above ?? DEFAULT_GRID_ABOVE_PCT)
-          : (above ?? -1),
+        anchor === "click" ? (above ?? DEFAULT_GRID_ABOVE_PCT) : (above ?? -1),
       rangePct: below ?? -1,
       baseDetection: baseStopDetection(),
       // A following grid has no finish line: the range slides up ahead of
@@ -386,7 +387,8 @@ export function GridOrderDialog({
       .map((level) => ({ px: level.buyPx, kind: "level" as const }))
     if (top !== null) lines.push({ px: top, kind: "upper" })
     if (bottom !== null) lines.push({ px: bottom, kind: "lower" })
-    if (takeProfitPx !== null) lines.push({ px: takeProfitPx, kind: "takeProfit" })
+    if (takeProfitPx !== null)
+      lines.push({ px: takeProfitPx, kind: "takeProfit" })
     if (stopPx !== null) lines.push({ px: stopPx, kind: "stopLoss" })
     onPreview(lines)
   }, [plan, onPreview, top, bottom, takeProfitPx, stopPx])
@@ -440,18 +442,18 @@ export function GridOrderDialog({
       : bottom >= top
         ? "The bottom of the grid has to be below the top."
         : !params
-            ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
-            : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
-              ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
-              : plan && plan.tooSmallIndex !== null
-                ? sizing === "double"
-                  ? doublingFits === null
-                    ? `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. There is not enough in the account for a doubled grid on this market, at any number of levels. Set the split back to the same at every level.`
-                    : `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. With this much money it fits ${doublingFits} levels. A bigger share barely helps: each level down needs twice the one above it, so one level fewer halves what the grid needs.`
-                  : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
-                : plan && plan.totalCost > free
-                  ? `The grid costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
-                  : null
+          ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
+          : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
+            ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
+            : plan && plan.tooSmallIndex !== null
+              ? sizing === "double"
+                ? doublingFits === null
+                  ? `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. There is not enough in the account for a doubled grid on this market, at any number of levels. Set the split back to the same at every level.`
+                  : `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. With this much money it fits ${doublingFits} levels. A bigger share barely helps: each level down needs twice the one above it, so one level fewer halves what the grid needs.`
+                : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
+              : plan && plan.totalCost > free
+                ? `The grid costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
+                : null
 
   const ready = loaded && !busy && refusal === null && plan !== null
 
@@ -515,14 +517,13 @@ export function GridOrderDialog({
             <span className="min-w-0 truncate font-medium text-foreground">
               {wallet}
             </span>
-            <span className="shrink-0 tabular-nums">· {formatUsd(free)} free</span>
+            <span className="shrink-0 tabular-nums">
+              · {formatUsd(free)} free
+            </span>
           </span>
         </div>
 
-        <ScrollArea
-          className="h-full"
-          viewportClassName="[&>div]:block!"
-        >
+        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           <div className="grid gap-4 p-3">
             {/* Where the price is right now, said out loud. The whole range has
                 to sit under it, and a window that only told you afterwards
@@ -540,14 +541,21 @@ export function GridOrderDialog({
               hint="Where the grid works, and how many buys it is split into. Each buy sells one step above itself."
             >
               <div className="grid gap-2">
-                <FieldLabel htmlFor="grid-anchor" hint={GRID_ANCHOR_HINTS[anchor]}>
+                <FieldLabel
+                  htmlFor="grid-anchor"
+                  hint={GRID_ANCHOR_HINTS[anchor]}
+                >
                   Where the range sits
                 </FieldLabel>
                 <Select
                   value={anchor}
+                  disabled={!loaded}
                   onValueChange={(next) => setAnchor(next as GridAnchor)}
                 >
-                  <SelectTrigger id="grid-anchor" className="w-full bg-background">
+                  <SelectTrigger
+                    id="grid-anchor"
+                    className="w-full bg-background"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -717,14 +725,20 @@ export function GridOrderDialog({
                 />
               </div>
               <div className="grid gap-2">
-                <FieldLabel htmlFor="grid-sizing" hint={GRID_SIZING_HINTS[sizing]}>
+                <FieldLabel
+                  htmlFor="grid-sizing"
+                  hint={GRID_SIZING_HINTS[sizing]}
+                >
                   Split between levels
                 </FieldLabel>
                 <Select
                   value={sizing}
                   onValueChange={(next) => setSizing(next as GridSizing)}
                 >
-                  <SelectTrigger id="grid-sizing" className="w-full bg-background">
+                  <SelectTrigger
+                    id="grid-sizing"
+                    className="w-full bg-background"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -789,7 +803,9 @@ export function GridOrderDialog({
                     <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
                       <span>Grid finishes at</span>
                       <span className="tabular-nums">
-                        {takeProfitPx === null ? "—" : formatPrice(takeProfitPx)}
+                        {takeProfitPx === null
+                          ? "—"
+                          : formatPrice(takeProfitPx)}
                       </span>
                     </div>
                   </>
@@ -869,7 +885,10 @@ export function GridOrderDialog({
                   value={spacing}
                   onValueChange={(next) => setSpacing(next as GridSpacing)}
                 >
-                  <SelectTrigger id="grid-spacing" className="w-full bg-background">
+                  <SelectTrigger
+                    id="grid-spacing"
+                    className="w-full bg-background"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

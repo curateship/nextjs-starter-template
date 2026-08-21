@@ -41,7 +41,6 @@ import {
   TableSortButton,
   TableSurface,
 } from "@/components/ui/table"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Tooltip,
   TooltipContent,
@@ -409,7 +408,11 @@ function WalletRow({
     return (
       <TableRow className="text-muted-foreground">
         <TableCell column="main" className="py-3 text-left">
-          <WalletName wallet={wallet} muted off={summary.state === "inactive"} />
+          <WalletName
+            wallet={wallet}
+            muted
+            off={summary.state === "inactive"}
+          />
         </TableCell>
         <TableCell colSpan={4} className="text-right">
           {summary.state === "inactive"
@@ -436,9 +439,7 @@ function WalletRow({
             <span
               className={cn(
                 "block h-full rounded-full",
-                performance.madeOrLost < 0
-                  ? "bg-destructive"
-                  : "bg-emerald-600"
+                performance.madeOrLost < 0 ? "bg-destructive" : "bg-emerald-600"
               )}
               style={{ width: `${barWidth}%` }}
             />
@@ -494,7 +495,9 @@ function MoneyCell({
 
 function MoneyValue({ value }: { value: number }) {
   return (
-    <span className={cn("font-mono font-medium tabular-nums", moneyTone(value))}>
+    <span
+      className={cn("font-mono font-medium tabular-nums", moneyTone(value))}
+    >
       {formatSignedUsd(value)}
     </span>
   )
@@ -513,8 +516,7 @@ function MoneyChart({
   overview: TradingOverview
   className: string
 }) {
-  const [range, setRange] = React.useState<"30" | "90" | "all">("all")
-  const allData = overview.equity.map((point) => ({
+  const data = overview.profit.map((point) => ({
     at: point.at,
     label: new Date(point.at).toLocaleDateString("en-US", {
       month: "short",
@@ -523,13 +525,7 @@ function MoneyChart({
     }),
     money: point.money,
   }))
-  const latestAt = allData.at(-1)?.at ?? 0
-  const rangeDays = range === "all" ? null : Number(range)
-  const cutoff = rangeDays ? latestAt - rangeDays * 24 * 60 * 60 * 1000 : 0
-  const data = rangeDays
-    ? allData.filter((point) => point.at >= cutoff)
-    : allData
-  const latest = data.at(-1) ?? allData.at(-1)
+  const latest = data.at(-1)
 
   return (
     <Card className={cn("min-h-0 gap-0 py-0", className)}>
@@ -549,26 +545,14 @@ function MoneyChart({
                 </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                The line starts from each wallet's recorded opening balance.
-                Later deposits and withdrawals are not recorded.
+                Profit since midnight yesterday: settled trade money plus
+                current open profit. Deposits and withdrawals are excluded.
                 {overview.unpricedFills
                   ? ` The line is short of ${overview.unpricedFills.toLocaleString()} ${overview.unpricedFills === 1 ? "trade" : "trades"} whose money the exchange did not state.`
                   : ""}
               </TooltipContent>
             </Tooltip>
           </span>
-        }
-        action={
-          <Tabs
-            value={range}
-            onValueChange={(value) => setRange(value as typeof range)}
-          >
-            <TabsList>
-              <TabsTrigger value="30">30D</TabsTrigger>
-              <TabsTrigger value="90">90D</TabsTrigger>
-              <TabsTrigger value="all">ALL</TabsTrigger>
-            </TabsList>
-          </Tabs>
         }
       />
       <CardContent className="flex min-h-0 flex-1 flex-col gap-2 py-4">
@@ -578,7 +562,7 @@ function MoneyChart({
               {formatUsd(latest.money)}
             </p>
             <p className="text-sm text-muted-foreground">
-              latest · {formatDate(new Date(latest.at))}
+              current · since yesterday
             </p>
           </div>
         ) : null}
@@ -659,8 +643,7 @@ function MoneyChart({
   )
 }
 
-type TradeColumn =
-  "at" | "venue" | "wallet" | "money"
+type TradeColumn = "at" | "venue" | "wallet" | "money"
 
 function defaultTradeDirection(column: TradeColumn) {
   return column === "at" || column === "money"
@@ -764,9 +747,7 @@ function TradesTable({
   )
 
   return (
-    <TableSurface
-      className={cn("flex h-full min-h-0 flex-col", className)}
-    >
+    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
       <WorkspacePanelHeader
         icon={<ListIcon />}
         title={
@@ -800,9 +781,7 @@ function TradesTable({
         className="min-h-0 flex-1"
         viewportClassName="h-full min-h-24 [&>div]:block!"
       >
-        <Table
-          containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted"
-        >
+        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted">
           <TableHeader>
             <TableRow>
               <TableHead column="main">{heading("at", "Market")}</TableHead>
@@ -816,8 +795,9 @@ function TradesTable({
                   "Money",
                   unpriced ? (
                     <>
-                      The money total is short of{" "}
-                      {unpriced.toLocaleString()} {unpriced === 1 ? "trade" : "trades"} the exchange did not price.
+                      The money total is short of {unpriced.toLocaleString()}{" "}
+                      {unpriced === 1 ? "trade" : "trades"} the exchange did not
+                      price.
                     </>
                   ) : null
                 )}
@@ -844,9 +824,7 @@ function TradesTable({
                   : null
                 return (
                   <React.Fragment key={`${fill.walletId}:${fill.fillId}`}>
-                    {day !== previousDay ? (
-                      <TradeDayRow at={fill.at} />
-                    ) : null}
+                    {day !== previousDay ? <TradeDayRow at={fill.at} /> : null}
                     <TradeRow fill={fill} />
                   </React.Fragment>
                 )
@@ -904,7 +882,9 @@ function TradeRow({ fill }: { fill: TradingOverviewFill }) {
         <p
           className={cn(
             "font-medium tabular-nums",
-            fill.money === null ? "text-muted-foreground" : moneyTone(fill.money)
+            fill.money === null
+              ? "text-muted-foreground"
+              : moneyTone(fill.money)
           )}
         >
           {fill.money === null ? "—" : formatSignedUsd(fill.money)}
@@ -957,12 +937,14 @@ function TradeFilters({
 }) {
   const [open, setOpen] = React.useState(false)
   const venues = countedOptions(fills, (fill) => fill.venue)
-  const wallets = countedOptions(fills, (fill) => fill.walletId).map((option) => ({
-    ...option,
-    label:
-      fills.find((fill) => fill.walletId === option.value)?.walletLabel ??
-      option.value,
-  }))
+  const wallets = countedOptions(fills, (fill) => fill.walletId).map(
+    (option) => ({
+      ...option,
+      label:
+        fills.find((fill) => fill.walletId === option.value)?.walletLabel ??
+        option.value,
+    })
+  )
   const active = Number(Boolean(venue)) + Number(Boolean(walletId))
 
   return (

@@ -223,6 +223,18 @@ export function ChartPanel({
   // The lines drawn on this market. They belong to the market, not to the
   // timeframe, so switching between 4h and 1d leaves them where they are.
   const paint = useChartDrawings(selectedKey)
+  const setPaintTool = paint.setTool
+  const setSelectedDrawing = paint.setSelectedId
+  const paintTool = options.drawings ? paint.tool : null
+
+  // Hiding drawings also puts down the active tool and lets go of the picked
+  // line. The drawings themselves stay loaded and saved, ready to be shown
+  // again in the same positions.
+  React.useEffect(() => {
+    if (options.drawings) return
+    setPaintTool(null)
+    setSelectedDrawing(null)
+  }, [options.drawings, setPaintTool, setSelectedDrawing])
 
   // The zoom and scroll, which belong to neither: one view, carried onto
   // whatever market and timeframe you open next.
@@ -260,15 +272,17 @@ export function ChartPanel({
   // The grid's half of the same right-click: its window, its preview lines,
   // and the two things a placed grid can be asked to do.
   const [grid, setGrid] = React.useState<GridOrderState | null>(null)
-  const [gridPreview, setGridPreview] = React.useState<GridPreviewLine[] | null>(
-    null
-  )
+  const [gridPreview, setGridPreview] = React.useState<
+    GridPreviewLine[] | null
+  >(null)
   const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
   // The position whose × on the Entry line was pressed. Closing costs real
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
     React.useState<PaperPosition | null>(null)
-  const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(null)
+  const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(
+    null
+  )
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
@@ -306,7 +320,7 @@ export function ChartPanel({
   const openMenu = (event: React.MouseEvent) => {
     // A tool in hand is drawing, not trading; the browser's own menu is the
     // honest answer when there is nothing here to offer.
-    if (paint.tool || !trading.wallet || !market) return
+    if (paintTool || !trading.wallet || !market) return
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
     if (!surface || !box) return
@@ -344,7 +358,8 @@ export function ChartPanel({
   // Only the stop. A grid never writes a take profit onto the position, so one
   // that is there was put there by hand and still belongs to the plain lines.
   const gridStops = React.useMemo(
-    () => new Set(trading.grids.map((one) => `${one.walletId}:${one.marketKey}`)),
+    () =>
+      new Set(trading.grids.map((one) => `${one.walletId}:${one.marketKey}`)),
     [trading.grids]
   )
   const linePositions = React.useMemo(
@@ -466,8 +481,7 @@ export function ChartPanel({
   const focusTrade =
     shownTrade && shownTrade.marketKey === selectedKey ? shownTrade : null
   const marketTrades = React.useMemo(
-    () =>
-      trading.trades.filter((trade) => trade.marketKey === selectedKey),
+    () => trading.trades.filter((trade) => trade.marketKey === selectedKey),
     [trading.trades, selectedKey]
   )
   const marketFills = React.useMemo(
@@ -646,7 +660,7 @@ export function ChartPanel({
         <div
           key={current.key}
           data-slot="chart-ready"
-          className="relative h-full min-h-0 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-300"
+          className="relative h-full min-h-0 motion-safe:animate-in motion-safe:duration-300 motion-safe:fade-in-0"
         >
           <PriceChart
             candles={current.candles}
@@ -666,30 +680,33 @@ export function ChartPanel({
             // The chart is handed a function and a surface, never a drawing or
             // a position. Both layers below draw in the same coordinates and
             // neither is anything the chart itself knows about.
-            overlay={(surface) => (
+            overlay={(surface, colors) => (
               <>
                 {/* First, so everything else sits over it. An indicator is
                     the chart's own reading of the candles — a drawn line, an
                     order or a stop is something somebody put there, and that
                     should never end up behind a dash. */}
                 <IndicatorLayer surface={surface} paint={indicatorPainted} />
-                <PaintLayer
-                  surface={surface}
-                  drawings={paint.drawings}
-                  tool={paint.tool}
-                  selectedId={paint.selectedId}
-                  onSelect={paint.setSelectedId}
-                  onCreate={paint.create}
-                  onMove={paint.move}
-                  onDelete={paint.remove}
-                />
+                {options.drawings ? (
+                  <PaintLayer
+                    surface={surface}
+                    drawings={paint.drawings}
+                    tool={paintTool}
+                    selectedId={paint.selectedId}
+                    onSelect={paint.setSelectedId}
+                    onCreate={paint.create}
+                    onMove={paint.move}
+                    onDelete={paint.remove}
+                  />
+                ) : null}
                 <TradeLinesLayer
                   surface={surface}
+                  colors={colors}
                   marketKey={selectedKey}
                   // This layer paints over the paint tools, so it has to know
                   // when one is in hand and keep its hands off the pointer —
                   // otherwise starting a line near a stop drags the stop.
-                  tool={paint.tool}
+                  tool={paintTool}
                   // Every wallet's, not just the active one's: a row in the
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
@@ -775,10 +792,11 @@ export function ChartPanel({
                 />
                 <SmartLadderLayer
                   surface={surface}
+                  colors={colors}
                   marketKey={selectedKey}
                   ladders={trading.ladders}
                   preview={preview}
-                  tool={paint.tool}
+                  tool={paintTool}
                   walletName={(walletId) =>
                     trading.walletNames.get(walletId) ?? "Another wallet"
                   }
@@ -790,10 +808,11 @@ export function ChartPanel({
                 />
                 <GridLayer
                   surface={surface}
+                  colors={colors}
                   marketKey={selectedKey}
                   grids={trading.grids}
                   preview={gridPreview}
-                  tool={paint.tool}
+                  tool={paintTool}
                   walletName={(walletId) =>
                     trading.walletNames.get(walletId) ?? "Another wallet"
                   }
@@ -828,15 +847,16 @@ export function ChartPanel({
                 <MeasureLayer
                   key={current.key}
                   surface={surface}
-                  tool={paint.tool}
+                  tool={paintTool}
                 />
               </>
             )}
           />
           <PaintToolbar
-            tool={paint.tool}
+            tool={paintTool}
             onPickTool={paint.setTool}
             drawingCount={paint.drawings.length}
+            drawingsVisible={options.drawings}
             onClearAll={() => void paint.clearAll()}
           />
         </div>
@@ -885,7 +905,9 @@ export function ChartPanel({
           prefs={quickPrefs}
           onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
-          onPlace={(input) => trading.place({ marketKey: market.key, ...input })}
+          onPlace={(input) =>
+            trading.place({ marketKey: market.key, ...input })
+          }
         />
       ) : null}
       <OrderEditDialog
