@@ -913,7 +913,6 @@ export function ChartPanel({
           state={smart}
           market={market}
           wallet={trading.wallet?.label ?? ""}
-          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           interval={interval}
@@ -930,7 +929,6 @@ export function ChartPanel({
           state={grid}
           market={market}
           wallet={trading.wallet?.label ?? ""}
-          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           takerFeeRate={TAKER_FEE_RATE}
@@ -950,6 +948,9 @@ export function ChartPanel({
         }
         onReshape={(one, shape) =>
           trading.reshapeGrid(one.walletId, one.id, shape)
+        }
+        onSetFollow={(one, follow) =>
+          trading.setGridFollow(one.walletId, one.id, follow)
         }
         onClose={() => setStopFor(null)}
       />

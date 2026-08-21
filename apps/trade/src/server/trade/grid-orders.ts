@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { and, eq } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
-import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { MIN_ORDER_USD } from "@/lib/trade/dca"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
@@ -15,18 +15,15 @@ import {
   type GridParams,
   type GridPlan,
 } from "@/lib/trade/grid"
-import { paperAccountFigures, slippedPx } from "@/lib/trade/paper"
-import { readSmartPlan } from "@/lib/trade/smart-plan"
+import { paperAccountFigures } from "@/lib/trade/paper"
+import { readSmartPlan, type SmartGrid } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   exposedMarketKeys,
-  freeCash,
   marksForKeys,
-  fill as fillPaperBook,
-  saveBook,
   settleWallet,
 } from "@/server/trade/paper"
 import {
@@ -61,6 +58,15 @@ export type PlacedGrid = {
   levels: number
   /** What the whole grid costs if every level buys at once. */
   totalCost: number
+  /**
+   * The grid exactly as it was written down, so the chart can draw it in the
+   * same frame the window closes.
+   *
+   * Without it there is a gap: the window clears its preview lines as it goes,
+   * and the real grid only arrives on the next read, which waits on an exchange
+   * round trip. The grid vanished off the chart and came back a second later.
+   */
+  grid: SmartGrid
 }
 
 /**
@@ -84,7 +90,6 @@ export type GridDraftInput = {
   roundPx: (px: number) => number
   /** What the whole account is worth, which is what the pot is a share of. */
   equity: number
-  freeCash: number
   /** What one side of a round trip costs, for the step-versus-fee check. */
   takerFeeRate: number
   /** When this grid is being created, in epoch ms. */
@@ -98,11 +103,6 @@ export type GridDraft = {
   levels: GridLevelState[]
   /** What the whole grid costs if every level buys at once. */
   totalCost: number
-  /**
-   * Coins to buy at market the moment it is placed, so the levels above the
-   * price have something to sell. Zero when the whole range sits below.
-   */
-  startingSz: number
 }
 
 /**
@@ -180,49 +180,46 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
 
   const maxLeverage = rules.maxLeverage ?? 1
 
-  // A level whose buy price is already at or above the market is one the grid
-  // is meant to be SELLING at, not waiting to buy at. It starts out holding,
-  // and the coins behind it are bought once at market below — so those sells
-  // have something behind them from the first second.
-  const levels: GridLevelState[] = priced.map((level) => {
-    const sellsFromTheStart = level.buyPx >= mark
-    return {
-      buyPx: level.buyPx,
-      sellPx: level.sellPx,
-      sz: level.sz,
-      // Frozen here and never recalculated. This is the ceiling every future
-      // cycle is held to — a grid level buys back forever, so a level allowed
-      // to carry a cheap round's leftover would compound on every round trip.
-      budget: level.buyPx * level.sz,
-      heldSz: sellsFromTheStart ? level.sz : 0,
-      status: sellsFromTheStart ? ("holding" as const) : ("waiting" as const),
-      dead: false,
-      cycles: 0,
-    }
-  })
-
-  // What has to be bought at market right now to stand behind those sells.
-  const startingSz = levels.reduce(
-    (sum, level) => sum + (level.status === "holding" ? level.heldSz : 0),
-    0
-  )
-
-  // Only the starting buy has to be affordable NOW.
+  // **Placing a grid buys nothing.** Every level waits its turn, wherever the
+  // price is and whatever the range straddles.
   //
-  // Nothing else is reserved: the levels below the price are triggers, and each
-  // one spends its money at the moment price reaches it. A grid that plans more
-  // than the account currently holds is not wrong — it is a plan for a market
-  // that has not happened yet, and a level that cannot be afforded when its
-  // turn comes simply waits for the next pass.
-  if (startingSz * mark > input.freeCash + 1e-9) {
-    throw new Error("SMART_GRID_COST")
-  }
+  // A level above the price used to start out holding, with the coins for every
+  // one of them bought in a single market order at whatever the price happened
+  // to be. That gave the top level a round trip out of a price it had never
+  // paid, and left the account at its most long at the exact moment a grid is
+  // supposed to be sitting on its hands. One big lump is not a grid, the same
+  // way one big lump is not a ladder.
+  //
+  // `armed` is what replaces it: a level under the price may buy the moment
+  // price reaches it, and a level above the price waits for price to climb past
+  // it and come back down. Then it buys at ITS OWN price, like every other one.
+  const levels: GridLevelState[] = priced.map((level) => ({
+    buyPx: level.buyPx,
+    sellPx: level.sellPx,
+    sz: level.sz,
+    // Frozen here and never recalculated. This is the ceiling every future
+    // cycle is held to — a grid level buys back forever, so a level allowed
+    // to carry a cheap round's leftover would compound on every round trip.
+    budget: level.buyPx * level.sz,
+    heldSz: 0,
+    status: "waiting" as const,
+    armed: level.buyPx < mark,
+    dead: false,
+    cycles: 0,
+  }))
+
+  // Nothing is checked against the free cash here. Nothing is reserved and
+  // nothing is spent: every level is a trigger that pays for itself at the
+  // moment price reaches it. A grid that plans more than the account holds
+  // today is not wrong, it is a plan for a market that has not happened, and a
+  // level that cannot be afforded when its turn comes waits for the next pass.
 
   const plan: GridPlan = {
     topPx,
     bottomPx,
     takeProfitPx: targetPx,
     spacing: params.spacing,
+    sizing: params.sizing,
     potPct: params.potPct,
     startedAt: input.startedAt ?? 0,
     sizeDecimals: rules.sizeDecimals,
@@ -243,10 +240,12 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     aimedSlPx: null,
     seenFillsTo: 0,
     cycles: 0,
+    follow: params.follow,
+    shifts: 0,
     closedReason: null,
   }
 
-  return { plan, levels, totalCost, startingSz }
+  return { plan, levels, totalCost }
 }
 
 export async function placeGridOrder(
@@ -284,7 +283,8 @@ export async function placeGridOrder(
   })
 
   const now = Date.now()
-  const { plan, levels, startingSz } = draftGridOrder({
+  const id = randomUUID()
+  const { plan, levels } = draftGridOrder({
     marketKey: input.marketKey,
     params: input.params,
     topPx: input.topPx,
@@ -293,7 +293,6 @@ export async function placeGridOrder(
     rules,
     roundPx,
     equity: input.params.compound ? figures.equity : wallet.startingBalance,
-    freeCash: freeCash(book),
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: now,
     heldSzi: book.positions.get(input.marketKey)?.szi ?? null,
@@ -312,39 +311,16 @@ export async function placeGridOrder(
     const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
     if (race) throw new Error("SMART_LADDER_EXISTS")
 
-    // The coins standing behind the sells above the price, bought once at
-    // market — applied to the book INSIDE this transaction, so the row and the
-    // position it describes land together.
+    // Nothing is bought here, on purpose. Placing a grid spends nothing at all:
+    // every level waits for price to reach it and pays its own way then.
     //
-    // It used to be a separate order placed afterwards, and that order settles
-    // the wallet on its way in: the settle ran while the grid row already said
-    // "holding" and the position did not exist yet, so the engine read a grid
-    // whose coins had vanished and stopped it on the spot. Every straddling
-    // grid closed itself milliseconds after being placed.
-    if (startingSz > 0) {
-      fillPaperBook(book, {
-        marketKey: input.marketKey,
-        side: "buy",
-        px: slippedPx(mark, "buy", book.costs.slippageRate),
-        sz: startingSz,
-        feeRate: book.costs.takerFeeRate,
-        leverage: 1,
-        maxLeverage: plan.maxLeverage,
-        reason: "order",
-        at: now,
-      })
-      // `saveBook` only writes the markets it is told were touched, so a fill
-      // that does not say so lives in memory and never reaches the database.
-      // Left out, the grid's row said "holding" while the coins behind it did
-      // not exist, and the very next pass closed it for having lost them.
-      book.touchedMarkets.add(input.marketKey)
-    }
-
-    await saveBook(tx, userId, book, new Date(now))
+    // This used to buy the coins for every level above the price, in one market
+    // order, and the whole comment here was about the races that created. There
+    // are no races left, because there is no order.
 
     await tx.insert(tradeSmartLadders).values({
       userId,
-      id: randomUUID(),
+      id,
       walletId: wallet.id,
       marketKey: input.marketKey,
       kind: "grid",
@@ -355,13 +331,25 @@ export async function placeGridOrder(
     })
   })
 
-  // One more settle lets the grid engine finish the job — it rests a sell
-  // against every level that is holding.
+  // One more settle puts the new grid in front of the engine straight away, so
+  // a level the price is already sitting on is acted on now rather than on the
+  // next poll.
   await settleWallet(userId, wallet, { marks })
 
   return {
     levels: levels.length,
     totalCost: levels.reduce((sum, level) => sum + level.budget, 0),
+    grid: {
+      id,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "grid",
+      status: "active",
+      flowRunId: null,
+      createdAt: now,
+      updatedAt: now,
+      plan,
+    },
   }
 }
 
@@ -511,7 +499,40 @@ export async function updateGridStop(
 
 
 /**
- * Re-shaping a live grid: a new range, a new level count, a new share of the
+ * Switching following on or off for a grid that is already running.
+ *
+ * Its own action rather than a shape of `reshapeGrid`, because it changes
+ * nothing about where the grid sits: a re-shape redraws every level and settles
+ * the position to match, which is a great deal of work and a real market order
+ * to flip one flag.
+ *
+ * Switching it ON removes the finish line above the range. A following grid
+ * slides its top up ahead of price, so a price above the top can never be
+ * reached, and a finish line left behind would sit there doing nothing while
+ * looking like an exit. Tyler's rule is that a following grid runs until it is
+ * switched off or the stop fires, and this is where that rule is kept.
+ */
+export async function setGridFollow(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; follow: boolean }
+): Promise<void> {
+  // Settled first, like every other action here. A pass already running holds
+  // the wallet lock and writes the whole plan when it finishes, so reading
+  // around one means writing this flag onto a plan that is about to be
+  // replaced — and the switch silently springs back.
+  await settleWallet(userId, wallet)
+  const grid = await gridById(userId, wallet.id, input.gridId)
+  grid.plan.follow = input.follow
+  if (input.follow) grid.plan.takeProfitPx = null
+  await saveGridPlan(userId, grid.id, grid.plan, "active")
+  // And again on the way out, so a range already past its top starts following
+  // now rather than on the next poll.
+  await settleWallet(userId, wallet)
+}
+
+/**
+ * Re-shaping a grid: a new range, a new level count, a new share of the
  * account, or any mix of them.
  *
  * One function for all of it because they are one operation. Every one of them
@@ -523,11 +544,11 @@ export async function updateGridStop(
  *
  * Anything not given keeps what the grid already had.
  *
- * Allowed only while nothing has bought. See `gridRangeMovable` for why: a
- * level that is holding bought at a price and sells against it, so sliding the
- * range under it would leave a grid whose levels no longer relate to what it
- * paid. Before the first buy nothing is committed and there is nothing to
- * protect.
+ * Allowed only while nothing is held. See `gridRangeMovable` for why: a level
+ * that is holding bought at its own price and sells one step above it, so
+ * sliding the range under it would leave that level selling coins it never paid
+ * that price for. Nothing is held for most of a grid's life, so most of the
+ * time the range moves freely.
  *
  * The new levels are drawn by the SAME planner that drew the first ones, with
  * the settings the grid was placed with, so a moved grid is exactly the grid
@@ -566,10 +587,6 @@ export async function reshapeGrid(
     marks,
   })
 
-  // The cash the grid is already holding is its own to spend again: it is
-  // about to give every one of those orders back.
-  const held = plan.levels.reduce((sum, level) => sum + level.budget, 0)
-
   const draft = draftGridOrder({
     marketKey: grid.marketKey,
     params: {
@@ -578,7 +595,10 @@ export async function reshapeGrid(
       compound: true,
       maxOrderVolPct: plan.maxOrderVolPct,
       spacing: plan.spacing,
+      sizing: plan.sizing,
+      follow: plan.follow,
       // Only read when the window pre-fills; a re-shape has its own prices.
+      anchor: "price",
       abovePct: DEFAULT_GRID_ABOVE_PCT,
       rangePct: DEFAULT_GRID_BELOW_PCT,
       baseDetection: plan.baseDetection,
@@ -593,7 +613,6 @@ export async function reshapeGrid(
     rules,
     roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: figures.equity,
-    freeCash: freeCash(book) + held,
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: plan.startedAt,
     heldSzi: book.positions.get(grid.marketKey)?.szi ?? null,
@@ -614,17 +633,13 @@ export async function reshapeGrid(
     seenFillsTo: plan.seenFillsTo,
     // A move re-prices the levels; it does not reset the grid's history.
     cycles: plan.cycles,
+    shifts: plan.shifts,
   }
 
-  // No orders to cancel and none to place — the levels are watched prices. But
-  // a range dragged up over the price has levels ABOVE it now, and a level
-  // above the price is one the grid sells at, so it has to hold the coins for
-  // them the same way a fresh grid does.
-  //
-  // Without this, moving the top up wrote a plan that said "holding" with no
-  // position behind it, and the very next pass read that as a grid that had
-  // lost its coins and closed it — so dragging the top up made the whole grid
-  // vanish off the chart.
+  // No orders to cancel, none to place, and no position to settle. Every
+  // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
+  // already refused this while anything was held — so there is nothing here
+  // that could be left describing a price it did not pay.
   const now = Date.now()
   await db.transaction(async (tx) => {
     await tx
@@ -632,33 +647,6 @@ export async function reshapeGrid(
       .from(tradeWallets)
       .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
       .for("update")
-
-    // Settle the position to what the NEW levels need: buy the coins the levels
-    // above the price now want, or sell the ones they no longer do. This is
-    // what makes a range movable at any time — after it, nothing in the plan
-    // describes a price it did not pay.
-    const heldNow = book.positions.get(grid.marketKey)?.szi ?? 0
-    const shortfall = draft.startingSz - heldNow
-    if (Math.abs(shortfall) > 1e-9) {
-      const sz = floorSize(Math.abs(shortfall), next.sizeDecimals)
-      if (sz > 0) {
-        const buying = shortfall > 0
-        fillPaperBook(book, {
-          marketKey: grid.marketKey,
-          side: buying ? "buy" : "sell",
-          px: slippedPx(mark, buying ? "buy" : "sell", book.costs.slippageRate),
-          sz,
-          feeRate: book.costs.takerFeeRate,
-          leverage: 1,
-          maxLeverage: next.maxLeverage,
-          reason: "order",
-          at: now,
-        })
-        // `saveBook` only writes the markets it is told were touched.
-        book.touchedMarkets.add(grid.marketKey)
-      }
-    }
-    await saveBook(tx, userId, book, new Date(now))
 
     await tx
       .update(tradeSmartLadders)

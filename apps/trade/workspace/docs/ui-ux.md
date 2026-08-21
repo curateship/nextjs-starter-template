@@ -188,10 +188,11 @@ ladder stores Hyperliquid's order IDs and reconciles exchange fills before it
 takes another action. If only part of a new ladder is accepted, those orders
 are cancelled and no ladder is saved.
 
-A live ladder requires a second press. The confirmation says whether it is
-testnet or real money, names the wallet, counts the buys, and states the most
-money the ladder can use. Mainnet still cannot sign unless the server's funded
-test switch is deliberately enabled.
+**Neither window asks twice.** The ladder and the grid both place on the first
+press, on every wallet including real money. There used to be a second,
+confirming press on live wallets; Tyler had it removed. What still stands
+between a real-money order and the exchange is the server's funded test switch:
+mainnet cannot sign unless it is deliberately enabled.
 
 ### A stop that rests under the base
 
@@ -224,6 +225,73 @@ it is a port of the QFL automation from the old app rather than anything new.
   chosen number of days. A close back under starts the wait again; a wick under
   does not. It is capped in dollars rather than coins, so a level reclaimed
   months later costs what the rung was always allowed to spend.
+
+### The grid window
+
+Right-click the chart, pick Smart order, then Grid. The window floats where you
+clicked and its cards read in the order the decisions are made. What the grid
+does with each of these is in `grid-orders.md`; this is what is on screen.
+
+- **Range** starts with **Where the range sits**, a two-item dropdown. "Around
+  today's price" keeps the two boxes it has always had, Above % and Below %.
+  "Below the price you clicked" swaps them for one, **How far below %**, because
+  the top is worked out rather than typed, and adds a line reading **Top buy,
+  where you clicked** with that price on it. Where levels sit above the price,
+  the card says so and says plainly that placing still buys nothing. Both modes still show the range as
+  two prices, the step between levels, and what the whole grid costs.
+- **Money** keeps Share of account % and gains **Split between levels**: "The
+  same at every level" or "Double at every level down". When it is set to
+  doubling, the readout under Range stops saying "Each buy spends" and says
+  **Top buy spends** and **Bottom buy spends** instead, because those are now
+  two different numbers and one of them is the interesting one.
+- **Follow price up** is its own card with a tick box, between Money and the
+  finish line. It has no settings of its own, so the card holds nothing but the
+  tick box: everything there is to say about it lives on the tooltip beside the
+  title, including that the stop slides up too, that the grid never finishes on
+  its own, and that levels the same dollars apart stop following once a round
+  trip no longer clears the fee. A card with one switch does not get a paragraph
+  under it.
+- **Finish the grid** was called Take profit and is the same card renamed. Its
+  readout says **Grid finishes at**, not "Sells everything at". Ticking Follow
+  price up hides this card entirely and switches it off, because a line above a
+  range that slides up ahead of price can never be reached, and a setting that
+  quietly does nothing is worse than no setting. On the chart the line reads
+  **FINISH**.
+- **Refusals** are said on the window before the button is pressed, in the
+  server's own words. Doubling gets its own: it names the level that is too
+  small and offers the three ways out, fewer levels, a bigger share, or the same
+  size at every level.
+
+The window that edits a running grid gains a **Following** card between Slices
+and Stop loss: the same tick box, a line saying how many times the range has
+moved so far, and a warning before it removes a finish line that is already set.
+
+### A placed grid is on the chart at once
+
+Placing one draws it in the same frame the window closes. The server hands the
+finished grid back with its answer, and the chart uses that until the next read
+carries it.
+
+Without that there is a gap nobody can explain: the window clears its own
+preview lines as it goes, and the read that would replace them waits on an
+exchange round trip, so the grid blinks off the chart and returns a second
+later. It is the same trick the ghost order uses while a plain order is being
+placed, and for the same reason.
+
+### What the Smart orders panel counts as a sale
+
+Opening a smart order in the right-hand panel lists what it has sold and what
+that banked. Two rules decide what appears there.
+
+- **A sell out of a long-only order is a sale**, whether or not the venue put a
+  figure on it. Grids and ladders are long only, so a sell on their coin is a
+  sale. A short bought back counts too, through the profit the venue states on
+  it.
+- **Money the venue never stated is shown as a dash, never as zero.** Zero is a
+  real answer meaning the sale broke even. KuCoin reports money per position
+  closed rather than per fill, and a grid selling part of what it holds never
+  closes a position, so its sales arrive unpriced. The panel lists them, leaves
+  the figure blank, and says underneath how many the total is short of.
 
 ## Orders on the chart
 

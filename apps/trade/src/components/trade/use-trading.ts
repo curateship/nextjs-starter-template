@@ -32,6 +32,7 @@ import {
   moveGridExit as moveGridExitApi,
   moveGridRange as moveGridRangeApi,
   reshapeGrid as reshapeGridApi,
+  setGridFollow as setGridFollowApi,
   placeGridOrder,
   updateGridStop,
   getSmartOrderErrorMessage,
@@ -337,6 +338,16 @@ export type Trading = {
     gridId: string,
     stopLoss: GridParams["stopLoss"]
   ) => Promise<boolean>
+  /**
+   * Start or stop a grid following price up. Switching it on also clears the
+   * finish line, because a range that slides up ahead of price can never reach
+   * one.
+   */
+  setGridFollow: (
+    walletId: string,
+    gridId: string,
+    follow: boolean
+  ) => Promise<boolean>
 }
 
 type PaperAnswer = {
@@ -411,6 +422,12 @@ export function useTrading(
   >(new Map())
   // Orders asked for whose answer is still on its way.
   const [placing, setPlacing] = React.useState<PaperOrder[]>([])
+  // A smart order the server has confirmed, standing in until the next read
+  // carries it. The window that placed it clears its preview lines as it
+  // closes, and the read that would replace them waits on an exchange round
+  // trip — so without this the grid vanished off the chart and came back a
+  // second later.
+  const [placedSmart, setPlacedSmart] = React.useState<SmartOrder[]>([])
   // Orders whose × has been pressed, still being told to the exchange.
   const [cancelling, setCancelling] = React.useState<ReadonlyMap<string, number>>(
     new Map()
@@ -655,9 +672,27 @@ export function useTrading(
    * which the chart does not draw at all. Guessing the same answer the server
    * will give is what keeps the line from jumping when the real one lands.
    */
+  /**
+   * The server's list, plus anything just placed that has not reached it yet.
+   *
+   * Judged here rather than in an effect, for the same reason `placingShown`
+   * is: the hand-off happens in the render the real row arrives in, so there is
+   * never a frame with neither drawn. Matched on the id, because the server
+   * hands back the row it wrote.
+   */
+  const withJustPlaced = React.useMemo(() => {
+    if (placedSmart.length === 0) return allSmartOrders
+    const fresh = placedSmart.filter(
+      (one) =>
+        !holdExpired(one.createdAt) &&
+        !allSmartOrders.some((real) => real.id === one.id)
+    )
+    return fresh.length === 0 ? allSmartOrders : [...allSmartOrders, ...fresh]
+  }, [allSmartOrders, placedSmart, holdExpired])
+
   const smartOrders = React.useMemo(() => {
-    if (cancelling.size === 0) return allSmartOrders
-    return allSmartOrders
+    if (cancelling.size === 0) return withJustPlaced
+    return withJustPlaced
       .filter((order) => !cancelling.has(order.id))
       .map((order) => {
         if (order.kind === "dca") {
@@ -692,7 +727,7 @@ export function useTrading(
         }
         return order
       })
-  }, [allSmartOrders, cancelling])
+  }, [withJustPlaced, cancelling])
   // Derived rather than fetched separately: the screens that predate the grid
   // still want ladders alone, and one list of both is the truth they filter.
   const ladders = React.useMemo(
@@ -1221,10 +1256,15 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { levels, totalCost } = await placeGridOrder({
+        const { levels, totalCost, grid } = await placeGridOrder({
           walletId,
           ...input,
         })
+        // On screen now, not after the next read.
+        setPlacedSmart((held) => [
+          ...held.filter((one) => !holdExpired(one.createdAt)),
+          grid,
+        ])
         toast.success(
           `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} in total.`
         )
@@ -1237,7 +1277,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh]
+    [walletId, wallet, nameOf, refresh, holdExpired]
   )
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
@@ -1302,6 +1342,17 @@ export function useTrading(
         getTradingSmartOrderError,
         () => updateGridStop({ walletId, gridId, stopLoss }),
         "Stop changed."
+      )
+    },
+    [runWith]
+  )
+
+  const setGridFollow: Trading["setGridFollow"] = React.useCallback(
+    async (walletId, gridId, follow) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        () => setGridFollowApi({ walletId, gridId, follow }),
+        follow ? "Grid follows price up." : "Grid stays where it is."
       )
     },
     [runWith]
@@ -1416,5 +1467,6 @@ export function useTrading(
     moveGridExit,
     reshapeGrid,
     setGridStop,
+    setGridFollow,
   }
 }

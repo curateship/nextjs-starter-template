@@ -16,6 +16,8 @@ Two files outrank the rest, and outrank the code:
 - `architecture-overview.md` — how Trade is put together on top of the shell.
 - `smart-orders-never-rest.md` — why a smart order sends nothing until the price
   is reached, and what a backtest does differently.
+- `grid-orders.md` — how a grid recycles, where its range sits, how the money is
+  split between levels, and what following price up does.
 - `watched-orders.md` — how a plain order works now, and what dragging does.
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what a
   failed answer does to the card.

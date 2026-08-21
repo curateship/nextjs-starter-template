@@ -7,8 +7,10 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { encryptSecret } from "@/server/auth/encryption"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
+  moveLiveGridExit,
   placeLiveDcaLadder,
   reconcileLiveLadders,
 } from "@/server/trade/live-smart-orders"
@@ -497,5 +499,111 @@ describe("live Smart orders", () => {
     // hand-placed buy at the same price is theirs, and the rung keeps waiting
     // for its own moment.
     expect((await ladder()).rungs[0].status).toBe("waiting")
+  })
+})
+
+describe("dragging a live grid's stop", () => {
+  /**
+   * A grid from $80 to $90 on a market trading at $100, so every level is
+   * waiting and nothing is held. That is a grid's ordinary state between one
+   * cycle and the next, not a broken one.
+   */
+  async function restingGrid(): Promise<void> {
+    const levels = [80, 85].map((buyPx) => ({
+      buyPx,
+      sellPx: buyPx + 5,
+      sz: 1,
+      budget: buyPx,
+      heldSz: 0,
+      status: "waiting" as const,
+      armed: true,
+      dead: false,
+      cycles: 0,
+    }))
+    const plan: GridPlan = {
+      topPx: 90,
+      bottomPx: 80,
+      takeProfitPx: null,
+      spacing: "even",
+      sizing: "even",
+      potPct: 20,
+      maxOrderVolPct: 0,
+      startedAt: Date.now() - 60_000,
+      sizeDecimals: 3,
+      priceTick: null,
+      maxLeverage: 50,
+      levels,
+      stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
+      baseDetection: defaultGridParams().baseDetection,
+      baseWatch: null,
+      aimedSlPx: null,
+      seenFillsTo: 0,
+      cycles: 0,
+      follow: false,
+      shifts: 0,
+      closedReason: null,
+    }
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: "grid-1",
+      walletId: "live-1",
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan,
+      createdAt: new Date(Date.now() - 120_000),
+      updatedAt: new Date(Date.now() - 60_000),
+    })
+  }
+
+  async function gridPlan(): Promise<GridPlan> {
+    const rows = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    expect(rows).toHaveLength(1)
+    return rows[0].plan as GridPlan
+  }
+
+  it("saves a stop dragged while the grid holds nothing", async () => {
+    // The exchange has no position, because the grid has not bought yet. This
+    // used to throw LIVE_POSITION_GONE, which threw the drag away with it: the
+    // stop the hand had just moved was never saved, and the Journal gained a
+    // "refused" row for something nobody had done wrong.
+    await restingGrid()
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+
+    await expect(
+      moveLiveGridExit(userId, wallet, {
+        gridId: "grid-1",
+        which: "stopLoss",
+        px: 70,
+      })
+    ).resolves.toEqual({ moved: true })
+
+    const plan = await gridPlan()
+    expect(plan.stopLoss).toMatchObject({ mode: "fixed", px: 70 })
+    // Nothing was written to the exchange, so nothing is remembered as written.
+    // Claiming otherwise would make the next pass read a stop it never wrote as
+    // one a hand had moved, and leave it alone for good.
+    expect(plan.aimedSlPx).toBeNull()
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
+  it("still writes the stop to the exchange when coins are held", async () => {
+    await restingGrid()
+    portfolio.mockResolvedValue({
+      positions: [{ marketId: "BTC", szi: 1, entryPx: 85, leverage: 1 }],
+      orders: [],
+    })
+
+    await moveLiveGridExit(userId, wallet, {
+      gridId: "grid-1",
+      which: "stopLoss",
+      px: 70,
+    })
+
+    expect(setBrackets).toHaveBeenCalled()
+    expect(await gridPlan()).toMatchObject({ aimedSlPx: 70 })
   })
 })

@@ -49,6 +49,7 @@ export function GridStopDialog({
   busy,
   onSave,
   onReshape,
+  onSetFollow,
   onClose,
 }: {
   grid: SmartGrid | null
@@ -58,6 +59,7 @@ export function GridStopDialog({
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
   ) => Promise<boolean>
+  onSetFollow: (grid: SmartGrid, follow: boolean) => Promise<boolean>
   onClose: () => void
 }) {
   return (
@@ -75,6 +77,7 @@ export function GridStopDialog({
             busy={busy}
             onSave={onSave}
             onReshape={onReshape}
+            onSetFollow={onSetFollow}
             onClose={onClose}
           />
         ) : null}
@@ -88,6 +91,7 @@ function StopForm({
   busy,
   onSave,
   onReshape,
+  onSetFollow,
   onClose,
 }: {
   grid: SmartGrid
@@ -97,6 +101,7 @@ function StopForm({
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
   ) => Promise<boolean>
+  onSetFollow: (grid: SmartGrid, follow: boolean) => Promise<boolean>
   onClose: () => void
 }) {
   const plan = grid.plan
@@ -104,6 +109,7 @@ function StopForm({
 
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
+  const [followOn, setFollowOn] = React.useState(plan.follow)
   const [slOn, setSlOn] = React.useState(plan.stopLoss !== null)
   const [underPct, setUnderPct] = React.useState(
     String(plan.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT)
@@ -135,6 +141,7 @@ function StopForm({
   const step = !badLevels
     ? (plan.topPx - plan.bottomPx) / parsedLevels
     : null
+  const followChanged = followOn !== plan.follow
   const parsedUnder = Number(underPct)
   const badUnder =
     slOn && !(Number.isFinite(parsedUnder) && parsedUnder >= 0 && parsedUnder <= 50)
@@ -167,6 +174,12 @@ function StopForm({
         potPct: parsedPot,
       })
       if (!shaped) return
+    }
+    // Then following, which only flips a flag. After the re-slice so it is
+    // written onto the levels the re-slice drew, not the ones it replaced.
+    if (followChanged) {
+      const followed = await onSetFollow(grid, followOn)
+      if (!followed) return
     }
     const saved = await onSave(
       grid,
@@ -244,6 +257,41 @@ function StopForm({
                 do.
               </p>
             ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Following</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-follow-on"
+                checked={followOn}
+                disabled={busy}
+                onCheckedChange={(next) => setFollowOn(next === true)}
+              />
+              <FieldLabel
+                htmlFor="grid-follow-on"
+                hint="When price climbs past the top of the range, the whole range slides up behind it and the grid carries on instead of waiting above its range. It costs nothing, because by the time price is up there every level has already sold. The stop under the range slides up with it."
+              >
+                Follow price up
+              </FieldLabel>
+            </div>
+            {followOn && plan.takeProfitPx !== null ? (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Saving removes the finish line at{" "}
+                {formatPrice(plan.takeProfitPx)}. A range that slides up ahead
+                of price can never reach a line above it, so a following grid
+                runs until you switch this off or the stop is hit.
+              </p>
+            ) : null}
+            <p className="text-xs text-muted-foreground">
+              {plan.shifts === 0
+                ? "The range has not moved yet."
+                : `The range has moved up ${plan.shifts} time${plan.shifts === 1 ? "" : "s"} so far.`}
+            </p>
           </CardContent>
         </Card>
 

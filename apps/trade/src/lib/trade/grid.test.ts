@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest"
 
 import {
   defaultGridParams,
+  gridFollowShift,
   gridLevels,
   gridLevelSize,
   gridOrderPlan,
+  gridRangeFromClick,
+  gridShares,
   gridStepPct,
   gridRangeMovable,
   gridStopPx,
@@ -224,6 +227,7 @@ describe("reading a stored grid back", () => {
     bottomPx: 80,
     takeProfitPx: null,
     spacing: "even",
+    sizing: "even",
     potPct: 20,
     maxOrderVolPct: 0,
     startedAt: 1,
@@ -238,6 +242,7 @@ describe("reading a stored grid back", () => {
         budget: 400,
         heldSz: 0,
         status: "waiting",
+        armed: true,
         dead: false,
         cycles: 0,
       },
@@ -248,6 +253,7 @@ describe("reading a stored grid back", () => {
         budget: 400,
         heldSz: 0,
         status: "waiting",
+        armed: true,
         dead: false,
         cycles: 0,
       },
@@ -258,6 +264,8 @@ describe("reading a stored grid back", () => {
     aimedSlPx: null,
     seenFillsTo: 0,
     cycles: 0,
+    follow: false,
+    shifts: 0,
     closedReason: null,
   }
 
@@ -277,18 +285,22 @@ describe("reading a stored grid back", () => {
     expect(readSmartPlan("grid", { ...plan, levels: [plan.levels[0]] })).toBeNull()
   })
 
-  it("lets the range move for as long as the grid is running", () => {
+  it("lets the range move while the grid holds nothing", () => {
     expect(gridRangeMovable(plan)).toBe(true)
-    // Still movable while holding: a move settles the position to whatever the
-    // new levels need, so nothing is left describing a price it did not pay.
-    // The old rule locked the range after one upward drag, because dragging up
-    // is exactly what creates a holding level.
+  })
+
+  it("locks the range once a level is holding", () => {
+    // That level bought at its own price and sells one step above it. Sliding
+    // the range under it would leave it selling coins it never paid that price
+    // for, which is the lump this order type exists to avoid.
     expect(
       gridRangeMovable({
         levels: [{ ...plan.levels[0], status: "holding" }, plan.levels[1]],
       })
-    ).toBe(true)
-    // Nothing left to move once every level is called off.
+    ).toBe(false)
+  })
+
+  it("has nothing to move once every level is called off", () => {
     expect(
       gridRangeMovable({
         levels: plan.levels.map((one) => ({ ...one, status: "cancelled" as const })),
@@ -326,5 +338,142 @@ describe("a grid's take-profit", () => {
 
   it("is nothing when none was set", () => {
     expect(gridTakeProfitPx({ takeProfitPx: null, topPx: 100 })).toBeNull()
+  })
+})
+
+describe("gridShares", () => {
+  it("gives every level the same slice when the pot is split evenly", () => {
+    const shares = gridShares(4, "even")
+    expect(shares).toEqual([0.25, 0.25, 0.25, 0.25])
+  })
+
+  it("doubles each level DOWN, so the biggest lands on the bottom", () => {
+    const shares = gridShares(6, "double")
+    // Index 0 is the bottom of the range, which is where the money goes.
+    for (const [index, share] of shares.entries()) {
+      const below = shares[index + 1]
+      if (below !== undefined) expect(share).toBeCloseTo(below * 2, 12)
+    }
+    expect(shares[0]).toBeGreaterThan(shares[5])
+  })
+
+  it("redistributes the pot rather than growing it", () => {
+    for (const count of [2, 6, 12, 20]) {
+      const sum = gridShares(count, "double").reduce((a, b) => a + b, 0)
+      expect(sum).toBeCloseTo(1, 12)
+    }
+  })
+})
+
+describe("gridOrderPlan with the pot doubled", () => {
+  const params = {
+    ...defaultGridParams(),
+    levels: 6,
+    potPct: 20,
+    maxOrderVolPct: 0,
+    sizing: "double" as const,
+  }
+
+  it("spends twice as much at each level down and still adds up to the pot", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params,
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    // 20% of $10,000 is $2,000 across weights 32:16:8:4:2:1 of 63.
+    expect(plan.levels[0].dollars).toBeCloseTo((2000 * 32) / 63, 1)
+    expect(plan.levels[5].dollars).toBeCloseTo((2000 * 1) / 63, 1)
+    for (const [index, level] of plan.levels.entries()) {
+      const above = plan.levels[index + 1]
+      if (above) expect(level.dollars).toBeCloseTo(above.dollars * 2, 1)
+    }
+    expect(plan.totalCost).toBeCloseTo(2000, 1)
+  })
+
+  it("refuses at the shallow end once doubling has stretched too far", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, levels: 12 },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    // Weights run 2048 down to 1 of 4095. Level 8 of 12 is the first under the
+    // exchange's $10, at $7.81, and the whole grid is refused rather than
+    // eight-twelfths of it placed.
+    expect(plan.tooSmallIndex).toBe(7)
+  })
+})
+
+describe("gridRangeFromClick", () => {
+  // The whole promise of the mode: the price you clicked is a BUY, and the top
+  // of the range is one step above it because that is where the buy sells.
+  for (const spacing of ["even", "compounding"] as const) {
+    for (const levels of [2, 6, 12, 20]) {
+      it(`puts the click on the top buy — ${spacing}, ${levels} levels`, () => {
+        const range = gridRangeFromClick({
+          clickPx: 95,
+          rangePct: 15,
+          levels,
+          spacing,
+        })
+        expect(range).not.toBeNull()
+        const drawn = gridLevels({ ...range!, levels, spacing })
+        expect(drawn.at(-1)!.buyPx).toBeCloseTo(95, 9)
+        expect(range!.bottomPx).toBeCloseTo(80.75, 9)
+        expect(range!.topPx).toBeGreaterThan(95)
+      })
+    }
+  }
+
+  it("refuses numbers that cannot describe a grid", () => {
+    const ok = { clickPx: 95, rangePct: 15, levels: 6, spacing: "even" as const }
+    expect(gridRangeFromClick({ ...ok, clickPx: 0 })).toBeNull()
+    expect(gridRangeFromClick({ ...ok, rangePct: 0 })).toBeNull()
+    expect(gridRangeFromClick({ ...ok, rangePct: 100 })).toBeNull()
+    expect(gridRangeFromClick({ ...ok, levels: 1 })).toBeNull()
+  })
+})
+
+describe("gridFollowShift", () => {
+  const range = { topPx: 120, bottomPx: 80, levels: 12, spacing: "even" as const }
+
+  it("moves whole steps, just far enough to clear the price", () => {
+    const moved = gridFollowShift({ ...range, mark: 131 })
+    // A step is (120 − 80) / 12 = 3.333, and 131 is 3.3 steps over the top.
+    expect(moved?.steps).toBe(4)
+    expect(moved?.topPx).toBeCloseTo(133.333, 3)
+    expect(moved?.bottomPx).toBeCloseTo(93.333, 3)
+  })
+
+  it("leaves every level below the price, so nothing buys on the way", () => {
+    for (const mark of [120.01, 125, 131, 200]) {
+      const moved = gridFollowShift({ ...range, mark })
+      const drawn = gridLevels({ ...range, ...moved!, levels: range.levels })
+      expect(drawn.at(-1)!.buyPx).toBeLessThan(mark)
+      expect(moved!.topPx).toBeGreaterThanOrEqual(mark)
+    }
+  })
+
+  it("does not move while price is still inside the range or on the top", () => {
+    expect(gridFollowShift({ ...range, mark: 100 })).toBeNull()
+    expect(gridFollowShift({ ...range, mark: 120 })).toBeNull()
+    expect(gridFollowShift({ ...range, mark: 79 })).toBeNull()
+  })
+
+  it("keeps the same percent between levels when they are spread that way", () => {
+    const percent = { ...range, spacing: "compounding" as const }
+    const before = gridStepPct(gridLevels(percent))
+    const moved = gridFollowShift({ ...percent, mark: 140 })
+    const after = gridStepPct(
+      gridLevels({ ...percent, ...moved!, levels: percent.levels })
+    )
+    // Which is exactly why a percent-spread grid can follow forever: the fee
+    // check reads this number, and moving up never thins it.
+    expect(after).toBeCloseTo(before, 9)
   })
 })

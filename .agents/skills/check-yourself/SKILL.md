@@ -42,6 +42,44 @@ to him.
    a case whose answer is already known before believing it.
 7. **Answer with what was measured AND what it does not cover.**
 
+## Bot logic is not business logic
+
+Two different questions. The code can only answer one of them.
+
+**Bot logic** is what the machine needs in order to do the thing at all. "A sell
+order needs coins behind it" is bot logic. It is always true, and it is never a
+reason for anything.
+
+**Business logic** is what the thing is FOR. "A rung buys at its own price or it
+does not buy" is business logic. It comes from Tyler and from nowhere else.
+
+Bot logic can be flawless and still produce something no one would ever want. On
+20 Aug 2026 a grid placed with the price in the middle of its range market-bought
+the five rungs ABOVE the price, all at one price, because those rungs' sells
+needed coins to sell. Every step of that reasoning was sound. What it produced
+was a $70 lump bought at whatever number happened to be on screen, five rungs
+named after prices none of them had paid, and an account at its most long at the
+exact moment a grid is supposed to be sitting on its hands.
+
+**When Tyler says something makes no sense, the bot logic is usually fine.** He
+is asking the other question. Answering with more bot logic is the failure. It
+sounds like a rebuttal, it is not one, and repeating it is what "arguing with
+your bot logic" means. That evening it was repeated four times.
+
+- Do not explain why the code does what it does unless asked. He can see what it
+  does. He is telling you it should not.
+- "It needs something to sell" answers nothing. The real question is where those
+  coins should come from, and only he can answer it.
+- Find the smallest change that satisfies the business rule. Do not defend the
+  mechanism that broke it.
+
+**Read `workspace/docs/trading-rules.md` before defending any trading
+behaviour.** That night the rule was already in it, written for ladders: a
+ladder born under three of its levels "would buy all three instantly at one
+price, which is one big lump, not a ladder". The grid did precisely that, the
+rule had been sitting there the whole time, and four turns were spent arguing
+instead of opening the file.
+
 ## Things that are never evidence
 
 - A line of code, a comment, or a commit date. On 18 Aug 2026 a line dated 7 Aug

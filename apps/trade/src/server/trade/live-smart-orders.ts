@@ -1558,7 +1558,8 @@ async function placeLiveGridOrderOnce(
   // re-implements its draft by hand and has drifted from it — a hardcoded order
   // cap among other things — and there is no reason to repeat that here.
   const now = Date.now()
-  const { plan, levels, totalCost, startingSz } = draftGridOrder({
+  const id = randomUUID()
+  const { plan, levels, totalCost } = draftGridOrder({
     marketKey: input.marketKey,
     params: input.params,
     topPx: input.topPx,
@@ -1567,7 +1568,6 @@ async function placeLiveGridOrderOnce(
     rules,
     roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: input.params.compound ? account.equity : wallet.startingBalance,
-    freeCash: account.free,
     takerFeeRate: defaultPaperCosts().takerFeeRate,
     startedAt: now,
     heldSzi: held?.szi ?? null,
@@ -1575,23 +1575,10 @@ async function placeLiveGridOrderOnce(
 
   const accepted: string[] = []
   try {
-    // Nothing rests. A grid's levels are prices it WATCHES, and the engine
-    // buys when one is reached — so the only thing to send now is the position
-    // standing behind the levels that start out selling.
-    if (startingSz > 0) {
-      await placeLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: input.marketKey,
-        side: "buy",
-        px: mark,
-        sz: startingSz,
-        leverage: 1,
-        reduceOnly: false,
-        tpPx: null,
-        slPx: null,
-      })
-    }
-
+    // **Nothing at all is sent here.** A grid's levels are prices it WATCHES,
+    // and the engine buys when one is actually reached, at that level's own
+    // price. This used to send one market buy covering every level above the
+    // price, which is the lump the whole order type exists to avoid.
     const stamp = new Date(now)
     await db.transaction(async (tx) => {
       await tx
@@ -1610,7 +1597,7 @@ async function placeLiveGridOrderOnce(
       if (race) throw new Error("SMART_LADDER_EXISTS")
       await tx.insert(tradeSmartLadders).values({
         userId,
-        id: randomUUID(),
+        id,
         walletId: wallet.id,
         marketKey: input.marketKey,
         kind: "grid",
@@ -1633,7 +1620,23 @@ async function placeLiveGridOrderOnce(
     throw error
   }
 
-  return { levels: levels.length, totalCost }
+  // The grid itself travels back, so the chart draws it in the same frame the
+  // window closes. See `PlacedGrid`.
+  return {
+    levels: levels.length,
+    totalCost,
+    grid: {
+      id,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "grid" as const,
+      status: "active" as const,
+      flowRunId: null,
+      createdAt: now,
+      updatedAt: now,
+      plan,
+    },
+  }
 }
 
 /** Calling off one waiting level of a live grid. */
@@ -1674,6 +1677,54 @@ export async function cancelLiveGridRest(
   })
 }
 
+/** Switching following on or off for a live grid. See `setGridFollow`. */
+export async function setLiveGridFollow(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; follow: boolean }
+): Promise<void> {
+  await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    grid.plan.follow = input.follow
+    if (input.follow) grid.plan.takeProfitPx = null
+    await saveGridPlan(userId, grid.id, grid.plan, "active")
+  })
+}
+
+/**
+ * Coins held in this market on the exchange right now, or zero.
+ *
+ * A grid holds nothing for most of its life. Between one cycle and the next
+ * every level is waiting and the position is closed, and that is the ordinary
+ * state, not a broken one. The stop a grid carries is then a PLAN for later
+ * rather than protection on something open.
+ *
+ * `setLiveBrackets` refuses outright when there is no position, so asking it
+ * anyway did not merely waste a call: it threw `LIVE_POSITION_GONE`, the drag
+ * was rejected, the stop the hand had just moved was never saved, and a
+ * "refused" row went into the Journal for something nobody had done wrong. The
+ * paper path has always checked for a position first; this is the live path
+ * catching up.
+ */
+async function heldOnExchange(
+  userId: string,
+  wallet: TradeWallet,
+  marketKey: string
+): Promise<number> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) return 0
+  const protocol = getProtocol(wallet.protocol)
+  const portfolio = await ordersOf(protocol).portfolio(
+    wallet.network,
+    wallet.address as string,
+    await walletCredential(userId, wallet.id)
+  )
+  return (
+    portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
+  )
+}
+
 /** Changing a live grid's stop. */
 export async function updateLiveGridStop(
   userId: string,
@@ -1700,14 +1751,24 @@ export async function updateLiveGridStop(
       wanted === null
         ? null
         : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
-    await setLiveBrackets(userId, {
-      walletId: wallet.id,
-      marketKey: grid.marketKey,
-      // A grid never writes a target: its exits are its resting sells.
-      tpPx: null,
-      slPx,
-    })
-    plan.aimedSlPx = slPx
+    // Only onto the exchange when there is something to protect. Flat, the
+    // plan is the whole record, and `advanceGrid` writes the stop onto the
+    // position the moment a level buys.
+    if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+      await setLiveBrackets(userId, {
+        walletId: wallet.id,
+        marketKey: grid.marketKey,
+        // A grid never writes a target: its exits are its resting sells.
+        tpPx: null,
+        slPx,
+      })
+      plan.aimedSlPx = slPx
+    } else {
+      // Nothing was written, so nothing is remembered as written. Claiming
+      // otherwise would make the next pass read a stop it never wrote as one a
+      // hand had moved, and leave it alone for good.
+      plan.aimedSlPx = null
+    }
     await saveGridPlan(userId, grid.id, plan, "active")
   })
 }
@@ -1765,8 +1826,6 @@ export async function reshapeLiveGrid(
         credential
       ),
     ])
-    const held = plan.levels.reduce((sum, level) => sum + level.budget, 0)
-
     // Drawn and fully checked BEFORE a single order is cancelled, so a refused
     // move leaves the grid resting exactly where it was.
     const draft = draftGridOrder({
@@ -1777,6 +1836,10 @@ export async function reshapeLiveGrid(
         compound: true,
         maxOrderVolPct: plan.maxOrderVolPct,
         spacing: plan.spacing,
+        sizing: plan.sizing,
+        follow: plan.follow,
+        // Only read when the window pre-fills; a re-shape has its own prices.
+        anchor: "price",
         abovePct: DEFAULT_GRID_ABOVE_PCT,
         rangePct: DEFAULT_GRID_BELOW_PCT,
         baseDetection: plan.baseDetection,
@@ -1791,7 +1854,6 @@ export async function reshapeLiveGrid(
       rules,
       roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
       equity: account.equity,
-      freeCash: account.free + held,
       takerFeeRate: defaultPaperCosts().takerFeeRate,
       startedAt: plan.startedAt,
       heldSzi:
@@ -1799,34 +1861,9 @@ export async function reshapeLiveGrid(
         null,
     })
 
-    // No orders to cancel and none to place — the levels are watched prices.
-    // But a range dragged up over the price has levels ABOVE it now, and those
-    // are levels the grid SELLS at, so it has to hold the coins for them the
-    // same way a fresh grid does. Left out, the plan says "holding" with no
-    // position behind it and the next pass closes the grid for losing coins it
-    // never bought.
-    const heldNow =
-      portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
-    const shortfall = draft.startingSz - heldNow
-    if (Math.abs(shortfall) > 1e-9) {
-      const sz = floorSize(Math.abs(shortfall), draft.plan.sizeDecimals)
-      if (sz > 0) {
-        const buying = shortfall > 0
-        await placeLiveOrder(userId, {
-          walletId: wallet.id,
-          marketKey: grid.marketKey,
-          side: buying ? "buy" : "sell",
-          px: mark,
-          sz,
-          leverage: 1,
-          // Selling back what the new levels no longer need may only shrink
-          // what is held — never open a short into a position that has gone.
-          reduceOnly: !buying,
-          tpPx: null,
-          slPx: null,
-        })
-      }
-    }
+    // No orders to cancel, none to place, and no position to settle: every
+    // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
+    // refused this while anything was held.
     await saveGridPlan(
       userId,
       grid.id,
@@ -1840,7 +1877,9 @@ export async function reshapeLiveGrid(
         baseWatch: plan.baseWatch,
         aimedSlPx: plan.aimedSlPx,
         seenFillsTo: plan.seenFillsTo,
+        // A move re-prices the levels; it does not reset the grid's history.
         cycles: plan.cycles,
+        shifts: plan.shifts,
       },
       "active"
     )
@@ -1873,13 +1912,19 @@ export async function moveLiveGridExit(
         px,
         base: null,
       }
-      await setLiveBrackets(userId, {
-        walletId: wallet.id,
-        marketKey: grid.marketKey,
-        tpPx: null,
-        slPx: px,
-      })
-      plan.aimedSlPx = px
+      // See `updateLiveGridStop`: a grid with nothing open has no brackets to
+      // set, and asking anyway threw the drag away along with the new stop.
+      if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+        await setLiveBrackets(userId, {
+          walletId: wallet.id,
+          marketKey: grid.marketKey,
+          tpPx: null,
+          slPx: px,
+        })
+        plan.aimedSlPx = px
+      } else {
+        plan.aimedSlPx = null
+      }
     }
 
     await saveGridPlan(userId, grid.id, plan, "active")
