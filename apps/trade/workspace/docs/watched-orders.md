@@ -90,6 +90,65 @@ message says why.
 - A waiting order's **stop** drags too, and the order resizes so it still
   risks the same money. Its **target** drags without touching the size.
 
+## Where they are on screen
+
+A watched level shows in three places, and all three are drawn from one list
+built in `use-trading.ts`, so they can never disagree.
+
+- **On the chart of its own coin**, as the line the order would have been.
+- **Under Open orders** in the bottom panel, mixed in with real and practice
+  orders, because a watched price IS an open order to the person who placed it.
+- **Under the Watched tab**, the first tab of the market list on the left. That
+  is the only one of the three that answers "what am I waiting on across all my
+  coins" without changing market. `ui-ux.md` has its rules.
+
+It is deliberately NOT in the Smart orders panel beside the wallets. That panel
+is for strategies being worked — a ladder, a grid — and a plain order waiting
+at a price is not one.
+
+### The Watched tab opens on last time's levels
+
+The rows come from the trading read, and that read takes about three and a half
+seconds against the database. Measured on 21 Aug 2026, the same on a warm
+server, so it is not a dev-server cold start. The panel opens on this tab, so
+those seconds were the first thing on screen every visit.
+
+So the browser keeps the last answer and draws it at once. The code is
+`src/lib/trade/watched-cache.ts`.
+
+- **It is a picture of the past and it is never trusted.** Nothing is placed,
+  cancelled or priced from it. It only decides what is drawn for the second or
+  two before the truth lands, and the first real read replaces it whether it
+  agrees or not.
+- **They arrive silently.** A line saying "checking these are still waiting"
+  was tried and taken out on 21 Aug 2026: the read lands almost at once, and a
+  spinner on the first thing on screen is the wait wearing a different hat. A
+  read that REFUSES is the one case that still speaks up, because then nothing
+  is coming to correct what is drawn — the tab says "The read failed. This is
+  what was here last time." and offers a Try again.
+- **"You had none waiting" is a picture too.** A cached list of nothing stands
+  in exactly like a cached list of three. Leaving it out was why an exchange
+  with no levels still sat on the spinner: Phemex took 2.6 seconds to say
+  "nothing is waiting" where Hyperliquid took 0.6 to draw three rows. All three
+  exchanges now take the same 0.6.
+- **It is kept per account and per exchange.** localStorage belongs to the
+  browser rather than to whoever is signed in, so without the account in the
+  key the next person to sign in on that machine would see somebody else's
+  levels. A different account looks in a different place and finds nothing.
+- **Only the seven fields a row is drawn from are stored**, and at most sixty
+  levels. A blob is read back by whatever build is running months later, so the
+  less of the order's shape it copies, the less there is to go stale. Anything
+  that will not parse is dropped rather than patched. Coin art is deliberately
+  not among the seven: it comes from the exchange's catalogue every time, so a
+  hand-edited blob cannot put a picture of its choosing on the page.
+
+**The read itself was also holding itself up.** The practice half and the real
+half were both waited for before either was drawn, so every screen on this page
+sat on the slower one — 3.5 seconds against the database while the exchange
+answered in 1.4. Each half now lands on its own, which is why the Positions,
+Open orders and Journal tabs fill sooner too. The 3.5-second practice read is
+still 3.5 seconds; that is the database round trips and it is its own job.
+
 ## What it costs
 
 A watched order only fires **while the engine is running**. A resting order

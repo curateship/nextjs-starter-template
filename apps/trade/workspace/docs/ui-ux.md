@@ -11,7 +11,7 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
 ```
 ┌────────────┬─────────────────────┬────────────┐
 │ Markets    │ MARKET HEADER       │ Account    │
-│  All|Fav…  │ ─────────────────── ├────────────┤
+│ Watch|Fav… │ ─────────────────── ├────────────┤
 │  (list)    │ Chart               │ Order      │
 │            │                     │            │
 ├────────────┴─────────────────────┴────────────┤
@@ -19,10 +19,11 @@ Four areas on one screen, at `/trade`, which is also where signing in lands you.
 └───────────────────────────────────────────────┘
 ```
 
-- **Left — Markets.** The whole panel is the compact market list: which
-  exchange it comes from, search, tabs, and sorting. Live exchange data. (An
-  earlier draft had a separate Favourites row below the list; it was replaced
-  by the Fav tab — two homes for one list is duplication.)
+- **Left — Markets.** The panel is the compact market list: which exchange it
+  comes from, search, tabs, and sorting. Live exchange data. Its first tab is
+  the exception, and it lists orders rather than markets — see "The Watched
+  tab" below. (An earlier draft had a separate Favourites row below the list;
+  it was replaced by the Fav tab — two homes for one list is duplication.)
 - **Middle — the market you picked.** One header row, nothing more: the
   market's own logo (carried as data on the row, with a first-letter circle
   when an exchange has no art), its name, and on the right the timeframe
@@ -331,13 +332,16 @@ under it, the list fills the middle, and the search is the bottom bar — its
 placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
 list covers is on screen without spending a row on it.
 
-- **Three tabs, with icons: Fav first and the one it opens on** (starred), then
-  All (the whole catalog), then Watch (markets on this network with an active
-  smart order in any wallet). Fav leads because the markets you actually trade
-  are a short list, and scrolling past hundreds of others to reach them every
-  time is the wrong default; All is one click away and is where stars are put
-  on. An empty Fav points at All, while an empty Watch explains that placing a
-  smart order adds its market.
+- **Three tabs, with icons: Watched, then Fav, then All.** Watched leads and is
+  the tab the panel opens on, because a price you have money committed to beats
+  a market you might look at. Fav (starred) is one click away, All is the whole
+  catalog and where stars are put on. An empty Fav points at All, and an empty
+  Watched points at both — the panel no longer opens on a list of markets, so
+  its first screen has to say where they went.
+- **The panel opens at a fifth of the workspace.** It used to open at a sixth,
+  and three tabs did not fit that: "All" was half a label with the row scrolled
+  sideways. The width is still yours to drag and still remembered per browser,
+  so a width you have already dragged to wins over this.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain
@@ -368,6 +372,55 @@ list covers is on screen without spending a row on it.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists.
+
+### The Watched tab
+
+Every price you are waiting at, across every coin and every wallet on this
+exchange. A plain order does not rest on the exchange any more — the app holds
+the level and sends nothing until the market comes to it, which
+`watched-orders.md` explains — and those levels were only ever visible one coin
+at a time on the chart, or mixed in with everything else under Open orders.
+
+- **A row per order, not per coin.** Two levels on the same coin are two rows.
+  That is the one way this tab differs from Fav and All, which are slices of
+  the catalogue.
+- **Two lines, two columns each.** The coin and what it will spend on the top
+  line; which way, at what price, and how far today's price is from it on the
+  second. The panel is a few hundred pixels wide, so the coin and the level
+  give way to an ellipsis first and the two figures on the right never do.
+- **The wallet is named only when the list spans more than one.** With every
+  level in the same wallet its name is the same word on every row, pushing the
+  level into an ellipsis to say nothing.
+- **Newest first, and it stays that way** while prices move. Sorting by which
+  level is closest would reshuffle the list under the pointer every second.
+- **Pressing a row charts that coin**, the same press the market rows answer
+  to. Calling an order off stays where it already is, the × in Open orders and
+  the line on the chart, rather than becoming a second place to cancel.
+- **The sort headers are hidden on this tab.** There is no volume and no day's
+  move to sort by, and a sort button that does nothing is worse than none.
+- **"Reached" is the engine's own rule**, so the list and the engine can never
+  disagree about whether a price has arrived: a buy is reached when today's
+  price has come down to it, a sell when it has come up. Without a live price
+  the distance column is empty, because a dash there would read as zero.
+- **Loading, empty and failed are three different answers.** "Nothing is
+  waiting" is only said once the read has come back.
+- **It opens on the levels this browser saw last time**, so there is no spinner
+  on the first thing anybody looks at. Measured on 21 Aug 2026: the rows used
+  to land 5.3 seconds after a reload and now land at 1.8, which is as soon as
+  the panel itself exists. `watched-orders.md` says what is kept and why it is
+  never trusted.
+- **Nothing marks those rows while the read is on its way.** A "checking these
+  are still waiting" line was tried and taken out on 21 Aug 2026: the read
+  lands almost at once, the levels almost never differ, and a spinner on the
+  first thing on screen is the wait wearing a different hat.
+- **A read that FAILS is the one case that speaks up.** It keeps last time's
+  answer and puts "The read failed. This is what was here last time." above it,
+  with a Try again. Nothing is coming to correct it, so it has to say it is
+  old. That line sits above the "nothing is waiting" wording just as it sits
+  above rows. With no cache at all it says instead that it could not find out.
+- **The cache only ever stands in until this session has an answer of its own.**
+  A read that refuses in the afternoon never puts the morning's levels back
+  over what is on screen.
 - **The exchange call failing does not take the page down.** The list shows
   the error and a retry; every other panel still works.
 

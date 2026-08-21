@@ -488,28 +488,61 @@ export function useTrading(
     // for as long as the slowest exchange took to answer a question nobody
     // on this screen had asked. Anything it changes shows on the next poll,
     // seconds later.
-    const [, paper, live] = await Promise.allSettled([
-      reconcileLiveSmartOrders(),
-      loadPaperPortfolio(),
-      loadLiveTrading(),
-    ])
-    if (requestRef.current !== request) return false
-    // The clock every optimistic hold is measured against — see `holdExpired`.
-    setReadAt(Date.now())
-    if (paper.status === "fulfilled") {
-      setPaperAnswer(scopedToProtocol(paper.value, protocol))
-    }
-    if (live.status === "fulfilled") {
-      // Scoped BEFORE the unreachable-rows merge, so kept-alive rows from a
-      // wallet the exchange missed are already this page's rows and nothing
-      // foreign can ride back in through the merge.
-      const scoped = scopedToProtocol(live.value, protocol)
-      setLiveAnswer((was) => keepUnreachableRows(was, scoped))
-    }
-    setFailed(
-      paper.status === "rejected" && live.status === "rejected"
+    //
+    // **It is still waited for down at the bottom of this function**, even
+    // though nothing on screen needs it. What this function's promise is
+    // really for is the poll's "skip my turn while the last one is still
+    // running" guard, and a nudge left running loose would slip out from
+    // under that guard: one slow or rate-limited nudge, and the next tick
+    // starts another, and another, each holding a database connection until
+    // the pool runs out. That is the exact failure `poll` was written to
+    // stop.
+    const nudge = reconcileLiveSmartOrders().then(
+      () => true,
+      () => false
     )
-    return paper.status === "fulfilled" && live.status === "fulfilled"
+
+    // **Each half lands on its own.** The two reads take very different
+    // amounts of time — measured on 21 Aug 2026, the practice read was 3.5
+    // seconds against the database while the exchange answered in 1.4 — and
+    // waiting for both before drawing either meant every screen here sat on a
+    // spinner for the slower one, on every visit. Whichever comes back first
+    // now fills the tables, and the other joins it a moment later.
+    //
+    // The clock every optimistic hold is measured against moves with each
+    // landing — see `holdExpired`.
+    const mine = () => requestRef.current === request
+    const paper = loadPaperPortfolio().then(
+      (value) => {
+        if (!mine()) return false
+        setReadAt(Date.now())
+        setPaperAnswer(scopedToProtocol(value, protocol))
+        setFailed(false)
+        return true
+      },
+      () => false
+    )
+    const live = loadLiveTrading().then(
+      (value) => {
+        if (!mine()) return false
+        setReadAt(Date.now())
+        // Scoped BEFORE the unreachable-rows merge, so kept-alive rows from a
+        // wallet the exchange missed are already this page's rows and nothing
+        // foreign can ride back in through the merge.
+        const scoped = scopedToProtocol(value, protocol)
+        setLiveAnswer((was) => keepUnreachableRows(was, scoped))
+        setFailed(false)
+        return true
+      },
+      () => false
+    )
+
+    const [paperLanded, liveLanded] = await Promise.all([paper, live, nudge])
+    if (!mine()) return false
+    // Only when BOTH refused is there nothing to show. One half failing keeps
+    // its last good answer, which is what it has always done.
+    setFailed(!paperLanded && !liveLanded)
+    return paperLanded && liveLanded
   }, [protocol])
 
   /** Reads until one lands, so a dragged price is never let go too early. */

@@ -105,7 +105,13 @@ export function readWatchPlan(value: unknown): WatchPlan | null {
  * already through the market when it is set is reached immediately — the
  * window says so before anything is placed.
  */
-export function watchReached(plan: WatchPlan, mark: number): boolean {
+export function watchReached(
+  // Only the side and the level decide it, so the screens can ask this of a
+  // row that is not a whole plan — the Watched tab holds its levels as orders.
+  // One rule, so a list and the engine can never disagree about "reached".
+  plan: Pick<WatchPlan, "side" | "triggerPx">,
+  mark: number
+): boolean {
   return plan.side === "buy" ? mark <= plan.triggerPx : mark >= plan.triggerPx
 }
 

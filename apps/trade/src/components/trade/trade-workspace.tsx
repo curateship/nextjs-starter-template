@@ -1,4 +1,5 @@
 import * as React from "react"
+import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
@@ -78,6 +79,9 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
+
+/** Who is signed in, read the way the shell's own pages read it. */
+const authenticatedRoute = getRouteApi("/_authenticated")
 
 /** Which side panel a narrow screen has slid open, if any. */
 type OpenSheet = "markets" | "account" | null
@@ -167,6 +171,7 @@ export function TradeWorkspace({
   // Known before the first render on both sides, so the page opens in the
   // layout it is going to keep instead of painting the phone version and
   // rebuilding itself a beat later.
+  const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
   const [accountCollapsed, setAccountCollapsed] = React.useState(false)
@@ -363,6 +368,11 @@ export function TradeWorkspace({
     [onSelectMarket, selectedKey]
   )
 
+  const walletNameOf = React.useCallback(
+    (walletId: string) => trading.walletNames.get(walletId) ?? "another wallet",
+    [trading.walletNames]
+  )
+
   const marketList = (
     <MarketListPanel
       catalogs={catalogs}
@@ -370,6 +380,19 @@ export function TradeWorkspace({
       network={network}
       favorites={favorites}
       watched={watchedMarkets}
+      // The same list the chart draws its waiting lines from and the Open
+      // orders tab lists, so the tab can never disagree with either.
+      watchedOrders={{
+        rows: trading.watchOrders,
+        // The account and the exchange together, so one person's levels never
+        // flash up for the next person to sign in on this machine, and one
+        // exchange's never flash up on another's page.
+        cacheScope: `${user.id}:${protocol}`,
+        loading: trading.loading,
+        failed: trading.failed,
+        onRetry: trading.retry,
+      }}
+      walletName={walletNameOf}
       selectedKey={selectedKey}
       onSelect={onSelectMarket}
       onRetry={onRetryMarkets}
@@ -466,7 +489,9 @@ export function TradeWorkspace({
         panelRef={marketsPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="16%"
+        // Three tabs now, and "Watched" is a wider word than the two it joined.
+        // At 16% the tab row ran off its own edge and "All" was half a label.
+        defaultSize="20%"
         minSize="12%"
         maxSize="30%"
         onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
@@ -479,7 +504,7 @@ export function TradeWorkspace({
         </WorkspacePanel>
       </ResizablePanel>
       <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="62%" minSize="30%">
+      <ResizablePanel id="chart" defaultSize="58%" minSize="30%">
         {middle}
       </ResizablePanel>
       <ResizableHandle gap collapsed={accountCollapsed} className={NO_RING} />
@@ -528,9 +553,7 @@ export function TradeWorkspace({
                 fills={trading.fills}
                 trades={trading.trades}
                 markets={marketsByKey}
-                walletName={(walletId) =>
-                  trading.walletNames.get(walletId) ?? "another wallet"
-                }
+                walletName={walletNameOf}
                 onSelectMarket={onSelectMarket}
               />
             </WorkspacePanel>

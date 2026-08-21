@@ -2,12 +2,13 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { focusRing } from "@/lib/layout/focus-ring"
-import { LayoutGridIcon, StarIcon } from "lucide-react"
+import { EyeIcon, LayoutGridIcon, StarIcon } from "lucide-react"
 
 import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
 } from "@/components/shared/workspace-panel-header"
+import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
@@ -18,6 +19,7 @@ import {
 } from "@/lib/trade/market-tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
+import type { PaperOrder } from "@/lib/trade/paper"
 import {
   type MarketCatalog,
   type MarketRow,
@@ -26,12 +28,13 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Fav is the starred set and the one the panel opens on — the markets you
- * actually trade are a short list, and scrolling past hundreds of others to
- * reach them every time is the wrong default. All is the whole catalog, one
- * click away, and where stars are put on in the first place. Watch is every
- * listed market with a smart order still working.
+ * Watched is every price you are waiting at. It leads the row and it is the
+ * tab the panel opens on, because a level you have money committed to beats a
+ * market you might look at. Fav is the starred set, one click away; All is the
+ * whole catalog and where stars are put on.
  */
+type PanelTab = MarketTab | "watched"
+
 type SortKey = "vol" | "change"
 
 /** Which way a column starts when you first click it: biggest first, both. */
@@ -79,6 +82,8 @@ export function MarketListPanel({
   network,
   favorites,
   watched,
+  watchedOrders,
+  walletName,
   selectedKey,
   onSelect,
   onRetry,
@@ -92,11 +97,24 @@ export function MarketListPanel({
   favorites: ReadonlySet<string>
   /** Which markets currently have an active smart order in any wallet. */
   watched: ReadonlySet<string>
+  /** The prices being waited at, listed under the Watched tab. */
+  watchedOrders: {
+    rows: readonly PaperOrder[]
+    /** Which account and exchange the cached list belongs to. */
+    cacheScope: string
+    /** The first trading read has not come back yet. */
+    loading: boolean
+    /** That read failed and there is nothing to fall back on. */
+    failed: boolean
+    onRetry: () => void
+  }
+  /** Each wallet's name, so a waiting price says which wallet it is in. */
+  walletName: (walletId: string) => string
   selectedKey: string | null
   onSelect: (key: string) => void
   onRetry: () => void
 }) {
-  const [tab, setTab] = React.useState<MarketTab>("fav")
+  const [tab, setTab] = React.useState<PanelTab>("watched")
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
     key: "vol",
     desc: true,
@@ -115,7 +133,17 @@ export function MarketListPanel({
     [catalogs]
   )
 
+  // Every market by key, so a waiting price finds its own art without
+  // searching the catalogues itself.
+  const marketsByKey = React.useMemo(() => {
+    const byKey = new Map<string, MarketRow>()
+    for (const row of rows) byKey.set(row.key, row)
+    return byKey
+  }, [rows])
+
   const visible = React.useMemo(() => {
+    // Watched lists orders, not markets, and draws its own rows below.
+    if (tab === "watched") return []
     let list = rows.filter(
       (row) =>
         // A market nobody trades is noise — unless it is yours: the selected
@@ -175,12 +203,22 @@ export function MarketListPanel({
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as MarketTab)}
+      onValueChange={(value) => setTab(value as PanelTab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       {/* Row one: the same underline tab row as the automation palette. */}
       <div className="shrink-0 overflow-x-auto">
         <WorkspacePanelTabsHeader>
+          <WorkspacePanelTab
+            value="watched"
+            // An eye, for the one word the tab is called. An hourglass was
+            // tried first and read as a spinner, which made the tab look like
+            // it was still loading. The chart's options button is the only
+            // other eye on the screen and it carries no label, so a labelled
+            // eye here is never mistaken for it.
+            icon={<EyeIcon className="size-4" />}
+            label="Watched"
+          />
           <WorkspacePanelTab
             value="fav"
             icon={<StarIcon className="size-4 fill-current" />}
@@ -206,7 +244,11 @@ export function MarketListPanel({
       <div
         className={cn(
           "flex shrink-0 items-center overflow-x-auto border-b text-muted-foreground",
-          ROW_COLUMNS
+          ROW_COLUMNS,
+          // Watched has no volume and no day's move to sort by. Hidden rather
+          // than left there dead, because a sort button that does nothing is
+          // worse than no sort button.
+          tab === "watched" && "hidden"
         )}
       >
         {/* Stays at the small size on every screen — the table default steps
@@ -235,6 +277,18 @@ export function MarketListPanel({
         </TableSortButton>
       </div>
 
+      <TabsContent value="watched" className="min-h-0 flex-1">
+        <WatchedOrdersList
+          orders={watchedOrders.rows}
+          cacheScope={watchedOrders.cacheScope}
+          markets={marketsByKey}
+          walletName={walletName}
+          loading={watchedOrders.loading}
+          failed={watchedOrders.failed}
+          onRetry={watchedOrders.onRetry}
+          onSelectMarket={onSelect}
+        />
+      </TabsContent>
       <TabsContent value="fav" className="min-h-0 flex-1">
         {list}
       </TabsContent>

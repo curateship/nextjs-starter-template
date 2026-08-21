@@ -89,6 +89,17 @@ export function formatChange(fraction: number): string {
 }
 
 /**
+ * How far one price is from another, as a share of it: 0.0321 → "3.21%".
+ *
+ * No sign, because the words beside it say which way — "3.21% away" from a
+ * level you are waiting under and one you are waiting over read the same, and
+ * a plus or a minus there would only invite the wrong reading.
+ */
+export function formatAway(fraction: number): string {
+  return `${(fraction * 100).toFixed(2)}%`
+}
+
+/**
  * An hourly funding rate, from the fraction in the row: 0.0000125 →
  * "0.0013%". Four decimals because funding lives in the fourth one.
  */
