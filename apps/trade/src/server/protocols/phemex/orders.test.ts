@@ -19,10 +19,12 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
   }
 })
 import {
+  clearPhemexOrderCaches,
   fetchPhemexOrderInfo,
   fetchPhemexPortfolio,
   placePhemexOrder,
 } from "@/server/protocols/phemex/orders"
+import { clearPhemexAccountCache } from "@/server/protocols/phemex/account"
 
 /**
  * The order path against canned exchange answers. What is pinned down:
@@ -78,6 +80,10 @@ function stubExchange(
 
 beforeEach(() => {
   delete process.env.TRADE_ENABLE_MAINNET
+  // The connector shares an answer for two seconds; without this, one case's
+  // reply would still be standing when the next one asks.
+  clearPhemexOrderCaches()
+  clearPhemexAccountCache()
 })
 
 afterEach(() => {
@@ -113,8 +119,17 @@ describe("placing", () => {
       [
         { path: "/public/products", answer: PRODUCTS },
         {
-          path: "/g-positions/switch-pos-mode-sync",
-          answer: { code: 0, msg: "", data: {} },
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              // A hedged account, which is what Tyler's really is: every
+              // order must name the position it belongs to.
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
         },
         {
           path: "/g-orders/create",
@@ -164,7 +179,10 @@ describe("placing", () => {
     expect(create?.method).toBe("PUT")
     expect(create?.url.searchParams.get("ordType")).toBe("Limit")
     expect(create?.url.searchParams.get("timeInForce")).toBe("ImmediateOrCancel")
-    expect(create?.url.searchParams.get("posSide")).toBe("Merged")
+    // Hedged account: an opening buy belongs to the Long. Sending "Merged"
+    // here is what the exchange refused with TE_ERR_INCONSISTENT_POS_MODE,
+    // which is why an order placed on phemex.com could not be cancelled.
+    expect(create?.url.searchParams.get("posSide")).toBe("Long")
     expect(create?.url.searchParams.get("orderQtyRq")).toBe("0.012")
     // 3% through $50,000 is $51,500 — already on the half-dollar tick.
     expect(create?.url.searchParams.get("priceRp")).toBe("51500")
@@ -172,6 +190,204 @@ describe("placing", () => {
     expect(outcome.status).toBe("filled")
     expect(outcome.filledSz).toBe(0.012)
     expect(outcome.avgPx).toBe(51_000)
+  })
+
+  it("sets leverage the way a hedged account demands", async () => {
+    // A hedged account holds a long and a short at once, each with its own
+    // leverage, and it refuses the one-way field with the same complaint it
+    // gives a wrongly-labelled order: TE_ERR_INCONSISTENT_POS_MODE. Sent that
+    // way, "buy $100 of Bitcoin" was refused before the order was looked at,
+    // and the message pointed at the order rather than the leverage.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  leverageRr: "2",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  leverageRr: "5",
+                },
+              ],
+            },
+          },
+        },
+        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-3", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: 3,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const lev = sent.find((one) => one.url.pathname === "/g-positions/leverage")
+    // The long side, because this buy opens a long.
+    expect(lev?.url.searchParams.get("longLeverageRr")).toBe("3")
+    // Never the one-way field, which is what the exchange refuses.
+    expect(lev?.url.searchParams.get("leverageRr")).toBeNull()
+    // Both sides go together or neither does — the exchange refuses one on
+    // its own with "must exist or not exist at the same time". The short side
+    // goes back exactly as the account already had it (5), not as the number
+    // being asked for, because changing it would move where an open short
+    // gets liquidated.
+    expect(lev?.url.searchParams.get("shortLeverageRr")).toBe("5")
+  })
+
+  it("asks for leverage in the margin mode the account is already on", async () => {
+    // **Phemex writes the margin mode into the sign.** Positive is isolated,
+    // negative is cross, and the two sides of a hedged symbol have to agree —
+    // the exchange refuses the pair with `39108 invalid leverages` when they
+    // do not, before the order is looked at.
+    //
+    // Measured on the real account on 20 Aug 2026, where ADA sat on cross:
+    // `1` for the long with the short left on `-1` was refused, and `-1` with
+    // `-1` was accepted. A watched order fired every few seconds for ten
+    // minutes and was refused every time because of it.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  leverageRr: "-3",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  leverageRr: "-1",
+                },
+              ],
+            },
+          },
+        },
+        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-4", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "limit",
+      px: 60_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: 2,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const lev = sent.find((one) => one.url.pathname === "/g-positions/leverage")
+    // 2x as asked, but written as cross because that is what this symbol is
+    // on. Sending "2" here is the refusal.
+    expect(lev?.url.searchParams.get("longLeverageRr")).toBe("-2")
+    // The other side goes back untouched, cross and all.
+    expect(lev?.url.searchParams.get("shortLeverageRr")).toBe("-1")
+  })
+
+  it("lets a resting order actually rest, at the price asked", async () => {
+    // The other half of the same rule. A market order is capped and taken
+    // immediately; a postOnly order must sit on the book at the price asked
+    // and never cross. Sent as an ordinary limit by mistake it would cross
+    // and pay the taker fee, quietly, on every rung of every ladder.
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/public/products", answer: PRODUCTS },
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+              positions: [{ symbol: "BTCUSDT", posMode: "Hedged" }],
+            },
+          },
+        },
+        {
+          path: "/g-orders/create",
+          answer: {
+            code: 0,
+            msg: "",
+            data: { orderID: "ord-2", ordStatus: "New", cumQtyRq: "0" },
+          },
+        },
+      ],
+      sent
+    )
+
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    await placePhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "postOnly",
+      px: 49_000,
+      sz: 0.012,
+      reduceOnly: false,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const create = sent.find((one) => one.url.pathname === "/g-orders/create")
+    expect(create?.url.searchParams.get("ordType")).toBe("Limit")
+    // Not ImmediateOrCancel: it is meant to wait on the book.
+    expect(create?.url.searchParams.get("timeInForce")).toBe("PostOnly")
+    // The price asked for, untouched — never capped through the market.
+    expect(create?.url.searchParams.get("priceRp")).toBe("49000")
   })
 
   it("refuses a size the step floors to nothing", async () => {
@@ -199,6 +415,63 @@ describe("placing", () => {
 })
 
 describe("reading the account back", () => {
+  it("shows an order placed on the exchange's own website", async () => {
+    // The row below is verbatim from Tyler's account on 19 Aug 2026, after he
+    // placed a limit buy on phemex.com and it did not appear here. This
+    // endpoint answers in CODE NUMBERS — side 1 is a buy, ordType 2 a limit,
+    // ordStatus 5 resting — and a parser that insisted on words threw the
+    // whole row away, so the order was invisible.
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1290.5", totalUsedBalanceRv: "0" },
+              positions: [],
+            },
+          },
+        },
+        {
+          path: "/exchange/order/v2/orderList",
+          answer: {
+            code: 0,
+            msg: "",
+            data: [
+              {
+                orderID: "3124000e-6d99-4a88-91f2-fc0ec46c2454",
+                symbol: "HYPEUSDT",
+                side: 1,
+                ordType: 2,
+                ordStatus: 5,
+                priceRp: "61",
+                orderQtyRq: "1",
+              },
+            ],
+          },
+        },
+      ],
+      []
+    )
+
+    const portfolio = await fetchPhemexPortfolio(
+      "mainnet",
+      "key-id",
+      () => AUTH.agentKey
+    )
+    expect(portfolio.orders).toHaveLength(1)
+    const order = portfolio.orders[0]
+    expect(order.marketId).toBe("HYPEUSDT")
+    expect(order.side).toBe("buy")
+    expect(order.px).toBe(61)
+    expect(order.sz).toBe(1)
+    // Resting on the book, not a trigger waiting to be armed.
+    expect(order.trigger).toBe(false)
+  })
+
+
   it("hangs the untriggered protection legs back on the position", async () => {
     stubExchange(
       [
@@ -213,10 +486,18 @@ describe("reading the account back", () => {
                 totalUsedBalanceRv: "100",
               },
               positions: [
+                // Field names copied from a real row on 20 Aug 2026. The size
+                // is `sizeRq`; this fixture used to say `size`, which the
+                // exchange has never sent — so the schema read every position
+                // as nought, the app showed "Positions 0" while Phemex held
+                // real coin, and the test agreed with the bug because it was
+                // written from the same guess.
                 {
                   symbol: "BTCUSDT",
                   side: "Buy",
-                  size: "0.01",
+                  posSide: "Long",
+                  posMode: "Hedged",
+                  sizeRq: "0.01",
                   avgEntryPriceRp: "50000",
                   positionMarginRv: "100",
                   liquidationPriceRp: "25000",

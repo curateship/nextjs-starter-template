@@ -52,6 +52,8 @@ function shape(from: number, count: number, floor = 100): CandleBar[] {
 const permanentFailures = new Set<string>()
 /** Markets that fail once with a rate limit before answering properly. */
 const rateLimitOnce = new Set<string>()
+/** Markets the exchange refuses with "slow down" until this is emptied. */
+const rationed = new Set<string>()
 
 // Only `getProtocol` is replaced. The store still chooses the adapter from the
 // full market key, while this scripted adapter keeps the worker test offline.
@@ -86,6 +88,11 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
         if (rateLimitOnce.has(marketId)) {
           rateLimitOnce.delete(marketId)
           throw new Error(`Market history ${marketId} failed: 429`)
+        }
+        if (rationed.has(marketId)) {
+          // What the rationing breaker throws once an exchange has told us to
+          // slow down: instant, for every market, until the hold passes.
+          throw new Error("EXCHANGE_BUSY")
         }
         return (history.get(marketId) ?? []).filter(
           (bar) => bar.openTime >= from && bar.openTime < to
@@ -543,6 +550,45 @@ describe("a run the worker picks up", () => {
     const ranges = asked.mock.results.length
     expect(ranges).toBeGreaterThan(0)
     asked.mockRestore()
+  })
+
+  it("hands a run back untouched when the exchange says slow down", async () => {
+    // Being rationed is not a failure of the run. The hold lasts longer than
+    // the gap between ticks, so counting it as a try spent all three inside
+    // one hold — a 426-coin KuCoin run died in four minutes with no coin at
+    // fault. The run must simply carry on once the exchange will talk again.
+    history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
+    rationed.add("AAA")
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-1",
+        automationName: "My strategy",
+        spec: specOf(["hyperliquid:mainnet:AAA"]),
+        now: START,
+      },
+      db
+    )
+
+    // Three passes while the exchange refuses everything.
+    for (let pass = 0; pass < 3; pass += 1) {
+      await backtestTick(START + pass * 15_000).catch(() => {})
+    }
+    const [held] = await db
+      .select({
+        attempts: tradeBacktestGroups.attempts,
+        finishedAt: tradeBacktestGroups.finishedAt,
+      })
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+    // Not given up on, and no try counted against it.
+    expect(held?.finishedAt).toBeNull()
+    expect(Number(held?.attempts ?? -1)).toBe(0)
+
+    // The exchange comes back, and the run finishes as though nothing
+    // happened.
+    rationed.clear()
+    expect(await tickUntilDone(groupId)).not.toBeNull()
   })
 
   it("stops when asked, keeping what it already had", async () => {

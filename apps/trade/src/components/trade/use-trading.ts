@@ -32,6 +32,7 @@ import {
   moveGridExit as moveGridExitApi,
   moveGridRange as moveGridRangeApi,
   reshapeGrid as reshapeGridApi,
+  setGridFollow as setGridFollowApi,
   placeGridOrder,
   updateGridStop,
   getSmartOrderErrorMessage,
@@ -95,9 +96,51 @@ import type { TradeWallet } from "@/lib/trade/wallets"
  * that long reads as an order that did not go. So the order is drawn the
  * instant it is asked for, marked as still going, and swapped for the real one
  * the moment a read lands.
+ *
+ * ## Every action shows its answer at once
+ *
+ * **This is the rule, and it lives here so no exchange can get it wrong.**
+ * Nothing in this file knows which venue a row came from, so an exchange added
+ * tomorrow inherits all of it without writing a line: opening, closing,
+ * cancelling and dragging a price, a stop or a target are all instant on
+ * screen, and the venue is told afterwards.
+ *
+ * Each of those keeps a HOLD — a small note saying "show it this way for now".
+ * The part that was got wrong for a long time is when a hold ends:
+ *
+ * **A hold is released when the data agrees, never when a read merely lands.**
+ *
+ * A read already on its way when the action started knows nothing about it, so
+ * letting it end the hold made the line snap back to where it was and then
+ * forward again a moment later. It looked like a delay, and it looked like a
+ * different delay on every exchange, because it was really a race with
+ * whichever venue's read happened to be slowest.
+ *
+ * So: a cancelled row is held hidden until it is really gone, a dragged price
+ * is held until a row comes back carrying it, and a just-placed order is held
+ * on screen until the real one appears — never a gap between the two. Each
+ * hold gives up after {@link HOLD_GIVE_UP_MS} so a venue that never agrees
+ * cannot hide the truth forever; a refusal says so out loud and releases at
+ * once.
  */
 
 const REFRESH_MS = 4_000
+
+/**
+ * How long an optimistic hold may outlive its answer.
+ *
+ * Long enough for a slow venue and a poll or two, short enough that a venue
+ * which never agrees cannot keep the truth off the screen. On giving up the
+ * real data simply shows.
+ */
+const HOLD_GIVE_UP_MS = 30_000
+
+/** Near enough to be the same price, after a venue rounds to its own tick. */
+function samePrice(a: number | null, b: number | null): boolean {
+  if (a === null || b === null) return a === b
+  if (a === b) return true
+  return Math.abs(a - b) <= Math.abs(b) * 0.005
+}
 
 function getTradingSmartOrderError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "")
@@ -295,6 +338,16 @@ export type Trading = {
     gridId: string,
     stopLoss: GridParams["stopLoss"]
   ) => Promise<boolean>
+  /**
+   * Start or stop a grid following price up. Switching it on also clears the
+   * finish line, because a range that slides up ahead of price can never reach
+   * one.
+   */
+  setGridFollow: (
+    walletId: string,
+    gridId: string,
+    follow: boolean
+  ) => Promise<boolean>
 }
 
 type PaperAnswer = {
@@ -354,24 +407,65 @@ export function useTrading(
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
+  /** When the last read landed. The clock every hold is measured against. */
+  const [readAt, setReadAt] = React.useState(() => Date.now())
 
   // Only the newest request may write state: an older answer landing after a
   // newer one would put stale trades over fresh ones.
   const requestRef = React.useRef(0)
-  // Prices dropped by a drag, still waiting for the server to agree.
-  const [dropped, setDropped] = React.useState<ReadonlyMap<string, number>>(
-    new Map()
-  )
+  /** A read still on its way — the clock's poll skips its turn while it is. */
+  const inFlightRef = React.useRef<Promise<boolean> | null>(null)
+  // Prices dropped by a drag, still waiting for the server to agree. Each
+  // carries the moment it was taken — see `holdExpired`.
+  const [dropped, setDropped] = React.useState<
+    ReadonlyMap<string, { px: number; at: number }>
+  >(new Map())
   // Orders asked for whose answer is still on its way.
   const [placing, setPlacing] = React.useState<PaperOrder[]>([])
+  // A smart order the server has confirmed, standing in until the next read
+  // carries it. The window that placed it clears its preview lines as it
+  // closes, and the read that would replace them waits on an exchange round
+  // trip — so without this the grid vanished off the chart and came back a
+  // second later.
+  const [placedSmart, setPlacedSmart] = React.useState<SmartOrder[]>([])
+  // Orders whose × has been pressed, still being told to the exchange.
+  const [cancelling, setCancelling] = React.useState<ReadonlyMap<string, number>>(
+    new Map()
+  )
   // Keyed by wallet *and* market: two wallets can hold the same coin, and a
   // drag on one must not move the other one's lines while it saves.
   const [droppedBrackets, setDroppedBrackets] = React.useState<
-    ReadonlyMap<string, { tpPx: number | null; slPx: number | null }>
+    ReadonlyMap<
+      string,
+      { tpPx: number | null; slPx: number | null; at: number }
+    >
   >(new Map())
 
   const bracketKey = (walletId: string, marketKey: string) =>
     `${walletId}:${marketKey}`
+
+  /**
+   * Whether a hold taken at this moment has waited long enough to let go.
+   *
+   * Judged against the clock the last read carried rather than the clock right
+   * now: a render must give the same answer every time it runs, and a poll
+   * every four seconds is far finer than a thirty-second patience needs.
+   */
+  const holdExpired = React.useCallback(
+    (at: number | undefined) =>
+      at !== undefined && readAt - at > HOLD_GIVE_UP_MS,
+    [readAt]
+  )
+
+  /** A dragged price still worth showing, or nothing if it has had its turn. */
+  const heldPx = React.useCallback(
+    (id: string) => {
+      const held = dropped.get(id)
+      return held === undefined || holdExpired(held.at) ? null : held.px
+    },
+    [dropped, holdExpired]
+  )
+
 
   // The wallet an order goes to: a practice wallet, or a live one with a key
   // saved. A live wallet with no key can be looked at but not traded with.
@@ -388,12 +482,20 @@ export function useTrading(
    */
   const refresh = React.useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current
-    await reconcileLiveSmartOrders().catch(() => undefined)
-    const [paper, live] = await Promise.allSettled([
+    // The nudge goes out ALONGSIDE the reads, not before them. It tells the
+    // engine to look at this wallet's ladders; the panel's rows do not come
+    // from it, so waiting for it only meant the whole panel sat on a spinner
+    // for as long as the slowest exchange took to answer a question nobody
+    // on this screen had asked. Anything it changes shows on the next poll,
+    // seconds later.
+    const [, paper, live] = await Promise.allSettled([
+      reconcileLiveSmartOrders(),
       loadPaperPortfolio(),
       loadLiveTrading(),
     ])
     if (requestRef.current !== request) return false
+    // The clock every optimistic hold is measured against — see `holdExpired`.
+    setReadAt(Date.now())
     if (paper.status === "fulfilled") {
       setPaperAnswer(scopedToProtocol(paper.value, protocol))
     }
@@ -411,28 +513,38 @@ export function useTrading(
   }, [protocol])
 
   /** Reads until one lands, so a dragged price is never let go too early. */
-  const refreshUntilLanded = React.useCallback(async () => {
-    if (await refresh()) return
-    await refresh()
+
+  /**
+   * One poll's turn, skipped outright while the last one is still running.
+   *
+   * A read against a slow or rate-limited exchange can outlast the gap
+   * between polls. Starting another anyway stacked them: each waiting request
+   * held a database connection, the pool ran out, and every read in the app
+   * — wallets, drawings, this panel — hung behind them with a spinner that
+   * never ended. An action's own refresh is untouched; only the clock's turn
+   * is skipped, and the next one is seconds away.
+   */
+  const poll = React.useCallback(() => {
+    if (document.hidden || inFlightRef.current) return
+    const running = refresh().finally(() => {
+      if (inFlightRef.current === running) inFlightRef.current = null
+    })
+    inFlightRef.current = running
   }, [refresh])
 
   React.useEffect(() => {
     // Scheduled rather than called in the effect body, so mounting never sets
     // state mid-render — the same shape the account poll uses.
-    const first = window.setTimeout(() => void refresh(), 0)
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void refresh()
-    }, REFRESH_MS)
-    const onVisible = () => {
-      if (!document.hidden) void refresh()
-    }
+    const first = window.setTimeout(poll, 0)
+    const timer = window.setInterval(poll, REFRESH_MS)
+    const onVisible = () => poll()
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       window.clearTimeout(first)
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [refresh])
+  }, [poll])
 
   /**
    * One shape for every action: run it, say what went wrong if it did, and
@@ -467,6 +579,57 @@ export function useTrading(
     [runWith]
   )
 
+  /**
+   * Calling something off: an order, a rung, a level, a whole ladder or grid.
+   *
+   * **The line goes the moment it is pressed and the server is told behind
+   * it.** Telling it takes a second or more — a read of what is open, then the
+   * cancel itself, then the journal row — and waiting for all of that before
+   * anything moved made the × feel broken enough to press twice. Nothing else
+   * on the panel is dimmed meanwhile either, for the same reason: there is
+   * nothing here for anyone to wait for.
+   *
+   * A refusal puts the line straight back and says why. That is the one time
+   * calling something off says anything at all, because a line returning on
+   * its own would otherwise look like the × had been missed.
+   *
+   * `key` is what is being held as already gone — an order id, or an id and
+   * the rung's place in it. It is let go only once a read has landed without
+   * it, so a poll that was already in flight cannot flash the line back.
+   */
+  const callOff = React.useCallback(
+    async (
+      key: string,
+      action: () => Promise<unknown>,
+      describeError: (error: unknown) => string,
+      done?: string
+    ): Promise<void> => {
+      setCancelling((held) => new Map(held).set(key, Date.now()))
+      const forget = () =>
+        setCancelling((held) => {
+          if (!held.has(key)) return held
+          const next = new Map(held)
+          next.delete(key)
+          return next
+        })
+
+      try {
+        await action()
+      } catch (error) {
+        forget()
+        showErrorToast(describeError(error))
+        void refresh()
+        return
+      }
+      if (done) toast.success(done)
+      // Not released here. The row is held hidden until a read comes back
+      // WITHOUT it — see the reconciling effects below — because a read
+      // already on its way knows nothing about this and would flash it back.
+      void refresh()
+    },
+    [refresh]
+  )
+
   /** A wallet's name, for the messages that have to say which one they mean. */
   const walletNames = React.useMemo(
     () =>
@@ -490,13 +653,81 @@ export function useTrading(
     () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
     [paperAnswer, liveAnswer]
   )
-  const smartOrders = React.useMemo(
+  /** Exactly what the server last said, for the lookups an action does. */
+  const allSmartOrders = React.useMemo(
     () => [
       ...(paperAnswer?.smartOrders ?? []),
       ...(liveAnswer?.smartOrders ?? []),
     ],
     [paperAnswer?.smartOrders, liveAnswer?.smartOrders]
   )
+
+  /**
+   * The same list with anything already called off taken out of it, so a ×
+   * lands the moment it is pressed instead of a second later.
+   *
+   * A whole ladder or grid goes altogether. A single rung or level is marked
+   * the way the server is about to mark it — a rung called off by hand is
+   * `skipped`, which the chart draws faded, and a grid level is `cancelled`,
+   * which the chart does not draw at all. Guessing the same answer the server
+   * will give is what keeps the line from jumping when the real one lands.
+   */
+  /**
+   * The server's list, plus anything just placed that has not reached it yet.
+   *
+   * Judged here rather than in an effect, for the same reason `placingShown`
+   * is: the hand-off happens in the render the real row arrives in, so there is
+   * never a frame with neither drawn. Matched on the id, because the server
+   * hands back the row it wrote.
+   */
+  const withJustPlaced = React.useMemo(() => {
+    if (placedSmart.length === 0) return allSmartOrders
+    const fresh = placedSmart.filter(
+      (one) =>
+        !holdExpired(one.createdAt) &&
+        !allSmartOrders.some((real) => real.id === one.id)
+    )
+    return fresh.length === 0 ? allSmartOrders : [...allSmartOrders, ...fresh]
+  }, [allSmartOrders, placedSmart, holdExpired])
+
+  const smartOrders = React.useMemo(() => {
+    if (cancelling.size === 0) return withJustPlaced
+    return withJustPlaced
+      .filter((order) => !cancelling.has(order.id))
+      .map((order) => {
+        if (order.kind === "dca") {
+          if (!order.plan.rungs.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+            return order
+          return {
+            ...order,
+            plan: {
+              ...order.plan,
+              rungs: order.plan.rungs.map((rung, at) =>
+                cancelling.has(`${order.id}#${at}`) && rung.status === "waiting"
+                  ? { ...rung, status: "skipped" as const }
+                  : rung
+              ),
+            },
+          }
+        }
+        if (order.kind === "grid") {
+          if (!order.plan.levels.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+            return order
+          return {
+            ...order,
+            plan: {
+              ...order.plan,
+              levels: order.plan.levels.map((level, at) =>
+                cancelling.has(`${order.id}#${at}`) && level.status === "waiting"
+                  ? { ...level, status: "cancelled" as const }
+                  : level
+              ),
+            },
+          }
+        }
+        return order
+      })
+  }, [withJustPlaced, cancelling])
   // Derived rather than fetched separately: the screens that predate the grid
   // still want ladders alone, and one list of both is the truth they filter.
   const ladders = React.useMemo(
@@ -514,12 +745,22 @@ export function useTrading(
   const trades = React.useMemo((): LiveTrade[] => {
     const paper = paperAnswer?.trades ?? EMPTY_TRADES
     const live = liveAnswer?.trades ?? EMPTY_TRADES
-    if (paper.length === 0) return live
-    if (live.length === 0) return paper
-    return [...paper, ...live].sort(
-      (left, right) => right.closedAt - left.closedAt
+    const all =
+      paper.length === 0
+        ? live
+        : live.length === 0
+          ? paper
+          : [...paper, ...live].sort(
+              (left, right) => right.closedAt - left.closedAt
+            )
+    // A row being removed leaves the Journal at once, and stays gone until a
+    // read comes back without it.
+    if (cancelling.size === 0) return all
+    return all.filter(
+      (trade) =>
+        !cancelling.has(trade.id) || holdExpired(cancelling.get(trade.id))
     )
-  }, [paperAnswer, liveAnswer])
+  }, [paperAnswer, liveAnswer, cancelling, holdExpired])
 
   const fills = React.useMemo(
     () => [
@@ -529,18 +770,101 @@ export function useTrading(
     [paperAnswer, liveAnswer]
   )
 
-  const orders = React.useMemo(() => {
-    if (dropped.size === 0) return allOrders
-    return allOrders.map((order) => {
-      const held = dropped.get(order.id)
-      return held === undefined ? order : { ...order, px: held }
+  /**
+   * The just-placed orders still worth drawing.
+   *
+   * A ghost stands in until the real thing is on screen — a resting order, or
+   * the watched price a plain order becomes. Matched on what was asked for
+   * rather than on an id: the venue gives the order one of its own, and a
+   * watched price never had one. Judged HERE rather than in an effect so the
+   * hand-off happens in the same render the real row arrives in, leaving no
+   * frame where neither is drawn.
+   */
+  const placingShown = React.useMemo(() => {
+    if (placing.length === 0) return placing
+    const real = [...allOrders, ...allSmartOrders]
+    return placing.filter((ghost) => {
+      if (holdExpired(ghost.createdAt)) return false
+      // **An order that filled at once became a POSITION, not an order.**
+      // Looking only for a resting order or a watched price left the ghost
+      // drawn beside the Entry line it had already turned into — two lines
+      // for one trade until the ghost timed out.
+      //
+      // The price is not compared here: what was paid is rarely what was
+      // asked, and the position's entry is an average once anything is added
+      // to it. The market and the direction are enough, because the Entry
+      // line the ghost would sit beside is the very thing being looked for.
+      const filled = allPositions.some(
+        (position) =>
+          position.walletId === ghost.walletId &&
+          position.marketKey === ghost.marketKey &&
+          (position.szi > 0) === (ghost.side === "buy")
+      )
+      if (filled) return false
+      return !real.some((one) => {
+        const px =
+          "px" in one
+            ? one.px
+            : ((one.plan as { triggerPx?: number }).triggerPx ?? null)
+        const side =
+          "side" in one
+            ? one.side
+            : ((one.plan as { side?: string }).side ?? null)
+        return (
+          one.walletId === ghost.walletId &&
+          one.marketKey === ghost.marketKey &&
+          side === ghost.side &&
+          samePrice(px ?? null, ghost.px)
+        )
+      })
     })
-  }, [allOrders, dropped])
+  }, [placing, allOrders, allSmartOrders, allPositions, holdExpired])
+
+  const orders = React.useMemo(() => {
+    const shown =
+      cancelling.size === 0
+        ? allOrders
+        : allOrders.filter(
+            (order) =>
+              !cancelling.has(order.id) || holdExpired(cancelling.get(order.id))
+          )
+    if (dropped.size === 0) return shown
+    return shown.map((order) => {
+      const held = dropped.get(order.id)
+      // A hold that has waited long enough stops speaking for the row: if the
+      // venue put the order somewhere else, that is what has to show.
+      return held === undefined || holdExpired(held.at)
+        ? order
+        : { ...order, px: held.px }
+    })
+  }, [allOrders, dropped, cancelling, holdExpired])
 
   const watchOrders = React.useMemo(
     () =>
       smartOrders.flatMap((order): PaperOrder[] =>
-        order.kind === "watch" && order.plan.phase === "waiting"
+        order.kind === "watch" &&
+        // **Still drawn while it is being taken, but never beside its own
+        // order.** The moment a level is reached the watch stops waiting and
+        // starts buying, and what it becomes — an order on the exchange, or
+        // a position — only appears on the read after that. Dropping the line
+        // the instant it fired left the chart empty for a few seconds and
+        // then a bar arrived out of nowhere, so it is held until the thing it
+        // turned into is really there.
+        //
+        // Once the exchange has named that order, the order IS the row: it
+        // carries the real price and can be dragged and cancelled. Drawing
+        // the watch as well put the same single order on the chart twice
+        // under two labels — one LINK order on Phemex showed as two rows in
+        // the app on 20 Aug 2026.
+        (order.plan.phase === "waiting" ||
+          (order.plan.phase === "taking" &&
+            order.plan.orderId === null &&
+            !allPositions.some(
+              (position) =>
+                position.walletId === order.walletId &&
+                position.marketKey === order.marketKey
+            ))) &&
+        (!cancelling.has(order.id) || holdExpired(cancelling.get(order.id)))
           ? [
               {
                 id: order.id,
@@ -549,7 +873,7 @@ export function useTrading(
                 side: order.plan.side,
                 // A drag's dropped price holds here the same way it does for a
                 // real order, so the line never blinks back mid-save.
-                px: dropped.get(order.id) ?? order.plan.triggerPx,
+                px: heldPx(order.id) ?? order.plan.triggerPx,
                 sz: order.plan.sz,
                 leverage: order.plan.leverage,
                 maxLeverage: order.plan.maxLeverage,
@@ -566,18 +890,32 @@ export function useTrading(
             ]
           : []
       ),
-    [smartOrders, dropped]
+    [smartOrders, dropped, cancelling, holdExpired, allPositions]
   )
 
   const positions = React.useMemo(() => {
-    if (droppedBrackets.size === 0) return allPositions
-    return allPositions.map((position) => {
+    // A position being closed leaves the screen at once — see `callOff`.
+    const shown =
+      cancelling.size === 0
+        ? allPositions
+        : allPositions.filter(
+            (position) => {
+              const key = bracketKey(position.walletId, position.marketKey)
+              return !cancelling.has(key) || holdExpired(cancelling.get(key))
+            }
+          )
+    if (droppedBrackets.size === 0) return shown
+    return shown.map((position) => {
       const held = droppedBrackets.get(
         `${position.walletId}:${position.marketKey}`
       )
-      return held ? { ...position, ...held } : position
+      // The moment it was taken travels with it and must not travel onto the
+      // position; a hold that has had its turn stops speaking for the row.
+      return held && !holdExpired(held.at)
+        ? { ...position, tpPx: held.tpPx, slPx: held.slPx }
+        : position
     })
-  }, [allPositions, droppedBrackets])
+  }, [allPositions, droppedBrackets, cancelling, holdExpired])
 
   /** The row an action is aimed at decides which road the action takes. */
   const findOrder = React.useCallback(
@@ -641,14 +979,16 @@ export function useTrading(
               : getLiveErrorMessage(error)
           )
         } finally {
-          // Held until a read has actually landed, so the line never blinks
-          // out between the answer and the order arriving in the next poll.
-          await refreshUntilLanded()
-          setPlacing((held) => held.filter((one) => one.id !== ghost.id))
+          // The ghost is NOT removed here. It stays until the real order is
+          // actually on screen — see the reconciling effects below. Removing
+          // it when the answer came back left a gap where the row vanished
+          // and then reappeared as the watch a moment later, which reads as
+          // the order having failed and then un-failed.
+          void refresh()
         }
       })()
     },
-    [walletId, wallet, refreshUntilLanded]
+    [walletId, wallet, refresh]
   )
 
   const editOrder: Trading["editOrder"] = React.useCallback(
@@ -680,15 +1020,15 @@ export function useTrading(
       // Let go only of this drop. A second drag while the first is still
       // saving owns the line now, and releasing its hold here would show the
       // first price again for as long as the second save takes.
-      const forget = () =>
-        setDropped((held) => {
-          if (held.get(orderId) !== px) return held
-          const next = new Map(held)
-          next.delete(orderId)
-          return next
-        })
 
-      setDropped((held) => new Map(held).set(orderId, px))
+      setDropped((held) => {
+        // Anything that has waited long enough is dropped as this one is
+        // taken, so the notes cannot pile up over a long session.
+        const next = new Map(
+          [...held].filter(([, one]) => !holdExpired(one.at))
+        )
+        return next.set(orderId, { px, at: Date.now() })
+      })
       try {
         if (order?.watched) {
           // A watched price is a row of ours, not an order anywhere — moving
@@ -716,40 +1056,43 @@ export function useTrading(
             : getPaperErrorMessage(error)
         )
       } finally {
-        // Held until a read has actually landed, so the line never flicks back
-        // to where it was for a frame — a read the poll overtook does not count.
-        await refreshUntilLanded()
-        forget()
+        // Not released here: the line is held at the dropped price until a
+        // read comes back carrying it. A read already on its way knows
+        // nothing about this drag and would snap the line back for a moment.
+        void refresh()
       }
     },
-    [refreshUntilLanded, findOrder]
+    [refresh, findOrder]
   )
 
   const cancel: Trading["cancel"] = React.useCallback(
     async (walletId, orderId) => {
-      // Cancelling costs nothing and the × on the chart has to stay instant,
-      // so there is no question asked first — and nothing is said afterwards
-      // either: the line disappearing is the answer.
-      // A watched price is drawn as an order and cancelled as one, but there
-      // is no order anywhere to cancel — the row IS the order until its level
-      // is touched, so it goes back through the smart-order door.
-      const watch = smartOrders.find(
+      // Cancelling costs nothing, so there is no question asked first — and
+      // nothing is said afterwards either: the row disappearing is the answer.
+      const watch = allSmartOrders.find(
         (one) => one.kind === "watch" && one.id === orderId
       )
-      if (watch) {
-        await run(() => cancelWatch({ walletId, ladderId: orderId }))
-        return
-      }
       const order = findOrder(orderId)
-      if (order?.live) {
-        await runWith(getLiveErrorMessage, () =>
-          cancelLiveOrder({ walletId, marketKey: order.marketKey, orderId })
-        )
-        return
-      }
-      await run(() => cancelPaperOrder(walletId, orderId))
+      await callOff(
+        orderId,
+        () => {
+          // A watched price is drawn as an order and cancelled as one, but
+          // there is no order anywhere to cancel — the row IS the order until
+          // its level is touched, so it goes back through the smart-order door.
+          if (watch) return cancelWatch({ walletId, ladderId: orderId })
+          if (order?.live) {
+            return cancelLiveOrder({
+              walletId,
+              marketKey: order.marketKey,
+              orderId,
+            })
+          }
+          return cancelPaperOrder(walletId, orderId)
+        },
+        order?.live ? getLiveErrorMessage : getPaperErrorMessage
+      )
     },
-    [run, runWith, findOrder, smartOrders]
+    [callOff, findOrder, allSmartOrders]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -773,15 +1116,13 @@ export function useTrading(
     async (walletId, marketKey, brackets) => {
       const live = findPosition(walletId, marketKey)?.live !== undefined
       const key = bracketKey(walletId, marketKey)
-      const forget = () =>
-        setDroppedBrackets((held) => {
-          if (held.get(key) !== brackets) return held
-          const next = new Map(held)
-          next.delete(key)
-          return next
-        })
 
-      setDroppedBrackets((held) => new Map(held).set(key, brackets))
+      setDroppedBrackets((held) => {
+        const next = new Map(
+          [...held].filter(([, one]) => !holdExpired(one.at))
+        )
+        return next.set(key, { ...brackets, at: Date.now() })
+      })
       try {
         if (live) {
           await setLiveBrackets({ walletId, marketKey, ...brackets })
@@ -795,32 +1136,38 @@ export function useTrading(
           live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
         )
       } finally {
-        await refreshUntilLanded()
-        forget()
+        // Held until a position comes back carrying these levels — same
+        // reason as a dragged price.
+        void refresh()
       }
     },
-    [refreshUntilLanded, findPosition]
+    [refresh, findPosition]
   )
 
   const close: Trading["close"] = React.useCallback(
     async (walletId, marketKey) => {
-      if (findPosition(walletId, marketKey)?.live) {
-        // The market key names its network, and the words follow it — a
-        // testnet close must never announce itself as real money.
-        const testnet = parseMarketKey(marketKey)?.network === "testnet"
-        await runWith(
-          getLiveErrorMessage,
-          () => closeLivePosition(walletId, marketKey),
-          `${testnet ? "Testnet" : "Real"} position closed in ${nameOf(walletId)}.`
-        )
-        return
-      }
-      await run(
-        () => closePaperPosition(walletId, marketKey),
-        `Position closed in ${nameOf(walletId)}.`
+      // The row goes the moment it is pressed and the exchange is told behind
+      // it, the same way cancelling works. Telling the exchange takes three or
+      // four seconds — the close itself, then a fresh read of the account —
+      // and a position that sits there through all of it reads as a close
+      // that did not happen.
+      const live = findPosition(walletId, marketKey)?.live ?? false
+      // The market key names its network, and the words follow it — a testnet
+      // close must never announce itself as real money.
+      const testnet = parseMarketKey(marketKey)?.network === "testnet"
+      await callOff(
+        bracketKey(walletId, marketKey),
+        () =>
+          live
+            ? closeLivePosition(walletId, marketKey)
+            : closePaperPosition(walletId, marketKey),
+        live ? getLiveErrorMessage : getPaperErrorMessage,
+        live
+          ? `${testnet ? "Testnet" : "Real"} position closed in ${nameOf(walletId)}.`
+          : `Position closed in ${nameOf(walletId)}.`
       )
     },
-    [run, runWith, nameOf, findPosition]
+    [callOff, nameOf, findPosition]
   )
 
   const flip: Trading["flip"] = React.useCallback(
@@ -871,24 +1218,26 @@ export function useTrading(
 
   const cancelRung: Trading["cancelRung"] = React.useCallback(
     async (walletId, ladderId, rungIndex) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        `${ladderId}#${rungIndex}`,
         () => cancelLadderRung({ walletId, ladderId, rungIndex }),
+        getTradingSmartOrderError,
         `Rung ${rungIndex + 1} called off in ${nameOf(walletId)}.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const cancelLadder: Trading["cancelLadder"] = React.useCallback(
     async (walletId, ladderId) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        ladderId,
         () => cancelLadderRest({ walletId, ladderId }),
+        getTradingSmartOrderError,
         `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const setLadderExits: Trading["setLadderExits"] = React.useCallback(
@@ -907,10 +1256,15 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { levels, totalCost } = await placeGridOrder({
+        const { levels, totalCost, grid } = await placeGridOrder({
           walletId,
           ...input,
         })
+        // On screen now, not after the next read.
+        setPlacedSmart((held) => [
+          ...held.filter((one) => !holdExpired(one.createdAt)),
+          grid,
+        ])
         toast.success(
           `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} in total.`
         )
@@ -923,29 +1277,31 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh]
+    [walletId, wallet, nameOf, refresh, holdExpired]
   )
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
     async (walletId, gridId, levelIndex) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        `${gridId}#${levelIndex}`,
         () => cancelGridLevelApi({ walletId, gridId, levelIndex }),
+        getTradingSmartOrderError,
         `Level ${levelIndex + 1} called off in ${nameOf(walletId)}.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const cancelGrid: Trading["cancelGrid"] = React.useCallback(
     async (walletId, gridId) => {
-      await runWith(
-        getTradingSmartOrderError,
+      await callOff(
+        gridId,
         () => cancelGridRest({ walletId, gridId }),
+        getTradingSmartOrderError,
         `Grid stopped in ${nameOf(walletId)} — what's held stays.`
       )
     },
-    [runWith, nameOf]
+    [callOff, nameOf]
   )
 
   const moveGridRange: Trading["moveGridRange"] = React.useCallback(
@@ -991,26 +1347,36 @@ export function useTrading(
     [runWith]
   )
 
+  const setGridFollow: Trading["setGridFollow"] = React.useCallback(
+    async (walletId, gridId, follow) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        () => setGridFollowApi({ walletId, gridId, follow }),
+        follow ? "Grid follows price up." : "Grid stays where it is."
+      )
+    },
+    [runWith]
+  )
+
   const hideTrade: Trading["hideTrade"] = React.useCallback(
     async (trade) => {
-      setPending((count) => count + 1)
       const fillIds = [...new Set(trade.fills.map((fill) => fill.fillId))]
-      try {
-        // A trade is not stored; its fills are. Hiding them is what makes the
-        // row go. One list, two stores — the row says which it came from.
-        if (trade.live) await hideLiveTrade(trade.walletId, fillIds)
-        else await hidePaperTrade(fillIds)
-        toast.success("Removed from the Journal.")
-      } catch (error) {
-        showErrorToast(
-          trade.live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
-        )
-      } finally {
-        setPending((count) => count - 1)
-        void refresh()
-      }
+      // The row goes on the press like everything else — see the note at the
+      // top of this file. It used to wait for the exchange and then for the
+      // next read, so a removed row sat there until the page was reloaded.
+      await callOff(
+        trade.id,
+        () =>
+          // A trade is not stored; its fills are. Hiding them is what makes
+          // the row go. One list, two stores — the row says which it came from.
+          trade.live
+            ? hideLiveTrade(trade.walletId, fillIds)
+            : hidePaperTrade(fillIds),
+        trade.live ? getLiveErrorMessage : getPaperErrorMessage,
+        "Removed from the Journal."
+      )
     },
-    [refresh]
+    [callOff]
   )
 
   /**
@@ -1067,7 +1433,7 @@ export function useTrading(
     walletNames,
     positions,
     orders,
-    placing,
+    placing: placingShown,
     fills,
     trades,
     smartOrders,
@@ -1101,5 +1467,6 @@ export function useTrading(
     moveGridExit,
     reshapeGrid,
     setGridStop,
+    setGridFollow,
   }
 }

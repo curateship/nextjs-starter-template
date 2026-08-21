@@ -39,8 +39,14 @@ import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import {
+  FIRST_PAINT_MS,
+  intervalMs,
+  wantsFullHistory,
+} from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
+  parseMarketKey,
   CANDLE_INTERVALS,
   type CandleBar,
   type CandleInterval,
@@ -62,7 +68,7 @@ import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
 import {
   indicatorPaint,
   type IndicatorSettings,
@@ -84,18 +90,6 @@ const CANDLE_LOAD_SETTLE_MS = 250
  */
 const drawnCharts = new Map<string, CandleBar[]>()
 
-/**
- * How long one bar of each timeframe lasts, for scheduling the refresh that
- * appends it when it closes.
- */
-const BAR_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
 const DRAWN_CHARTS_KEPT = 40
 
 function rememberDrawnChart(key: string, candles: CandleBar[]) {
@@ -270,6 +264,10 @@ export function ChartPanel({
     null
   )
   const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
+  // The position whose × on the Entry line was pressed. Closing costs real
+  // money, so it asks first — the same question the Positions table asks.
+  const [closingPosition, setClosingPosition] =
+    React.useState<PaperPosition | null>(null)
   const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(null)
   // Stopping a ladder cancels every waiting rung at once, so unlike a single
   // order's × it asks first.
@@ -527,12 +525,36 @@ export function ChartPanel({
     // Let rapid market or timeframe changes settle before asking the
     // exchange. A request that has already reached the server cannot be
     // cancelled from here, so starting only the last intended one matters.
+    const draw = (candles: CandleBar[]) => {
+      if (stale) return
+      rememberDrawnChart(wanted, candles)
+      setAnswer({ key: wanted, candles, error: null })
+    }
+
     const timeout = setTimeout(() => {
-      loadCandles(selectedKey, interval)
+      // On a timeframe that loads its whole history, the last two years are
+      // drawn first and the rest replaces them a moment later. The whole
+      // history takes a second or two to gather, and a chart showing nothing
+      // for two seconds reads as a chart that is broken; two years arrives in
+      // well under one. Nothing flickers on the swap — the newer bars are the
+      // same bars, and the chart keeps its own zoom.
+      const staged = wantsFullHistory(interval)
+      const first = staged
+        ? loadCandles(selectedKey, interval, Date.now() - FIRST_PAINT_MS)
+        : loadCandles(selectedKey, interval)
+
+      first
         .then(({ candles }) => {
-          if (stale) return
-          rememberDrawnChart(wanted, candles)
-          setAnswer({ key: wanted, candles, error: null })
+          draw(candles)
+          if (!staged || stale) return
+          // The deeper read is a bonus, not the answer: it is already drawn
+          // without it, so a refusal here changes nothing on screen and must
+          // not put an error card over bars that are perfectly good.
+          return loadCandles(selectedKey, interval)
+            .then(({ candles: deeper }) => {
+              if (deeper.length > candles.length) draw(deeper)
+            })
+            .catch(() => {})
         })
         .catch((error: unknown) => {
           if (stale) return
@@ -564,7 +586,7 @@ export function ChartPanel({
     if (!wanted) return
     let timer = 0
     const arm = () => {
-      const barMs = BAR_MS[interval]
+      const barMs = intervalMs(interval)
       const untilClose = barMs - (Date.now() % barMs) + 2_000
       timer = window.setTimeout(() => {
         // A hidden tab skips the refresh but MUST re-arm itself: bumping
@@ -668,6 +690,7 @@ export function ChartPanel({
                   // table below is a link to its own market, and it would be a
                   // dead end if the chart then showed nothing.
                   positions={linePositions}
+                  onClosePosition={setClosingPosition}
                   orders={looseOrders}
                   walletName={(walletId) =>
                     trading.walletNames.get(walletId) ?? "Another wallet"
@@ -890,7 +913,6 @@ export function ChartPanel({
           state={smart}
           market={market}
           wallet={trading.wallet?.label ?? ""}
-          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           interval={interval}
@@ -907,7 +929,6 @@ export function ChartPanel({
           state={grid}
           market={market}
           wallet={trading.wallet?.label ?? ""}
-          real={trading.wallet?.kind === "live"}
           equity={equity}
           free={free}
           takerFeeRate={TAKER_FEE_RATE}
@@ -928,7 +949,32 @@ export function ChartPanel({
         onReshape={(one, shape) =>
           trading.reshapeGrid(one.walletId, one.id, shape)
         }
+        onSetFollow={(one, follow) =>
+          trading.setGridFollow(one.walletId, one.id, follow)
+        }
         onClose={() => setStopFor(null)}
+      />
+      <ConfirmDialog
+        open={closingPosition !== null}
+        onOpenChange={(open) => {
+          if (!open) setClosingPosition(null)
+        }}
+        title="Close this position?"
+        description={
+          closingPosition
+            ? `${parseMarketKey(closingPosition.marketKey)?.marketId ?? "This position"} is closed at whatever the market pays right now, and whatever it has made or lost is settled. Its stop and target go with it.`
+            : ""
+        }
+        confirmLabel="Close it"
+        onConfirm={() => {
+          if (closingPosition) {
+            void trading.close(
+              closingPosition.walletId,
+              closingPosition.marketKey
+            )
+          }
+          setClosingPosition(null)
+        }}
       />
       <ConfirmDialog
         open={cancelGridFor !== null}

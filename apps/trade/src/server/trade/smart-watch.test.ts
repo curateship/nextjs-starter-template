@@ -1,3 +1,4 @@
+import { ORDER_GONE_AFTER_MS } from "@/lib/trade/order-presence"
 import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -93,8 +94,11 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     reduceOnly: false,
     chaseGiveUp: 0,
     phase: "waiting",
+    sent: false,
     orderId: null,
     orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
     chasedAt: 0,
     chases: 0,
     startedAt: 0,
@@ -211,6 +215,47 @@ describe("a price being watched", () => {
     expect(await positions()).toHaveLength(0)
   })
 
+  it("takes the market when the buy level is already above the price", async () => {
+    // **A level the price has gone past cannot be waited for.** Drawing a buy
+    // above the market means "get me in, I will pay up to here" — the market
+    // is already cheaper, so there is nothing to wait for. A limit at that
+    // level would cross the book and a post-only order that crosses is
+    // refused, which is why this used to rest just under the market instead
+    // and sit there unfilled: on 20 Aug 2026 a buy drawn well above the price
+    // bought nothing at all.
+    await watchAt({ triggerPx: 105 })
+    await priceTo(100)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(1)
+    // Bought at the market, not at the level that was drawn.
+    expect(held.entryPx).toBeCloseTo(100, 1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("takes the market when the sell level is already below the price", async () => {
+    // The same rule mirrored. Nothing about a sell makes it different.
+    await watchAt({ side: "sell", triggerPx: 95, reduceOnly: false })
+    await priceTo(100)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.szi).toBeCloseTo(-1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("rests rather than taking when price merely arrives at the level", async () => {
+    // The other half, so the market-take cannot swallow the ordinary case.
+    // Price coming DOWN to a buy level is what a watch is for, and paying the
+    // spread there is exactly what resting avoids.
+    await watchAt()
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+    expect(await positions()).toHaveLength(0)
+  })
+
   it("keeps waiting at the level when price ticks back away", async () => {
     // What separates a watch from an order that gives up: it stands in for one
     // that would have rested on the exchange until it filled.
@@ -254,6 +299,147 @@ describe("a price being watched", () => {
     const [held] = await positions()
     expect(held.tpPx).toBe(110)
     expect(held.slPx).toBe(88)
+  })
+
+  it("never places a second order while the first one's fate is unknown", async () => {
+    // **The money bug of 20 Aug 2026, pinned.** An order was placed, and the
+    // next pass could not see it — the exchange's open-orders list lags a
+    // freshly placed order, and a filled one's position takes a moment to
+    // show. The engine read that absence as proof the order was gone and
+    // placed a fresh one at full size, every pass, until one $50 watch had
+    // bought $150 of coin. A watch that has sent money and lost sight of it
+    // must WAIT, not spend again.
+    await watchAt({ phase: "taking", sent: true, orderId: null })
+    await priceTo(95)
+    await priceTo(94)
+    await priceTo(93)
+
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).status).toBe("active")
+  })
+
+  it("still places when nothing was ever sent, even mid-taking", async () => {
+    // The hold is about unaccounted money, not about the phase. A watch that
+    // reached its level but could not place that pass — no cash, say — must
+    // try again, or it would stand at a touched level doing nothing forever.
+    await watchAt({ phase: "taking", sent: false, orderId: null })
+    await priceTo(95)
+
+    expect(await orders()).toHaveLength(1)
+  })
+
+  it("finishes the moment its lost order turns out to have filled", async () => {
+    // The position is the proof. The instant it shows, the watch hands over
+    // the stop and target it was keeping and ends — it does not stay stuck
+    // just because it once lost sight of the order.
+    await watchAt({ phase: "taking", sent: true, orderId: null, tpPx: 110, slPx: 88 })
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-1",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 1,
+      entryPx: 95,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await priceTo(96)
+
+    const held = await row()
+    expect(held.status).toBe("done")
+    const [position] = await positions()
+    expect(position.tpPx).toBe(110)
+    expect(position.slPx).toBe(88)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("waits out a lagging open-orders list instead of buying again", async () => {
+    // **What actually happened to PRL on 20 Aug 2026.** One watch worth $50
+    // placed SIX orders between 18:54:30 and 18:54:48, each a few seconds
+    // apart at a slightly different price, and three of them filled together
+    // when the price arrived. Every pass placed one, because every pass
+    // looked for the previous order, did not find it in the exchange's list,
+    // and concluded it was gone. The list was simply behind.
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    // The list loses sight of the order — exactly the gap the exchange left.
+    // The order itself is untouched on the exchange; nothing has filled and
+    // nothing has been cancelled.
+    for (let pass = 0; pass < 6; pass += 1) {
+      await database
+        .delete(tradePaperOrders)
+        .where(eq(tradePaperOrders.userId, userId))
+      vi.setSystemTime(new Date(Date.now() + 2_000))
+      await priceTo(95 - pass * 0.01)
+      expect(await orders()).toHaveLength(0)
+    }
+
+    // Not one replacement in twelve seconds, and the watch is still alive
+    // rather than quietly finished.
+    expect(await positions()).toHaveLength(0)
+    const held = await row()
+    expect(held.status).toBe("active")
+    expect(held.plan.orderId).toBe(placed.id)
+    expect(held.plan.missingSince).toBeGreaterThan(0)
+  })
+
+  it("still waits out a lagging list when the coin was already held", async () => {
+    // The hole the first version of this fix left. Proof of a fill used to be
+    // "there is a position" — but a watch that ADDS to a coin already held
+    // sees one from its very first pass, so every absent read read as a fill
+    // and the protection did nothing on exactly the coins most likely to be
+    // traded twice. What is measured now is the amount held CHANGING.
+    await database.insert(tradePaperPositions).values({
+      userId,
+      id: "p-held",
+      walletId: "w1",
+      marketKey: BTC,
+      szi: 5,
+      entryPx: 99,
+      leverage: 1,
+      maxLeverage: 50,
+    })
+    await watchAt()
+    await priceTo(95)
+    const [placed] = await orders()
+    expect(placed).toBeDefined()
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    vi.setSystemTime(new Date(Date.now() + 2_000))
+    await priceTo(94.99)
+
+    // Nothing new placed, and the order is still remembered.
+    expect(await orders()).toHaveLength(0)
+    expect((await row()).plan.orderId).toBe(placed.id)
+  })
+
+  it("lets go of an order that has been missing far too long", async () => {
+    // The other half of the rule: a wait with no end would leave a watch
+    // holding an id for an order somebody cancelled on the exchange's own
+    // website, doing nothing forever.
+    await watchAt()
+    await priceTo(95)
+    expect(await orders()).toHaveLength(1)
+
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.userId, userId))
+    // One pass to notice it is missing — the clock starts when the engine
+    // first cannot see it, not when it actually vanished — then long enough
+    // that a lagging list is no longer a possible explanation.
+    await priceTo(95)
+    expect((await row()).plan.orderId).not.toBeNull()
+
+    vi.setSystemTime(new Date(Date.now() + ORDER_GONE_AFTER_MS + 1_000))
+    await priceTo(95)
+
+    expect((await row()).plan.orderId).toBeNull()
   })
 
   it("takes its order back when it is called off", async () => {

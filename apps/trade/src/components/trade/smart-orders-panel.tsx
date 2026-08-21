@@ -251,10 +251,12 @@ export function SmartOrdersPanel({
                                 <span
                                   className={cn(
                                     "shrink-0 tabular-nums",
-                                    toneOf(sell.money)
+                                    sell.money === null
+                                      ? "text-muted-foreground"
+                                      : toneOf(sell.money)
                                   )}
                                 >
-                                  {money(sell.money)}
+                                  {sell.money === null ? "—" : money(sell.money)}
                                 </span>
                               </div>
                             ))}
@@ -270,12 +272,28 @@ export function SmartOrdersPanel({
                             <span
                               className={cn(
                                 "tabular-nums",
-                                toneOf(banked.total)
+                                banked.unpriced === banked.sells.length
+                                  ? "text-muted-foreground"
+                                  : toneOf(banked.total)
                               )}
                             >
-                              {money(banked.total)}
+                              {banked.unpriced === banked.sells.length
+                                ? "—"
+                                : money(banked.total)}
                             </span>
                           </div>
+                          {/* Said once, under the total, because a total that
+                              quietly leaves sales out is worse than one that
+                              admits it. KuCoin states money per position
+                              closed, and a grid selling part of what it holds
+                              never closes one. */}
+                          {banked.unpriced > 0 ? (
+                            <p className="px-3 py-2 text-[10px] text-muted-foreground">
+                              {banked.unpriced === 1
+                                ? "The exchange has not said what that sale banked."
+                                : `The exchange has not said what ${banked.unpriced} of these sales banked.`}
+                            </p>
+                          ) : null}
                           {/* Above the total, not under it: the total is the
                               last thing in the row, and a line of small print
                               after it left the row ending on a different edge
@@ -347,7 +365,13 @@ function whereItHasGot(
 /** How many sales are listed before the list gets in the way of reading it. */
 const SHOW_AT_MOST = 12
 
-type Sale = { fillId: string; at: number; px: number; money: number }
+type Sale = {
+  fillId: string
+  at: number
+  px: number
+  /** Null when the venue sold but never said what the sale banked. */
+  money: number | null
+}
 
 /**
  * What one smart order has actually banked, and each sale that banked it.
@@ -360,12 +384,30 @@ type Sale = { fillId: string; at: number; px: number; money: number }
  *
  * Finished round trips are counted too, for the kinds that do go flat. A grid
  * rarely does, which is exactly why its sells sit in the open fills instead.
+ *
+ * **A sell is a sale even when the venue states no profit for it.** This used
+ * to count only fills carrying a closed profit, and on KuCoin that is never a
+ * grid's fills: KuCoin reports money per POSITION closed, not per fill, and a
+ * grid selling a fifth of what it holds never closes a position. So a KuCoin
+ * grid recycled all week and the panel still said "Nothing sold yet". A grid
+ * and a ladder are both long only, so a sell on their coin is a sale, whoever
+ * is keeping the books.
+ *
+ * What the venue would not state is left NULL rather than counted as zero.
+ * Zero is a real answer, meaning the sale broke even, and printing it for a
+ * sale that made money is the kind of wrong that gets believed.
  */
-function bankedBy(
+export function bankedBy(
   order: SmartOrder,
   fills: readonly LiveFill[],
   trades: readonly LiveTrade[]
-): { sells: Sale[]; total: number; capped: boolean } {
+): {
+  sells: Sale[]
+  total: number
+  capped: boolean
+  /** Sales the venue never put a figure on, so the total is short of them. */
+  unpriced: number
+} {
   const mine = (walletId: string, marketKey: string, at: number) =>
     walletId === order.walletId &&
     marketKey === order.marketKey &&
@@ -374,12 +416,15 @@ function bankedBy(
   const sales: Sale[] = []
   for (const fill of fills) {
     if (!mine(fill.walletId, fill.marketKey, fill.at)) continue
-    if (fill.closedPnl === 0) continue
+    // A stated profit, or a sell out of a long-only order. The first also
+    // catches a short being bought back, which the second cannot see.
+    const stated = fill.closedPnl !== 0
+    if (!stated && fill.side !== "sell") continue
     sales.push({
       fillId: fill.fillId,
       at: fill.at,
       px: fill.px,
-      money: fill.closedPnl - fill.fee,
+      money: stated ? fill.closedPnl - fill.fee : null,
     })
   }
   for (const trade of trades) {
@@ -393,11 +438,13 @@ function bankedBy(
   }
 
   sales.sort((left, right) => right.at - left.at)
-  const total = sales.reduce((sum, sale) => sum + sale.money, 0)
+  const total = sales.reduce((sum, sale) => sum + (sale.money ?? 0), 0)
   return {
     sells: sales.slice(0, SHOW_AT_MOST),
     total,
     capped: sales.length > SHOW_AT_MOST,
+    /** Sales the venue never put a figure on, so the total is short of them. */
+    unpriced: sales.filter((sale) => sale.money === null).length,
   }
 }
 

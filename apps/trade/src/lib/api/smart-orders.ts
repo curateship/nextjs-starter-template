@@ -15,6 +15,7 @@ import {
 } from "@/lib/trade/grid"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
+import { tryBecomeLeader } from "@/server/trade/leadership"
 import {
   cancelLiveGridLevel,
   cancelLiveGridRest,
@@ -26,6 +27,7 @@ import {
   placeLiveDcaLadder,
   placeLiveGridOrder,
   reconcileLiveLadders,
+  setLiveGridFollow,
   updateLiveGridStop,
   updateLiveLadderExits,
 } from "@/server/trade/live-smart-orders"
@@ -36,6 +38,7 @@ import {
   moveGridRange as moveGridRangeRows,
   reshapeGrid as reshapeGridRows,
   placeGridOrder as placeGridRows,
+  setGridFollow as setGridFollowRows,
   updateGridStop as updateGridStopRows,
   type PlacedGrid,
 } from "@/server/trade/grid-orders"
@@ -255,15 +258,37 @@ const updateLadderExitsFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+/**
+ * The browser asking for the smart orders to be looked at now.
+ *
+ * **It takes the engine's own lock, or it does nothing.** Only one thing may
+ * ever advance a smart order: two that both see a level reached will both
+ * place its order, and the account ends up in double the position. The engine
+ * holds an advisory lock for exactly this reason — but this door never went
+ * near it, so a dashboard left open advanced the same ladders the server was
+ * advancing. On 20 Aug 2026 that put the same real order on six times in
+ * sixteen seconds, twice inside the same second, and a later fix that checked
+ * the engine's HEARTBEAT still left a thirty-second window where a freshly
+ * dead engine read as alive. The lock has no window: while any engine holds
+ * it this cannot take it, and the moment none does, this becomes the engine
+ * for one pass — which is the whole reason the door exists, for a laptop
+ * with no worker running beside it.
+ */
 const reconcileLiveLaddersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }): Promise<{ checked: true }> => {
-    const wallets = await listWallets(context.user.id)
-    await Promise.allSettled(
-      wallets
-        .filter((wallet) => wallet.kind === "live" && wallet.hasKey)
-        .map((wallet) => reconcileLiveLadders(context.user.id, wallet))
-    )
+    const leadership = await tryBecomeLeader()
+    if (!leadership.held) return { checked: true }
+    try {
+      const wallets = await listWallets(context.user.id)
+      await Promise.allSettled(
+        wallets
+          .filter((wallet) => wallet.kind === "live" && wallet.hasKey)
+          .map((wallet) => reconcileLiveLadders(context.user.id, wallet))
+      )
+    } finally {
+      await leadership.release()
+    }
     return { checked: true }
   })
 
@@ -455,6 +480,25 @@ const updateGridStopFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+const gridFollowSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  follow: z.boolean(),
+})
+
+const setGridFollowFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridFollowSchema)
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    if (wallet.kind === "live") {
+      await setLiveGridFollow(context.user.id, wallet, data)
+    } else {
+      await setGridFollowRows(context.user.id, wallet, data)
+    }
+    return { saved: true }
+  })
+
 /** The grid window's remembered settings, or null the first time it opens. */
 const loadSmartGridFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -488,6 +532,10 @@ export function moveGridExit(input: z.infer<typeof moveGridExitSchema>) {
 
 export function updateGridStop(input: z.infer<typeof gridStopSchema>) {
   return updateGridStopFn({ data: input })
+}
+
+export function setGridFollow(input: z.infer<typeof gridFollowSchema>) {
+  return setGridFollowFn({ data: input })
 }
 
 export function loadSmartGridParams() {
@@ -539,26 +587,22 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     SMART_RUNG_DONE: "That rung already bought or was already called off.",
     SMART_GRID_RANGE:
       "The bottom of the grid has to be below the top. Check the two prices and try again.",
-    SMART_GRID_UNDER_RANGE:
-      "Place the grid below the price — the whole range has to sit under the market so nothing buys the moment it is placed.",
     SMART_GRID_STEP_TOO_THIN:
       "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels.",
     SMART_GRID_LEVEL_TOO_SMALL:
-      "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels or a bigger share.",
-    SMART_GRID_COST:
-      "The whole grid costs more than the free cash — nothing was placed. Use a smaller share or fewer levels.",
+      "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels, a bigger share, or the same size at every level.",
     SMART_GRID_NOT_FOUND:
       "That grid is not there any more — it may have finished or been cancelled.",
     SMART_GRID_LEVEL_DONE:
       "That level already bought or was already called off.",
     SMART_GRID_TARGET_IN_RANGE:
-      "The take profit has to sit above the top of the range — inside it is where the grid is working, so a target in there would close it on an ordinary swing.",
+      "The line that finishes the grid has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
     SMART_GRID_STOP_IN_RANGE:
       "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
     SMART_GRID_TARGET_PASSED:
-      "The take profit sits below the price already, so the grid would sell up and finish the moment it was placed. Put it above the price, or switch it off.",
+      "The line that finishes the grid sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
     SMART_GRID_STARTED:
-      "Every level of this grid has been called off, so there is no range left to move. Place a new grid instead.",
+      "This grid is holding coins, so its range cannot be moved. Those coins were bought at a level's own price and sell one step above it, and sliding the range under them would leave that level selling coins it never paid that price for.",
   },
   "That did not go through. Try it again."
 )

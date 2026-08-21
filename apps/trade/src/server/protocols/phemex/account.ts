@@ -35,24 +35,68 @@ const positionPnlSchema = z.object({
   unRealisedPnlRv: z.union([z.string(), z.number()]).optional(),
 })
 
+/**
+ * How long one account read stands in for the next.
+ *
+ * **Three parts of one screen ask this same question at once.** The wallet
+ * card wants the balance, the positions panel wants what is held, and the
+ * ladder engine wants both before it decides anything — and each of them was
+ * asking the exchange separately, several times every few seconds, on one
+ * API key. Phemex counts signed requests per key and started refusing them,
+ * so the wallet card said it could not be reached while the exchange was
+ * answering everyone else perfectly well.
+ *
+ * Two seconds is long enough that one cycle of the screen shares a single
+ * answer, and short enough that nothing on screen is visibly behind.
+ */
+const ACCOUNT_GOOD_FOR_MS = 2_000
+
+type AccountAnswer = {
+  account: z.infer<typeof answerSchema>["account"]
+  positions: unknown[]
+}
+
+const accountCache = new Map<
+  string,
+  { at: number; answer: Promise<AccountAnswer> }
+>()
+
+/** Empties the shared answer. Tests drive their own time; see `orders.ts`. */
+export function clearPhemexAccountCache(): void {
+  accountCache.clear()
+}
+
 /** The raw signed read, shared with the portfolio side of `orders.ts`. */
 export async function phemexAccountPositions(
   network: NetworkId,
   _address: string,
   credential: () => string | null
-): Promise<{ account: z.infer<typeof answerSchema>["account"]; positions: unknown[] }> {
+): Promise<AccountAnswer> {
   const blob = credential()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   // The blob carries its own key id — the one the secret actually belongs
   // to — so a mistyped address column can never sign as somebody else.
-  const answer = await phemexSigned(
+  const parsed = parsePhemexCredential(blob)
+
+  const key = `${network}:${parsed.keyId}`
+  const cached = accountCache.get(key)
+  if (cached && Date.now() - cached.at < ACCOUNT_GOOD_FOR_MS) return cached.answer
+
+  const at = Date.now()
+  const answer = phemexSigned(
     network,
-    parsePhemexCredential(blob),
+    parsed,
     "GET",
     "/g-accounts/positions",
     { currency: "USDT" }
-  )
-  return answerSchema.parse(answer)
+  ).then((raw) => answerSchema.parse(raw))
+  // A failed read must not be remembered as an answer, or one refusal would
+  // be handed to every caller for the next two seconds.
+  answer.catch(() => {
+    if (accountCache.get(key)?.at === at) accountCache.delete(key)
+  })
+  accountCache.set(key, { at, answer })
+  return answer
 }
 
 export async function fetchPhemexAccount(

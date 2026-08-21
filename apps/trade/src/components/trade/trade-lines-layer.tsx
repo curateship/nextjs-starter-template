@@ -187,6 +187,7 @@ export function TradeLinesLayer({
   onMoveOrderStop,
   onMoveOrderTarget,
   onCancelOrder,
+  onClosePosition,
   onEditOrder,
   onSetBrackets,
   onSurface,
@@ -218,6 +219,12 @@ export function TradeLinesLayer({
   /** Dragging a waiting order's target. The amount is left alone. */
   onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
   onCancelOrder: (walletId: string, orderId: string) => void
+  /**
+   * The × on a position's Entry line. Closing costs real money, so it asks
+   * first — the panel owns that question, the same one the Positions table
+   * asks, rather than a second wording living here.
+   */
+  onClosePosition?: (position: PaperPosition) => void
   /**
    * Pressing a waiting order's bar: its size and where it gets out. Only the
    * order's id — the window reads the row itself, which carries its wallet.
@@ -268,7 +275,12 @@ export function TradeLinesLayer({
       label: () => `Entry${tag}${badge ? ` · ${badge.text}` : ""}`,
       hint: badge?.hint,
       onSettings: badge?.onSettings,
-      onRemove: badge?.onRemove ?? undefined,
+      // A ladder's own × folds in here and means "stop the ladder"; a plain
+      // position's × closes it. Never both on one line, so the × can only
+      // ever mean one thing.
+      onRemove:
+        badge?.onRemove ??
+        (onClosePosition ? () => onClosePosition(position) : undefined),
     })
 
     // A real position's liquidation price is the exchange's own answer; the

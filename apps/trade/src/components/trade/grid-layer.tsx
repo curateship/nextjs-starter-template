@@ -648,7 +648,7 @@ function GridLines({
           y={targetY}
           px={shownTarget ?? target}
           colour={TAKE_PROFIT_COLOR}
-          name="TAKE PROFIT"
+          name="FINISH"
           dashed={false}
           grip
           onGripDown={startDrag("takeProfit", target)}
@@ -678,7 +678,7 @@ const LINE_LOOKS: Record<
 > = {
   upper: { colour: BOUND_COLOR, name: "UPPER PRICE", dashed: false },
   lower: { colour: BOUND_COLOR, name: "LOWER PRICE", dashed: false },
-  takeProfit: { colour: TAKE_PROFIT_COLOR, name: "TAKE PROFIT", dashed: false },
+  takeProfit: { colour: TAKE_PROFIT_COLOR, name: "FINISH", dashed: false },
   stopLoss: { colour: STOP_COLOR, name: "STOP LOSS", dashed: false },
   level: { colour: LEVEL_SELL_COLOR, name: null, dashed: false },
 }

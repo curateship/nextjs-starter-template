@@ -1,5 +1,9 @@
 import { eq } from "drizzle-orm"
 
+import {
+  parseMarketKey,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import {
   readChartOptions,
@@ -23,51 +27,105 @@ import {
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
-/** The market this person was last looking at, or null on a first visit. */
-export async function loadLastMarketKey(userId: string): Promise<string | null> {
+/**
+ * The market this person was last looking at ON THIS EXCHANGE, or null on a
+ * first visit to it.
+ *
+ * Per exchange, because each one has its own dashboard: a single memory
+ * shared by all of them meant only the most recently used dashboard reopened
+ * on a chart, and every other one opened blank as though it were broken.
+ */
+export async function loadLastMarketKey(
+  userId: string,
+  protocol: ProtocolId
+): Promise<string | null> {
   const row = await db
-    .select({ lastMarketKey: tradePrefs.lastMarketKey })
+    .select({ lastMarketKeys: tradePrefs.lastMarketKeys })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return row[0]?.lastMarketKey ?? null
+  const key = row[0]?.lastMarketKeys?.[protocol]
+  // A saved key that no longer parses, or that was filed under the wrong
+  // exchange by a bad hand-edit, resolves to "nothing remembered" rather
+  // than to some other exchange's market.
+  if (typeof key !== "string") return null
+  return parseMarketKey(key)?.protocol === protocol ? key : null
 }
 
-/** Remember it — whole-row upsert, the same shape the favourites save uses. */
+/**
+ * Remember it under its own exchange — whole-row upsert, the same shape the
+ * favourites save uses. The key names the exchange itself, so nothing has to
+ * be passed alongside it and the two can never disagree.
+ */
 export async function saveLastMarketKey(
   userId: string,
   lastMarketKey: string
 ): Promise<void> {
-  await db
-    .insert(tradePrefs)
-    .values({ userId, lastMarketKey, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: { lastMarketKey, updatedAt: new Date() },
-    })
-}
+  const ref = parseMarketKey(lastMarketKey)
+  if (!ref) return
 
-/** The wallet the account panel last had active, or null before any choice. */
-export async function loadLastWalletId(userId: string): Promise<string | null> {
   const row = await db
-    .select({ lastWalletId: tradePrefs.lastWalletId })
+    .select({ lastMarketKeys: tradePrefs.lastMarketKeys })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  return row[0]?.lastWalletId ?? null
-}
+  const lastMarketKeys = {
+    ...(row[0]?.lastMarketKeys ?? {}),
+    [ref.protocol]: lastMarketKey,
+  }
 
-/** Remember it. */
-export async function saveLastWalletId(
-  userId: string,
-  lastWalletId: string
-): Promise<void> {
   await db
     .insert(tradePrefs)
-    .values({ userId, lastWalletId, updatedAt: new Date() })
+    .values({ userId, lastMarketKeys, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { lastWalletId, updatedAt: new Date() },
+      set: { lastMarketKeys, updatedAt: new Date() },
+    })
+}
+
+/**
+ * The wallet the account panel last had active on each exchange, keyed by
+ * protocol id. Empty before any choice has been made anywhere.
+ *
+ * Handed over whole rather than one exchange at a time: the browser already
+ * knows which dashboard is drawing, and one read serves all of them.
+ */
+export async function loadLastWalletIds(
+  userId: string
+): Promise<Record<string, string>> {
+  const row = await db
+    .select({ lastWalletIds: tradePrefs.lastWalletIds })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row[0]?.lastWalletIds ?? {}
+}
+
+/**
+ * Remember it under its own exchange. The wallet row names its exchange, so
+ * the caller passes what it already looked up and the two can never disagree.
+ */
+export async function saveLastWalletId(
+  userId: string,
+  protocol: ProtocolId,
+  walletId: string
+): Promise<void> {
+  const row = await db
+    .select({ lastWalletIds: tradePrefs.lastWalletIds })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  const lastWalletIds = {
+    ...(row[0]?.lastWalletIds ?? {}),
+    [protocol]: walletId,
+  }
+
+  await db
+    .insert(tradePrefs)
+    .values({ userId, lastWalletIds, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { lastWalletIds, updatedAt: new Date() },
     })
 }
 

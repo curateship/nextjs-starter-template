@@ -6,11 +6,8 @@ import type {
   NetworkId,
 } from "@/lib/protocols/contracts"
 import { marketKey, protocolLabel } from "@/lib/protocols/contracts"
-import {
-  num,
-  stepToDecimals,
-  toPhemexFigures,
-} from "@/lib/protocols/phemex/translate"
+import { num, toPhemexFigures } from "@/lib/protocols/phemex/translate"
+import { stepToDecimals } from "@/lib/protocols/tick"
 import { phemexPublic } from "@/server/protocols/phemex/client"
 
 /**

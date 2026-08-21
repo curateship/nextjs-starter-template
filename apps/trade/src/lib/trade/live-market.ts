@@ -49,7 +49,10 @@ export function startLiveMarketData(
     // contributes no subscriptions. Its rows still draw — they just do not tick.
     if (!adapter) return []
     return [
-      adapter.watchFigures(catalog.network, (updates) => {
+      // An exchange whose socket cannot follow a whole list contributes no
+      // figures watch; its rows draw from the catalogue and redraw when the
+      // page does.
+      adapter.watchFigures?.(catalog.network, (updates) => {
         for (const [marketId, next] of updates) {
           const key = marketKey({
             protocol: catalog.protocol,
@@ -69,7 +72,8 @@ export function startLiveMarketData(
     ]
   })
   return () => {
-    for (const stop of stops) stop()
+    // An exchange with no figures watch contributed nothing to stop.
+    for (const stop of stops) stop?.()
   }
 }
 

@@ -66,6 +66,28 @@ add up to.
   waiting. A rung only ends by filling and selling, by a hand cancelling it,
   or with its ladder.
 
+## Grids
+
+- **A rung buys at its own price, or it does not buy.** Never at a price that
+  belongs to no rung. A grid placed with the price inside its range used to
+  market-buy every rung above the price, all in one order, at whatever the
+  market happened to be. That gave the top rung a round trip from a price it had
+  never paid, and left the account at its most long at the exact moment a grid
+  is supposed to be waiting. In Tyler's words: "you're buying 5 rungs at the
+  top". It is the same rule the ladder already had — one big lump is not a
+  ladder, and it is not a grid either.
+- **Placing a grid buys nothing.** Whatever the price is doing, whatever the
+  range straddles. Every rung waits its turn.
+- **A rung above the price waits to be reached.** Price climbs past it, comes
+  back down to it, and then it buys and sells one step up like every other rung.
+  A rung price never visits simply never trades, and that costs nothing.
+- **Every rung always spends the same money it was given**, cycle after cycle. A
+  rung that buys back cheaper does not get to spend more next time.
+- **The stop hangs off the bottom of the range, never off the average buy
+  price.** The average falls as the grid recycles, so a stop following it would
+  drift into the range and sell the grid on an ordinary dip, which is the exact
+  move a grid exists to trade.
+
 ## Money
 
 - **The exchange's account is one pool.** Hyperliquid backs every market from

@@ -8,12 +8,16 @@ import { num, phemexWsUrl } from "@/lib/protocols/phemex/translate"
  * process, health judged by data arriving, stale answers marked stale, and
  * a caller that finds the feed quiet falls back to asking the REST way.
  *
- * The stream is `perp_market24h_pack_p` — every dollar-settled perpetual's
- * 24-hour figures, pushed about once a second in one message. Rows arrive as
- * arrays with a `fields` legend naming the columns, so the legend is read
- * off the message itself rather than hardcoded: if the exchange reorders its
- * columns tomorrow, the feed goes quiet here instead of quietly serving the
- * wrong column as a price.
+ * The stream is `perp_market24h_pack_p` — every dollar-settled perpetual in
+ * one message. Measured against the live exchange on 20 Aug 2026: one
+ * `snapshot` of about 614 markets on subscribing, then an `incremental` of
+ * the hundred-odd rows that moved, roughly every five seconds.
+ *
+ * Rows are bare arrays, and the legend naming the columns arrives ONCE, on
+ * the snapshot. That is the whole subtlety of this file — see `applyPack`.
+ * The legend is read off the message rather than hardcoded, so if the
+ * exchange reorders its columns tomorrow the feed goes quiet here instead of
+ * quietly serving the wrong column as a price.
  *
  * Public market data only. No key, no session, nothing signed.
  */
@@ -29,6 +33,14 @@ type Hub = {
   network: NetworkId
   openedAt: number
   prices: Map<string, number>
+  /**
+   * Which column of a row is the symbol and which is the price.
+   *
+   * Worked out from the snapshot and kept, because Phemex names its columns
+   * ONCE — see `applyPack`. Forgotten when the socket goes, since the next
+   * connection opens with a snapshot of its own.
+   */
+  columns: { symbolAt: number; priceAt: number } | null
   lastMessageAt: number
   generation: number
   socket: WebSocket | null
@@ -51,6 +63,7 @@ function hubFor(network: NetworkId): Hub {
     network,
     openedAt: 0,
     prices: new Map(),
+    columns: null,
     lastMessageAt: 0,
     generation: 0,
     socket: null,
@@ -93,9 +106,21 @@ export function closePhemexLivePrices(network: NetworkId): void {
     clearInterval(hub.watchdog)
     hub.watchdog = null
   }
+  // Everything the line was carrying goes with it. Without this a shut feed
+  // went on answering "fresh" with the last prices it ever had — the KuCoin
+  // hub beside this one already clears, and the two are meant to be the same
+  // shape.
+  hub.prices.clear()
+  hub.lastMessageAt = 0
+  hub.reconnectAt = 0
+  hub.attempts = 0
 }
 
 function teardown(hub: Hub): void {
+  // The legend came from this socket's snapshot; the next connection sends
+  // its own, and reading new rows with an old legend is how columns get
+  // misread after a reconnect.
+  hub.columns = null
   if (hub.pinger) {
     clearInterval(hub.pinger)
     hub.pinger = null
@@ -119,24 +144,50 @@ function scheduleReconnect(hub: Hub): void {
 }
 
 /**
- * One pack message applied to the price map. The legend names the columns;
- * a message without one, or without the two columns needed, changes nothing.
+ * One pack message applied to the price map.
+ *
+ * **Phemex names its columns once and then never again.** The first message
+ * after subscribing is a `snapshot` carrying every market and a `fields`
+ * legend; every message after it is an `incremental` carrying only the rows
+ * that moved, with NO legend at all. Measured on 20 Aug 2026: one snapshot,
+ * then ten legend-less updates a minute.
+ *
+ * So the legend is worked out once and kept. Requiring it on every message
+ * meant every update was thrown away, and the feed — which had carried one
+ * snapshot and looked perfectly healthy — went stale eight seconds later and
+ * stayed stale, while the app fell back to asking for prices over and over.
+ *
+ * The two column names are measured too, and both guesses that came before
+ * them were wrong: the hub asked for `markPriceRp` with `closeRp` as its
+ * fallback, and Phemex sends `markRp` and `lastRp`. Mark price is preferred
+ * because it is what every other price in this app is, and what a trigger
+ * fires on.
  */
 function applyPack(hub: Hub, message: unknown): void {
   const packet = message as {
     fields?: unknown
     data?: unknown
   }
-  if (!Array.isArray(packet.fields) || !Array.isArray(packet.data)) return
-  const symbolAt = packet.fields.indexOf("symbol")
-  // Mark price first — it is what every other price in the app is — with the
-  // last trade as the fallback on packs that carry only one.
-  const priceAt = (() => {
-    const mark = packet.fields.indexOf("markPriceRp")
-    if (mark >= 0) return mark
-    return packet.fields.indexOf("closeRp")
-  })()
-  if (symbolAt < 0 || priceAt < 0) return
+  if (!Array.isArray(packet.data)) return
+
+  if (Array.isArray(packet.fields)) {
+    const symbolAt = packet.fields.indexOf("symbol")
+    const priceAt = (() => {
+      const mark = packet.fields.indexOf("markRp")
+      if (mark >= 0) return mark
+      return packet.fields.indexOf("lastRp")
+    })()
+    // A legend naming neither column is not a legend worth keeping — better
+    // to hold the last one that worked than to blind the feed.
+    if (symbolAt >= 0 && priceAt >= 0) hub.columns = { symbolAt, priceAt }
+  }
+
+  const columns = hub.columns
+  // No legend yet, which means no snapshot has arrived on this socket. There
+  // is nothing to read the rows with, and guessing the order is how the
+  // wrong number ends up being traded on.
+  if (!columns) return
+  const { symbolAt, priceAt } = columns
 
   let sawOne = false
   for (const row of packet.data) {

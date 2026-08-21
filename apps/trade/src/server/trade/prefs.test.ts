@@ -11,11 +11,13 @@ import {
   loadChartView,
   loadChartOptions,
   loadLastMarketKey,
+  loadLastWalletIds,
   loadQuickOrder,
   saveQuickOrder,
   saveChartView,
   saveChartOptions,
   saveLastMarketKey,
+  saveLastWalletId,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -130,8 +132,57 @@ describe("the remembered chart view", () => {
     await saveLastMarketKey(id, "hyperliquid:mainnet:BTC")
     await saveChartView(id, view({ bars: 120 }))
 
-    expect(await loadLastMarketKey(id)).toBe("hyperliquid:mainnet:BTC")
+    expect(await loadLastMarketKey(id, "hyperliquid")).toBe(
+      "hyperliquid:mainnet:BTC"
+    )
     expect(await loadChartView(id)).toEqual(view({ bars: 120 }))
+  })
+
+  it("remembers one market per exchange, not one for the app", async () => {
+    const { id } = await insertUser(database)
+    await saveLastMarketKey(id, "hyperliquid:mainnet:BTC")
+    await saveLastMarketKey(id, "kucoin:mainnet:ETHUSDTM")
+
+    // Looking at a coin on one dashboard must not blank the others: every
+    // exchange reopens on the coin it was left on.
+    expect(await loadLastMarketKey(id, "hyperliquid")).toBe(
+      "hyperliquid:mainnet:BTC"
+    )
+    expect(await loadLastMarketKey(id, "kucoin")).toBe("kucoin:mainnet:ETHUSDTM")
+    // One never visited says so, rather than handing back somebody else's.
+    expect(await loadLastMarketKey(id, "phemex")).toBeNull()
+  })
+
+  it("remembers one wallet per exchange, not one for the app", async () => {
+    const { id } = await insertUser(database)
+    await saveLastWalletId(id, "hyperliquid", "wallet-hl")
+    await saveLastWalletId(id, "phemex", "wallet-px")
+
+    // A dashboard only lists its own exchange's wallets. With one memory for
+    // the app, every dashboard but the last-used one matched nothing and
+    // asked which wallet to trade with — and answering wiped the last answer,
+    // so the next dashboard asked in turn.
+    const remembered = await loadLastWalletIds(id)
+    expect(remembered.hyperliquid).toBe("wallet-hl")
+    expect(remembered.phemex).toBe("wallet-px")
+    // One never used says nothing rather than handing back another's wallet.
+    expect(remembered.kucoin).toBeUndefined()
+  })
+
+  it("keeps the remembered wallet and market in one row", async () => {
+    const { id } = await insertUser(database)
+    await saveLastMarketKey(id, "phemex:mainnet:BTCUSDT")
+    await saveLastWalletId(id, "phemex", "wallet-px")
+    // Neither save may wipe the other: they share a row, and an upsert that
+    // wrote only its own column would blank everything beside it.
+    expect(await loadLastMarketKey(id, "phemex")).toBe("phemex:mainnet:BTCUSDT")
+    expect((await loadLastWalletIds(id)).phemex).toBe("wallet-px")
+  })
+
+  it("refuses a key that is not a market key at all", async () => {
+    const { id } = await insertUser(database)
+    await saveLastMarketKey(id, "not-a-key")
+    expect(await loadLastMarketKey(id, "hyperliquid")).toBeNull()
   })
 
   it("is dropped rather than applied when it cannot be read", async () => {

@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import {
   baseStopDetection,
+  dcaAllocationPcts,
   dcaBaseDetectionSchema,
   dcaBaseStopSchema,
   floorSize,
@@ -75,6 +76,65 @@ export const GRID_SPACING_HINTS: Record<GridSpacing, string> = {
 }
 
 /**
+ * How the pot is divided between the levels.
+ *
+ * "even" gives every level the same dollars, which is the grid's own instinct:
+ * it is not betting on direction, so it wants the same money working at every
+ * price. "double" gives each level down twice the one above it, for a coin you
+ * are happy to own more of the cheaper it gets.
+ *
+ * Doubling gets steep fast. Twelve levels doubling makes the deepest buy 2,048
+ * times the shallowest, and on an ordinary pot the top few land under the
+ * exchange's minimum order and the whole grid is refused. That refusal is the
+ * feature working: it fits about six levels, and it says so rather than quietly
+ * placing five of the twelve.
+ */
+export const GRID_SIZINGS = ["even", "double"] as const
+export type GridSizing = (typeof GRID_SIZINGS)[number]
+
+export const GRID_SIZING_LABELS: Record<GridSizing, string> = {
+  even: "The same at every level",
+  double: "Double at every level down",
+}
+
+export const GRID_SIZING_HINTS: Record<GridSizing, string> = {
+  even: "Every level buys the same amount, so each round trip earns the same.",
+  double:
+    "Each level down buys twice what the level above it bought, so the deepest buy is the biggest. It only fits about six levels before the top ones are too small for the exchange to accept.",
+}
+
+/** How much bigger each level down is, when the pot is doubled. */
+export const GRID_DOUBLE_MULTIPLIER = 2
+
+/**
+ * Where the range is measured from.
+ *
+ * "price" opens it around today's price, so it straddles: the levels above are
+ * sells of what the grid holds, the ones below are buys waiting. That means it
+ * buys at market the moment it is placed, to stand behind the sells above.
+ *
+ * "click" hangs the whole grid under the price that was right-clicked, and the
+ * click is the TOP BUY rather than the edge of the range — the edge sits one
+ * step higher, because the edge is where that buy sells and is not a buy
+ * itself. Nothing is bought at market, so it is the one way to place a grid
+ * without being put into the market on the spot.
+ */
+export const GRID_ANCHORS = ["price", "click"] as const
+export type GridAnchor = (typeof GRID_ANCHORS)[number]
+
+export const GRID_ANCHOR_LABELS: Record<GridAnchor, string> = {
+  price: "Around today's price",
+  click: "Below the price you clicked",
+}
+
+export const GRID_ANCHOR_HINTS: Record<GridAnchor, string> = {
+  price:
+    "The range opens above and below today's price. Levels above it are sells, so the grid buys at market as it is placed to stand behind them.",
+  click:
+    "The price you right-clicked becomes the top buy, and the whole grid hangs under it. Nothing is bought at market — every level waits for price to fall to it.",
+}
+
+/**
  * How many times one trading fee a step must be worth before the grid is worth
  * running at all.
  *
@@ -135,6 +195,21 @@ export const gridParamsSchema = z.object({
    */
   maxOrderVolPct: z.number().min(0).max(5),
   spacing: z.enum(GRID_SPACINGS).default("even"),
+  /** How the pot is split between the levels. See `GRID_SIZINGS`. */
+  sizing: z.enum(GRID_SIZINGS).default("even"),
+  /**
+   * Where the range is measured from: today's price, or the clicked price.
+   *
+   * Not carried onto the placed grid. A placed grid is concrete prices, and
+   * where they came from stops mattering the moment they exist.
+   */
+  anchor: z.enum(GRID_ANCHORS).default("price"),
+  /**
+   * Slide the whole range up when price climbs past the top of it, and keep
+   * trading. See `gridFollowShift` for the arithmetic and `advanceGrid` for the
+   * conditions.
+   */
+  follow: z.boolean().default(false),
   /**
    * How far ABOVE the price the top of the range sits, in percent.
    *
@@ -174,6 +249,9 @@ export function defaultGridParams(): GridParams {
     compound: true,
     maxOrderVolPct: 0,
     spacing: "even",
+    sizing: "even",
+    anchor: "price",
+    follow: false,
     abovePct: DEFAULT_GRID_ABOVE_PCT,
     rangePct: DEFAULT_GRID_BELOW_PCT,
     baseDetection: baseStopDetection(),
@@ -228,6 +306,97 @@ export function gridLevels(input: {
 }
 
 /**
+ * The range a right-click describes: the clicked price is the TOP BUY, and the
+ * top of the range sits one step above it.
+ *
+ * The top has to be solved for rather than set. `gridLevels` puts the highest
+ * buy one step BELOW the top, because the top is where that buy sells and is
+ * not a price the grid ever buys at. The step is itself the range divided by
+ * the level count, so a top that gives the clicked price its own buy depends on
+ * the top. One line of algebra each way:
+ *
+ * - Same dollars apart: `top − (top − bottom) / n = click`, so
+ *   `top = (n × click − bottom) / (n − 1)`.
+ * - Same percent apart: `top / (top / bottom) ** (1 / n) = click`, so
+ *   `top = (click ** n / bottom) ** (1 / (n − 1))`, worked in logs because the
+ *   powers overflow on a five-figure coin.
+ *
+ * Null when the numbers cannot describe a grid. Note what this does NOT do:
+ * check that the range ends up under the price. The top sits a whole step above
+ * the click, and on a grid with very few levels that step is wide enough to
+ * reach over the market — so a two-level grid clicked just under the price
+ * still straddles it. The window says how much that buys, which is the honest
+ * answer, rather than this quietly moving the range somewhere nobody asked for.
+ */
+export function gridRangeFromClick(input: {
+  clickPx: number
+  /** How far under the click the bottom sits, in percent. */
+  rangePct: number
+  levels: number
+  spacing: GridSpacing
+}): { topPx: number; bottomPx: number } | null {
+  const { clickPx, rangePct, levels } = input
+  if (!(clickPx > 0) || !(rangePct > 0) || rangePct >= 100 || levels < 2) {
+    return null
+  }
+  const bottomPx = clickPx * (1 - rangePct / 100)
+  if (!(bottomPx > 0)) return null
+
+  const topPx =
+    input.spacing === "compounding"
+      ? Math.exp(
+          (levels * Math.log(clickPx) - Math.log(bottomPx)) / (levels - 1)
+        )
+      : (levels * clickPx - bottomPx) / (levels - 1)
+
+  if (!Number.isFinite(topPx) || !(topPx > clickPx)) return null
+  return { topPx, bottomPx }
+}
+
+/**
+ * Where a following grid's range moves to, or null when it should not move.
+ *
+ * Whole steps, never a re-centring on the price. A step at a time puts the new
+ * top just above the price, so the price lands inside the top step and above
+ * every level's buy — every level stays waiting and the grid buys nothing.
+ * Re-centring would leave levels above the price, and a level above the price
+ * is one the grid SELLS at, so it would have to buy the coins for them at
+ * market, at the top, which is the one thing following must never do.
+ */
+export function gridFollowShift(input: {
+  topPx: number
+  bottomPx: number
+  levels: number
+  spacing: GridSpacing
+  /** Today's price. */
+  mark: number
+}): { topPx: number; bottomPx: number; steps: number } | null {
+  const { topPx, bottomPx, levels, mark } = input
+  if (!(topPx > bottomPx) || !(bottomPx > 0) || levels < 1) return null
+  if (!(mark > topPx)) return null
+
+  if (input.spacing === "compounding") {
+    const ratio = (topPx / bottomPx) ** (1 / levels)
+    if (!(ratio > 1)) return null
+    const steps = Math.ceil(Math.log(mark / topPx) / Math.log(ratio))
+    if (steps < 1) return null
+    const factor = ratio ** steps
+    if (!Number.isFinite(factor)) return null
+    return { topPx: topPx * factor, bottomPx: bottomPx * factor, steps }
+  }
+
+  const step = (topPx - bottomPx) / levels
+  if (!(step > 0)) return null
+  const steps = Math.ceil((mark - topPx) / step)
+  if (steps < 1) return null
+  return {
+    topPx: topPx + step * steps,
+    bottomPx: bottomPx + step * steps,
+    steps,
+  }
+}
+
+/**
  * The gap between two levels, as a share of the price — what a round trip earns
  * before fees, and the number the fee check is made against.
  *
@@ -265,6 +434,25 @@ export type GridOrderPlan = {
 }
 
 /**
+ * Each level's share of the pot, as a fraction, deepest level first.
+ *
+ * "even" is one over the count, which is the grid's own instinct: it is not
+ * betting on direction, so it wants the same money working at every price.
+ *
+ * "double" reuses the LADDER's ramp from `dcaAllocationPcts` and turns it
+ * round. That function already builds the doubling weights and normalises them
+ * so the shares add up to the pot rather than growing it, and it hands the
+ * biggest back last, where a ladder's deepest rung sits. A grid's array runs
+ * the other way, bottom first, so the result is reversed. One ramp in the app
+ * rather than two that drift.
+ */
+export function gridShares(count: number, sizing: GridSizing): number[] {
+  if (count < 1) return []
+  if (sizing !== "double") return Array.from({ length: count }, () => 1 / count)
+  return dcaAllocationPcts(count, 1, GRID_DOUBLE_MULTIPLIER).reverse()
+}
+
+/**
  * The whole grid as concrete numbers: where each buy sits, where its sell
  * rests, what it spends and how many coins that is.
  *
@@ -273,16 +461,17 @@ export type GridOrderPlan = {
  * same `sizeOneOrder` the ladder uses, so there is one liquidity guard and one
  * too-small-to-be-a-trade rule in the app rather than two.
  *
- * The pot is split **evenly**. A ladder ramps its rungs because it is betting
- * harder the further price falls; a grid is not betting on direction at all —
- * it wants the same money working at every level so each round trip earns the
- * same amount.
+* How the pot is divided is the one thing `gridShares` decides, and it is
+ * decided in one place so the window and the server cannot disagree about it.
  */
 export function gridOrderPlan(input: {
   topPx: number
   bottomPx: number
   equity: number
-  params: Pick<GridParams, "levels" | "potPct" | "maxOrderVolPct" | "spacing">
+  params: Pick<
+    GridParams,
+    "levels" | "potPct" | "maxOrderVolPct" | "spacing" | "sizing"
+  >
   sizeDecimals: number | null
   volume24hUsd: number | null
 }): GridOrderPlan {
@@ -293,10 +482,8 @@ export function gridOrderPlan(input: {
     spacing: input.params.spacing,
   })
   const capUsd = volumeCapUsd(input.params.maxOrderVolPct, input.volume24hUsd)
-  const wantedUsd =
-    prices.length > 0
-      ? (input.equity * input.params.potPct) / 100 / prices.length
-      : 0
+  const pot = (input.equity * input.params.potPct) / 100
+  const shares = gridShares(prices.length, input.params.sizing)
 
   let totalCost = 0
   let tooSmallIndex: number | null = null
@@ -305,7 +492,7 @@ export function gridOrderPlan(input: {
   const levels = prices.map((price, index) => {
     const sized = sizeOneOrder({
       px: price.buyPx,
-      wantedUsd,
+      wantedUsd: pot * shares[index],
       capUsd,
       sizeDecimals: input.sizeDecimals,
     })
@@ -380,6 +567,23 @@ const gridLevelStateSchema = z.object({
   heldSz: z.number().min(0).default(0),
   status: z.enum(GRID_LEVEL_STATUSES),
   /**
+   * Price has been above this level, so it is allowed to buy when price comes
+   * back down to it.
+   *
+   * **This is the rule that a rung buys at its own price or does not buy.**
+   * Without it, every level above the price at placement bought instantly, all
+   * at one market price that belonged to no level: the top rung then sold at
+   * its own sell price against coins it had never paid its own buy price for,
+   * and the account sat at its most long at the exact moment a grid is supposed
+   * to be waiting. One big lump is not a grid, the same way it is not a ladder.
+   *
+   * Set at placement for every level under the price, and set on any pass where
+   * price is above the level. A level price never visits simply never trades,
+   * which costs nothing. Grids saved before this existed read as armed, which
+   * is what they were.
+   */
+  armed: z.boolean().default(true),
+  /**
    * The level sits at or below the stop, so its order was taken off the book —
    * price cannot reach it without ending the grid first. Still drawn, faded,
    * and back on the book if the stop moves below it again.
@@ -419,6 +623,13 @@ export const gridPlanSchema = z.object({
    */
   takeProfitPx: z.number().positive().nullable().default(null),
   spacing: z.enum(GRID_SPACINGS).default("even"),
+  /**
+   * How the pot was split at placement. Frozen for the same reason `spacing`
+   * is: re-shaping redraws every level, and a re-draw that forgot this would
+   * quietly flatten a doubled grid back to even. Grids saved before this
+   * existed read as even, which is what they are.
+   */
+  sizing: z.enum(GRID_SIZINGS).default("even"),
   /** The whole grid's share of the account at placement, for the record. */
   potPct: z.number().positive().max(100),
   /**
@@ -471,6 +682,14 @@ export const gridPlanSchema = z.object({
   seenFillsTo: z.number().default(0),
   /** Completed round trips across the whole grid. */
   cycles: z.number().int().min(0).default(0),
+  /**
+   * Slide the range up behind price instead of waiting above the top for price
+   * to come back down. Only ever upward, and only while the grid holds nothing:
+   * see `advanceGrid` for the conditions and why each one is there.
+   */
+  follow: z.boolean().default(false),
+  /** How many times the range has moved up. For the record, beside `cycles`. */
+  shifts: z.number().int().min(0).default(0),
   /** Why it finished, once it has. Null while it is still working. */
   closedReason: z
     .enum(["takeProfit", "aboveTop", "stop", "flat", "cancelled"])
@@ -552,21 +771,23 @@ export function gridStopPx(
 }
 
 /**
- * Can this grid's range be moved? **Always, while it is running.**
+ * Can this grid's range be moved? **Only while it is holding nothing.**
  *
- * It used to be "only while nothing has bought", which sounded careful and was
- * useless: a grid straddles the price, so it holds something from the moment it
- * is placed, and dragging the top up creates more holding levels — so after one
- * move the range locked forever.
+ * A move redraws every level from the new range, and a level that is holding
+ * bought at a price and sells against it, so sliding the range under it would
+ * leave a level selling coins it never paid that price for. That is the same
+ * lump this whole order type exists to avoid.
  *
- * The reason that rule existed does not survive contact with how a move works.
- * A move redraws every level from the new range and then settles the position
- * to match: it buys the coins the new levels above the price need, or sells the
- * ones they no longer do. Nothing is left describing a price it did not pay.
+ * This rule was removed once, for a good reason that has since gone away: a
+ * grid used to buy every level above the price the moment it was placed, so it
+ * always held something and the range locked forever after one move. A grid
+ * buys nothing on the way in now, so most of the time there is nothing holding
+ * and the range moves freely. Once it is holding, it stays put.
  */
 export function gridRangeMovable(plan: Pick<GridPlan, "levels">): boolean {
-  return plan.levels.some(
-    (level) => level.status === "waiting" || level.status === "holding"
+  return (
+    plan.levels.some((level) => level.status === "waiting") &&
+    !plan.levels.some((level) => level.status === "holding")
   )
 }
 

@@ -1,8 +1,12 @@
 import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
 import {
+  gridFollowShift,
+  gridLevels,
   gridLevelSize,
+  gridStepPct,
   gridStopPx,
   gridTakeProfitPx,
+  GRID_STEP_FEE_MULTIPLE,
   type GridPlan,
 } from "@/lib/trade/grid"
 import { slippedPx } from "@/lib/trade/paper"
@@ -169,18 +173,81 @@ export async function advanceGrid(
     // loop is this one status change.
     level.status = "waiting"
     level.heldSz = 0
+    // Still armed, and by definition: price just climbed to this level's sell,
+    // which is above its buy. It can buy again the moment price comes back.
+    level.armed = true
     level.cycles += 1
     plan.cycles += 1
     changed = true
   }
 
+  // ----- 4b. Follow price up ----------------------------------------------
+  //
+  // AFTER the sells, so a level that just sold recycles at the price it sold
+  // at rather than at a price it never traded. BEFORE the buys, so the moved
+  // levels are watched on this same pass instead of a second late.
+  //
+  // Two conditions carry the whole safety of this, and both are refusals
+  // rather than adjustments:
+  //
+  // - **Upward only.** Below the bottom a grid is fully loaded, and re-pricing
+  //   its levels lower would sell that bag under what it paid, while the stop
+  //   measured from the bottom slid down with it and never fired. There is no
+  //   safe downward version, so there is no downward version.
+  // - **Only while it holds nothing.** That is what makes a move free: no
+  //   position to settle means not one order is placed. It is also the ordinary
+  //   state up here, because a grid above its top has already sold every level.
+
+  if (plan.follow && mark !== null) {
+    const stillHeld = book.positions.get(row.marketKey) ?? null
+    const anyHeldLevel = plan.levels.some((level) => level.status === "holding")
+    if (!anyHeldLevel && (!stillHeld || stillHeld.szi <= 0)) {
+      const moved = gridFollowShift({
+        topPx: plan.topPx,
+        bottomPx: plan.bottomPx,
+        levels: plan.levels.length,
+        spacing: plan.spacing,
+        mark,
+      })
+      if (
+        moved &&
+        followTheRangeUp(plan, moved, mark, roundPx, book.costs.takerFeeRate)
+      ) {
+        changed = true
+      }
+    }
+  }
+
   // ----- 5. Buy triggers ---------------------------------------------------
+  //
+  // **A level buys at its own price, or it does not buy.** `armed` is what
+  // enforces that: price has to have been ABOVE a level before that level may
+  // buy when price comes down to it.
+  //
+  // Without it, every level above the price bought the instant a grid was
+  // placed, because "price is at or under my buy price" was already true of all
+  // of them. They were filled in one lump at whatever the market happened to
+  // be, so the top level's round trip ran from a price it had never paid, and
+  // the account sat at its most long at the exact moment a grid should be
+  // waiting. One big lump is not a grid.
 
   for (const level of plan.levels) {
     if (level.status !== "waiting" || level.dead) continue
-    // Not reached yet. This is also the whole of "below the bottom stops
-    // buying": there is no level under the bottom to reach.
-    if (mark === null || mark > level.buyPx) continue
+    if (mark === null) continue
+    // Price is above this level, so from here on it is allowed to buy when
+    // price comes back down to it.
+    if (mark > level.buyPx) {
+      if (!level.armed) {
+        level.armed = true
+        changed = true
+      }
+      // Not reached yet. This is also the whole of "below the bottom stops
+      // buying": there is no level under the bottom to reach.
+      continue
+    }
+    // At or under its price, but price has never been above it — this level is
+    // waiting to be reached from above, and buying here would be that lump.
+    if (!level.armed) continue
 
     // From the FROZEN budget, every single cycle. A level that bought back
     // cheaper does not get to spend more next time — a ladder rung buys back
@@ -277,6 +344,74 @@ export async function advanceGrid(
   // ----- 8. Write it down if any of that changed anything ------------------
 
   if (changed) await deps.saveLadder(row, "active", now)
+}
+
+/**
+ * Re-prices every level onto a range that has moved up, or leaves the grid
+ * exactly where it was and reports false.
+ *
+ * Drawn fully and checked fully BEFORE a single field is written, so a refused
+ * move leaves a working grid rather than half a moved one.
+ *
+ * Three things can refuse it, and each is a real way a moved grid would be
+ * worse than a parked one:
+ *
+ * - **The step stops clearing the fee.** On evenly spread levels the step is a
+ *   fixed number of dollars, so the higher the range climbs the smaller a
+ *   percentage each round trip earns, until two fees eat it. Without this the
+ *   grid would eventually follow price forever, trading all day to lose money
+ *   slowly. Levels spread by percent never thin, so this never bites them.
+ * - **A level stops being an order.** The budgets do not change, but the coins
+ *   they buy do, and a market with coarse size steps can round one to nothing.
+ * - **Rounding collapses a level**, leaving a sell at or under its own buy, or
+ *   a buy that has been nudged up over the price and would fire on this pass.
+ *   Both are the promise of a free move being quietly broken by a price tick.
+ */
+function followTheRangeUp(
+  plan: GridPlan,
+  moved: { topPx: number; bottomPx: number },
+  mark: number,
+  roundPx: (px: number) => number,
+  takerFeeRate: number
+): boolean {
+  const drawn = gridLevels({
+    topPx: moved.topPx,
+    bottomPx: moved.bottomPx,
+    levels: plan.levels.length,
+    spacing: plan.spacing,
+  }).map((level) => ({
+    buyPx: roundPx(level.buyPx),
+    sellPx: roundPx(level.sellPx),
+  }))
+  if (drawn.length !== plan.levels.length) return false
+
+  if (gridStepPct(drawn) <= takerFeeRate * GRID_STEP_FEE_MULTIPLE) return false
+
+  const sized = drawn.map((level, index) => ({
+    ...level,
+    sz: floorSize(plan.levels[index].budget / level.buyPx, plan.sizeDecimals),
+  }))
+  for (const level of sized) {
+    if (!(level.buyPx > 0) || !(level.sellPx > level.buyPx)) return false
+    // A buy at or above the price is one the next step would fill at market,
+    // which is exactly the cost this whole feature exists to avoid.
+    if (level.buyPx >= mark) return false
+    if (level.sz <= 0 || level.sz * level.buyPx < MIN_ORDER_USD) return false
+  }
+
+  const top = roundPx(moved.topPx)
+  const bottom = roundPx(moved.bottomPx)
+  if (!(top > bottom) || !(bottom > 0)) return false
+
+  plan.topPx = top
+  plan.bottomPx = bottom
+  for (const [index, level] of plan.levels.entries()) {
+    level.buyPx = sized[index].buyPx
+    level.sellPx = sized[index].sellPx
+    level.sz = sized[index].sz
+  }
+  plan.shifts += 1
+  return true
 }
 
 /**

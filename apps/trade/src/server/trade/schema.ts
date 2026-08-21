@@ -86,7 +86,18 @@ export const tradePrefs = pgTable("trade_prefs", {
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
     .references(() => customShellUsers.id, { onDelete: "cascade" }),
-  lastMarketKey: varchar("last_market_key", { length: 120 }),
+  /**
+   * The market last looked at on each exchange, keyed by protocol id —
+   * `{"hyperliquid":"hyperliquid:mainnet:BTC"}`.
+   *
+   * One per exchange, not one for the app. Every exchange has its own
+   * dashboard, and a single memory meant only the most recently used one
+   * reopened on a chart while the others opened blank and read as broken.
+   */
+  lastMarketKeys: jsonb("last_market_keys")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
   // How far the chart is zoomed and scrolled, in candles counted from the
   // newest one — the one form of it that means the same thing on every
   // market. `chartViewSchema` is the only way in or out.
@@ -94,10 +105,23 @@ export const tradePrefs = pgTable("trade_prefs", {
   // Which supporting parts of the chart are visible. Kept apart from the
   // numeric zoom and position because switching one does not move the chart.
   chartOptions: jsonb("chart_options").$type<ChartOptions>(),
-  // The wallet the account panel had active. An id and nothing more: a
-  // remembered choice, resolved against the wallets that exist at read time,
-  // so a deleted wallet leaves a memory that simply matches nothing.
-  lastWalletId: varchar("last_wallet_id", { length: 36 }),
+  /**
+   * The wallet the account panel had active on each exchange, keyed by
+   * protocol id — `{"phemex":"9f201f21-…"}`.
+   *
+   * Ids and nothing more: remembered choices, resolved against the wallets
+   * that exist at read time, so a deleted wallet leaves a memory that simply
+   * matches nothing.
+   *
+   * One per exchange for the same reason the market above is. A dashboard
+   * only lists its own exchange's wallets, so a single memory holding another
+   * exchange's wallet matched nothing here — and every dashboard asked which
+   * wallet to trade with on every single load, each choice wiping the last.
+   */
+  lastWalletIds: jsonb("last_wallet_ids")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
   // The DCA window's last-used settings. `dcaParamsSchema` is the only way in
   // or out, so a value written by an older build falls back to the defaults.
   smartDca: jsonb("smart_dca").$type<DcaParams>(),

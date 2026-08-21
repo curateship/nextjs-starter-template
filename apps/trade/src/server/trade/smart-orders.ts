@@ -920,8 +920,12 @@ export async function placeWatchOrder(
     // which is the closest thing to the resting order this stands in for.
     chaseGiveUp: 0,
     phase: "waiting",
+    // Nothing has been sent for this watch — the whole point of it.
+    sent: false,
     orderId: null,
     orderPx: null,
+    missingSince: 0,
+    heldWhenPlaced: 0,
     chasedAt: 0,
     chases: 0,
     startedAt: now.getTime(),

@@ -39,6 +39,39 @@ import { tradeLiveFills, tradeLiveTriggers } from "@/server/trade/schema"
 const SWEEP_EVERY_MS = 30_000
 
 /**
+ * Let the next read sweep straight away, whatever the clock says.
+ *
+ * **The wait above is for idle polling, not for something just done.** After
+ * a close, the Journal row is built from the fill the close made — so with
+ * the ordinary wait in the way, the trade appeared up to half a minute later
+ * and looked like it had not been recorded at all. Anything that has just
+ * made a fill says so here, and the read that follows it picks the fill up.
+ */
+export function sweepSoon(userId: string, walletId: string): void {
+  const key = `${userId}:${walletId}`
+  sweptAt.delete(key)
+  waitedFor.add(key)
+}
+
+/** Wallets whose next read should WAIT for the sweep rather than pass it by. */
+const waitedFor = new Set<string>()
+
+/**
+ * Whether this read should wait for the sweep before answering.
+ *
+ * True exactly once, for a wallet that has just made a fill. Every other read
+ * carries on past the sweep as it always has — waiting on all of them is what
+ * made the whole panel sit on a spinner while an exchange was asked about
+ * months of old trades nobody was looking at.
+ */
+export function sweepIsWaitedFor(userId: string, walletId: string): boolean {
+  const key = `${userId}:${walletId}`
+  if (!waitedFor.has(key)) return false
+  waitedFor.delete(key)
+  return true
+}
+
+/**
  * A minute of overlap on every sweep after the first. A fill that lands
  * between two passes must not fall down the gap, and re-reading one is free:
  * the fill's own id is part of the primary key.

@@ -18,6 +18,7 @@ import {
   moveGridRange,
   placeGridOrder,
   reshapeGrid,
+  setGridFollow,
   updateGridStop,
 } from "@/server/trade/grid-orders"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -228,10 +229,14 @@ describe("placing a grid", () => {
     ).rejects.toThrow("SMART_GRID_RANGE")
   })
 
-  it("straddles the price: sells above it, buys below it", async () => {
-    // The shape a real grid trades in. Price 200 inside 160-240 means the
-    // levels at 200 and 220 are what it sells into, and the ones at 160 and
-    // 180 are what it waits to buy.
+  it("buys nothing when the range straddles the price", async () => {
+    // THE RULE: a rung buys at its own price, or it does not buy.
+    //
+    // Price 200 inside 160-240 puts the levels at 200 and 220 above the market.
+    // Those used to be bought immediately, all in one order at 200 — so the
+    // level at 220 sold against coins it had never paid 220 for, and the
+    // account was at its most long the second the grid was placed. One big
+    // lump is not a grid.
     await placeGridOrder(userId, wallet, {
       marketKey: BTC,
       topPx: 240,
@@ -239,23 +244,63 @@ describe("placing a grid", () => {
       params: params(),
     })
     const grid = await onlyGrid()
-    expect(grid.plan.levels.map((one) => one.status)).toEqual([
-      "waiting",
-      "waiting",
-      "holding",
-      "holding",
-    ])
-    // It bought the coins those two sells need, once, at market — and rested
-    // nothing for the two levels below, which are simply being watched.
-    //
-    // Read back from the DATABASE, not from memory: the starting buy used to
-    // be applied to the book without marking the market touched, so it was
-    // never written, and the next pass closed the grid for holding nothing.
-    expect((await positions())[0].szi).toBeGreaterThan(0)
+    expect(grid.plan.levels.every((one) => one.status === "waiting")).toBe(true)
+    expect(await positions()).toHaveLength(0)
     expect(await orders()).toHaveLength(0)
-    // And it is still running a pass later.
+
+    // The two under the price may buy the moment price reaches them. The two
+    // above wait for price to climb past them and come back down.
+    expect(grid.plan.levels.map((one) => one.armed)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ])
     await settle()
     expect((await onlyGrid()).status).toBe("active")
+  })
+
+  it("hands the grid back, so the chart can draw it at once", async () => {
+    // The window clears its preview lines as it closes, and the next read waits
+    // on an exchange round trip. Without the grid travelling back with the
+    // answer, nothing is drawn in between and it blinks off the chart.
+    const placed = await placeGridOrder(userId, wallet, {
+      marketKey: BTC,
+      topPx: 240,
+      bottomPx: 160,
+      params: params(),
+    })
+    const saved = await onlyGrid()
+    expect(placed.grid.id).toBe(saved.id)
+    expect(placed.grid.status).toBe("active")
+    expect(placed.grid.kind).toBe("grid")
+    expect(placed.grid.marketKey).toBe(BTC)
+    expect(placed.grid.plan.levels).toHaveLength(saved.plan.levels.length)
+  })
+
+  it("buys a level above the price only after price has been above it", async () => {
+    await placeGridOrder(userId, wallet, {
+      marketKey: BTC,
+      topPx: 240,
+      bottomPx: 160,
+      params: params(),
+    })
+    // Price sits between 200 and 220 for a while. Nothing has been above 220,
+    // so that level still cannot buy, however long it waits there.
+    await priceTo(205)
+    expect((await onlyGrid()).plan.levels[3].status).toBe("waiting")
+    expect(await positions()).toHaveLength(0)
+
+    // Price climbs past 220, which arms it, then comes back down to it.
+    await priceTo(225)
+    expect((await onlyGrid()).plan.levels[3].armed).toBe(true)
+    await priceTo(219)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[3].status).toBe("holding")
+    // At ITS OWN price, which is the whole point.
+    expect(grid.plan.levels[3].buyPx).toBeCloseTo(220, 9)
+    expect((await positions())[0].szi).toBeGreaterThan(0)
   })
 
   it("refuses levels too close together to clear the fee", async () => {
@@ -280,7 +325,10 @@ describe("placing a grid", () => {
     expect(await orders()).toHaveLength(0)
   })
 
-  it("refuses when the starting buy alone will not fit", async () => {
+  it("costs nothing to place, so free cash cannot refuse it", async () => {
+    // Almost all the cash is behind a hand-placed position. A grid straddling
+    // the price used to be refused here, because it had to buy its top half on
+    // the spot. It buys nothing now, so there is nothing to refuse.
     await placePaperOrder(userId, wallet, {
       marketKey: BTC,
       side: "buy",
@@ -292,15 +340,13 @@ describe("placing a grid", () => {
       px: 200,
     })
     await settle()
-    // A range straddling the price has to buy its top half right now.
-    await expect(
-      placeGridOrder(userId, wallet, {
-        marketKey: BTC,
-        topPx: 240,
-        bottomPx: 160,
-        params: params({ potPct: 100 }),
-      })
-    ).rejects.toThrow("SMART_GRID_COST")
+    await placeGridOrder(userId, wallet, {
+      marketKey: BTC,
+      topPx: 240,
+      bottomPx: 160,
+      params: params({ potPct: 100 }),
+    })
+    expect((await onlyGrid()).status).toBe("active")
   })
 })
 
@@ -426,7 +472,6 @@ describe("running out of the range", () => {
   })
 
   it("sells everything and finishes at the take profit", async () => {
-    // A range straddling the price, so there is something held from the start.
     await placeGridOrder(userId, wallet, {
       marketKey: BTC,
       topPx: 240,
@@ -435,6 +480,10 @@ describe("running out of the range", () => {
     })
     // 10% above a top of 240 is 264.
     expect((await onlyGrid()).plan.takeProfitPx).toBeCloseTo(264, 9)
+    // Nothing is held on the way in, so trade into a position the honest way:
+    // price falls to a level under it and that level buys at its own price.
+    expect(await positions()).toHaveLength(0)
+    await priceTo(180)
     expect((await positions())[0].szi).toBeGreaterThan(0)
 
     await priceTo(266)
@@ -599,41 +648,29 @@ describe("moving the range", () => {
     expect(gridStopPx(grid.plan)).toBeCloseTo(114, 9)
   })
 
-  it("can be moved again and again, including after it has bought", async () => {
-    // The report this is here for: dragging the top up once worked, and then
-    // the range could never be moved again — because dragging up is what
-    // creates a holding level, and the rule locked on exactly that.
+  it("can be moved again and again while it holds nothing", async () => {
     await place()
     const id = (await onlyGrid()).id
 
     await moveGridRange(userId, wallet, { gridId: id, topPx: 240, bottomPx: 160 })
-    expect((await onlyGrid()).plan.levels.some((one) => one.status === "holding")).toBe(true)
+    expect((await onlyGrid()).plan.topPx).toBe(240)
 
     await moveGridRange(userId, wallet, { gridId: id, topPx: 260, bottomPx: 170 })
-    let grid = await onlyGrid()
-    expect(grid.status).toBe("active")
-    expect(grid.plan.topPx).toBe(260)
+    expect((await onlyGrid()).plan.topPx).toBe(260)
 
-    // And a third time, back down below the price, which sells what the levels
-    // above no longer need.
     await moveGridRange(userId, wallet, { gridId: id, topPx: 150, bottomPx: 100 })
-    grid = await onlyGrid()
+    const grid = await onlyGrid()
     expect(grid.status).toBe("active")
     expect(grid.plan.topPx).toBe(150)
-    expect(grid.plan.levels.every((one) => one.status === "waiting")).toBe(true)
+    // Not one order in all of that. Moving a range that owns nothing is free.
     expect(await positions()).toHaveLength(0)
-    await settle()
-    expect((await onlyGrid()).status).toBe("active")
+    expect(await orders()).toHaveLength(0)
   })
 
-  it("buys what a range dragged up over the price now needs", async () => {
-    // Dragging the top up puts levels above the price, and a level above the
-    // price is one the grid sells at — so it has to hold the coins for them.
-    // Without that the plan said "holding" with nothing behind it and the very
-    // next pass closed the grid, so the whole thing vanished off the chart.
+  it("buys nothing when a range is dragged up over the price", async () => {
+    // Dragging the top up puts levels above the price. Those used to be bought
+    // on the spot, at one price belonging to none of them.
     await place()
-    expect(await positions()).toHaveLength(0)
-
     await moveGridRange(userId, wallet, {
       gridId: (await onlyGrid()).id,
       // Price is 200. A top of 240 puts two levels above it.
@@ -641,21 +678,37 @@ describe("moving the range", () => {
       bottomPx: 160,
     })
 
-    let grid = await onlyGrid()
+    const grid = await onlyGrid()
     expect(grid.status).toBe("active")
-    expect(grid.plan.levels.map((one) => one.status)).toEqual([
-      "waiting",
-      "waiting",
-      "holding",
-      "holding",
+    expect(grid.plan.levels.every((one) => one.status === "waiting")).toBe(true)
+    expect(grid.plan.levels.map((one) => one.armed)).toEqual([
+      true,
+      true,
+      false,
+      false,
     ])
-    expect((await positions())[0].szi).toBeGreaterThan(0)
-
-    // And it is still there a pass later, which is the bit that was broken.
+    expect(await positions()).toHaveLength(0)
     await settle()
-    grid = await onlyGrid()
-    expect(grid.status).toBe("active")
-    expect(await orders()).toHaveLength(0)
+    expect((await onlyGrid()).status).toBe("active")
+  })
+
+  it("refuses to move a range once a level is holding", async () => {
+    // That level bought at its own price and sells one step above it. Sliding
+    // the range under it would leave it selling coins it never paid that price
+    // for, which is the lump this order type exists to avoid.
+    await place()
+    await priceTo(109)
+    expect(
+      (await onlyGrid()).plan.levels.some((one) => one.status === "holding")
+    ).toBe(true)
+
+    await expect(
+      moveGridRange(userId, wallet, {
+        gridId: (await onlyGrid()).id,
+        topPx: 240,
+        bottomPx: 160,
+      })
+    ).rejects.toThrow("SMART_GRID_STARTED")
   })
 
   it("refuses an upside-down move, and changes nothing", async () => {
@@ -704,8 +757,9 @@ describe("re-slicing a running grid", () => {
     }
   })
 
-  it("settles what is held when a re-slice changes the sizes", async () => {
-    // Straddling, so it is holding something that the new sizes change.
+  it("re-slices without buying or selling anything", async () => {
+    // There is nothing to settle: a grid that holds nothing owns nothing to
+    // adjust, and one that holds something refuses the re-slice outright.
     await placeGridOrder(userId, wallet, {
       marketKey: BTC,
       topPx: 240,
@@ -713,15 +767,13 @@ describe("re-slicing a running grid", () => {
       params: params(),
     })
     const id = (await onlyGrid()).id
-    const heldBefore = (await positions())[0].szi
 
     await reshapeGrid(userId, wallet, { gridId: id, potPct: 10 })
 
-    // Half the money means half the coins standing behind the sells above.
-    const heldAfter = (await positions())[0].szi
-    expect(heldAfter).toBeLessThan(heldBefore)
-    expect(heldAfter).toBeCloseTo(heldBefore / 2, 1)
-    // And it is still running a pass later, holding what it says it holds.
+    const grid = await onlyGrid()
+    expect(grid.plan.potPct).toBe(10)
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
     await settle()
     expect((await onlyGrid()).status).toBe("active")
   })
@@ -803,5 +855,158 @@ describe("a hand in the middle of it", () => {
     await settle()
 
     expect((await onlyGrid()).status).toBe("done")
+  })
+})
+
+describe("following price up", () => {
+  it("slides the range up a whole step once price clears the top", async () => {
+    // Placed straddling $100, so two levels hold from the start. At $130 both
+    // of those sell, the grid is empty, and only then does it move.
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(130)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(1)
+    // A step is $10, and $130 is one step over a top of $120.
+    expect(grid.plan.topPx).toBeCloseTo(130, 9)
+    expect(grid.plan.bottomPx).toBeCloseTo(90, 9)
+    // The whole point: moving it costs nothing.
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect(
+      grid.plan.levels.every((one) => one.status === "waiting")
+    ).toBe(true)
+  })
+
+  it("leaves every level under the price, so the move buys nothing", async () => {
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(130)
+
+    const grid = await onlyGrid()
+    for (const level of grid.plan.levels) {
+      expect(level.buyPx).toBeLessThan(130)
+    }
+  })
+
+  it("buys again out of the moved range when price comes back down", async () => {
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(130)
+    // The moved range is $90 to $130, so its top buy is $120.
+    await priceTo(120)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels.at(-1)?.status).toBe("holding")
+    expect((await positions())[0].szi).toBeGreaterThan(0)
+  })
+
+  it("carries the stop up with the bottom of the range", async () => {
+    await priceTo(100)
+    await place({ follow: true, stopLoss: { underPct: 5, base: null } })
+    await priceTo(130)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.bottomPx).toBeCloseTo(90, 9)
+    // Five percent under the new bottom, not the old one. A grid that keeps
+    // climbing keeps what it has made.
+    expect(gridStopPx(grid.plan)).toBeCloseTo(85.5, 9)
+  })
+
+  it("stays where it is when following is off", async () => {
+    await priceTo(100)
+    await place()
+    await priceTo(130)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(0)
+    expect(grid.plan.topPx).toBeCloseTo(120, 9)
+  })
+
+  it("will not move while anything is held, even by hand", async () => {
+    // The grid's own levels hold nothing here — price has been above the top
+    // since it was placed. The position came from a hand trade, and moving the
+    // range under it would re-price levels against coins the grid never chose.
+    await place()
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      sz: 0.1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      px: 200,
+    })
+    await settle()
+    await setGridFollow(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      follow: true,
+    })
+    await priceTo(130)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(0)
+    expect(grid.plan.topPx).toBeCloseTo(120, 9)
+  })
+
+  it("stops following once the step would no longer clear the fee", async () => {
+    // Levels the same dollars apart earn a smaller PERCENTAGE the higher the
+    // range climbs: $10 is 9% of $110 and a rounding error at $8,000. Rather
+    // than follow price into round trips that lose money on fees, it parks.
+    await place()
+    await setGridFollow(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      follow: true,
+    })
+    // Switching it on catches the range up to the price straight away, which
+    // is the whole point of following. Take that as the starting point.
+    const caughtUp = await onlyGrid()
+    expect(caughtUp.plan.shifts).toBe(1)
+    expect(caughtUp.plan.topPx).toBeCloseTo(200, 9)
+
+    await priceTo(8000)
+
+    const grid = await onlyGrid()
+    // Not one step further. $10 is 5% of $190 and a rounding error at $8,000.
+    expect(grid.plan.shifts).toBe(1)
+    expect(grid.plan.topPx).toBeCloseTo(200, 9)
+    expect(grid.status).toBe("active")
+  })
+
+  it("catches the range up the moment following is switched on", async () => {
+    // Price has been above the top since it was placed. Turning following on
+    // should not wait for the next tick to notice.
+    await place()
+    expect((await onlyGrid()).plan.topPx).toBeCloseTo(120, 9)
+
+    await setGridFollow(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      follow: true,
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(1)
+    expect(grid.plan.topPx).toBeCloseTo(200, 9)
+    // Free, as always: the range moved and nothing was traded.
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("clears the finish line when following is switched on", async () => {
+    await priceTo(100)
+    await place({ takeProfitPct: 10 })
+    expect((await onlyGrid()).plan.takeProfitPx).toBeCloseTo(132, 9)
+
+    await setGridFollow(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      follow: true,
+    })
+    // A range that slides up ahead of price can never reach a line above it,
+    // so the line goes rather than sitting there looking like an exit.
+    const grid = await onlyGrid()
+    expect(grid.plan.takeProfitPx).toBeNull()
+    expect(grid.plan.follow).toBe(true)
   })
 })

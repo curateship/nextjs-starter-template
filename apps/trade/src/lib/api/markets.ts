@@ -105,8 +105,11 @@ const lastMarketSchema = z.object({
 
 const loadLastMarketFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }): Promise<{ marketKey: string | null }> => {
-    return { marketKey: await loadLastMarketKey(context.user.id) }
+  .inputValidator(z.object({ protocol: z.enum(KNOWN_PROTOCOLS) }))
+  .handler(async ({ data, context }): Promise<{ marketKey: string | null }> => {
+    return {
+      marketKey: await loadLastMarketKey(context.user.id, data.protocol),
+    }
   })
 
 const saveLastMarketFn = createServerFn({ method: "POST" })
@@ -121,8 +124,8 @@ export function loadMarkets(protocol: ProtocolId, network: NetworkId) {
   return loadMarketsFn({ data: { protocol, network } })
 }
 
-export function loadLastMarket() {
-  return loadLastMarketFn()
+export function loadLastMarket(protocol: ProtocolId) {
+  return loadLastMarketFn({ data: { protocol } })
 }
 
 export function saveLastMarket(marketKey: string) {

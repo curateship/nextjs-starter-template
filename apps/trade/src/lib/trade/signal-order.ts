@@ -73,6 +73,18 @@ export const signalPlanSchema = z.object({
   orderId: z.string().nullable().default(null),
   orderPx: z.number().positive().nullable().default(null),
   /**
+   * When the order first went missing from the exchange's open-orders read,
+   * or 0 while it is listed. Read by `judgeOrder`, which will not call an
+   * order gone on one absent read — see `src/lib/trade/order-presence.ts`.
+   */
+  missingSince: z.number().default(0),
+  /**
+   * How much of this coin the wallet held the moment the order was sent, so
+   * a fill can be noticed by the amount held CHANGING rather than by guessing
+   * from whether a position happens to exist.
+   */
+  heldWhenPlaced: z.number().default(0),
+  /**
    * When the order was last moved, so a chase cannot re-price faster than the
    * exchange will forgive. See `CHASE_EVERY_MS`.
    */

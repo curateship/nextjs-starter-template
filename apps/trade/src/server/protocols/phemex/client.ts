@@ -1,6 +1,17 @@
 import { createHmac } from "node:crypto"
 
 import type { NetworkId } from "@/lib/protocols/contracts"
+import {
+  isRationed,
+  startRationing,
+  stopRationing,
+} from "@/server/protocols/rationing"
+import {
+  ACT_TIMEOUT_MS,
+  isTimeout,
+  READ_TIMEOUT_MS,
+  requestSignal,
+} from "@/server/protocols/request-timeout"
 import { scrubSecrets } from "@/server/protocols/scrub"
 
 /**
@@ -78,15 +89,28 @@ export function packPhemexCredential(input: {
 /** How long a signed request stays valid. Phemex reads it as an expiry moment. */
 const EXPIRY_SECONDS = 60
 
-/** GET retries on a rate limit; anything that could act twice never retries. */
-const RATE_LIMIT_RETRIES = 2
-
 type Envelope = {
   code?: number
   msg?: string
   data?: unknown
   error?: unknown
   result?: unknown
+}
+
+/**
+ * Turns a request that ran out of time into a refusal that says so. An act
+ * that timed out gets its own code, because "we stopped waiting" is not the
+ * same as "it did not happen" and only a person can settle which.
+ */
+function timedOut(path: string, acting = false) {
+  return (error: unknown): never => {
+    if (!isTimeout(error)) throw error
+    throw new Error(
+      acting
+        ? `LIVE_NO_ANSWER:The exchange did not answer in time on ${path}. It may or may not have gone through — check the exchange before trying again.`
+        : "EXCHANGE_BUSY"
+    )
+  }
 }
 
 function queryOf(params: Record<string, string | number | boolean>): string {
@@ -101,17 +125,6 @@ function queryOf(params: Record<string, string | number | boolean>): string {
         `${key}=${encodeURIComponent(String(value)).replace(/%2C/gi, ",")}`
     )
   return parts.join("&")
-}
-
-/** Seconds to wait after a 429, from the exchange's own header when it says. */
-function retryAfterMs(response: Response): number {
-  for (const [name, value] of response.headers.entries()) {
-    if (name.toLowerCase().startsWith("x-ratelimit-retry-after")) {
-      const seconds = Number(value)
-      if (Number.isFinite(seconds) && seconds > 0) return seconds * 1_000
-    }
-  }
-  return 2_000
 }
 
 function unwrap(payload: Envelope, context: string): unknown {
@@ -139,29 +152,32 @@ export async function phemexPublic(
   path: string,
   params: Record<string, string | number | boolean> = {}
 ): Promise<unknown> {
+  if (isRationed("phemex", network, "public")) throw new Error("EXCHANGE_BUSY")
   const query = queryOf(params)
   const url = `${restBase(network)}${path}${query ? `?${query}` : ""}`
 
-  for (let attempt = 0; ; attempt += 1) {
+  {
     const response = await fetch(url, {
       headers: { accept: "application/json" },
-    })
-    if (response.status === 429 && attempt < RATE_LIMIT_RETRIES) {
-      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(response)))
-      continue
+      signal: requestSignal(READ_TIMEOUT_MS),
+    }).catch(timedOut(path))
+    if (response.status === 429) {
+      startRationing("phemex", network, "public")
+      throw new Error("EXCHANGE_BUSY")
     }
     if (!response.ok) {
       throw new Error(`PHEMEX_HTTP_${response.status}:${path}`)
     }
+    stopRationing("phemex", network, "public")
     return unwrap((await response.json()) as Envelope, path)
   }
 }
 
 /**
- * One signed request, unwrapped. `retryOnRateLimit` must stay false for
- * anything that places, moves or cancels — a retried order is a possible
- * double order, and "the exchange was busy" is an answer the caller can act
- * on where "it happened twice" is not.
+ * One signed request, unwrapped. Nothing is ever retried here: a retried
+ * order is a possible double order, and "the exchange was busy" is an answer
+ * a caller can act on where "it happened twice" is not. A refusal to slow
+ * down is believed instead — see `rationing.ts`.
  */
 export async function phemexSigned(
   network: NetworkId,
@@ -169,13 +185,13 @@ export async function phemexSigned(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   params: Record<string, string | number | boolean> = {},
-  body: unknown = undefined,
-  retryOnRateLimit = method === "GET"
+  body: unknown = undefined
 ): Promise<unknown> {
+  if (isRationed("phemex", network, "signed")) throw new Error("EXCHANGE_BUSY")
   const query = queryOf(params)
   const bodyText = body === undefined ? "" : JSON.stringify(body)
 
-  for (let attempt = 0; ; attempt += 1) {
+  {
     // Fresh expiry (and so a fresh signature) per attempt, not per call — a
     // retry a few seconds later must not walk in with a stale clock.
     const expiry = Math.floor(Date.now() / 1_000) + EXPIRY_SECONDS
@@ -183,9 +199,11 @@ export async function phemexSigned(
       .update(path + query + String(expiry) + bodyText)
       .digest("hex")
 
+    const acting = method !== "GET"
     const response = await fetch(
       `${restBase(network)}${path}${query ? `?${query}` : ""}`,
       {
+        signal: requestSignal(acting ? ACT_TIMEOUT_MS : READ_TIMEOUT_MS),
         method,
         headers: {
           accept: "application/json",
@@ -196,14 +214,10 @@ export async function phemexSigned(
         },
         ...(bodyText ? { body: bodyText } : {}),
       }
-    )
-    if (
-      response.status === 429 &&
-      retryOnRateLimit &&
-      attempt < RATE_LIMIT_RETRIES
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, retryAfterMs(response)))
-      continue
+    ).catch(timedOut(path, acting))
+    if (response.status === 429) {
+      startRationing("phemex", network, "signed")
+      throw new Error("EXCHANGE_BUSY")
     }
     if (response.status === 401 || response.status === 403) {
       // The one place a bad key surfaces on every signed path — named so the
@@ -216,6 +230,7 @@ export async function phemexSigned(
     if (!response.ok) {
       throw new Error(`PHEMEX_HTTP_${response.status}:${path}`)
     }
+    stopRationing("phemex", network, "signed")
     return unwrap((await response.json()) as Envelope, path)
   }
 }

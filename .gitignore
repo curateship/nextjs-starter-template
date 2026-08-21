@@ -72,3 +72,4 @@ tasks/
 
 # playwright CLI logs
 .playwright-cli/
+storage-state.json

@@ -28,6 +28,7 @@ import {
   type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
+import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   defaultPaperCosts,
@@ -49,6 +50,7 @@ import {
   rollbackLiveOrder,
   setLiveBrackets,
 } from "@/server/trade/live-orders"
+import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import {
@@ -83,7 +85,11 @@ import {
   freeCash,
   type WalletBook,
 } from "@/server/trade/paper"
-import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveJournal,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 /** The flow's cap when it has one, never more than the account holds. */
 function livePotOf(
@@ -574,14 +580,74 @@ const refusalHolds = new Map<string, number>()
 const REFUSAL_HOLD_MS = 60_000
 
 /** Advances live ladders from exchange truth using the same state engine as paper. */
+/**
+ * Wallets a reconcile is running for right now.
+ *
+ * **A reconcile that is already running is not worth queueing behind.** Two
+ * screens poll this every few seconds, and a pass against a slow or
+ * rate-limited exchange can outlast the gap between polls. Waiting our turn
+ * meant each poll added another request that sat holding a database
+ * connection until its turn came, and once the pool was spent EVERY read in
+ * the app — wallets, drawings, positions — waited with it. The panels showed
+ * a spinner that never ended and the page stopped responding.
+ *
+ * So a caller that finds one already in flight is told "being done" and
+ * leaves. Nothing is lost: the pass in flight is doing the same work, and the
+ * next poll is seconds away.
+ */
+const reconciling = new Set<string>()
+
+/**
+ * A smart order that could not be advanced, said out loud.
+ *
+ * **Silence is the thing that made this expensive.** The pass that died took
+ * the whole wallet with it and reported nothing at all: no journal row, no
+ * error on the heartbeat, no mark on the order. From the outside the engine
+ * looked healthy and the market looked quiet. Every failure now leaves a
+ * trace in the one place a person already looks when an order did not do what
+ * it was meant to.
+ */
+async function noteRowFailure(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  error: unknown
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error("trade engine: could not advance", marketKey, message)
+  try {
+    await db.insert(tradeLiveJournal).values({
+      id: randomUUID(),
+      userId,
+      walletId,
+      marketKey,
+      action: "refused",
+      side: "buy",
+      px: 0,
+      sz: 0,
+      note: `The engine could not work this order: ${message}`.slice(0, 500),
+    })
+  } catch {
+    // A journal that will not take the row is not a reason to stop the pass;
+    // the console line above still carries it.
+  }
+}
+
 export async function reconcileLiveLadders(
   userId: string,
   wallet: TradeWallet,
   currentPortfolio?: WalletPortfolio
 ): Promise<void> {
-  await serializeLiveWallet(userId, wallet, () =>
-    reconcileLiveLaddersOnce(userId, wallet, currentPortfolio)
-  )
+  const key = `${userId}:${wallet.id}`
+  if (reconciling.has(key)) return
+  reconciling.add(key)
+  try {
+    await serializeLiveWallet(userId, wallet, () =>
+      reconcileLiveLaddersOnce(userId, wallet, currentPortfolio)
+    )
+  } finally {
+    reconciling.delete(key)
+  }
 }
 
 async function reconcileLiveLaddersOnce(
@@ -641,9 +707,37 @@ async function reconcileLiveLaddersOnce(
       return ref ? [[ref.marketId, key] as const] : []
     })
   )
-  const [account, prices, fills] = await Promise.all([
-    accountOf(protocol).fetch(wallet.network, wallet.address, credential),
-    protocol.markets.prices(wallet.network, [...refs.keys()]),
+  // **Prices come off the open line, and asking is the fallback.**
+  //
+  // Calling this also OPENS the line, so a live wallet is what gets the
+  // socket up. Until it is up, and any time it goes quiet, this answers null
+  // and the ordinary ask below still happens.
+  const pushed = pushedMarks(keys)
+  const [account, asked, fills] = await Promise.all([
+    accountOf(protocol)
+      .fetch(wallet.network, wallet.address, credential)
+      .catch((error) => {
+        // **Not knowing what the account holds means not spending, not
+        // stopping.** Cash of zero fails the affordability check, so a buy
+        // waits for the next pass rather than going out on a guess — while
+        // everything needing no cash carries on: levels are still watched,
+        // stops and targets are still set, exits still leave. Before this,
+        // one refused read stopped the whole wallet dead.
+        console.error(`Account read failed for wallet ${wallet.id}`, error)
+        return null
+      }),
+    pushed
+      ? null
+      : protocol.markets
+          .prices(wallet.network, [...refs.keys()])
+          .catch((error) => {
+            // No price this pass is a quiet pass, not a broken one: every
+            // smart order stands still without one, which is exactly what
+            // should happen. Letting it through stopped the rest of the
+            // wallet being worked at all.
+            console.error(`Price read failed for wallet ${wallet.id}`, error)
+            return null
+          }),
     ordersOf(protocol).fills(
       wallet.network,
       wallet.address,
@@ -667,12 +761,29 @@ async function reconcileLiveLaddersOnce(
         })
       ) - 60_000,
       credential
-    ),
+    ).catch((error) => {
+      // **A fill feed that will not answer must not stop the trading.**
+      // Fills are the record of what already happened — they fill the
+      // Journal and move the watermark, and a pass that misses them catches
+      // up on the next one. Letting the failure through killed the whole
+      // wallet's pass instead, so a level was never compared against the
+      // price and nothing fired. Phemex refused this exact read all day on
+      // 20 Aug 2026 with a plain 400, while KuCoin's answered and KuCoin's
+      // watches fired all day — which is what pinned it to this read.
+      console.error(`Fills read failed for wallet ${wallet.id}`, error)
+      return []
+    }),
   ])
   const marks = new Map<string, number>()
-  for (const [marketId, px] of prices) {
-    const key = refs.get(marketId)
-    if (key) marks.set(key, px)
+  // The open line already speaks in market keys; the ask answers per market
+  // id and has to be translated back.
+  if (pushed) {
+    for (const [key, px] of pushed) marks.set(key, px)
+  } else if (asked) {
+    for (const [marketId, px] of asked) {
+      const key = refs.get(marketId)
+      if (key) marks.set(key, px)
+    }
   }
 
   const positions = new Map<string, PaperPosition>()
@@ -726,9 +837,18 @@ async function reconcileLiveLaddersOnce(
     const roundPx = (px: number) =>
       protocol.markets.roundPx(px, entry.plan.sizeDecimals, entry.plan.priceTick)
 
-    // A grid manages no exchange orders — its levels are watched prices — so
-    // there is nothing of its to match fills against.
-    if (entry.kind === "grid") continue
+    // Only a ladder has rungs to match fills against.
+    //
+    // **A grid and a watch both used to fall through here**, and a watch has
+    // no rungs at all — so reading them threw, the whole pass died before a
+    // single trigger was looked at, and nothing said a word. One watched
+    // order on a wallet stopped that wallet's engine completely: levels were
+    // crossed and held for twenty minutes on 20 Aug 2026 and nothing fired,
+    // on two exchanges, while the app looked perfectly healthy.
+    //
+    // Named the safe way round — only `dca` goes on — so a kind added later
+    // is skipped rather than read as a ladder it is not.
+    if (entry.kind !== "dca") continue
 
     const plan = entry.plan as LadderPlan
     const exits = ladderExitLevels(plan)
@@ -789,7 +909,7 @@ async function reconcileLiveLaddersOnce(
     // the shape the engine works in wants them.
     costs: defaultPaperCosts(),
     cash:
-      account.free +
+      (account?.free ?? 0) +
       [...positions.values()].reduce(
         (sum, position) =>
           sum + Math.abs(position.szi * position.entryPx) / position.leverage,
@@ -960,12 +1080,29 @@ async function reconcileLiveLaddersOnce(
         const accepted: string[] = []
         let marketActionStarted = false
         try {
+          let cancelFailed = false
           for (const orderId of pendingCancels) {
-            await rollbackLiveOrder(userId, {
+            const cancelled = await rollbackLiveOrder(userId, {
               walletId: wallet.id,
               marketKey: row.marketKey,
               orderId,
             })
+            if (!cancelled) cancelFailed = true
+          }
+          // **A cancel that did not cancel voids the replacement.** The chase
+          // swaps an order by dropping the old one and placing a new one, and
+          // the swap is only safe when the drop really happened — a cancel
+          // usually fails because the order already FILLED, and placing the
+          // replacement then is buying the same thing twice. The plan keeps
+          // `sent`, so the watch waits for the position that fill is about to
+          // become instead of spending again.
+          if (cancelFailed && entry.kind === "watch") {
+            for (const pending of pendingPlaces) {
+              forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
+                if (orderId === pending.tempId) set(null)
+              })
+            }
+            pendingPlaces.length = 0
           }
           for (const pending of pendingPlaces) {
             const outcome = await placeLiveOrder(userId, {
@@ -980,6 +1117,36 @@ async function reconcileLiveLaddersOnce(
               slPx: null,
               restingOnly: true,
             })
+            // A resting-only order that the venue reports FILLED anyway is
+            // not a failure to unwind — the money moved, and unwinding the
+            // plan is how the next pass buys it a second time. The watch is
+            // told its order is gone (it is: it became a fill) and waits for
+            // the position; `sent` on its plan is what keeps it waiting.
+            //
+            // **The venue does not always name it.** Phemex answers a
+            // marketable post-only order with a fill and no order id at all,
+            // and requiring one here threw `LIVE_SMART_ORDER_NOT_RESTING` and
+            // rolled the whole thing back — leaving the exchange holding a
+            // trade the app had just decided never happened. Seen on
+            // 20 Aug 2026 at 23:17. The id is worth having and never worth
+            // waiting for: the fills sweep carries the trade into the Journal
+            // either way.
+            if (entry.kind === "watch" && outcome.status === "filled") {
+              forEachPlanOrderId(entry.kind, row.plan, (orderId, set) => {
+                if (orderId === pending.tempId) set(null)
+              })
+              if (outcome.orderId) {
+                await rememberFlowRunOrders({
+                  userId,
+                  walletId: wallet.id,
+                  flowRunId: raw.flowRunId,
+                  ladderId: row.id,
+                  marketKey: pending.input.marketKey,
+                  orderIds: [outcome.orderId],
+                })
+              }
+              continue
+            }
             if (outcome.status !== "resting" || !outcome.orderId)
               throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
             accepted.push(outcome.orderId)
@@ -1078,6 +1245,14 @@ async function reconcileLiveLaddersOnce(
             kind: entry.kind,
             plan: originalPlan,
           })
+          // **Money sent is never un-sent by an unwind.** Everything else in
+          // the plan goes back to how this pass found it, but a watch that
+          // has spent has spent — and if the rollback forgets that, the very
+          // next pass buys the same thing again. A watch bought XRP twice in
+          // 55 seconds on 20 Aug 2026 through exactly this door.
+          if (entry.kind === "watch" && entry.plan.sent) {
+            ;(originalPlan as WatchPlan).sent = true
+          }
           await saveLadderPlan(userId, row.id, originalPlan, "active")
           if (recoveryFailed) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
           throw error
@@ -1090,9 +1265,23 @@ async function reconcileLiveLaddersOnce(
         // A signal trade manages no protection. Its exit is the next arrow, so
         // writing a stop or a target for it here would be putting orders on a
         // position that nobody asked for and nothing would ever move again.
+        // **Nothing to set and nothing to clear means nothing to say.** A
+        // watch with no stop and no target used to call the exchange anyway,
+        // to remove protection that was never there — and a position bought
+        // at market a moment earlier is not visible to that call yet, so it
+        // answered `LIVE_POSITION_GONE`. That refusal then unwound a buy that
+        // had really happened. Asking for nothing is not worth a request, let
+        // alone that.
+        const wantsProtection =
+          position !== undefined &&
+          (position.tpPx !== null ||
+            position.slPx !== null ||
+            originalBrackets?.tpPx != null ||
+            originalBrackets?.slPx != null)
         if (
           entry.kind !== "signal" &&
           position &&
+          wantsProtection &&
           book.touchedMarkets.has(row.marketKey)
         ) {
           try {
@@ -1135,56 +1324,92 @@ async function reconcileLiveLaddersOnce(
   }
 
   for (const raw of rows) {
-    // A just-accepted exchange order can take a moment to appear in the
-    // portfolio read. Treating that short delay as a disappearance would
-    // place its replacement twice.
-    if (!force && now - raw.updatedAt.getTime() < EXCHANGE_VISIBILITY_GRACE_MS)
-      continue
-    const entry = parsed.get(raw.id)
-    if (!entry) continue
+    // **One smart order failing must not stop the others.**
+    //
+    // They share a pass because they share one look at the exchange — the
+    // account, the open orders and the fills are read once and every row on
+    // the wallet is advanced from them. That sharing is right; what was
+    // wrong is that a throw anywhere in here took the whole wallet with it.
+    // On 20 Aug 2026 a single watched order stopped that wallet completely:
+    // no triggers, no rungs, no stops, and the Workers screen still called
+    // the worker healthy. Levels were crossed and held for twenty minutes.
+    //
+    // Now a row that throws is written down and stepped over, and the rest
+    // of the wallet carries on.
+    try {
+      // A just-accepted exchange order can take a moment to appear in the
+      // portfolio read. Treating that short delay as a disappearance would
+      // place its replacement twice.
+      if (!force && now - raw.updatedAt.getTime() < EXCHANGE_VISIBILITY_GRACE_MS)
+        continue
+      const entry = parsed.get(raw.id)
+      if (!entry) continue
 
-    if (entry.kind === "grid") {
-      // A grid has no orders on the exchange to match fills against: its
-      // levels are watched prices and it buys when one is reached.
-      await advanceRow(raw, entry, advanceGrid)
-      continue
-    }
+      if (entry.kind === "grid") {
+        // A grid has no orders on the exchange to match fills against: its
+        // levels are watched prices and it buys when one is reached.
+        await advanceRow(raw, entry, advanceGrid)
+        continue
+      }
 
-    if (entry.kind === "signal") {
-      // A signal trade has exactly one order on the exchange and does not need
-      // its fills matched back to anything. It decides what to do next by
-      // looking at the POSITION, which this book has just rebuilt from the
-      // exchange — so a partial fill needs no arithmetic here to be understood.
-      await advanceRow(raw, entry, advanceSignal)
-      continue
-    }
+      if (entry.kind === "signal") {
+        // A signal trade has exactly one order on the exchange and does not need
+        // its fills matched back to anything. It decides what to do next by
+        // looking at the POSITION, which this book has just rebuilt from the
+        // exchange — so a partial fill needs no arithmetic here to be understood.
+        await advanceRow(raw, entry, advanceSignal)
+        continue
+      }
 
-    if (entry.kind === "watch") {
-      // Nothing is on the exchange at all until the level is touched, and from
-      // then on it is the same single chased order a signal trade has. Same
-      // reasoning, same path.
-      await advanceRow(raw, entry, advanceWatch)
-      continue
-    }
+      if (entry.kind === "watch") {
+        // Nothing is on the exchange at all until the level is touched, and from
+        // then on it is the same single chased order a signal trade has. Same
+        // reasoning, same path.
+        await advanceRow(raw, entry, advanceWatch)
+        continue
+      }
 
-    const plan = entry.plan as LadderPlan
-    const exits = ladderExitLevels(plan)
-    for (const [index, rung] of plan.rungs.entries()) {
-      if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
-        const total = managedFillTotals.get(rung.orderId)
-        if (total && total.sz > 0) {
+      const plan = entry.plan as LadderPlan
+      const exits = ladderExitLevels(plan)
+      for (const [index, rung] of plan.rungs.entries()) {
+        if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
+          const total = managedFillTotals.get(rung.orderId)
+          if (total && total.sz > 0) {
+            if (total.sz < rung.sz - 1e-9) {
+              rung.sz = floorSize(total.sz, plan.sizeDecimals)
+              rung.budget = rung.px * rung.sz
+            }
+            book.fills.push({
+              id: `managed:${total.fillId}`,
+              orderId: rung.orderId,
+              walletId: wallet.id,
+              marketKey: raw.marketKey,
+              side: "buy",
+              px: rung.px,
+              sz: Math.min(total.sz, rung.sz),
+              fee: 0,
+              closedPnl: 0,
+              reason: "order",
+              fillTime: total.at,
+            })
+          }
+        }
+        if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
+          const total = managedFillTotals.get(rung.sellOrderId)
+          if (!total || !(total.sz > 0)) continue
           if (total.sz < rung.sz - 1e-9) {
-            rung.sz = floorSize(total.sz, plan.sizeDecimals)
+            rung.sz = floorSize(rung.sz - total.sz, plan.sizeDecimals)
             rung.budget = rung.px * rung.sz
+            continue
           }
           book.fills.push({
             id: `managed:${total.fillId}`,
-            orderId: rung.orderId,
+            orderId: rung.sellOrderId,
             walletId: wallet.id,
             marketKey: raw.marketKey,
-            side: "buy",
-            px: rung.px,
-            sz: Math.min(total.sz, rung.sz),
+            side: "sell",
+            px: protocol.markets.roundPx(exits[index], plan.sizeDecimals, plan.priceTick),
+            sz: rung.sz,
             fee: 0,
             closedPnl: 0,
             reason: "order",
@@ -1192,30 +1417,11 @@ async function reconcileLiveLaddersOnce(
           })
         }
       }
-      if (rung.sellOrderId && !liveOrderIds.has(rung.sellOrderId)) {
-        const total = managedFillTotals.get(rung.sellOrderId)
-        if (!total || !(total.sz > 0)) continue
-        if (total.sz < rung.sz - 1e-9) {
-          rung.sz = floorSize(rung.sz - total.sz, plan.sizeDecimals)
-          rung.budget = rung.px * rung.sz
-          continue
-        }
-        book.fills.push({
-          id: `managed:${total.fillId}`,
-          orderId: rung.sellOrderId,
-          walletId: wallet.id,
-          marketKey: raw.marketKey,
-          side: "sell",
-          px: protocol.markets.roundPx(exits[index], plan.sizeDecimals, plan.priceTick),
-          sz: rung.sz,
-          fee: 0,
-          closedPnl: 0,
-          reason: "order",
-          fillTime: total.at,
-        })
-      }
+      await advanceRow(raw, entry, advanceOne as never)
+    } catch (error) {
+      await noteRowFailure(userId, wallet.id, raw.marketKey, error)
+      continue
     }
-    await advanceRow(raw, entry, advanceOne as never)
   }
 }
 
@@ -1250,13 +1456,15 @@ async function restoreLiveOrders(input: {
 }): Promise<boolean> {
   let failed = false
   for (const orderId of input.accepted.reverse()) {
-    await rollbackLiveOrder(input.userId, {
+    // The rollback ANSWERS whether it cancelled rather than throwing — a
+    // failed cancel here usually means the order filled in the gap, and the
+    // caller has to know the recovery is incomplete either way.
+    const cancelled = await rollbackLiveOrder(input.userId, {
       walletId: input.wallet.id,
       marketKey: input.marketKey,
       orderId,
-    }).catch(() => {
-      failed = true
-    })
+    }).catch(() => false)
+    if (!cancelled) failed = true
   }
   for (const order of input.cancelled) {
     await placeLiveOrder(input.userId, {
@@ -1350,7 +1558,8 @@ async function placeLiveGridOrderOnce(
   // re-implements its draft by hand and has drifted from it — a hardcoded order
   // cap among other things — and there is no reason to repeat that here.
   const now = Date.now()
-  const { plan, levels, totalCost, startingSz } = draftGridOrder({
+  const id = randomUUID()
+  const { plan, levels, totalCost } = draftGridOrder({
     marketKey: input.marketKey,
     params: input.params,
     topPx: input.topPx,
@@ -1359,7 +1568,6 @@ async function placeLiveGridOrderOnce(
     rules,
     roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: input.params.compound ? account.equity : wallet.startingBalance,
-    freeCash: account.free,
     takerFeeRate: defaultPaperCosts().takerFeeRate,
     startedAt: now,
     heldSzi: held?.szi ?? null,
@@ -1367,23 +1575,10 @@ async function placeLiveGridOrderOnce(
 
   const accepted: string[] = []
   try {
-    // Nothing rests. A grid's levels are prices it WATCHES, and the engine
-    // buys when one is reached — so the only thing to send now is the position
-    // standing behind the levels that start out selling.
-    if (startingSz > 0) {
-      await placeLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: input.marketKey,
-        side: "buy",
-        px: mark,
-        sz: startingSz,
-        leverage: 1,
-        reduceOnly: false,
-        tpPx: null,
-        slPx: null,
-      })
-    }
-
+    // **Nothing at all is sent here.** A grid's levels are prices it WATCHES,
+    // and the engine buys when one is actually reached, at that level's own
+    // price. This used to send one market buy covering every level above the
+    // price, which is the lump the whole order type exists to avoid.
     const stamp = new Date(now)
     await db.transaction(async (tx) => {
       await tx
@@ -1402,7 +1597,7 @@ async function placeLiveGridOrderOnce(
       if (race) throw new Error("SMART_LADDER_EXISTS")
       await tx.insert(tradeSmartLadders).values({
         userId,
-        id: randomUUID(),
+        id,
         walletId: wallet.id,
         marketKey: input.marketKey,
         kind: "grid",
@@ -1425,7 +1620,23 @@ async function placeLiveGridOrderOnce(
     throw error
   }
 
-  return { levels: levels.length, totalCost }
+  // The grid itself travels back, so the chart draws it in the same frame the
+  // window closes. See `PlacedGrid`.
+  return {
+    levels: levels.length,
+    totalCost,
+    grid: {
+      id,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "grid" as const,
+      status: "active" as const,
+      flowRunId: null,
+      createdAt: now,
+      updatedAt: now,
+      plan,
+    },
+  }
 }
 
 /** Calling off one waiting level of a live grid. */
@@ -1466,6 +1677,54 @@ export async function cancelLiveGridRest(
   })
 }
 
+/** Switching following on or off for a live grid. See `setGridFollow`. */
+export async function setLiveGridFollow(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; follow: boolean }
+): Promise<void> {
+  await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    grid.plan.follow = input.follow
+    if (input.follow) grid.plan.takeProfitPx = null
+    await saveGridPlan(userId, grid.id, grid.plan, "active")
+  })
+}
+
+/**
+ * Coins held in this market on the exchange right now, or zero.
+ *
+ * A grid holds nothing for most of its life. Between one cycle and the next
+ * every level is waiting and the position is closed, and that is the ordinary
+ * state, not a broken one. The stop a grid carries is then a PLAN for later
+ * rather than protection on something open.
+ *
+ * `setLiveBrackets` refuses outright when there is no position, so asking it
+ * anyway did not merely waste a call: it threw `LIVE_POSITION_GONE`, the drag
+ * was rejected, the stop the hand had just moved was never saved, and a
+ * "refused" row went into the Journal for something nobody had done wrong. The
+ * paper path has always checked for a position first; this is the live path
+ * catching up.
+ */
+async function heldOnExchange(
+  userId: string,
+  wallet: TradeWallet,
+  marketKey: string
+): Promise<number> {
+  const ref = parseMarketKey(marketKey)
+  if (!ref) return 0
+  const protocol = getProtocol(wallet.protocol)
+  const portfolio = await ordersOf(protocol).portfolio(
+    wallet.network,
+    wallet.address as string,
+    await walletCredential(userId, wallet.id)
+  )
+  return (
+    portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
+  )
+}
+
 /** Changing a live grid's stop. */
 export async function updateLiveGridStop(
   userId: string,
@@ -1492,14 +1751,24 @@ export async function updateLiveGridStop(
       wanted === null
         ? null
         : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
-    await setLiveBrackets(userId, {
-      walletId: wallet.id,
-      marketKey: grid.marketKey,
-      // A grid never writes a target: its exits are its resting sells.
-      tpPx: null,
-      slPx,
-    })
-    plan.aimedSlPx = slPx
+    // Only onto the exchange when there is something to protect. Flat, the
+    // plan is the whole record, and `advanceGrid` writes the stop onto the
+    // position the moment a level buys.
+    if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+      await setLiveBrackets(userId, {
+        walletId: wallet.id,
+        marketKey: grid.marketKey,
+        // A grid never writes a target: its exits are its resting sells.
+        tpPx: null,
+        slPx,
+      })
+      plan.aimedSlPx = slPx
+    } else {
+      // Nothing was written, so nothing is remembered as written. Claiming
+      // otherwise would make the next pass read a stop it never wrote as one a
+      // hand had moved, and leave it alone for good.
+      plan.aimedSlPx = null
+    }
     await saveGridPlan(userId, grid.id, plan, "active")
   })
 }
@@ -1557,8 +1826,6 @@ export async function reshapeLiveGrid(
         credential
       ),
     ])
-    const held = plan.levels.reduce((sum, level) => sum + level.budget, 0)
-
     // Drawn and fully checked BEFORE a single order is cancelled, so a refused
     // move leaves the grid resting exactly where it was.
     const draft = draftGridOrder({
@@ -1569,6 +1836,10 @@ export async function reshapeLiveGrid(
         compound: true,
         maxOrderVolPct: plan.maxOrderVolPct,
         spacing: plan.spacing,
+        sizing: plan.sizing,
+        follow: plan.follow,
+        // Only read when the window pre-fills; a re-shape has its own prices.
+        anchor: "price",
         abovePct: DEFAULT_GRID_ABOVE_PCT,
         rangePct: DEFAULT_GRID_BELOW_PCT,
         baseDetection: plan.baseDetection,
@@ -1583,7 +1854,6 @@ export async function reshapeLiveGrid(
       rules,
       roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
       equity: account.equity,
-      freeCash: account.free + held,
       takerFeeRate: defaultPaperCosts().takerFeeRate,
       startedAt: plan.startedAt,
       heldSzi:
@@ -1591,34 +1861,9 @@ export async function reshapeLiveGrid(
         null,
     })
 
-    // No orders to cancel and none to place — the levels are watched prices.
-    // But a range dragged up over the price has levels ABOVE it now, and those
-    // are levels the grid SELLS at, so it has to hold the coins for them the
-    // same way a fresh grid does. Left out, the plan says "holding" with no
-    // position behind it and the next pass closes the grid for losing coins it
-    // never bought.
-    const heldNow =
-      portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ?? 0
-    const shortfall = draft.startingSz - heldNow
-    if (Math.abs(shortfall) > 1e-9) {
-      const sz = floorSize(Math.abs(shortfall), draft.plan.sizeDecimals)
-      if (sz > 0) {
-        const buying = shortfall > 0
-        await placeLiveOrder(userId, {
-          walletId: wallet.id,
-          marketKey: grid.marketKey,
-          side: buying ? "buy" : "sell",
-          px: mark,
-          sz,
-          leverage: 1,
-          // Selling back what the new levels no longer need may only shrink
-          // what is held — never open a short into a position that has gone.
-          reduceOnly: !buying,
-          tpPx: null,
-          slPx: null,
-        })
-      }
-    }
+    // No orders to cancel, none to place, and no position to settle: every
+    // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
+    // refused this while anything was held.
     await saveGridPlan(
       userId,
       grid.id,
@@ -1632,7 +1877,9 @@ export async function reshapeLiveGrid(
         baseWatch: plan.baseWatch,
         aimedSlPx: plan.aimedSlPx,
         seenFillsTo: plan.seenFillsTo,
+        // A move re-prices the levels; it does not reset the grid's history.
         cycles: plan.cycles,
+        shifts: plan.shifts,
       },
       "active"
     )
@@ -1665,13 +1912,19 @@ export async function moveLiveGridExit(
         px,
         base: null,
       }
-      await setLiveBrackets(userId, {
-        walletId: wallet.id,
-        marketKey: grid.marketKey,
-        tpPx: null,
-        slPx: px,
-      })
-      plan.aimedSlPx = px
+      // See `updateLiveGridStop`: a grid with nothing open has no brackets to
+      // set, and asking anyway threw the drag away along with the new stop.
+      if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+        await setLiveBrackets(userId, {
+          walletId: wallet.id,
+          marketKey: grid.marketKey,
+          tpPx: null,
+          slPx: px,
+        })
+        plan.aimedSlPx = px
+      } else {
+        plan.aimedSlPx = null
+      }
     }
 
     await saveGridPlan(userId, grid.id, plan, "active")

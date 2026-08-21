@@ -3,6 +3,7 @@ import type {
   CandleInterval,
   LiveFigures,
 } from "@/lib/protocols/contracts"
+import { snapToTick } from "@/lib/protocols/tick"
 
 /**
  * Pure translation between Phemex's words and the app's, shared by the
@@ -23,8 +24,11 @@ import type {
  */
 export function phemexWsUrl(network: "mainnet" | "testnet"): string {
   if (network !== "mainnet") throw new Error("PHEMEX_NETWORK_UNSUPPORTED")
-  // The high-rate-limit host; the plain one serves the website first.
-  return "wss://vapi.phemex.com/ws"
+  // No path on the end, and not the `vapi` host. Both were tried against the
+  // live exchange on 19 Aug 2026 and both are refused outright, from a browser
+  // and from the server alike — so Phemex prices never streamed at all, and
+  // every screen quietly fell back to asking again every few seconds.
+  return "wss://ws.phemex.com"
 }
 
 /** A Phemex decimal — a string most of the time — as a number, or null. */
@@ -66,34 +70,7 @@ export function roundPhemexPx(
   _sizeDecimals: number | null,
   priceTick: number | null
 ): number {
-  if (priceTick === null || !(priceTick > 0)) return px
-  const ticks = Math.round(px / priceTick)
-  // Ticks are decimal (0.5, 0.001), so the multiply reintroduces float dust —
-  // 8583 * 0.5 = 4291.500000000001. Re-rounding to the tick's own precision
-  // is exact for every tick the exchange actually uses.
-  const decimals = tickDecimals(priceTick)
-  return Number((ticks * priceTick).toFixed(decimals))
-}
-
-/** How many decimal places a tick like 0.001 carries. Capped for safety. */
-function tickDecimals(tick: number): number {
-  const text = tick.toString()
-  const dot = text.indexOf(".")
-  if (dot < 0) return 0
-  return Math.min(text.length - dot - 1, 12)
-}
-
-/**
- * A size step as "how many decimal places a size may have" — the coarse form
- * the shared engine sizes with. Exact for the usual 10^-n steps; a step that
- * is not one (0.5, 10) reports 0 and the order path enforces the real step.
- */
-export function stepToDecimals(step: number | null): number | null {
-  if (step === null || !(step > 0)) return null
-  const decimals = Math.round(-Math.log10(step))
-  const exact = Number((10 ** -decimals).toFixed(12)) === step
-  if (!exact) return 0
-  return Math.max(0, decimals)
+  return snapToTick(px, priceTick)
 }
 
 /** The symbol Phemex files a market's 8-hour funding history under. */

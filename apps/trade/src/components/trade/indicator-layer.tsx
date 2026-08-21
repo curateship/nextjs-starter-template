@@ -1,3 +1,5 @@
+import * as React from "react"
+
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type {
   IndicatorPaint,
@@ -53,7 +55,19 @@ function arrowPoints(x: number, y: number, side: IndicatorSide): string {
   return `${x},${tip} ${x - ARROW_HALF_WIDTH},${back} ${x + ARROW_HALF_WIDTH},${back}`
 }
 
-export function IndicatorLayer({
+/**
+ * Drawn only when the levels or the view actually change.
+ *
+ * **Because the number of shapes here follows the number of candles.** The
+ * four-hour chart carries every bar the exchange has since 20 Aug 2026, and
+ * on a long history the base rule finds 376 levels and 189 arrows where five
+ * hundred bars found 21 and 11 — eighteen times the shapes. Each one asks the
+ * chart library where its price and time land, so rebuilding this because
+ * something unrelated on the page moved is thousands of those questions for
+ * an unchanged picture. Everything it needs is already worked out elsewhere
+ * and handed in, so skipping is always safe.
+ */
+export const IndicatorLayer = React.memo(function IndicatorLayer({
   surface,
   paint,
 }: {
@@ -121,4 +135,4 @@ export function IndicatorLayer({
       })}
     </svg>
   )
-}
+})

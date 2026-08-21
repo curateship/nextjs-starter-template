@@ -50,9 +50,40 @@ export const watchPlanSchema = z.object({
    */
   chaseGiveUp: z.number().min(0).default(0),
   phase: z.enum(WATCH_PHASES),
+  /**
+   * An order reached the exchange and its fate has not been proven since.
+   *
+   * **This is what makes a watch spend its money at most once.** The engine
+   * used to treat "my order is not in the open-orders read" as proof it was
+   * gone and place a fresh one at full size — but an order can be missing
+   * from that read while it rests (the exchange's list lags a moment), or
+   * while it has already filled and the position has not shown yet. Either
+   * way, placing again is how one $50 watch bought $150 of coin on
+   * 20 Aug 2026. While this is true and no order is in sight, the watch
+   * WAITS — for the position, for a fill record, or for a person — and
+   * places nothing. It goes false only when a cancel provably succeeded,
+   * which is the one moment "nothing of mine stands" is a fact rather than
+   * a guess.
+   */
+  sent: z.boolean().default(false),
   /** The order resting right now, and where it is resting. */
   orderId: z.string().nullable().default(null),
   orderPx: z.number().positive().nullable().default(null),
+  /**
+   * When the order first went missing from the exchange's open-orders read,
+   * or 0 while it is listed. Read by `judgeOrder`, which will not call an
+   * order gone on one absent read — see `src/lib/trade/order-presence.ts`.
+   */
+  missingSince: z.number().default(0),
+  /**
+   * How much of this coin the wallet held the moment the order was sent.
+   *
+   * The only reliable way to notice a fill without the exchange listing it:
+   * the amount held CHANGED. "A position exists" cannot do that job, because
+   * a watch that adds to a coin already held would see one from the first
+   * pass and treat every absent read as a fill.
+   */
+  heldWhenPlaced: z.number().default(0),
   chasedAt: z.number().default(0),
   chases: z.number().int().min(0).default(0),
   startedAt: z.number().default(0),

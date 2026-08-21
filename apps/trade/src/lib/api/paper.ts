@@ -287,7 +287,7 @@ export const getPaperErrorMessage = createErrorMessage(
     WALLET_INACTIVE: "Make this wallet active before placing a new order.",
     PAPER_MARKET: "That market is not one this wallet can trade.",
     PAPER_NO_PRICE:
-      "Hyperliquid would not give a price for that market, so nothing was done.",
+      "The exchange would not give a price for that market, so nothing was done.",
     PAPER_PRICE: "That price cannot be used. Pick a level on the chart again.",
     PAPER_SIZE: "That size is too small to be an order.",
     SMART_LADDER_EXISTS:

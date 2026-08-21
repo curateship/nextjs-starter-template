@@ -17,7 +17,7 @@
  * adding an exchange is a deliberate edit here — the one shared file — plus a
  * new module behind it, never a stray name invented at a call site.
  */
-export type ProtocolId = "hyperliquid" | "binance" | "phemex"
+export type ProtocolId = "hyperliquid" | "binance" | "phemex" | "kucoin"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -101,6 +101,7 @@ export const KNOWN_PROTOCOLS = [
   "hyperliquid",
   "binance",
   "phemex",
+  "kucoin",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -112,6 +113,8 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   hyperliquid: "Hyperliquid",
   binance: "Binance",
   phemex: "Phemex",
+  // Capital C, which is why this is a lookup and not a capitalised id.
+  kucoin: "KuCoin",
 }
 
 export function protocolLabel(id: ProtocolId): string {

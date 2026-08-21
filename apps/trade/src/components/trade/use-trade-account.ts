@@ -66,6 +66,13 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
   )
   const missesRef = React.useRef<ReadonlyMap<string, number>>(new Map())
 
+  // A read still on its way. The poll consults it and skips its turn rather
+  // than starting a second one: on a slow or rate-limited exchange a read can
+  // outlast the gap between polls, and stacking them spends a database
+  // connection per waiting request until the pool is gone and every read in
+  // the app — not just this one — waits forever behind them.
+  const inFlightRef = React.useRef<Promise<void> | null>(null)
+
   const refresh = React.useCallback(async () => {
     const request = ++requestRef.current
     try {
@@ -82,7 +89,7 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
       summariesRef.current = merged.summaries
       missesRef.current = merged.misses
       setSummaries(merged.summaries)
-      setLastWalletId(answer.lastWalletId)
+      setLastWalletId(answer.lastWalletIds[protocol] ?? null)
       setFailed(false)
     } catch {
       if (requestRef.current !== request) return
@@ -92,23 +99,28 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
     }
   }, [protocol])
 
+  /** One poll's turn: skipped outright while the last one is still running. */
+  const poll = React.useCallback(() => {
+    if (document.hidden || inFlightRef.current) return
+    const running = refresh().finally(() => {
+      if (inFlightRef.current === running) inFlightRef.current = null
+    })
+    inFlightRef.current = running
+  }, [refresh])
+
   React.useEffect(() => {
     // The first read is scheduled rather than called in the effect body, so
     // mounting never sets state mid-render pass — same shape as the poll.
-    const firstRead = window.setTimeout(() => void refresh(), 0)
-    const timer = window.setInterval(() => {
-      if (!document.hidden) void refresh()
-    }, REFRESH_MS)
-    const onVisible = () => {
-      if (!document.hidden) void refresh()
-    }
+    const firstRead = window.setTimeout(poll, 0)
+    const timer = window.setInterval(poll, REFRESH_MS)
+    const onVisible = () => poll()
     document.addEventListener("visibilitychange", onVisible)
     return () => {
       window.clearTimeout(firstRead)
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [refresh])
+  }, [poll])
 
   const switchWallet = React.useCallback((walletId: string) => {
     setChosenWalletId(walletId)
