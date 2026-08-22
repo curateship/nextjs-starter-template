@@ -45,6 +45,7 @@ import {
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
+import { stampGridFills } from "@/server/trade/grid-fills"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   tradePaperJournal,
@@ -1350,7 +1351,9 @@ export async function loadPaperHistory(
     .orderBy(desc(tradePaperJournal.fillTime))
     .limit(JOURNAL_PAGE)
 
-  const fills = rows.map(toTradeFill)
+  // Stamped before anything reads them, so a practice grid's sells say what
+  // their own level made, exactly as a real one's do. See `stampGridFills`.
+  const fills = await stampGridFills(userId, walletIds, rows.map(toTradeFill))
   const trades = buildLiveTrades(fills, NO_TRIGGERS)
   return { fills: fillsOutsideTrades(fills, trades), trades }
 }
@@ -1409,7 +1412,11 @@ export async function loadPaperPortfolio(
     .orderBy(desc(tradePaperJournal.fillTime))
     .limit(JOURNAL_PAGE)
 
-  const tradeFills = fills.map(toTradeFill)
+  const tradeFills = await stampGridFills(
+    userId,
+    paper.map((wallet) => wallet.id),
+    fills.map(toTradeFill)
+  )
   const trades = buildLiveTrades(tradeFills, NO_TRIGGERS)
   return {
     positions: positions.sort((a, b) => a.marketKey.localeCompare(b.marketKey)),

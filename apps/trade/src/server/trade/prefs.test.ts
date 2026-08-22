@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import { createDefaultTradingDashboardWidgets } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
 import { type CustomShellDb } from "@/server/db"
@@ -133,11 +134,13 @@ describe("the remembered order window", () => {
 describe("the trading dashboard arrangement", () => {
   it("opens on the trading default before anything is saved", async () => {
     const { id } = await insertUser(database)
-    expect(await loadTradingDashboardWidgets(id)).toEqual({
-      top: ["figures"],
-      left: ["wallets", "equity"],
-      right: ["trades"],
-    })
+    // Read off the default itself rather than copied out of it. A copy is a
+    // second place the layout lives, and it went stale the day a widget was
+    // added to the real one — this test then failed for a feature working
+    // exactly as intended.
+    expect(await loadTradingDashboardWidgets(id)).toEqual(
+      createDefaultTradingDashboardWidgets()
+    )
   })
 
   it("keeps each account's trading dashboard separate", async () => {
@@ -148,11 +151,9 @@ describe("the trading dashboard arrangement", () => {
       left: ["trades"],
       right: [],
     })
-    expect(await loadTradingDashboardWidgets(mine.id)).toEqual({
-      top: ["figures"],
-      left: ["wallets", "equity"],
-      right: ["trades"],
-    })
+    expect(await loadTradingDashboardWidgets(mine.id)).toEqual(
+      createDefaultTradingDashboardWidgets()
+    )
     expect(await loadTradingDashboardWidgets(theirs.id)).toEqual({
       top: [],
       left: ["trades"],

@@ -9,13 +9,15 @@ Paths below say which is which.
 
 ## How to reply
 
-**Read `.agents/skills/unslop/SKILL.md` and follow it in every reply.** It also
-covers every summary of finished work and every doc you write. Tyler is smart
-and is not a programmer or a trader, so the plainest true sentence always wins.
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+session, and check your draft against it before sending. It also covers every
+summary of finished work and every doc you write. Tyler is
+smart and is not a programmer or a trader, so the plainest true sentence always
+wins.
 
 The monorepo's root `CLAUDE.md` adds the banned-word list, the rule about
-leading with the answer, and how to talk about money. Read it once per session
-and treat it as part of the unslop skill.
+leading with the answer, and how to talk about money. It is part of the unslop
+skill and gets re-read on the same terms.
 
 ## Before you write code
 

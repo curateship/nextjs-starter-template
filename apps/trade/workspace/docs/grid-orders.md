@@ -114,6 +114,54 @@ cheaper does not get to spend more next time. A ladder rung buys back once; a
 grid level buys back forever, so leftover carried forward would compound on
 every round trip and turn a fixed pot into a much larger one.
 
+## What a sell is worth
+
+A grid sell is worth what **that level** made on **its own buy**. It is not
+worth what the exchange says it made, and for most of a grid's life the two are
+different numbers.
+
+The exchange does not know a grid has levels. It holds one position per coin
+with one average price, and it books every part-sale against that average. A
+grid works the other way round. Each level buys its own coins and sells those
+same coins one step up, and while the grid is running the levels still holding
+are the expensive ones, so the average sits above what the selling level paid.
+The exchange then calls a level that did exactly its job a loss.
+
+CHIP on 22 August 2026 is the case this was found on.
+
+- A level bought 1,713 coins at $0.027746 and sold them at $0.030268. That is
+  **$4.28 in the account**, after both fees.
+- Five levels were held at the time, at an average of $0.030928, so Hyperliquid
+  booked the sale as a **$1.13 loss**.
+- The chart said "lost $1.15" about a sale that made $4.28.
+
+**The other $5.45 was not lost.** The exchange put it into the coins still
+held, by leaving them carried at the old average instead of the higher one they
+would have on their own. It comes back as those levels sell. Once the last
+level is out, both ways of counting land on exactly the same total, which is
+why nothing about the whole trade changes. Only what one sale is worth changes.
+
+**How a sale is matched to a level.** The newest buy still held is the one that
+sold. That is not an accounting convention, it is what really happens: price
+falls through the levels on its way down, so the lowest level holding is always
+the one bought most recently, and the lowest level is also the first to reach
+its sell.
+
+Two places show this figure, and they now agree.
+
+- **The arrow on the chart.** Point at a grid's sell and it reads "Sold
+  $0.030268, made $4.28", with the level's own buy price under it.
+- **The Smart orders panel**, on the grid's row, as banked.
+
+**A ladder is left alone on purpose.** A ladder's exits take a share off one
+blended position, so the average really is its story and the exchange's figure
+is the right one for it. Only a grid's fills are counted level by level.
+
+One thing this fixes by accident. KuCoin reports money per position closed
+rather than per sale, so a KuCoin grid's sells arrived with no figure at all
+and the panel had to leave them blank. A level's round trip is worked out from
+the fills, so KuCoin's grids now get a figure like everybody else's.
+
 ## Following price up
 
 Switched on, the range slides up behind price. When price climbs past the top,

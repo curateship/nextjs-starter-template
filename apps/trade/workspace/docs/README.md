@@ -21,9 +21,10 @@ Two files outrank the rest, and outrank the code:
 - `opening-range-indicator.md` — what the opening range is, its settings, and
   the rules it follows about breaks, gaps and the session in progress.
 - `smart-orders-never-rest.md` — why a smart order sends nothing until the price
-  is reached, and what a backtest does differently.
+  is reached, what watching costs when a market moves fast, how often the engine
+  looks, and what a backtest does differently.
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is
-  split between levels, and what following price up does.
+  split between levels, what a sell is worth, and what following price up does.
 - `watched-orders.md` — how a plain order works now, and what dragging does.
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what a
   failed answer does to the card.

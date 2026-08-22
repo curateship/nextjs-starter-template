@@ -5,10 +5,10 @@ import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
 /**
  * An open line to KuCoin, on the server: mark prices arrive here, they are
  * not asked for. The same job — and deliberately the same shape — as the
- * Hyperliquid and Phemex hubs beside it: one socket per network for the life
- * of the process, health judged by data arriving rather than by the socket
- * claiming to be up, stale answers marked stale, and a caller that finds the
- * feed quiet falls back to asking the REST way.
+ * Hyperliquid and Phemex hubs beside it: long-lived sockets shared by the
+ * process, health judged by data arriving rather than by the socket claiming
+ * to be up, stale answers marked stale, and a caller that finds the feed quiet
+ * falls back to asking the REST way.
  *
  * **Two things this exchange does differently.**
  *
@@ -35,13 +35,31 @@ import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
 /**
  * How many markets one socket will carry.
  *
- * KuCoin caps the topics a connection may hold, and a subscription past the
- * cap is refused quietly — the market would simply never tick, and a quiet
- * market on a feed that calls itself fresh is the worst answer available.
- * Past this many, the extra markets are left to the REST read instead, which
- * is slower and rationed but truthful.
+ * **Going over does not lose the extras. It kills the whole line.** Measured
+ * against the live exchange on 22 Aug 2026, same markets each time, 40 seconds
+ * of listening: 100 markets on one connection ticked normally, and 130, 160,
+ * 200 and 250 each delivered NOTHING AT ALL. Not the first hundred and then
+ * silence — silence from the first market on. So the cap is somewhere between
+ * 100 and 130, and overshooting it is not a partial answer but a dead feed
+ * that still reports itself connected.
+ *
+ * 90 keeps a margin under the lowest number that worked. It is not worth
+ * shaving: one more market per line saves a fraction of a connection, and
+ * being wrong costs every price on that line.
  */
 const MARKETS_PER_SOCKET = 90
+
+/**
+ * How many lines this hub will open for one network.
+ *
+ * KuCoin publishes no all-markets feed, so covering a wallet on hundreds of
+ * markets means several connections. Six were opened at once and all six
+ * carried prices, measured the same day, so six is known to work rather than
+ * hoped. Eight is the ceiling here to leave headroom without inviting a
+ * runaway: a wallet wanting more than 720 markets gets the rest from the REST
+ * read, which is slower but truthful.
+ */
+const MAX_SOCKETS = 8
 
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
@@ -68,15 +86,33 @@ type Hub = {
 }
 
 // On `globalThis` rather than module scope: the dev server reloads modules
-// in place, and a module-scoped map would leave the old socket open behind
-// the new one.
-const scope = globalThis as { __tradeKucoinPriceHubs?: Map<NetworkId, Hub> }
+// in place, and a module-scoped map would leave the old sockets open behind
+// the new ones.
+const scope = globalThis as { __tradeKucoinPriceHubs?: Map<NetworkId, Hub[]> }
 
-function hubFor(network: NetworkId): Hub {
-  const hubs = (scope.__tradeKucoinPriceHubs ??= new Map())
-  const found = hubs.get(network)
+/**
+ * The lines open for one network. Several, because one is not enough here.
+ *
+ * Every other exchange in this app needs a single connection: they push every
+ * market in one message. KuCoin is subscribed to per market and one connection
+ * will not hold more than about a hundred of them, so a wallet on 454 markets
+ * needs six lines. Each is an ordinary hub of its own — its own socket, its own
+ * watchdog, its own reconnect back-off — and nothing about one line knows or
+ * cares about another. That is deliberate: a line that dies takes only its own
+ * markets off the feed, and the caller asks the exchange for those while the
+ * rest keep arriving.
+ */
+function hubsFor(network: NetworkId): Hub[] {
+  const byNetwork = (scope.__tradeKucoinPriceHubs ??= new Map())
+  const found = byNetwork.get(network)
   if (found) return found
-  const made: Hub = {
+  const made: Hub[] = []
+  byNetwork.set(network, made)
+  return made
+}
+
+function makeHub(network: NetworkId): Hub {
+  return {
     network,
     openedAt: 0,
     prices: new Map(),
@@ -91,63 +127,101 @@ function hubFor(network: NetworkId): Hub {
     reconnectAt: 0,
     attempts: 0,
   }
-  hubs.set(network, made)
-  return made
 }
 
 /**
- * Makes sure the line is up and carrying these markets. Free once it is up
- * and the markets are already on it.
+ * Makes sure enough lines are up to carry these markets. Free once they are up
+ * and the markets are already on them.
  */
 export function openKucoinLivePrices(
   network: NetworkId,
   marketIds: readonly string[] = []
 ): void {
-  const hub = hubFor(network)
-  let fresh = false
+  const hubs = hubsFor(network)
+  const already = new Set(hubs.flatMap((hub) => [...hub.wanted]))
+  /** Lines that gained a market and so have something new to subscribe to. */
+  const changed = new Set<Hub>()
+
   for (const marketId of marketIds) {
-    if (hub.wanted.has(marketId)) continue
-    if (hub.wanted.size >= MARKETS_PER_SOCKET) break
+    if (already.has(marketId)) continue
+    // The first line with room. Filling them in order keeps the count as low
+    // as the markets allow, so a wallet on 95 markets opens two lines and not
+    // eight.
+    let hub = hubs.find((one) => one.wanted.size < MARKETS_PER_SOCKET)
+    if (!hub) {
+      // Every line full. Past the ceiling the remaining markets are left to
+      // the REST read rather than opened for: slower and rationed, but honest,
+      // and the caller already asks for whatever this feed cannot answer.
+      if (hubs.length >= MAX_SOCKETS) break
+      hub = makeHub(network)
+      hubs.push(hub)
+    }
     hub.wanted.add(marketId)
-    fresh = true
+    already.add(marketId)
+    changed.add(hub)
   }
-  if (hub.socket) {
-    if (fresh) subscribeWanted(hub)
-    return
+
+  for (const hub of hubs) {
+    if (hub.socket) {
+      if (changed.has(hub)) subscribeWanted(hub)
+      continue
+    }
+    if (hub.dialling || hub.reconnectAt > 0) continue
+    void connect(hub)
   }
-  if (hub.dialling || hub.reconnectAt > 0) return
-  void connect(hub)
 }
 
 export function readKucoinLivePrices(network: NetworkId): {
   prices: ReadonlyMap<string, number>
   ageMs: number
 } {
-  const hub = hubFor(network)
-  return {
-    prices: hub.prices,
-    ageMs: hub.lastMessageAt === 0 ? Infinity : Date.now() - hub.lastMessageAt,
+  const hubs = hubsFor(network)
+  const now = Date.now()
+  const prices = new Map<string, number>()
+  let youngest = Infinity
+
+  for (const hub of hubs) {
+    const age = hub.lastMessageAt === 0 ? Infinity : now - hub.lastMessageAt
+    youngest = Math.min(youngest, age)
+    // **Only what a line can still vouch for.** A price is offered for
+    // trading, so a line that has gone quiet offers none of its own — its
+    // markets are simply absent, and the caller asks the exchange for those
+    // by name. With one line this could be left to `ageMs` and the caller's
+    // freshness check; with several it cannot, because a single age cannot
+    // speak for six sockets that fail one at a time. The price itself is kept
+    // on the hub, so a line that comes back has not lost its place.
+    if (age > STALE_AFTER_MS) continue
+    for (const [marketId, price] of hub.prices) prices.set(marketId, price)
   }
+
+  return { prices, ageMs: youngest }
 }
 
 export function kucoinLivePricesFresh(network: NetworkId): boolean {
+  // Any line delivering means this feed has something worth reading. Which
+  // markets it can actually answer for is settled by `read`, one line at a
+  // time, and the caller asks for whatever is missing.
   return readKucoinLivePrices(network).ageMs <= STALE_AFTER_MS
 }
 
-/** Shuts the line. Only the tests and a clean process exit need this. */
+/** Shuts every line. Only the tests and a clean process exit need this. */
 export function closeKucoinLivePrices(network: NetworkId): void {
-  const hub = hubFor(network)
-  hub.generation += 1
-  teardown(hub)
-  if (hub.watchdog) {
-    clearInterval(hub.watchdog)
-    hub.watchdog = null
+  for (const hub of hubsFor(network)) {
+    hub.generation += 1
+    teardown(hub)
+    if (hub.watchdog) {
+      clearInterval(hub.watchdog)
+      hub.watchdog = null
+    }
+    hub.wanted.clear()
+    hub.prices.clear()
+    hub.lastMessageAt = 0
+    hub.reconnectAt = 0
+    hub.attempts = 0
   }
-  hub.wanted.clear()
-  hub.prices.clear()
-  hub.lastMessageAt = 0
-  hub.reconnectAt = 0
-  hub.attempts = 0
+  // Dropped rather than kept empty, so the next open starts from one line
+  // instead of however many the last wallet happened to need.
+  scope.__tradeKucoinPriceHubs?.delete(network)
 }
 
 function teardown(hub: Hub): void {

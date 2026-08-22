@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildLiveTrades,
+  gridRoundTrips,
   openFillMarks,
   fillsOutsideTrades,
   formatHeld,
@@ -377,5 +378,107 @@ describe("arrows on a position that is still open", () => {
     expect(mark.label).toBe("Bought $100.00")
     // In dollars: what it put in, not how much of the coin it bought.
     expect(mark.detail).toBe("$100.00 in")
+  })
+})
+
+/**
+ * What a grid level's sell is worth.
+ *
+ * Every number below is the real CHIP grid on 22 Aug 2026, because that is the
+ * day the old arithmetic was caught calling a winning level a loss. Five levels
+ * were held, the cheapest one sold, and the exchange booked it against the
+ * average of all five.
+ */
+describe("a grid level's own round trip", () => {
+  const CHIP = (over: Partial<LiveFill> & Pick<LiveFill, "side" | "px" | "sz">): LiveFill => ({
+    fillId: `${over.side}-${over.px}`,
+    orderId: `o-${over.px}`,
+    walletId: "w1",
+    marketKey: "hyperliquid:mainnet:CHIP",
+    at: 1_000,
+    closedPnl: 0,
+    fee: 0,
+    dir: over.side === "buy" ? "Open Long" : "Close Long",
+    liquidation: false,
+    grid: true,
+    ...over,
+  })
+
+  // The five buys in the order they happened, cheapest last, which is the
+  // order a falling price reaches them in.
+  const buys = [
+    CHIP({ side: "buy", px: 0.034614, sz: 1403, fee: 0.021853, at: 1 }),
+    CHIP({ side: "buy", px: 0.03333, sz: 1470, fee: 0.022047, at: 2 }),
+    CHIP({ side: "buy", px: 0.030929, sz: 1543, fee: 0.021475, at: 3 }),
+    CHIP({ side: "buy", px: 0.028927, sz: 1624, fee: 0.021139, at: 4 }),
+    CHIP({ side: "buy", px: 0.027746, sz: 1713, fee: 0.021388, at: 5 }),
+  ]
+  // What the exchange booked: 1,713 sold at 0.030268 against an average of
+  // 0.030928 across all five levels.
+  const sell = CHIP({
+    side: "sell",
+    px: 0.030268,
+    sz: 1713,
+    fee: 0.023332,
+    closedPnl: -1.13058,
+    at: 6,
+  })
+
+  it("pays the level that actually sold, not the position average", () => {
+    const found = gridRoundTrips([...buys, sell])
+    // 1,713 bought at 0.027746 and sold at 0.030268, less both fees.
+    expect(found.get(sell.fillId)?.money).toBeCloseTo(4.2755, 3)
+    expect(found.get(sell.fillId)?.buyPx).toBeCloseTo(0.027746, 6)
+  })
+
+  it("writes made, not lost, on the arrow the exchange called a loss", () => {
+    const marks = openFillMarks([...buys, sell])
+    const arrow = marks[marks.length - 1]
+    expect(arrow.label).toBe("Sold $0.030268 · made $4.28")
+    expect(arrow.detail).toBe("Level bought $0.027746 · still holding the rest")
+  })
+
+  it("leaves a ladder's part-close on the exchange's figure", () => {
+    // Same fills, nothing stamped as a grid's. A ladder's exit takes a share
+    // off one blended position, so the average IS its story.
+    const marks = openFillMarks(
+      [...buys, sell].map((one) => ({ ...one, grid: false }))
+    )
+    const arrow = marks[marks.length - 1]
+    expect(arrow.label).toBe("Sold $0.030268 · lost $1.15")
+  })
+
+  it("keeps the venue's figure on a sell older than the fills on hand", () => {
+    // Nothing bought these coins as far as this record goes, so there is no
+    // level to pay. Half an answer would be worse than the one it replaced.
+    expect(gridRoundTrips([sell]).size).toBe(0)
+  })
+
+  it("adds up to the same total once the grid is flat", () => {
+    // The whole point: re-attributing WHEN the money is counted must not
+    // change HOW MUCH there is. Two levels, both sold, one step each.
+    const fills = [
+      CHIP({ side: "buy", px: 100, sz: 1, at: 1 }),
+      CHIP({ side: "buy", px: 90, sz: 1, at: 2 }),
+      CHIP({ side: "sell", px: 95, sz: 1, closedPnl: 0, at: 3 }),
+      CHIP({ side: "sell", px: 105, sz: 1, closedPnl: 10, at: 4 }),
+    ]
+    const found = gridRoundTrips(fills)
+    const total = [...found.values()].reduce((sum, one) => sum + one.money, 0)
+    // Sold 95 and 105 for coins bought at 90 and 100: $10 either way round.
+    expect(total).toBeCloseTo(10, 6)
+  })
+
+  it("does not pay one wallet's sell out of another wallet's buy", () => {
+    const mine = CHIP({ side: "buy", px: 90, sz: 1, at: 1 })
+    const theirs = CHIP({
+      side: "sell",
+      px: 95,
+      sz: 1,
+      walletId: "w2",
+      fillId: "other",
+      at: 2,
+    })
+    expect(gridRoundTrips([mine, theirs]).size).toBe(0)
   })
 })

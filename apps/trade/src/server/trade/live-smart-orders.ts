@@ -750,6 +750,14 @@ async function reconcileLiveLaddersOnce(
   // socket up. Until it is up, and any time it goes quiet, this answers null
   // and the ordinary ask below still happens.
   const pushed = pushedMarks(keys)
+  // Only what the open line is short of. Asking for a market it already
+  // carries is a request spent to be told something we were told a moment ago,
+  // and on an exchange asked one market at a time that is the whole cost of
+  // the pass.
+  const askFor = pushed.missing.flatMap((key) => {
+    const ref = parseMarketKey(key)
+    return ref ? [ref.marketId] : []
+  })
   const [account, asked, fills] = await Promise.all([
     accountOf(protocol)
       .fetch(wallet.network, wallet.address, credential)
@@ -763,10 +771,10 @@ async function reconcileLiveLaddersOnce(
         console.error(`Account read failed for wallet ${wallet.id}`, error)
         return null
       }),
-    pushed
+    askFor.length === 0
       ? null
       : protocol.markets
-          .prices(wallet.network, [...refs.keys()])
+          .prices(wallet.network, askFor)
           .catch((error) => {
             // No price this pass is a quiet pass, not a broken one: every
             // smart order stands still without one, which is exactly what
@@ -775,48 +783,51 @@ async function reconcileLiveLaddersOnce(
             console.error(`Price read failed for wallet ${wallet.id}`, error)
             return null
           }),
-    ordersOf(protocol).fills(
-      wallet.network,
-      wallet.address,
-      // How far back the fill feed is read.
-      //
-      // From where each order has already read to, not from when it was
-      // placed. A ladder makes perhaps forty fills in its whole life, so
-      // re-reading everything since placement cost nothing; a grid recycling
-      // ten times a day makes hundreds, and re-reading all of them every second
-      // is a bill that grows for as long as the grid is winning. The minute of
-      // overlap is deliberate — a fill that lands between two passes must not
-      // fall down the gap.
-      Math.min(
-        ...rows.map((row) => {
-          const seen = parsed.get(row.id)?.plan
-          const to =
-            seen && "seenFillsTo" in seen && seen.seenFillsTo > 0
-              ? seen.seenFillsTo
-              : row.createdAt.getTime()
-          return to
-        })
-      ) - 60_000,
-      credential
-    ).catch((error) => {
-      // **A fill feed that will not answer must not stop the trading.**
-      // Fills are the record of what already happened — they fill the
-      // Journal and move the watermark, and a pass that misses them catches
-      // up on the next one. Letting the failure through killed the whole
-      // wallet's pass instead, so a level was never compared against the
-      // price and nothing fired. Phemex refused this exact read all day on
-      // 20 Aug 2026 with a plain 400, while KuCoin's answered and KuCoin's
-      // watches fired all day — which is what pinned it to this read.
-      console.error(`Fills read failed for wallet ${wallet.id}`, error)
-      return []
-    }),
+    ordersOf(protocol)
+          .fills(
+            wallet.network,
+            wallet.address,
+            // How far back the fill feed is read.
+            //
+            // From where each order has already read to, not from when it was
+            // placed. A ladder makes perhaps forty fills in its whole life, so
+            // re-reading everything since placement cost nothing; a grid
+            // recycling ten times a day makes hundreds, and re-reading all of
+            // them every second is a bill that grows for as long as the grid
+            // is winning. The minute of overlap is deliberate — a fill that
+            // lands between two reads must not fall down the gap.
+            Math.min(
+              ...rows.map((row) => {
+                const seen = parsed.get(row.id)?.plan
+                const to =
+                  seen && "seenFillsTo" in seen && seen.seenFillsTo > 0
+                    ? seen.seenFillsTo
+                    : row.createdAt.getTime()
+                return to
+              })
+            ) - 60_000,
+            credential
+          )
+          .catch((error) => {
+            // **A fill feed that will not answer must not stop the trading.**
+            // Fills are the record of what already happened — they fill the
+            // Journal and move the watermark, and a pass that misses them
+            // catches up on the next one. Letting the failure through killed
+            // the whole wallet's pass instead, so a level was never compared
+            // against the price and nothing fired. Phemex refused this exact
+            // read all day on 20 Aug 2026 with a plain 400, while KuCoin's
+            // answered and KuCoin's watches fired all day — which is what
+            // pinned it to this read.
+            console.error(`Fills read failed for wallet ${wallet.id}`, error)
+            return []
+          }),
   ])
-  const marks = new Map<string, number>()
-  // The open line already speaks in market keys; the ask answers per market
-  // id and has to be translated back.
-  if (pushed) {
-    for (const [key, px] of pushed) marks.set(key, px)
-  } else if (asked) {
+  // The open line first, then whatever had to be asked for. The line already
+  // speaks in market keys; the ask answers per market id and has to be
+  // translated back. The two never overlap: only markets the line could not
+  // answer for were asked about.
+  const marks = new Map<string, number>(pushed.marks)
+  if (asked) {
     for (const [marketId, px] of asked) {
       const key = refs.get(marketId)
       if (key) marks.set(key, px)

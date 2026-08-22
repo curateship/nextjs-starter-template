@@ -5,10 +5,11 @@ rule, and the file it points at is the one to read.
 
 ## How to reply
 
-**Read `.agents/skills/unslop/SKILL.md` and follow it in every reply.** It also
-covers every summary of finished work and every doc you write. The section at
-the end, "Writing for Tyler", is the part that is about him specifically, and it
-wins wherever the two halves disagree.
+**Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+session, and check your draft against it before sending. It also covers every
+summary of finished work and every doc you write. The
+section at the end, "Writing for Tyler", is the part that is about him
+specifically, and it wins wherever the two halves disagree.
 
 ## Where the work happens
 

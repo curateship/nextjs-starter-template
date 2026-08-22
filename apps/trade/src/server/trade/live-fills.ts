@@ -19,6 +19,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import { stampGridFills } from "@/server/trade/grid-fills"
 import {
   tradeLiveFills,
   tradeLiveJournal,
@@ -449,7 +450,7 @@ export async function loadLiveHistory(
       ),
   ])
 
-  const fills: LiveFill[] = fillRows.map((row) => ({
+  const raw: LiveFill[] = fillRows.map((row) => ({
     fillId: row.fillId,
     orderId: row.orderId,
     walletId: row.walletId,
@@ -464,6 +465,10 @@ export async function loadLiveHistory(
     liquidation: row.liquidation,
     live: true,
   }))
+  // Which of these a grid level made, before anything reads them. The arrows
+  // and the Journal both ask, and a fill that arrived unstamped is read as a
+  // ladder's. See `stampGridFills`.
+  const fills = await stampGridFills(userId, walletIds, raw)
 
   // "none" rows are answers, not triggers: they are there so the exchange is
   // never asked twice, and a trade they belong to simply says "Closed".

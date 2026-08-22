@@ -39,8 +39,17 @@ const TRUST_MS = 5 * 60_000
 const IDLE_MS = 10 * 60_000
 
 type Feed = {
-  /** The last list pushed, exactly as the exchange sent it. */
-  orders: unknown[]
+  /**
+   * The last list pushed, exactly as the exchange sent it.
+   *
+   * Named `resting` rather than `orders` deliberately. `order-book-version.ts`
+   * guards the practice book's order list by failing on any `.orders` mutation
+   * that does not bump its version counter, and it is blind to what the
+   * `.orders` is hanging off — on purpose, because a rule with a hole in it
+   * reads as cover. This is the exchange's own list of what is resting, not
+   * that book, so it takes a different name rather than a waiver.
+   */
+  resting: unknown[]
   /** When that push arrived, or 0 if none has. */
   at: number
   /** When anything last asked. */
@@ -86,7 +95,7 @@ export function restingOrdersFromFeed(
   if (feed.at === 0) return null
   if (feed.at <= distrustBefore) return null
   if (Date.now() - feed.at >= TRUST_MS) return null
-  return feed.orders
+  return feed.resting
 }
 
 /** This app just changed an order, so every pushed list is now out of date. */
@@ -106,7 +115,7 @@ async function open(
   const now = Date.now()
   // Registered BEFORE the await, so two callers a millisecond apart cannot
   // both open a subscription for the same wallet.
-  const feed: Feed = { orders: [], at: 0, askedAt: now, close: () => {} }
+  const feed: Feed = { resting: [], at: 0, askedAt: now, close: () => {} }
   feeds.set(key, feed)
 
   try {
@@ -114,7 +123,7 @@ async function open(
       { user: address.toLowerCase() as `0x${string}`, dex },
       (event) => {
         if (!Array.isArray(event.orders)) return
-        feed.orders = event.orders
+        feed.resting = event.orders
         feed.at = Date.now()
       }
     )

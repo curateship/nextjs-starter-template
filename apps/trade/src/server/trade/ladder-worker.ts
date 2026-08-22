@@ -207,6 +207,122 @@ export const lastPass = {
   wallets: 0,
 }
 
+/**
+ * Wallets and the flow scan already going, so a pass steps over them.
+ *
+ * **The slowest wallet used to set everybody's clock.** One flag said "a pass
+ * is running" and every pass waited for every wallet, so a wallet that took
+ * fourteen seconds meant EVERY wallet was looked at once every fourteen
+ * seconds. Measured on 22 Aug 2026: a KuCoin wallet carrying 454 markets,
+ * which KuCoin prices one market at a time, six at a time, so a full round is
+ * about fourteen seconds and the two-second price cache has expired before the
+ * round even finishes. Meanwhile a grid on Hyperliquid — whose whole price
+ * read takes 0.3 seconds — was crossed and missed inside that window.
+ *
+ * Now a wallet holds up only itself. A quick one is looked at every second,
+ * whatever a slow one on another exchange is doing.
+ */
+const busyWallets = new Set<string>()
+let flowScanning = false
+let flowScanStartedAt = 0
+let lastFlowScanAt = 0
+
+/**
+ * How long a coin hunt may run before the engine says so out loud.
+ *
+ * One that never finishes would otherwise hold its own flag for ever and
+ * quietly stop the flow looking for coins, with every wallet still trading and
+ * the Workers screen still green. Silence is the part that is dangerous here,
+ * not the delay.
+ */
+const FLOW_SCAN_STUCK_MS = 2 * 60_000
+
+/** Tests share this module; state left behind decides the next test's answer. */
+export function resetLadderPassState(): void {
+  busyWallets.clear()
+  flowScanning = false
+  flowScanStartedAt = 0
+  lastFlowScanAt = 0
+}
+
+/**
+ * How often the flow looks for new coins to put a ladder on.
+ *
+ * **Deliberately slow, and slow for the rate limit rather than for tidiness.**
+ * One scan asks the exchange about twelve coins, and a coin's base needs its 4h
+ * candles: about 28 of the 1,200 request-weight Hyperliquid allows a minute,
+ * each. Twelve coins is roughly 340 weight for one scan. Left to run as fast as
+ * it can, that is several times the whole minute's budget spent on choosing
+ * coins, and a 429 refuses everything after it — prices, orders, positions.
+ * On 13–14 Aug 2026 exactly that took the app down for a day.
+ *
+ * It was never the urgent half of the job. A coin that gets its ladder half a
+ * minute later has lost nothing; it had no ladder at all a moment ago. Watching
+ * prices is the urgent half, and it now runs every second regardless of what
+ * this is doing, which is the whole point of separating them.
+ */
+const FLOW_SCAN_EVERY_MS = 30_000
+
+/**
+ * One wallet's turn: settle a practice one, reconcile a real one.
+ *
+ * **A wallet that throws is written down and stepped over.** A market that
+ * will not answer is a normal afternoon, not a reason for every other account
+ * to stop being worked. The engine's parts are handed in rather than imported,
+ * for the same reason the pass asks for them every time: this file's timer
+ * outlives every reload, and a normal import would pin it to the engine as it
+ * was at boot.
+ */
+async function workOneWallet(
+  userId: string,
+  wallet: TradeWallet,
+  engine: {
+    exposedMarketKeys: (
+      userId: string,
+      walletIds: readonly string[]
+    ) => Promise<string[]>
+    settleWallet: (
+      userId: string,
+      wallet: TradeWallet,
+      options?: { marks: ReadonlyMap<string, number> }
+    ) => Promise<unknown>
+    reconcileLiveLadders: (userId: string, wallet: TradeWallet) => Promise<void>
+    pushedMarks: (keys: readonly string[]) => {
+      marks: ReadonlyMap<string, number>
+      missing: string[]
+    }
+  }
+): Promise<boolean> {
+  try {
+    if (wallet.kind === "paper") {
+      // Settling IS the advance: it replays the candles since the last look
+      // and pushes every ladder on the wallet along.
+      //
+      // Prices come off the open line when it is healthy, so a pass costs no
+      // network call at all. When it is not, `pushedMarks` says which markets
+      // it is short of and settling asks for them the ordinary way.
+      const { marks, missing } = engine.pushedMarks(
+        await engine.exposedMarketKeys(userId, [wallet.id])
+      )
+      await engine.settleWallet(
+        userId,
+        wallet,
+        // Only when the line covers the LOT. A settle handed half the prices
+        // would read the other half as "no price", which means stand still —
+        // quietly worse than asking for them.
+        missing.length === 0 ? { marks } : undefined
+      )
+      return true
+    }
+    await engine.reconcileLiveLadders(userId, wallet)
+    return true
+  } catch (error) {
+    console.error(`Ladder pass failed for wallet ${wallet.id}`, error)
+    lastPass.error = error instanceof Error ? error.message : String(error)
+    return false
+  }
+}
+
 export async function advanceWorkingLadders(): Promise<void> {
   // A pass that overran is still doing this work. Starting a second one would
   // not make anything happen sooner; it would just double every query.
@@ -215,6 +331,8 @@ export async function advanceWorkingLadders(): Promise<void> {
   // await here hands control back to the loop, which fires again and finds the
   // flag still false. Everything that can wait belongs inside the try.
   working = true
+  /** What this pass set going. Awaited after the guard is let go, never inside it. */
+  const started: Promise<unknown>[] = []
   try {
     if (await yieldLockIfDue()) return
 
@@ -250,11 +368,39 @@ export async function advanceWorkingLadders(): Promise<void> {
     // Wrapped, because this decides which coins deserve a ladder and none of
     // that is worth stopping the engine over: a flow whose exchange will not
     // answer must not stop every wallet's stops and exits being worked.
-    try {
-      await advanceFlowRuns()
-    } catch (error) {
-      console.error("Flow pass failed", error)
-      lastPass.error = error instanceof Error ? error.message : String(error)
+    // **Set going, not waited for.** Deciding which of several hundred coins
+    // deserves a ladder means asking the exchange about each one, and that took
+    // about five seconds of every pass while every already-placed level waited
+    // behind it to be compared against a price. Looking for new coins is the
+    // patient half of this job and watching prices is the urgent half, so they
+    // no longer share a clock.
+    //
+    // What this costs: a ladder the flow places is worked by the NEXT pass
+    // rather than this one, so it starts watching its rungs a second late. A
+    // rung that has bought nothing yet loses nothing by that second.
+    if (
+      flowScanning &&
+      Date.now() - flowScanStartedAt >= FLOW_SCAN_STUCK_MS
+    ) {
+      lastPass.error = `The coin hunt has been running for ${Math.round(
+        (Date.now() - flowScanStartedAt) / 60_000
+      )} minutes and has not finished.`
+    }
+    if (!flowScanning && Date.now() - lastFlowScanAt >= FLOW_SCAN_EVERY_MS) {
+      flowScanning = true
+      flowScanStartedAt = Date.now()
+      lastFlowScanAt = Date.now()
+      started.push(
+        advanceFlowRuns()
+          .catch((error) => {
+            console.error("Flow pass failed", error)
+            lastPass.error =
+              error instanceof Error ? error.message : String(error)
+          })
+          .finally(() => {
+            flowScanning = false
+          })
+      )
     }
 
     const work = await walletsWithWork()
@@ -263,33 +409,63 @@ export async function advanceWorkingLadders(): Promise<void> {
       work.length === 0
         ? "Nothing to work"
         : `Working ${work.length} ${work.length === 1 ? "wallet" : "wallets"}`
-    lastPass.error = null
 
+    // **Every wallet on its own clock, not in a queue.**
+    //
+    // They were worked one after another, and a queue is only as quick as its
+    // slowest member. On 22 Aug 2026 the slowest was a KuCoin wallet carrying
+    // 454 markets: KuCoin prices one market at a time, six at a time, so a
+    // full round takes about fourteen seconds and the two-second price cache
+    // has expired before the round finishes. Every level on every OTHER wallet
+    // waited behind that to be compared against a price, so a Hyperliquid
+    // wallet whose own price read takes 0.3 seconds was still only looked at
+    // every fourteen. A grid level was crossed and missed inside one such
+    // window while CHIP fell 22% in ninety seconds.
+    //
+    // Nothing is shared between wallets, which is what makes this safe. Each
+    // reads its own account, its own orders and its own prices from its own
+    // exchange, and `serializeLiveWallet` already keeps one wallet's own work
+    // in order. Two wallets on the SAME exchange now ask it at the same moment
+    // rather than in turn, and that is the one thing to watch if a second
+    // wallet is ever added on a venue that already has one.
     for (const { userId, wallet } of work) {
-      // One wallet's failure must not take the rest of the pass with it — a
-      // market that will not answer is a normal afternoon, not a reason for
-      // every other account to stop being worked.
-      try {
-        if (wallet.kind === "paper") {
-          // Settling IS the advance: it replays the candles since the last look
-          // and pushes every ladder on the wallet along.
-          //
-          // Prices come off the open line when it is healthy, so a pass costs
-          // no network call at all. When it is not, `pushedMarks` says so and
-          // settling asks for them the ordinary way.
-          const marks = pushedMarks(await exposedMarketKeys(userId, [wallet.id]))
-          await settleWallet(userId, wallet, marks ? { marks } : undefined)
-        } else {
-          await reconcileLiveLadders(userId, wallet)
-        }
-      } catch (error) {
-        console.error(`Ladder pass failed for wallet ${wallet.id}`, error)
-        lastPass.error = error instanceof Error ? error.message : String(error)
-      }
+      // Still working from an earlier pass, so this one steps over it. Waiting
+      // is what put every wallet on the slowest one's clock.
+      if (busyWallets.has(wallet.id)) continue
+      busyWallets.add(wallet.id)
+      started.push(
+        workOneWallet(userId, wallet, {
+          exposedMarketKeys,
+          settleWallet,
+          reconcileLiveLadders,
+          pushedMarks,
+        })
+          .then((worked) => {
+            // **Cleared by a wallet that worked, never by the clock.** This
+            // used to be wiped at the top of every pass, which was harmless
+            // while a pass took half a minute. With a pass every second, a
+            // wallet failing every time showed its error for under a second
+            // before the next pass wiped it, and the Workers screen called the
+            // engine healthy while a wallet was dead. It has done that before,
+            // for twenty minutes, on 20 Aug 2026.
+            if (worked) lastPass.error = null
+          })
+          .finally(() => {
+            busyWallets.delete(wallet.id)
+          })
+      )
     }
   } finally {
+    // Let go BEFORE waiting on any of it. Holding the flag until the slowest
+    // wallet finished is exactly what made every other wallet wait for it. All
+    // this flag protects now is the short stretch above: the lock check, the
+    // two switches and the wallet list.
     working = false
   }
+  // Still awaited, so a caller that wants the pass finished gets one. The
+  // engine's own loop does not wait; it fires again in a second and steps over
+  // whatever is still going.
+  await Promise.all(started)
 }
 
 /** What a failed pass is logged under, so the line says which job it was. */

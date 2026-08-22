@@ -9,7 +9,11 @@ import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatDateTime } from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
+import {
+  gridRoundTrips,
+  type LiveFill,
+  type LiveTrade,
+} from "@/lib/trade/live-trades"
 import type { PaperPosition } from "@/lib/trade/paper"
 import { moneyTone } from "@/lib/trade/money-tone"
 import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
@@ -439,6 +443,14 @@ type Sale = {
  * What the venue would not state is left NULL rather than counted as zero.
  * Zero is a real answer, meaning the sale broke even, and printing it for a
  * sale that made money is the kind of wrong that gets believed.
+ *
+ * **A grid's sale is worth what its own level made.** The venue books every
+ * partial sell against the position average, and while a grid is working that
+ * average is held up by the expensive levels still holding, so a level that
+ * did its job reads as a loss. The panel said "$1.15 banked" on a CHIP level
+ * that put $4.28 in the account. `gridRoundTrips` has the arithmetic. It also
+ * answers where KuCoin says nothing at all, because it is worked out from the
+ * fills rather than asked for.
  */
 export function bankedBy(
   order: SmartOrder,
@@ -456,18 +468,24 @@ export function bankedBy(
     marketKey === order.marketKey &&
     at >= order.createdAt
 
+  // Over every fill, not only this order's: a level's round trip is paid out
+  // of the buy that level made, and that buy has to still be in the list for
+  // the sale to be worth anything.
+  const levels = gridRoundTrips(fills)
+
   const sales: Sale[] = []
   for (const fill of fills) {
     if (!mine(fill.walletId, fill.marketKey, fill.at)) continue
+    const level = levels.get(fill.fillId)
     // A stated profit, or a sell out of a long-only order. The first also
     // catches a short being bought back, which the second cannot see.
     const stated = fill.closedPnl !== 0
-    if (!stated && fill.side !== "sell") continue
+    if (!level && !stated && fill.side !== "sell") continue
     sales.push({
       fillId: fill.fillId,
       at: fill.at,
       px: fill.px,
-      money: stated ? fill.closedPnl - fill.fee : null,
+      money: level ? level.money : stated ? fill.closedPnl - fill.fee : null,
     })
   }
   for (const trade of trades) {

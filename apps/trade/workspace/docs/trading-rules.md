@@ -12,6 +12,32 @@ mechanism docs — `watched-orders.md`, `backtest-minute-zoom.md` and
 `wallet-reads.md` — say how the machinery works; this file says what it must
 add up to.
 
+## Exchange connections
+
+- **For prices and orders, use the exchange's direct socket instead of
+  polling.** Prices, positions, open orders, order changes and fills arrive as
+  pushed events. Trade may ask once when a feed starts, and ask again to recover
+  messages missed during a disconnect, but it never keeps asking the exchange
+  on a timer as its normal live path.
+- Tyler, 22 Aug 2026: **"We do not poll unless it's absolutely necessary. We
+  use websocket, multiples of them, to stream prices if it's available."** One
+  socket not being enough is not a reason to fall back to asking. It is a
+  reason to open another socket. An exchange that caps how many markets one
+  connection carries gets as many connections as its markets need, and asking
+  is what is left for the markets no feed can answer for — not for the markets
+  we could not be bothered to open a line for.
+  KuCoin is the case that produced the rule: it publishes no all-markets feed
+  and one connection dies outright past about a hundred markets, so a wallet on
+  454 markets was asking 454 questions, one at a time, every round. It now gets
+  six sockets and asks about 64.
+- **Order commands are still requests.** Placing, moving and cancelling an
+  order use the exchange's authenticated order command. The socket reports what
+  happened after the command; it does not replace the command itself.
+- **No socket means no live trading.** A protocol may expose historical data or
+  a manually refreshed snapshot while it is being built, but it is not ready
+  for live prices or live orders until both pushed feeds work and recover cleanly
+  after a reconnect. This applies to every current and future protocol.
+
 ## Orders
 
 - **Nothing is ever bought or sold at market.** Every order waits at its price.

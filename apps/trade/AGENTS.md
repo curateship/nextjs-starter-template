@@ -6,8 +6,8 @@ app's own docs in `workspace/docs/`, and it holds nothing that is not a pointer.
 
 Three rules never wait for a file to be opened:
 
-- **Write the way `.agents/skills/unslop/SKILL.md` says**, in every reply and
-  every doc.
+- **Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
+  session, and check your draft against it before sending.
 - **Document what you built in `workspace/docs/`** in the same turn as the code,
   and add its line to `workspace/docs/README.md`.
 - **Never edit a shell-origin file.** The app's own files, `src/app/`, its

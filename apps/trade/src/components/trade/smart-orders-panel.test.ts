@@ -96,3 +96,61 @@ describe("bankedBy", () => {
     expect(banked.sells).toHaveLength(0)
   })
 })
+
+/**
+ * What the panel says a grid has banked.
+ *
+ * The real CHIP grid on 22 Aug 2026. Five levels held, the cheapest one sold,
+ * and the panel read "-$1.15 banked" on a level that put $4.28 in the account,
+ * because the venue books every partial sell against the position average and
+ * the four expensive levels still holding were holding that average up.
+ */
+describe("bankedBy on a grid", () => {
+  const grid = {
+    walletId: "w1",
+    marketKey: "hyperliquid:mainnet:CHIP",
+    createdAt: PLACED_AT,
+  } as SmartOrder
+
+  const chip = (over: Partial<LiveFill>): LiveFill =>
+    fill({
+      marketKey: "hyperliquid:mainnet:CHIP",
+      dir: "Open Long",
+      grid: true,
+      ...over,
+    })
+
+  const buys = [
+    chip({ fillId: "b1", side: "buy", px: 0.034614, sz: 1403, fee: 0.021853, at: PLACED_AT + 1 }),
+    chip({ fillId: "b2", side: "buy", px: 0.03333, sz: 1470, fee: 0.022047, at: PLACED_AT + 2 }),
+    chip({ fillId: "b3", side: "buy", px: 0.030929, sz: 1543, fee: 0.021475, at: PLACED_AT + 3 }),
+    chip({ fillId: "b4", side: "buy", px: 0.028927, sz: 1624, fee: 0.021139, at: PLACED_AT + 4 }),
+    chip({ fillId: "b5", side: "buy", px: 0.027746, sz: 1713, fee: 0.021388, at: PLACED_AT + 5 }),
+  ]
+  const sell = chip({
+    fillId: "s1",
+    side: "sell",
+    px: 0.030268,
+    sz: 1713,
+    fee: 0.023332,
+    closedPnl: -1.13058,
+    dir: "Close Long",
+    at: PLACED_AT + 6,
+  })
+
+  it("pays the level that sold, not the position average", () => {
+    const banked = bankedBy(grid, [...buys, sell], [])
+    expect(banked.sells).toHaveLength(1)
+    expect(banked.total).toBeCloseTo(4.2755, 3)
+    expect(banked.unpriced).toBe(0)
+  })
+
+  it("keeps the venue's figure when the fills are not a grid's", () => {
+    const banked = bankedBy(
+      grid,
+      [...buys, sell].map((one) => ({ ...one, grid: false })),
+      []
+    )
+    expect(banked.total).toBeCloseTo(-1.15391, 4)
+  })
+})

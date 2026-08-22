@@ -21,6 +21,41 @@ sweep), `src/server/protocols/hyperliquid/account.ts` (one wallet's figures),
 `src/components/trade/use-trade-account.ts` (the poll) and
 `src/components/trade/account-panel.tsx` (the cards).
 
+**This mechanism is not yet compliant with the exchange-connection rule.** A
+screen may poll Trade's own server to repaint, but that server must answer from
+state maintained by the exchange's account socket. It may not turn each screen
+poll into another exchange request. Hyperliquid is there for prices, positions,
+resting orders and fills. Phemex and KuCoin still ask for positions, resting
+orders and fills on every pass.
+
+## What each exchange's private line offers
+
+Tested against the live exchanges on 22 August 2026, with this app's own keys.
+Both work. Neither is built yet, and the two need different handling.
+
+**Phemex is the straightforward one.** Sign in on the socket with `user.auth`,
+then `aop_p.subscribe`, and it answers immediately with a full snapshot:
+balances, every resting order and every position, in one message marked
+`type=snapshot`. Changes follow as `type=incremental`. One subscription covers
+all three things, and each row carries the whole object rather than a
+difference, so nothing has to be added up and nothing can drift. An order row
+also carries its own fill — `execID`, `execQty`, `execPriceRp`, `closedPnlRv` —
+so fills come off the same line.
+
+**KuCoin needs one read at the start.** A signed POST to
+`/api/v1/bullet-private` grants a ticket, and the socket then accepts
+`/contract/positionAll`, `/contractAccount/wallet` and
+`/contractMarket/tradeOrders`. All three were acknowledged. The catch is that
+they carry changes only: subscribing tells you nothing about what you already
+hold. So the app has to ask once when the line opens, and again after every
+reconnect, and apply changes in between. That is the "ask once when a feed
+starts, and again to recover a disconnect" the rule allows, and it is not
+optional here.
+
+Both feeds must fall back to asking whenever they cannot vouch for an answer,
+the way `hyperliquid/user-fills-feed.ts` does. A feed that guesses is worse
+than the asking it replaced.
+
 ## Only wallets that are switched on are asked
 
 Every wallet has a status: **active** or **inactive**. The sweep reads the

@@ -21,6 +21,16 @@ import {
 } from "@/lib/protocols/hyperliquid/translate"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 import {
+  fillSchema,
+  readHyperliquidFill,
+} from "@/server/protocols/hyperliquid/fill"
+import {
+  dropIdleUserFillFeeds,
+  fillsFeedCovered,
+  fillsFeedGaps,
+  fillsFromFeed,
+} from "@/server/protocols/hyperliquid/user-fills-feed"
+import {
   dropIdleWalletFeeds,
   marketsWalletHasMoneyOn,
   marketsWalletUses,
@@ -709,58 +719,53 @@ const openOrdersSchema = z.array(
 )
 
 /**
- * A fill as the exchange reports it.
+ * This wallet's fills since a moment, off the open line where it can answer.
  *
- * `closedPnl`, `fee` and `dir` are the exchange's own accounting and are read
- * rather than worked out: the Journal's money column has to agree with the
- * account, and a subtraction of our own would not. They are optional here
- * because the testnet has been known to leave one out, and a missing figure
- * must not throw away the fill it belongs to — `num` turning it into null is
- * what the zeroes below are for.
+ * **The line first, always.** Fills are pushed down a socket for nothing, and
+ * asking costs 20 of the 1,200 request-weight a minute this exchange allows.
+ * The engine looks every second, so asking every look is the entire budget for
+ * one wallet, spent on the one question that decides no trade. Tyler's rule in
+ * `trading-rules.md`: "We do not poll unless it's absolutely necessary."
+ *
+ * **Asking is what covers the holes, not the normal path.** `fillsFromFeed`
+ * answers null for a stretch of time it cannot vouch for — before it was
+ * listening, or across a reconnect — and only then is the exchange asked. The
+ * answer is handed back to the feed so the same hole is never asked about
+ * twice. That is exactly the "ask once when a feed starts, and again to
+ * recover a disconnect" the rule allows.
  */
-const fillSchema = z.object({
-  coin: z.string(),
-  px: z.string(),
-  sz: z.string(),
-  side: z.enum(["B", "A"]),
-  time: z.number(),
-  oid: z.number(),
-  tid: z.union([z.number(), z.string()]),
-  closedPnl: z.string().optional(),
-  fee: z.string().optional(),
-  dir: z.string().optional(),
-  liquidation: z.unknown().optional(),
-})
-
 export async function fetchHyperliquidOrderFills(
   network: NetworkId,
   address: string,
   since: number
 ): Promise<WalletOrderFill[]> {
+  const pushed = fillsFromFeed(network, address, since)
+  if (pushed) {
+    dropIdleUserFillFeeds()
+    return pushed
+  }
+
+  // Taken BEFORE the read goes out. If another hole opens while this is in
+  // flight, the answer cannot have covered it, and the count is how the feed
+  // knows to keep that hole open.
+  const gapsWhenAsked = fillsFeedGaps(network, address)
   const rows = await infoClient(network).userFillsByTime({
     user: address.toLowerCase() as `0x${string}`,
     startTime: Math.max(0, since),
   })
-  return z.array(fillSchema).parse(rows).map((row) => {
-    const px = num(row.px)
-    const sz = num(row.sz)
-    if (px === null || sz === null) throw new Error("LIVE_UNREADABLE")
-    return {
-      fillId: String(row.tid),
-      orderId: String(row.oid),
-      marketId: row.coin,
-      side: row.side === "B" ? ("buy" as const) : ("sell" as const),
-      px,
-      sz,
-      at: row.time,
-      closedPnl: num(row.closedPnl ?? "0") ?? 0,
-      fee: num(row.fee ?? "0") ?? 0,
-      dir: row.dir ?? "",
-      // The exchange sends an object here when it closed the position itself
-      // and nothing at all when it did not, so its presence is the answer.
-      liquidation: row.liquidation !== undefined && row.liquidation !== null,
-    }
+  const fills = z.array(fillSchema).parse(rows).map((row) => {
+    const fill = readHyperliquidFill(row)
+    // The row parsed a moment ago, so a null here is a price or size that is
+    // not a number, and an answer with a hole in it is worse than no answer.
+    if (!fill) throw new Error("LIVE_UNREADABLE")
+    return fill
   })
+  // Told AFTER the read succeeded, never before: a read that threw has covered
+  // nothing, and a feed that believed otherwise would leave the hole unasked
+  // about for good.
+  fillsFeedCovered(network, address, since, fills, gapsWhenAsked)
+  dropIdleUserFillFeeds()
+  return fills
 }
 
 /**

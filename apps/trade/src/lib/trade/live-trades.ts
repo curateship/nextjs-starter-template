@@ -57,6 +57,16 @@ export type LiveFill = {
   ending?: LiveTradeEnding | null
   /** A real fill rather than a practice one, for the badge on the row. */
   live?: boolean
+  /**
+   * A grid level bought or sold this, rather than a ladder or a hand.
+   *
+   * It is what decides whether a sell is worth the money the EXCHANGE says it
+   * made, or the money its own level made. See `gridRoundTrips`. Stamped where
+   * the fills are read, because only the server knows which market had a grid
+   * on it at that moment; a fill with nothing on it is treated as a ladder's,
+   * which is what every fill was before grids existed.
+   */
+  grid?: boolean
 }
 
 /** What ended a trade. */
@@ -289,6 +299,95 @@ export type LiveFillMark = {
   detail: string | null
 }
 
+/** What one grid level's own round trip came to, and what it paid going in. */
+export type GridRoundTrip = { money: number; buyPx: number }
+
+/**
+ * What each grid sell made on its OWN buy, rather than on the position average.
+ *
+ * **Why the exchange's figure is the wrong one for a grid.** A venue holds one
+ * position per coin with one average cost, and it books every partial sell
+ * against that average. A grid does not work that way: each level buys its own
+ * coins and sells those same coins one step up, and the levels still holding
+ * are the expensive ones, so they drag the average up above what the selling
+ * level paid. The venue then reports a level that did exactly its job as a
+ * loss. Seen on CHIP on 22 Aug 2026: a level bought 1,713 at 0.027746 and sold
+ * them at 0.030268, which is $4.28 in the hand, and the chart said it lost
+ * $1.15 because the average of all five levels was 0.030928.
+ *
+ * **Nothing is invented and nothing is double counted.** The venue put the
+ * other $5.45 into the coins still held, by leaving them carried at the old
+ * average instead of the higher one they would have alone. Once the last level
+ * sells, both ways of counting land on the same total, which is why the row in
+ * the Journal is left alone: it is the whole trade, and the whole trade is the
+ * same number either way. Only the money written on one arrow changes.
+ *
+ * **Last in, first out, because that is the order a grid really sells in.**
+ * The lowest level holding is always the one bought most recently, since price
+ * fell through the levels on its way down, and the lowest level is also the
+ * first to reach its sell. So popping the newest lot is not an accounting
+ * convention here. It is the level that actually sold.
+ *
+ * A ladder is deliberately left out. Its exits take a share off one blended
+ * position, so the average IS its story and last-in-first-out would tell a
+ * different one. Only fills stamped `grid` get an answer.
+ *
+ * A sell the lots cannot cover belongs to a position older than the fills on
+ * hand, so it gets no answer at all and keeps the venue's figure. Half an
+ * answer would be worse than the one it replaced.
+ */
+export function gridRoundTrips(
+  fills: readonly LiveFill[]
+): Map<string, GridRoundTrip> {
+  const out = new Map<string, GridRoundTrip>()
+  const stacks = new Map<string, { px: number; sz: number; fee: number }[]>()
+  const ordered = [...fills].sort(
+    (left, right) =>
+      left.at - right.at || left.fillId.localeCompare(right.fillId)
+  )
+
+  for (const fill of ordered) {
+    // Per wallet as well as per market. Two wallets can hold the same coin,
+    // and one's buy has never paid for the other's sell.
+    const key = `${fill.walletId} ${fill.marketKey}`
+    let stack = stacks.get(key)
+    if (!stack) {
+      stack = []
+      stacks.set(key, stack)
+    }
+
+    if (fill.side === "buy") {
+      stack.push({ px: fill.px, sz: fill.sz, fee: fill.fee })
+      continue
+    }
+
+    // The fee on the way in counts, the same as it does on a finished trade's
+    // row. A round trip that ignored it would read a penny high on every
+    // level, and a penny of daylight is a reason to trust neither figure.
+    let left = fill.sz
+    let money = -fill.fee
+    let cost = 0
+    let matched = 0
+    while (left > DUST && stack.length > 0) {
+      const lot = stack[stack.length - 1]
+      const part = Math.min(left, lot.sz)
+      const share = lot.sz > 0 ? part / lot.sz : 0
+      money += part * (fill.px - lot.px) - lot.fee * share
+      cost += part * lot.px
+      lot.fee -= lot.fee * share
+      lot.sz -= part
+      if (lot.sz <= DUST) stack.pop()
+      left -= part
+      matched += part
+    }
+
+    if (!fill.grid || left > DUST || matched <= DUST) continue
+    out.set(fill.fillId, { money, buyPx: cost / matched })
+  }
+
+  return out
+}
+
 /**
  * A trade's fills as arrows, with their words already worked out.
  *
@@ -313,6 +412,7 @@ export type LiveFillMark = {
 export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
   const grouped = groupFills(trade.fills)
   const last = grouped[grouped.length - 1]
+  const levels = gridRoundTrips(grouped)
   return grouped.map((fill) => {
     const opening =
       trade.direction === "long" ? fill.side === "buy" : fill.side === "sell"
@@ -321,8 +421,15 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
     // else and the two disagree by the entry fee, and a penny of daylight
     // between the row and the chart is a reason to trust neither. An earlier
     // part-close still speaks only for itself, which is all it can say.
+    //
+    // A grid level's part-close says what THAT LEVEL made, on its own buy.
+    // The last arrow is still the whole trade: the two ways of counting agree
+    // once the position is flat, so the total is the total either way.
+    const level = fill === last ? undefined : levels.get(fill.fillId)
     const money =
-      !opening && fill === last ? trade.pnl : fill.closedPnl - fill.fee
+      !opening && fill === last
+        ? trade.pnl
+        : (level?.money ?? fill.closedPnl - fill.fee)
     const label = opening
       ? `${fill.side === "buy" ? "Bought" : "Sold short"} ${price$(fill.px)}`
       : `${fill.side === "buy" ? "Bought back" : "Sold"} ${price$(fill.px)} · ${
@@ -332,7 +439,9 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
       ? `${money$(fill.px * fill.sz)} in`
       : fill === last
         ? tradeEndingLabel(trade)
-        : `Part closed · ${money$(fill.px * fill.sz)}`
+        : level
+          ? `Level bought ${price$(level.buyPx)} · ${money$(fill.px * fill.sz)} out`
+          : `Part closed · ${money$(fill.px * fill.sz)}`
     return {
       at: fill.at,
       px: fill.px,
@@ -351,22 +460,33 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
  * a closing fill can say is what that sell itself banked, and it must: a grid
  * recycles a level a dozen times without the position ever going flat, so its
  * round trip never finishes and every one of those sells was reading "Sold
- * $59.97, size 6.89" with no money on it at all. The figure is the exchange's
- * own `closedPnl`, less the fee it charged on that fill — the same arithmetic
- * a finished trade's row uses, applied to one sell instead of all of them.
+ * $59.97, size 6.89" with no money on it at all.
+ *
+ * **A grid sell is worth what its own level made**, not what the exchange
+ * books it at. This is where that matters most, because a running grid is
+ * nothing but part-closes: while it is working, the levels still holding are
+ * the expensive ones, so the position average sits above the price the selling
+ * level paid and every winning sell reads as a loss. `gridRoundTrips` has the
+ * arithmetic and the CHIP case it was found on. Anything else — a ladder's
+ * part-close, a hand-sold slice — keeps the exchange's own `closedPnl` less
+ * the fee on that fill, because a share of one blended position is exactly
+ * what those are.
  *
  * A fill that opened or added carries no money and says so by leaving it out,
  * rather than printing a zero that reads as "made nothing".
  */
 export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
-  return groupFills(
+  const grouped = groupFills(
     [...fills].sort(
       (left, right) =>
         left.at - right.at || left.fillId.localeCompare(right.fillId)
     )
-  ).map((fill) => {
-    const money = fill.closedPnl - fill.fee
-    const closed = fill.closedPnl !== 0
+  )
+  const levels = gridRoundTrips(grouped)
+  return grouped.map((fill) => {
+    const level = levels.get(fill.fillId)
+    const money = level?.money ?? fill.closedPnl - fill.fee
+    const closed = level !== undefined || fill.closedPnl !== 0
     return {
       at: fill.at,
       px: fill.px,
@@ -378,10 +498,14 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
           } ${money$(Math.abs(money))}`
         : `${fill.side === "buy" ? "Bought" : "Sold"} ${price$(fill.px)}`,
       // Said out loud, because the trade behind it is still open: this is what
-      // one sell banked, not what the position has made.
-      detail: closed
-        ? `Part closed · ${money$(fill.px * fill.sz)} · still holding the rest`
-        : `${money$(fill.px * fill.sz)} in`,
+      // one sell banked, not what the position has made. A grid level says
+      // what it paid too, since the whole figure rests on that price and it is
+      // not the grid line the arrow sits under.
+      detail: level
+        ? `Level bought ${price$(level.buyPx)} · still holding the rest`
+        : closed
+          ? `Part closed · ${money$(fill.px * fill.sz)} · still holding the rest`
+          : `${money$(fill.px * fill.sz)} in`,
     }
   })
 }
