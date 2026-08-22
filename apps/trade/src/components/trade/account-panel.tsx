@@ -6,6 +6,7 @@ import {
   InfoIcon,
   LayersIcon,
   PlusIcon,
+  SettingsIcon,
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
@@ -117,12 +118,14 @@ function ActiveWalletRow({
   summary,
   selected,
   onSelect,
+  onOpenWallet,
   onRetry,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
   selected: boolean
   onSelect: () => void
+  onOpenWallet: () => void
   onRetry: () => void
 }) {
   const [open, setOpen] = React.useState(false)
@@ -273,6 +276,17 @@ function ActiveWalletRow({
               </Button>
             </div>
           )}
+          <div className="flex justify-center border-t pt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="link"
+              onClick={onOpenWallet}
+            >
+              <SettingsIcon className="size-4" />
+              Edit wallet
+            </Button>
+          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -369,12 +383,14 @@ export function ActiveWalletsView({
   summaryOf,
   activeWalletId,
   onUseWallet,
+  onOpenWallet,
   onRetry,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
   activeWalletId: string | null
   onUseWallet: (walletId: string) => void
+  onOpenWallet: (wallet: TradeWallet) => void
   onRetry: () => void
 }) {
   return (
@@ -386,6 +402,7 @@ export function ActiveWalletsView({
           summary={summaryOf(wallet.id)}
           selected={wallet.id === activeWalletId}
           onSelect={() => onUseWallet(wallet.id)}
+          onOpenWallet={() => onOpenWallet(wallet)}
           onRetry={onRetry}
         />
       ))}
@@ -560,6 +577,7 @@ export function AccountPanel({
               summaryOf={summaryOf}
               activeWalletId={activeWallet?.id ?? null}
               onUseWallet={account.switchWallet}
+              onOpenWallet={onOpenWallet}
               onRetry={() => void refresh()}
             />
           ) : (

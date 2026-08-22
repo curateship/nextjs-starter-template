@@ -208,6 +208,12 @@ async function loadHyperliquidMarkets(
     protocolLabel: "Hyperliquid",
     network,
     networkLabel: network === "mainnet" ? "Mainnet" : "Testnet",
+    picker: {
+      categories: "full",
+      hip3: true,
+      funding: true,
+      openInterest: true,
+    },
     rows: dexs.flatMap((dex, index) => {
       const meta = metas[index]
       const ctxs = ctxsByDex.get(dex?.name ?? "")

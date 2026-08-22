@@ -50,6 +50,12 @@ describe("the market volume cutoff", () => {
       protocolLabel: "Hyperliquid",
       network: "mainnet" as const,
       networkLabel: "Mainnet",
+      picker: {
+        categories: "full" as const,
+        hip3: true,
+        funding: true,
+        openInterest: true,
+      },
       rows,
     }
 

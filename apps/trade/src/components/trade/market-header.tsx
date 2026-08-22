@@ -17,7 +17,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type MarketPickerCapabilities,
+  type MarketRow,
+} from "@/lib/protocols/contracts"
 import { focusRingInset } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -36,6 +40,7 @@ export type MarketSelection =
       row: MarketRow
       protocolLabel: string
       networkLabel: string
+      picker: MarketPickerCapabilities
     }
   | { kind: "volume-hidden"; marketId: string }
   | { kind: "missing"; marketId: string }
@@ -169,8 +174,10 @@ export function MarketHeader({
             />
             <span className="min-w-0">
               <MarketPicker
+                key={parseMarketKey(selection.row.key)?.protocol}
                 rows={markets}
                 selected={selection.row}
+                capabilities={selection.picker}
                 favorites={favorites}
                 onToggleFavorite={onToggleFavorite}
                 onSelect={onSelectMarket}
@@ -231,6 +238,8 @@ function MarketInfo({
         <span>
           Price tick: {selection.row.priceTick ?? "Exchange rounding rule"}
         </span>
+        <span>List price: mark price</span>
+        <span>Chart bars: traded prices</span>
         <span>Top leverage: {leverage}</span>
       </TooltipContent>
     </Tooltip>

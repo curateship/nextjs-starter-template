@@ -189,6 +189,12 @@ export async function fetchKucoinMarkets(
     // Mainnet is the only network this folder serves; the client refuses any
     // other before a request is built.
     networkLabel: "Mainnet",
+    picker: {
+      categories: "crypto-only",
+      hip3: false,
+      funding: true,
+      openInterest: true,
+    },
     rows,
   }
 }

@@ -51,10 +51,43 @@ describe("trading overview money", () => {
         accountType: "Practice",
         protocol: "KuCoin",
         market: "SOLUSDTM",
+        value: 220,
         profit: 20,
         profitShare: 0.5,
       }),
     ])
+  })
+
+  it("leaves current value unavailable when the market has no price", () => {
+    const position = {
+      id: "position-1",
+      walletId: "paper-1",
+      marketKey: "kucoin:mainnet:SOLUSDTM",
+      szi: 2,
+      entryPx: 100,
+      leverage: 5,
+      maxLeverage: 5,
+      tpPx: null,
+      slPx: null,
+      feesPaid: 1,
+      updatedAt: 500,
+    }
+    const wallet = {
+      id: "paper-1",
+      label: "Practice KuCoin",
+      kind: "paper" as const,
+      status: "active" as const,
+      protocol: "kucoin" as const,
+      network: "mainnet" as const,
+      startingBalance: 1_000,
+      address: null,
+      hasKey: false,
+      keyValidUntil: null,
+    }
+
+    expect(
+      buildTradingOverviewActiveTrades([position], [wallet], new Map())[0]
+    ).toEqual(expect.objectContaining({ value: null, profit: null }))
   })
 
   it("uses live mainnet wallets and excludes every kind of practice money", () => {

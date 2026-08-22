@@ -113,6 +113,7 @@ function resolveSelection(
         row,
         protocolLabel: catalog.protocolLabel,
         networkLabel: catalog.networkLabel,
+        picker: catalog.picker,
       }
     }
   }

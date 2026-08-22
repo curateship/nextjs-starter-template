@@ -8,6 +8,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -17,7 +18,17 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { MarketCategory, MarketRow } from "@/lib/protocols/contracts"
+import type {
+  MarketCategory,
+  MarketPickerCapabilities,
+  MarketRow,
+} from "@/lib/protocols/contracts"
+import {
+  marketPickerSortKeys,
+  marketPickerViews,
+  type MarketPickerSortKey,
+  type MarketPickerView,
+} from "@/lib/trade/market-picker-options"
 import {
   formatChange,
   formatCompactUsd,
@@ -28,24 +39,18 @@ import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
-type PickerView =
-  "favorites" | "all" | "crypto" | "tradfi" | "hip3" | "trending"
-
-type PickerSortKey =
-  "market" | "price" | "change" | "funding" | "volume" | "openInterest"
-
 type TradFiCategory =
   | "all"
   | Extract<MarketCategory, "stocks" | "indices" | "commodities" | "forex">
 
-const PICKER_VIEWS: Array<{ value: PickerView; label: string }> = [
-  { value: "favorites", label: "Favorites" },
-  { value: "all", label: "All" },
-  { value: "crypto", label: "Crypto" },
-  { value: "tradfi", label: "TradFi" },
-  { value: "hip3", label: "HIP-3" },
-  { value: "trending", label: "Trending" },
-]
+const PICKER_VIEW_LABELS: Record<MarketPickerView, string> = {
+  favorites: "Favorites",
+  all: "All",
+  crypto: "Crypto",
+  tradfi: "TradFi",
+  hip3: "HIP-3",
+  trending: "Trending",
+}
 
 const TRADFI_CATEGORIES: Array<{
   value: TradFiCategory
@@ -73,12 +78,14 @@ const TRADFI_CATEGORY_SET = new Set<MarketCategory>([
 export function MarketPicker({
   rows,
   selected,
+  capabilities,
   favorites,
   onToggleFavorite,
   onSelect,
 }: {
   rows: MarketRow[]
   selected: MarketRow
+  capabilities: MarketPickerCapabilities
   favorites: ReadonlySet<string>
   onToggleFavorite: (key: string) => void
   onSelect: (key: string) => void
@@ -117,12 +124,28 @@ export function MarketPicker({
   React.useEffect(() => clearHover, [])
   const [borderColor, setBorderColor] = React.useState<string>()
   const [query, setQuery] = React.useState("")
-  const [view, setView] = React.useState<PickerView>("all")
+  const [view, setView] = React.useState<MarketPickerView>("all")
   const [category, setCategory] = React.useState<TradFiCategory>("all")
   const [sort, setSort] = React.useState<{
-    key: PickerSortKey
+    key: MarketPickerSortKey
     dir: "asc" | "desc"
   }>({ key: "volume", dir: "desc" })
+  const pickerViews = React.useMemo(
+    () => marketPickerViews(capabilities, rows),
+    [capabilities, rows]
+  )
+  const sortKeys = React.useMemo(
+    () => marketPickerSortKeys(capabilities),
+    [capabilities]
+  )
+  const activeView = pickerViews.includes(view) ? view : "all"
+  const activeSort = React.useMemo(
+    () =>
+      sortKeys.includes(sort.key)
+        ? sort
+        : ({ key: "volume", dir: "desc" } as const),
+    [sort, sortKeys]
+  )
 
   const visible = React.useMemo(() => {
     const trimmed = query.trim().toUpperCase()
@@ -136,36 +159,39 @@ export function MarketPicker({
           displaySymbol(row.symbol).toUpperCase().includes(trimmed))
     )
 
-    if (view === "favorites") {
+    if (activeView === "favorites") {
       list = list.filter((row) => favorites.has(row.key))
-    } else if (view === "crypto") {
+    } else if (activeView === "crypto") {
       list = list.filter((row) => row.category === "crypto")
-    } else if (view === "tradfi") {
+    } else if (activeView === "tradfi") {
       list = list.filter((row) => TRADFI_CATEGORY_SET.has(row.category))
       if (category !== "all") {
         list = list.filter((row) => row.category === category)
       }
-    } else if (view === "hip3") {
+    } else if (activeView === "hip3") {
       list = list.filter((row) => row.subExchange !== null)
-    } else if (view === "trending") {
+    } else if (activeView === "trending") {
       list = [...list]
         .sort((a, b) => b.volume24hUsd - a.volume24hUsd)
         .slice(0, 50)
     }
 
-    const direction = sort.dir === "asc" ? 1 : -1
+    const direction = activeSort.dir === "asc" ? 1 : -1
     return [...list].sort((a, b) => {
-      if (sort.key === "market") {
+      if (activeSort.key === "market") {
         return (
           displaySymbol(a.symbol).localeCompare(displaySymbol(b.symbol)) *
           direction
         )
       }
-      return (sortValue(a, sort.key) - sortValue(b, sort.key)) * direction
+      return (
+        (sortValue(a, activeSort.key) - sortValue(b, activeSort.key)) *
+        direction
+      )
     })
-  }, [category, favorites, query, rows, selected.key, sort, view])
+  }, [activeSort, activeView, category, favorites, query, rows, selected.key])
 
-  const toggleSort = (key: PickerSortKey) =>
+  const toggleSort = (key: MarketPickerSortKey) =>
     setSort((current) =>
       current.key === key
         ? { key, dir: current.dir === "desc" ? "asc" : "desc" }
@@ -245,43 +271,41 @@ export function MarketPicker({
               value={query}
               placeholder="Search markets"
               aria-label="Search markets"
-              className="h-10 rounded-lg bg-muted pl-9 shadow-none"
+              className="rounded-lg bg-muted pl-9 shadow-none"
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <div className="flex flex-wrap gap-x-5 gap-y-1" role="tablist">
-            {PICKER_VIEWS.map((item) => (
-              <PickerTab
-                key={item.value}
-                active={view === item.value}
-                onClick={() => {
-                  setView(item.value)
-                  setCategory("all")
-                }}
-              >
-                {item.label}
-              </PickerTab>
-            ))}
-          </div>
+          <Tabs
+            value={activeView}
+            onValueChange={(next) => {
+              setView(next as MarketPickerView)
+              setCategory("all")
+            }}
+          >
+            <TabsList className="h-auto max-w-full flex-wrap justify-start">
+              {pickerViews.map((item) => (
+                <TabsTrigger key={item} value={item}>
+                  {PICKER_VIEW_LABELS[item]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
 
-        {view === "tradfi" ? (
-          <div
-            className="flex gap-x-5 border-b px-3"
-            role="tablist"
-            aria-label="TradFi categories"
+        {activeView === "tradfi" ? (
+          <Tabs
+            value={category}
+            onValueChange={(next) => setCategory(next as TradFiCategory)}
+            className="border-b px-3 py-2"
           >
-            {TRADFI_CATEGORIES.map((item) => (
-              <PickerTab
-                key={item.value}
-                active={category === item.value}
-                onClick={() => setCategory(item.value)}
-                className="py-2"
-              >
-                {item.label}
-              </PickerTab>
-            ))}
-          </div>
+            <TabsList aria-label="TradFi categories">
+              {TRADFI_CATEGORIES.map((item) => (
+                <TabsTrigger key={item.value} value={item.value}>
+                  {item.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         ) : null}
 
         <ScrollArea className="min-h-0 flex-1">
@@ -291,39 +315,43 @@ export function MarketPicker({
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
-                  sort={sort}
+                  sort={activeSort}
                   onSort={toggleSort}
                 />
                 <PickerTableHead
                   label="Last price"
                   sortKey="price"
-                  sort={sort}
+                  sort={activeSort}
                   onSort={toggleSort}
                 />
                 <PickerTableHead
                   label="24h change"
                   sortKey="change"
-                  sort={sort}
+                  sort={activeSort}
                   onSort={toggleSort}
                 />
-                <PickerTableHead
-                  label="Funding"
-                  sortKey="funding"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
+                {capabilities.funding ? (
+                  <PickerTableHead
+                    label="Funding"
+                    sortKey="funding"
+                    sort={activeSort}
+                    onSort={toggleSort}
+                  />
+                ) : null}
                 <PickerTableHead
                   label="Volume"
                   sortKey="volume"
-                  sort={sort}
+                  sort={activeSort}
                   onSort={toggleSort}
                 />
-                <PickerTableHead
-                  label="Open interest"
-                  sortKey="openInterest"
-                  sort={sort}
-                  onSort={toggleSort}
-                />
+                {capabilities.openInterest ? (
+                  <PickerTableHead
+                    label="Open interest"
+                    sortKey="openInterest"
+                    sort={activeSort}
+                    onSort={toggleSort}
+                  />
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -333,6 +361,7 @@ export function MarketPicker({
                   row={row}
                   selected={row.key === selected.key}
                   favorite={favorites.has(row.key)}
+                  capabilities={capabilities}
                   onToggleFavorite={() => onToggleFavorite(row.key)}
                   onSelect={() => {
                     onSelect(row.key)
@@ -357,36 +386,6 @@ export function MarketPicker({
   )
 }
 
-function PickerTab({
-  active,
-  className,
-  children,
-  onClick,
-}: {
-  active: boolean
-  className?: string
-  children: React.ReactNode
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "border-b-2 px-1 py-1.5 text-xs font-medium transition-colors",
-        active
-          ? "border-primary text-foreground"
-          : "border-transparent text-muted-foreground hover:text-foreground",
-        className
-      )}
-    >
-      {children}
-    </button>
-  )
-}
-
 function PickerTableHead({
   label,
   sortKey,
@@ -394,9 +393,9 @@ function PickerTableHead({
   onSort,
 }: {
   label: string
-  sortKey: PickerSortKey
-  sort: { key: PickerSortKey; dir: "asc" | "desc" }
-  onSort: (key: PickerSortKey) => void
+  sortKey: MarketPickerSortKey
+  sort: { key: MarketPickerSortKey; dir: "asc" | "desc" }
+  onSort: (key: MarketPickerSortKey) => void
 }) {
   return (
     <TableHead className="h-9 px-3 text-xs text-muted-foreground">
@@ -415,12 +414,14 @@ function MarketPickerRow({
   row,
   selected,
   favorite,
+  capabilities,
   onToggleFavorite,
   onSelect,
 }: {
   row: MarketRow
   selected: boolean
   favorite: boolean
+  capabilities: MarketPickerCapabilities
   onToggleFavorite: () => void
   onSelect: () => void
 }) {
@@ -484,15 +485,19 @@ function MarketPickerRow({
       >
         {change === null ? "—" : formatChange(change)}
       </TableCell>
-      <TableCell className="font-mono tabular-nums">
-        {funding === null ? "—" : formatFunding(funding)}
-      </TableCell>
+      {capabilities.funding ? (
+        <TableCell className="font-mono tabular-nums">
+          {funding === null ? "—" : formatFunding(funding)}
+        </TableCell>
+      ) : null}
       <TableCell className="font-mono tabular-nums">
         {formatCompactUsd(volume)}
       </TableCell>
-      <TableCell className="font-mono tabular-nums">
-        {openInterest === null ? "—" : formatCompactUsd(openInterest)}
-      </TableCell>
+      {capabilities.openInterest ? (
+        <TableCell className="font-mono tabular-nums">
+          {openInterest === null ? "—" : formatCompactUsd(openInterest)}
+        </TableCell>
+      ) : null}
     </TableRow>
   )
 }
@@ -503,7 +508,7 @@ function displaySymbol(symbol: string): string {
 
 function sortValue(
   row: MarketRow,
-  key: Exclude<PickerSortKey, "market">
+  key: Exclude<MarketPickerSortKey, "market">
 ): number {
   switch (key) {
     case "price":

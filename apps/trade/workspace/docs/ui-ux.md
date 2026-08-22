@@ -38,9 +38,13 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   choice. Its raised tab marks the selected interval, and the arrow keys move
   through the row.
   Every control in that row is 32px high. Pressing the market name opens the
-  full market picker: search; Favorites, All, Crypto, TradFi, HIP-3 and
-  Trending tabs; sortable price, day's move, funding, volume and open-interest
-  columns; and a star on every row. Below,
+  full market picker: search; segmented tabs; sortable figures; and a star on
+  every row. Favorites, All and Trending are always there. Phemex and KuCoin
+  stop there because every market is crypto. Hyperliquid also has Crypto,
+  TradFi and HIP-3. Aster adds Crypto and TradFi only while its current list
+  contains something outside crypto. An exchange omits funding or open
+  interest when it cannot fill that column. Moving to an exchange that lacks
+  the current sort returns the list to daily volume. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Grid levels, ladder rungs and order
@@ -79,7 +83,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   as its checked control, so selection never relies on colour alone. Each wallet
   has a separate chevron for its figures, and every row starts folded. All and
   Inactive use the same rows, but pressing one there opens its settings instead
-  of changing the trading wallet.
+  of changing the trading wallet. The Active tab's open figures end with an
+  Edit wallet link that opens the same settings window.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
   the panel is the same order as making the decision.
@@ -395,6 +400,10 @@ list covers is on screen without spending a row on it.
   an order may use, the max leverage, and — where it applies — "Isolated
   only", explained in the same line. A rule the exchange does not state
   shows nothing, never a guess.
+- **The market header's (i) tooltip names both kinds of price.** The list and
+  every order rule use the exchange's mark price. Chart bars show traded
+  prices, so the newest candle may sit above or below the number the exchange
+  uses for stops and account value.
 - **A bare visit reopens your last market**, remembered against the account
   (a second machine gets it too). A link with `?market=` always wins, and a
   remembered market that no longer resolves shows the honest missing state.
@@ -768,8 +777,10 @@ read as real money. New dashboards put Active Trades under the headline figures;
 an account with a saved arrangement finds it under Settings → Widgets until it
 is placed.
 
-The Active Trades table has five columns: market, protocol, wallet, entry price,
-and current profit in dollars and as a share of the money the trade holds. The
+The Active Trades table has five columns: market, protocol, wallet, current
+position value, and current profit in dollars and as a share of the money the
+trade holds. Value is the absolute position size at the current market price,
+not the margin committed to the trade. The
 market cell copies the bottom Positions panel: a 16px icon, 12px medium symbol,
 the compact Long or Short and leverage badge, then the compact Real, Testnet, or
 Practice badge. Clicking the symbol or anywhere else on the row opens that
@@ -781,10 +792,10 @@ with the largest P/L first. Every heading sorts, and Filter narrows the rows by
 protocol, wallet, or both. A
 wallet that could not be read stays named above the rows rather than being
 mistaken for a wallet with no open trades. A market whose current price could
-not be read shows a dash for profit, never a made-up zero. A plain divider sits
+not be read shows a dash for both value and profit, never a made-up zero. A plain divider sits
 between every pair of trade rows, including the final two. The sticky table
 header uses the lighter muted gray rather than the full muted background. Every
-Active Trades column is left-aligned, including Entry and P/L.
+Active Trades column is left-aligned, including Value and P/L.
 The Wallets, Money over time, and Trades cards use the same shared
 workspace-panel header as the rest of the dashboard, including its icon,
 height, spacing, and divider; none carries a second descriptive line in the
@@ -853,8 +864,7 @@ Switching Ladders back on starts a new 45-second window. A heartbeat left from
 before the switch cannot cause an immediate outage notice. Pausing the engine
 does not reset the health clock because a pause and a restart are different.
 
-The 45-second line comes from the engine copies retained from 20 to 22 August
-2026. Eleven measured restarts took between 7.475 and 12.318 seconds. A normal
+The 45-second line comes from the engine copies retained from 20 to 22 August 2026. Eleven measured restarts took between 7.475 and 12.318 seconds. A normal
 replacement is therefore back well before the app calls it an outage. Since the
 monitor checks every 15 seconds, the notice arrives 45 to 60 seconds after the
 last heartbeat.

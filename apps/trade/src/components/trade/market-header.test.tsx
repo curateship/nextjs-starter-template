@@ -43,6 +43,12 @@ const market: MarketSelection = {
   row,
   protocolLabel: "Hyperliquid",
   networkLabel: "Mainnet",
+  picker: {
+    categories: "full",
+    hip3: true,
+    funding: true,
+    openInterest: true,
+  },
 }
 
 function draw(selection: MarketSelection, favorites: string[]): string {

@@ -261,7 +261,17 @@ export type MarketCatalog = {
   protocolLabel: string
   network: NetworkId
   networkLabel: string
+  /** What this exchange can truthfully show in the full market picker. */
+  picker: MarketPickerCapabilities
   rows: MarketRow[]
+}
+
+export type MarketPickerCapabilities = {
+  /** Full keeps all category tabs; catalog shows them only when rows differ. */
+  categories: "full" | "catalog" | "crypto-only"
+  hip3: boolean
+  funding: boolean
+  openInterest: boolean
 }
 
 /**

@@ -2,6 +2,7 @@ import type { NetworkId } from "@/lib/protocols/contracts"
 import {
   positionMargin,
   positionProfit,
+  positionValue,
   type PaperPosition,
 } from "@/lib/trade/paper"
 import type { WalletAccountSummary } from "@/lib/trade/wallets"
@@ -49,7 +50,7 @@ export type TradingOverviewActiveTrade = {
   market: string
   side: "long" | "short"
   leverage: number
-  entry: number
+  value: number | null
   profit: number | null
   profitShare: number | null
 }
@@ -95,7 +96,7 @@ export function buildTradingOverviewActiveTrades(
         market,
         side: position.szi > 0 ? ("long" as const) : ("short" as const),
         leverage: position.leverage,
-        entry: position.entryPx,
+        value: mark === undefined ? null : positionValue(position, mark),
         profit,
         profitShare: profit !== null && margin > 0 ? profit / margin : null,
       },

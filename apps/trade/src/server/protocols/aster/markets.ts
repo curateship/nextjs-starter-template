@@ -151,6 +151,12 @@ export function toAsterMarketCatalog(input: {
     protocolLabel: protocolLabel("aster"),
     network: input.network,
     networkLabel: input.network === "mainnet" ? "Mainnet" : "Testnet",
+    picker: {
+      categories: "catalog",
+      hip3: false,
+      funding: true,
+      openInterest: false,
+    },
     rows,
   }
 }

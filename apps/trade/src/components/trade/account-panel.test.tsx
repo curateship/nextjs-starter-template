@@ -3,7 +3,7 @@
 import * as React from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ActiveWalletsView } from "@/components/trade/account-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -84,7 +84,11 @@ afterEach(async () => {
   host.remove()
 })
 
-function WalletPicker() {
+function WalletPicker({
+  onOpenWallet = () => {},
+}: {
+  onOpenWallet?: (wallet: TradeWallet) => void
+}) {
   const [activeWalletId, setActiveWalletId] = React.useState("main")
   return (
     <TooltipProvider>
@@ -93,6 +97,7 @@ function WalletPicker() {
         summaryOf={(walletId) => summaries.get(walletId) ?? null}
         activeWalletId={activeWalletId}
         onUseWallet={setActiveWalletId}
+        onOpenWallet={onOpenWallet}
         onRetry={() => {}}
       />
     </TooltipProvider>
@@ -133,6 +138,26 @@ describe("the active wallet picker", () => {
     await act(async () => showScalper?.click())
 
     expect(host.textContent).toContain("$9,000.00")
+  })
+
+  it("opens wallet settings from the expanded figures", async () => {
+    const onOpenWallet = vi.fn()
+    await act(async () =>
+      root.render(<WalletPicker onOpenWallet={onOpenWallet} />)
+    )
+
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Show Scalper figures"]')
+        ?.click()
+    )
+    await act(async () =>
+      [...host.querySelectorAll<HTMLElement>("button")]
+        .find((button) => button.textContent?.includes("Edit wallet"))
+        ?.click()
+    )
+
+    expect(onOpenWallet).toHaveBeenCalledWith(wallets[1])
   })
 
   it("leaves figures collapsed when that wallet is selected", async () => {

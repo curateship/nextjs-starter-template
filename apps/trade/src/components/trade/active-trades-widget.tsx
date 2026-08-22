@@ -29,14 +29,14 @@ import type {
   TradingOverview,
   TradingOverviewActiveTrade,
 } from "@/lib/trade/dashboard/overview"
-import { formatChange, formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
-type ActiveTradeColumn = "market" | "protocol" | "wallet" | "entry" | "profit"
+type ActiveTradeColumn = "market" | "protocol" | "wallet" | "value" | "profit"
 
 function defaultDirection(column: ActiveTradeColumn) {
-  return column === "entry" || column === "profit"
+  return column === "value" || column === "profit"
     ? ("desc" as const)
     : ("asc" as const)
 }
@@ -74,18 +74,18 @@ export function ActiveTradesWidget({
           return trade.protocol
         case "wallet":
           return trade.walletLabel
-        case "entry":
-          return trade.entry
+        case "value":
+          return trade.value ?? Number.NEGATIVE_INFINITY
         case "profit":
           return trade.profit ?? Number.NEGATIVE_INFINITY
       }
     }
     return [...filtered].sort((left, right) => {
       if (
-        sort === "profit" &&
-        (left.profit === null) !== (right.profit === null)
+        (sort === "profit" || sort === "value") &&
+        (left[sort] === null) !== (right[sort] === null)
       ) {
-        return left.profit === null ? 1 : -1
+        return left[sort] === null ? 1 : -1
       }
       const a = valueOf(left)
       const b = valueOf(right)
@@ -142,7 +142,7 @@ export function ActiveTradesWidget({
                 {heading("protocol", "Protocol")}
               </TableHead>
               <TableHead column="meta">{heading("wallet", "Wallet")}</TableHead>
-              <TableHead column="meta">{heading("entry", "Entry")}</TableHead>
+              <TableHead column="meta">{heading("value", "Value")}</TableHead>
               <TableHead column="meta">{heading("profit", "P/L")}</TableHead>
             </TableRow>
           </TableHeader>
@@ -233,7 +233,11 @@ function ActiveTradeRow({
         column="meta"
         className="py-2.5 text-left font-mono text-xs tabular-nums"
       >
-        {formatPrice(trade.entry)}
+        {trade.value === null ? (
+          <span className="text-muted-foreground">—</span>
+        ) : (
+          formatUsd(trade.value)
+        )}
       </TableCell>
       <TableCell column="meta" className="py-2.5 text-left text-xs">
         {trade.profit === null || trade.profitShare === null ? (

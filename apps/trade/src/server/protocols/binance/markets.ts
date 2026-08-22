@@ -183,6 +183,12 @@ export async function fetchBinanceMarkets(
     protocolLabel: "Binance",
     network,
     networkLabel: network === "mainnet" ? "Mainnet" : "Testnet",
+    picker: {
+      categories: "crypto-only",
+      hip3: false,
+      funding: false,
+      openInterest: false,
+    },
     rows,
   }
   scope.__binanceMarketCache = { at: Date.now(), catalog }

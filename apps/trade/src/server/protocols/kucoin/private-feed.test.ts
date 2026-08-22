@@ -38,9 +38,11 @@ class FakeSocket {
   static made = 0
   readonly listeners = new Map<string, Listener[]>()
   readonly sent: string[] = []
+  readonly url: string
   closed = false
 
-  constructor(readonly url: string) {
+  constructor(url: string) {
+    this.url = url
     FakeSocket.latest = this
     FakeSocket.made += 1
   }

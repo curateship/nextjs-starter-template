@@ -111,6 +111,12 @@ export async function fetchPhemexMarkets(
     // Mainnet is the only network this folder serves — `restBase` has
     // already refused anything else by the time a catalog is being labelled.
     networkLabel: "Mainnet",
+    picker: {
+      categories: "crypto-only",
+      hip3: false,
+      funding: true,
+      openInterest: true,
+    },
     rows,
   }
 }
