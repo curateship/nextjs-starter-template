@@ -59,6 +59,7 @@ import {
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
+import { gridStopLegPrices, isGridStopLeg } from "@/lib/trade/grid"
 import {
   forEachPlanOrderId,
   type SmartGrid,
@@ -361,6 +362,12 @@ export function ChartPanel({
       new Set(trading.grids.map((one) => `${one.walletId}:${one.marketKey}`)),
     [trading.grids]
   )
+  // Where the exchange's own copy of each grid's stop is resting, so the plain
+  // order lines can drop it. See `gridStopLegPrices`.
+  const gridStopPrices = React.useMemo(
+    () => gridStopLegPrices(trading.grids, trading.positions),
+    [trading.grids, trading.positions]
+  )
   const linePositions = React.useMemo(
     () =>
       trading.positions.map((one) =>
@@ -392,7 +399,13 @@ export function ChartPanel({
 
   const looseOrders = React.useMemo(
     () => [
-      ...trading.orders.filter((order) => !smartOrderIds.has(order.id)),
+      // The grid's own STOP LOSS line is the only one drawn at that price. The
+      // exchange's untriggered leg behind it is dropped, the same way every
+      // other order type's protection leg already is — see `isGridStopLeg`.
+      ...trading.orders.filter(
+        (order) =>
+          !smartOrderIds.has(order.id) && !isGridStopLeg(order, gridStopPrices)
+      ),
       // A watched price, drawn as the order it stands in for.
       //
       // It is the same thing to whoever set it — a level, a size, and where it
@@ -408,7 +421,13 @@ export function ChartPanel({
       // the chart at once instead of a second or two later.
       ...trading.placing,
     ],
-    [trading.orders, trading.placing, trading.watchOrders, smartOrderIds]
+    [
+      trading.orders,
+      trading.placing,
+      trading.watchOrders,
+      smartOrderIds,
+      gridStopPrices,
+    ]
   )
 
   // The open window follows the poll, because the order under it can move: the

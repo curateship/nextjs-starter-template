@@ -188,6 +188,27 @@ written to the exchange the moment a level buys, not before. On a live wallet
 this used to be refused with "That position is not on the exchange any more",
 which threw the drag away along with the stop you had just moved.
 
+**The stop is one line on the chart, never two.** The grid draws its own red
+STOP LOSS line, and the untriggered leg the exchange is holding at that same
+price is not drawn at all. Every other order type already worked this way. The
+grid was the one that showed both, so a grey pill carrying the same price sat
+right behind the red one and read as some second thing at that level. The leg
+is matched by its price rather than by its order id, so a leg the exchange
+re-made under a new id, or one left over from an earlier stop, is hidden too.
+
+## No line on the chart carries its own price
+
+A grid draws a dozen lines at once. Each of them used to wear a chip with its
+own price, so a column of solid green, black and red ran down the right of the
+chart, over the candles, saying what the price axis beside it was already
+saying. The chips are gone. A line's price is read off the axis, at the height
+the line sits at.
+
+What a level puts in, in dollars, is still on the line, because the axis cannot
+tell you that. So is the name of each of the four lines you set: UPPER PRICE,
+LOWER PRICE, FINISH and STOP LOSS. The levels in between carry no name, because
+a dozen labelled ones is a wall of text over the price action.
+
 ## What is remembered between grids
 
 The window remembers shape, not prices: how deep, how many levels, how the money

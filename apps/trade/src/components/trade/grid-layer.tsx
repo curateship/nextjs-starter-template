@@ -137,7 +137,6 @@ export function GridLayer({
           <ChartLine
             key={`grid-preview-${index}`}
             y={y}
-            px={line.px}
             colour={look.colour}
             name={look.name}
             dashed={look.dashed}
@@ -513,7 +512,6 @@ function GridLines({
           <ChartLine
             key={`moving-${index}`}
             y={y}
-            px={level.buyPx}
             colour={colors.up}
             name={null}
             dashed={false}
@@ -532,7 +530,6 @@ function GridLines({
             <ChartLine
               key={priceKey(at.px)}
               y={y}
-              px={at.px}
               usd={at.usd}
               colour={selling ? colors.down : colors.up}
               name={null}
@@ -570,7 +567,6 @@ function GridLines({
       {pinBottom ? (
         <ChartLine
           y={pinBottom.y}
-          px={shownBottom}
           // The bottom of the range IS the deepest buy, so it carries that
           // level's money like every other level line.
           usd={bottomLevel?.usd}
@@ -608,7 +604,6 @@ function GridLines({
       {pinTop ? (
         <ChartLine
           y={pinTop.y}
-          px={shownTop}
           colour={colors.primary}
           name="UPPER PRICE"
           dashed={pinTop.off !== null}
@@ -657,7 +652,6 @@ function GridLines({
       {targetY !== null && target !== null ? (
         <ChartLine
           y={targetY}
-          px={shownTarget ?? target}
           colour={colors.up}
           name="FINISH"
           dashed={false}
@@ -669,7 +663,6 @@ function GridLines({
       {stopY !== null && stop !== null ? (
         <ChartLine
           y={stopY}
-          px={shownStop ?? stop}
           colour={colors.down}
           name="STOP LOSS"
           dashed={false}
@@ -703,18 +696,21 @@ function lineLook(
 }
 
 /**
- * One line across the chart with its price at the right-hand end, and a name
- * beside it when it has one.
+ * One line across the chart, with a name at the right-hand end when it has
+ * one.
  *
- * The price always sits in the same place — hard against the right edge, where
- * the price axis is — so a column of them reads down the side of the chart
- * instead of scattering pills over the candles. Only the four lines you set get
- * a name; the levels in between are just a line and a number, because a dozen
- * labelled ones is a wall of text over the price action.
+ * **No line carries its own price.** A grid draws a dozen lines at once, and a
+ * price chip on each of them built a column of solid colour down the right of
+ * the chart, over the candles, saying what the price axis two inches away was
+ * already saying. The line's height against the axis is where its price is
+ * read. What a level puts in, in dollars, is a fact the axis cannot give you,
+ * so that badge stays.
+ *
+ * Only the four lines you set get a name; the levels in between are just a
+ * line, because a dozen labelled ones is a wall of text over the price action.
  */
 function ChartLine({
   y,
-  px,
   usd,
   colour,
   name,
@@ -726,7 +722,6 @@ function ChartLine({
   action,
 }: {
   y: number
-  px: number
   /** What this level puts in, when it is a level rather than a boundary. */
   usd?: number
   colour: string
@@ -773,20 +768,13 @@ function ChartLine({
           </span>
         ) : null}
         {action}
-        {/* The money first, quietly, then the price in its own colour — the
-            same order the rest of the app reads in: what it costs, then where.
-            Left off the range's own edges, which buy nothing by themselves. */}
+        {/* What this level puts in. Left off the range's own edges, which buy
+            nothing by themselves. */}
         {usd !== undefined && usd > 0 ? (
           <span className="rounded-sm bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
             {formatUsdRounded(usd)}
           </span>
         ) : null}
-        <span
-          className="rounded-sm px-1 py-0.5 text-xs font-medium tabular-nums"
-          style={{ backgroundColor: colour, color: "var(--background)" }}
-        >
-          {formatPrice(px)}
-        </span>
       </div>
     </div>
   )

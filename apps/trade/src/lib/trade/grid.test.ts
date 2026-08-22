@@ -10,7 +10,9 @@ import {
   gridShares,
   gridStepPct,
   gridRangeMovable,
+  gridStopLegPrices,
   gridStopPx,
+  isGridStopLeg,
   type GridLevelState,
   type GridPlan,
   gridStopUnder,
@@ -475,5 +477,48 @@ describe("gridFollowShift", () => {
     // Which is exactly why a percent-spread grid can follow forever: the fee
     // check reads this number, and moving up never thins it.
     expect(after).toBeCloseTo(before, 9)
+  })
+})
+
+describe("the exchange's own copy of a grid's stop", () => {
+  const plan = {
+    stopLoss: { mode: "fixed" as const, px: 73.298, base: null, underPct: 5 },
+    bottomPx: 78.787,
+    baseWatch: null,
+  }
+  const grid = { walletId: "w1", marketKey: "hl:BTC", plan }
+  const leg = {
+    walletId: "w1",
+    marketKey: "hl:BTC",
+    px: 73.298,
+    trigger: true as const,
+  }
+
+  it("is hidden, so the red STOP LOSS pill is the only thing at that price", () => {
+    const prices = gridStopLegPrices([grid], [])
+    expect(isGridStopLeg(leg, prices)).toBe(true)
+  })
+
+  it("is still hidden while the plan has moved and the leg has not", () => {
+    const moved = {
+      ...grid,
+      plan: { ...plan, stopLoss: { ...plan.stopLoss, px: 70 } },
+    }
+    const position = { walletId: "w1", marketKey: "hl:BTC", slPx: 73.298 }
+    const prices = gridStopLegPrices([moved], [position])
+    expect(isGridStopLeg(leg, prices)).toBe(true)
+    expect(isGridStopLeg({ ...leg, px: 70 }, prices)).toBe(true)
+  })
+
+  it("leaves every other order alone", () => {
+    const prices = gridStopLegPrices([grid], [])
+    // A resting order at the same price is not the stop leg.
+    expect(isGridStopLeg({ ...leg, trigger: undefined }, prices)).toBe(false)
+    // A trigger at another price is one of the grid's sells.
+    expect(isGridStopLeg({ ...leg, px: 85.79 }, prices)).toBe(false)
+    // A trigger on a market no grid is running.
+    expect(isGridStopLeg({ ...leg, marketKey: "hl:ETH" }, prices)).toBe(false)
+    // Another wallet's stop at the same price.
+    expect(isGridStopLeg({ ...leg, walletId: "w2" }, prices)).toBe(false)
   })
 })

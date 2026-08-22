@@ -771,6 +771,75 @@ export function gridStopPx(
 }
 
 /**
+ * Every price a grid's stop could be resting at, keyed by wallet and market.
+ *
+ * Two of them, because the position and the plan can disagree for a moment.
+ * The exchange's stop leg is written from the position, so the position's
+ * price is where the leg really is. The plan's price is where the grid is
+ * moving it to, and between one pass and the next the leg is still at the old
+ * one. Both count as the grid's stop.
+ */
+export function gridStopLegPrices(
+  grids: readonly {
+    walletId: string
+    marketKey: string
+    plan: Pick<GridPlan, "stopLoss" | "bottomPx" | "baseWatch">
+  }[],
+  positions: readonly {
+    walletId: string
+    marketKey: string
+    slPx: number | null
+  }[]
+): Map<string, number[]> {
+  const at = new Map<string, number[]>()
+  const add = (key: string, px: number | null) => {
+    if (px === null || !(px > 0)) return
+    at.set(key, [...(at.get(key) ?? []), px])
+  }
+  const running = new Set<string>()
+  for (const grid of grids) {
+    const key = `${grid.walletId}:${grid.marketKey}`
+    running.add(key)
+    add(key, gridStopPx(grid.plan))
+  }
+  for (const position of positions) {
+    const key = `${position.walletId}:${position.marketKey}`
+    if (running.has(key)) add(key, position.slPx)
+  }
+  return at
+}
+
+/**
+ * Is this order the exchange's own copy of a grid's stop?
+ *
+ * Every other order type already hides that copy: a position's stop shows
+ * once, as its red stop bar, and the untriggered leg sitting behind it on the
+ * exchange is dropped by its order id. A grid's stop was the one that escaped,
+ * because the grid draws that line itself and the id match runs off a position
+ * whose stop the chart has deliberately blanked. What escaped was a grey pill
+ * carrying the same price as the red STOP LOSS pill, right behind it, which
+ * reads as some second thing at the same level.
+ *
+ * Matched on price rather than on id, so a leg the exchange re-made under a
+ * new id, or a second stop-family leg left over from an earlier one, is caught
+ * as well. Only untriggered legs, and only on a market a grid is running.
+ */
+export function isGridStopLeg(
+  order: {
+    walletId: string
+    marketKey: string
+    px: number
+    trigger?: true
+  },
+  prices: Map<string, number[]>
+): boolean {
+  if (!order.trigger) return false
+  const at = prices.get(`${order.walletId}:${order.marketKey}`)
+  if (at === undefined) return false
+  return at.some((px) => Math.abs(order.px - px) <= Math.abs(px) * 1e-6)
+}
+
+/**
  * Can this grid's range be moved? **Only while it is holding nothing.**
  *
  * A move redraws every level from the new range, and a level that is holding
