@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
-import { getProtocol, listProtocols } from "@/server/protocols/registry"
+import {
+  getProtocol,
+  listProtocols,
+  pricesEverySale,
+} from "@/server/protocols/registry"
 
 /**
  * The registry's one promise: every id the app knows resolves to a complete
@@ -58,6 +62,21 @@ describe("the protocol registry", () => {
         typeof entry.markets.pricesWereRationed,
         `${entry.label} cannot say when a price was stale`
       ).toBe("function")
+    }
+  })
+
+  it("says which exchanges price every sale, so no screen has to guess", () => {
+    // KuCoin only pays out a figure when a whole position closes, so its
+    // partial sales report zero and that zero means "not stated". Every
+    // other exchange states one per sale. Sitting here rather than in the
+    // Dashboard is the point: the fact belongs to the exchange it is true of.
+    expect(pricesEverySale("kucoin")).toBe(false)
+    expect(pricesEverySale("hyperliquid")).toBe(true)
+    expect(pricesEverySale("phemex")).toBe(true)
+    // An exchange with no accounts has no fills either, so its answer is
+    // never used — but it must still be an answer, not a crash.
+    for (const id of KNOWN_PROTOCOLS) {
+      expect(typeof pricesEverySale(id)).toBe("boolean")
     }
   })
 

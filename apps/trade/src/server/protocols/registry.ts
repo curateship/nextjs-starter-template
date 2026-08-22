@@ -260,6 +260,21 @@ export type ProtocolEntry = {
       address: string,
       credential: () => string | null
     ): Promise<WalletAccountFigures>
+    /**
+     * True when this exchange states what each individual sale made, at the
+     * moment that sale happens.
+     *
+     * **False is not a smaller version of true, it is a different meaning for
+     * the same zero.** On a venue that only pays out a figure when a whole
+     * position closes, every partial sale before that reports zero money, and
+     * that zero means "not stated yet" rather than "made nothing". Counting
+     * those zeros as real would report a day's trading as flat.
+     *
+     * The Dashboard's settled-money sum reads this instead of asking which
+     * exchange it is holding, which is the whole point of the fence: the fact
+     * lives once, on the exchange it is true of.
+     */
+    profitPerSale: boolean
   }
   /**
    * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
@@ -416,6 +431,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     account: {
       fetch: fetchHyperliquidAccount,
+      profitPerSale: true,
     },
     agent: {
       verify: verifyHyperliquidAgentKey,
@@ -504,6 +520,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     account: {
       fetch: fetchPhemexAccount,
+      profitPerSale: true,
     },
     agent: {
       verify: verifyPhemexAgentKey,
@@ -578,6 +595,12 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     account: {
       fetch: fetchKucoinAccount,
+      // KuCoin pays out a figure when a position CLOSES, not when part of one
+      // is sold. Its fills reader pins each payout onto the last fill before
+      // the close, so every other sell carries a zero that means "KuCoin has
+      // not said". The Dashboard counts those as unpriced rather than as
+      // nothing earned.
+      profitPerSale: false,
     },
     agent: {
       verify: verifyKucoinAgentKey,
@@ -699,6 +722,18 @@ export function accountOf(protocol: ProtocolEntry) {
     throw new Error(`PROTOCOL_NO_ACCOUNTS:${protocol.id}`)
   }
   return protocol.account
+}
+
+/**
+ * Whether this exchange states what each individual sale made.
+ *
+ * Answered by id rather than by entry because the caller adding up a day's
+ * fills has a market key in its hand, not a protocol entry. An exchange with
+ * no accounts has no fills either, so its answer never gets used; it reads
+ * true because a stated figure of zero, on a venue that states them, is zero.
+ */
+export function pricesEverySale(id: ProtocolId): boolean {
+  return getProtocol(id).account?.profitPerSale ?? true
 }
 
 export function agentOf(protocol: ProtocolEntry) {

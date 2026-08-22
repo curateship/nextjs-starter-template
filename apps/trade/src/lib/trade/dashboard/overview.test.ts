@@ -69,10 +69,10 @@ describe("trading overview money", () => {
     )
   })
 
-  it("leaves a KuCoin partial sale unpriced", () => {
+  it("leaves a partial sale unpriced where the venue prices whole closes", () => {
     expect(
       moneyForWalletFill({
-        protocol: "kucoin",
+        profitPerSale: false,
         side: "sell",
         closedPnl: 0,
         fee: 0.2,
@@ -80,10 +80,37 @@ describe("trading overview money", () => {
     ).toBeNull()
   })
 
+  it("trusts a stated zero on a venue that prices every sale", () => {
+    // The same numbers as the case above, from a venue that does speak. A
+    // sale that genuinely broke even still cost its fee, and that fee is a
+    // real loss — not something to leave out of the day.
+    expect(
+      moneyForWalletFill({
+        profitPerSale: true,
+        side: "sell",
+        closedPnl: 0,
+        fee: 0.2,
+      })
+    ).toBe(-0.2)
+  })
+
+  it("never leaves a buy unpriced, whatever the venue states", () => {
+    // A buy banks nothing anywhere, so its zero is never an admission of
+    // silence — only its fee counts.
+    expect(
+      moneyForWalletFill({
+        profitPerSale: false,
+        side: "buy",
+        closedPnl: 0,
+        fee: 0.3,
+      })
+    ).toBe(-0.3)
+  })
+
   it("uses the venue's stated profit less its fee", () => {
     expect(
       moneyForWalletFill({
-        protocol: "phemex",
+        profitPerSale: true,
         side: "sell",
         closedPnl: 12,
         fee: 0.5,

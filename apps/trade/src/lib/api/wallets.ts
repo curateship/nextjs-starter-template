@@ -7,7 +7,7 @@ import {
   WALLET_LABEL_MAX,
   type TradeWallet,
   type WalletAccountSummary,
-  describeKeyMismatch,
+  describeKeyRefusal,
 } from "@/lib/trade/wallets"
 import { userGet, userPost } from "@/server/guards"
 import { loadLastWalletIds, saveLastWalletId } from "@/server/trade/prefs"
@@ -173,8 +173,12 @@ const baseWalletErrorMessage = createErrorMessage(
       "The exchange did not answer for that account. Check what you pasted and try again.",
     KEY_IS_ACCOUNT:
       "That is the account's MAIN key — the one that can move money out — and it is never stored here. On the exchange, create an API key (a limited trading key) and paste that instead.",
+    // Deliberately one short sentence. Every exchange that can hold an
+    // account sends its own reason after the code, and that reason says what
+    // to do; a second generic sentence here would sit between the two and
+    // push the useful one out of sight.
     KEY_NOT_APPROVED:
-      "The exchange does not accept that key for this account. On Hyperliquid the usual cause: a key only counts if you pressed Authorize on that exact generation — copy the key and authorize in the same breath, then paste that one. On an API-key exchange: check the key id, the secret, and that the key has trade permission.",
+      "The exchange does not accept that key for this account.",
     KEY_EXPIRED:
       "That key's approval has run out. Create a fresh API key on the exchange and paste it.",
     KEY_CHECK_UNAVAILABLE:
@@ -191,11 +195,13 @@ const baseWalletErrorMessage = createErrorMessage(
 )
 
 /**
- * A wallet refusal in words, with the addresses attached when the refusal was
- * about a key not being approved.
+ * A wallet refusal in words, with the exchange's own reason after it when the
+ * refusal carried one.
  *
- * The generic sentence explains the usual cause; the addresses prove which case
- * this actually is, which is the difference between acting and guessing.
+ * The first sentence is the same on every exchange and says what happened. The
+ * second is written by the exchange that said no and says what to do about it,
+ * which is the difference between acting and guessing. This file never learns
+ * which exchange wrote it.
  */
 export function getWalletErrorMessage(error: unknown): string {
   const message =
@@ -204,7 +210,7 @@ export function getWalletErrorMessage(error: unknown): string {
       : error instanceof Error
         ? error.message
         : ""
-  const detail = describeKeyMismatch(message)
+  const detail = describeKeyRefusal(message)
   const base = baseWalletErrorMessage(error)
   return detail ? `${base} ${detail}` : base
 }

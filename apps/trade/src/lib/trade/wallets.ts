@@ -17,8 +17,8 @@ const WALLET_PROFIT_TIMEZONE = "America/Toronto"
 /**
  * The two kinds of wallet. A paper wallet is pretend money priced off the real
  * exchange, traded by the engine in `@/lib/trade/paper`; a live wallet is a
- * real Hyperliquid account this app can read and — once the ordering work
- * lands — trade with.
+ * real account on whichever exchange it names, that this app can read and
+ * trade with.
  */
 export type WalletKind = "paper" | "live"
 export type WalletStatus = "active" | "inactive"
@@ -148,18 +148,27 @@ export function summarizeWallet(
   }
 }
 
-/** KuCoin gives a figure when a position closes, not when part is sold. */
+/**
+ * What one fill banked, or null where the exchange has not said yet.
+ *
+ * **The zero is the whole problem.** Some venues state a figure for every
+ * sale; others only pay one out when a whole position closes, and every
+ * partial sale before that reports zero. Read straight, those zeros drag a
+ * profitable day down to flat. So the caller passes what the exchange's own
+ * entry says about itself (`account.profitPerSale`), and a zero on a venue
+ * that has not spoken is counted as unpriced rather than as nothing earned.
+ *
+ * Deliberately not `protocol === "…"`. The fact belongs to the exchange, and
+ * `fence.test.ts` fails any shared file that asks which one it is holding.
+ */
 export function moneyForWalletFill(fill: {
-  protocol: ProtocolId
+  /** From the exchange's own entry: does it price every sale? */
+  profitPerSale: boolean
   side: "buy" | "sell"
   closedPnl: number
   fee: number
 }): number | null {
-  if (
-    fill.protocol === "kucoin" &&
-    fill.side === "sell" &&
-    fill.closedPnl === 0
-  ) {
+  if (!fill.profitPerSale && fill.side === "sell" && fill.closedPnl === 0) {
     return null
   }
   return fill.closedPnl - fill.fee
@@ -215,16 +224,17 @@ export const MAX_WALLETS = 20
 /** Paper starting cash must be a real amount someone could reason about. */
 export const MAX_STARTING_BALANCE = 100_000_000
 
-/** An EVM account address: 0x and exactly 40 hex characters. */
-export function isWalletAddress(value: string): boolean {
-  return /^0x[0-9a-fA-F]{40}$/.test(value)
-}
-
 /**
- * A Hyperliquid agent/API private key: 32 bytes of hex, 0x optional. Only the
- * shape is checkable here in the browser. Whether it really signs for the
- * account — and is a limited helper key rather than the account's own — is
- * proved server-side against the exchange before the key is ever saved.
+ * An EVM agent key: 32 bytes of hex, 0x optional.
+ *
+ * Not a check on any one exchange. Every venue whose secret is an agent key
+ * says so through `secretIsAgentKey` on its own credential form, and the
+ * dialog runs these three helpers only when that flag is set — so a venue
+ * whose secret is an API string never meets them.
+ *
+ * Only the shape is checkable here in the browser. Whether the key really
+ * signs for the account, and is a limited helper rather than the account's
+ * own, is proved server-side against the exchange before it is ever saved.
  */
 export function isAgentKey(value: string): boolean {
   return /^(0x)?[0-9a-fA-F]{64}$/.test(value)
@@ -282,34 +292,25 @@ export function venueLabel(protocol: ProtocolId, network: NetworkId): string {
 }
 
 /**
- * The specifics behind "that key is not approved", when the refusal carried
- * them: which address the pasted key signs as, and which the exchange lists.
+ * The exchange's own words about a refused key, when the refusal carried any.
  *
- * **Why this is worth saying.** Without it the refusal is a wall — a key you
- * cannot read, checked against a list you cannot see, with nothing to compare.
- * With it the mismatch is obvious in one glance, and so is the common case of
- * having generated a key twice and authorised the other one.
+ * **A refusal code on its own is a wall.** Whichever exchange said no knows
+ * why, and often knows something worth acting on: the address a Hyperliquid
+ * key actually signs as, or which of KuCoin's three values to look at. That
+ * sentence is written inside the exchange's own folder and travels after the
+ * code, and this pulls it back off without ever asking which exchange wrote
+ * it. That is the point — the wallet dialog names no venue.
  *
- * Everything here is public. An agent's address is not a secret; its key is,
- * and the key never leaves the browser it was typed into.
+ * Nothing secret is ever put there. A pasted key never leaves the browser it
+ * was typed into.
  */
-export function describeKeyMismatch(message: string): string | null {
-  const match = /KEY_NOT_APPROVED:(0x[0-9a-f]{40})\|([0-9a-fx,]*)/i.exec(
-    message
-  )
+export function describeKeyRefusal(message: string): string | null {
+  // Anchored to the start on purpose. Every exchange throws the code as the
+  // whole message, so anchoring costs nothing and stops the reader lifting
+  // out whatever happens to follow those letters inside some longer error
+  // that was never meant for a person to read.
+  const match = /^KEY_NOT_APPROVED:([^]+)/.exec(message.trim())
   if (!match) return null
-  const mine = shortAddress(match[1])
-  const approved = match[2]
-    .split(",")
-    .filter((one) => one !== "")
-    .map(shortAddress)
-  if (approved.length === 0) {
-    return `The key you pasted is for ${mine}, and this account has no approved keys at all — nothing has been authorised on this network yet.`
-  }
-  return `The key you pasted is for ${mine}. Hyperliquid lists ${approved.join(" and ")} as approved, so it is not one of those.`
-}
-
-/** `0x1234…5678` — enough to compare two addresses by eye, short enough to read. */
-function shortAddress(value: string): string {
-  return `${value.slice(0, 6)}…${value.slice(-4)}`
+  const detail = match[1].trim()
+  return detail === "" ? null : detail
 }

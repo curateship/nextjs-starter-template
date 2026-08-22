@@ -23,6 +23,7 @@ import {
   agentOf,
   getProtocol,
   credentialsOf,
+  pricesEverySale,
 } from "@/server/protocols/registry"
 import { paperWalletFigures } from "@/server/trade/paper"
 import { credentialFor } from "@/server/trade/wallet-auth"
@@ -377,7 +378,10 @@ export async function loadWalletSummaries(
   for (const fill of liveMoney) {
     const wallet = walletById.get(fill.walletId)
     if (!wallet) continue
-    const money = moneyForWalletFill({ protocol: wallet.protocol, ...fill })
+    const money = moneyForWalletFill({
+      profitPerSale: pricesEverySale(wallet.protocol),
+      ...fill,
+    })
     if (money === null) {
       unpricedByWallet.set(
         fill.walletId,

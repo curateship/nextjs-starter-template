@@ -18,6 +18,7 @@ import { db } from "@/server/db"
 import { tradeLiveFills } from "@/server/trade/schema"
 import { loadWalletSummaries } from "@/server/trade/wallets"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
+import { pricesEverySale } from "@/server/protocols/registry"
 import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
 
 /**
@@ -86,7 +87,7 @@ export async function loadTradingOverview(
         at: Number(row.at),
         fee: row.fee,
         money: moneyForWalletFill({
-          protocol,
+          profitPerSale: pricesEverySale(protocol),
           side: row.side,
           closedPnl: row.closedPnl,
           fee: row.fee,

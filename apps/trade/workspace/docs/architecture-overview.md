@@ -57,6 +57,29 @@ The one idea: **screens never know which exchange they are talking to.**
   fails the suite if the exchange package is imported anywhere else, or if
   shared code compares against a protocol id.
 
+### Where a fact about one exchange goes
+
+An exchange's habits are recorded in that exchange's own entry, and shared code
+reads the record. Never `if (protocol === "kucoin")` somewhere in a screen.
+There are two shapes this takes.
+
+- **A fact answers a yes-or-no question**, so the entry carries a line and the
+  shared code reads it. `account.profitPerSale` is one: KuCoin only states
+  money when a whole position closes, so its partial sales report a zero that
+  means "not said yet", and the Dashboard's Settled sum would otherwise count
+  those zeros as a flat day. Adding an exchange means answering the question in
+  its entry, and the answer sits next to the code it is true of.
+- **A fact needs sentences**, so the exchange writes them itself and sends them
+  along. A refused trading key is the example. Hyperliquid can name the address
+  the pasted key signs as and the addresses the account actually approved,
+  because Hyperliquid is the only venue here with an approved-keys list. KuCoin
+  can say which of its three values to check. Each folder writes its own
+  sentence after the shared `KEY_NOT_APPROVED` code, and the wallet dialog
+  shows whatever came back without ever learning who wrote it.
+
+The test only catches the first kind of leak, since the second is prose. Both
+are the same mistake.
+
 How the market list flows, end to end:
 
 ```

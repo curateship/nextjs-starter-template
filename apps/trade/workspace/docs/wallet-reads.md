@@ -12,6 +12,15 @@ KuCoin states profit when a position closes, not on every partial sale. When a
 recent sale is still unpriced, the info mark beside Settled says that Settled
 and Made or lost are short and names how many trades are missing.
 
+**Where that fact is written down.** Each exchange's entry in
+`src/server/protocols/registry.ts` carries `account.profitPerSale`. Hyperliquid
+and Phemex set it true; KuCoin sets it false. The sum that builds Settled reads
+that line and never asks which exchange it is holding, so a new exchange joins
+by answering the question in its own entry rather than by somebody finding the
+sum and adding an `if`. A zero from an exchange that sets it false counts as
+unpriced; a zero from one that sets it true is a sale that genuinely broke
+even, and its fee is still a real loss.
+
 The rules this machinery must add up to are stated once, in
 `trading-rules.md` — that file outranks both this doc and the code. The
 request budget this all has to live inside is `hyperliquid-rate-limits.md`.

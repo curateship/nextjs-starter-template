@@ -59,17 +59,40 @@ export async function verifyHyperliquidAgentKey(
 
   const listed = agents.find((agent) => agent.address.toLowerCase() === signer)
   if (!listed) {
-    // The addresses go with the refusal, because "not approved" alone leaves
-    // somebody comparing a key they cannot read against a list they cannot
-    // see. Both sides here are public: the address a key signs as, and the
-    // addresses the exchange says are approved. The key itself never travels,
-    // and `scrubSecrets` leaves 40-hex addresses alone precisely so this can
-    // be said out loud.
-    const approved = agents.map((agent) => agent.address.toLowerCase()).join(",")
-    throw new Error(`KEY_NOT_APPROVED:${signer}|${approved}`)
+    const approved = agents.map((agent) => agent.address.toLowerCase())
+    throw new Error(`KEY_NOT_APPROVED:${whyNotApproved(signer, approved)}`)
   }
   if (listed.validUntil !== null && listed.validUntil <= Date.now()) {
     throw new Error("KEY_EXPIRED")
   }
   return { validUntil: listed.validUntil }
+}
+
+/**
+ * Why this key is not one of the approved ones, in words the dialog can show
+ * as they are.
+ *
+ * **Hyperliquid writes its own explanation because only Hyperliquid has one.**
+ * "Not approved" on its own leaves somebody comparing a key they cannot read
+ * against a list they cannot see. The two things worth saying — which address
+ * this key signs as, and which addresses the account actually approved — are
+ * facts about Hyperliquid's approved-agents list, and no other exchange here
+ * has such a list. So the sentence is built here and rides along after the
+ * refusal code, rather than a screen somewhere unpacking Hyperliquid's shapes.
+ *
+ * Both addresses are public. The key itself never travels, and `scrubSecrets`
+ * leaves 40-hex addresses alone precisely so this can be said out loud.
+ */
+function whyNotApproved(signer: string, approved: readonly string[]): string {
+  const mine = shortAddress(signer)
+  if (approved.length === 0) {
+    return `The key you pasted is for ${mine}, and this account has no approved keys at all. Nothing has been authorised on this network yet: make an API key on the exchange, press Authorize, and paste that one.`
+  }
+  const listed = approved.map(shortAddress).join(" and ")
+  return `The key you pasted is for ${mine}. Hyperliquid lists ${listed} as approved, so it is not one of those. A key only counts if you pressed Authorize on that exact one, so copy a fresh key and authorise it in the same breath.`
+}
+
+/** `0x1234…5678` — enough to compare two addresses by eye, short enough to read. */
+function shortAddress(value: string): string {
+  return `${value.slice(0, 6)}…${value.slice(-4)}`
 }

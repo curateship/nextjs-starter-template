@@ -35,6 +35,33 @@ describe("proving a trading key before it is saved", () => {
     ).rejects.toThrow("KEY_NOT_APPROVED")
   })
 
+  it("writes its own reason, naming both sides of the comparison", async () => {
+    // The refusal carries the sentence, already written. Nothing outside this
+    // folder unpacks Hyperliquid's approved-agents list to say it.
+    extraAgents.mockResolvedValue([
+      { address: "0x" + "9".repeat(40), name: "other", validUntil: null },
+    ])
+    const error = await verifyHyperliquidAgentKey(
+      "mainnet",
+      ACCOUNT,
+      AGENT_KEY
+    ).catch((thrown: Error) => thrown)
+    const words = (error as Error).message
+    // The address the pasted key signs as, shortened to compare by eye.
+    expect(words).toContain("0x7e5f…5bdf")
+    // And the one the exchange does list.
+    expect(words).toContain("0x9999…9999")
+    // Never the key itself.
+    expect(words).not.toContain(AGENT_KEY)
+  })
+
+  it("says plainly when the account has approved nothing at all", async () => {
+    extraAgents.mockResolvedValue([])
+    await expect(
+      verifyHyperliquidAgentKey("mainnet", ACCOUNT, AGENT_KEY)
+    ).rejects.toThrow("no approved keys at all")
+  })
+
   it("refuses an approval that has already run out", async () => {
     extraAgents.mockResolvedValue([
       { address: AGENT_ADDRESS, name: "mine", validUntil: Date.now() - 1000 },

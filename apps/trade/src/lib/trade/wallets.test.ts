@@ -6,7 +6,7 @@ import {
   MISSES_BEFORE_UNREACHABLE,
   cleanAgentKey,
   describeAgentKeyProblem,
-  describeKeyMismatch,
+  describeKeyRefusal,
 } from "@/lib/trade/wallets"
 
 describe("cleaning a pasted key", () => {
@@ -31,7 +31,6 @@ describe("cleaning a pasted key", () => {
 
 import {
   isAgentKey,
-  isWalletAddress,
   shortenAddress,
   summarizeWallet,
   venueLabel,
@@ -73,15 +72,7 @@ describe("the five account rows", () => {
   })
 })
 
-describe("what counts as an address and a key", () => {
-  it("accepts a real address and refuses the rest", () => {
-    expect(isWalletAddress(ADDRESS)).toBe(true)
-    expect(isWalletAddress(ADDRESS.slice(0, -1))).toBe(false)
-    expect(isWalletAddress(`${ADDRESS}0`)).toBe(false)
-    expect(isWalletAddress(ADDRESS.replace("0x", ""))).toBe(false)
-    expect(isWalletAddress(ADDRESS.replace("1", "g"))).toBe(false)
-  })
-
+describe("what counts as a key", () => {
   it("accepts a key with or without its 0x", () => {
     const key = "a".repeat(64)
     expect(isAgentKey(key)).toBe(true)
@@ -104,25 +95,39 @@ describe("how wallets are labelled", () => {
 })
 
 describe("why a trading key was not approved", () => {
-  it("names the address the key signs as, and the ones that are approved", () => {
-    const words = describeKeyMismatch(
-      "KEY_NOT_APPROVED:0x1111111111111111111111111111111111111111|0x2222222222222222222222222222222222222222,0x3333333333333333333333333333333333333333"
-    )
-    expect(words).toContain("0x1111…1111")
-    expect(words).toContain("0x2222…2222")
-    expect(words).toContain("0x3333…3333")
+  it("hands back whatever the exchange wrote, whichever exchange it was", () => {
+    // Two exchanges, two completely different explanations, and this reader
+    // knows neither of them — which is the point.
+    expect(
+      describeKeyRefusal(
+        "KEY_NOT_APPROVED:The key you pasted is for 0x1111…1111. Hyperliquid lists 0x2222…2222 as approved, so it is not one of those."
+      )
+    ).toContain("0x2222…2222")
+    expect(
+      describeKeyRefusal("KEY_NOT_APPROVED:KuCoin would not accept it.")
+    ).toBe("KuCoin would not accept it.")
   })
 
-  it("says so plainly when the account has authorised nothing at all", () => {
-    const words = describeKeyMismatch(
-      "KEY_NOT_APPROVED:0x1111111111111111111111111111111111111111|"
+  it("keeps a reason that runs to more than one line", () => {
+    expect(describeKeyRefusal("KEY_NOT_APPROVED:one.\ntwo.")).toBe(
+      "one.\ntwo."
     )
-    expect(words).toContain("no approved keys at all")
   })
 
-  it("is nothing for a refusal that carried no addresses", () => {
-    expect(describeKeyMismatch("KEY_EXPIRED")).toBeNull()
-    expect(describeKeyMismatch("KEY_NOT_APPROVED")).toBeNull()
+  it("refuses to lift words out of the middle of some other error", () => {
+    // Only an exchange's own refusal is shown to a person. A longer message
+    // that merely happens to contain those letters is not one.
+    expect(
+      describeKeyRefusal(
+        "Request failed at https://internal/x?token=abc KEY_NOT_APPROVED: stack trace follows"
+      )
+    ).toBeNull()
+  })
+
+  it("is nothing for a refusal the exchange did not explain", () => {
+    expect(describeKeyRefusal("KEY_EXPIRED")).toBeNull()
+    expect(describeKeyRefusal("KEY_NOT_APPROVED")).toBeNull()
+    expect(describeKeyRefusal("KEY_NOT_APPROVED:   ")).toBeNull()
   })
 })
 
