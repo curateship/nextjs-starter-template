@@ -105,6 +105,10 @@ function renderLines(
 }
 
 describe("chart bracket lines", () => {
+  it("draws the entry bar in chart blue", () => {
+    expect(render("target")).toContain("#2962ff")
+  })
+
   it.each([
     ["target", "Take Profit"],
     ["stop", "Stop Loss"],

@@ -8,6 +8,7 @@ import {
   type LiveFillMark,
   type LiveTrade,
 } from "@/lib/trade/live-trades"
+import type { ChartOptions } from "@/lib/trade/chart-options"
 import { cn } from "@/lib/utils"
 
 /**
@@ -76,6 +77,7 @@ export function JournalMarksLayer({
   fills,
   focusedTrade,
   showArrows,
+  tradeLimit,
 }: {
   surface: ChartSurface
   /** Every finished trade for the market currently on screen. */
@@ -86,10 +88,22 @@ export function JournalMarksLayer({
   focusedTrade: LiveTrade | null
   /** Whether fill arrows are enabled in the chart's View options. */
   showArrows: boolean
+  /** How many finished trades may leave arrows behind. */
+  tradeLimit: ChartOptions["orderArrowTrades"]
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
   const marks = React.useMemo<ChartFillMark[]>(() => {
-    const finished = trades.flatMap((trade) =>
+    const latest =
+      tradeLimit === null
+        ? trades
+        : [...trades]
+            .sort((a, b) => b.closedAt - a.closedAt)
+            .slice(0, tradeLimit)
+    const included =
+      focusedTrade && !latest.some((trade) => trade.id === focusedTrade.id)
+        ? [...latest, focusedTrade]
+        : latest
+    const finished = included.flatMap((trade) =>
       tradeFillMarks(trade).map((mark, index) => ({
         id: `${trade.id}:${mark.at}:${mark.side}:${index}`,
         tradeId: trade.id,
@@ -102,7 +116,7 @@ export function JournalMarksLayer({
       mark,
     }))
     return [...finished, ...open]
-  }, [fills, trades])
+  }, [fills, focusedTrade, tradeLimit, trades])
 
   // Panning away from the arrow under the pointer must take its label with it,
   // rather than leaving one floating over a price it has nothing to do with.
@@ -120,9 +134,7 @@ export function JournalMarksLayer({
   const fromX = focusedTrade
     ? surface.xOfContainingBar(focusedTrade.openedAt)
     : 0
-  const toX = focusedTrade
-    ? surface.xOfContainingBar(focusedTrade.closedAt)
-    : 0
+  const toX = focusedTrade ? surface.xOfContainingBar(focusedTrade.closedAt) : 0
 
   return (
     <>

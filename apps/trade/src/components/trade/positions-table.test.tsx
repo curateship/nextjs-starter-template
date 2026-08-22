@@ -6,6 +6,8 @@ import {
   PositionsTable,
   TradesTable,
 } from "@/components/trade/positions-table"
+import type { MarketRow } from "@/lib/protocols/contracts"
+import type { PaperPosition } from "@/lib/trade/paper"
 
 /**
  * The answers an empty bottom-panel table can give, told apart.
@@ -29,6 +31,43 @@ const shared = {
   busy: false,
   onSelectMarket: () => {},
   onRetry: () => {},
+}
+
+function market(symbol: string, price: number): MarketRow {
+  return {
+    key: `hyperliquid:mainnet:${symbol}`,
+    marketId: symbol,
+    symbol,
+    quoteAsset: "USDC",
+    subExchange: null,
+    category: "crypto",
+    sizeDecimals: 2,
+    priceTick: null,
+    maxLeverage: 10,
+    isolatedOnly: false,
+    iconUrl: null,
+    price,
+    change24h: null,
+    volume24hUsd: 0,
+    fundingHourly: null,
+    openInterestUsd: null,
+  }
+}
+
+function position(symbol: string, size: number): PaperPosition {
+  return {
+    id: symbol,
+    walletId: "practice",
+    marketKey: `hyperliquid:mainnet:${symbol}`,
+    szi: size,
+    entryPx: 100,
+    leverage: 1,
+    maxLeverage: 10,
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: 1,
+  }
 }
 
 function drawPositions(state: { settled: boolean; failed: boolean }): string {
@@ -64,6 +103,33 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("opens positions with the largest unrealized profit first", () => {
+    const markets = [market("BTC", 150), market("ETH", 110), market("SOL", 80)]
+    const html = renderToStaticMarkup(
+      <PositionsTable
+        {...shared}
+        markets={new Map(markets.map((one) => [one.key, one]))}
+        positions={[
+          position("SOL", 10),
+          position("ETH", 2),
+          position("BTC", 1),
+        ]}
+        settled={true}
+        failed={false}
+        onEdit={() => {}}
+        onFlip={() => {}}
+        onClose={() => {}}
+      />
+    )
+
+    expect(html.indexOf(">BTC</button>")).toBeLessThan(
+      html.indexOf(">ETH</button>")
+    )
+    expect(html.indexOf(">ETH</button>")).toBeLessThan(
+      html.indexOf(">SOL</button>")
+    )
+  })
+
   it("claims empty only after a read has landed", () => {
     expect(drawPositions({ settled: true, failed: false })).toContain(
       "No open positions"

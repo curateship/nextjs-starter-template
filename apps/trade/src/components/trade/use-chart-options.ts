@@ -65,7 +65,15 @@ export function useChartOptions(initial: ChartOptions) {
     [change]
   )
 
-  return { options, setOption, setZone }
+  const setOrderArrowTrades = React.useCallback(
+    (limit: ChartOptions["orderArrowTrades"]) => {
+      if (optionsRef.current.orderArrowTrades === limit) return
+      change({ ...optionsRef.current, orderArrowTrades: limit })
+    },
+    [change]
+  )
+
+  return { options, setOption, setZone, setOrderArrowTrades }
 }
 
 export type ChartOptionsControl = ReturnType<typeof useChartOptions>

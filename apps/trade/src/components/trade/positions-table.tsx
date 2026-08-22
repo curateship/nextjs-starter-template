@@ -519,7 +519,7 @@ export function PositionsTable({
   // Money columns start biggest-first, which is the order anybody scanning a
   // list of positions actually wants.
   const { sort, direction, toggleSort } = useTableSort<PositionColumn>(
-    "value",
+    "unrealized",
     "desc",
     (column) => (column === "market" || column === "wallet" ? "asc" : "desc")
   )

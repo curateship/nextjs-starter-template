@@ -92,6 +92,7 @@ describe("finished trade arrows", () => {
         fills={[openFill]}
         focusedTrade={null}
         showArrows={true}
+        tradeLimit={null}
       />
     )
 
@@ -113,6 +114,7 @@ describe("finished trade arrows", () => {
         fills={[]}
         focusedTrade={trades[1]}
         showArrows={true}
+        tradeLimit={null}
       />
     )
 
@@ -129,10 +131,31 @@ describe("finished trade arrows", () => {
         fills={[]}
         focusedTrade={trades[0]}
         showArrows={false}
+        tradeLimit={null}
       />
     )
 
     expect(arrowCount(html)).toBe(0)
     expect(html).toContain("Stop")
+  })
+
+  it("keeps arrows from only the newest chosen number of finished trades", () => {
+    const trades = Array.from({ length: 12 }, (_, index) =>
+      trade(`trade-${index}`, index * 500, null)
+    )
+    const html = renderToStaticMarkup(
+      <JournalMarksLayer
+        surface={surface}
+        trades={trades}
+        fills={[]}
+        focusedTrade={null}
+        showArrows={true}
+        tradeLimit={7}
+      />
+    )
+
+    expect(arrowCount(html)).toBe(14)
+    expect(html).not.toContain('data-trade-id="trade-0"')
+    expect(html).toContain('data-trade-id="trade-11"')
   })
 })

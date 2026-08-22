@@ -112,7 +112,7 @@ export type EntryBadge = {
 
 /** One theme colour per meaning, shared with candles, grids and ladders. */
 function colorOf(kind: LineKind, colors: ChartColors): string {
-  if (kind === "entry") return colors.primary
+  if (kind === "entry") return "#2962ff"
   if (kind === "take_profit" || kind === "order_take_profit") return colors.up
   if (kind === "stop_loss" || kind === "order_stop_loss") return colors.down
   if (kind === "liquidation") return colors.warning

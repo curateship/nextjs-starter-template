@@ -17,6 +17,7 @@ export const chartOptionsSchema = z.object({
   volume: z.boolean(),
   crosshair: z.boolean(),
   orderArrows: z.boolean(),
+  orderArrowTrades: z.number().int().positive().nullable(),
   drawings: z.boolean(),
   /**
    * The one timezone — the axis, the crosshair and every session boundary read
@@ -29,13 +30,17 @@ export const chartOptionsSchema = z.object({
 export type ChartOptions = z.infer<typeof chartOptionsSchema>
 
 /** The parts that are simply shown or hidden — everything but the clock. */
-export type ChartOptionToggle = Exclude<keyof ChartOptions, "zone">
+export type ChartOptionToggle = Exclude<
+  keyof ChartOptions,
+  "zone" | "orderArrowTrades"
+>
 
 export const DEFAULT_CHART_OPTIONS: ChartOptions = {
   grid: true,
   volume: true,
   crosshair: true,
   orderArrows: true,
+  orderArrowTrades: null,
   drawings: true,
   zone: DEFAULT_TRADING_ZONE,
 }
@@ -52,6 +57,7 @@ export function readChartOptions(value: unknown): ChartOptions {
   const parsed = chartOptionsSchema
     .extend({
       orderArrows: z.boolean().optional(),
+      orderArrowTrades: z.number().int().positive().nullable().optional(),
       drawings: z.boolean().optional(),
       zone: z.string().max(40).optional(),
     })
@@ -60,6 +66,7 @@ export function readChartOptions(value: unknown): ChartOptions {
     ? {
         ...parsed.data,
         orderArrows: parsed.data.orderArrows ?? true,
+        orderArrowTrades: parsed.data.orderArrowTrades ?? null,
         drawings: parsed.data.drawings ?? true,
         zone: readTradingZone(parsed.data.zone),
       }

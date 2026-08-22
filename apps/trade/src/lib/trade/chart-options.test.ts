@@ -17,6 +17,7 @@ describe("chart view options", () => {
         volume: true,
         crosshair: false,
         orderArrows: false,
+        orderArrowTrades: 7,
         drawings: false,
         zone: "Europe/London",
       })
@@ -25,6 +26,7 @@ describe("chart view options", () => {
       volume: true,
       crosshair: false,
       orderArrows: false,
+      orderArrowTrades: 7,
       drawings: false,
       zone: "Europe/London",
     })
@@ -40,6 +42,7 @@ describe("chart view options", () => {
       volume: true,
       crosshair: false,
       orderArrows: true,
+      orderArrowTrades: null,
       drawings: true,
       zone: "UTC",
     })
@@ -47,8 +50,9 @@ describe("chart view options", () => {
 
   it("falls back to UTC for a timezone this build no longer offers", () => {
     // A chart that will not draw is worse than a chart on the wrong clock.
-    expect(readChartOptions({ ...DEFAULT_CHART_OPTIONS, zone: "Mars/Olympus" }))
-      .toEqual(DEFAULT_CHART_OPTIONS)
+    expect(
+      readChartOptions({ ...DEFAULT_CHART_OPTIONS, zone: "Mars/Olympus" })
+    ).toEqual(DEFAULT_CHART_OPTIONS)
     expect(readChartOptions({ ...DEFAULT_CHART_OPTIONS, zone: 7 })).toEqual(
       DEFAULT_CHART_OPTIONS
     )

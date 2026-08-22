@@ -343,9 +343,9 @@ describe("the opening range and the clock", () => {
 })
 
 describe("an opening range that cannot honestly be drawn", () => {
-  it("draws nothing when a candle is longer than the whole range", () => {
-    // The four-hour chart is the default, and a fifteen-minute range on it is
-    // not a range that is hard to draw — it is one that does not exist.
+  it("draws nothing when its source candle is longer than the whole range", () => {
+    // The chart supplies finer source candles on coarse timelines. The module
+    // still refuses an oversized source rather than inventing a range from it.
     const candles = flat(DAY_ONE, 96)
     const paint = orbIndicator.compute(candles, settings(), {
       zone: "America/New_York",

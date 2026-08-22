@@ -1,9 +1,11 @@
+import * as React from "react"
 import { EyeIcon } from "lucide-react"
 
 import type { ChartOptionsControl } from "@/components/trade/use-chart-options"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
+import { Input } from "@/components/ui/input"
 import {
   Popover,
   PopoverContent,
@@ -23,6 +25,7 @@ import {
 } from "@/components/ui/tooltip"
 import type { ChartOptionToggle } from "@/lib/trade/chart-options"
 import { TRADING_ZONES, readTradingZone } from "@/lib/trade/chart-timezone"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 const OPTIONS: { key: ChartOptionToggle; label: string }[] = [
   { key: "grid", label: "Chart grid" },
@@ -31,6 +34,56 @@ const OPTIONS: { key: ChartOptionToggle; label: string }[] = [
   { key: "orderArrows", label: "Order arrows" },
   { key: "drawings", label: "Your drawings" },
 ]
+
+function PreviousTradesInput({ control }: { control: ChartOptionsControl }) {
+  const [draft, setDraft] = React.useState(
+    control.options.orderArrowTrades?.toString() ?? ""
+  )
+  const [invalid, setInvalid] = React.useState(false)
+
+  function changeDraft(value: string) {
+    setDraft(value)
+    if (value === "") {
+      setInvalid(false)
+      control.setOrderArrowTrades(null)
+      return
+    }
+
+    const amount = /^\d+$/.test(value) ? Number(value) : Number.NaN
+    const valid = Number.isSafeInteger(amount) && amount > 0
+    setInvalid(!valid)
+    if (valid) control.setOrderArrowTrades(amount)
+  }
+
+  return (
+    <div className="grid gap-2">
+      <FieldLabel
+        htmlFor="chart-option-order-arrow-trades"
+        hint="Enter how many of the newest finished trades should keep their arrows. Leave this empty to show every finished trade. Fills from a position that is still open always stay visible."
+      >
+        Previous trades
+      </FieldLabel>
+      <Input
+        id="chart-option-order-arrow-trades"
+        type="number"
+        inputMode="numeric"
+        min={1}
+        step={1}
+        placeholder="All"
+        value={draft}
+        aria-invalid={invalid}
+        onChange={(event) => changeDraft(event.target.value)}
+        onBlur={() => {
+          if (invalid) {
+            showErrorToast(
+              "Previous trades must be a whole number greater than zero."
+            )
+          }
+        }}
+      />
+    </div>
+  )
+}
 
 /**
  * The eye beside Indicators: which supporting chart parts are shown, and which
@@ -83,6 +136,9 @@ export function ChartOptionsMenu({
             )
           })}
         </div>
+        {control.options.orderArrows ? (
+          <PreviousTradesInput control={control} />
+        ) : null}
         <div className="grid gap-2 border-t pt-3">
           <FieldLabel
             htmlFor="chart-option-zone"

@@ -163,13 +163,24 @@ export const indicatorSettingsSchema: z.ZodType<IndicatorSettings> = z
 export function indicatorPaint(
   settings: IndicatorSettings,
   candles: IndicatorCandle[],
-  context: IndicatorContext
+  context: IndicatorContext,
+  sources: Partial<
+    Record<
+      string,
+      { candles: IndicatorCandle[]; interval: IndicatorContext["interval"] }
+    >
+  > = {}
 ): IndicatorPaint {
   const paint: IndicatorPaint = { lines: [], dashes: [], marks: [], boxes: [] }
   if (candles.length === 0) return paint
   for (const module of INDICATOR_LIST) {
     if (!settings[module.kind]?.on) continue
-    const drawn = module.compute(candles, settings[module.kind].params, context)
+    const source = sources[module.kind]
+    const drawn = module.compute(
+      source?.candles ?? candles,
+      settings[module.kind].params,
+      source ? { ...context, interval: source.interval } : context
+    )
     paint.lines.push(...drawn.lines)
     paint.dashes.push(...drawn.dashes)
     paint.marks.push(...drawn.marks)
@@ -198,7 +209,9 @@ export function indicatorSignals(
   if (candles.length === 0) return signals
   for (const module of SIGNAL_INDICATORS) {
     if (!settings[module.kind]?.on) continue
-    signals.push(...(module.signals?.(candles, settings[module.kind].params) ?? []))
+    signals.push(
+      ...(module.signals?.(candles, settings[module.kind].params) ?? [])
+    )
   }
   return signals.sort((a, b) => a.time - b.time)
 }
@@ -215,7 +228,10 @@ export function indicatorWarmupBars(settings: IndicatorSettings): number {
   let most = 0
   for (const module of SIGNAL_INDICATORS) {
     if (!settings[module.kind]?.on) continue
-    most = Math.max(most, module.warmupBars?.(settings[module.kind].params) ?? 0)
+    most = Math.max(
+      most,
+      module.warmupBars?.(settings[module.kind].params) ?? 0
+    )
   }
   return most
 }

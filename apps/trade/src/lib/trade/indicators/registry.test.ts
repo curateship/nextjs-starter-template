@@ -122,6 +122,35 @@ describe("the indicator library", () => {
     expect(paint.dashes).toHaveLength(1)
   })
 
+  it("can draw one indicator from finer candles than the chart", () => {
+    const settings = readIndicatorSettings({
+      orb: {
+        on: true,
+        params: {
+          session: "custom",
+          startTime: "00:00",
+          endTime: "04:00",
+          rangeMinutes: 15,
+        },
+      },
+    })
+    const quarterHour = Array.from({ length: 16 }, (_, index) => ({
+      openTime: index * 15 * 60_000,
+      low: 99,
+      high: 101,
+      close: index === 2 ? 102 : 100,
+    }))
+
+    const paint = indicatorPaint(settings, CANDLES, CHART, {
+      orb: { candles: quarterHour, interval: "15m" },
+    })
+
+    expect(paint.boxes.some((box) => box.price !== null)).toBe(true)
+    expect(paint.marks).toEqual([
+      { time: 2 * 15 * 60_000, price: 102, side: "up" },
+    ])
+  })
+
   it("has nothing to draw over a chart with no candles", () => {
     const settings = readIndicatorSettings({ base: { on: true, params: {} } })
     expect(indicatorPaint(settings, [], CHART)).toEqual({
@@ -182,7 +211,10 @@ describe("the indicator library", () => {
 
   it("refuses a save naming far more than the library could ever hold", () => {
     const many = Object.fromEntries(
-      Array.from({ length: 200 }, (_, index) => [`made-up-${index}`, { on: true }])
+      Array.from({ length: 200 }, (_, index) => [
+        `made-up-${index}`,
+        { on: true },
+      ])
     )
     expect(indicatorSettingsSchema.safeParse(many).success).toBe(false)
     const manySettings = Object.fromEntries(
@@ -212,7 +244,10 @@ describe("asking the library for signals", () => {
 
   it("answers the switched-on ones, and counts them", () => {
     const settings = readIndicatorSettings({
-      base: { on: true, params: { searchBars: 4, holdBars: 1, minBarsApart: 1 } },
+      base: {
+        on: true,
+        params: { searchBars: 4, holdBars: 1, minBarsApart: 1 },
+      },
     })
     expect(signalIndicatorsOn(settings)).toBe(1)
     const called = indicatorSignals(settings, CANDLES)
@@ -230,7 +265,10 @@ describe("asking the library for signals", () => {
     // would be the registry inventing a rule nobody asked it for; what to do
     // about a crowded moment belongs to whatever is trading.
     const settings = readIndicatorSettings({
-      base: { on: true, params: { searchBars: 4, holdBars: 1, minBarsApart: 1 } },
+      base: {
+        on: true,
+        params: { searchBars: 4, holdBars: 1, minBarsApart: 1 },
+      },
     })
     const called = indicatorSignals(settings, CANDLES)
     const times = called.map((one) => one.time)

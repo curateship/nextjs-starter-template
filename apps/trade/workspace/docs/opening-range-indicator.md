@@ -74,12 +74,13 @@ between its two kinds of switch, for the same reason.
   after it.
 - **The arrow is on the close, not the wick.** A candle that pokes outside the
   box and closes back inside it has not broken anything.
-- **The range must be a whole number of candles**, and the session's first
-  candle must open exactly on the session's minute. A fifteen-minute range on a
-  four-hour chart does not exist, and on an hourly chart no candle opens at
-  09:30 — taking the 10:00 one instead would be a box labelled as the opening
-  range that is nothing of the sort. Both cases draw nothing and say why on the
-  settings panel.
+- **The range must be a whole number of the candles used to find it**, and the
+  session's first candle must open exactly on the session's minute. On 1m, 5m
+  and 15m charts those are the chart's candles. Hourly, four-hour and daily
+  charts read 15m candles alongside their own, so a 09:30 range remains a real
+  09:30 range rather than being guessed from the next oversized candle. A
+  custom length that 15m candles cannot divide into draws nothing on those
+  coarse charts and says why in the settings panel.
 - **A day missing candles has no honest opening range.** If any candle of the
   range is absent, that session draws nothing rather than a range invented out
   of what arrived. This is also what stops a run that begins mid-session judging
@@ -95,13 +96,13 @@ between its two kinds of switch, for the same reason.
 - **The forming candle is never counted.** The chart hands the indicator its
   closed candles only. A range that keeps changing shape is not a range.
 
-## Why 4h draws nothing
+## The range on a coarse chart
 
-Four hours is the timeframe a fresh chart opens on, and a fifteen-minute range
-cannot be made out of four-hour candles. Rather than drawing nothing silently,
-the settings panel says: *"A 15-minute range cannot be made out of 4h candles,
-so nothing is drawn. Put the chart on a shorter timeframe."* Switch to 15m or
-shorter, or lengthen the range until it divides into the candles you are on.
+Hourly, four-hour and daily charts keep their own candles on screen but find the
+opening range from a second 15m read. The box, session and breakout arrow then
+sit at their real time and price over the coarse chart. This extra read happens
+only while Opening range is on. If it fails, the candles already on screen stay
+put and the failure is reported with a retry.
 
 ## What is not here yet
 

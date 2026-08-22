@@ -172,10 +172,14 @@ many are switched on.
 - **The eye after Indicators opens View options.** Its five checkboxes show or
   hide the chart grid, volume bars, crosshair, order arrows and your drawings.
   All five start on, and each choice follows the account onto the next market,
-  visit and machine. Hiding drawings leaves every line saved in place, clears
-  the picked line and switches off the paint tools until drawings are shown
-  again. The bin still appears when hidden drawings exist because clearing and
-  hiding are different actions.
+  visit and machine. When order arrows are on, **Previous trades** accepts any
+  positive whole number for how many finished trades to keep, and an empty
+  field keeps them all. Fills from the position still open are never trimmed,
+  and picking an older Journal row brings that trade's own arrows back while it
+  is selected. Hiding drawings leaves every line saved in place, clears the
+  picked line and switches off the paint tools until drawings are shown again.
+  The bin still appears when hidden drawings exist because clearing and hiding
+  are different actions.
 - **A change is saved once the settings sit still for a moment**, because
   typing "150" into a field is three changes. A save that does not land is said
   in a toast and **does not undo what was just typed** — the chart is already
@@ -333,6 +337,9 @@ shortcut out of the menu because its chart line is the place to change it.
 A live take-profit or stop-loss order appears once, as its coloured target or
 stop bar. This includes a grid's own STOP LOSS line. The chart does not draw
 the exchange's copy of that order as a second gray Sell bar.
+
+The Entry bar is chart blue. It does not borrow the account accent, so changing
+the theme cannot turn the entry into the colour of some other kind of line.
 
 A position's stop can be dragged past its entry after price moves in the
 trade's favour. This trailing stop protects profit. It must remain below the
@@ -498,6 +505,9 @@ fixed in one is fixed in both.
   middle panel's edge where each one disappeared, and brings it back.
 - **The bottom never disappears.** It shuts down to its own tab row, which stays
   on screen with its counts, and the divider above it stays draggable.
+- **Positions open with the most Unrealized P&L first.** The largest current
+  profit sits at the top and losses fall underneath it. The Unrealized P&L
+  heading shows that order and reverses it when pressed.
 - **Double-clicking the blank part of a panel shuts it.** Double-clicking what
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.

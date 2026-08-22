@@ -48,6 +48,7 @@ describe("the remembered chart options", () => {
       volume: true,
       crosshair: false,
       orderArrows: false,
+      orderArrowTrades: 7,
       drawings: false,
       zone: "America/New_York" as const,
     }
@@ -63,6 +64,7 @@ describe("the remembered chart options", () => {
       volume: false,
       crosshair: false,
       orderArrows: false,
+      orderArrowTrades: 43,
       drawings: false,
       zone: "Europe/London" as const,
     })
@@ -218,7 +220,9 @@ describe("the remembered chart view", () => {
     expect(await loadLastMarketKey(id, "hyperliquid")).toBe(
       "hyperliquid:mainnet:BTC"
     )
-    expect(await loadLastMarketKey(id, "kucoin")).toBe("kucoin:mainnet:ETHUSDTM")
+    expect(await loadLastMarketKey(id, "kucoin")).toBe(
+      "kucoin:mainnet:ETHUSDTM"
+    )
     // One never visited says so, rather than handing back somebody else's.
     expect(await loadLastMarketKey(id, "phemex")).toBeNull()
   })

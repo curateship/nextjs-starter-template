@@ -78,6 +78,7 @@ import {
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 
 const CANDLE_LOAD_SETTLE_MS = 250
+const ORB_SOURCE_INTERVAL: CandleInterval = "15m"
 
 /**
  * The last charts this browser drew, so a revisit paints instantly.
@@ -202,8 +203,21 @@ export function ChartPanel({
   } | null>(null)
   // Bumped by the retry button; the fetch effect depends on it.
   const [attempt, setAttempt] = React.useState(0)
+  const [orbAnswer, setOrbAnswer] = React.useState<{
+    key: string
+    candles: CandleBar[]
+    error: string | null
+  } | null>(null)
+  const [orbAttempt, setOrbAttempt] = React.useState(0)
 
   const wanted = selectedKey ? `${selectedKey}@${interval}` : null
+  const needsOrbSource =
+    indicators.orb?.on === true &&
+    intervalMs(interval) > intervalMs(ORB_SOURCE_INTERVAL)
+  const orbWanted =
+    selectedKey && needsOrbSource
+      ? `${selectedKey}@${ORB_SOURCE_INTERVAL}`
+      : null
 
   // The working bar, streamed. Tagged with the market-and-interval it
   // belongs to, so a tick that arrives just after a switch cannot draw on
@@ -218,7 +232,10 @@ export function ChartPanel({
 
   // The feed came back after a gap: the working bar alone cannot patch a
   // hole in history, so the snapshot is refetched.
-  useLiveCatchUp(() => setAttempt((count) => count + 1))
+  useLiveCatchUp(() => {
+    setAttempt((count) => count + 1)
+    if (needsOrbSource) setOrbAttempt((count) => count + 1)
+  })
 
   // The lines drawn on this market. They belong to the market, not to the
   // timeframe, so switching between 4h and 1d leaves them where they are.
@@ -502,6 +519,15 @@ export function ChartPanel({
       : null
   }, [answer, wanted])
 
+  const orbCurrent = React.useMemo(() => {
+    if (!orbWanted) return null
+    if (orbAnswer?.key === orbWanted) return orbAnswer
+    const remembered = drawnCharts.get(orbWanted)
+    return remembered
+      ? { key: orbWanted, candles: remembered, error: null }
+      : null
+  }, [orbAnswer, orbWanted])
+
   // The Journal's trade, but only while its own market is the one on screen.
   // A trade drawn over another coin's candles would be nonsense.
   const focusTrade =
@@ -556,12 +582,67 @@ export function ChartPanel({
    */
   const indicatorPainted = React.useMemo(
     () =>
-      indicatorPaint(indicators, current?.candles ?? [], {
-        zone: options.zone,
-        interval,
-      }),
-    [indicators, current?.candles, options.zone, interval]
+      indicatorPaint(
+        indicators,
+        current?.candles ?? [],
+        {
+          zone: options.zone,
+          interval,
+        },
+        orbCurrent
+          ? {
+              orb: {
+                candles: orbCurrent.candles,
+                interval: ORB_SOURCE_INTERVAL,
+              },
+            }
+          : undefined
+      ),
+    [indicators, current?.candles, options.zone, interval, orbCurrent]
   )
+
+  React.useEffect(() => {
+    if (!selectedKey || !orbWanted) return
+    let stale = false
+    const timeout = setTimeout(() => {
+      loadCandles(selectedKey, ORB_SOURCE_INTERVAL)
+        .then(({ candles }) => {
+          if (stale) return
+          rememberDrawnChart(orbWanted, candles)
+          setOrbAnswer({ key: orbWanted, candles, error: null })
+        })
+        .catch((error: unknown) => {
+          if (stale) return
+          setOrbAnswer({
+            key: orbWanted,
+            candles: drawnCharts.get(orbWanted) ?? [],
+            error: getCandlesErrorMessage(error),
+          })
+        })
+    }, CANDLE_LOAD_SETTLE_MS)
+    return () => {
+      stale = true
+      clearTimeout(timeout)
+    }
+  }, [selectedKey, orbWanted, orbAttempt])
+
+  // The coarse chart may not have a candle stream at all, so the supporting
+  // 15m read follows the clock rather than relying on a tick to announce that
+  // its newest bar has closed.
+  React.useEffect(() => {
+    if (!orbWanted) return
+    let timer = 0
+    const arm = () => {
+      const barMs = intervalMs(ORB_SOURCE_INTERVAL)
+      const untilClose = barMs - (Date.now() % barMs) + 2_000
+      timer = window.setTimeout(() => {
+        if (document.hidden) arm()
+        else setOrbAttempt((count) => count + 1)
+      }, untilClose)
+    }
+    arm()
+    return () => window.clearTimeout(timer)
+  }, [orbWanted, orbAttempt])
 
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
@@ -688,6 +769,12 @@ export function ChartPanel({
           data-slot="chart-ready"
           className="relative h-full min-h-0 motion-safe:animate-in motion-safe:duration-300 motion-safe:fade-in-0"
         >
+          {orbCurrent?.error ? (
+            <ErrorBanner
+              message="The opening range could not load the 15m candles it needs. The chart is still working. Try again in a moment."
+              onRetry={() => setOrbAttempt((count) => count + 1)}
+            />
+          ) : null}
           <PriceChart
             candles={current.candles}
             options={options}
@@ -869,6 +956,7 @@ export function ChartPanel({
                   fills={marketFills}
                   focusedTrade={focusTrade}
                   showArrows={options.orderArrows}
+                  tradeLimit={options.orderArrowTrades}
                 />
                 <MeasureLayer
                   key={current.key}
