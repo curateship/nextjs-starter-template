@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   ArchiveIcon,
+  ChevronDownIcon,
   CreditCardIcon,
   InfoIcon,
   LayersIcon,
@@ -8,8 +9,14 @@ import {
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
-import { useTradeAccount } from "@/components/trade/use-trade-account"
+import type { useTradeAccount } from "@/components/trade/use-trade-account"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { WorkspacePanelTab } from "@/components/shared/workspace-panel-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -30,8 +37,8 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * The right panel's top card: the active wallet's figures, and the All tab
- * that lists every wallet. Purely a view — the state comes in from the one
+ * The right panel's wallet picker, and the All tab that manages every wallet.
+ * Purely a view — the state comes in from the one
  * `useTradeAccount` the workspace owns, and the two dialogs (add, edit) are
  * the workspace's too, so the narrow-screen sheet and the desktop column can
  * never hold two copies of either.
@@ -105,116 +112,170 @@ function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
   )
 }
 
-function ActiveWalletView({
+function ActiveWalletRow({
   wallet,
   summary,
+  selected,
+  onSelect,
   onRetry,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
+  selected: boolean
+  onSelect: () => void
   onRetry: () => void
 }) {
+  const [open, setOpen] = React.useState(false)
   const ok = summary !== null && summary.state === "ok"
   // Real figures, just not this second's — the exchange has missed a read or
   // two. Said quietly rather than shouted: nothing here is wrong, it is only
   // a moment behind.
   const stale = summary?.state === "ok" && summary.stale === true
+  const status = ok
+    ? stale
+      ? "Figures a moment old"
+      : "Connected"
+    : "Can't reach it"
+
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 sm:px-5">
-      <div className="flex flex-col gap-0.5">
-        <div className="flex items-center justify-between gap-3">
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-base font-semibold">
-              {wallet.label}
-            </span>
-            <KindBadge kind={wallet.kind} />
-          </span>
-          {ok ? (
-            <span className="shrink-0 text-lg font-semibold tabular-nums">
-              {formatUsd(summary.equity)}
-            </span>
-          ) : null}
-        </div>
-        {/* Its own full-width row, so the money above never squeezes it. */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="truncate">
-            {venueLabel(wallet.protocol, wallet.network)}
-            {" · "}
-            {ok
-              ? stale
-                ? "Figures a moment old"
-                : "Connected"
-              : summary?.state === "inactive"
-                ? "Not switched on"
-                : "Can't reach it"}
-          </span>
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              !ok ? "bg-destructive" : stale ? "bg-amber-500" : "bg-emerald-500"
-            )}
-            aria-hidden
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className={cn(
+        "border-b transition-colors last:border-b-0",
+        selected && "bg-primary/5"
+      )}
+    >
+      <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
+        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => {
+              if (!selected) onSelect()
+            }}
+            aria-label={
+              selected
+                ? `${wallet.label} is the wallet in use`
+                : `Trade with ${wallet.label}`
+            }
+            className="rounded-full"
           />
-        </div>
-      </div>
-
-      <KeyExpiryNotice wallet={wallet} />
-
-      {ok ? (
-        <div className="flex flex-col gap-0.5 text-xs">
-          <FigureRow label="Free">
-            <span className="tabular-nums">{formatUsd(summary.free)}</span>
-          </FigureRow>
-          <FigureRow label="In trades">
-            <span className="tabular-nums">{formatUsd(summary.inTrades)}</span>
-          </FigureRow>
-          <FigureRow label="Open profit">
-            <SignedUsd value={summary.openProfit} />
-          </FigureRow>
-          <FigureRow
-            label={
-              <span className="flex items-center gap-1">
-                Settled
-                {summary.unpricedFills ? (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        aria-label="About settled profit"
-                        className="text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <InfoIcon className="size-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-64">
-                      Settled and Made or lost are short of{" "}
-                      {summary.unpricedFills.toLocaleString()}{" "}
-                      {summary.unpricedFills === 1 ? "trade" : "trades"} whose
-                      profit the exchange has not stated.
-                    </TooltipContent>
-                  </Tooltip>
-                ) : null}
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate text-sm font-semibold">
+                {wallet.label}
               </span>
+              <KindBadge kind={wallet.kind} />
+            </div>
+            <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="truncate">
+                {venueLabel(wallet.protocol, wallet.network)} · {status}
+              </span>
+              <span
+                className={cn(
+                  "size-1.5 shrink-0 rounded-full",
+                  !ok
+                    ? "bg-destructive"
+                    : stale
+                      ? "bg-amber-500"
+                      : "bg-emerald-500"
+                )}
+                aria-hidden
+              />
+            </div>
+          </div>
+          <div className="shrink-0 text-right">
+            <div className="text-base font-semibold tabular-nums">
+              {ok ? formatUsd(summary.equity) : "—"}
+            </div>
+            {ok ? (
+              <SignedUsd value={summary.madeOrLost} className="text-xs" />
+            ) : null}
+          </div>
+        </label>
+        <CollapsibleTrigger asChild>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={
+              open
+                ? `Hide ${wallet.label} figures`
+                : `Show ${wallet.label} figures`
             }
           >
-            <SignedUsd value={summary.settled} />
-          </FigureRow>
-          <FigureRow label="Made or lost">
-            <SignedUsd value={summary.madeOrLost} />
-          </FigureRow>
-        </div>
-      ) : (
-        <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
-          <p>
-            The exchange did not answer for this wallet, so there are no figures
-            to show — showing zeros would be making them up.
-          </p>
-          <Button size="sm" variant="outline" onClick={onRetry}>
-            Try again
+            <ChevronDownIcon
+              className={cn(
+                "size-4 transition-transform duration-200",
+                !open && "-rotate-90"
+              )}
+            />
           </Button>
+        </CollapsibleTrigger>
+      </div>
+
+      <CollapsibleContent className="px-4 pb-3 sm:px-5">
+        <div className="grid gap-2 rounded-lg border bg-card p-3">
+          <KeyExpiryNotice wallet={wallet} />
+          {ok ? (
+            <div className="flex flex-col gap-0.5 text-xs">
+              <FigureRow label="Free">
+                <span className="tabular-nums">{formatUsd(summary.free)}</span>
+              </FigureRow>
+              <FigureRow label="In trades">
+                <span className="tabular-nums">
+                  {formatUsd(summary.inTrades)}
+                </span>
+              </FigureRow>
+              <FigureRow label="Open profit">
+                <SignedUsd value={summary.openProfit} />
+              </FigureRow>
+              <FigureRow
+                label={
+                  <span className="flex items-center gap-1">
+                    Settled
+                    {summary.unpricedFills ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            aria-label="About settled profit"
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <InfoIcon className="size-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-64">
+                          Settled and Made or lost are short of{" "}
+                          {summary.unpricedFills.toLocaleString()}{" "}
+                          {summary.unpricedFills === 1 ? "trade" : "trades"}{" "}
+                          whose profit the exchange has not stated.
+                        </TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </span>
+                }
+              >
+                <SignedUsd value={summary.settled} />
+              </FigureRow>
+              <FigureRow label="Made or lost">
+                <SignedUsd value={summary.madeOrLost} />
+              </FigureRow>
+            </div>
+          ) : (
+            <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+              <p>
+                The exchange did not answer for this wallet, so there are no
+                figures to show — showing zeros would be making them up.
+              </p>
+              <Button size="sm" variant="outline" onClick={onRetry}>
+                Try again
+              </Button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -231,113 +292,103 @@ function WalletCard({
   onOpen: () => void
 }) {
   const ok = summary !== null && summary.state === "ok"
+  const inactive = summary?.state === "inactive"
+  const stale = summary?.state === "ok" && summary.stale === true
   const expiryWarning = useKeyExpiryWarning(wallet.keyValidUntil)
+  const status = inactive
+    ? "Not switched on"
+    : ok
+      ? stale
+        ? "Figures a moment old"
+        : "Connected"
+      : "Can't reach it"
   return (
     <button
       type="button"
       onClick={onOpen}
       className={cn(
-        "w-full rounded-xl border px-3.5 py-3 text-left transition-colors",
-        active
-          ? "border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10"
-          : "bg-muted/20 hover:bg-muted/40"
+        "flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 sm:px-5",
+        active && "bg-primary/5"
       )}
       aria-label={`${wallet.label}${active ? " — the wallet in use" : ""} — open wallet settings`}
     >
-      <div className="flex items-center justify-between gap-3">
+      <span
+        className={cn(
+          "flex size-4 shrink-0 items-center justify-center rounded-full border",
+          active && "border-primary bg-primary"
+        )}
+        aria-hidden
+      >
+        {active ? (
+          <span className="size-1.5 rounded-full bg-primary-foreground" />
+        ) : null}
+      </span>
+      <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold">{wallet.label}</span>
           <KindBadge kind={wallet.kind} />
         </span>
-        {ok ? (
-          <SignedUsd value={summary.openProfit} className="shrink-0 text-sm" />
-        ) : (
-          <span className="shrink-0 text-sm text-destructive">
-            Can't reach it
+        <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="truncate">
+            {venueLabel(wallet.protocol, wallet.network)} · {status}
           </span>
-        )}
-      </div>
-      <div className="mt-1 flex items-baseline justify-between gap-3">
-        <span className="text-base font-semibold tabular-nums">
-          {ok ? formatUsd(summary.equity) : "—"}
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              inactive
+                ? "bg-muted-foreground"
+                : !ok
+                  ? "bg-destructive"
+                  : stale
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+            )}
+            aria-hidden
+          />
         </span>
-        {active ? (
-          <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            <span
-              className="size-1.5 rounded-full bg-emerald-500"
-              aria-hidden
-            />
-            Live
-          </span>
-        ) : wallet.status === "inactive" ? (
-          <span className="shrink-0 text-xs font-medium text-muted-foreground">
-            Inactive
+        {expiryWarning ? (
+          <span className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
+            {expiryWarning}
           </span>
         ) : null}
-      </div>
-      {expiryWarning ? (
-        <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
-          {expiryWarning}
-        </p>
-      ) : null}
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="block text-base font-semibold tabular-nums">
+          {ok ? formatUsd(summary.equity) : "—"}
+        </span>
+        {ok ? (
+          <SignedUsd value={summary.openProfit} className="block text-xs" />
+        ) : null}
+      </span>
     </button>
   )
 }
 
-/**
- * What the Active tab shows when wallets exist but none has been picked —
- * after a first add elsewhere, or once the chosen wallet was deleted.
- *
- * It asks rather than choosing: an order goes to whichever wallet is active,
- * and landing on whichever happened to be created first is exactly the kind
- * of guess that trades the wrong money. Each row picks that wallet outright;
- * editing one still lives behind its card on the All tab.
- */
-function ChooseWalletView({
+export function ActiveWalletsView({
   wallets,
   summaryOf,
+  activeWalletId,
   onUseWallet,
+  onRetry,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
+  activeWalletId: string | null
   onUseWallet: (walletId: string) => void
+  onRetry: () => void
 }) {
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 sm:px-5">
-      <p className="text-sm font-medium">Which wallet are you trading with?</p>
-      <p className="text-xs text-muted-foreground">
-        Pick one and it stays picked. Orders go to this wallet, so nothing is
-        chosen for you.
-      </p>
-      <div className="mt-1 flex flex-col gap-1.5">
-        {wallets.map((wallet) => {
-          const summary = summaryOf(wallet.id)
-          const ok = summary !== null && summary.state === "ok"
-          return (
-            <button
-              key={wallet.id}
-              type="button"
-              onClick={() => onUseWallet(wallet.id)}
-              className="flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted/40"
-              aria-label={`Trade with ${wallet.label}`}
-            >
-              <span className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium">
-                  {wallet.label}
-                </span>
-                <KindBadge kind={wallet.kind} />
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {ok
-                  ? formatUsd(summary.equity)
-                  : summary?.state === "inactive"
-                    ? "Inactive"
-                    : "Can't reach it"}
-              </span>
-            </button>
-          )
-        })}
-      </div>
+    <div>
+      {wallets.map((wallet) => (
+        <ActiveWalletRow
+          key={wallet.id}
+          wallet={wallet}
+          summary={summaryOf(wallet.id)}
+          selected={wallet.id === activeWalletId}
+          onSelect={() => onUseWallet(wallet.id)}
+          onRetry={onRetry}
+        />
+      ))}
     </div>
   )
 }
@@ -361,14 +412,14 @@ function AllWalletsView({
     if (summary?.state === "ok") {
       total += summary.equity
       totalProfit += summary.openProfit
-    } else {
+    } else if (summary?.state === "unreachable" || summary === null) {
       unreachable += 1
     }
   }
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-4 sm:px-5">
-      <div className="flex flex-col gap-0.5">
+    <div>
+      <div className="flex flex-col gap-0.5 border-b px-4 py-3 sm:px-5">
         <div className="flex items-baseline justify-between gap-3">
           <span className="text-sm text-muted-foreground">Total value</span>
           <span className="flex items-baseline gap-2">
@@ -383,13 +434,13 @@ function AllWalletsView({
         </span>
       </div>
       {unreachable > 0 ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="border-b px-4 py-2 text-xs text-muted-foreground sm:px-5">
           {unreachable === 1 ? "One wallet" : `${unreachable} wallets`} could
           not be reached, so the total is missing{" "}
           {unreachable === 1 ? "its" : "their"} value.
         </p>
       ) : null}
-      <div className="flex flex-col gap-2">
+      <div>
         {/* The wallet in use sits at the top; the rest keep the order they
             were added in. Sorted on a copy — `wallets` belongs to the poll. */}
         {[...wallets]
@@ -477,17 +528,13 @@ export function AccountPanel({
             <PanelLoading />
           ) : failed ? (
             <LoadFailed onRetry={() => void refresh()} />
-          ) : activeWallet ? (
-            <ActiveWalletView
-              wallet={activeWallet}
-              summary={summaryOf(activeWallet.id)}
-              onRetry={() => void refresh()}
-            />
           ) : activeWallets.length > 0 ? (
-            <ChooseWalletView
+            <ActiveWalletsView
               wallets={activeWallets}
               summaryOf={summaryOf}
+              activeWalletId={activeWallet?.id ?? null}
               onUseWallet={account.switchWallet}
+              onRetry={() => void refresh()}
             />
           ) : (
             <NoActiveWallets hasWallets={wallets.length > 0} />

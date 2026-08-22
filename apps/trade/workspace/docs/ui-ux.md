@@ -73,6 +73,11 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Right, top — Account.** Which account you are trading with.
+  The Active tab lists every wallet that is switched on. Pressing anywhere on
+  a wallet row makes it the wallet used for the next trade. The selection does
+  not open the figures. Each wallet has a separate chevron for that, and every
+  row starts folded. All and Inactive use the same rows, but pressing one there
+  opens its settings instead of changing the trading wallet.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
   the panel is the same order as making the decision.
