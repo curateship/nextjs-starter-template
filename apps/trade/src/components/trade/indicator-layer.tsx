@@ -58,6 +58,20 @@ const ARROW_HALF_WIDTH = 5
  */
 const OFF_SCREEN = 40
 
+const LINE_WIDTH = 1.5
+
+/** The first point at or after a time, in a line whose points are oldest first. */
+function pointIndexAtOrAfter(points: { time: number }[], time: number): number {
+  let low = 0
+  let high = points.length
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (points[middle].time < time) low = middle + 1
+    else high = middle
+  }
+  return low
+}
+
 function colorOf(side: IndicatorSide): string {
   // Teal rather than the candles' own green, so a level never reads as a
   // candle; red is the same red the down candles and the ruler use.
@@ -181,6 +195,42 @@ export const IndicatorLayer = React.memo(function IndicatorLayer({
             />
           )
         })}
+
+      {paint.lines.map((line) => {
+        const edgeOne = surface.timeAt(-OFF_SCREEN)
+        const edgeTwo = surface.timeAt(surface.width + OFF_SCREEN)
+        const first = pointIndexAtOrAfter(
+          line.points,
+          Math.min(edgeOne, edgeTwo)
+        )
+        const after = pointIndexAtOrAfter(
+          line.points,
+          Math.max(edgeOne, edgeTwo)
+        )
+        // Keep one point past each edge so the stroke reaches the edge instead
+        // of stopping at the first candle whose centre is inside the chart.
+        const visible = line.points.slice(
+          Math.max(0, first - 1),
+          Math.min(line.points.length, after + 1)
+        )
+        const points = visible.flatMap((point) => {
+          const x = surface.xOf(point.time)
+          const y = surface.yOf(point.price)
+          return y === null ? [] : [`${x},${y}`]
+        })
+        if (points.length < 2) return null
+        return (
+          <polyline
+            key={line.id}
+            points={points.join(" ")}
+            fill="none"
+            stroke={line.color}
+            strokeWidth={LINE_WIDTH}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        )
+      })}
 
       {paint.dashes.map((dash) => {
         const y = surface.yOf(dash.price)

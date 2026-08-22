@@ -95,6 +95,7 @@ describe("the indicator library", () => {
 
   it("draws nothing while nothing is switched on", () => {
     expect(indicatorPaint(defaultIndicatorSettings(), CANDLES, CHART)).toEqual({
+      lines: [],
       dashes: [],
       marks: [],
       boxes: [],
@@ -124,6 +125,7 @@ describe("the indicator library", () => {
   it("has nothing to draw over a chart with no candles", () => {
     const settings = readIndicatorSettings({ base: { on: true, params: {} } })
     expect(indicatorPaint(settings, [], CHART)).toEqual({
+      lines: [],
       dashes: [],
       marks: [],
       boxes: [],

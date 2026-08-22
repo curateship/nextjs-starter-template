@@ -158,6 +158,7 @@ export function BacktestChartPanel({
       })
     }
     return {
+      lines: [],
       dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
       // No arrows. The base draws one at each candle that confirmed a level,
       // and on this chart that reads as an order — which is exactly what the

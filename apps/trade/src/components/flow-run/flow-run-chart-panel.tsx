@@ -123,6 +123,7 @@ export function FlowRunChartPanel({
       })
     }
     return {
+      lines: [],
       dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
       // No arrows: the base indicator marks every candle that confirmed a
       // level, and on this chart that reads as an order — which is what the

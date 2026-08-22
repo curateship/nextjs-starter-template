@@ -351,7 +351,7 @@ describe("an opening range that cannot honestly be drawn", () => {
       zone: "America/New_York",
       interval: "4h",
     })
-    expect(paint).toEqual({ dashes: [], marks: [], boxes: [] })
+    expect(paint).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
     expect(orbIndicator.note?.(settings(), { zone: "UTC", interval: "4h" })).toBe(
       "A 15-minute range cannot be made out of 4h candles, so nothing is drawn. Put the chart on a shorter timeframe."
     )
@@ -425,6 +425,7 @@ describe("an opening range that cannot honestly be drawn", () => {
 
   it("has nothing to say about a chart with no candles", () => {
     expect(orbIndicator.compute([], settings(), NEW_YORK)).toEqual({
+      lines: [],
       dashes: [],
       marks: [],
       boxes: [],

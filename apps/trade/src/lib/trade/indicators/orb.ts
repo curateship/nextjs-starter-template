@@ -208,7 +208,12 @@ function orbPaint(
   params: IndicatorParams,
   context: IndicatorContext
 ): IndicatorPaint {
-  const nothing: IndicatorPaint = { dashes: [], marks: [], boxes: [] }
+  const nothing: IndicatorPaint = {
+    lines: [],
+    dashes: [],
+    marks: [],
+    boxes: [],
+  }
   const settings = orbSettings(params)
   const barMs = intervalMs(context.interval)
   const bars = rangeBarCount(settings.rangeMinutes, barMs)
@@ -346,7 +351,7 @@ function orbPaint(
     }
   }
 
-  return { dashes: [], marks, boxes }
+  return { lines: [], dashes: [], marks, boxes }
 }
 
 export const orbIndicator: IndicatorModule = {
@@ -417,6 +422,7 @@ export const orbIndicator: IndicatorModule = {
     const settings = orbSettings(params)
     const paint = orbPaint(candles, params, context)
     return {
+      lines: [],
       dashes: [],
       marks: settings.showArrows ? paint.marks : [],
       // A band has no prices and the range box has them: that is the whole of

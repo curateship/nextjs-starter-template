@@ -20,6 +20,7 @@ Two files outrank the rest, and outrank the code:
   it is stored as a place rather than as an offset.
 - `opening-range-indicator.md` — what the opening range is, its settings, and
   the rules it follows about breaks, gaps and the session in progress.
+- `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.
 - `smart-orders-never-rest.md` — why a smart order sends nothing until the price
   is reached, what watching costs when a market moves fast, how often the engine
   looks, and what a backtest does differently.

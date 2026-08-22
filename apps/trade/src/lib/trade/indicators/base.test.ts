@@ -95,7 +95,7 @@ describe("the base indicator", () => {
       settings({ showBases: false }),
       CHART
     )
-    expect(paint).toEqual({ dashes: [], marks: [], boxes: [] })
+    expect(paint).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
   })
 
   it("keeps the dash but drops the arrow on a floor that is lower than the last", () => {
@@ -145,11 +145,13 @@ describe("the base indicator", () => {
 
   it("says nothing about a chart with less history than the search needs", () => {
     expect(baseIndicator.compute(bars([10, 9, 8]), settings(), CHART)).toEqual({
+      lines: [],
       dashes: [],
       marks: [],
       boxes: [],
     })
     expect(baseIndicator.compute([], settings(), CHART)).toEqual({
+      lines: [],
       dashes: [],
       marks: [],
       boxes: [],
@@ -164,7 +166,7 @@ describe("the base indicator", () => {
     )
     // 36 candles of search over 10 candles of history finds nothing, which is
     // the honest answer — not a crash, and not a chart drawn from NaN.
-    expect(fromJunk).toEqual({ dashes: [], marks: [], boxes: [] })
+    expect(fromJunk).toEqual({ lines: [], dashes: [], marks: [], boxes: [] })
   })
 
   it("caps the wait below the search, because there is nothing longer to wait for", () => {

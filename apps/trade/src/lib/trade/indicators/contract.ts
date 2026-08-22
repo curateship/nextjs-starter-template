@@ -48,6 +48,13 @@ export type IndicatorMark = {
   side: IndicatorSide
 }
 
+/** One continuous reading drawn through candle closes. */
+export type IndicatorLine = {
+  id: string
+  color: string
+  points: { time: number; price: number }[]
+}
+
 /**
  * A see-through rectangle across a stretch of time.
  *
@@ -77,6 +84,7 @@ export type IndicatorBox = {
 
 /** Everything an indicator wants drawn, in the market's own coordinates. */
 export type IndicatorPaint = {
+  lines: IndicatorLine[]
   dashes: IndicatorDash[]
   marks: IndicatorMark[]
   boxes: IndicatorBox[]
@@ -101,9 +109,9 @@ export type IndicatorSignal = { time: number; side: "buy" | "sell" }
 /**
  * What one setting holds. Nothing else is storable, on purpose.
  *
- * A string is either a clock time — "09:30" — or the value of one option from
- * a pick-one list. It is never free text: a box somebody can type anything
- * into is a box that needs rules of its own, and no indicator wants one.
+ * A string is a clock time, a colour, or the value of one option from a
+ * pick-one list. It is never free text: a box somebody can type anything into
+ * is a box that needs rules of its own, and no indicator wants one.
  */
 export type IndicatorParams = Record<string, number | boolean | string>
 
@@ -122,6 +130,8 @@ export type IndicatorField = {
 } & (
   | { kind: "number"; min: number; max: number; fallback: number }
   | { kind: "switch"; fallback: boolean }
+  /** A six-digit hex colour, picked rather than typed. */
+  | { kind: "color"; fallback: string }
   /** A time of day on the chart's own clock, stored and shown as "09:30". */
   | { kind: "time"; fallback: string }
   /** One of a short written-down list. Anything else falls back. */
@@ -176,7 +186,7 @@ export type IndicatorModule = {
   /**
    * What to draw. Given whatever is stored — junk included: it reads its own
    * settings through `readIndicatorParams` first, so it can never be handed a
-   * number it did not ask for.
+   * value it did not ask for.
    */
   compute(
     candles: IndicatorCandle[],
@@ -243,9 +253,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *
  * Numbers are whole and inside their range, because every number setting here
  * is a count of something — candles, minutes. A fraction of a candle is not a
- * thing. A clock time is checked as one and normalised to "09:30"; a pick-one
- * setting has to name an option that still exists, so an option dropped in a
- * later build reads back as the fallback rather than drawing as nothing.
+ * thing. A clock time is checked as one and normalised to "09:30". A colour
+ * must be six hex digits. A pick-one setting has to name an option that still
+ * exists, so an option dropped in a later build reads back as the fallback
+ * rather than drawing as nothing.
  */
 export function readIndicatorParams(
   fields: IndicatorField[],
@@ -264,6 +275,13 @@ export function readIndicatorParams(
         typeof stored === "string" ? minutesOfClockTime(stored) : null
       params[field.key] =
         minutes === null ? field.fallback : clockTimeOfMinutes(minutes)
+      continue
+    }
+    if (field.kind === "color") {
+      params[field.key] =
+        typeof stored === "string" && /^#[0-9a-f]{6}$/i.test(stored)
+          ? stored.toLowerCase()
+          : field.fallback
       continue
     }
     if (field.kind === "choice") {

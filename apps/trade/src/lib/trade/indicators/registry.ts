@@ -1,6 +1,7 @@
 import { z } from "zod"
 
 import { baseIndicator } from "@/lib/trade/indicators/base"
+import { emaIndicator } from "@/lib/trade/indicators/ema"
 import { orbIndicator } from "@/lib/trade/indicators/orb"
 import {
   defaultIndicatorParams,
@@ -26,6 +27,7 @@ import {
 /** The whole library, in the order the menu lists them. */
 export const INDICATOR_LIST: readonly IndicatorModule[] = [
   baseIndicator,
+  emaIndicator,
   orbIndicator,
 ]
 
@@ -163,11 +165,12 @@ export function indicatorPaint(
   candles: IndicatorCandle[],
   context: IndicatorContext
 ): IndicatorPaint {
-  const paint: IndicatorPaint = { dashes: [], marks: [], boxes: [] }
+  const paint: IndicatorPaint = { lines: [], dashes: [], marks: [], boxes: [] }
   if (candles.length === 0) return paint
   for (const module of INDICATOR_LIST) {
     if (!settings[module.kind]?.on) continue
     const drawn = module.compute(candles, settings[module.kind].params, context)
+    paint.lines.push(...drawn.lines)
     paint.dashes.push(...drawn.dashes)
     paint.marks.push(...drawn.marks)
     paint.boxes.push(...drawn.boxes)

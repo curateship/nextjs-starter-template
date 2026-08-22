@@ -3,6 +3,7 @@ import { ChevronDownIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { ColorSwatch } from "@/components/ui/color-swatch"
 import {
   Collapsible,
   CollapsibleContent,
@@ -165,15 +166,17 @@ export function IndicatorRow({
           />
         ))}
         {note ? <p className="text-xs text-muted-foreground">{note}</p> : null}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="justify-self-start"
-          onClick={onReset}
-        >
-          Back to the defaults
-        </Button>
+        {module.fields.length > 0 ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="justify-self-start"
+            onClick={onReset}
+          >
+            Back to the defaults
+          </Button>
+        ) : null}
       </CollapsibleContent>
     </Collapsible>
   )
@@ -315,6 +318,21 @@ function Setting({
         <FieldLabel htmlFor={id} hint={field.hint}>
           {field.label}
         </FieldLabel>
+      </div>
+    )
+  }
+
+  if (field.kind === "color") {
+    return (
+      <div className="grid gap-2">
+        <FieldLabel htmlFor={id} hint={field.hint}>
+          {field.label}
+        </FieldLabel>
+        <ColorSwatch
+          id={id}
+          value={typeof value === "string" ? value : field.fallback}
+          onChange={(event) => onSet(event.target.value)}
+        />
       </div>
     )
   }
