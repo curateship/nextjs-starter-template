@@ -158,7 +158,10 @@ export function saveMarketFavorites(marketKeys: string[]) {
 }
 
 export const getMarketsErrorMessage = createErrorMessage(
-  {},
+  {
+    ASTER_IP_BANNED:
+      "Aster has blocked this internet address. Trade has stopped asking Aster. Check Aster before restarting the app.",
+  },
   "The exchange did not answer. Nothing is wrong on your side — try again in a moment."
 )
 

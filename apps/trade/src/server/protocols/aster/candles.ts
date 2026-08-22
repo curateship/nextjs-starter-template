@@ -38,7 +38,7 @@ async function candlePage(
   to: number
 ): Promise<CandleBar[]> {
   return barsOf(
-    await asterPublic(network, "/fapi/v3/klines", {
+    await asterPublic(network, "/fapi/v3/klines", 5, {
       symbol: marketId,
       interval: ASTER_INTERVALS[interval],
       startTime: from,
@@ -70,7 +70,7 @@ export async function fetchAsterCandles(
     )
   }
   return barsOf(
-    await asterPublic(network, "/fapi/v3/klines", {
+    await asterPublic(network, "/fapi/v3/klines", 5, {
       symbol: marketId,
       interval: ASTER_INTERVALS[interval],
       limit: ROWS_PER_PAGE,

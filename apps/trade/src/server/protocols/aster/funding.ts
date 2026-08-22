@@ -41,19 +41,24 @@ export async function fetchAsterFundingIntervals(
   const held = heldConfig.get(network)
   if (held && Date.now() - held.at < CONFIG_HELD_MS) return held.load
 
-  const load = asterPublic(network, "/fapi/v3/fundingInfo").then((answer) => {
-    const intervals = new Map<string, number>()
-    for (const raw of Array.isArray(answer) ? answer : []) {
-      const row = fundingConfigRowSchema.safeParse(raw)
-      if (!row.success) continue
-      const hours = num(row.data.fundingIntervalHours)
-      if (hours === null || !(hours > 0)) continue
-      const milliseconds = hours * HOUR_MS
-      intervals.set(row.data.symbol, milliseconds)
-      intervalsByMarket.set(intervalKey(network, row.data.symbol), milliseconds)
+  const load = asterPublic(network, "/fapi/v3/fundingInfo", 10).then(
+    (answer) => {
+      const intervals = new Map<string, number>()
+      for (const raw of Array.isArray(answer) ? answer : []) {
+        const row = fundingConfigRowSchema.safeParse(raw)
+        if (!row.success) continue
+        const hours = num(row.data.fundingIntervalHours)
+        if (hours === null || !(hours > 0)) continue
+        const milliseconds = hours * HOUR_MS
+        intervals.set(row.data.symbol, milliseconds)
+        intervalsByMarket.set(
+          intervalKey(network, row.data.symbol),
+          milliseconds
+        )
+      }
+      return intervals
     }
-    return intervals
-  })
+  )
   heldConfig.set(network, { at: Date.now(), load })
   load.catch(() => {
     if (heldConfig.get(network)?.load === load) heldConfig.delete(network)
@@ -108,7 +113,7 @@ export async function fetchAsterFunding(
   const found = new Map<number, FundingRate>()
   let cursor = from
   while (cursor < to) {
-    const answer = await asterPublic(network, "/fapi/v3/fundingRate", {
+    const answer = await asterPublic(network, "/fapi/v3/fundingRate", 1, {
       symbol: marketId,
       startTime: cursor,
       endTime: to - 1,

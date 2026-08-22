@@ -72,6 +72,8 @@ export function loadCandles(
 
 export const getCandlesErrorMessage = createErrorMessage(
   {
+    ASTER_IP_BANNED:
+      "Aster has blocked this internet address. Trade has stopped asking Aster. Check Aster before restarting the app.",
     // The exchange rations requests, and the chart's own pull is what gets
     // refused when browsing spends the minute's allowance. Named, because
     // "could not load" sent people hunting for a broken chart.

@@ -5,17 +5,39 @@ import {
   fetchAsterFundingIntervals,
   toAsterFundingRates,
 } from "@/server/protocols/aster/funding"
+import { clearAsterClientState } from "@/server/protocols/aster/client"
 
 describe("Aster funding history", () => {
   afterEach(() => {
+    clearAsterClientState()
     vi.unstubAllGlobals()
   })
 
   it("keeps each network's interval separate and ignores null intervals", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockImplementation((url: URL) =>
-        Promise.resolve(
+      vi.fn().mockImplementation((url: URL) => {
+        if (url.pathname.endsWith("/exchangeInfo")) {
+          return Promise.resolve(
+            Response.json({
+              rateLimits: [
+                {
+                  rateLimitType: "REQUEST_WEIGHT",
+                  interval: "MINUTE",
+                  intervalNum: 1,
+                  limit: 2_400,
+                },
+                {
+                  rateLimitType: "ORDERS",
+                  interval: "MINUTE",
+                  intervalNum: 1,
+                  limit: 1_200,
+                },
+              ],
+            })
+          )
+        }
+        return Promise.resolve(
           Response.json([
             {
               symbol: "BTCUSDT",
@@ -26,7 +48,7 @@ describe("Aster funding history", () => {
             { symbol: "OLDUSDT", fundingIntervalHours: null },
           ])
         )
-      )
+      })
     )
 
     const mainnet = await fetchAsterFundingIntervals("mainnet")

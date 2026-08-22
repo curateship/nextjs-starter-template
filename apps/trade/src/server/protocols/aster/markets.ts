@@ -160,9 +160,9 @@ export async function fetchAsterMarkets(
   network: NetworkId
 ): Promise<MarketCatalog> {
   const [exchangeInfo, tickers, marks, fundingIntervals] = await Promise.all([
-    asterPublic(network, "/fapi/v3/exchangeInfo"),
-    asterPublic(network, "/fapi/v3/ticker/24hr"),
-    asterPublic(network, "/fapi/v3/premiumIndex"),
+    asterPublic(network, "/fapi/v3/exchangeInfo", 1),
+    asterPublic(network, "/fapi/v3/ticker/24hr", 40),
+    asterPublic(network, "/fapi/v3/premiumIndex", 10),
     fetchAsterFundingIntervals(network),
   ])
   return toAsterMarketCatalog({
@@ -184,15 +184,17 @@ const priceCaches = new Map<NetworkId, PriceCache>()
 async function allMarkPrices(network: NetworkId): Promise<Map<string, number>> {
   const cached = priceCaches.get(network)
   if (cached && Date.now() - cached.at < PRICES_HELD_MS) return cached.load
-  const load = asterPublic(network, "/fapi/v3/premiumIndex").then((answer) => {
-    const marks = parsedBySymbol(answer, markSchema)
-    const prices = new Map<string, number>()
-    for (const [symbol, row] of marks) {
-      const price = num(row.markPrice)
-      if (price !== null && price > 0) prices.set(symbol, price)
+  const load = asterPublic(network, "/fapi/v3/premiumIndex", 10).then(
+    (answer) => {
+      const marks = parsedBySymbol(answer, markSchema)
+      const prices = new Map<string, number>()
+      for (const [symbol, row] of marks) {
+        const price = num(row.markPrice)
+        if (price !== null && price > 0) prices.set(symbol, price)
+      }
+      return prices
     }
-    return prices
-  })
+  )
   priceCaches.set(network, { at: Date.now(), load })
   load.catch(() => {
     if (priceCaches.get(network)?.load === load) priceCaches.delete(network)
