@@ -149,6 +149,18 @@ export function parseMarketKey(key: string): MarketRef | null {
   return { protocol, network, marketId }
 }
 
+/**
+ * How a market key reads on screen: "hyperliquid:mainnet:BTC" is BTC.
+ *
+ * The key itself when it cannot be read, because a row still has to say which
+ * market it is about, and a blank cell in a table of money is worse than an
+ * ugly one. Written here, beside the only other way a key is ever read, so
+ * every panel says the same thing.
+ */
+export function marketSymbol(key: string): string {
+  return parseMarketKey(key)?.marketId ?? key
+}
+
 const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   hyperliquid: "/admin/hyper-liquid",
   phemex: "/admin/phemex",

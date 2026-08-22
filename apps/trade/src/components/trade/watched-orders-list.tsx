@@ -7,7 +7,7 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatAway, formatPrice, formatUsd } from "@/lib/trade/format"
 import type { LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -221,7 +221,7 @@ export function WatchedOrdersList({
  */
 function StaleAfterFailureNote({ onRetry }: { onRetry: () => void }) {
   return (
-    <p className="flex items-center gap-1.5 border-b px-3 py-1.5 text-[11px] text-muted-foreground">
+    <p className="flex items-center gap-1.5 border-b px-3 py-1.5 text-xs text-muted-foreground">
       {/* Says nothing about how many, because it sits above the "nothing is
           waiting" wording just as often as above rows — an exchange with no
           levels last time still has to admit the read failed. */}
@@ -267,7 +267,7 @@ function WatchedRow({
   refusal: LiveRefusal | null
   onSelect: () => void
 }) {
-  const symbol = parseMarketKey(level.marketKey)?.marketId ?? level.marketKey
+  const symbol = marketSymbol(level.marketKey)
   const line = watchedLevelLine(level, mark)
   return (
     <button
@@ -288,7 +288,7 @@ function WatchedRow({
             {formatUsd(level.px * level.sz)}
           </span>
         </span>
-        <span className="flex items-baseline gap-2 text-[11px] leading-4 text-muted-foreground">
+        <span className="flex items-baseline gap-2 text-xs leading-4 text-muted-foreground">
           <span className="min-w-0 flex-1 truncate">
             {/* The colour is decoration; the word is the answer, so a row
                 still reads right to anyone who cannot tell the greens from
@@ -337,7 +337,7 @@ function RefusalNote({ refusal }: { refusal: LiveRefusal }) {
   return (
     <span
       title={refusal.note}
-      className="mt-0.5 flex items-start gap-1 text-[11px] leading-4 text-destructive"
+      className="mt-0.5 flex items-start gap-1 text-xs leading-4 text-destructive"
     >
       <TriangleAlertIcon aria-hidden className="mt-0.5 size-3 shrink-0" />
       {/* `anywhere` rather than plain wrapping: an exchange's own code comes

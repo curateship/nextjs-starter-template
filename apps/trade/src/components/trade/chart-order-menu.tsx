@@ -145,7 +145,7 @@ export function ChartOrderMenu({
             <div role="group" aria-label="Smart order">
               <p
                 role="presentation"
-                className="px-2 pb-0.5 text-[11px] font-medium text-muted-foreground"
+                className="px-2 pb-0.5 text-xs font-medium text-muted-foreground"
               >
                 Smart order
               </p>

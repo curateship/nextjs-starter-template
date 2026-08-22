@@ -66,6 +66,28 @@ export function formatSignedUsd(value: number): string {
   return `${value > 0 ? "+" : "-"}$${USD.format(Math.abs(value))}`
 }
 
+const SIZE = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 6,
+})
+
+/**
+ * How much of the coin: "0.0125", "1,500".
+ *
+ * **This is the one that stops arithmetic residue reaching the screen.** A row
+ * rarely carries a size somebody typed. It carries dollars divided by a price,
+ * or a slice of a position, and division leaves digits that mean nothing —
+ * 0.014691048932 of a bitcoin, where the exchange itself only accepts five
+ * decimals and will fill 0.01469.
+ *
+ * Six is deliberately a little past what any market here states rather than
+ * exactly what one states, because a row does not carry its market's own
+ * precision. If one ever needs to, the market's `sizeDecimals` is the number
+ * to pass in, and this becomes its default.
+ */
+export function formatSize(size: number): string {
+  return SIZE.format(size)
+}
+
 /**
  * Big dollar figures — volume, open interest — said the way traders say
  * them: $1.24b, $88.6m, $532k. Not for prices; a price wants its digits.

@@ -77,6 +77,29 @@ function parsed(value: string): number | null {
   return value.trim() !== "" && Number.isFinite(n) ? n : null
 }
 
+/**
+ * One rung of the ladder while it is being typed: what is in its box, and a
+ * name of its own that outlives its position in the list.
+ *
+ * **The name is why it exists.** React tells two rows apart by their key, and
+ * keying these by position meant removing the third rung handed the fourth
+ * rung's box to the third rung's row — same DOM box, new number, and whatever
+ * was half-typed, selected or undone in it belonged to a different rung. The
+ * name is minted once when the rung appears and never changes, so a removal
+ * takes exactly one row away and leaves every other box where it was.
+ */
+type Rung = { id: string; value: string }
+
+/** Counts up for the life of the tab; nothing is stored or compared to it. */
+let nextRungId = 0
+
+function rungsFrom(deviations: readonly number[]): Rung[] {
+  return deviations.map((deviation) => ({
+    id: `rung-${(nextRungId += 1)}`,
+    value: String(deviation),
+  }))
+}
+
 export function SmartOrderDialog({
   state,
   market,
@@ -114,8 +137,8 @@ export function SmartOrderDialog({
   // Defaults are drawn at once; the remembered settings replace them when
   // they land. Until then the fields are disabled rather than half-true.
   const [loaded, setLoaded] = React.useState(false)
-  const [rungs, setRungs] = React.useState<string[]>(() =>
-    defaultDcaParams().rungs.map((rung) => String(rung.deviation))
+  const [rungs, setRungs] = React.useState<Rung[]>(() =>
+    rungsFrom(defaultDcaParams().rungs.map((rung) => rung.deviation))
   )
   const [maxPositionPct, setMaxPositionPct] = React.useState(
     String(defaultDcaParams().maxPositionPct)
@@ -163,7 +186,7 @@ export function SmartOrderDialog({
     loadSmartDcaParams()
       .then(({ params }) => {
         if (stale || !params) return
-        setRungs(params.rungs.map((rung) => String(rung.deviation)))
+        setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
         setMaxPositionPct(String(params.maxPositionPct))
         setSizeMultiplier(String(params.sizeMultiplier))
         setMaxOrderVolPct(String(params.maxOrderVolPct))
@@ -245,7 +268,7 @@ export function SmartOrderDialog({
   // ----- The honest arithmetic, live -------------------------------------
 
   const params = React.useMemo((): DcaParams | null => {
-    const deviations = rungs.map(parsed)
+    const deviations = rungs.map((rung) => parsed(rung.value))
     if (deviations.some((one) => one === null)) return null
     const candidate: DcaParams = {
       rungs: deviations.map((deviation) => ({ deviation: deviation as number })),
@@ -369,18 +392,20 @@ export function SmartOrderDialog({
     if (placed) onClose()
   }
 
-  const setRung = (index: number, value: string) =>
-    setRungs((held) => held.map((one, i) => (i === index ? value : one)))
-  const removeRung = (index: number) =>
-    setRungs((held) => held.filter((_, i) => i !== index))
+  const setRung = (id: string, value: string) =>
+    setRungs((held) =>
+      held.map((one) => (one.id === id ? { ...one, value } : one))
+    )
+  const removeRung = (id: string) =>
+    setRungs((held) => held.filter((one) => one.id !== id))
   // Each added rung steps 3 deeper than the last, the old app's pattern —
   // 5, 8, 11 — so an added ladder widens instead of bunching up.
   const addRung = () =>
     setRungs((held) => {
-      const last = Number(held[held.length - 1])
+      const last = Number(held[held.length - 1]?.value)
       const next =
         Number.isFinite(last) && last > 0 ? Math.min(99, last + 3) : 5
-      return [...held, String(next)]
+      return [...held, ...rungsFrom([next])]
     })
 
   return (
@@ -467,21 +492,21 @@ export function SmartOrderDialog({
               title="Ladder"
               hint="Each step is measured below the buy above it, so the drops compound. The first is below the price you clicked."
             >
-              {rungs.map((value, index) => {
+              {rungs.map((rung, index) => {
                 const planned = plan?.rungs[index]
                 return (
-                  <div key={index} className="flex items-center gap-2">
+                  <div key={rung.id} className="flex items-center gap-2">
                     <span className="w-4 text-right text-xs text-muted-foreground">
                       {index + 1}
                     </span>
                     <Input
                       id={`smart-rung-${index + 1}`}
                       inputMode="decimal"
-                      value={value}
+                      value={rung.value}
                       disabled={!loaded}
                       aria-label={`Rung ${index + 1}, percent below the buy above`}
-                      aria-invalid={parsed(value) === null}
-                      onChange={(event) => setRung(index, event.target.value)}
+                      aria-invalid={parsed(rung.value) === null}
+                      onChange={(event) => setRung(rung.id, event.target.value)}
                       className="w-16 bg-background"
                     />
                     <span className="min-w-0 flex-1 truncate text-xs tabular-nums text-muted-foreground">
@@ -496,7 +521,7 @@ export function SmartOrderDialog({
                       className="size-7 text-muted-foreground"
                       disabled={!loaded || rungs.length <= 1}
                       aria-label={`Remove rung ${index + 1}`}
-                      onClick={() => removeRung(index)}
+                      onClick={() => removeRung(rung.id)}
                     >
                       <Trash2Icon className="size-4" />
                     </Button>

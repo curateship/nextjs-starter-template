@@ -71,6 +71,7 @@ import {
   formatSignedUsd,
   formatUsd,
 } from "@/lib/trade/format"
+import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 const moneyChartConfig: ChartConfig = {
@@ -520,12 +521,6 @@ function MoneyValue({ value }: { value: number }) {
       {formatSignedUsd(value)}
     </span>
   )
-}
-
-function moneyTone(value: number) {
-  if (value > 0) return "text-emerald-600 dark:text-emerald-400"
-  if (value < 0) return "text-destructive"
-  return "text-muted-foreground"
 }
 
 function MoneyChart({

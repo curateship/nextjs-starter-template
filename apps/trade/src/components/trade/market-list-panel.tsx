@@ -233,8 +233,9 @@ export function MarketListPanel({
       </div>
 
       {/* Row two: the sort, drawn as the column headers it sorts — the same
-          sort buttons every dashboard table uses. Left header over the
-          symbols, right header over the changes. */}
+          sort buttons every dashboard table uses. Two headers, and each sits
+          over the figure it sorts by: 24h Vol over the volume beside each
+          symbol, 24h Change over the day's-move pills. */}
       {/* Scrolls sideways at the narrowest drags rather than wrapping a
           label onto two lines. */}
       {/* The headers use the row's own columns — same padding, same gap, the

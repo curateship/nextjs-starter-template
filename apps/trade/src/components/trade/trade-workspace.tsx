@@ -408,7 +408,8 @@ export function TradeWorkspace({
   const showTrade = React.useCallback(
     (trade: LiveTrade | null) => {
       setShownTrade(trade)
-      if (trade && trade.marketKey !== selectedKey) onSelectMarket(trade.marketKey)
+      if (trade && trade.marketKey !== selectedKey)
+        onSelectMarket(trade.marketKey)
     },
     [onSelectMarket, selectedKey]
   )
@@ -604,7 +605,10 @@ export function TradeWorkspace({
           </ResizablePanel>
           <ResizableHandle gap className={NO_RING} />
           <ResizablePanel id="smart-orders" defaultSize="50%" minSize="12%">
-            <WorkspacePanel collapsed={accountCollapsed} className="flex flex-col">
+            <WorkspacePanel
+              collapsed={accountCollapsed}
+              className="flex flex-col"
+            >
               <SmartOrdersPanel
                 smartOrders={trading.smartOrders}
                 positions={trading.positions}
@@ -612,6 +616,13 @@ export function TradeWorkspace({
                 trades={trading.trades}
                 markets={marketsByKey}
                 walletName={walletNameOf}
+                // NOT `trading.loading`: that turns false when the practice
+                // half lands on its own, and a screen whose ladders are all on
+                // real wallets would say "none working" until the exchange
+                // answered.
+                settled={trading.settled}
+                failed={trading.failed}
+                onRetry={trading.retry}
                 onSelectMarket={onSelectMarket}
               />
             </WorkspacePanel>
@@ -628,95 +639,95 @@ export function TradeWorkspace({
     // here — the ladder window and a live ladder's exits both draw the same
     // cards, and folding one in one place should mean it is folded in both.
     <CardFolds initial={initialCardFolds}>
-    <div className="flex min-h-0 flex-1 flex-col">
-      <ResizablePanelGroup
-        key={verticalLayout.layoutKey}
-        orientation="vertical"
-        className="min-h-0 flex-1"
-        defaultLayout={verticalLayout.defaultLayout}
-        onLayoutChanged={activityFit.onLayoutChanged}
-      >
-        <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
-          <div className="flex h-full min-h-0">{upper}</div>
-        </ResizablePanel>
-        {/* Keeps its gap even while the panel below is collapsed — that
+      <div className="flex min-h-0 flex-1 flex-col">
+        <ResizablePanelGroup
+          key={verticalLayout.layoutKey}
+          orientation="vertical"
+          className="min-h-0 flex-1"
+          defaultLayout={verticalLayout.defaultLayout}
+          onLayoutChanged={activityFit.onLayoutChanged}
+        >
+          <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">
+            <div className="flex h-full min-h-0">{upper}</div>
+          </ResizablePanel>
+          {/* Keeps its gap even while the panel below is collapsed — that
             collapsed tab row is still a panel on screen, and this handle is
             what makes it draggable back open. */}
-        <ResizableHandle gap className={NO_RING} />
-        <ResizablePanel
-          id="activity"
-          panelRef={activityPanelRef}
-          defaultSize="28%"
-          minSize="12%"
-          maxSize="60%"
-          // Down to its own header rather than to nothing, so its tabs and
-          // their counts never disappear.
-          collapsible
-          collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
-        >
-          <WorkspacePanel onDoubleClick={activityDoubleClick}>
-            <ActivityPanel
-              trading={trading}
-              catalogs={catalogs}
-              onSelectMarket={onSelectMarket}
-              shownTrade={shownTrade}
-              onShowTrade={showTrade}
-              fit={activityFit}
-            />
-          </WorkspacePanel>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          <ResizableHandle gap className={NO_RING} />
+          <ResizablePanel
+            id="activity"
+            panelRef={activityPanelRef}
+            defaultSize="28%"
+            minSize="12%"
+            maxSize="60%"
+            // Down to its own header rather than to nothing, so its tabs and
+            // their counts never disappear.
+            collapsible
+            collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
+          >
+            <WorkspacePanel onDoubleClick={activityDoubleClick}>
+              <ActivityPanel
+                trading={trading}
+                catalogs={catalogs}
+                onSelectMarket={onSelectMarket}
+                shownTrade={shownTrade}
+                onShowTrade={showTrade}
+                fit={activityFit}
+              />
+            </WorkspacePanel>
+          </ResizablePanel>
+        </ResizablePanelGroup>
 
-      {/* Narrow screens keep the market itself as the page and reach the side
+        {/* Narrow screens keep the market itself as the page and reach the side
           panels through the two buttons in its header, rather than squeezing
           three columns into a width none of them fits in. */}
-      <Sheet
-        open={sideSheet.open}
-        onOpenChange={(open) =>
-          setSideSheet((current) => ({ ...current, open }))
-        }
-      >
-        <SheetContent
-          side={sideSheet.side === "account" ? "right" : "left"}
-          className="duration-150 ease-out motion-reduce:animate-none motion-reduce:transition-none data-closed:ease-in data-[side=left]:data-closed:slide-out-to-left-full data-[side=right]:data-closed:slide-out-to-right-full"
+        <Sheet
+          open={sideSheet.open}
+          onOpenChange={(open) =>
+            setSideSheet((current) => ({ ...current, open }))
+          }
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>
-              {sideSheet.side === "account" ? "Account" : "Markets"}
-            </SheetTitle>
-          </SheetHeader>
-          {sideSheet.side === "account" ? (
-            <div className="min-h-0 flex-1 [&_[data-slot=account-add-wallet]]:mr-9">
-              {accountPanel}
-            </div>
-          ) : (
-            <div className="min-h-0 flex-1">{marketList}</div>
-          )}
-        </SheetContent>
-      </Sheet>
+          <SheetContent
+            side={sideSheet.side === "account" ? "right" : "left"}
+            className="duration-150 ease-out motion-reduce:animate-none motion-reduce:transition-none data-closed:ease-in data-[side=left]:data-closed:slide-out-to-left-full data-[side=right]:data-closed:slide-out-to-right-full"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>
+                {sideSheet.side === "account" ? "Account" : "Markets"}
+              </SheetTitle>
+            </SheetHeader>
+            {sideSheet.side === "account" ? (
+              <div className="min-h-0 flex-1 [&_[data-slot=account-add-wallet]]:mr-9">
+                {accountPanel}
+              </div>
+            ) : (
+              <div className="min-h-0 flex-1">{marketList}</div>
+            )}
+          </SheetContent>
+        </Sheet>
 
-      {/* One instance of each wallet window, owned here beside the one
+        {/* One instance of each wallet window, owned here beside the one
           account state, so the sheet and the desktop column share them. */}
-      <AddWalletDialog
-        protocol={protocol}
-        open={addingWallet}
-        onClose={() => setAddingWallet(false)}
-        onAdded={(wallet) => {
-          // Only when nothing was being traded with yet. Adding a second
-          // wallet must never move the one an order would go to — that is a
-          // switch, and switching is its own deliberate act.
-          if (!account.activeWallet) account.switchWallet(wallet.id)
-          void account.refresh()
-        }}
-      />
-      <WalletSettingsDialog
-        wallet={editingWallet}
-        active={editingWallet?.id === account.activeWallet?.id}
-        onClose={() => setEditingWalletId(null)}
-        onChanged={() => void account.refresh()}
-        onUse={account.switchWallet}
-      />
-    </div>
+        <AddWalletDialog
+          protocol={protocol}
+          open={addingWallet}
+          onClose={() => setAddingWallet(false)}
+          onAdded={(wallet) => {
+            // Only when nothing was being traded with yet. Adding a second
+            // wallet must never move the one an order would go to — that is a
+            // switch, and switching is its own deliberate act.
+            if (!account.activeWallet) account.switchWallet(wallet.id)
+            void account.refresh()
+          }}
+        />
+        <WalletSettingsDialog
+          wallet={editingWallet}
+          active={editingWallet?.id === account.activeWallet?.id}
+          onClose={() => setEditingWalletId(null)}
+          onChanged={() => void account.refresh()}
+          onUse={account.switchWallet}
+        />
+      </div>
     </CardFolds>
   )
 }

@@ -32,9 +32,14 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { parseMarketKey, type MarketCatalog, type MarketRow } from "@/lib/protocols/contracts"
+import {
+  marketSymbol,
+  type MarketCatalog,
+  type MarketRow,
+} from "@/lib/protocols/contracts"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
+import { moneyTone } from "@/lib/trade/money-tone"
 import type { PanelFit } from "@/lib/trade/panel-fit"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
@@ -115,8 +120,6 @@ export function ActivityPanel({
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletName = (walletId: string) =>
     trading.walletNames.get(walletId) ?? "another wallet"
-  const marketOf = (marketKey: string) =>
-    parseMarketKey(marketKey)?.marketId ?? marketKey
 
   // Every market on offer, by key, so a row can find its own art and its
   // fallback price without each one searching the catalogues itself.
@@ -384,7 +387,7 @@ export function ActivityPanel({
         }}
         title={
           flipping
-            ? `Turn the ${marketOf(flipping.marketKey)} position in ${walletName(flipping.walletId)} around?`
+            ? `Turn the ${marketSymbol(flipping.marketKey)} position in ${walletName(flipping.walletId)} around?`
             : "Turn this position around?"
         }
         description="What you are holding is closed at today's price and the same size is opened the other way, in one go. Whatever it has made or lost is banked, and any stop and target are cleared."
@@ -468,8 +471,7 @@ function PositionsGlance({
                 className="flex items-center gap-3 text-xs tabular-nums"
               >
                 <span className="min-w-0 flex-1 truncate font-medium">
-                  {parseMarketKey(position.marketKey)?.marketId ??
-                    position.marketKey}
+                  {marketSymbol(position.marketKey)}
                 </span>
                 <span className="shrink-0">
                   {formatUsd(positionValue(position, mark))}
@@ -477,11 +479,7 @@ function PositionsGlance({
                 <span
                   className={cn(
                     "w-20 shrink-0 text-right font-medium",
-                    profit > 0
-                      ? "text-emerald-500"
-                      : profit < 0
-                        ? "text-red-400"
-                        : ""
+                    moneyTone(profit)
                   )}
                 >
                   {formatSignedUsd(profit)}

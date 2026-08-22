@@ -14,7 +14,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   bracketPercent,
@@ -80,7 +80,7 @@ export function OrderEditDialog({
   if (!shown) return null
 
   const long = shown.side === "buy"
-  const symbol = parseMarketKey(shown.marketKey)?.marketId ?? shown.marketKey
+  const symbol = marketSymbol(shown.marketKey)
 
   const typed = Number(size.trim())
   const sz = size.trim() !== "" && Number.isFinite(typed) && typed > 0 ? typed : 0

@@ -55,6 +55,11 @@ export function IndicatorsMenu({
                 Indicators{on ? ` (${on})` : ""}
               </span>
               {on ? (
+                // Off the type scale for the same reason the market icon's
+                // fallback letter is: this is a count tucked into the corner
+                // of a 32px button on a phone, and 12px — the scale's smallest
+                // — lands on top of the icon it is marking. See
+                // `workspace/docs/ui-ux.md`.
                 <span className="absolute top-0.5 right-0.5 text-[9px] leading-none sm:hidden">
                   {on}
                 </span>

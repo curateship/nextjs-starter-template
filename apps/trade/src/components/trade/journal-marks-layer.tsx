@@ -152,7 +152,7 @@ export function JournalMarksLayer({
             <text
               x={Math.max(4, Math.min(fromX + 4, surface.width - 60))}
               y={stopY - 5}
-              className="fill-red-600 text-[10px] font-medium dark:fill-red-400"
+              className="fill-red-600 text-xs font-medium dark:fill-red-400"
             >
               Stop
             </text>

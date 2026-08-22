@@ -8,6 +8,7 @@ import {
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { MarketPicker } from "@/components/trade/market-picker"
+import { TradeBadge } from "@/components/trade/trade-badge"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -180,14 +181,12 @@ export function MarketHeader({
       meta={
         <span className="flex items-center gap-2">
           {selection.row.maxLeverage !== null ? (
-            <span>{selection.row.maxLeverage}x</span>
+            <span>{selection.row.maxLeverage}×</span>
           ) : null}
           {/* Always on screen for a practice-network market, never behind the
               hover — a pretend dollar must not be readable as a real one. */}
           {parseMarketKey(selection.row.key)?.network === "testnet" ? (
-            <span className="rounded-md bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
-              Testnet
-            </span>
+            <TradeBadge tone="testnet">Testnet</TradeBadge>
           ) : null}
         </span>
       }

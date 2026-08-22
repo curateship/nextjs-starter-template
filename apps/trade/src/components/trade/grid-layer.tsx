@@ -621,7 +621,7 @@ function GridLines({
           }
           action={
             <span
-              className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-[10px] font-semibold"
+              className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs font-semibold"
               style={{
                 backgroundColor: colors.primary,
                 color: colors.badgeText,
@@ -752,7 +752,7 @@ function ChartLine({
         {name ? (
           <span
             className={cn(
-              "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-[10px] font-semibold tracking-wide select-none",
+              "flex items-center gap-1 rounded-sm border bg-background px-1.5 py-0.5 text-xs font-semibold tracking-wide select-none",
               grip && "cursor-ns-resize"
             )}
             style={{
@@ -777,12 +777,12 @@ function ChartLine({
             same order the rest of the app reads in: what it costs, then where.
             Left off the range's own edges, which buy nothing by themselves. */}
         {usd !== undefined && usd > 0 ? (
-          <span className="rounded-sm bg-muted px-1 py-0.5 text-[10px] font-medium text-muted-foreground tabular-nums">
+          <span className="rounded-sm bg-muted px-1 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
             {formatUsdRounded(usd)}
           </span>
         ) : null}
         <span
-          className="rounded-sm px-1 py-0.5 text-[10px] font-medium tabular-nums"
+          className="rounded-sm px-1 py-0.5 text-xs font-medium tabular-nums"
           style={{ backgroundColor: colour, color: "var(--background)" }}
         >
           {formatPrice(px)}

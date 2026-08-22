@@ -6,6 +6,10 @@ import {
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import {
+  TradeBadge,
+  type TradeBadgeTone,
+} from "@/components/trade/trade-badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -16,10 +20,15 @@ import {
 } from "@/components/ui/table"
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import {
+  marketSymbol,
+  parseMarketKey,
+  type MarketRow,
+} from "@/lib/protocols/contracts"
 import {
   formatPrice,
   formatSignedUsd,
+  formatSize,
   formatUsd,
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -28,6 +37,7 @@ import {
   tradeEndingLabel,
   type LiveTrade,
 } from "@/lib/trade/live-trades"
+import { LOST_MONEY, MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import {
   liquidationAway,
   positionMargin,
@@ -58,18 +68,6 @@ import { cn } from "@/lib/utils"
  * you sorted by and the figure printed in the row are always the same number.
  */
 
-/** How the market's own symbol reads: "xyz:AAPL" is an AAPL on the xyz venue. */
-function symbolOf(marketKey: string): string {
-  return parseMarketKey(marketKey)?.marketId ?? marketKey
-}
-
-/** Green when it made money, red when it lost, muted at nothing. */
-function toneOf(value: number): string {
-  if (value > 0) return "text-emerald-600 dark:text-emerald-400"
-  if (value < 0) return "text-red-600 dark:text-red-400"
-  return "text-muted-foreground"
-}
-
 /**
  * Marks a row that lives on the exchange rather than in the practice engine.
  * Practice, testnet and real rows share these tables, and the two rules point
@@ -80,26 +78,15 @@ function toneOf(value: number): string {
 function RealBadge({ marketKey }: { marketKey: string }) {
   const testnet = parseMarketKey(marketKey)?.network === "testnet"
   return (
-    <span
-      className={cn(
-        "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-        testnet
-          ? "bg-sky-500/10 text-sky-700 dark:text-sky-400"
-          : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-      )}
-    >
+    <TradeBadge tone={testnet ? "testnet" : "real"}>
       {testnet ? "Testnet" : "Real"}
-    </span>
+    </TradeBadge>
   )
 }
 
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
 function PracticeBadge() {
-  return (
-    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-      Practice
-    </span>
-  )
+  return <TradeBadge>Practice</TradeBadge>
 }
 
 /**
@@ -302,7 +289,7 @@ function MarketCell({
   badge?: React.ReactNode
   onSelect?: () => void
 }) {
-  const symbol = symbolOf(marketKey)
+  const symbol = marketSymbol(marketKey)
   return (
     <td className="px-3 py-2 text-left whitespace-nowrap">
       <span className="flex items-center gap-2">
@@ -339,16 +326,9 @@ function WalletCell({ wallet }: { wallet: string }) {
 function SideBadge({ position }: { position: PaperPosition }) {
   const long = position.szi > 0
   return (
-    <span
-      className={cn(
-        "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-        long
-          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-          : "bg-red-500/10 text-red-700 dark:text-red-400"
-      )}
-    >
+    <TradeBadge tone={long ? "made" : "lost"}>
       {long ? "Long" : "Short"} {position.leverage}×
-    </span>
+    </TradeBadge>
   )
 }
 
@@ -428,13 +408,16 @@ function PositionRow({
       </Cell>
       <Cell>
         <span className="flex items-center gap-1">
-          <span className={toneOf(1)}>
+          {/* The target is always the good end and the stop the bad one, so
+              these two say which colour they mean rather than asking a helper
+              with a made-up figure. */}
+          <span className={MADE_MONEY}>
             {position.tpPx === null
               ? "—"
               : formatSignedUsd(projectedProfit(position, position.tpPx))}
           </span>
           <span className="text-muted-foreground">/</span>
-          <span className={toneOf(-1)}>
+          <span className={LOST_MONEY}>
             {position.slPx === null
               ? "—"
               : formatSignedUsd(projectedProfit(position, position.slPx))}
@@ -447,10 +430,13 @@ function PositionRow({
         {position.live ? "—" : `-${formatUsd(position.feesPaid)}`}
       </Cell>
       <Cell>
-        <span className={cn("font-medium", toneOf(profit))}>
+        <span className={cn("font-medium", moneyTone(profit))}>
           {formatSignedUsd(profit)}
         </span>{" "}
-        <span className={cn("text-[10px]", toneOf(profit))}>
+        {/* The dollars are the answer; the percentage only says whether they
+            were a lot for the money that was in — the same pairing the Journal
+            uses two tables down. */}
+        <span className="text-xs text-muted-foreground">
           {profitShare >= 0 ? "+" : ""}
           {profitShare.toFixed(2)}%
         </span>
@@ -465,7 +451,7 @@ function PositionRow({
               size="icon-sm"
               variant="ghost"
               disabled={busy}
-              aria-label={`Turn the ${symbolOf(position.marketKey)} position around`}
+              aria-label={`Turn the ${marketSymbol(position.marketKey)} position around`}
               onClick={() => onFlip(position)}
             >
               <ArrowLeftRightIcon className="size-4" />
@@ -475,7 +461,7 @@ function PositionRow({
             type="button"
             size="icon-sm"
             variant="ghost"
-            aria-label={`Change the ${symbolOf(position.marketKey)} stop and target`}
+            aria-label={`Change the ${marketSymbol(position.marketKey)} stop and target`}
             onClick={() => onEdit(position)}
           >
             <SettingsIcon className="size-4" />
@@ -485,7 +471,7 @@ function PositionRow({
             size="icon-sm"
             variant="ghost"
             disabled={busy}
-            aria-label={`Close the ${symbolOf(position.marketKey)} position`}
+            aria-label={`Close the ${marketSymbol(position.marketKey)} position`}
             onClick={() => onClose(position)}
           >
             <Trash2Icon className="size-4" />
@@ -548,7 +534,7 @@ export function PositionsTable({
     const mark = markOf(position)
     switch (sort) {
       case "market":
-        return symbolOf(position.marketKey)
+        return marketSymbol(position.marketKey)
       case "wallet":
         return walletName(position.walletId)
       case "value":
@@ -635,7 +621,7 @@ export function PositionsTable({
         // wallets and the rows only differ by one small column.
         title={
           confirming
-            ? `Close the ${symbolOf(confirming.marketKey)} position in ${walletName(confirming.walletId)}?`
+            ? `Close the ${marketSymbol(confirming.marketKey)} position in ${walletName(confirming.walletId)}?`
             : "Close this position?"
         }
         description="It is sold at whatever the market costs right now, and whatever it has made or lost is banked. This cannot be undone."
@@ -690,7 +676,7 @@ export function OpenOrdersTable({
   const rows = sortRows(orders, direction, (order) => {
     switch (sort) {
       case "market":
-        return symbolOf(order.marketKey)
+        return marketSymbol(order.marketKey)
       case "wallet":
         return walletName(order.walletId)
       case "side":
@@ -758,9 +744,7 @@ export function OpenOrdersTable({
               badge={
                 <>
                   {order.reduceOnly ? (
-                    <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      Reduce only
-                    </span>
+                    <TradeBadge>Reduce only</TradeBadge>
                   ) : null}
                   {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
                 </>
@@ -777,7 +761,7 @@ export function OpenOrdersTable({
               {order.side === "buy" ? "Buy" : "Sell"}
             </Cell>
             <Cell>{formatPrice(order.px)}</Cell>
-            <Cell>{order.sz}</Cell>
+            <Cell>{formatSize(order.sz)}</Cell>
             <Cell>{formatUsd(order.px * order.sz)}</Cell>
             <Cell className="text-muted-foreground">
               {/* A real order rides the account's leverage setting, which is
@@ -793,7 +777,7 @@ export function OpenOrdersTable({
                   size="icon-sm"
                   variant="ghost"
                   disabled={busy}
-                  aria-label={`Cancel the ${symbolOf(order.marketKey)} order`}
+                  aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
                   onClick={() => onCancel(order)}
                 >
                   <Trash2Icon className="size-4" />
@@ -808,9 +792,6 @@ export function OpenOrdersTable({
   )
 }
 
-const ENDING_RED = "bg-red-500/10 text-red-700 dark:text-red-400"
-const ENDING_GREEN = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-
 /**
  * What colour a trade's ending is written in.
  *
@@ -821,12 +802,12 @@ const ENDING_GREEN = "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
  * table nobody would trust. Only the exchange taking the trade away is red
  * whatever it made — that is a thing that happened TO the account.
  */
-function endingTone(trade: LiveTrade): string {
-  if (trade.ending === "liquidated") return "bg-red-500/20 text-red-700 dark:text-red-300"
-  if (trade.ending === "closed") return "bg-muted text-muted-foreground"
-  if (trade.pnl > 0) return ENDING_GREEN
-  if (trade.pnl < 0) return ENDING_RED
-  return "bg-muted text-muted-foreground"
+function endingTone(trade: LiveTrade): TradeBadgeTone {
+  if (trade.ending === "liquidated") return "alarm"
+  if (trade.ending === "closed") return "neutral"
+  if (trade.pnl > 0) return "made"
+  if (trade.pnl < 0) return "lost"
+  return "neutral"
 }
 
 /**
@@ -888,7 +869,7 @@ export function TradesTable({
   const rows = sortRows(trades, direction, (trade) => {
     switch (sort) {
       case "market":
-        return symbolOf(trade.marketKey)
+        return marketSymbol(trade.marketKey)
       case "wallet":
         return walletName(trade.walletId)
       case "side":
@@ -973,16 +954,9 @@ export function TradesTable({
             />
             <WalletCell wallet={walletName(trade.walletId)} />
             <Cell>
-              <span
-                className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                  trade.direction === "long"
-                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                    : "bg-red-500/10 text-red-700 dark:text-red-400"
-                )}
-              >
+              <TradeBadge tone={trade.direction === "long" ? "made" : "lost"}>
                 {trade.direction === "long" ? "Long" : "Short"}
-              </span>
+              </TradeBadge>
             </Cell>
             <Cell className="text-muted-foreground">
               {formatDateTime(new Date(trade.openedAt))}
@@ -992,8 +966,8 @@ export function TradesTable({
             </Cell>
             <Cell>{formatPrice(trade.entryPx)}</Cell>
             <Cell>{formatPrice(trade.exitPx)}</Cell>
-            <Cell>{trade.sz}</Cell>
-            <Cell className={toneOf(trade.pnl)}>
+            <Cell>{formatSize(trade.sz)}</Cell>
+            <Cell className={moneyTone(trade.pnl)}>
               {formatSignedUsd(trade.pnl)}
               {/* The dollars are the answer; the percentage is only there to
                   say whether they were a lot for the money that was in. */}
@@ -1003,15 +977,10 @@ export function TradesTable({
               </span>
             </Cell>
             <Cell>
-              <span
-                className={cn(
-                  "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-                  endingTone(trade)
-                )}
-              >
+              <TradeBadge tone={endingTone(trade)}>
                 {tradeEndingLabel(trade)}
                 {trade.stopPx !== null ? ` at ${formatPrice(trade.stopPx)}` : ""}
-              </span>
+              </TradeBadge>
             </Cell>
             {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and
@@ -1025,7 +994,7 @@ export function TradesTable({
                 size="icon-sm"
                 variant="ghost"
                 disabled={busy}
-                aria-label={`Remove the ${symbolOf(trade.marketKey)} trade from the Journal`}
+                aria-label={`Remove the ${marketSymbol(trade.marketKey)} trade from the Journal`}
                 onClick={() => onRemove(trade)}
               >
                 <Trash2Icon className="size-4" />

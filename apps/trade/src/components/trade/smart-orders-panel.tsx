@@ -3,14 +3,15 @@ import { ChevronDownIcon, ChevronRightIcon, Grid2x2Icon } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
+import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatDateTime } from "@/lib/format/format-time"
-import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import { formatUsd as money } from "@/lib/trade/format"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { PaperPosition } from "@/lib/trade/paper"
+import { moneyTone } from "@/lib/trade/money-tone"
 import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
@@ -47,6 +48,9 @@ export function SmartOrdersPanel({
   trades,
   markets,
   walletName,
+  settled,
+  failed,
+  onRetry,
   onSelectMarket,
 }: {
   smartOrders: readonly SmartOrder[]
@@ -58,6 +62,17 @@ export function SmartOrdersPanel({
   trades: readonly LiveTrade[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
+  /**
+   * Both halves of the read have landed — see `settled` on `Trading`.
+   *
+   * Not `loading`: that turns false when EITHER half lands, and this panel
+   * lists practice ladders and real ones together. "No ladder of your own is
+   * working" is a claim about money, so it waits for both.
+   */
+  settled: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  onRetry: () => void
   onSelectMarket: (marketKey: string) => void
 }) {
   /** Which rows are open. Several at once, because comparing two is the point. */
@@ -104,11 +119,13 @@ export function SmartOrdersPanel({
   const rows = React.useMemo(
     () =>
       [...mine].sort((left, right) => {
-        const money = (order: SmartOrder) =>
+        const holdingFirst = (order: SmartOrder) =>
           held.has(`${order.walletId}:${order.marketKey}`) ? 0 : 1
         return (
-          money(left) - money(right) ||
-          symbolOf(left.marketKey).localeCompare(symbolOf(right.marketKey))
+          holdingFirst(left) - holdingFirst(right) ||
+          marketSymbol(left.marketKey).localeCompare(
+            marketSymbol(right.marketKey)
+          )
         )
       }),
     [mine, held]
@@ -119,21 +136,44 @@ export function SmartOrdersPanel({
       <WorkspacePanelHeader
         icon={<Grid2x2Icon />}
         title="Smart orders"
+        // A count that is not known yet says nothing rather than "none
+        // working" — before the first read, and after one that failed, zero
+        // would be claiming an answer the panel does not have.
         meta={
-          rows.length === 0
-            ? "none working"
-            : `${rows.length} working${
-                holding === 0 ? "" : ` · ${holding} holding`
-              }`
+          !settled || failed
+            ? undefined
+            : rows.length === 0
+              ? "none working"
+              : `${rows.length} working${
+                  holding === 0 ? "" : ` · ${holding} holding`
+                }`
         }
       />
-      {rows.length === 0 ? (
+      {rows.length === 0 && !settled ? (
+        <LoadingRow
+          label="Reading your smart orders"
+          className="flex-1 text-xs"
+        />
+      ) : rows.length === 0 && failed ? (
+        <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          The smart orders could not be read, so it is not known whether a
+          ladder or a grid is working.{" "}
+          <button type="button" className="underline" onClick={onRetry}>
+            Try again
+          </button>
+        </p>
+      ) : rows.length === 0 ? (
         <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
           No ladder or grid of your own is working. Right-click the chart to
           place one — a flow&rsquo;s orders live on its own dashboard.
         </p>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        // `[&>div]:block!` because Radix wraps what it is given in a
+        // `display: table` box, which sizes itself to its widest row instead
+        // of to the panel — a long wallet name or a grid's price range then
+        // pushed the row's dollars off the right edge instead of being
+        // truncated. Every other panel on this screen already passes it.
+        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
           <div className="flex flex-col">
             {rows.map((order) => {
               const position = held.get(`${order.walletId}:${order.marketKey}`)
@@ -160,7 +200,7 @@ export function SmartOrdersPanel({
                     <button
                       type="button"
                       aria-expanded={isOpen}
-                      aria-label={`${isOpen ? "Hide" : "Show"} what ${symbolOf(order.marketKey)} has done`}
+                      aria-label={`${isOpen ? "Hide" : "Show"} what ${marketSymbol(order.marketKey)} has done`}
                       onClick={() => toggle(order.id)}
                       className={cn(
                         "flex w-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
@@ -177,25 +217,30 @@ export function SmartOrdersPanel({
                       type="button"
                       onClick={() => onSelectMarket(order.marketKey)}
                       className={cn(
-                        "flex flex-1 items-center gap-2 py-2 pr-3 text-left transition-colors hover:bg-muted/60",
+                        // `min-w-0` or nothing below it can truncate: a
+                        // no-wrap line's whole width is what a flex item
+                        // offers as its smallest size, hidden overflow or not,
+                        // so the row grew to fit the longest sentence in the
+                        // list and pushed its dollars off the panel's edge.
+                        "flex min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left transition-colors hover:bg-muted/60",
                         focusRing
                       )}
                     >
                       <MarketIcon
-                        symbol={symbolOf(order.marketKey)}
+                        symbol={marketSymbol(order.marketKey)}
                         iconUrl={markets.get(order.marketKey)?.iconUrl ?? null}
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5">
                           <span className="truncate text-xs font-medium">
-                            {symbolOf(order.marketKey)}
+                            {marketSymbol(order.marketKey)}
                           </span>
-                          <span className="truncate text-[10px] text-muted-foreground">
+                          <span className="truncate text-xs text-muted-foreground">
                             {KIND_LABELS[order.kind]} ·{" "}
                             {walletName(order.walletId)}
                           </span>
                         </div>
-                        <p className="truncate text-[11px] leading-4 text-muted-foreground">
+                        <p className="truncate text-xs leading-4 text-muted-foreground">
                           {whereItHasGot(order, position ?? null)}
                         </p>
                       </div>
@@ -204,20 +249,20 @@ export function SmartOrdersPanel({
                           <span
                             className={cn(
                               "block text-xs tabular-nums",
-                              toneOf(open)
+                              moneyTone(open)
                             )}
                           >
-                            {formatUsd(open)}
+                            {formatSignedUsd(open)}
                           </span>
                         )}
                         {banked.total === 0 ? null : (
                           <span
                             className={cn(
-                              "block text-[10px] tabular-nums",
-                              toneOf(banked.total)
+                              "block text-xs tabular-nums",
+                              moneyTone(banked.total)
                             )}
                           >
-                            {money(banked.total)} banked
+                            {formatSignedUsd(banked.total)} banked
                           </span>
                         )}
                       </div>
@@ -227,14 +272,14 @@ export function SmartOrdersPanel({
                   {isOpen ? (
                     <div className="border-t bg-muted/30">
                       {banked.sells.length === 0 ? (
-                        <p className="px-3 py-2 text-[11px] text-muted-foreground">
+                        <p className="px-3 py-2 text-xs text-muted-foreground">
                           Nothing sold yet.
                         </p>
                       ) : (
                         <>
                           <div className="flex flex-col gap-1 px-3 py-2">
                             {banked.capped ? (
-                              <p className="pb-1 text-[10px] text-muted-foreground">
+                              <p className="pb-1 text-xs text-muted-foreground">
                                 The {SHOW_AT_MOST} most recent are listed; the
                                 total counts them all.
                               </p>
@@ -242,7 +287,7 @@ export function SmartOrdersPanel({
                             {banked.sells.map((sell) => (
                               <div
                                 key={sell.fillId}
-                                className="flex items-baseline justify-between gap-3 text-[11px]"
+                                className="flex items-baseline justify-between gap-3 text-xs"
                               >
                                 <span className="truncate text-muted-foreground">
                                   {formatDateTime(new Date(sell.at))} ·{" "}
@@ -253,10 +298,12 @@ export function SmartOrdersPanel({
                                     "shrink-0 tabular-nums",
                                     sell.money === null
                                       ? "text-muted-foreground"
-                                      : toneOf(sell.money)
+                                      : moneyTone(sell.money)
                                   )}
                                 >
-                                  {sell.money === null ? "—" : money(sell.money)}
+                                  {sell.money === null
+                                    ? "—"
+                                    : formatSignedUsd(sell.money)}
                                 </span>
                               </div>
                             ))}
@@ -264,7 +311,7 @@ export function SmartOrdersPanel({
                           {/* The line runs the whole width and the total sits
                               on its own shade, so the sum reads as the foot of
                               the list rather than one more row in it. */}
-                          <div className="flex items-baseline justify-between gap-3 border-y bg-muted/60 px-3 py-2 text-[11px] font-medium">
+                          <div className="flex items-baseline justify-between gap-3 border-y bg-muted/60 px-3 py-2 text-xs font-medium">
                             <span>
                               {banked.sells.length}{" "}
                               {banked.sells.length === 1 ? "sale" : "sales"}
@@ -274,12 +321,12 @@ export function SmartOrdersPanel({
                                 "tabular-nums",
                                 banked.unpriced === banked.sells.length
                                   ? "text-muted-foreground"
-                                  : toneOf(banked.total)
+                                  : moneyTone(banked.total)
                               )}
                             >
                               {banked.unpriced === banked.sells.length
                                 ? "—"
-                                : money(banked.total)}
+                                : formatSignedUsd(banked.total)}
                             </span>
                           </div>
                           {/* Said once, under the total, because a total that
@@ -288,16 +335,12 @@ export function SmartOrdersPanel({
                               closed, and a grid selling part of what it holds
                               never closes one. */}
                           {banked.unpriced > 0 ? (
-                            <p className="px-3 py-2 text-[10px] text-muted-foreground">
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
                               {banked.unpriced === 1
                                 ? "The exchange has not said what that sale banked."
                                 : `The exchange has not said what ${banked.unpriced} of these sales banked.`}
                             </p>
                           ) : null}
-                          {/* Above the total, not under it: the total is the
-                              last thing in the row, and a line of small print
-                              after it left the row ending on a different edge
-                              from every other one. */}
                         </>
                       )}
                     </div>
@@ -446,15 +489,4 @@ export function bankedBy(
     /** Sales the venue never put a figure on, so the total is short of them. */
     unpriced: sales.filter((sale) => sale.money === null).length,
   }
-}
-
-/** Green when it made money, red when it lost, plain at nothing. */
-function toneOf(value: number): string | undefined {
-  if (value > 0) return "text-teal-600 dark:text-teal-400"
-  if (value < 0) return "text-red-600 dark:text-red-400"
-  return undefined
-}
-
-function symbolOf(marketKey: string): string {
-  return parseMarketKey(marketKey)?.marketId ?? marketKey
 }

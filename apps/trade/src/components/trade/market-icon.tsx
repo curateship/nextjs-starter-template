@@ -31,6 +31,12 @@ export function MarketIcon({
       ? symbol.slice(symbol.indexOf(":") + 1)
       : symbol
     return (
+      // **The one size on this screen that is not on the type scale.** One
+      // letter has to sit inside a 16px circle standing in for a coin's logo,
+      // and the smallest step the scale offers is 12px, which fills the circle
+      // edge to edge and reads as a word rather than a mark. Everything else
+      // in `src/components/trade` takes its size from the scale; this is the
+      // exception, and it is written down in `workspace/docs/ui-ux.md`.
       <span
         className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground"
         aria-hidden

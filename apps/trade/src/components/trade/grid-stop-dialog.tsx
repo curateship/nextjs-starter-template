@@ -17,7 +17,7 @@ import {
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import {
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
@@ -105,7 +105,7 @@ function StopForm({
   onClose: () => void
 }) {
   const plan = grid.plan
-  const symbol = parseMarketKey(grid.marketKey)?.marketId ?? grid.marketKey
+  const symbol = marketSymbol(grid.marketKey)
 
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))

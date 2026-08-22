@@ -14,6 +14,8 @@ Two files outrank the rest, and outrank the code:
 ## The rest
 
 - `architecture-overview.md` — how Trade is put together on top of the shell.
+- `reading-the-figures.md` — the one green for money made, the one spelling for
+  every number, the text scale, and the small badge every table shares.
 - `chart-timezone.md` — the one clock the chart is on, where it is set, and why
   it is stored as a place rather than as an offset.
 - `opening-range-indicator.md` — what the opening range is, its settings, and

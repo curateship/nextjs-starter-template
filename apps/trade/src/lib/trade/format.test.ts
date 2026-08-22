@@ -6,6 +6,7 @@ import {
   formatFunding,
   formatPrice,
   formatSignedUsd,
+  formatSize,
   formatUsd,
   formatUsdRounded,
 } from "@/lib/trade/format"
@@ -62,5 +63,24 @@ describe("money in a column of amounts", () => {
   it("treats a negative the same way round", () => {
     expect(formatUsdRounded(-1_250)).toBe("-$1,250")
     expect(formatUsdRounded(-0.62)).toBe("-$0.62")
+  })
+})
+
+describe("how much of the coin", () => {
+  it("cuts the float noise off a size that has been through arithmetic", () => {
+    expect(formatSize(0.1 + 0.2)).toBe("0.3")
+    expect(formatSize(1.005 * 3)).toBe("3.015")
+    // $1,000 of a $68,069 bitcoin. The exchange fills five decimals; the rest
+    // is what dividing left behind.
+    expect(formatSize(1000 / 68069)).toBe("0.014691")
+  })
+
+  it("keeps the digits a real order size needs", () => {
+    expect(formatSize(0.0125)).toBe("0.0125")
+    expect(formatSize(0.000001)).toBe("0.000001")
+  })
+
+  it("groups a big size the way every other figure is grouped", () => {
+    expect(formatSize(1_500)).toBe("1,500")
   })
 })

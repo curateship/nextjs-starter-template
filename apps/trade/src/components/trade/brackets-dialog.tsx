@@ -21,13 +21,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import {
   bracketPercent,
   bracketPrice,
   bracketTyped,
 } from "@/lib/trade/brackets"
-import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatSize,
+  formatUsd,
+} from "@/lib/trade/format"
 import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
 
 /**
@@ -143,7 +148,7 @@ function BracketsForm({
   )
 
   const long = position.szi > 0
-  const symbol = parseMarketKey(position.marketKey)?.marketId ?? position.marketKey
+  const symbol = marketSymbol(position.marketKey)
 
   const tpPx = bracketPrice({
     entryPx: position.entryPx,
@@ -318,7 +323,7 @@ function BracketsForm({
                   {badSell
                     ? "That does not work out to a piece of this position."
                     : tpSz !== null
-                      ? `Sells ${trimSize(tpSz)} of ${trimSize(heldSz)} — ${formatUsd(tpSz * tpPx)} — and the rest keeps running with no target.`
+                      ? `Sells ${formatSize(tpSz)} of ${formatSize(heldSz)} — ${formatUsd(tpSz * tpPx)} — and the rest keeps running with no target.`
                       : "The whole position closes at the target."}
                 </p>
               </div>
@@ -347,9 +352,4 @@ function BracketsForm({
       </DialogFooter>
     </>
   )
-}
-
-/** A coin amount with the float noise cut off, for the preview lines. */
-function trimSize(sz: number): number {
-  return Number(sz.toFixed(6))
 }

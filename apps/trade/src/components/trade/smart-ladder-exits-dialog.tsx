@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
@@ -116,7 +116,7 @@ function ExitsForm({
   onClose: () => void
 }) {
   const plan = ladder.plan
-  const symbol = parseMarketKey(ladder.marketKey)?.marketId ?? ladder.marketKey
+  const symbol = marketSymbol(ladder.marketKey)
 
   const tpFixed = plan.takeProfit?.mode === "fixed"
   const slFixed = plan.stopLoss?.mode === "fixed"

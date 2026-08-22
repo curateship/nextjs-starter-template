@@ -11,8 +11,8 @@ import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
 import { Button } from "@/components/ui/button"
 import { WorkspacePanelTab } from "@/components/shared/workspace-panel-header"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
 import {
   Tooltip,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/tooltip"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryWarning } from "@/lib/trade/live"
+import { moneyTone } from "@/lib/trade/money-tone"
 import {
   venueLabel,
   type TradeWallet,
@@ -51,7 +52,7 @@ export function KindBadge({ kind }: { kind: TradeWallet["kind"] }) {
   )
 }
 
-/** A gain or loss in color: green up, red down, muted for a plain zero. */
+/** A gain or loss, painted by the one helper every money figure uses. */
 function SignedUsd({
   value,
   className,
@@ -60,17 +61,7 @@ function SignedUsd({
   className?: string
 }) {
   return (
-    <span
-      className={cn(
-        "tabular-nums",
-        value > 0
-          ? "text-emerald-600 dark:text-emerald-400"
-          : value < 0
-            ? "text-destructive"
-            : "text-muted-foreground",
-        className
-      )}
-    >
+    <span className={cn("tabular-nums", moneyTone(value), className)}>
       {formatSignedUsd(value)}
     </span>
   )
@@ -483,7 +474,7 @@ export function AccountPanel({
             Block makes it fill the panel instead. */}
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           {loading ? (
-            <PanelSkeleton />
+            <PanelLoading />
           ) : failed ? (
             <LoadFailed onRetry={() => void refresh()} />
           ) : activeWallet ? (
@@ -507,7 +498,7 @@ export function AccountPanel({
       <TabsContent value="inactive" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           {loading ? (
-            <PanelSkeleton />
+            <PanelLoading />
           ) : failed ? (
             <LoadFailed onRetry={() => void refresh()} />
           ) : inactiveWallets.length > 0 ? (
@@ -535,7 +526,7 @@ export function AccountPanel({
             Block makes it fill the panel instead. */}
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
           {loading ? (
-            <PanelSkeleton />
+            <PanelLoading />
           ) : failed ? (
             <LoadFailed onRetry={() => void refresh()} />
           ) : wallets.length > 0 ? (
@@ -554,16 +545,17 @@ export function AccountPanel({
   )
 }
 
-function PanelSkeleton() {
-  return (
-    <div className="flex flex-col gap-3 px-4 py-4 sm:px-5">
-      <Skeleton className="h-5 w-2/5" />
-      <Skeleton className="h-8 w-3/5" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-full" />
-      <Skeleton className="h-4 w-4/5" />
-    </div>
-  )
+/**
+ * Still reading the wallets.
+ *
+ * The shared spinner, not the grey bars this panel used to draw. Five fake
+ * rows on a card that lists money read as figures arriving, and the rule is
+ * written down next door in `loading-row.tsx`: a panel that fetches its own
+ * contents gets "a compact centred spinner sitting in the surface's own frame,
+ * never a skeleton".
+ */
+function PanelLoading() {
+  return <LoadingRow label="Reading your wallets" />
 }
 
 function LoadFailed({ onRetry }: { onRetry: () => void }) {

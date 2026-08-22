@@ -4,6 +4,7 @@ import { ListChecksIcon, ListFilterIcon } from "lucide-react"
 
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { MarketIcon } from "@/components/trade/market-icon"
+import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -29,6 +30,7 @@ import type {
   TradingOverviewActiveTrade,
 } from "@/lib/trade/dashboard/overview"
 import { formatChange, formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 type ActiveTradeColumn = "market" | "protocol" | "wallet" | "entry" | "profit"
@@ -213,16 +215,9 @@ function ActiveTradeRow({
           ) : (
             <span className="text-xs font-medium">{trade.market}</span>
           )}
-          <span
-            className={cn(
-              "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-              trade.side === "long"
-                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                : "bg-red-500/10 text-red-700 dark:text-red-400"
-            )}
-          >
+          <TradeBadge tone={trade.side === "long" ? "made" : "lost"}>
             {trade.side === "long" ? "Long" : "Short"} {trade.leverage}×
-          </span>
+          </TradeBadge>
           <AccountTypeBadge type={trade.accountType} />
         </span>
       </TableCell>
@@ -271,23 +266,14 @@ function AccountTypeBadge({
   type: TradingOverviewActiveTrade["accountType"]
 }) {
   return (
-    <span
-      className={cn(
-        "rounded-md px-1.5 py-0.5 text-[10px] font-medium",
-        type === "Real" && "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-        type === "Testnet" && "bg-sky-500/10 text-sky-700 dark:text-sky-400",
-        type === "Practice" && "bg-muted text-muted-foreground"
-      )}
+    <TradeBadge
+      tone={
+        type === "Real" ? "real" : type === "Testnet" ? "testnet" : "neutral"
+      }
     >
       {type}
-    </span>
+    </TradeBadge>
   )
-}
-
-function moneyTone(value: number) {
-  if (value > 0) return "text-emerald-600 dark:text-emerald-400"
-  if (value < 0) return "text-destructive"
-  return "text-muted-foreground"
 }
 
 function ActiveTradeFilters({

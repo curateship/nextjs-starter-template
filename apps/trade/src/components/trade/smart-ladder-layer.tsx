@@ -40,7 +40,7 @@ import { cn } from "@/lib/utils"
  * object — and a solid tag that wide hides the candles behind it.
  */
 const TAG_CLASS =
-  "absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded-lg border bg-card/90 px-1.5 py-0.5 text-[11px] font-semibold"
+  "absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded-lg border bg-card/90 px-1.5 py-0.5 text-xs font-semibold"
 
 export function SmartLadderLayer({
   surface,
@@ -203,11 +203,16 @@ function LadderLines({
       ) : null}
 
       {plan.rungs.map((rung, index) => {
-        // A rung that missed its moment stays on the chart, faded, rather than
-        // disappearing: five buys were asked for, and one quietly going away
-        // with nothing said is the one thing this must never do.
-        const missed = rung.status === "skipped"
-        if (rung.status !== "waiting" && !missed) return null
+        // A skipped rung stays on the chart, faded, rather than disappearing:
+        // five buys were asked for, and one quietly going away with nothing
+        // said is the one thing this must never do.
+        //
+        // **The word is "skipped" and it is the same word everywhere.** The
+        // plan, the schema and the toast that placed the ladder all say
+        // skipped; this tag used to say "missed", which read as a second thing
+        // that could happen to a rung.
+        const skipped = rung.status === "skipped"
+        if (rung.status !== "waiting" && !skipped) return null
         const y = yFor(rung.px)
         if (y === null) return null
         return (
@@ -215,7 +220,7 @@ function LadderLines({
             key={`rung-${index}`}
             className={cn(
               "absolute inset-x-0",
-              (rung.dead || missed) && "opacity-40"
+              (rung.dead || skipped) && "opacity-40"
             )}
             style={{ top: y }}
           >
@@ -231,7 +236,7 @@ function LadderLines({
                 pointerEvents: controls,
               }}
               title={
-                missed
+                skipped
                   ? "This rung never bought — price reached it while the cash was already spent, or passed it while it sat under your stop. It will not buy now."
                   : rung.dead
                     ? "Below your stop — if the stop hits, this rung is cancelled without buying. It wakes up if the stop moves back down."
@@ -246,10 +251,10 @@ function LadderLines({
             >
               {/* Dollars, not a coin count. "Rung 1 · 2" read as a range,
                   and 2 of a coin says nothing about what is at stake. */}
-              {missed
-                ? `Rung ${index + 1} · missed`
+              {skipped
+                ? `Rung ${index + 1} · skipped`
                 : `Rung ${index + 1} · ${formatUsdRounded(rung.px * rung.sz)}`}
-              {missed || readOnly ? null : (
+              {skipped || readOnly ? null : (
                 <button
                   type="button"
                   aria-label={`Cancel rung ${index + 1}`}

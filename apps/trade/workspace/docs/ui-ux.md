@@ -604,6 +604,37 @@ The only difference between the two is "this market" against "any markets". A
 second wording for the same failure makes a reader think there are two
 failures.
 
+## Still reading
+
+**"Nothing here" and "I have not looked yet" are different answers**, and on a
+screen listing money only one of them is safe to act on. Every panel that
+fetches its own contents says which one it means.
+
+- **One treatment, and it is the shared spinner.** `loading-row.tsx` states the
+  rule the whole app follows: a compact centred spinner sitting in the
+  surface's own frame, never a skeleton. The wallets panel used to draw five
+  grey bars instead, which on a card of figures read as money arriving.
+- **The waiting words name what is being read** — "Reading your wallets",
+  "Reading your smart orders", "Reading what you are holding". Whoever is
+  looking should be able to tell which panel is slow.
+- **A count nobody knows yet shows nothing**, never a zero. The Smart orders
+  header says "none working" only once the read has landed; before that its
+  count is blank, because a zero is an answer the panel does not have.
+- **Both halves have to land.** The trading read comes back in two pieces,
+  practice and real, and either may be first. A person whose ladders are all on
+  real wallets holds an empty practice half for a second or two, and that half
+  is not an answer. Every panel waits on `settled`, never on `loading`.
+- **The market list has no waiting state and does not need one.** Its markets
+  arrive with the page rather than being fetched by the panel, so there is no
+  moment where the list is on screen and its markets are not. A retry after a
+  failed read keeps the rows it already had, which is a refresh rather than a
+  load. The Watched tab beside it does fetch its own contents, and it uses the
+  spinner like everything else.
+- **The chart is the one exception and it is deliberate.** While its candles
+  load, the whole empty chart surface fades gently in and out instead of
+  showing a spinner. See "The Trade workspace" above, where that decision is
+  recorded.
+
 ## Live prices
 
 The page keeps itself current instead of freezing at load. One connection per

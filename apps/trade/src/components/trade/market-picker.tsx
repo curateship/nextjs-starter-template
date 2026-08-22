@@ -18,8 +18,14 @@ import {
   TableSortButton,
 } from "@/components/ui/table"
 import type { MarketCategory, MarketRow } from "@/lib/protocols/contracts"
-import { formatChange, formatFunding } from "@/lib/trade/format"
+import {
+  formatChange,
+  formatCompactUsd,
+  formatFunding,
+  formatPrice,
+} from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
+import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 type PickerView =
@@ -69,10 +75,6 @@ const TRADFI_CATEGORY_SET = new Set<MarketCategory>([
   "commodities",
   "forex",
 ])
-
-const PRICE = new Intl.NumberFormat("en-US", {
-  maximumSignificantDigits: 6,
-})
 
 /**
  * The full-width market picker used by the old Trading app, adapted to the
@@ -356,7 +358,7 @@ export function MarketPicker({
           ) : null}
         </ScrollArea>
 
-        <div className="border-t px-3 py-2 text-[11px] text-muted-foreground">
+        <div className="border-t px-3 py-2 text-xs text-muted-foreground">
           {visible.length} market{visible.length === 1 ? "" : "s"}
         </div>
       </PopoverContent>
@@ -470,7 +472,7 @@ function MarketPickerRow({
           </span>
           {row.maxLeverage !== null ? (
             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">
-              {row.maxLeverage}x
+              {row.maxLeverage}×
             </span>
           ) : null}
           {row.subExchange ? (
@@ -481,16 +483,12 @@ function MarketPickerRow({
         </div>
       </TableCell>
       <TableCell className="font-mono tabular-nums">
-        {formatPickerPrice(price)}
+        {formatPrice(price)}
       </TableCell>
       <TableCell
         className={cn(
           "font-mono tabular-nums",
-          change === null
-            ? "text-muted-foreground"
-            : change >= 0
-              ? "text-emerald-600"
-              : "text-red-500"
+          change === null ? "text-muted-foreground" : moneyTone(change)
         )}
       >
         {change === null ? "—" : formatChange(change)}
@@ -499,10 +497,10 @@ function MarketPickerRow({
         {funding === null ? "—" : formatFunding(funding)}
       </TableCell>
       <TableCell className="font-mono tabular-nums">
-        {formatPickerUsd(volume)}
+        {formatCompactUsd(volume)}
       </TableCell>
       <TableCell className="font-mono tabular-nums">
-        {openInterest === null ? "—" : formatPickerUsd(openInterest)}
+        {openInterest === null ? "—" : formatCompactUsd(openInterest)}
       </TableCell>
     </TableRow>
   )
@@ -528,23 +526,4 @@ function sortValue(
     case "openInterest":
       return row.openInterestUsd ?? 0
   }
-}
-
-function formatPickerPrice(value: number): string {
-  return PRICE.format(value)
-}
-
-function formatPickerUsd(value: number): string {
-  const abs = Math.abs(value)
-  const [divisor, suffix] =
-    abs >= 1e9
-      ? [1e9, "B"]
-      : abs >= 1e6
-        ? [1e6, "M"]
-        : abs >= 1e3
-          ? [1e3, "K"]
-          : [1, ""]
-  const scaled = value / divisor
-  const digits = Math.abs(scaled) >= 100 ? 0 : Math.abs(scaled) >= 10 ? 1 : 2
-  return `$${scaled.toFixed(digits)}${suffix}`
 }
