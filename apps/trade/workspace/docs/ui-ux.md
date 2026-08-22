@@ -75,9 +75,11 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 - **Right, top — Account.** Which account you are trading with.
   The Active tab lists every wallet that is switched on. Pressing anywhere on
   a wallet row makes it the wallet used for the next trade. The selection does
-  not open the figures. Each wallet has a separate chevron for that, and every
-  row starts folded. All and Inactive use the same rows, but pressing one there
-  opens its settings instead of changing the trading wallet.
+  not open the figures. The selected wallet has a light-gray background as well
+  as its checked control, so selection never relies on colour alone. Each wallet
+  has a separate chevron for its figures, and every row starts folded. All and
+  Inactive use the same rows, but pressing one there opens its settings instead
+  of changing the trading wallet.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
   the panel is the same order as making the decision.
@@ -87,7 +89,10 @@ The right panel is **two rows with a divider between them**. The rows drag
 against each other and their split is remembered. The panel as a whole is what
 shuts, so both rows go together — and both cards have to be taken away at once,
 or a row with no width still paints its side borders and leaves a stray line
-down the workspace.
+down the workspace. The wallet row fits itself to its active tab when wallet
+rows arrive or change. Two wallets therefore leave the rest of the column to
+Smart orders instead of keeping an empty half-card. The divider can still be
+dragged, and Smart orders always keeps at least its own minimum height.
 
 ## Drawing on the chart
 
@@ -140,36 +145,24 @@ is no indicators page and no dashboard behind them. The **Indicators** dropdown
 sits in the market header beside the timeframe, and the number in it says how
 many are switched on.
 
-- **A row per indicator: a checkbox to switch it on, and its name to open its
-  settings.** One thing per job — the box switches it on, the name unfolds it —
-  because a name that did both is how somebody ends up with an indicator they
-  only wanted to look at.
-- **Settings unfold inside the menu, split across two cards** in the same grey
-  the DCA window uses for its advanced settings. **Settings** holds the rules
-  that decide where the levels are; **Visibility** holds the ones that only
-  decide which of them you are shown. That line is the answer to "why has that
-  level got a dash but no arrow?" — it is always something on the second card.
-- **Each card folds on its own, and both start open.** Folding one is for
-  getting it out of the way while you work on the other, never for hiding a
-  setting somebody then has to go looking for.
-- **Every fold in the menu is remembered** — which indicator is unfolded and
-  which of its cards are shut — against the account, beside the settings
-  themselves. Left shut is still shut after a reload and on the other machine.
-  Not in the browser's own storage: this app runs inside an embedded preview
-  where those writes are quietly dropped, so a fold remembered there would be
-  a fold that never sticks.
-- **Back to the defaults leaves the folds alone.** They are how the menu is
-  arranged, not one of the indicator's settings.
-- Every setting explains itself through the info icon beside its label, and
-  **Back to the defaults** undoes a session of fiddling in one press.
-- **One indicator's settings are open at a time.** Every one unfolded at once
-  would be a menu longer than the screen, and nobody sets up two at the
-  same moment.
+- **Each indicator has three separate controls.** Its switch turns the drawing
+  on or off. A small mark previews its line colours. The settings button opens
+  its window without changing whether the indicator is on.
+- **Indicator settings open in a window, not inside the dropdown.** Every
+  indicator uses the same header, card, field and footer layout. The cards keep
+  each indicator's own groups, such as **Settings** and **Visibility** for Base
+  or **The session** and **Visibility** for Opening range.
+- Every setting explains itself through the info icon beside its label.
+  **Reset to defaults** resets the open indicator's draft. **Cancel** throws the
+  draft away, and **Save changes** applies it to the chart and remembers it.
+- **Reset all** at the bottom of the dropdown switches every indicator off and
+  puts every setting back at its default.
 - **Which indicators are on is remembered against the account**, not the market
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
-- **The eye after Indicators opens View options.** Its five checkboxes show or
+- **The eye after Indicators opens the View options window.** Chart, Your
+  activity and Timezone each have their own card. The five checkboxes show or
   hide the chart grid, volume bars, crosshair, order arrows and your drawings.
   All five start on, and each choice follows the account onto the next market,
   visit and machine. When order arrows are on, **Previous trades** accepts any
@@ -180,10 +173,10 @@ many are switched on.
   picked line and switches off the paint tools until drawings are shown again.
   The bin still appears when hidden drawings exist because clearing and hiding
   are different actions.
-- **A change is saved once the settings sit still for a moment**, because
-  typing "150" into a field is three changes. A save that does not land is said
-  in a toast and **does not undo what was just typed** — the chart is already
-  drawing it, so what is lost is the memory, not the setting.
+- **Switches in the Indicators dropdown take effect at once.** Settings inside
+  either window stay in a draft until **Save changes** is pressed. A save that
+  does not land is said in a toast and does not undo what is already on the
+  chart.
 - **The layer takes no clicks.** An indicator is something to look at: the
   chart underneath still pans, zooms and shows its crosshair straight through
   it, and a drawn line or a stop sitting under a dash is still what the pointer
@@ -310,7 +303,10 @@ placed, and for the same reason.
 ### What the Smart orders panel counts as a sale
 
 Opening a smart order in the right-hand panel lists what it has sold and what
-that banked. Two rules decide what appears there.
+that banked. A grid's closed row says how many levels are still waiting and how
+many have bought, such as "3 waiting · 7 completed". The old price-range line
+repeated what the chart already shows and did not say how far the grid had got.
+Two rules decide what appears in the opened sale list.
 
 - **A sell out of a long-only order is a sale**, whether or not the venue put a
   figure on it. Grids and ladders are long only, so a sell on their coin is a

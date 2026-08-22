@@ -69,6 +69,20 @@ const ladder: SmartOrder = {
   }),
 }
 
+const grid = {
+  ...ladder,
+  id: "grid",
+  kind: "grid",
+  plan: {
+    levels: [
+      { status: "waiting" },
+      { status: "waiting" },
+      { status: "waiting" },
+      ...Array.from({ length: 7 }, () => ({ status: "holding" })),
+    ],
+  },
+} as unknown as SmartOrder
+
 function draw(state: {
   smartOrders: readonly SmartOrder[]
   settled: boolean
@@ -101,5 +115,14 @@ describe("the Smart orders panel", () => {
     const half = draw({ smartOrders: [ladder], settled: false, failed: false })
     expect(half).toContain("XMR")
     expect(half).not.toContain(READING)
+  })
+
+  it("summarises a grid by waiting and completed levels", () => {
+    const markup = draw({
+      smartOrders: [grid],
+      settled: true,
+      failed: false,
+    })
+    expect(markup).toContain("3 waiting · 7 completed")
   })
 })

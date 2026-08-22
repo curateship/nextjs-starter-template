@@ -9,10 +9,6 @@ import type {
 } from "@/lib/trade/indicators/contract"
 import { readIndicatorParams } from "@/lib/trade/indicators/contract"
 
-const FAST_PERIOD = 20
-const CROSS_PERIOD = 50
-const SLOW_PERIOD = 200
-
 const EMA_FIELDS: IndicatorField[] = [
   {
     key: "show20",
@@ -22,6 +18,15 @@ const EMA_FIELDS: IndicatorField[] = [
     fallback: true,
   },
   {
+    key: "period20",
+    label: "EMA 20 candles",
+    hint: "How many candle closes make the first average.",
+    kind: "number",
+    min: 1,
+    max: 1_000,
+    fallback: 20,
+  },
+  {
     key: "color20",
     label: "Color",
     hint: "The color of the 20 candle line.",
@@ -29,11 +34,29 @@ const EMA_FIELDS: IndicatorField[] = [
     fallback: "#2563eb",
   },
   {
+    key: "period50",
+    label: "EMA 50 candles",
+    hint: "How many candle closes make the second average.",
+    kind: "number",
+    min: 1,
+    max: 1_000,
+    fallback: 50,
+  },
+  {
     key: "show50",
     label: "Show on chart",
     hint: "Hide or show the 50 candle line. The 50 / 200 call stays on.",
     kind: "switch",
     fallback: true,
+  },
+  {
+    key: "period200",
+    label: "EMA 200 candles",
+    hint: "How many candle closes make the third average.",
+    kind: "number",
+    min: 1,
+    max: 1_000,
+    fallback: 200,
   },
   {
     key: "color50",
@@ -58,10 +81,22 @@ const EMA_FIELDS: IndicatorField[] = [
   },
   {
     key: "showSignals",
-    label: "Show buy / sell arrows",
+    label: "Cross signals",
     hint: "Hide or show crossover arrows without changing automation calls.",
     kind: "switch",
     fallback: true,
+  },
+  {
+    key: "signalPair",
+    label: "Arrow when these cross",
+    hint: "Choose which two averages make the buy and sell arrows.",
+    kind: "choice",
+    options: [
+      { value: "fast-medium", label: "20 × 50" },
+      { value: "fast-slow", label: "20 × 200" },
+      { value: "medium-slow", label: "50 × 200" },
+    ],
+    fallback: "medium-slow",
   },
 ]
 
@@ -99,31 +134,50 @@ function emaSettings(params: IndicatorParams) {
   const read = readIndicatorParams(EMA_FIELDS, params)
   return {
     show20: read.show20 === true,
+    period20: read.period20 as number,
     color20: String(read.color20),
     show50: read.show50 === true,
+    period50: read.period50 as number,
     color50: String(read.color50),
     show200: read.show200 === true,
+    period200: read.period200 as number,
     color200: String(read.color200),
     showSignals: read.showSignals === true,
+    signalPair: String(read.signalPair),
   }
 }
 
-function emaReading(candles: IndicatorCandle[]) {
+function emaReading(candles: IndicatorCandle[], params: IndicatorParams) {
+  const settings = emaSettings(params)
   const closes = candles.map((candle) => candle.close)
   return {
-    fast: ema(closes, FAST_PERIOD),
-    cross: ema(closes, CROSS_PERIOD),
-    slow: ema(closes, SLOW_PERIOD),
+    fast: ema(closes, settings.period20),
+    medium: ema(closes, settings.period50),
+    slow: ema(closes, settings.period200),
   }
+}
+
+function signalPeriods(settings: ReturnType<typeof emaSettings>) {
+  if (settings.signalPair === "fast-medium")
+    return [settings.period20, settings.period50] as const
+  if (settings.signalPair === "fast-slow")
+    return [settings.period20, settings.period200] as const
+  return [settings.period50, settings.period200] as const
 }
 
 function crossEvents(
   candles: IndicatorCandle[],
   medium: number[],
-  slow: number[]
+  slow: number[],
+  firstPeriod: number,
+  secondPeriod: number
 ): EmaEvent[] {
   const events: EmaEvent[] = []
-  for (let index = SLOW_PERIOD; index < candles.length; index += 1) {
+  for (
+    let index = Math.max(firstPeriod, secondPeriod);
+    index < candles.length;
+    index += 1
+  ) {
     const crossedUp =
       medium[index - 1] <= slow[index - 1] && medium[index] > slow[index]
     const crossedDown =
@@ -143,12 +197,19 @@ function crossEvents(
   return events
 }
 
-function eventsOf(candles: IndicatorCandle[]): EmaEvent[] {
+function eventsOf(
+  candles: IndicatorCandle[],
+  params: IndicatorParams
+): EmaEvent[] {
+  const settings = emaSettings(params)
+  const [firstPeriod, secondPeriod] = signalPeriods(settings)
   const closes = candles.map((candle) => candle.close)
   return crossEvents(
     candles,
-    ema(closes, CROSS_PERIOD),
-    ema(closes, SLOW_PERIOD)
+    ema(closes, firstPeriod),
+    ema(closes, secondPeriod),
+    firstPeriod,
+    secondPeriod
   )
 }
 
@@ -159,27 +220,25 @@ export const emaIndicator: IndicatorModule = {
     "Draws the 20, 50 and 200 candle averages, with a buy or sell arrow when the 50 and 200 lines cross.",
   fields: EMA_FIELDS,
   groups: [
-    { title: "EMA 20", keys: ["show20", "color20"] },
-    { title: "EMA 50", keys: ["show50", "color50"] },
-    { title: "EMA 200", keys: ["show200", "color200"] },
-    { title: "Signals", keys: ["showSignals"] },
+    { title: "EMA 20", keys: ["show20", "period20", "color20"] },
+    { title: "EMA 50", keys: ["show50", "period50", "color50"] },
+    { title: "EMA 200", keys: ["show200", "period200", "color200"] },
+    { title: "Signals", keys: ["showSignals", "signalPair"] },
   ],
   compute: (candles, params) => {
     const settings = emaSettings(params)
-    const reading = emaReading(candles)
-    const events = settings.showSignals
-      ? crossEvents(candles, reading.cross, reading.slow)
-      : []
+    const reading = emaReading(candles, params)
+    const events = settings.showSignals ? eventsOf(candles, params) : []
     return {
       lines: [
         settings.show20
-          ? lineOf(candles, reading.fast, FAST_PERIOD, settings.color20)
+          ? lineOf(candles, reading.fast, settings.period20, settings.color20)
           : null,
         settings.show50
-          ? lineOf(candles, reading.cross, CROSS_PERIOD, settings.color50)
+          ? lineOf(candles, reading.medium, settings.period50, settings.color50)
           : null,
         settings.show200
-          ? lineOf(candles, reading.slow, SLOW_PERIOD, settings.color200)
+          ? lineOf(candles, reading.slow, settings.period200, settings.color200)
           : null,
       ].filter((line): line is IndicatorLine => line !== null),
       dashes: [],
@@ -193,6 +252,10 @@ export const emaIndicator: IndicatorModule = {
       boxes: [],
     }
   },
-  signals: (candles) => eventsOf(candles).map((event) => event.signal),
-  warmupBars: () => SLOW_PERIOD * 3,
+  signals: (candles, params) =>
+    eventsOf(candles, params).map((event) => event.signal),
+  warmupBars: (params) => {
+    const settings = emaSettings(params)
+    return Math.max(...signalPeriods(settings)) * 3
+  },
 }

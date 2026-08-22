@@ -143,7 +143,7 @@ function ActiveWalletRow({
       onOpenChange={setOpen}
       className={cn(
         "border-b transition-colors last:border-b-0",
-        selected && "bg-primary/5"
+        selected && "bg-muted/60"
       )}
     >
       <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
@@ -308,7 +308,7 @@ function WalletCard({
       onClick={onOpen}
       className={cn(
         "flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 sm:px-5",
-        active && "bg-primary/5"
+        active && "bg-muted/60"
       )}
       aria-label={`${wallet.label}${active ? " — the wallet in use" : ""} — open wallet settings`}
     >
@@ -469,11 +469,15 @@ export function AccountPanel({
   account,
   onAddWallet,
   onOpenWallet,
+  onContentHeightChange,
 }: {
   account: ReturnType<typeof useTradeAccount>
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
+  /** Lets the desktop split follow the rows instead of reserving half a column. */
+  onContentHeightChange?: (height: number) => void
 }) {
+  const root = React.useRef<HTMLDivElement | null>(null)
   const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
   const activeWallets = wallets.filter((wallet) => wallet.status === "active")
@@ -481,8 +485,30 @@ export function AccountPanel({
     (wallet) => wallet.status === "inactive"
   )
 
+  React.useEffect(() => {
+    if (!onContentHeightChange) return
+    const panel = root.current
+    const viewport = panel?.querySelector<HTMLElement>(
+      '[data-slot="tabs-content"][data-state="active"] [data-slot="scroll-area-viewport"]'
+    )
+    const header = panel?.firstElementChild
+    const content = viewport?.firstElementChild
+    if (!(header instanceof HTMLElement) || !(content instanceof HTMLElement)) {
+      return
+    }
+
+    const report = () =>
+      onContentHeightChange(header.offsetHeight + content.scrollHeight + 2)
+    report()
+    const observer = new ResizeObserver(report)
+    observer.observe(header)
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [onContentHeightChange, tab, loading, failed, wallets.length])
+
   return (
     <Tabs
+      ref={root}
       value={tab}
       onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"

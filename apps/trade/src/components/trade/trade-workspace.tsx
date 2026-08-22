@@ -257,6 +257,8 @@ export function TradeWorkspace({
 
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
   const account = useTradeAccount(protocol)
+  const walletsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const accountColumnRef = React.useRef<HTMLDivElement | null>(null)
   const [addingWallet, setAddingWallet] = React.useState(false)
   const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
     null
@@ -266,11 +268,20 @@ export function TradeWorkspace({
   const editingWallet =
     account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
 
+  const fitWalletRows = React.useCallback((height: number) => {
+    const panel = walletsPanelRef.current
+    const columnHeight = accountColumnRef.current?.clientHeight ?? 0
+    if (!panel || columnHeight === 0) return
+    // Keep at least 12% for Smart orders, matching its own panel minimum.
+    panel.resize(`${Math.min(88, (height / columnHeight) * 100)}%`)
+  }, [])
+
   const accountPanel = (
     <AccountPanel
       account={account}
       onAddWallet={() => setAddingWallet(true)}
       onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+      onContentHeightChange={fitWalletRows}
     />
   )
 
@@ -588,46 +599,53 @@ export function TradeWorkspace({
             watching used to sit there and now has a page of its own; the space,
             its divider and the size you dragged it to are kept for whatever
             goes in next, rather than taken away and rebuilt later. */}
-        <ResizablePanelGroup
-          key={accountColumnLayout.layoutKey}
-          orientation="vertical"
-          className="min-h-0 flex-1"
-          defaultLayout={accountColumnLayout.defaultLayout}
-          onLayoutChanged={accountColumnLayout.onLayoutChanged}
-        >
-          <ResizablePanel id="wallets" defaultSize="50%" minSize="20%">
-            <WorkspacePanel
-              collapsed={accountCollapsed}
-              onDoubleClick={accountDoubleClick}
+        <div ref={accountColumnRef} className="flex h-full min-h-0">
+          <ResizablePanelGroup
+            key={accountColumnLayout.layoutKey}
+            orientation="vertical"
+            className="min-h-0 flex-1"
+            defaultLayout={accountColumnLayout.defaultLayout}
+            onLayoutChanged={accountColumnLayout.onLayoutChanged}
+          >
+            <ResizablePanel
+              id="wallets"
+              panelRef={walletsPanelRef}
+              defaultSize="50%"
+              minSize="52.4px"
             >
-              {accountPanel}
-            </WorkspacePanel>
-          </ResizablePanel>
-          <ResizableHandle gap className={NO_RING} />
-          <ResizablePanel id="smart-orders" defaultSize="50%" minSize="12%">
-            <WorkspacePanel
-              collapsed={accountCollapsed}
-              className="flex flex-col"
-            >
-              <SmartOrdersPanel
-                smartOrders={trading.smartOrders}
-                positions={trading.positions}
-                fills={trading.fills}
-                trades={trading.trades}
-                markets={marketsByKey}
-                walletName={walletNameOf}
-                // NOT `trading.loading`: that turns false when the practice
-                // half lands on its own, and a screen whose ladders are all on
-                // real wallets would say "none working" until the exchange
-                // answered.
-                settled={trading.settled}
-                failed={trading.failed}
-                onRetry={trading.retry}
-                onSelectMarket={onSelectMarket}
-              />
-            </WorkspacePanel>
-          </ResizablePanel>
-        </ResizablePanelGroup>
+              <WorkspacePanel
+                collapsed={accountCollapsed}
+                onDoubleClick={accountDoubleClick}
+              >
+                {accountPanel}
+              </WorkspacePanel>
+            </ResizablePanel>
+            <ResizableHandle gap className={NO_RING} />
+            <ResizablePanel id="smart-orders" defaultSize="50%" minSize="12%">
+              <WorkspacePanel
+                collapsed={accountCollapsed}
+                className="flex flex-col"
+              >
+                <SmartOrdersPanel
+                  smartOrders={trading.smartOrders}
+                  positions={trading.positions}
+                  fills={trading.fills}
+                  trades={trading.trades}
+                  markets={marketsByKey}
+                  walletName={walletNameOf}
+                  // NOT `trading.loading`: that turns false when the practice
+                  // half lands on its own, and a screen whose ladders are all on
+                  // real wallets would say "none working" until the exchange
+                  // answered.
+                  settled={trading.settled}
+                  failed={trading.failed}
+                  onRetry={trading.retry}
+                  onSelectMarket={onSelectMarket}
+                />
+              </WorkspacePanel>
+            </ResizablePanel>
+          </ResizablePanelGroup>
+        </div>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (

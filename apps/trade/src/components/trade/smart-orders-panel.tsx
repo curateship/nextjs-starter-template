@@ -385,10 +385,13 @@ function whereItHasGot(
     return `${bought} bought, ${waiting} still waiting`
   }
   if (order.kind === "grid") {
-    const holding = order.plan.levels.filter(
+    const waiting = order.plan.levels.filter(
+      (level) => level.status === "waiting"
+    ).length
+    const completed = order.plan.levels.filter(
       (level) => level.status === "holding"
     ).length
-    return `${order.plan.levels.length} levels ${formatPrice(order.plan.bottomPx)}–${formatPrice(order.plan.topPx)}, ${holding} bought`
+    return `${waiting} waiting · ${completed} completed`
   }
   if (order.kind === "watch") {
     // A watch has its own three states and they mean different things from a

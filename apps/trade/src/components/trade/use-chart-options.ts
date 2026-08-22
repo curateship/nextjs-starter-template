@@ -73,7 +73,12 @@ export function useChartOptions(initial: ChartOptions) {
     [change]
   )
 
-  return { options, setOption, setZone, setOrderArrowTrades }
+  const replace = React.useCallback(
+    (next: ChartOptions) => change(next),
+    [change]
+  )
+
+  return { options, setOption, setZone, setOrderArrowTrades, replace }
 }
 
 export type ChartOptionsControl = ReturnType<typeof useChartOptions>

@@ -67,6 +67,11 @@ export function useChartIndicators(initial: IndicatorSettings) {
     [write]
   )
 
+  const replace = React.useCallback(
+    (next: IndicatorSettings) => revise(() => next),
+    [revise]
+  )
+
   /** Switch one on or off. Its settings are kept either way. */
   const toggle = React.useCallback(
     (kind: string, on: boolean) => {
@@ -139,7 +144,7 @@ export function useChartIndicators(initial: IndicatorSettings) {
     [revise]
   )
 
-  return { settings, toggle, setParam, reset, setOpen, setCardOpen }
+  return { settings, toggle, setParam, reset, setOpen, setCardOpen, replace }
 }
 
 export type ChartIndicators = ReturnType<typeof useChartIndicators>

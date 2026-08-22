@@ -55,6 +55,21 @@ describe("the EMA indicator", () => {
     expect(paint.lines[0].color).toBe("#abcdef")
   })
 
+  it("lets each line use its own candle period", () => {
+    const paint = emaIndicator.compute(
+      candlesOf(Array<number>(20).fill(100)),
+      { period20: 3, period50: 5, period200: 8 },
+      CHART
+    )
+
+    expect(paint.lines.map((line) => line.id)).toEqual([
+      "ema-3",
+      "ema-5",
+      "ema-8",
+    ])
+    expect(paint.lines.map((line) => line.points.length)).toEqual([18, 16, 13])
+  })
+
   it("replaces a saved color the browser cannot draw with the default", () => {
     const paint = emaIndicator.compute(
       candlesOf(Array<number>(250).fill(100)),
@@ -126,5 +141,13 @@ describe("the EMA indicator", () => {
 
   it("asks a replay for enough earlier candles to settle the slow line", () => {
     expect(emaIndicator.warmupBars?.({})).toBe(600)
+    expect(
+      emaIndicator.warmupBars?.({
+        period20: 8,
+        period50: 13,
+        period200: 21,
+        signalPair: "fast-medium",
+      })
+    ).toBe(39)
   })
 })

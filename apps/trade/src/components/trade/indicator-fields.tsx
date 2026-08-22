@@ -71,6 +71,43 @@ function fieldsOn(
   })
 }
 
+/** The settings body shared by every indicator window. */
+export function IndicatorSettingsCards({
+  module,
+  params,
+  context,
+  idPrefix,
+  onSet,
+}: {
+  module: IndicatorModule
+  params: IndicatorParams
+  context: IndicatorContext
+  idPrefix: string
+  onSet: (key: string, value: number | boolean | string) => void
+}) {
+  const note = module.note?.(params, context) ?? null
+
+  return (
+    <>
+      {module.groups.map((group) => (
+        <SettingsCard
+          key={group.title}
+          title={group.title}
+          tone="menu"
+          open
+          foldable={false}
+          onOpenChange={() => {}}
+          fields={fieldsOn(module, group)}
+          idPrefix={idPrefix}
+          params={params}
+          onSet={onSet}
+        />
+      ))}
+      {note ? <p className="text-sm text-muted-foreground">{note}</p> : null}
+    </>
+  )
+}
+
 /** One indicator: its switch, its name, and its settings folded behind it. */
 export function IndicatorRow({
   module,
@@ -199,6 +236,7 @@ function SettingsCard({
   idPrefix,
   params,
   onSet,
+  foldable = true,
 }: {
   title: string
   tone: IndicatorFieldsTone
@@ -208,7 +246,25 @@ function SettingsCard({
   idPrefix: string
   params: IndicatorParams
   onSet: (key: string, value: number | boolean | string) => void
+  foldable?: boolean
 }) {
+  const heading = foldable ? (
+    <CollapsibleTrigger asChild>
+      <button
+        type="button"
+        className={cn(
+          "group/card flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left text-sm leading-none font-medium select-none",
+          focusRingInset
+        )}
+      >
+        {title}
+        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
+      </button>
+    </CollapsibleTrigger>
+  ) : (
+    <h3 className="text-sm font-medium">{title}</h3>
+  )
+
   return (
     <Collapsible
       open={open}
@@ -218,18 +274,7 @@ function SettingsCard({
         tone === "panel" ? "bg-background" : "bg-muted/30"
       )}
     >
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "group/card flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left text-sm leading-none font-medium select-none",
-            focusRingInset
-          )}
-        >
-          {title}
-          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-        </button>
-      </CollapsibleTrigger>
+      {heading}
       <CollapsibleContent className="grid gap-4">
         {fields.map((field) => (
           <Setting
@@ -394,8 +439,12 @@ function NumberSetting({
         onChange={(event) => {
           setText(event.target.value)
           const typed = Number(event.target.value)
-          if (event.target.value.trim() === "" || !Number.isFinite(typed)) return
-          const held = Math.min(Math.max(Math.round(typed), field.min), field.max)
+          if (event.target.value.trim() === "" || !Number.isFinite(typed))
+            return
+          const held = Math.min(
+            Math.max(Math.round(typed), field.min),
+            field.max
+          )
           setAsked(held)
           onSet(held)
         }}
