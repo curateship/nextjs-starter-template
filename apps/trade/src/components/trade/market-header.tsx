@@ -14,10 +14,10 @@ import { parseMarketKey, type MarketRow } from "@/lib/protocols/contracts"
 /**
  * What the middle panel is showing.
  *
- * Three honest states and no fourth: nothing picked yet, a real market, or a
- * saved market the exchange no longer lists — which says so plainly. It never
- * quietly swaps in a different market; a link that pointed at something
- * delisted should read as exactly that.
+ * Four honest states: nothing picked, a real market, a market hidden by the
+ * account's volume setting, or a market the exchange no longer lists. It never
+ * quietly swaps in another market, and it never blames an account setting on
+ * the exchange.
  */
 export type MarketSelection =
   | { kind: "none" }
@@ -27,6 +27,7 @@ export type MarketSelection =
       protocolLabel: string
       networkLabel: string
     }
+  | { kind: "volume-hidden"; marketId: string }
   | { kind: "missing"; marketId: string }
 
 /**
@@ -112,6 +113,17 @@ export function MarketHeader({
         icon={<CandlestickChartIcon className="size-4" />}
         title={selection.marketId}
         meta="This market is not available on the connected exchange right now."
+        action={action}
+      />
+    )
+  }
+
+  if (selection.kind === "volume-hidden") {
+    return (
+      <WorkspacePanelHeader
+        icon={<CandlestickChartIcon className="size-4" />}
+        title={selection.marketId}
+        meta="Hidden by your daily volume setting."
         action={action}
       />
     )

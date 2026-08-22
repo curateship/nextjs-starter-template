@@ -2,6 +2,10 @@ import { z } from "zod"
 
 import type { MarketCatalog } from "@/lib/protocols/contracts"
 
+export type FilteredMarketCatalog = MarketCatalog & {
+  hiddenByVolumeKeys: string[]
+}
+
 /** A deliberately generous ceiling that still refuses accidental infinities. */
 export const MAXIMUM_MARKET_VOLUME_USD = 1_000_000_000_000_000
 
@@ -27,11 +31,26 @@ export function marketMeetsVolumeCutoff(
 export function filterMarketsByVolume(
   catalog: MarketCatalog,
   minimumVolumeUsd: number
-): MarketCatalog {
+): FilteredMarketCatalog {
   return {
     ...catalog,
+    hiddenByVolumeKeys: catalog.rows
+      .filter(
+        (row) =>
+          !marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)
+      )
+      .map((row) => row.key),
     rows: catalog.rows.filter((row) =>
       marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)
     ),
   }
+}
+
+export function marketWasHiddenByVolume(
+  catalogs: FilteredMarketCatalog[],
+  marketKey: string
+): boolean {
+  return catalogs.some((catalog) =>
+    catalog.hiddenByVolumeKeys.includes(marketKey)
+  )
 }

@@ -387,10 +387,11 @@ list covers is on screen without spending a row on it.
 - **Settings → Markets holds one minimum daily dollar volume for the account.**
   Every exchange uses the same number. Markets below it disappear from every
   list, including Favorites and search, and a linked or remembered market below
-  it reads as unavailable instead of opening its chart. A zero setting keeps
-  the old rule, where markets with no reported volume stay hidden. When the
-  cutoff hides every starred market, Favorites says the volume setting hid them
-  rather than saying nothing was starred.
+  it says the volume setting hid it instead of opening its chart or blaming the
+  exchange. A zero setting keeps the old rule, where markets with no reported
+  volume stay hidden. When the cutoff hides every market, All says none meet the
+  setting. When it hides every starred market, Favorites says the setting hid
+  them rather than saying nothing was starred.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists.

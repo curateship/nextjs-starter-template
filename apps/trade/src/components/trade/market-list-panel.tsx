@@ -21,12 +21,8 @@ import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { PaperOrder } from "@/lib/trade/paper"
-import {
-  parseMarketKey,
-  type MarketCatalog,
-  type MarketRow,
-  type NetworkId,
-} from "@/lib/protocols/contracts"
+import type { MarketRow, NetworkId } from "@/lib/protocols/contracts"
+import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { cn } from "@/lib/utils"
 
 /**
@@ -89,7 +85,7 @@ export function MarketListPanel({
   onSelect,
   onRetry,
 }: {
-  catalogs: MarketCatalog[]
+  catalogs: FilteredMarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
   /** Which network the whole page is on — testnet wears its label row. */
@@ -133,16 +129,15 @@ export function MarketListPanel({
     () => catalogs.flatMap((catalog) => catalog.rows),
     [catalogs]
   )
-  const hasFavoriteOnDashboard = React.useMemo(
+  const hasVolumeHiddenFavorite = React.useMemo(
     () =>
-      [...favorites].some((key) => {
-        const ref = parseMarketKey(key)
-        return catalogs.some(
-          (catalog) =>
-            ref?.protocol === catalog.protocol && ref.network === catalog.network
-        )
-      }),
+      catalogs.some((catalog) =>
+        catalog.hiddenByVolumeKeys.some((key) => favorites.has(key))
+      ),
     [catalogs, favorites]
+  )
+  const hasVolumeHiddenMarkets = catalogs.some(
+    (catalog) => catalog.hiddenByVolumeKeys.length > 0
   )
 
   // Every market by key, so a waiting price finds its own art without
@@ -185,10 +180,12 @@ export function MarketListPanel({
               which opens the whole catalogue with its own search — one search
               box for markets rather than two that filter different lists. */}
           {tab === "fav"
-            ? hasFavoriteOnDashboard
+            ? hasVolumeHiddenFavorite
               ? "Your starred markets are below the daily volume setting."
               : "Nothing starred yet. Open a market and press the star beside its name — it stays here."
-            : "The exchange listed no markets."}
+            : hasVolumeHiddenMarkets
+              ? "No markets meet your daily volume setting."
+              : "The exchange listed no markets."}
         </p>
       ) : (
         <div className="flex flex-col p-1">

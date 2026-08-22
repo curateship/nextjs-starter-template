@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   filterMarketsByVolume,
   marketMeetsVolumeCutoff,
+  marketWasHiddenByVolume,
   readMinimumMarketVolume,
 } from "@/lib/trade/market-volume"
 
@@ -51,6 +52,10 @@ describe("the market volume cutoff", () => {
       rows,
     }
 
-    expect(filterMarketsByVolume(catalog, 5_000_000).rows).toEqual([rows[1]])
+    const filtered = filterMarketsByVolume(catalog, 5_000_000)
+    expect(filtered.rows).toEqual([rows[1]])
+    expect(filtered.hiddenByVolumeKeys).toEqual(["thin"])
+    expect(marketWasHiddenByVolume([filtered], "thin")).toBe(true)
+    expect(marketWasHiddenByVolume([filtered], "not-listed")).toBe(false)
   })
 })

@@ -4,11 +4,13 @@ import { z } from "zod"
 import {
   KNOWN_PROTOCOLS,
   parseMarketKey,
-  type MarketCatalog,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { filterMarketsByVolume } from "@/lib/trade/market-volume"
+import {
+  filterMarketsByVolume,
+  type FilteredMarketCatalog,
+} from "@/lib/trade/market-volume"
 import { userGet, userPost } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
 import {
@@ -48,21 +50,25 @@ const marketsSchema = z.object({
 const loadMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(marketsSchema)
-  .handler(async ({ data, context }): Promise<{ catalogs: MarketCatalog[] }> => {
-    const protocol = getProtocol(data.protocol)
-    // A network the exchange does not run is refused, not answered with an
-    // empty list that reads as "no markets today".
-    if (!protocol.networks.includes(data.network)) {
-      throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
+  .handler(
+    async ({ data, context }): Promise<{
+      catalogs: FilteredMarketCatalog[]
+    }> => {
+      const protocol = getProtocol(data.protocol)
+      // A network the exchange does not run is refused, not answered with an
+      // empty list that reads as "no markets today".
+      if (!protocol.networks.includes(data.network)) {
+        throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
+      }
+      const [catalog, minimumVolumeUsd] = await Promise.all([
+        protocol.markets.fetch(data.network),
+        loadMinimumMarketVolume(context.user.id),
+      ])
+      return {
+        catalogs: [filterMarketsByVolume(catalog, minimumVolumeUsd)],
+      }
     }
-    const [catalog, minimumVolumeUsd] = await Promise.all([
-      protocol.markets.fetch(data.network),
-      loadMinimumMarketVolume(context.user.id),
-    ])
-    return {
-      catalogs: [filterMarketsByVolume(catalog, minimumVolumeUsd)],
-    }
-  })
+  )
 
 /**
  * A favourite is a market key, and only a well-formed one gets saved — a

@@ -46,7 +46,6 @@ import {
   CANDLE_INTERVALS,
   parseMarketKey,
   type CandleInterval,
-  type MarketCatalog,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
@@ -69,6 +68,10 @@ import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import {
+  marketWasHiddenByVolume,
+  type FilteredMarketCatalog,
+} from "@/lib/trade/market-volume"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 
 /**
@@ -90,13 +93,13 @@ type SideSheet = {
 }
 
 /**
- * What the picked key means against what the exchanges actually list: a real
- * row with its catalog's labels, nothing picked, or a well-formed key nothing
- * lists — delisted, or saved by a build that knew markets this one does not.
- * That last one is said out loud; it never falls back to another market.
+ * What the picked key means against the full exchange answer and the visible
+ * rows: a real market, nothing picked, one hidden by the volume setting, or a
+ * well-formed key the exchange did not list. The last two stay distinct so an
+ * account setting is never blamed on the exchange.
  */
 function resolveSelection(
-  catalogs: MarketCatalog[],
+  catalogs: FilteredMarketCatalog[],
   selectedKey: string | null
 ): MarketSelection {
   if (!selectedKey) return { kind: "none" }
@@ -112,6 +115,9 @@ function resolveSelection(
         networkLabel: catalog.networkLabel,
       }
     }
+  }
+  if (marketWasHiddenByVolume(catalogs, selectedKey)) {
+    return { kind: "volume-hidden", marketId: ref.marketId }
   }
   return { kind: "missing", marketId: ref.marketId }
 }
@@ -150,7 +156,7 @@ export function TradeWorkspace({
    * column and the bottom panel only ever show this exchange's money.
    */
   protocol: ProtocolId
-  catalogs: MarketCatalog[]
+  catalogs: FilteredMarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
   /** Which network the whole page is showing — resolved by the route. */
