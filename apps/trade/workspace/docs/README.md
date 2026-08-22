@@ -31,6 +31,8 @@ Two files outrank the rest, and outrank the code:
   trading app, line by line.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how
   this app stays under it.
+- `aster.md` explains Aster's public markets, charts, funding, networks,
+  measured catalogue size and the figures its public API does not state.
 - `backtest-market-selection.md` — how the Markets step picks the exchange and
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved

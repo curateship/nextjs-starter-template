@@ -38,6 +38,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as AuthenticatedAdminAiRouteImport } from './routes/_authenticated/admin/ai'
 import { Route as AuthenticatedAdminAnnouncementsRouteImport } from './routes/_authenticated/admin/announcements'
+import { Route as AuthenticatedAdminAsterRouteImport } from './routes/_authenticated/admin/aster'
 import { Route as AuthenticatedAdminAutomationsRouteImport } from './routes/_authenticated/admin/automations'
 import { Route as AuthenticatedAdminBillingRouteImport } from './routes/_authenticated/admin/billing'
 import { Route as AuthenticatedAdminContactsRouteImport } from './routes/_authenticated/admin/contacts'
@@ -222,6 +223,11 @@ const AuthenticatedAdminAnnouncementsRoute =
     path: '/announcements',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminAsterRoute = AuthenticatedAdminAsterRouteImport.update({
+  id: '/aster',
+  path: '/aster',
+  getParentRoute: () => AuthenticatedAdminRoute,
+} as any)
 const AuthenticatedAdminAutomationsRoute =
   AuthenticatedAdminAutomationsRouteImport.update({
     id: '/automations',
@@ -469,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
@@ -535,6 +542,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/admin/ai': typeof AuthenticatedAdminAiRoute
   '/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/admin/contacts': typeof AuthenticatedAdminContactsRoute
@@ -605,6 +613,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/_authenticated/admin/ai': typeof AuthenticatedAdminAiRoute
   '/_authenticated/admin/announcements': typeof AuthenticatedAdminAnnouncementsRoute
+  '/_authenticated/admin/aster': typeof AuthenticatedAdminAsterRoute
   '/_authenticated/admin/automations': typeof AuthenticatedAdminAutomationsRoute
   '/_authenticated/admin/billing': typeof AuthenticatedAdminBillingRoute
   '/_authenticated/admin/contacts': typeof AuthenticatedAdminContactsRoute
@@ -675,6 +684,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/admin/ai'
     | '/admin/announcements'
+    | '/admin/aster'
     | '/admin/automations'
     | '/admin/billing'
     | '/admin/contacts'
@@ -741,6 +751,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/admin/ai'
     | '/admin/announcements'
+    | '/admin/aster'
     | '/admin/automations'
     | '/admin/billing'
     | '/admin/contacts'
@@ -810,6 +821,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/_authenticated/admin/ai'
     | '/_authenticated/admin/announcements'
+    | '/_authenticated/admin/aster'
     | '/_authenticated/admin/automations'
     | '/_authenticated/admin/billing'
     | '/_authenticated/admin/contacts'
@@ -1082,6 +1094,13 @@ declare module '@tanstack/react-router' {
       path: '/announcements'
       fullPath: '/admin/announcements'
       preLoaderRoute: typeof AuthenticatedAdminAnnouncementsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/aster': {
+      id: '/_authenticated/admin/aster'
+      path: '/aster'
+      fullPath: '/admin/aster'
+      preLoaderRoute: typeof AuthenticatedAdminAsterRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
     '/_authenticated/admin/automations': {
@@ -1382,6 +1401,7 @@ const AuthenticatedAdminSettingsRouteWithChildren =
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAiRoute: typeof AuthenticatedAdminAiRoute
   AuthenticatedAdminAnnouncementsRoute: typeof AuthenticatedAdminAnnouncementsRoute
+  AuthenticatedAdminAsterRoute: typeof AuthenticatedAdminAsterRoute
   AuthenticatedAdminAutomationsRoute: typeof AuthenticatedAdminAutomationsRoute
   AuthenticatedAdminBillingRoute: typeof AuthenticatedAdminBillingRoute
   AuthenticatedAdminContactsRoute: typeof AuthenticatedAdminContactsRoute
@@ -1413,6 +1433,7 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAiRoute: AuthenticatedAdminAiRoute,
   AuthenticatedAdminAnnouncementsRoute: AuthenticatedAdminAnnouncementsRoute,
+  AuthenticatedAdminAsterRoute: AuthenticatedAdminAsterRoute,
   AuthenticatedAdminAutomationsRoute: AuthenticatedAdminAutomationsRoute,
   AuthenticatedAdminBillingRoute: AuthenticatedAdminBillingRoute,
   AuthenticatedAdminContactsRoute: AuthenticatedAdminContactsRoute,

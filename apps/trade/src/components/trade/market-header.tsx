@@ -1,6 +1,7 @@
 import * as React from "react"
 import {
   CandlestickChartIcon,
+  InfoIcon,
   ListIcon,
   StarIcon,
   WalletIcon,
@@ -180,18 +181,59 @@ export function MarketHeader({
       }
       meta={
         <span className="flex items-center gap-2">
+          <span className="text-muted-foreground">
+            {selection.protocolLabel}
+          </span>
           {selection.row.maxLeverage !== null ? (
             <span>{selection.row.maxLeverage}×</span>
           ) : null}
-          {/* Always on screen for a practice-network market, never behind the
-              hover — a pretend dollar must not be readable as a real one. */}
-          {parseMarketKey(selection.row.key)?.network === "testnet" ? (
-            <TradeBadge tone="testnet">Testnet</TradeBadge>
-          ) : null}
+          <TradeBadge
+            tone={
+              parseMarketKey(selection.row.key)?.network === "testnet"
+                ? "testnet"
+                : "neutral"
+            }
+          >
+            {selection.networkLabel}
+          </TradeBadge>
+          <MarketInfo selection={selection} />
         </span>
       }
       action={action}
     />
+  )
+}
+
+function MarketInfo({
+  selection,
+}: {
+  selection: Extract<MarketSelection, { kind: "market" }>
+}) {
+  const leverage =
+    selection.row.maxLeverage === null
+      ? "Not stated publicly"
+      : `${selection.row.maxLeverage}×`
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`About ${selection.row.symbol} market`}
+        >
+          <InfoIcon className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent className="grid gap-1">
+        <span>{selection.protocolLabel}</span>
+        <span>{selection.networkLabel}</span>
+        <span>
+          Price tick: {selection.row.priceTick ?? "Exchange rounding rule"}
+        </span>
+        <span>Top leverage: {leverage}</span>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 

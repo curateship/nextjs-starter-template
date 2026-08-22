@@ -17,7 +17,8 @@
  * adding an exchange is a deliberate edit here — the one shared file — plus a
  * new module behind it, never a stray name invented at a call site.
  */
-export type ProtocolId = "hyperliquid" | "binance" | "phemex" | "kucoin"
+export type ProtocolId =
+  "hyperliquid" | "binance" | "phemex" | "kucoin" | "aster"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -102,6 +103,7 @@ export const KNOWN_PROTOCOLS = [
   "binance",
   "phemex",
   "kucoin",
+  "aster",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -115,6 +117,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   phemex: "Phemex",
   // Capital C, which is why this is a lookup and not a capitalised id.
   kucoin: "KuCoin",
+  aster: "Aster",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -165,6 +168,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   hyperliquid: "/admin/hyper-liquid",
   phemex: "/admin/phemex",
   kucoin: "/admin/kucoin",
+  aster: "/admin/aster",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */
@@ -204,6 +208,8 @@ export type MarketRow = {
   marketId: string
   /** What to print. The same as marketId on Hyperliquid. */
   symbol: string
+  /** The dollar token printed beside the market, such as USDC or USDT. */
+  quoteAsset: "USDC" | "USDT"
   /**
    * The sub-exchange this market trades on, by its full name — the extra
    * venues an exchange hosts beside its main one — or null on the main one.

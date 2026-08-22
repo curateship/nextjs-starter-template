@@ -12,6 +12,9 @@ describe("market keys", () => {
       "/admin/kucoin?market=kucoin%3Amainnet%3ASOLUSDTM"
     )
     expect(marketChartHref("binance:mainnet:BTCUSDT")).toBeNull()
+    expect(marketChartHref("aster:testnet:BTCUSDT")).toBe(
+      "/admin/aster?market=aster%3Atestnet%3ABTCUSDT"
+    )
   })
 
   it("builds and reads back the same reference", () => {

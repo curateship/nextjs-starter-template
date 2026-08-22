@@ -18,6 +18,7 @@ const market: MarketRow = {
   key: "hyperliquid:mainnet:BTC",
   marketId: "BTC",
   symbol: "BTC",
+  quoteAsset: "USDC",
   subExchange: null,
   category: "crypto",
   sizeDecimals: 3,
@@ -36,8 +37,9 @@ let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
-    .IS_REACT_ACT_ENVIRONMENT = true
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
@@ -51,7 +53,8 @@ afterEach(async () => {
 
 describe("the grid window's saved settings", () => {
   it("keeps the range choice locked until the saved choice has arrived", async () => {
-    let finishRead: (value: { params: GridParams | null }) => void = () => undefined
+    let finishRead: (value: { params: GridParams | null }) => void = () =>
+      undefined
     const read = new Promise<{ params: GridParams | null }>((resolve) => {
       finishRead = resolve
     })

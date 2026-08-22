@@ -30,6 +30,7 @@ describe("the market volume cutoff", () => {
       key,
       marketId: key,
       symbol: key,
+      quoteAsset: "USDC" as const,
       subExchange: null,
       category: "crypto" as const,
       sizeDecimals: null,

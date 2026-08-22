@@ -1,6 +1,10 @@
 import { and, asc, eq, gt, gte, lt, sql } from "drizzle-orm"
 
-import { parseMarketKey, type FundingRate, type MarketKey } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type FundingRate,
+  type MarketKey,
+} from "@/lib/protocols/contracts"
 import { db, type CustomShellDb } from "@/server/db"
 import { fundingOf, getProtocol } from "@/server/protocols/registry"
 import {
@@ -74,7 +78,12 @@ export async function ensureFundingCoverage(
   }
 
   const rates = await loadStoredFunding(marketKey, from, to, database)
-  const gaps = fundingGaps(from, to, rates, feed.intervalMs(ref.marketId))
+  const gaps = fundingGaps(
+    from,
+    to,
+    rates,
+    feed.intervalMs(ref.network, ref.marketId)
+  )
   await recordGaps(marketKey, from, to, gaps, database)
   return { rateCount: rates.length, gaps }
 }

@@ -88,6 +88,7 @@ export async function fetchPhemexMarkets(
       // what gets printed, like every other list in the app.
       marketId: one.symbol,
       symbol: one.baseCurrency || one.symbol.replace(/USDT$/, ""),
+      quoteAsset: "USDT",
       subExchange: null,
       category: "crypto",
       sizeDecimals: stepToDecimals(num(one.qtyStepSize)),
@@ -170,7 +171,10 @@ export async function fetchPhemexPrices(
         // Serve the stale answer while saying so, but only for a rationing —
         // any other failure means the stale answer may be WRONG, not just old.
         const message = error instanceof Error ? error.message : ""
-        if (message === "EXCHANGE_BUSY" || message.startsWith("PHEMEX_HTTP_429")) {
+        if (
+          message === "EXCHANGE_BUSY" ||
+          message.startsWith("PHEMEX_HTTP_429")
+        ) {
           cache.rationed = true
           return cache.prices
         }

@@ -81,9 +81,7 @@ export function coinNameFor(symbol: string): string | null {
   if (!symbol.endsWith("USDT")) return null
   const base = symbol.slice(0, -"USDT".length)
   if (base.length === 0) return null
-  return base.startsWith("1000") && base.length > 4
-    ? `k${base.slice(4)}`
-    : base
+  return base.startsWith("1000") && base.length > 4 ? `k${base.slice(4)}` : base
 }
 
 function rowFor(
@@ -105,11 +103,14 @@ function rowFor(
     key: marketKey({ protocol: "binance", network, marketId: coin }),
     marketId: coin,
     symbol: coin,
+    quoteAsset: "USDT",
     // Binance has no sub-exchanges the way Hyperliquid does.
     subExchange: null,
     category: "crypto",
     sizeDecimals:
-      typeof info.quantityPrecision === "number" ? info.quantityPrecision : null,
+      typeof info.quantityPrecision === "number"
+        ? info.quantityPrecision
+        : null,
     // Not carried for Binance: nothing trades there, so nothing rounds an
     // order price against it. The candles-and-backtests role needs no tick.
     priceTick: null,

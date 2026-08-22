@@ -29,25 +29,14 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 type PickerView =
-  | "favorites"
-  | "all"
-  | "crypto"
-  | "tradfi"
-  | "hip3"
-  | "trending"
+  "favorites" | "all" | "crypto" | "tradfi" | "hip3" | "trending"
 
 type PickerSortKey =
-  | "market"
-  | "price"
-  | "change"
-  | "funding"
-  | "volume"
-  | "openInterest"
+  "market" | "price" | "change" | "funding" | "volume" | "openInterest"
 
-type TradFiCategory = "all" | Extract<
-  MarketCategory,
-  "stocks" | "indices" | "commodities" | "forex"
->
+type TradFiCategory =
+  | "all"
+  | Extract<MarketCategory, "stocks" | "indices" | "commodities" | "forex">
 
 const PICKER_VIEWS: Array<{ value: PickerView; label: string }> = [
   { value: "favorites", label: "Favorites" },
@@ -220,7 +209,9 @@ export function MarketPicker({
           }}
           className="flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
-          <span className="truncate">{selected.symbol}-PERP</span>
+          <span className="truncate">
+            {displaySymbol(selected.symbol)}-{selected.quoteAsset}
+          </span>
           <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -468,7 +459,7 @@ function MarketPickerRow({
             />
           </button>
           <span className="font-semibold">
-            {displaySymbol(row.symbol)}-USDC
+            {displaySymbol(row.symbol)}-{row.quoteAsset}
           </span>
           {row.maxLeverage !== null ? (
             <span className="rounded bg-primary/10 px-1.5 py-0.5 text-primary">

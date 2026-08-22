@@ -23,6 +23,7 @@ const row: MarketRow = {
   key,
   marketId: "BTC",
   symbol: "BTC",
+  quoteAsset: "USDC",
   subExchange: null,
   category: "crypto",
   sizeDecimals: 3,
@@ -59,6 +60,14 @@ function draw(selection: MarketSelection, favorites: string[]): string {
 }
 
 describe("the market header's star", () => {
+  it("names the exchange, network and quote asset and offers market rules", () => {
+    const markup = draw(market, [])
+    expect(markup).toContain("BTC-USDC")
+    expect(markup).toContain("Hyperliquid")
+    expect(markup).toContain("Mainnet")
+    expect(markup).toContain('aria-label="About BTC market"')
+  })
+
   it("offers to star the market on screen, naming it", () => {
     const markup = draw(market, [])
     expect(markup).toContain('aria-label="Add BTC to Fav"')

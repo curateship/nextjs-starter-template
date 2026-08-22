@@ -25,11 +25,11 @@ What Trade has added to the shell, and what each piece is for:
 
 | Where | What |
 | --- | --- |
-| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's, because a saved home setting or a bookmark may still point there. |
+| `src/routes/_authenticated/admin/<exchange>.tsx` | One dashboard per exchange (`hyper-liquid`, `phemex`, `kucoin`, `aster`). Each loads its own market list and carries the picked market in the address; the old `/trade` address redirects to Hyperliquid's, because a saved home setting or a bookmark may still point there. |
 | `src/components/trade/` | The workspace and its panels. Draw only — no exchange code, no database. |
 | `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
 | `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
-| `src/lib/protocols/contracts.ts` | The shapes screens and exchanges agree on. Browser-safe. |
+| `src/lib/protocols/contracts.ts` | The shapes screens and exchanges agree on, including each market's quote token. Browser-safe. |
 | `src/lib/api/markets.ts` | The guarded endpoints: the market list, and saved stars. |
 | `src/lib/api/drawings.ts` | The guarded endpoints for the lines drawn on a chart. |
 | `src/server/protocols/` | The exchange side: the registry, and one folder per exchange. |
@@ -165,6 +165,10 @@ exchange, so its wallet signs in with a key id and secret packed into the one
 encrypted blob, and its account reads carry that credential — the registry's
 authenticated reads take a credential thunk that wallet-shaped venues simply
 never call.
+
+Aster is the read-only example. Its mainnet and testnet pages list active USDT
+perpetuals and chart all six intervals. Its registry entry has markets and
+funding, with no account, credentials, orders or pushed-price block yet.
 
 ## Saved data
 

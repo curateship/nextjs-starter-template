@@ -89,7 +89,10 @@ function contractCache(network: NetworkId): ContractCache {
 
 async function contracts(network: NetworkId): Promise<Map<string, Contract>> {
   const cache = contractCache(network)
-  if (Date.now() - cache.at <= CONTRACTS_GOOD_FOR_MS && cache.bySymbol.size > 0) {
+  if (
+    Date.now() - cache.at <= CONTRACTS_GOOD_FOR_MS &&
+    cache.bySymbol.size > 0
+  ) {
     return cache.bySymbol
   }
   cache.inFlight ??= (async () => {
@@ -161,6 +164,7 @@ export async function fetchKucoinMarkets(
       // and BTC nowhere else, so the base currency it states is what is
       // shown — with the id itself as the fallback.
       symbol: one.baseCurrency || one.symbol.replace(/USDTM?$/, ""),
+      quoteAsset: "USDT",
       subExchange: null,
       category: "crypto",
       sizeDecimals: stepToDecimals(
@@ -315,7 +319,9 @@ export async function fetchKucoinPrices(
  * and a plain 404 is what a bad path gives; both are about the one market.
  */
 function unpriced(message: string): boolean {
-  return message.startsWith("KUCOIN_415000") || message.startsWith("KUCOIN_HTTP_404")
+  return (
+    message.startsWith("KUCOIN_415000") || message.startsWith("KUCOIN_HTTP_404")
+  )
 }
 
 /** Tests drive their own clock; a held price across them would leak. */

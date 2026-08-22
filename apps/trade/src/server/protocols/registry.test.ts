@@ -20,6 +20,7 @@ describe("the protocol registry", () => {
     expect(listProtocols().map((one) => one.id).sort()).toEqual(
       [...KNOWN_PROTOCOLS].sort()
     )
+    expect(listProtocols().map((one) => one.label)).toContain("Aster")
   })
 
   it("carries the trading blocks exactly where the flags say they are", () => {

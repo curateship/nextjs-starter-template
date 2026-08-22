@@ -119,6 +119,7 @@ export function toMarketRows(
       // The full namespaced name on purpose: with one flat list, a stripped
       // "BTC" from a sub-exchange would be a lookalike of the real one.
       symbol: marketId,
+      quoteAsset: "USDC",
       subExchange: dex?.fullName || dex?.name || null,
       category: normalizeMarketCategory(categories.get(asset.name), !dex),
       sizeDecimals: asset.szDecimals ?? null,

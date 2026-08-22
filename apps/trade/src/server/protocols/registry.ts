@@ -118,6 +118,19 @@ import {
   KUCOIN_DEFAULT_FUNDING_MS,
   kucoinIntervalMs,
 } from "@/lib/protocols/kucoin/translate"
+import { asterIntervalMs, roundAsterPx } from "@/lib/protocols/aster/translate"
+import {
+  fetchAsterCandleHistory,
+  fetchAsterCandles,
+} from "@/server/protocols/aster/candles"
+import {
+  asterFundingIntervalMs,
+  fetchAsterFunding,
+} from "@/server/protocols/aster/funding"
+import {
+  fetchAsterMarkets,
+  fetchAsterPrices,
+} from "@/server/protocols/aster/markets"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -227,7 +240,7 @@ export type ProtocolEntry = {
       to: number
     ): Promise<FundingRate[]>
     /** Regular time between funding settlements, in milliseconds. */
-    intervalMs(marketId: string): number
+    intervalMs(network: NetworkId, marketId: string): number
   }
   /**
    * Absent on an exchange that cannot hold an account. `capabilities.accounts` is the flag; this is the code behind it. Optional so a markets-only exchange is a shorter entry rather than a set of stubs that throw — a stub is a door that looks open.
@@ -597,6 +610,29 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       portfolio: fetchKucoinPortfolio,
       fills: fetchKucoinOrderFills,
       orderInfo: fetchKucoinOrderInfo,
+    },
+  },
+  /**
+   * Public Aster V3 market data on both networks. Accounts, credentials and
+   * orders stay absent until their own tasks prove those private paths.
+   */
+  aster: {
+    id: "aster",
+    label: "Aster",
+    networks: ["mainnet", "testnet"],
+    defaultNetwork: "mainnet",
+    capabilities: { markets: true, accounts: false, orders: false },
+    markets: {
+      fetch: fetchAsterMarkets,
+      candles: fetchAsterCandles,
+      history: fetchAsterCandleHistory,
+      intervalMs: asterIntervalMs,
+      prices: fetchAsterPrices,
+      roundPx: roundAsterPx,
+    },
+    funding: {
+      fetch: fetchAsterFunding,
+      intervalMs: asterFundingIntervalMs,
     },
   },
   binance: {
