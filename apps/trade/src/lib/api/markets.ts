@@ -8,13 +8,18 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
+import { filterMarketsByVolume } from "@/lib/trade/market-volume"
 import { userGet, userPost } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
 import {
   loadMarketFavoriteKeys,
   saveMarketFavoriteKeys,
 } from "@/server/trade/market-favorites"
-import { loadLastMarketKey, saveLastMarketKey } from "@/server/trade/prefs"
+import {
+  loadLastMarketKey,
+  loadMinimumMarketVolume,
+  saveLastMarketKey,
+} from "@/server/trade/prefs"
 
 import { createErrorMessage } from "./error-message"
 
@@ -43,14 +48,20 @@ const marketsSchema = z.object({
 const loadMarketsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(marketsSchema)
-  .handler(async ({ data }): Promise<{ catalogs: MarketCatalog[] }> => {
+  .handler(async ({ data, context }): Promise<{ catalogs: MarketCatalog[] }> => {
     const protocol = getProtocol(data.protocol)
     // A network the exchange does not run is refused, not answered with an
     // empty list that reads as "no markets today".
     if (!protocol.networks.includes(data.network)) {
       throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
     }
-    return { catalogs: [await protocol.markets.fetch(data.network)] }
+    const [catalog, minimumVolumeUsd] = await Promise.all([
+      protocol.markets.fetch(data.network),
+      loadMinimumMarketVolume(context.user.id),
+    ])
+    return {
+      catalogs: [filterMarketsByVolume(catalog, minimumVolumeUsd)],
+    }
   })
 
 /**

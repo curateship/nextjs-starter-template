@@ -160,6 +160,11 @@ export const tradePrefs = pgTable("trade_prefs", {
     .$type<OrderStyle>()
     .notNull()
     .default("rest"),
+  // The smallest daily dollar volume shown on any exchange dashboard. One
+  // account-wide number so changing exchange cannot quietly change the list.
+  minimumMarketVolumeUsd: doublePrecision("minimum_market_volume_usd")
+    .notNull()
+    .default(0),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -43,6 +43,11 @@ export const appOptions: AppOptions = {
         label: "Widgets",
         panel: () => import("@/components/trade/dashboard-widget-settings"),
       },
+      {
+        id: "markets",
+        label: "Markets",
+        panel: () => import("@/components/trade/market-settings"),
+      },
     ],
   },
   automations: {

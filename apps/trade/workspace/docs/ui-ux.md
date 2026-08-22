@@ -384,8 +384,13 @@ list covers is on screen without spending a row on it.
 - **Stars save to the account, not the browser**, so favourites follow you
   between machines. Starring is optimistic and reverts with a toast if the save
   fails.
-- **Markets nobody trades are hidden** (zero volume) — unless starred or
-  selected, which keeps your own markets visible no matter what.
+- **Settings → Markets holds one minimum daily dollar volume for the account.**
+  Every exchange uses the same number. Markets below it disappear from every
+  list, including Favorites and search, and a linked or remembered market below
+  it reads as unavailable instead of opening its chart. A zero setting keeps
+  the old rule, where markets with no reported volume stay hidden. When the
+  cutoff hides every starred market, Favorites says the volume setting hid them
+  rather than saying nothing was starred.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists.

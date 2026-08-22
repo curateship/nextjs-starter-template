@@ -13,12 +13,14 @@ import {
   loadChartOptions,
   loadLastMarketKey,
   loadLastWalletIds,
+  loadMinimumMarketVolume,
   loadQuickOrder,
   saveQuickOrder,
   saveChartView,
   saveChartOptions,
   saveLastMarketKey,
   saveLastWalletId,
+  saveMinimumMarketVolume,
   saveTradingDashboardWidgets,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
@@ -64,6 +66,36 @@ describe("the remembered chart options", () => {
       zone: "Europe/London" as const,
     })
     expect(await loadChartOptions(mine.id)).toEqual(DEFAULT_CHART_OPTIONS)
+  })
+})
+
+describe("the market volume cutoff", () => {
+  it("starts at zero and follows the account across protocols", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadMinimumMarketVolume(id)).toBe(0)
+
+    await saveMinimumMarketVolume(id, 10_000_000)
+    expect(await loadMinimumMarketVolume(id)).toBe(10_000_000)
+  })
+
+  it("keeps each account's cutoff separate", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+    await saveMinimumMarketVolume(theirs.id, 25_000_000)
+
+    expect(await loadMinimumMarketVolume(mine.id)).toBe(0)
+    expect(await loadMinimumMarketVolume(theirs.id)).toBe(25_000_000)
+  })
+
+  it("shares the preference row without wiping another choice", async () => {
+    const { id } = await insertUser(database)
+    await saveLastMarketKey(id, "hyperliquid:mainnet:BTC")
+    await saveMinimumMarketVolume(id, 5_000_000)
+
+    expect(await loadLastMarketKey(id, "hyperliquid")).toBe(
+      "hyperliquid:mainnet:BTC"
+    )
+    expect(await loadMinimumMarketVolume(id)).toBe(5_000_000)
   })
 })
 

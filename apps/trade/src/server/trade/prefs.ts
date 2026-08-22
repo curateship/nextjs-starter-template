@@ -28,6 +28,10 @@ import {
   readOrderStyle,
   type OrderStyle,
 } from "@/lib/trade/order-style"
+import {
+  minimumMarketVolumeSchema,
+  readMinimumMarketVolume,
+} from "@/lib/trade/market-volume"
 import { db } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -85,6 +89,32 @@ export async function saveLastMarketKey(
       target: tradePrefs.userId,
       set: { lastMarketKeys, updatedAt: new Date() },
     })
+}
+
+/** The account-wide daily dollar volume below which markets disappear. */
+export async function loadMinimumMarketVolume(userId: string): Promise<number> {
+  const row = await db
+    .select({ value: tradePrefs.minimumMarketVolumeUsd })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readMinimumMarketVolume(row[0]?.value)
+}
+
+/** Remember one cutoff for every protocol this account visits. */
+export async function saveMinimumMarketVolume(
+  userId: string,
+  value: number
+): Promise<number> {
+  const minimumMarketVolumeUsd = minimumMarketVolumeSchema.parse(value)
+  await db
+    .insert(tradePrefs)
+    .values({ userId, minimumMarketVolumeUsd, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { minimumMarketVolumeUsd, updatedAt: new Date() },
+    })
+  return minimumMarketVolumeUsd
 }
 
 /**

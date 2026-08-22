@@ -176,7 +176,8 @@ never call.
 - **Trade's tables are declared in `src/server/trade/schema.ts`**, not in the
   shell's schema file. Three so far: `trade_market_favorites` (one row per
   person, holding their starred market keys), `trade_prefs` (the market they
-  were last looking at, and how far the chart was zoomed and scrolled), and
+  were last looking at, how far the chart was zoomed and scrolled, and the
+  minimum daily market volume shown across every exchange), and
   `trade_chart_drawings` (one row per line drawn on a chart, tied to its market
   key). All server-side, so all three follow the account rather than the
   browser.

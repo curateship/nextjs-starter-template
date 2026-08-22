@@ -235,10 +235,6 @@ export function TradeWorkspace({
   // Practice and real wallets flow through the same hook; it is the wallet a
   // row belongs to that decides which road an action takes.
   const trading = useTrading(account.activeWallet, protocol)
-  const watchedMarkets = React.useMemo(
-    () => new Set(trading.ladders.map((ladder) => ladder.marketKey)),
-    [trading.ladders]
-  )
   const activeSummary = account.activeWallet
     ? account.summaryOf(account.activeWallet.id)
     : null
@@ -385,7 +381,6 @@ export function TradeWorkspace({
       marketsError={marketsError}
       network={network}
       favorites={favorites}
-      watched={watchedMarkets}
       // The same list the chart draws its waiting lines from and the Open
       // orders tab lists, so the tab can never disagree with either.
       watchedOrders={{

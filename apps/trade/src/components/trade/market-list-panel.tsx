@@ -22,6 +22,7 @@ import { useLiveFigures } from "@/lib/trade/live-market"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { PaperOrder } from "@/lib/trade/paper"
 import {
+  parseMarketKey,
   type MarketCatalog,
   type MarketRow,
   type NetworkId,
@@ -82,7 +83,6 @@ export function MarketListPanel({
   marketsError,
   network,
   favorites,
-  watched,
   watchedOrders,
   walletName,
   selectedKey,
@@ -96,8 +96,6 @@ export function MarketListPanel({
   network: NetworkId
   /** Which markets are starred — read only; the star itself is in the header. */
   favorites: ReadonlySet<string>
-  /** Which markets currently have an active smart order in any wallet. */
-  watched: ReadonlySet<string>
   /** The prices being waited at, listed under the Watched tab. */
   watchedOrders: {
     rows: readonly PaperOrder[]
@@ -135,6 +133,17 @@ export function MarketListPanel({
     () => catalogs.flatMap((catalog) => catalog.rows),
     [catalogs]
   )
+  const hasFavoriteOnDashboard = React.useMemo(
+    () =>
+      [...favorites].some((key) => {
+        const ref = parseMarketKey(key)
+        return catalogs.some(
+          (catalog) =>
+            ref?.protocol === catalog.protocol && ref.network === catalog.network
+        )
+      }),
+    [catalogs, favorites]
+  )
 
   // Every market by key, so a waiting price finds its own art without
   // searching the catalogues itself.
@@ -147,16 +156,7 @@ export function MarketListPanel({
   const visible = React.useMemo(() => {
     // Watched lists orders, not markets, and draws its own rows below.
     if (tab === "watched") return []
-    let list = rows.filter(
-      (row) =>
-        // A market nobody trades is noise — unless it is yours: the selected
-        // market and every starred or watched one stays visible at zero volume.
-        (row.volume24hUsd > 0 ||
-          row.key === selectedKey ||
-          favorites.has(row.key) ||
-          watched.has(row.key))
-    )
-    list = list.filter((row) =>
+    const list = rows.filter((row) =>
       marketBelongsInTab(tab, row.key, favorites)
     )
     const direction = sort.desc ? -1 : 1
@@ -167,7 +167,7 @@ export function MarketListPanel({
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, tab, sort, favorites, watched, selectedKey])
+  }, [rows, tab, sort, favorites])
 
   const list = (
     // `[&>div]:block!` because Radix wraps what it is given in a `display:
@@ -185,7 +185,9 @@ export function MarketListPanel({
               which opens the whole catalogue with its own search — one search
               box for markets rather than two that filter different lists. */}
           {tab === "fav"
-            ? "Nothing starred yet. Open a market and press the star beside its name — it stays here."
+            ? hasFavoriteOnDashboard
+              ? "Your starred markets are below the daily volume setting."
+              : "Nothing starred yet. Open a market and press the star beside its name — it stays here."
             : "The exchange listed no markets."}
         </p>
       ) : (
