@@ -1,3 +1,5 @@
+import { ChartNoAxesCombinedIcon } from "lucide-react"
+
 import { IndicatorRow } from "@/components/trade/indicator-fields"
 import type { ChartIndicators } from "@/components/trade/use-indicators"
 import { Button } from "@/components/ui/button"
@@ -6,6 +8,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { IndicatorContext } from "@/lib/trade/indicators/contract"
 import { INDICATOR_LIST, indicatorsOn } from "@/lib/trade/indicators/registry"
 
@@ -34,20 +41,29 @@ export function IndicatorsMenu({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          // The chart's own control strip, not a form: it sits beside the
-          // timeframe buttons and matches their height rather than the 32px
-          // every field on a page uses. A control a third taller than the row
-          // it is in would read as belonging to something else.
-          className="h-6 px-2 text-xs"
-        >
-          Indicators{on ? ` (${on})` : ""}
-        </Button>
-      </PopoverTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              aria-label={on ? `Indicators, ${on} on` : "Indicators"}
+              className="relative px-2 text-xs"
+            >
+              <ChartNoAxesCombinedIcon className="size-4 sm:hidden" />
+              <span className="hidden sm:inline">
+                Indicators{on ? ` (${on})` : ""}
+              </span>
+              {on ? (
+                <span className="absolute top-0.5 right-0.5 text-[9px] leading-none sm:hidden">
+                  {on}
+                </span>
+              ) : null}
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Indicators</TooltipContent>
+      </Tooltip>
       <PopoverContent align="end" className="w-80 gap-1">
         {INDICATOR_LIST.map((module) => (
           <IndicatorRow

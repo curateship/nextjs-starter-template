@@ -53,7 +53,7 @@ export function ChartOptionsMenu({
             <Button
               type="button"
               variant="ghost"
-              size="icon-xs"
+              size="icon"
               aria-label="View options"
             >
               <EyeIcon className="size-4" />

@@ -38,6 +38,7 @@ import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
 import {
   FIRST_PAINT_MS,
@@ -74,7 +75,6 @@ import {
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
 import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
-import { cn } from "@/lib/utils"
 
 const CANDLE_LOAD_SETTLE_MS = 250
 
@@ -114,24 +114,23 @@ export function IntervalPicker({
   onChange: (next: CandleInterval) => void
 }) {
   return (
-    <div className="flex items-center gap-1">
-      {CANDLE_INTERVALS.map((option) => (
-        <button
-          key={option}
-          type="button"
-          aria-pressed={value === option}
-          onClick={() => onChange(option)}
-          className={cn(
-            "flex h-6 items-center rounded-md px-1.5 text-xs focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-            value === option
-              ? "font-medium text-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
+    <Tabs
+      value={value}
+      onValueChange={(next) => onChange(next as CandleInterval)}
+      className="block"
+    >
+      <TabsList aria-label="Candle interval">
+        {CANDLE_INTERVALS.map((option) => (
+          <TabsTrigger
+            key={option}
+            value={option}
+            className="px-0.5 text-xs sm:px-1.5"
+          >
+            {option}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+    </Tabs>
   )
 }
 

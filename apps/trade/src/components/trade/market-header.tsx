@@ -89,7 +89,7 @@ export function MarketHeader({
 
   const action =
     toolbar || sheetButtons ? (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-0.5 sm:gap-2">
         {toolbar}
         {sheetButtons}
       </div>

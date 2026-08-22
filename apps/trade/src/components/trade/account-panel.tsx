@@ -466,6 +466,7 @@ export function AccountPanel({
           />
         </TabsList>
         <Button
+          data-slot="account-add-wallet"
           variant="ghost"
           size="icon"
           className="ml-auto"

@@ -83,8 +83,11 @@ const NO_RING = "focus-visible:ring-0"
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
 
-/** Which side panel a narrow screen has slid open, if any. */
-type OpenSheet = "markets" | "account" | null
+/** Which narrow-screen side panel the shared sheet belongs to. */
+type SideSheet = {
+  side: "markets" | "account"
+  open: boolean
+}
 
 /**
  * What the picked key means against what the exchanges actually list: a real
@@ -175,7 +178,10 @@ export function TradeWorkspace({
   const desktop = useWideScreen()
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
   const [accountCollapsed, setAccountCollapsed] = React.useState(false)
-  const [openSheet, setOpenSheet] = React.useState<OpenSheet>(null)
+  const [sideSheet, setSideSheet] = React.useState<SideSheet>({
+    side: "markets",
+    open: false,
+  })
 
   // ----- Favourites: optimistic, saved whole, reverted on failure ----------
   const [favoriteKeys, setFavoriteKeys] = React.useState(initialFavoriteKeys)
@@ -352,7 +358,7 @@ export function TradeWorkspace({
   const [lastDesktop, setLastDesktop] = React.useState(desktop)
   if (desktop !== lastDesktop) {
     setLastDesktop(desktop)
-    setOpenSheet(null)
+    setSideSheet((current) => ({ ...current, open: false }))
   }
 
   // The finished trade drawn on the chart, picked in the Journal. It lives up
@@ -443,8 +449,16 @@ export function TradeWorkspace({
         }
         // On a wide screen both panels are already on screen, so the buttons
         // would only be a second way to do what the dividers already do.
-        onOpenMarkets={desktop ? undefined : () => setOpenSheet("markets")}
-        onOpenAccount={desktop ? undefined : () => setOpenSheet("account")}
+        onOpenMarkets={
+          desktop
+            ? undefined
+            : () => setSideSheet({ side: "markets", open: true })
+        }
+        onOpenAccount={
+          desktop
+            ? undefined
+            : () => setSideSheet({ side: "account", open: true })
+        }
       />
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
@@ -619,17 +633,24 @@ export function TradeWorkspace({
           panels through the two buttons in its header, rather than squeezing
           three columns into a width none of them fits in. */}
       <Sheet
-        open={openSheet !== null}
-        onOpenChange={(open) => setOpenSheet(open ? openSheet : null)}
+        open={sideSheet.open}
+        onOpenChange={(open) =>
+          setSideSheet((current) => ({ ...current, open }))
+        }
       >
-        <SheetContent side={openSheet === "account" ? "right" : "left"}>
+        <SheetContent
+          side={sideSheet.side === "account" ? "right" : "left"}
+          className="duration-150 ease-out motion-reduce:animate-none motion-reduce:transition-none data-closed:ease-in data-[side=left]:data-closed:slide-out-to-left-full data-[side=right]:data-closed:slide-out-to-right-full"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>
-              {openSheet === "account" ? "Account" : "Markets"}
+              {sideSheet.side === "account" ? "Account" : "Markets"}
             </SheetTitle>
           </SheetHeader>
-          {openSheet === "account" ? (
-            <div className="min-h-0 flex-1">{accountPanel}</div>
+          {sideSheet.side === "account" ? (
+            <div className="min-h-0 flex-1 [&_[data-slot=account-add-wallet]]:mr-9">
+              {accountPanel}
+            </div>
           ) : (
             <div className="min-h-0 flex-1">{marketList}</div>
           )}

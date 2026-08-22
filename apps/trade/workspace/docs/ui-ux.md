@@ -29,17 +29,20 @@ and `/admin/kucoin`.
   market's own logo (carried as data on the row, with a first-letter circle
   when an exchange has no art), its name, and on the right the timeframe
   picker (1m–1d, remembered per browser, 4h the default) with the Indicators
-  dropdown after it. Pressing the market name opens the full market picker:
-  search; Favorites, All, Crypto, TradFi, HIP-3 and Trending tabs; sortable
-  price, day's move, funding, volume and open-interest columns; and a star on
-  every row. Below,
+  dropdown after it. The timeframe picker is one segmented choice. Its raised
+  tab marks the selected interval, and the arrow keys move through the row.
+  Every control in that row is 32px high. Pressing the market name opens the
+  full market picker: search; Favorites, All, Crypto, TradFi, HIP-3 and
+  Trending tabs; sortable price, day's move, funding, volume and open-interest
+  columns; and a star on every row. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Grid levels, ladder rungs and order
-  lines read those same theme colours. Their neutral lines read the Divider
-  lines setting, so light and dark themes and Styling changes repaint the
-  whole chart together. Loading, no-history and failed-fetch states stay
-  inside the panel; the rest of the page stands. While candles are
+  lines read those same theme colours. Neutral waiting orders use the muted
+  foreground so their labels and controls remain readable in either theme;
+  only the chart frame uses the deliberately faint divider colour. Loading,
+  no-history and failed-fetch states stay inside the panel; the rest of the
+  page stands. While candles are
   loading, the whole empty chart surface gently fades in and out instead of
   showing an icon, spinner or loading screen. The completed chart fades in
   when ready. Reduced-motion settings keep both transitions still.
@@ -521,6 +524,13 @@ Designed with the wide one, not bolted on.
   markets sheet is the full market list; the account sheet carries its two rows
   stacked, sharing the height — no divider, because a screen with no room to
   spare does not need a third way to size the same thing.
+- A sheet closes toward the same edge it opened from. Closing Account keeps the
+  account sheet on the right until it is gone; it never turns into Markets on
+  the left during the closing animation. The panel completes that exit in
+  150ms instead of drifting a short distance and then disappearing. Reduced
+  motion removes the animation.
+- In the Account sheet, Add wallet stays in the account header but leaves a
+  clear gap for the sheet's close button. The two actions never overlap.
 - The bottom panel stays where it is — it already works at any width.
 - A slid-open sheet closes when the window crosses the width boundary, in
   either direction.

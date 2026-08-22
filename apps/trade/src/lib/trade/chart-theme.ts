@@ -23,7 +23,7 @@ export type ChartColors = {
   up: string
   down: string
   warning: string
-  /** A quiet line that follows the same token as the app's dividers. */
+  /** A neutral order line, readable against the chart in either theme. */
   neutral: string
   /** Text drawn on a solid chart badge. */
   badgeText: string
@@ -44,15 +44,18 @@ export function readChartColors(host: HTMLElement): ChartColors {
   const up = resolve("text-emerald-600 dark:text-emerald-400")
   const down = resolve("text-destructive")
   const border = resolve("text-border")
+  const text = resolve("text-muted-foreground")
   return {
-    text: resolve("text-muted-foreground"),
+    text,
     grid: withAlpha(resolve("text-foreground"), 0.08),
     border,
     primary: resolve("text-primary"),
     up,
     down,
     warning: resolve("text-amber-600 dark:text-amber-400"),
-    neutral: border,
+    // Waiting orders are chart marks, not divider chrome. The border token is
+    // deliberately faint and made their line, label, and controls disappear.
+    neutral: text,
     badgeText: resolve("text-background"),
     upSoft: withAlpha(up, 0.4),
     downSoft: withAlpha(down, 0.4),
