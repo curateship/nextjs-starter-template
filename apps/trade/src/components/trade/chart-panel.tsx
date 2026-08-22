@@ -254,13 +254,13 @@ export function ChartPanel({
   // order window one of its rows opens at the same spot.
   const [menu, setMenu] = React.useState<ChartMenuState | null>(null)
   const [quick, setQuick] = React.useState<QuickOrderState | null>(null)
-  // "Take profit" from the same menu: the position it was picked on, and the
-  // level that was right-clicked, which the window opens already filled in
-  // with. The position is held by id rather than looked up again by market —
-  // a window that re-found its own subject could reopen itself later on a
-  // different position.
-  const [targetAt, setTargetAt] = React.useState<{
+  // "Take profit" or "Stop loss" from the same menu: the position it was
+  // picked on, the side picked, and the level that was right-clicked. The
+  // position is held by id rather than looked up again by market — a window
+  // that re-found its own subject could reopen itself on a different position.
+  const [bracketAt, setBracketAt] = React.useState<{
     positionId: string
+    kind: "target" | "stop"
     px: number
   } | null>(null)
   // The DCA window, its live preview lines, and the exits window of a placed
@@ -305,7 +305,7 @@ export function ChartPanel({
     setLastMarket(selectedKey)
     setMenu(null)
     setQuick(null)
-    setTargetAt(null)
+    setBracketAt(null)
     setSmart(null)
     setPreview(null)
     setExitsFor(null)
@@ -376,6 +376,14 @@ export function ChartPanel({
   const bareTarget = React.useMemo(() => {
     const held = trading.positions.filter(
       (one) => one.marketKey === selectedKey && one.tpPx === null
+    )
+    return (
+      held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
+    )
+  }, [trading.positions, trading.wallet?.id, selectedKey])
+  const bareStop = React.useMemo(() => {
+    const held = trading.positions.filter(
+      (one) => one.marketKey === selectedKey && one.slPx === null
     )
     return (
       held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
@@ -885,7 +893,29 @@ export function ChartPanel({
               ? menu.price > bareTarget.entryPx
               : menu.price < bareTarget.entryPx)
               ? () => {
-                  setTargetAt({ positionId: bareTarget.id, px: menu.price })
+                  setBracketAt({
+                    positionId: bareTarget.id,
+                    kind: "target",
+                    px: menu.price,
+                  })
+                  setMenu(null)
+                }
+              : null
+          }
+          // The losing side of the entry is the matching stop-loss shortcut.
+          // A trailing stop beyond entry is still edited from the position's
+          // existing stop line, where the current price can also be enforced.
+          onPickStopLoss={
+            bareStop &&
+            (bareStop.szi > 0
+              ? menu.price < bareStop.entryPx
+              : menu.price > bareStop.entryPx)
+              ? () => {
+                  setBracketAt({
+                    positionId: bareStop.id,
+                    kind: "stop",
+                    px: menu.price,
+                  })
                   setMenu(null)
                 }
               : null
@@ -922,16 +952,17 @@ export function ChartPanel({
           the position it belongs to rather than standing on a stale row. */}
       <BracketsDialog
         position={
-          targetAt
+          bracketAt
             ? (trading.positions.find(
-                (one) => one.id === targetAt.positionId
+                (one) => one.id === bracketAt.positionId
               ) ?? null)
             : null
         }
-        startTpPx={targetAt?.px ?? null}
+        startTpPx={bracketAt?.kind === "target" ? bracketAt.px : null}
+        startSlPx={bracketAt?.kind === "stop" ? bracketAt.px : null}
         busy={trading.busy}
         onSave={trading.setBrackets}
-        onClose={() => setTargetAt(null)}
+        onClose={() => setBracketAt(null)}
       />
       {smart && market ? (
         <SmartOrderDialog

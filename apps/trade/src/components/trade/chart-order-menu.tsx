@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   Grid2x2Icon,
   LayersIcon,
+  ShieldAlertIcon,
   TargetIcon,
   TrendingDownIcon,
   TrendingUpIcon,
@@ -15,16 +16,15 @@ import type { PaperSide } from "@/lib/trade/paper"
  * Buy at the level clicked, sell at it — and under a "Smart order" heading,
  * the presets that place a whole plan at once, starting with the DCA ladder.
  *
- * With a position open on this market and no target set on it yet, a "Take
- * profit" row sits above everything: the fastest way to put a target where
- * the pointer is. It only appears when the level clicked is on the winning
- * side of the entry, because a target on the losing side is a stop.
+ * With a position open on this market and no exit set at the clicked side, a
+ * "Take profit" or "Stop loss" row sits above everything: the fastest way to
+ * put that exit where the pointer is. The target appears on the winning side
+ * of the entry and the stop appears on the losing side.
  *
- * The price is not printed on the rows. It is the same price on all four of
- * them — the level the pointer is on — so four copies of it said nothing that
- * the crosshair and the price axis were not already saying, right beside the
- * menu. The window each row opens shows the price it is working from, which is
- * where it can still be changed.
+ * The price is not printed on the rows. Every row uses the level the pointer
+ * is on, so copies of it would say nothing the crosshair and price axis were
+ * not already saying beside the menu. The window each row opens shows the
+ * price it is working from, which is where it can still be changed.
  */
 
 export type ChartMenuState = { price: number; x: number; y: number }
@@ -41,6 +41,7 @@ export function ChartOrderMenu({
   onPick,
   onPickSmart,
   onPickTakeProfit,
+  onPickStopLoss,
   onClose,
 }: {
   menu: ChartMenuState
@@ -54,6 +55,11 @@ export function ChartOrderMenu({
    * or the click on the losing side of the entry.
    */
   onPickTakeProfit: (() => void) | null
+  /**
+   * Puts a stop on the open position at the level clicked, or null when there
+   * is nothing to put one on.
+   */
+  onPickStopLoss: (() => void) | null
   onClose: () => void
 }) {
   React.useEffect(() => {
@@ -83,7 +89,7 @@ export function ChartOrderMenu({
       left: clamp(menu.x, EDGE, window.innerWidth - width - EDGE),
       top: clamp(menu.y, EDGE, window.innerHeight - height - EDGE),
     })
-  }, [menu.x, menu.y, smartOrders, onPickTakeProfit])
+  }, [menu.x, menu.y, smartOrders, onPickTakeProfit, onPickStopLoss])
 
   return (
     <>
@@ -103,19 +109,28 @@ export function ChartOrderMenu({
         aria-label="Order at this price"
         // As wide as its longest row. There is no column of figures to line up
         // any more, so a fixed width would only be empty space to the right of
-        // four short labels.
+        // short labels.
         className="fixed z-50 w-max overflow-hidden rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
         style={{ left: at.left, top: at.top }}
       >
         {onPickTakeProfit ? (
-          <>
-            <IconRow
-              label="Take profit"
-              icon={<TargetIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
-              onPick={onPickTakeProfit}
-            />
-            <div role="presentation" className="mx-2 my-1 border-t" />
-          </>
+          <IconRow
+            label="Take profit"
+            icon={<TargetIcon className="size-4 text-emerald-600 dark:text-emerald-400" />}
+            onPick={onPickTakeProfit}
+          />
+        ) : null}
+        {onPickStopLoss ? (
+          <IconRow
+            label="Stop loss"
+            icon={
+              <ShieldAlertIcon className="size-4 text-red-600 dark:text-red-400" />
+            }
+            onPick={onPickStopLoss}
+          />
+        ) : null}
+        {onPickTakeProfit || onPickStopLoss ? (
+          <div role="presentation" className="mx-2 my-1 border-t" />
         ) : null}
         <MenuRow side="buy" onPick={() => onPick("buy")} />
         <MenuRow side="sell" onPick={() => onPick("sell")} />

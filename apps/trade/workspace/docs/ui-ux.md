@@ -313,6 +313,12 @@ An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
 
+With a position open, the same menu offers Take profit when the clicked price
+is on the winning side of the entry and Stop loss when it is on the losing
+side. Picking either opens the position's stop-and-target window with that
+clicked price already filled in. An exit already set on that side keeps its
+shortcut out of the menu because its chart line is the place to change it.
+
 A live take-profit or stop-loss order appears once, as its coloured target or
 stop bar. This includes a grid's own STOP LOSS line. The chart does not draw
 the exchange's copy of that order as a second gray Sell bar.

@@ -46,6 +46,7 @@ import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
 export function BracketsDialog({
   position,
   startTpPx = null,
+  startSlPx = null,
   busy,
   onSave,
   onClose,
@@ -57,6 +58,10 @@ export function BracketsDialog({
    * position wins over it.
    */
   startTpPx?: number | null
+  /**
+   * A price to start the stop-loss box from when the position has no stop yet.
+   */
+  startSlPx?: number | null
   busy: boolean
   onSave: (
     walletId: string,
@@ -85,6 +90,7 @@ export function BracketsDialog({
             key={position.id}
             position={position}
             startTpPx={startTpPx}
+            startSlPx={startSlPx}
             busy={busy}
             onSave={onSave}
             onClose={onClose}
@@ -98,12 +104,14 @@ export function BracketsDialog({
 function BracketsForm({
   position,
   startTpPx,
+  startSlPx,
   busy,
   onSave,
   onClose,
 }: {
   position: PaperPosition
   startTpPx: number | null
+  startSlPx: number | null
   busy: boolean
   onSave: (
     walletId: string,
@@ -121,7 +129,7 @@ function BracketsForm({
     bracketPercent(position.entryPx, position.tpPx ?? startTpPx)
   )
   const [stopPct, setStopPct] = React.useState(() =>
-    bracketPercent(position.entryPx, position.slPx)
+    bracketPercent(position.entryPx, position.slPx ?? startSlPx)
   )
   // How much of the position the target sells — as a share of it, or as
   // dollars measured at the target price. Everything is the answer a take

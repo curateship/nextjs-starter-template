@@ -45,6 +45,11 @@ State the app and workflow checked, what passed, any console or network issue, a
 
 ## This Repo
 
+- **Standalone Playwright is always the browser path in this repo.** Run it
+  from the shell against the app's existing port. The optional in-app browser
+  controller is unrelated. An empty controller browser list does not mean
+  Playwright is unavailable and must never block validation. Do not initialize
+  or inspect the browser controller before trying standalone Playwright here.
 - **Use Playwright, not the Chrome extension.** The extension times out and
   leaves you guessing, and a guess about a layout costs a whole conversation.
   Playwright always answers, and it answers with numbers.
