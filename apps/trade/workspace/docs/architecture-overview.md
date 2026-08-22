@@ -147,14 +147,23 @@ overrode what the user had set, and one of them fed its own clamped answer back
 into the saved value, so it compounded. Deleting them made the code shorter
 *and* correct. The guard rails were the bug.
 
-**What an exchange may leave out.** The registry's optional blocks are how a
-venue says what it cannot do, and three of them are now used in anger: an
-exchange with no pushed-price feed omits `livePrices` and the engine asks for
-prices instead; one whose socket needs a handshake the browser cannot make
-fills in `liveTicket`; and one whose feed cannot follow a whole list at once
-omits `watchFigures`, so its market list redraws rather than ticking. Each is
-absent rather than stubbed, because a subscription that never fires looks
-exactly like a broken socket.
+**What an unfinished exchange may leave out.** The registry's optional blocks
+say which parts of a venue are not ready yet. A venue with no pushed-price feed
+omits `livePrices`, but the engine may not replace it with a polling loop and
+the venue is not ready for live trading. A socket that needs a handshake the
+browser cannot make fills in `liveTicket`; a feed that cannot follow a whole
+list at once omits `watchFigures`, so that list is a snapshot rather than a
+pretend live feed. Each is absent rather than stubbed, because a subscription
+that never fires looks exactly like a broken socket.
+
+**The live-trading gate has two feeds.** Before `capabilities.orders` is enabled,
+the venue must provide pushed prices and pushed account events for positions,
+open orders, order changes and fills. A request read is allowed at startup and
+after a disconnect to establish truth and recover a gap. It is not the steady
+live loop. Placing, moving and cancelling remain authenticated request commands.
+The registry test currently enforces the price half only. Hyperliquid, Phemex
+and KuCoin predate the account-feed rule, so the missing account-feed check must
+be added as their socket work is completed.
 
 **Adding another exchange** is: one new folder under `src/server/protocols/`
 that produces the same shapes, one new entry in the registry, and its own
@@ -168,7 +177,8 @@ never call.
 
 Aster is the read-only example. Its mainnet and testnet pages list active USDT
 perpetuals and chart all six intervals. Its registry entry has markets and
-funding, with no account, credentials, orders or pushed-price block yet.
+funding, with no account, credentials, orders or pushed-price block yet, so it
+cannot be enabled for live trading.
 
 ## Saved data
 
