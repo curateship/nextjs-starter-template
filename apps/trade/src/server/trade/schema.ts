@@ -946,6 +946,10 @@ export const tradeWorkerControls = pgTable("trade_worker_controls", {
   kind: varchar("kind", { length: 30 }).primaryKey(),
   /** Off means do not run at all. Survives a restart, unlike a pause. */
   enabled: boolean("enabled").notNull().default(true),
+  /** The last switch-on, so an old heartbeat gets a fresh start-up window. */
+  enabledAt: timestamp("enabled_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
   /** Paused means running but not trading — meant to be switched back on. */
   paused: boolean("paused").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -976,6 +980,21 @@ export const tradeWorkerHeartbeats = pgTable(
   },
   (table) => [index("trade_worker_heartbeats_seen_idx").on(table.lastSeenAt)]
 )
+
+/**
+ * The outage the engine monitor has already announced.
+ *
+ * One row is the whole memory. Its presence keeps every later monitoring pass
+ * quiet, and recovery deletes it after sending the all clear so a later outage
+ * can be announced in its own right.
+ */
+export const tradeEngineOutages = pgTable("trade_engine_outages", {
+  kind: varchar("kind", { length: 30 }).primaryKey(),
+  outageStartedAt: timestamp("outage_started_at", {
+    withTimezone: true,
+  }).notNull(),
+  announcedAt: timestamp("announced_at", { withTimezone: true }).notNull(),
+})
 
 /**
  * A flow that has been switched on to trade a wallet.

@@ -837,6 +837,53 @@ and hidden lists per account in `trade_prefs`. The platform Widgets tab sits in
 the "Platform" card and saves the platform Overview arrangement in the shell
 settings. Moving or resetting a card in one tab never changes the other.
 
+## Engine health notices
+
+Engine health goes through the notification tray that the rest of the app
+already uses. The notice is about the app failing to work. It is not a price
+alert, a chart-line alert, or an order alert. Those alerts remain out of scope.
+
+The app's background pass checks the trading engine every 15 seconds. The engine
+writes its own heartbeat every 5 seconds. A heartbeat older than 45 seconds,
+which is three checks by the app worker, counts as an outage only while the
+Ladders switch is on. Switching Ladders off on purpose clears the outage memory
+and sends nothing.
+
+Switching Ladders back on starts a new 45-second window. A heartbeat left from
+before the switch cannot cause an immediate outage notice. Pausing the engine
+does not reset the health clock because a pause and a restart are different.
+
+The 45-second line comes from the engine copies retained from 20 to 22 August
+2026. Eleven measured restarts took between 7.475 and 12.318 seconds. A normal
+replacement is therefore back well before the app calls it an outage. Since the
+monitor checks every 15 seconds, the notice arrives 45 to 60 seconds after the
+last heartbeat.
+
+The outage notice reads:
+
+> The trading engine stopped at 3:12 AM EDT
+>
+> Watched orders and ladder rungs will not fire until it is running again.
+
+The time uses Toronto's current EST or EDT name. Later checks stay quiet. When
+the heartbeat returns, one all clear reads:
+
+> The trading engine came back at 3:15 AM EDT
+>
+> It was unavailable for 3 minutes 12 seconds. Watched orders and ladder rungs
+> are working again.
+
+The outage start is the last heartbeat. The return is the first heartbeat that
+the monitor sees after the outage. The app keeps one outage row while the engine
+is down, then deletes the row after writing the all clear. A later outage can
+therefore make its own pair without one outage producing a message every 15
+seconds.
+
+The tray uses its existing announcement-shaped message to carry these words.
+The app turns its banner off, so the health message only appears in the tray and
+notification list. The matching record remains in Announcements history because
+the shell keeps an announcement's words there.
+
 ## Where the navigation lives
 
 The sidebar and the signed-in home page are Settings, held in the app's

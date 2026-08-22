@@ -75,9 +75,14 @@ export async function setWorkerSwitch(
 ): Promise<void> {
   // Seeded first so switching a worker that has never run still writes.
   await workerControl(kind, database)
+  const changedAt = new Date()
   await database
     .update(tradeWorkerControls)
-    .set({ ...change, updatedAt: new Date() })
+    .set({
+      ...change,
+      ...(change.enabled === true ? { enabledAt: changedAt } : {}),
+      updatedAt: changedAt,
+    })
     .where(eq(tradeWorkerControls.kind, kind))
 }
 

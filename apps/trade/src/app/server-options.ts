@@ -6,6 +6,7 @@ import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AppServerOptions } from "@/server/app-options"
 import { backtestTick } from "@/server/trade/backtest/worker"
 import { runTradeFlow } from "@/server/trade/flow-start"
+import { monitorTradingEngine } from "@/server/trade/engine-health"
 import {
   ensureLadderLoop,
   LADDER_WORKER_NAME,
@@ -92,6 +93,15 @@ export const appServerOptions: AppServerOptions = {
          * look when something is ticking.
          */
         tick: () => backtestTick(),
+      },
+      {
+        name: "trading-engine-health",
+        /**
+         * The engine cannot report its own death. The shell's separate worker
+         * watches its database heartbeat and uses the existing notification
+         * tray for one outage message and one all clear.
+         */
+        tick: () => monitorTradingEngine(),
       },
       {
         name: LADDER_WORKER_NAME,

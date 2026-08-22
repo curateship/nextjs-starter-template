@@ -45,6 +45,10 @@ State the app and workflow checked, what passed, any console or network issue, a
 
 ## This Repo
 
+- **Use the IPv6 loopback address for local apps.** Build the browser target as
+  `http://[::1]:<port>`, using the port from `local-apps.json`. These servers
+  listen on `::1`; probing `127.0.0.1` can report that a running app is down.
+  Keep the brackets around `::1`, as URLs require them for an IPv6 address.
 - **Standalone Playwright is always the browser path in this repo.** Run it
   from the shell against the app's existing port. The optional in-app browser
   controller is unrelated. An empty controller browser list does not mean
