@@ -378,9 +378,10 @@ list covers is on screen without spending a row on it.
 - **A bare visit reopens your last market**, remembered against the account
   (a second machine gets it too). A link with `?market=` always wins, and a
   remembered market that no longer resolves shows the honest missing state.
-- **Sort is drawn as column headers** — "Market / 24h Vol" left, "Change 24h"
-  right, the shared `TableSortButton` — and clicking the sorted one flips the
-  direction.
+- **Sort is drawn as column headers** — "24h Vol" left, "24h Change" right, the
+  shared `TableSortButton` — and clicking the sorted one flips the direction.
+  Both headings lead with the time window, and so does the market picker's "24h
+  change", so the three read the same way round.
 - **Stars save to the account, not the browser**, so favourites follow you
   between machines. Starring is optimistic and reverts with a toast if the save
   fails.
@@ -565,9 +566,26 @@ words written for an empty panel are the same words a brand-new account sees on
 the finished page, so the empty page gets designed once, at the start.
 
 - Markets — "Pick a market to chart it."
-- Chart — "The chart goes here."
+- Chart — "The chart goes here." Under it, "Pick a market from the list and its
+  candles draw in this space." It never names a side of the screen, because on a
+  narrow screen the list is behind a header button and there is no left. It
+  never writes "the Markets list" either: no panel on this page carries that
+  caption, the sheet's "Markets" title is read only by screen readers, and
+  Settings has its own Markets tab that the sentence would be confused with.
 - Account — "No account connected yet."
 - Positions / Open orders / Fills — each says what would be there.
+
+**A market that is not there has one voice.** Both places say the exchange is
+not listing it, in the same words and the same tense:
+
+- The market header, when a saved or linked market no longer resolves — "The
+  exchange is not listing this market right now."
+- The market list, when the exchange returned nothing to show — "The exchange is
+  not listing any markets right now."
+
+The only difference between the two is "this market" against "any markets". A
+second wording for the same failure makes a reader think there are two
+failures.
 
 ## Live prices
 
@@ -684,11 +702,36 @@ beside Settled says that both totals are short and names the missing trades.
 belonging to one exchange. The headline card puts total balance, made or lost,
 settled money, and money still open in four large columns. Under it, draggable
 cards show the wallets, money over time, and every recorded real fill.
+Active Trades is the account-wide exception to the real-money totals. It lists
+every open position across every protocol and every wallet, including practice
+and testnet wallets. Each row names its account type so pretend money cannot be
+read as real money. New dashboards put Active Trades under the headline figures;
+an account with a saved arrangement finds it under Settings → Widgets until it
+is placed.
+
+The Active Trades table has five columns: market, protocol, wallet, entry price,
+and current profit in dollars and as a share of the money the trade holds. The
+market cell copies the bottom Positions panel: a 16px icon, 12px medium symbol,
+the compact Long or Short and leverage badge, then the compact Real, Testnet, or
+Practice badge. Clicking the symbol or anywhere else on the row opens that
+market on its protocol's chart. The Market column takes only the width its
+ticker cluster needs, so resizing the widget keeps every column visible. Trade
+rows use 10px of vertical padding, 2px more than the bottom Positions panel, to
+give the list a little more air without changing its type size. The table opens
+with the largest P/L first. Every heading sorts, and Filter narrows the rows by
+protocol, wallet, or both. A
+wallet that could not be read stays named above the rows rather than being
+mistaken for a wallet with no open trades. A market whose current price could
+not be read shows a dash for profit, never a made-up zero. A plain divider sits
+between every pair of trade rows, including the final two. The sticky table
+header uses the lighter muted gray rather than the full muted background. Every
+Active Trades column is left-aligned, including Entry and P/L.
 The Wallets, Money over time, and Trades cards use the same shared
 workspace-panel header as the rest of the dashboard, including its icon,
 height, spacing, and divider; none carries a second descriptive line in the
-header. The Wallet and Made or lost columns stay left-aligned; the remaining
-money columns align their figures on the right.
+header. The Wallets table uses the same sizing, sticky light-gray header,
+horizontal scrolling, compact cells, and dividers as Active Trades rather than
+a separate fixed-width layout. Every Wallets column is left-aligned.
 Headline and chart totals use the dashboard's shared stat typography: Inter
 for labels and the dashboard's semibold tabular monospace treatment for values.
 
@@ -697,10 +740,13 @@ be read, the rest of the screen stays up, the missing exchange is named, and
 every affected total says it is short. A failed read is never drawn as an empty
 wallet.
 
-The wallet card is one comparison table. Each wallet has its exchange, balance,
-made or lost, settled money, and money still open on one row. A switched-off
-wallet stays as a quiet row saying it was not asked or counted. Every column
-heading sorts the wallet rows, while wallets without figures stay at the end.
+The wallet card is one comparison table. Each wallet has a separate Protocol
+column, balance, made or lost, settled money, and money still open on one row.
+Protocol no longer sits under the wallet name. Wallet rows use the same 10px
+vertical padding and plain divider as Active Trades. A switched-off wallet stays
+as a quiet row saying it was not asked or counted. Every column heading sorts
+the wallet rows, while wallets without figures stay at the end. The table opens
+with the largest open profit first.
 Testnet wallets do not appear in this card. The Wallets heading tooltip states
 the money rule. Made or lost is settled trade money plus current open profit.
 The settled trades start at midnight yesterday in Toronto. Deposits and

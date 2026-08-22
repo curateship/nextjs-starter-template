@@ -149,6 +149,20 @@ export function parseMarketKey(key: string): MarketRef | null {
   return { protocol, network, marketId }
 }
 
+const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
+  hyperliquid: "/admin/hyper-liquid",
+  phemex: "/admin/phemex",
+  kucoin: "/admin/kucoin",
+}
+
+/** The chart address for a market whose protocol has a trading dashboard. */
+export function marketChartHref(key: MarketKey): string | null {
+  const ref = parseMarketKey(key)
+  if (!ref) return null
+  const path = PROTOCOL_DASHBOARD_PATHS[ref.protocol]
+  return path ? `${path}?market=${encodeURIComponent(key)}` : null
+}
+
 /**
  * What kind of thing a market is, in the app's own words. Exchanges say this
  * in their own vocabularies; each module translates into this one.

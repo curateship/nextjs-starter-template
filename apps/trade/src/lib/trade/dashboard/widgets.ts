@@ -1,5 +1,6 @@
 import {
   ChartNoAxesCombinedIcon,
+  ListChecksIcon,
   ListIcon,
   Rows3Icon,
   WalletCardsIcon,
@@ -12,7 +13,7 @@ export type TradingDashboardWidgetSlot =
   (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
 
 export type TradingDashboardWidgetId =
-  "figures" | "wallets" | "equity" | "trades"
+  "figures" | "wallets" | "equity" | "active-trades" | "trades"
 
 export type TradingDashboardWidgetLayout = Record<
   TradingDashboardWidgetSlot,
@@ -54,6 +55,14 @@ const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
     minSize: "24%",
   },
   {
+    id: "active-trades",
+    label: "Active Trades",
+    description: "Every open trade across all protocols and wallets.",
+    icon: ListChecksIcon,
+    size: 10,
+    minSize: "28%",
+  },
+  {
     id: "trades",
     label: "All trades",
     description: "Every recorded real fill, newest first, with its exchange.",
@@ -75,7 +84,7 @@ export function findTradingDashboardWidget(
 
 export function createDefaultTradingDashboardWidgets(): TradingDashboardWidgetLayout {
   return {
-    top: ["figures"],
+    top: ["figures", "active-trades"],
     left: ["wallets", "equity"],
     right: ["trades"],
   }

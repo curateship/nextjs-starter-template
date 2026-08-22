@@ -12,7 +12,13 @@ import { loadTradingOverview } from "@/server/trade/trading-overview"
 
 import { createErrorMessage } from "./error-message"
 
-const widgetId = z.enum(["figures", "wallets", "equity", "trades"])
+const widgetId = z.enum([
+  "figures",
+  "wallets",
+  "equity",
+  "active-trades",
+  "trades",
+])
 const layoutSchema = z.object({
   top: z.array(widgetId).max(4),
   left: z.array(widgetId).max(4),
@@ -28,10 +34,14 @@ const loadPageFn = createServerFn({ method: "GET" })
       overview: TradingOverview
       layout: TradingDashboardWidgetLayout
     }> => {
-      const [overview, layout] = await Promise.all([
-        loadTradingOverview(context.user.id),
-        loadTradingDashboardWidgets(context.user.id),
-      ])
+      const layout = await loadTradingDashboardWidgets(context.user.id)
+      const includeActiveTrades = Object.values(layout).some((ids) =>
+        ids.includes("active-trades")
+      )
+      const overview = await loadTradingOverview(
+        context.user.id,
+        includeActiveTrades
+      )
       return { overview, layout }
     }
   )

@@ -16,6 +16,7 @@ import {
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -110,7 +111,11 @@ export function TradingOverviewDashboard({
           {renderWidget(
             id,
             overview,
-            id === "figures" ? "shrink-0" : "shrink-0 max-h-72"
+            id === "figures"
+              ? "shrink-0"
+              : id === "active-trades"
+                ? "shrink-0 max-h-[34rem]"
+                : "shrink-0 max-h-72"
           )}
         </React.Fragment>
       ))}
@@ -133,6 +138,8 @@ function renderWidget(
       return <WalletsCard wallets={overview.wallets} className={className} />
     case "equity":
       return <MoneyChart overview={overview} className={className} />
+    case "active-trades":
+      return <ActiveTradesWidget overview={overview} className={className} />
     case "trades":
       return <TradesTable overview={overview} className={className} />
   }
@@ -261,7 +268,7 @@ function WalletsCard({
   className: string
 }) {
   const { sort, direction, toggleSort } = useTableSort<WalletColumn>(
-    "balance",
+    "open",
     "desc",
     walletSortDirection
   )
@@ -273,7 +280,8 @@ function WalletsCard({
   )
   const sortedWallets = React.useMemo(() => {
     const value = (wallet: TradingOverviewWallet): string | number => {
-      if (sort === "wallet") return `${wallet.label}:${wallet.venue}`
+      if (sort === "wallet") return wallet.label
+      if (sort === "protocol") return wallet.venue
       if (wallet.summary.state !== "ok" || !wallet.performance) return 0
       switch (sort) {
         case "balance":
@@ -300,15 +308,10 @@ function WalletsCard({
       return direction === "asc" ? compared : -compared
     })
   }, [direction, sort, wallets])
-  const heading = (
-    column: WalletColumn,
-    label: string,
-    align: "left" | "right" = "left"
-  ) => (
+  const heading = (column: WalletColumn, label: string) => (
     <TableSortButton
       active={sort === column}
       direction={direction}
-      className={align === "right" ? "ml-auto" : undefined}
       onClick={() => toggleSort(column)}
     >
       {label}
@@ -316,7 +319,7 @@ function WalletsCard({
   )
 
   return (
-    <Card className={cn("min-h-0 gap-0 py-0", className)}>
+    <TableSurface className={cn("flex min-h-0 flex-col", className)}>
       <WorkspacePanelHeader
         icon={<WalletCardsIcon />}
         title={
@@ -342,32 +345,34 @@ function WalletsCard({
           </span>
         }
       />
-      <ScrollArea className="min-h-0 flex-1">
-        <Table>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="h-full min-h-24 [&>div]:block!"
+      >
+        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted/50">
           <TableHeader>
             <TableRow>
-              <TableHead column="main" className="text-left">
-                {heading("wallet", "Wallet")}
+              <TableHead column="meta">{heading("wallet", "Wallet")}</TableHead>
+              <TableHead column="meta">
+                {heading("protocol", "Protocol")}
               </TableHead>
-              <TableHead column="meta" className="text-right">
-                {heading("balance", "Balance", "right")}
+              <TableHead column="meta">
+                {heading("balance", "Balance")}
               </TableHead>
-              <TableHead column="meta" className="text-left">
+              <TableHead column="meta">
                 {heading("journey", "Made or lost")}
               </TableHead>
-              <TableHead column="meta" className="text-right">
-                {heading("settled", "Settled", "right")}
+              <TableHead column="meta">
+                {heading("settled", "Settled")}
               </TableHead>
-              <TableHead column="meta" className="text-right">
-                {heading("open", "Open", "right")}
-              </TableHead>
+              <TableHead column="meta">{heading("open", "Open")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {wallets.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={5}
+                  colSpan={6}
                   className="h-24 text-center text-sm text-muted-foreground"
                 >
                   No real wallets have been added yet.
@@ -384,15 +389,19 @@ function WalletsCard({
             )}
           </TableBody>
         </Table>
+        <ScrollBar orientation="horizontal" />
       </ScrollArea>
-    </Card>
+    </TableSurface>
   )
 }
 
-type WalletColumn = "wallet" | "balance" | "journey" | "settled" | "open"
+type WalletColumn =
+  "wallet" | "protocol" | "balance" | "journey" | "settled" | "open"
 
 function walletSortDirection(column: WalletColumn) {
-  return column === "wallet" ? ("asc" as const) : ("desc" as const)
+  return column === "wallet" || column === "protocol"
+    ? ("asc" as const)
+    : ("desc" as const)
 }
 
 function WalletRow({
@@ -406,15 +415,18 @@ function WalletRow({
   const performance = wallet.performance
   if (summary.state !== "ok" || !performance) {
     return (
-      <TableRow className="text-muted-foreground">
-        <TableCell column="main" className="py-3 text-left">
+      <TableRow className="border-b text-muted-foreground">
+        <TableCell column="meta" className="py-2.5 text-left">
           <WalletName
             wallet={wallet}
             muted
             off={summary.state === "inactive"}
           />
         </TableCell>
-        <TableCell colSpan={4} className="text-right">
+        <TableCell column="meta" className="py-2.5 text-left">
+          {wallet.venue}
+        </TableCell>
+        <TableCell colSpan={4} className="py-2.5 text-left">
           {summary.state === "inactive"
             ? "Not asked, not counted"
             : `${wallet.venue} did not answer`}
@@ -428,12 +440,20 @@ function WalletRow({
     : 0
 
   return (
-    <TableRow>
-      <TableCell column="main" className="py-3 text-left">
+    <TableRow className="border-b">
+      <TableCell column="meta" className="py-2.5 text-left">
         <WalletName wallet={wallet} />
       </TableCell>
+      <TableCell
+        column="meta"
+        className="py-2.5 text-left text-muted-foreground"
+      >
+        <span className="block truncate" title={wallet.venue}>
+          {wallet.venue}
+        </span>
+      </TableCell>
       <MoneyCell value={summary.equity} signed={false} />
-      <TableCell column="meta" className="text-left">
+      <TableCell column="meta" className="py-2.5 text-left">
         <div className="flex items-center justify-start gap-3">
           <span className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted lg:block">
             <span
@@ -468,7 +488,6 @@ function WalletName({
         <p className="truncate font-medium text-foreground">{wallet.label}</p>
         {off ? <Badge variant="secondary">Off</Badge> : null}
       </div>
-      <p className="truncate text-xs text-muted-foreground">{wallet.venue}</p>
     </div>
   )
 }
@@ -481,7 +500,7 @@ function MoneyCell({
   signed?: boolean
 }) {
   return (
-    <TableCell column="meta" className="text-right">
+    <TableCell column="meta" className="py-2.5 text-left">
       {signed ? (
         <MoneyValue value={value} />
       ) : (

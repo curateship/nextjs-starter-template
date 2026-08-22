@@ -2,12 +2,61 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildTradingOverviewProfit,
+  buildTradingOverviewActiveTrades,
   isTradingOverviewWallet,
   tradingOverviewWalletPerformance,
 } from "./overview"
 import { moneyForWalletFill, walletProfitWindowStart } from "../wallets"
 
 describe("trading overview money", () => {
+  it("combines open trades from every wallet", () => {
+    const positions = [
+      {
+        id: "position-1",
+        walletId: "paper-1",
+        marketKey: "kucoin:mainnet:SOLUSDTM",
+        szi: 2,
+        entryPx: 100,
+        leverage: 5,
+        maxLeverage: 5,
+        tpPx: null,
+        slPx: null,
+        feesPaid: 1,
+        updatedAt: 500,
+      },
+    ]
+    const wallets = [
+      {
+        id: "paper-1",
+        label: "Practice KuCoin",
+        kind: "paper" as const,
+        status: "active" as const,
+        protocol: "kucoin" as const,
+        network: "mainnet" as const,
+        startingBalance: 1_000,
+        address: null,
+        hasKey: false,
+        keyValidUntil: null,
+      },
+    ]
+
+    expect(
+      buildTradingOverviewActiveTrades(
+        positions,
+        wallets,
+        new Map([[positions[0].marketKey, 110]])
+      )
+    ).toEqual([
+      expect.objectContaining({
+        accountType: "Practice",
+        protocol: "KuCoin",
+        market: "SOLUSDTM",
+        profit: 20,
+        profitShare: 0.5,
+      }),
+    ])
+  })
+
   it("uses live mainnet wallets and excludes every kind of practice money", () => {
     expect(isTradingOverviewWallet({ kind: "live", network: "mainnet" })).toBe(
       true
@@ -44,12 +93,17 @@ describe("trading overview money", () => {
 
   it("keeps deposits out of wallet performance", () => {
     expect(
-      tradingOverviewWalletPerformance("wallet-1", 11.4, [
-        { walletId: "wallet-1", money: 500, at: 99 },
-        { walletId: "wallet-1", money: 2.5, at: 100 },
-        { walletId: "wallet-1", money: null, at: 101 },
-        { walletId: "wallet-2", money: 900, at: 101 },
-      ], 100)
+      tradingOverviewWalletPerformance(
+        "wallet-1",
+        11.4,
+        [
+          { walletId: "wallet-1", money: 500, at: 99 },
+          { walletId: "wallet-1", money: 2.5, at: 100 },
+          { walletId: "wallet-1", money: null, at: 101 },
+          { walletId: "wallet-2", money: 900, at: 101 },
+        ],
+        100
+      )
     ).toEqual({
       settled: 2.5,
       open: 11.4,
@@ -58,9 +112,9 @@ describe("trading overview money", () => {
   })
 
   it("starts at midnight yesterday in Toronto", () => {
-    expect(
-      walletProfitWindowStart(new Date("2026-08-21T16:00:00.000Z"))
-    ).toBe(new Date("2026-08-20T04:00:00.000Z").getTime())
+    expect(walletProfitWindowStart(new Date("2026-08-21T16:00:00.000Z"))).toBe(
+      new Date("2026-08-20T04:00:00.000Z").getTime()
+    )
   })
 
   it("charts profit from yesterday through the current open profit", () => {

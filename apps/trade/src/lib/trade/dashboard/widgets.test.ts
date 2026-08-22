@@ -12,6 +12,12 @@ describe("the trading dashboard layout", () => {
     )
   })
 
+  it("puts active trades on a new dashboard", () => {
+    expect(createDefaultTradingDashboardWidgets().top).toContain(
+      "active-trades"
+    )
+  })
+
   it("keeps a dashboard somebody emptied on purpose", () => {
     expect(
       normalizeTradingDashboardWidgets({ top: [], left: [], right: [] })

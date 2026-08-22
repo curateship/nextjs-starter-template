@@ -1,5 +1,11 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
+import {
+  positionMargin,
+  positionProfit,
+  type PaperPosition,
+} from "@/lib/trade/paper"
 import type { WalletAccountSummary } from "@/lib/trade/wallets"
+import { venueLabel, type TradeWallet } from "@/lib/trade/wallets"
 
 export type TradingOverviewWallet = {
   id: string
@@ -33,12 +39,68 @@ export type TradingOverviewFill = {
 
 export type TradingOverviewPoint = { at: number; money: number }
 
+export type TradingOverviewActiveTrade = {
+  id: string
+  walletId: string
+  walletLabel: string
+  accountType: "Practice" | "Testnet" | "Real"
+  protocol: string
+  marketKey: string
+  market: string
+  side: "long" | "short"
+  leverage: number
+  entry: number
+  profit: number | null
+  profitShare: number | null
+}
+
 export type TradingOverview = {
   wallets: TradingOverviewWallet[]
   fills: TradingOverviewFill[]
+  activeTrades: TradingOverviewActiveTrade[]
+  activeTradesUnavailable: string[]
   profit: TradingOverviewPoint[]
   missingVenues: string[]
   unpricedFills: number
+}
+
+/** Turns the shared position rows into the account-wide open-trades list. */
+export function buildTradingOverviewActiveTrades(
+  positions: readonly PaperPosition[],
+  wallets: readonly TradeWallet[],
+  marks: ReadonlyMap<string, number>
+): TradingOverviewActiveTrade[] {
+  const walletById = new Map(wallets.map((wallet) => [wallet.id, wallet]))
+
+  return positions.flatMap((position) => {
+    const wallet = walletById.get(position.walletId)
+    if (!wallet) return []
+    const mark = marks.get(position.marketKey)
+    const profit = mark === undefined ? null : positionProfit(position, mark)
+    const margin = position.live?.marginUsed ?? positionMargin(position)
+    const market = position.marketKey.split(":").slice(2).join(":")
+    return [
+      {
+        id: position.id,
+        walletId: wallet.id,
+        walletLabel: wallet.label,
+        accountType:
+          wallet.kind === "paper"
+            ? ("Practice" as const)
+            : wallet.network === "testnet"
+              ? ("Testnet" as const)
+              : ("Real" as const),
+        protocol: venueLabel(wallet.protocol, wallet.network),
+        marketKey: position.marketKey,
+        market,
+        side: position.szi > 0 ? ("long" as const) : ("short" as const),
+        leverage: position.leverage,
+        entry: position.entryPx,
+        profit,
+        profitShare: profit !== null && margin > 0 ? profit / margin : null,
+      },
+    ]
+  })
 }
 
 export function isTradingOverviewWallet(wallet: {

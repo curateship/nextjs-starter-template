@@ -3,6 +3,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
   buildTradingOverviewProfit,
+  buildTradingOverviewActiveTrades,
   isTradingOverviewWallet,
   tradingOverviewWalletPerformance,
   type TradingOverview,
@@ -16,19 +17,26 @@ import {
 import { db } from "@/server/db"
 import { tradeLiveFills } from "@/server/trade/schema"
 import { loadWalletSummaries } from "@/server/trade/wallets"
+import { loadLivePortfolio } from "@/server/trade/live-orders"
+import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
 
 /**
  * Everything the trading overview needs. Wallet figures come through the one
  * shared sweep, so this screen never knows how to ask any exchange itself.
  */
 export async function loadTradingOverview(
-  userId: string
+  userId: string,
+  includeActiveTrades: boolean
 ): Promise<TradingOverview> {
   const walletRead = await loadWalletSummaries(userId)
   const summaries = new Map(
     walletRead.summaries.map((summary) => [summary.walletId, summary])
   )
   const liveWallets = walletRead.wallets.filter(isTradingOverviewWallet)
+
+  const { activeTrades, activeTradesUnavailable } = includeActiveTrades
+    ? await loadActiveTrades(userId, walletRead.wallets)
+    : { activeTrades: [], activeTradesUnavailable: [] }
   const walletRows = liveWallets.map((wallet) => ({
     id: wallet.id,
     label: wallet.label,
@@ -119,6 +127,8 @@ export async function loadTradingOverview(
   return {
     wallets,
     fills,
+    activeTrades,
+    activeTradesUnavailable,
     profit: countedWalletIds.size
       ? buildTradingOverviewProfit(
           countedFills,
@@ -134,5 +144,50 @@ export async function loadTradingOverview(
     unpricedFills: countedFills.filter(
       (fill) => fill.at >= performanceSince && fill.money === null
     ).length,
+  }
+}
+
+async function loadActiveTrades(
+  userId: string,
+  wallets: Awaited<ReturnType<typeof loadWalletSummaries>>["wallets"]
+) {
+  const [paperPortfolio, livePortfolio] = await Promise.all([
+    loadPaperPortfolio(userId, wallets).catch((error) => {
+      console.error("Active practice trades could not be read", error)
+      return null
+    }),
+    loadLivePortfolio(userId, wallets).catch((error) => {
+      console.error("Active live trades could not be read", error)
+      return null
+    }),
+  ])
+  const positions = [
+    ...(paperPortfolio?.positions ?? []),
+    ...(livePortfolio?.positions ?? []),
+  ]
+  const marks = await marksForKeys(
+    positions.map((position) => position.marketKey)
+  )
+  const activeTrades = buildTradingOverviewActiveTrades(
+    positions,
+    wallets,
+    marks
+  )
+  const unavailableWalletIds = new Set(livePortfolio?.unreachable ?? [])
+  if (!paperPortfolio) {
+    for (const wallet of wallets) {
+      if (wallet.kind === "paper") unavailableWalletIds.add(wallet.id)
+    }
+  }
+  if (!livePortfolio) {
+    for (const wallet of wallets) {
+      if (wallet.kind === "live") unavailableWalletIds.add(wallet.id)
+    }
+  }
+  return {
+    activeTrades,
+    activeTradesUnavailable: wallets
+      .filter((wallet) => unavailableWalletIds.has(wallet.id))
+      .map((wallet) => wallet.label),
   }
 }

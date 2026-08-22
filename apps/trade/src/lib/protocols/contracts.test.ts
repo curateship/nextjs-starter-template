@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest"
 
-import { marketKey, parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  marketChartHref,
+  marketKey,
+  parseMarketKey,
+} from "@/lib/protocols/contracts"
 
 describe("market keys", () => {
+  it("opens a supported market on its protocol chart", () => {
+    expect(marketChartHref("kucoin:mainnet:SOLUSDTM")).toBe(
+      "/admin/kucoin?market=kucoin%3Amainnet%3ASOLUSDTM"
+    )
+    expect(marketChartHref("binance:mainnet:BTCUSDT")).toBeNull()
+  })
+
   it("builds and reads back the same reference", () => {
     const ref = {
       protocol: "hyperliquid" as const,
