@@ -173,6 +173,8 @@ const baseWalletErrorMessage = createErrorMessage(
       "The exchange did not answer for that account. Check what you pasted and try again.",
     KEY_IS_ACCOUNT:
       "That is the account's MAIN key — the one that can move money out — and it is never stored here. On the exchange, create an API key (a limited trading key) and paste that instead.",
+    ASTER_KEY_MATCHES_ACCOUNT:
+      "The main Aster wallet address and the address belonging to this API wallet key are the same. Use your main Aster login wallet in the first field, not the generated API wallet address. Keep the private key Aster generated in API wallet key.",
     // Deliberately one short sentence. Every exchange that can hold an
     // account sends its own reason after the code, and that reason says what
     // to do; a second generic sentence here would sit between the two and
@@ -183,6 +185,12 @@ const baseWalletErrorMessage = createErrorMessage(
       "That key's approval has run out. Create a fresh API key on the exchange and paste it.",
     KEY_CHECK_UNAVAILABLE:
       "The exchange could not be reached to check the key, so nothing was saved. Try again in a moment.",
+    ASTER_CLOCK:
+      "Aster says the request time is outside its allowed window. Trade measured Aster's clock again, so try once more.",
+    ASTER_IP_BANNED:
+      "Aster has blocked this internet address. Trade has stopped asking Aster and will not retry until the app restarts.",
+    EXCHANGE_BUSY:
+      "The exchange is asking Trade to slow down. Wait for the hold to clear, then try again.",
     WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     WALLET_INACTIVE: "Make this wallet active before trading with it.",

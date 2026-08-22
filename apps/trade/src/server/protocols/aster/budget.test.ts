@@ -138,4 +138,79 @@ describe("Aster's request budget", () => {
     ).toThrow("EXCHANGE_BUSY")
     expect(asterBudgetSnapshot("mainnet", 0).used).toBe(80)
   })
+
+  it("accepts testnet's -2 marker as no stated request cap", () => {
+    configureAsterBudget(
+      "testnet",
+      {
+        rateLimits: [
+          {
+            rateLimitType: "REQUEST_WEIGHT",
+            interval: "MINUTE",
+            intervalNum: 1,
+            limit: -2,
+          },
+          {
+            rateLimitType: "ORDERS",
+            interval: "MINUTE",
+            intervalNum: 1,
+            limit: -2,
+          },
+          {
+            rateLimitType: "ORDERS",
+            interval: "SECOND",
+            intervalNum: 10,
+            limit: 1_000,
+          },
+        ],
+      },
+      1,
+      0
+    )
+
+    expect(() =>
+      reserveAsterRequest(
+        "testnet",
+        { weight: 5, lane: "signed", priority: "background" },
+        0
+      )
+    ).not.toThrow()
+    expect(asterBudgetSnapshot("testnet", 0).limit).toBe(
+      Number.POSITIVE_INFINITY
+    )
+  })
+
+  it("keeps three account cards and a one-minute chart inside a normal minute", () => {
+    configureAsterBudget("mainnet", exchangeInfo(2_400, 1_200), 1, 0)
+    reserveAsterRequest(
+      "mainnet",
+      { weight: 1, lane: "public", priority: "background" },
+      0
+    )
+    for (let cycle = 0; cycle < 4; cycle += 1) {
+      for (let wallet = 0; wallet < 3; wallet += 1) {
+        reserveAsterRequest(
+          "mainnet",
+          { weight: 5, lane: "signed", priority: "background" },
+          cycle * 15_000
+        )
+        reserveAsterRequest(
+          "mainnet",
+          { weight: 5, lane: "signed", priority: "background" },
+          cycle * 15_000
+        )
+      }
+    }
+    reserveAsterRequest(
+      "mainnet",
+      { weight: 5, lane: "public", priority: "background" },
+      0
+    )
+    expect(asterBudgetSnapshot("mainnet", 59_999)).toEqual({
+      limit: 2_400,
+      used: 127,
+      publicWeight: 7,
+      signedWeight: 120,
+    })
+  })
 })

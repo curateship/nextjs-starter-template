@@ -38,7 +38,7 @@ import {
   getWalletErrorMessage,
   updateWallet,
 } from "@/lib/api/wallets"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   cleanAgentKey,
   describeAgentKeyProblem,
@@ -336,6 +336,7 @@ export function AddWalletDialog({
       showErrorToast(refusal)
       return
     }
+    dismissErrorToast()
     setSaving(true)
     try {
       const { wallet } = await createWallet(
@@ -602,6 +603,7 @@ function WalletSettingsWindow({
       showErrorToast(refusal)
       return
     }
+    dismissErrorToast()
     setSaving(true)
     try {
       if (
@@ -632,6 +634,7 @@ function WalletSettingsWindow({
   }
 
   const handleDelete = async () => {
+    dismissErrorToast()
     setDeleting(true)
     try {
       await deleteWallet(wallet.id)

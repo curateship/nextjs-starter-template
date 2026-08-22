@@ -39,6 +39,13 @@ describe("the protocol registry", () => {
     }
   })
 
+  it("distinguishes Aster's main wallet from its generated API wallet", () => {
+    const form = getProtocol("aster").credentials?.form
+    expect(form?.addressLabel).toBe("Main Aster wallet address")
+    expect(form?.secretLabel).toBe("API wallet key")
+    expect(form?.keyHelp).toContain("you do not paste that address")
+  })
+
   it("gives every exchange the app trades on a pushed price feed", () => {
     // The engine looks at trigger prices every second with real money behind
     // them. A pushed price arrives the moment it changes; an asked-for one

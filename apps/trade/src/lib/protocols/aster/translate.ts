@@ -2,6 +2,7 @@ import type {
   CandleBar,
   CandleInterval,
   LiveFigures,
+  NetworkId,
 } from "@/lib/protocols/contracts"
 import { snapToTick } from "@/lib/protocols/tick"
 
@@ -13,6 +14,18 @@ export const ASTER_INTERVALS: Record<CandleInterval, string> = {
   "1h": "1h",
   "4h": "4h",
   "1d": "1d",
+}
+
+const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
+
+export function asterWsUrl(network: NetworkId): string {
+  return network === "testnet"
+    ? "wss://fstream5.asterdex-testnet.com/ws"
+    : "wss://fstream.asterdex.com/ws"
+}
+
+export function asterReconnectDelay(attempt: number): number {
+  return RECONNECT_BACKOFF_MS[Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1)]
 }
 
 const INTERVAL_MS: Record<CandleInterval, number> = {
@@ -69,25 +82,30 @@ export function toAsterBar(row: unknown): CandleBar | null {
   return { openTime, open, high, low, close, volume: volume ?? 0 }
 }
 
-/**
- * One all-market ticker push as the list's moving figures.
- *
- * The stream contains the last traded price, not the mark price. The public
- * catalogue uses the mark price. Task 05 owns joining the separate mark-price
- * stream before this translator is registered as the live source.
- */
-export function toAsterPushedFigures(row: {
+/** One all-market ticker push, without pretending its last trade is the mark. */
+export function toAsterTickerFigures(row: {
   c?: unknown
   P?: unknown
   q?: unknown
-}): LiveFigures | null {
-  const price = num(row.c)
-  if (price === null || !(price > 0)) return null
+}): Pick<LiveFigures, "change24h" | "volume24hUsd"> {
   const changePercent = num(row.P)
   return {
-    price,
     change24h: changePercent === null ? null : changePercent / 100,
     volume24hUsd: num(row.q) ?? 0,
+  }
+}
+
+/** Aster's mark-price push joined to the latest daily trading figures. */
+export function toAsterPushedFigures(
+  mark: unknown,
+  ticker: Pick<LiveFigures, "change24h" | "volume24hUsd"> | null
+): LiveFigures | null {
+  const price = num(mark)
+  if (price === null || !(price > 0) || ticker === null) return null
+  return {
+    price,
+    change24h: ticker.change24h,
+    volume24hUsd: ticker.volume24hUsd,
     fundingHourly: null,
     openInterestUsd: null,
   }

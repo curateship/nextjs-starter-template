@@ -26,7 +26,7 @@ The rules this machinery must add up to are stated once, in
 request budget this all has to live inside is `hyperliquid-rate-limits.md`.
 
 The code lives in `src/server/trade/wallets.ts` (`loadWalletSummaries`, the
-sweep), `src/server/protocols/hyperliquid/account.ts` (one wallet's figures),
+sweep), each exchange folder's `account.ts`,
 `src/components/trade/use-trade-account.ts` (the poll) and
 `src/components/trade/account-panel.tsx` (the cards).
 
@@ -136,6 +136,11 @@ for.
 "Can't reach it" if you are careless, and they mean opposite things: one is a
 wallet nobody is using, the other is a wallet that would not answer.
 
+The same rule covers the shared positions table. The portfolio loader removes
+inactive wallets before reading an encrypted key or calling an exchange. Aster
+uses this read-only route because its account and positions are connected while
+its order path remains closed.
+
 ## What one wallet costs
 
 A live wallet on a classic account is **one cheap call**, and that is 2 of the
@@ -172,6 +177,10 @@ nothing on screen is staler than it always was, while everything asking at
 once shares a single answer. **A failed read is never cached** — one refusal
 must not be handed to every caller for the next five seconds, and "Try again"
 has to really try.
+
+Aster shares its balance and position pair for two seconds. Each pair costs 10
+of Aster's request units, 5 for balance and 5 for positions. The shorter cache
+still joins the wallet card and positions table when they repaint together.
 
 ## A missed read is not "this wallet is worth nothing"
 

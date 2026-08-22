@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   asterPublic,
+  asterSigned,
   clearAsterClientState,
+  packAsterCredential,
+  parseAsterCredential,
 } from "@/server/protocols/aster/client"
 import { isRationed } from "@/server/protocols/rationing"
 
@@ -85,11 +88,44 @@ describe("Aster public reads", () => {
       "EXCHANGE_BUSY"
     )
     expect(isRationed("aster", "mainnet", "public")).toBe(true)
+    expect(isRationed("aster", "mainnet", "signed")).toBe(true)
 
     await expect(asterPublic("mainnet", "/fapi/v3/time", 1)).rejects.toThrow(
       "EXCHANGE_BUSY"
     )
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it("holds public work too when a signed request gets a 429", async () => {
+    const now = Date.now()
+    const fetchMock = vi.fn(async (url: URL) => {
+      const path = new URL(String(url)).pathname
+      if (path.endsWith("/exchangeInfo")) return exchangeInfoResponse()
+      if (path.endsWith("/time")) return Response.json({ serverTime: now })
+      return new Response(null, { status: 429 })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const credential = parseAsterCredential(
+      packAsterCredential({ agentKey: `0x${"1".padStart(64, "0")}` })
+    )
+
+    await expect(
+      asterSigned(
+        "mainnet",
+        "0x1111111111111111111111111111111111111111",
+        credential,
+        "GET",
+        "/fapi/v3/balance",
+        5
+      )
+    ).rejects.toThrow("EXCHANGE_BUSY")
+
+    expect(isRationed("aster", "mainnet", "signed")).toBe(true)
+    expect(isRationed("aster", "mainnet", "public")).toBe(true)
+    await expect(
+      asterPublic("mainnet", "/fapi/v3/time", 1)
+    ).rejects.toThrow("EXCHANGE_BUSY")
+    expect(fetchMock).toHaveBeenCalledTimes(3)
   })
 
   it("slows down locally before another request reaches Aster", async () => {
@@ -148,5 +184,41 @@ describe("Aster public reads", () => {
     await expect(asterPublic("mainnet", "/fapi/v3/time", 1)).rejects.toThrow(
       "ASTER_REQUEST_LIMIT_MISSING"
     )
+  })
+})
+
+describe("Aster signed reads", () => {
+  it("signs the encoded fields and counts the signed request", async () => {
+    const now = Date.now()
+    const fetchMock = vi.fn(async (url: URL) => {
+      const path = new URL(String(url)).pathname
+      if (path.endsWith("/exchangeInfo")) return exchangeInfoResponse()
+      if (path.endsWith("/time")) return Response.json({ serverTime: now })
+      return Response.json([{ asset: "USDT", balance: "0" }], {
+        headers: { "x-mbx-used-weight-1m": "7" },
+      })
+    })
+    vi.stubGlobal("fetch", fetchMock)
+    const credential = parseAsterCredential(
+      packAsterCredential({ agentKey: `0x${"1".padStart(64, "0")}` })
+    )
+
+    await asterSigned(
+      "testnet",
+      "0x1111111111111111111111111111111111111111",
+      credential,
+      "GET",
+      "/fapi/v3/balance",
+      5
+    )
+
+    const request = new URL(String(fetchMock.mock.calls.at(-1)?.[0]))
+    expect(request.searchParams.get("user")).toBe(
+      "0x1111111111111111111111111111111111111111"
+    )
+    expect(request.searchParams.get("signer")).toBe(credential.signer)
+    expect(request.searchParams.get("nonce")).toMatch(/^\d{16}$/)
+    expect(request.searchParams.get("signature")).toMatch(/^0x[0-9a-f]{130}$/)
+    expect(String(request)).not.toContain(credential.privateKey)
   })
 })

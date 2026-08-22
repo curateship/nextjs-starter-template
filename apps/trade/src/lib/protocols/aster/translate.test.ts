@@ -6,6 +6,7 @@ import {
   roundAsterPx,
   toAsterBar,
   toAsterPushedFigures,
+  toAsterTickerFigures,
 } from "@/lib/protocols/aster/translate"
 
 describe("Aster price rules", () => {
@@ -45,14 +46,26 @@ describe("Aster candles and pushed figures", () => {
     expect(toAsterBar([1_787_370_000_000, "bad"])).toBeNull()
   })
 
-  it("turns one all-ticker push into the app's units", () => {
-    expect(toAsterPushedFigures({ c: "2.5", P: "4.25", q: "120000" })).toEqual({
+  it("joins the mark price to the ticker's daily figures", () => {
+    const ticker = toAsterTickerFigures({
+      c: "1.75",
+      P: "4.25",
+      q: "120000",
+    })
+    expect(toAsterPushedFigures("2.5", ticker)).toEqual({
       price: 2.5,
       change24h: 0.0425,
       volume24hUsd: 120_000,
       fundingHourly: null,
       openInterestUsd: null,
     })
+  })
+
+  it("never publishes the ticker's last trade as the price", () => {
+    const ticker = toAsterTickerFigures({ c: "1.75", P: "1", q: "20" })
+    expect(toAsterPushedFigures("2.5", ticker)?.price).toBe(2.5)
+    expect(toAsterPushedFigures(null, ticker)).toBeNull()
+    expect(toAsterPushedFigures("2.5", null)).toBeNull()
   })
 })
 

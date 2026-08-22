@@ -311,7 +311,11 @@ describe("cancelling", () => {
     })
     cancel.mockResolvedValue(undefined)
 
-    await cancelLiveOrder(userId, { walletId, marketKey: MARKET, orderId: "77" })
+    await cancelLiveOrder(userId, {
+      walletId,
+      marketKey: MARKET,
+      orderId: "77",
+    })
     const rows = await journalRows(userId)
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
@@ -466,6 +470,10 @@ describe("the portfolio read", () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
     const deadId = await liveWallet(userId, { label: "Dead" })
+    const inactiveId = await liveWallet(userId, {
+      label: "Off",
+      status: "inactive",
+    })
 
     portfolio.mockImplementation(async (_network: string, address: string) => {
       void address
@@ -514,12 +522,25 @@ describe("the portfolio read", () => {
         hasKey: true,
         keyValidUntil: null,
       },
+      {
+        id: inactiveId,
+        label: "Off",
+        kind: "live" as const,
+        status: "inactive" as const,
+        protocol: "hyperliquid" as const,
+        network: "mainnet" as const,
+        startingBalance: 1000,
+        address: ADDRESS,
+        hasKey: true,
+        keyValidUntil: null,
+      },
     ]
     const answer = await loadLivePortfolio(userId, wallets)
 
     expect(answer.positions).toHaveLength(1)
     expect(answer.positions[0].live?.marginUsed).toBe(10_000)
     expect(answer.unreachable).toHaveLength(1)
+    expect(portfolio).toHaveBeenCalledTimes(2)
   })
 })
 

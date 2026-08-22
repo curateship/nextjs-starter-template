@@ -23,10 +23,7 @@ import {
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { credentialFor, walletCredential } from "@/server/trade/wallet-auth"
-import {
-  getProtocol,
-  ordersOf,
-} from "@/server/protocols/registry"
+import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import {
   loadLiveHistory,
   loadLiveRefusals,
@@ -61,7 +58,10 @@ import {
  */
 
 /** One atomic bump: never reused, never behind the clock. */
-async function allocateNonce(address: string, network: NetworkId): Promise<number> {
+async function allocateNonce(
+  address: string,
+  network: NetworkId
+): Promise<number> {
   const now = Date.now()
   const rows = await db
     .insert(tradeWalletNonces)
@@ -79,7 +79,10 @@ async function allocateNonce(address: string, network: NetworkId): Promise<numbe
 type LiveWalletRow = typeof tradeWallets.$inferSelect
 
 /** The wallet, or the refusal — the same first step as the paper store's. */
-async function liveWallet(userId: string, walletId: string): Promise<LiveWalletRow> {
+async function liveWallet(
+  userId: string,
+  walletId: string
+): Promise<LiveWalletRow> {
   const rows = await db
     .select()
     .from(tradeWallets)
@@ -210,11 +213,13 @@ export async function placeLiveOrder(
     // Protection must sit on the winning/losing side of the price the order
     // will actually fill at — validated here, before anything is signed.
     if (input.tpPx !== null) {
-      const winning = input.side === "buy" ? input.tpPx > entryPx : input.tpPx < entryPx
+      const winning =
+        input.side === "buy" ? input.tpPx > entryPx : input.tpPx < entryPx
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
     if (input.slPx !== null) {
-      const losing = input.side === "buy" ? input.slPx < entryPx : input.slPx > entryPx
+      const losing =
+        input.side === "buy" ? input.slPx < entryPx : input.slPx > entryPx
       if (!losing) throw new Error("LIVE_STOP_SIDE")
     }
 
@@ -226,7 +231,9 @@ export async function placeLiveOrder(
       row.address ?? "",
       () => credentialFor(row)
     )
-    const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
 
     const outcome = await ordersOf(protocol).place(row.network, authFor(row), {
       marketId: ref.marketId,
@@ -410,7 +417,9 @@ export async function closeLivePosition(
       row.address ?? "",
       () => credentialFor(row)
     )
-    const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
 
@@ -458,13 +467,17 @@ export async function setLiveBrackets(
       row.address ?? "",
       () => credentialFor(row)
     )
-    const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "buy" : "sell"
 
     const long = held.szi > 0
     if (input.tpPx !== null) {
-      const winning = long ? input.tpPx > held.entryPx : input.tpPx < held.entryPx
+      const winning = long
+        ? input.tpPx > held.entryPx
+        : input.tpPx < held.entryPx
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
     // A size only means something on a target that exists, and it may not be
@@ -558,7 +571,10 @@ export async function loadLivePortfolio(
   unreachable: string[]
 }> {
   const live = wallets.filter(
-    (wallet) => wallet.kind === "live" && wallet.address !== null
+    (wallet) =>
+      wallet.kind === "live" &&
+      wallet.status === "active" &&
+      wallet.address !== null
   )
 
   const now = Date.now()
@@ -576,30 +592,38 @@ export async function loadLivePortfolio(
         // every other wallet's figures waiting behind it.
         await withDeadline(
           (async () => {
-        const credential = await walletCredential(userId, wallet.id)
-        const portfolio = await ordersOf(getProtocol(wallet.protocol)).portfolio(
-          wallet.network,
-          wallet.address ?? "",
-          credential
-        )
-        const rows = livePortfolioRows(wallet, portfolio, now)
-        positions.push(...rows.positions)
-        orders.push(...rows.orders)
-        // The Journal's history is kept up to date ALONGSIDE this read, not
-        // inside it. What the panel draws comes from `trade_live_fills`,
-        // which the sweep writes into — so waiting for the sweep only made
-        // the whole panel sit on a spinner while an exchange was asked about
-        // months of old trades nobody was looking at. It cannot throw, it
-        // paces itself, and whatever it brings in shows on the next poll.
-        // ...unless this wallet has just made a fill. Then the row the
-        // Journal is about to draw comes from that very sweep, and answering
-        // without it means the trade shows a poll later and reads as not
-        // having been recorded at all.
-        if (sweepIsWaitedFor(userId, wallet.id)) {
-          await sweepLiveFills(userId, wallet, portfolio, credential)
-        } else {
-          void sweepLiveFills(userId, wallet, portfolio, credential)
-        }
+            const credential = await walletCredential(userId, wallet.id)
+            const protocol = getProtocol(wallet.protocol)
+            const readPortfolio =
+              protocol.orders?.portfolio ?? protocol.account?.portfolio
+            if (!readPortfolio) {
+              throw new Error(`PROTOCOL_NO_PORTFOLIO:${protocol.id}`)
+            }
+            const portfolio = await readPortfolio(
+              wallet.network,
+              wallet.address ?? "",
+              credential
+            )
+            const rows = livePortfolioRows(wallet, portfolio, now)
+            positions.push(...rows.positions)
+            orders.push(...rows.orders)
+            // The Journal's history is kept up to date ALONGSIDE this read, not
+            // inside it. What the panel draws comes from `trade_live_fills`,
+            // which the sweep writes into — so waiting for the sweep only made
+            // the whole panel sit on a spinner while an exchange was asked about
+            // months of old trades nobody was looking at. It cannot throw, it
+            // paces itself, and whatever it brings in shows on the next poll.
+            // ...unless this wallet has just made a fill. Then the row the
+            // Journal is about to draw comes from that very sweep, and answering
+            // without it means the trade shows a poll later and reads as not
+            // having been recorded at all.
+            if (protocol.orders) {
+              if (sweepIsWaitedFor(userId, wallet.id)) {
+                await sweepLiveFills(userId, wallet, portfolio, credential)
+              } else {
+                void sweepLiveFills(userId, wallet, portfolio, credential)
+              }
+            }
           })(),
           WALLET_READ_DEADLINE_MS
         )

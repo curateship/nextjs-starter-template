@@ -64,6 +64,13 @@ function positiveInteger(value: unknown): number | null {
   return Number.isSafeInteger(number) && number > 0 ? number : null
 }
 
+function requestLimit(value: unknown): number | null {
+  const stated = positiveInteger(value)
+  if (stated !== null) return stated
+  // Aster testnet uses -2 when it does not state a finite one-minute cap.
+  return Number(value) === -2 ? Number.POSITIVE_INFINITY : null
+}
+
 function windowMs(row: AsterRateLimitRow): number | null {
   const intervalNum = positiveInteger(row.intervalNum)
   if (intervalNum === null || typeof row.interval !== "string") return null
@@ -106,8 +113,10 @@ export function configureAsterBudget(
     (row) =>
       row.rateLimitType === "REQUEST_WEIGHT" && windowMs(row) === MINUTE_MS
   )
-  const requestLimit = positiveInteger(requestRow?.limit)
-  if (requestLimit === null) throw new Error("ASTER_REQUEST_LIMIT_MISSING")
+  const statedRequestLimit = requestLimit(requestRow?.limit)
+  if (statedRequestLimit === null) {
+    throw new Error("ASTER_REQUEST_LIMIT_MISSING")
+  }
 
   const orderLimits = rows.flatMap((row): OrderLimit[] => {
     if (row.rateLimitType !== "ORDERS") return []
@@ -122,7 +131,7 @@ export function configureAsterBudget(
   if (weight === null) throw new Error("ASTER_REQUEST_WEIGHT_INVALID")
 
   budgets.set(network, {
-    requestLimit,
+    requestLimit: statedRequestLimit,
     requests: [{ id: 1, at: now, lane: "public", weight }],
     orderLimits,
     orderEntries: [],

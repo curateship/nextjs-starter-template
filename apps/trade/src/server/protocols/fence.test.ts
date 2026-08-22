@@ -38,7 +38,10 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
     // exists to turn a stored trading key into signatures, and anywhere else
     // it appears is a place a key could leak toward.
     pkg: "viem",
-    homes: [join("server", "protocols", "hyperliquid")],
+    homes: [
+      join("server", "protocols", "hyperliquid"),
+      join("server", "protocols", "aster"),
+    ],
   },
 ]
 
@@ -78,7 +81,9 @@ describe("the protocol fence", () => {
       )
       const leaks = sources
         .filter(({ text }) => imports.test(text))
-        .filter(({ path }) => !homes.some((home) => path.startsWith(home + sep)))
+        .filter(
+          ({ path }) => !homes.some((home) => path.startsWith(home + sep))
+        )
         .map(({ path }) => path)
       expect(leaks, `${pkg} imported outside ${homes.join(", ")}`).toEqual([])
     }

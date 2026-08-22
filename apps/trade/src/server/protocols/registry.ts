@@ -120,6 +120,17 @@ import {
 } from "@/lib/protocols/kucoin/translate"
 import { asterIntervalMs, roundAsterPx } from "@/lib/protocols/aster/translate"
 import {
+  fetchAsterAccount,
+  fetchAsterPortfolio,
+} from "@/server/protocols/aster/account"
+import { verifyAsterAgentKey } from "@/server/protocols/aster/agent"
+import { packAsterCredential } from "@/server/protocols/aster/client"
+import {
+  asterLivePricesFresh,
+  openAsterLivePrices,
+  readAsterLivePrices,
+} from "@/server/protocols/aster/live-prices"
+import {
   fetchAsterCandleHistory,
   fetchAsterCandles,
 } from "@/server/protocols/aster/candles"
@@ -275,6 +286,12 @@ export type ProtocolEntry = {
      * lives once, on the exchange it is true of.
      */
     profitPerSale: boolean
+    /** Read-only positions while an exchange's order path is still closed. */
+    portfolio?(
+      network: NetworkId,
+      address: string,
+      credential: () => string | null
+    ): Promise<WalletPortfolio>
   }
   /**
    * Absent alongside `account`, for the same reason: a trading key only means something where there is trading.
@@ -636,15 +653,15 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Public Aster V3 market data on both networks. Accounts, credentials and
-   * orders stay absent until their own tasks prove those private paths.
+   * Aster V3 market data and read-only accounts on both networks. Orders stay
+   * absent until their own task proves that private path.
    */
   aster: {
     id: "aster",
     label: "Aster",
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: false, orders: false },
+    capabilities: { markets: true, accounts: true, orders: false },
     markets: {
       fetch: fetchAsterMarkets,
       candles: fetchAsterCandles,
@@ -653,9 +670,33 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       prices: fetchAsterPrices,
       roundPx: roundAsterPx,
     },
+    livePrices: {
+      open: openAsterLivePrices,
+      read: readAsterLivePrices,
+      fresh: asterLivePricesFresh,
+    },
     funding: {
       fetch: fetchAsterFunding,
       intervalMs: asterFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchAsterAccount,
+      portfolio: fetchAsterPortfolio,
+      profitPerSale: true,
+    },
+    agent: { verify: verifyAsterAgentKey },
+    credentials: {
+      form: {
+        addressLabel: "Main Aster wallet address",
+        addressHint: "0x…",
+        addressPattern: "^0x[0-9a-fA-F]{40}$",
+        secretLabel: "API wallet key",
+        needsPassphrase: false,
+        secretIsAgentKey: true,
+        keyHelp:
+          "Make a separate Pro API wallet on Aster's API Wallet page and give it perpetual trading permission. The first field takes your main Aster login wallet. Paste the generated API wallet private key here. Trade derives the generated API wallet address, so you do not paste that address.",
+      },
+      pack: packAsterCredential,
     },
   },
   binance: {
