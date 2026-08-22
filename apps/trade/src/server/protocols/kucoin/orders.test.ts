@@ -36,8 +36,23 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
   }
 })
 
+/**
+ * The socket that says whether anything has happened on the account.
+ *
+ * Stubbed rather than opened: what these tests are about is what the reads do
+ * with its answer, and the line's own rules are proved next door in
+ * `private-feed.test.ts`. It says "I cannot say" unless a case sets otherwise,
+ * which is the same thing a line that is still connecting says.
+ */
+let exchangeIsQuiet = false
+vi.mock("@/server/protocols/kucoin/private-feed", () => ({
+  kucoinQuietSince: () => exchangeIsQuiet,
+  dropIdleKucoinPrivateFeeds: () => {},
+}))
+
 const {
   clearKucoinMarginModes,
+  clearKucoinOrderCaches,
   fetchKucoinOrderFills,
   fetchKucoinPortfolio,
   placeKucoinOrder,
@@ -80,7 +95,10 @@ const CONTRACTS = {
 
 type Sent = { method: string; url: URL; body: unknown }
 
-function stubExchange(answers: Array<{ path: string; answer: unknown }>, sent: Sent[]) {
+function stubExchange(
+  answers: Array<{ path: string; answer: unknown }>,
+  sent: Sent[]
+) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (rawUrl: string | URL, init?: RequestInit) => {
@@ -106,6 +124,10 @@ beforeEach(() => {
   // The account's margin mode is held for five minutes, and a held answer
   // from one test is a wrong answer in the next.
   clearKucoinMarginModes()
+  // The order books and the fills sweep are held too, and so is the mark
+  // saying this app just changed something.
+  clearKucoinOrderCaches()
+  exchangeIsQuiet = false
 })
 
 afterEach(() => {
@@ -213,7 +235,10 @@ describe("placing", () => {
           path: "/api/v2/position/getMarginMode",
           answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
         },
-        { path: "/api/v2/getCrossUserLeverage", answer: ok({ symbol: "XBTUSDTM", leverage: 3 }) },
+        {
+          path: "/api/v2/getCrossUserLeverage",
+          answer: ok({ symbol: "XBTUSDTM", leverage: 3 }),
+        },
         { path: "/api/v2/changeCrossUserLeverage", answer: ok(true) },
         { path: "/api/v1/orders", answer: ok({ orderId: "ord-11" }) },
         {
@@ -265,7 +290,10 @@ describe("placing", () => {
           path: "/api/v2/position/getMarginMode",
           answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
         },
-        { path: "/api/v2/getCrossUserLeverage", answer: ok({ symbol: "XBTUSDTM", leverage: 3 }) },
+        {
+          path: "/api/v2/getCrossUserLeverage",
+          answer: ok({ symbol: "XBTUSDTM", leverage: 3 }),
+        },
         {
           path: "/api/v2/changeCrossUserLeverage",
           answer: { code: "300009", msg: "cannot change with a position open" },
@@ -289,7 +317,9 @@ describe("placing", () => {
     ).rejects.toThrow(/LIVE_LEVERAGE/)
     // Nothing was ordered.
     expect(
-      sent.some((one) => one.url.pathname === "/api/v1/orders" && one.method === "POST")
+      sent.some(
+        (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+      )
     ).toBe(false)
   })
 
@@ -387,7 +417,9 @@ describe("placing", () => {
     const placed = sent.find(
       (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
     )
-    expect((placed?.body as Record<string, unknown>).marginMode).toBe("ISOLATED")
+    expect((placed?.body as Record<string, unknown>).marginMode).toBe(
+      "ISOLATED"
+    )
   })
 
   it("lets a resting order actually rest, at the price asked", async () => {
@@ -442,7 +474,10 @@ describe("placing", () => {
   it("refuses a size smaller than one contract", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []
-    stubExchange([{ path: "/api/v1/contracts/active", answer: CONTRACTS }], sent)
+    stubExchange(
+      [{ path: "/api/v1/contracts/active", answer: CONTRACTS }],
+      sent
+    )
     await expect(
       placeKucoinOrder("mainnet", AUTH, {
         marketId: "XBTUSDTM",
@@ -457,9 +492,7 @@ describe("placing", () => {
       })
     ).rejects.toThrow("LIVE_SIZE_TOO_SMALL")
     // The refusal is ours; the exchange never hears about an impossible order.
-    expect(
-      sent.filter((one) => one.method === "POST")
-    ).toHaveLength(0)
+    expect(sent.filter((one) => one.method === "POST")).toHaveLength(0)
   })
 
   it("arms a stop and a target the right way round, and says so", async () => {
@@ -644,9 +677,65 @@ describe("what a finished trade made", () => {
     // trading fee added back, because the app subtracts each fill's fee again
     // when it totals the trade: 9.2 + 0.8 − 0.4 − 0.4 lands on 9.2.
     expect(fills[1].closedPnl).toBeCloseTo(10, 10)
-    expect(fills[1].closedPnl - fills[1].fee - fills[0].fee).toBeCloseTo(9.2, 10)
+    expect(fills[1].closedPnl - fills[1].fee - fills[0].fee).toBeCloseTo(
+      9.2,
+      10
+    )
     // Sizes come back in coins, never contracts.
     expect(fills[0].sz).toBeCloseTo(0.01, 12)
+  })
+
+  it("stops sweeping an account the exchange says is silent", async () => {
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/fills", answer: ok({ items: [] }) },
+        { path: "/api/v1/history-positions", answer: ok({ items: [] }) },
+      ],
+      sent
+    )
+
+    await fetchKucoinOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    const firstSweep = sent.length
+    expect(firstSweep).toBeGreaterThan(0)
+
+    // Eleven seconds on, past the age an answer stands on by itself. The
+    // socket has been up the whole time and has not said a word, so there is
+    // nothing new to find and the sweep does not run.
+    vi.setSystemTime(Date.now() + 11_000)
+    exchangeIsQuiet = true
+    await fetchKucoinOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBe(firstSweep)
+
+    // The moment the exchange says something happened, the sweep runs again.
+    exchangeIsQuiet = false
+    vi.setSystemTime(Date.now() + 11_000)
+    await fetchKucoinOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBeGreaterThan(firstSweep)
+  })
+
+  it("sweeps anyway once the ceiling runs out, however quiet it is", async () => {
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/fills", answer: ok({ items: [] }) },
+        { path: "/api/v1/history-positions", answer: ok({ items: [] }) },
+      ],
+      sent
+    )
+
+    await fetchKucoinOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    const firstSweep = sent.length
+    exchangeIsQuiet = true
+
+    // **The socket's word is not unlimited credit.** If KuCoin ever accepted a
+    // subscription and then quietly stopped sending order events, nothing else
+    // would notice — so two minutes is as far as silence is ever believed.
+    vi.setSystemTime(Date.now() + 2 * 60_000 + 1_000)
+    await fetchKucoinOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBeGreaterThan(firstSweep)
   })
 })
 
@@ -730,9 +819,8 @@ describe("moving an order never uncovers its level", () => {
   it("puts the new order on before taking the old one off", async () => {
     const sent: Sent[] = []
     stubMovingExchange(() => null, sent)
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     await modifyKucoinOrder("mainnet", AUTH, MOVE)
 
@@ -751,9 +839,8 @@ describe("moving an order never uncovers its level", () => {
           : null,
       sent
     )
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
       /^LIVE_MOVE_REFUSED:/
@@ -773,9 +860,8 @@ describe("moving an order never uncovers its level", () => {
       sent,
       { id: "ord-old", symbol: "XBTUSDTM", status: "open", isActive: true }
     )
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     await expect(modifyKucoinOrder("mainnet", AUTH, MOVE)).rejects.toThrow(
       /^LIVE_MOVE_DOUBLED:.*TWO orders/s
@@ -792,9 +878,8 @@ describe("moving an order never uncovers its level", () => {
       sent,
       { id: "ord-old", symbol: "XBTUSDTM", status: "done", isActive: false }
     )
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     // The old order filled while the new one was going on. One order rests,
     // which is what a move is supposed to leave behind, so there is no alarm.
@@ -810,9 +895,8 @@ describe("moving an order never uncovers its level", () => {
         method === "POST" && path === "/api/v1/orders" ? { status: 429 } : null,
       sent
     )
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     // The whole message, not a message with the code buried in it. Wrapping a
     // rate limit inside a sentence about how KuCoin moves orders reads as
@@ -833,9 +917,8 @@ describe("moving an order never uncovers its level", () => {
           : null,
       sent
     )
-    const { modifyKucoinOrder } = await import(
-      "@/server/protocols/kucoin/orders"
-    )
+    const { modifyKucoinOrder } =
+      await import("@/server/protocols/kucoin/orders")
 
     // The cancel failed and the read that would settle it failed too. An
     // exchange that will not say is not an exchange saying the old order has

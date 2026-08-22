@@ -12,6 +12,7 @@ import {
   READ_TIMEOUT_MS,
   requestSignal,
 } from "@/server/protocols/request-timeout"
+import { kucoinTouched } from "@/server/protocols/kucoin/touched"
 import { scrubSecrets } from "@/server/protocols/scrub"
 
 /**
@@ -200,6 +201,23 @@ export async function kucoinSigned(
       .digest("base64")
 
     const acting = method !== "GET"
+    // **Every act rings the doorbell here rather than at 9 call sites.**
+    // Anything but a GET changes this account, and the socket in
+    // `private-feed.ts` says so a moment later — but a moment is long enough
+    // for the next pass to be told the account is quiet and skip the read that
+    // would have shown its own order. Ringing it here means a new kind of act
+    // cannot forget to.
+    //
+    // **Rung when the request finishes, not when it starts.** An act takes a
+    // couple of hundred milliseconds, and a read that lands in the middle of
+    // one sees the account as it was BEFORE it. Ringing first would let that
+    // read be held as current for the next two minutes; ringing last rejects
+    // it, because it was taken before the bell. A refused act rings too: the
+    // exchange may have carried it out anyway and only said so late.
+    //
+    // The socket's own ticket is the exception: it is a POST that changes
+    // nothing, and counting it would have every reconnect ring its own bell.
+    const ringsBell = acting && path !== "/api/v1/bullet-private"
     const response = await fetch(`${restBase(network)}${endpoint}`, {
       signal: requestSignal(acting ? ACT_TIMEOUT_MS : READ_TIMEOUT_MS),
       method,
@@ -213,7 +231,11 @@ export async function kucoinSigned(
         "KC-API-KEY-VERSION": "2",
       },
       ...(bodyText ? { body: bodyText } : {}),
-    }).catch(timedOut(path, acting))
+    })
+      .finally(() => {
+        if (ringsBell) kucoinTouched()
+      })
+      .catch(timedOut(path, acting))
 
     if (response.status === 429) {
       startRationing("kucoin", network, "signed")

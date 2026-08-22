@@ -30,17 +30,63 @@ sweep), `src/server/protocols/hyperliquid/account.ts` (one wallet's figures),
 `src/components/trade/use-trade-account.ts` (the poll) and
 `src/components/trade/account-panel.tsx` (the cards).
 
-**This mechanism is not yet compliant with the exchange-connection rule.** A
-screen may poll Trade's own server to repaint, but that server must answer from
-state maintained by the exchange's account socket. It may not turn each screen
-poll into another exchange request. Hyperliquid is there for prices, positions,
-resting orders and fills. Phemex and KuCoin still ask for positions, resting
-orders and fills on every pass.
+**Where each exchange stands against the exchange-connection rule.** A screen
+may poll Trade's own server to repaint, but that server must answer from state
+the exchange's own socket keeps. It may not turn each screen poll into another
+exchange request. Hyperliquid is there for prices, positions, resting orders
+and fills. Phemex and KuCoin are there for prices, and their orders and fills
+are now read only when the exchange says something happened — see below. Their
+positions and balances are still asked for, on purpose, and that is the one
+piece left.
+
+## The exchange rings the doorbell
+
+Phemex and KuCoin each hold one open private socket per API key, and the app
+uses it to decide whether a read is worth making at all. If the exchange has
+said nothing about the account since the last answer was taken, that answer
+still stands and nothing is asked. The reads themselves are unchanged.
+
+**Measured against the live exchanges on 22 August 2026**, both accounts quiet,
+asking every four seconds for a hundred seconds:
+
+- Ignoring the socket: 33 requests, and it never stops. Four more every twelve
+  seconds, for as long as the app is running.
+- Using it: 13 requests, all of them in the first twenty-five seconds while the
+  two sockets were signing in. Then nothing at all.
+
+**It is a doorbell, not a delivery, and that was a deliberate choice.** Both
+sockets carry the orders and the executions themselves. Serving them straight
+from there was the obvious idea and the wrong one: Phemex writes the same facts
+in a different dialect on the socket and marks nothing as a liquidation, and a
+mislabelled liquidation is a wrong line in the Journal about real money.
+KuCoin's channels carry changes only, so the app would have to follow along and
+be right about every event shape it sends. Instead the socket answers one
+question — has anything happened — and every schema and every quirk stays in
+the REST reader that was always there.
+
+**Two safeguards, because a socket can lie by going quiet.** A line only
+vouches for a stretch it was watching all the way through: a disconnection, a
+missed heartbeat, or a subscription that has not been acknowledged all mean it
+says nothing and the read happens. And no answer is ever held for more than two
+minutes however silent the exchange is, so if a subscription were ever accepted
+and then quietly starved, the worst case is a two-minute-old answer rather than
+a permanent one.
+
+**This app's own orders ring the bell immediately.** A place, a move or a
+cancel counts as a change the moment the request finishes, without waiting for
+the exchange to push it back. Otherwise the next pass could be told the account
+was quiet and skip the read that would have shown the order just placed.
+
+**Positions and balances are deliberately left out.** They ride the same lines,
+but both exchanges push them only when the position itself changes, never when
+the price moves — measured on KuCoin: three open positions, prices moving, and
+forty-five seconds of complete silence. Open profit moves every second, so
+holding a balance because "nothing changed" would freeze the profit on a wallet
+card, which is worse than the read it saved.
 
 ## What each exchange's private line offers
 
 Tested against the live exchanges on 22 August 2026, with this app's own keys.
-Both work. Neither is built yet, and the two need different handling.
 
 **Phemex is the straightforward one.** Sign in on the socket with `user.auth`,
 then `aop_p.subscribe`, and it answers immediately with a full snapshot:
@@ -61,9 +107,13 @@ reconnect, and apply changes in between. That is the "ask once when a feed
 starts, and again to recover a disconnect" the rule allows, and it is not
 optional here.
 
-Both feeds must fall back to asking whenever they cannot vouch for an answer,
-the way `hyperliquid/user-fills-feed.ts` does. A feed that guesses is worse
-than the asking it replaced.
+Both lines fall back to asking whenever they cannot vouch for an answer, the
+way `hyperliquid/user-fills-feed.ts` does. A feed that guesses is worse than the
+asking it replaced.
+
+The code is `src/server/protocols/phemex/private-feed.ts` and
+`src/server/protocols/kucoin/private-feed.ts`, read from the fills sweep and
+the resting-order read in each folder's `orders.ts`.
 
 ## Only wallets that are switched on are asked
 

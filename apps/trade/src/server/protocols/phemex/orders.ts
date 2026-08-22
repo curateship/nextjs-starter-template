@@ -20,6 +20,10 @@ import {
   phemexPublic,
   phemexSigned,
 } from "@/server/protocols/phemex/client"
+import {
+  dropIdlePhemexPrivateFeeds,
+  phemexQuietSince,
+} from "@/server/protocols/phemex/private-feed"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
@@ -180,7 +184,8 @@ function cappedPx(
   px: number,
   tick: number | null
 ): number {
-  const capped = side === "buy" ? px * (1 + MARKET_SLIPPAGE) : px * (1 - MARKET_SLIPPAGE)
+  const capped =
+    side === "buy" ? px * (1 + MARKET_SLIPPAGE) : px * (1 - MARKET_SLIPPAGE)
   return roundPhemexPx(capped, null, tick)
 }
 
@@ -234,7 +239,11 @@ async function symbolStateOf(
   const key = `${network}:${parsePhemexCredential(blob).keyId}`
   const held = posModes.get(key)
   if (!held || Date.now() - held.at > POS_MODE_GOOD_FOR_MS) {
-    const { positions } = await phemexAccountPositions(network, address, () => blob)
+    const { positions } = await phemexAccountPositions(
+      network,
+      address,
+      () => blob
+    )
     const bySymbol = new Map<string, SymbolState>()
     for (const raw of positions) {
       const row = raw as {
@@ -341,7 +350,11 @@ const idOf = (row: OrderRow) => row.orderId ?? row.orderID ?? ""
  */
 function sideOf(side: string | number | undefined): "buy" | "sell" {
   if (typeof side === "number") return side === 2 ? "sell" : "buy"
-  return String(side ?? "").toLowerCase().startsWith("s") ? "sell" : "buy"
+  return String(side ?? "")
+    .toLowerCase()
+    .startsWith("s")
+    ? "sell"
+    : "buy"
 }
 
 /**
@@ -397,7 +410,7 @@ function rowsOf(answer: unknown): OrderRow[] {
   const list = Array.isArray(data)
     ? data
     : Array.isArray((data as { rows?: unknown })?.rows)
-      ? ((data as { rows: unknown[] }).rows)
+      ? (data as { rows: unknown[] }).rows
       : []
   return list
     .map((row) => orderRowSchema.safeParse(row))
@@ -436,12 +449,7 @@ export async function placePhemexOrder(
   const sz = floorToStep(params.sz, rules.qtyStepSize)
   if (!(sz > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
 
-  const mode = await posModeOf(
-    network,
-    "",
-    orderAuth.agentKey,
-    params.marketId
-  )
+  const mode = await posModeOf(network, "", orderAuth.agentKey, params.marketId)
 
   if (params.leverage !== null) {
     // Set only when opening fresh — the caller already sends null when the
@@ -497,16 +505,10 @@ export async function placePhemexOrder(
         forSide === "Short" ? leverageRr : (state.shortRr ?? leverageRr),
     }
     try {
-      await phemexSigned(
-        network,
-        credential,
-        "PUT",
-        "/g-positions/leverage",
-        {
-          symbol: params.marketId,
-          ...(mode === "Hedged" ? bothSides : { leverageRr }),
-        }
-      )
+      await phemexSigned(network, credential, "PUT", "/g-positions/leverage", {
+        symbol: params.marketId,
+        ...(mode === "Hedged" ? bothSides : { leverageRr }),
+      })
     } catch (error) {
       throw refusedError(error)
     }
@@ -597,7 +599,9 @@ export async function placePhemexOrder(
         }
       }
       if (status === "Canceled" || status === "Rejected") {
-        throw new Error("LIVE_ORDER_REFUSED:The order missed and was cancelled.")
+        throw new Error(
+          "LIVE_ORDER_REFUSED:The order missed and was cancelled."
+        )
       }
     }
   }
@@ -635,13 +639,11 @@ async function cancelOne(
   let lastMissing: unknown = null
   for (const posSide of sides) {
     try {
-      await phemexSigned(
-        network,
-        credential,
-        "DELETE",
-        "/g-orders/cancel",
-        { symbol: marketId, orderID: orderId, posSide }
-      )
+      await phemexSigned(network, credential, "DELETE", "/g-orders/cancel", {
+        symbol: marketId,
+        orderID: orderId,
+        posSide,
+      })
       return
     } catch (error) {
       const message = error instanceof Error ? error.message : ""
@@ -694,23 +696,17 @@ export async function modifyPhemexOrder(
   try {
     // A native amend — the order keeps its place-in-book identity and there
     // is no cancelled-but-not-replaced gap to fall into.
-    await phemexSigned(
-      network,
-      auth(orderAuth),
-      "PUT",
-      "/g-orders/replace",
-      {
-        symbol: params.marketId,
-        orderID: params.orderId,
-        priceRp: decimalString(roundPhemexPx(params.px, null, rules.tickSize)),
-        orderQtyRq: decimalString(sz),
-        posSide: posSideFor(
-          await posModeOf(network, "", orderAuth.agentKey, params.marketId),
-          params.side,
-          params.reduceOnly
-        ),
-      }
-    )
+    await phemexSigned(network, auth(orderAuth), "PUT", "/g-orders/replace", {
+      symbol: params.marketId,
+      orderID: params.orderId,
+      priceRp: decimalString(roundPhemexPx(params.px, null, rules.tickSize)),
+      orderQtyRq: decimalString(sz),
+      posSide: posSideFor(
+        await posModeOf(network, "", orderAuth.agentKey, params.marketId),
+        params.side,
+        params.reduceOnly
+      ),
+    })
   } catch (error) {
     throw exchangeError(error)
   }
@@ -774,15 +770,16 @@ export async function setPhemexBrackets(
 
   // Old legs first, so the position is never guarded twice. A leg already
   // gone is fine — that is the state being aimed for.
-  for (const orderId of [params.position.tpOrderId, params.position.slOrderId]) {
+  for (const orderId of [
+    params.position.tpOrderId,
+    params.position.slOrderId,
+  ]) {
     if (!orderId) continue
-    await phemexSigned(
-      network,
-      credential,
-      "DELETE",
-      "/g-orders/cancel",
-      { symbol: params.marketId, orderID: orderId, posSide: legPosSide }
-    ).catch(() => {})
+    await phemexSigned(network, credential, "DELETE", "/g-orders/cancel", {
+      symbol: params.marketId,
+      orderID: orderId,
+      posSide: legPosSide,
+    }).catch(() => {})
   }
 
   const placeLeg = async (leg: {
@@ -790,27 +787,21 @@ export async function setPhemexBrackets(
     triggerPx: number
     sz: number
   }) => {
-    await phemexSigned(
-      network,
-      credential,
-      "PUT",
-      "/g-orders/create",
-      {
-        clOrdID: randomUUID(),
-        symbol: params.marketId,
-        side: exitSide,
-        posSide: legPosSide,
-        ordType: leg.ordType,
-        stopPxRp: decimalString(
-          roundPhemexPx(leg.triggerPx, null, rules.tickSize)
-        ),
-        orderQtyRq: decimalString(floorToStep(leg.sz, rules.qtyStepSize)),
-        triggerType: "ByMarkPrice",
-        timeInForce: "ImmediateOrCancel",
-        reduceOnly: true,
-        closeOnTrigger: true,
-      }
-    )
+    await phemexSigned(network, credential, "PUT", "/g-orders/create", {
+      clOrdID: randomUUID(),
+      symbol: params.marketId,
+      side: exitSide,
+      posSide: legPosSide,
+      ordType: leg.ordType,
+      stopPxRp: decimalString(
+        roundPhemexPx(leg.triggerPx, null, rules.tickSize)
+      ),
+      orderQtyRq: decimalString(floorToStep(leg.sz, rules.qtyStepSize)),
+      triggerType: "ByMarkPrice",
+      timeInForce: "ImmediateOrCancel",
+      reduceOnly: true,
+      closeOnTrigger: true,
+    })
   }
 
   try {
@@ -937,13 +928,58 @@ const openOrdersCache = new Map<
   { at: number; answer: Promise<OrderRow[]> }
 >()
 
+/**
+ * The longest an answer is held on the socket's word alone.
+ *
+ * **A ceiling, not a target.** The line in `private-feed.ts` is trustworthy
+ * enough that in principle an answer could stand until it says otherwise. In
+ * principle is not good enough for money: if Phemex ever accepts a
+ * subscription and then quietly stops sending order events while still
+ * answering the heartbeat, nothing else would notice. Two minutes bounds that
+ * to two minutes, and it still turns a read every two seconds into a read
+ * every two minutes on an account where nothing is happening.
+ */
+const HOLD_WHILE_QUIET_MS = 2 * 60_000
+
+/**
+ * Whether an answer taken at `at` may still be used.
+ *
+ * Young answers stand on their age alone, the way they always did — that is
+ * what collapses the engine's ask and the screen's into one. An older answer
+ * stands only while the exchange has told us nothing has happened since it was
+ * taken, and never past the ceiling.
+ */
+function stillStands(
+  network: NetworkId,
+  keyId: string,
+  credential: () => string | null,
+  at: number,
+  goodForMs: number
+): boolean {
+  const age = Date.now() - at
+  if (age < goodForMs) return true
+  if (age >= HOLD_WHILE_QUIET_MS) return false
+  return phemexQuietSince(network, keyId, credential, at)
+}
+
 async function openOrders(
   network: NetworkId,
-  credential: { keyId: string; secret: string }
+  credential: { keyId: string; secret: string },
+  /** The ciphertext-holding thunk, so the socket never keeps a plaintext. */
+  blob: () => string | null
 ): Promise<OrderRow[]> {
   const key = `${network}:${credential.keyId}`
   const cached = openOrdersCache.get(key)
-  if (cached && Date.now() - cached.at < OPEN_ORDERS_GOOD_FOR_MS) {
+  if (
+    cached &&
+    stillStands(
+      network,
+      credential.keyId,
+      blob,
+      cached.at,
+      OPEN_ORDERS_GOOD_FOR_MS
+    )
+  ) {
     return cached.answer
   }
   const at = Date.now()
@@ -966,10 +1002,14 @@ export async function fetchPhemexPortfolio(
   const blob = credential()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parsePhemexCredential(blob)
+  // Swept from the pass that reads a portfolio rather than on a timer of its
+  // own, which would keep the socket module alive in a process that has
+  // finished with it.
+  dropIdlePhemexPrivateFeeds()
 
   const [{ positions: rawPositions }, orders] = await Promise.all([
     phemexAccountPositions(network, address, () => blob),
-    openOrders(network, parsed),
+    openOrders(network, parsed, credential),
   ])
 
   const openBySymbol = new Map<string, OrderRow[]>()
@@ -1019,7 +1059,10 @@ export async function fetchPhemexPortfolio(
 
   const walletOrders: WalletOpenOrder[] = orders.map((row) => {
     const trigger = statusNameOf(row) === "Untriggered"
-    const sz = Math.max(0, (num(row.orderQtyRq) ?? 0) - (num(row.cumQtyRq) ?? 0))
+    const sz = Math.max(
+      0,
+      (num(row.orderQtyRq) ?? 0) - (num(row.cumQtyRq) ?? 0)
+    )
     return {
       orderId: idOf(row),
       marketId: row.symbol,
@@ -1104,9 +1147,18 @@ export async function fetchPhemexOrderFills(
 ): Promise<WalletOrderFill[]> {
   const blob = credential()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
-  const key = `${network}:${parsePhemexCredential(blob).keyId}:${Math.floor(since / 60_000)}`
+  const parsed = parsePhemexCredential(blob)
+  const key = `${network}:${parsed.keyId}:${Math.floor(since / 60_000)}`
   const cached = fillsCache.get(key)
-  if (cached && Date.now() - cached.at < FILLS_GOOD_FOR_MS) return cached.answer
+  // The expensive one. A sweep is an order list plus a separate read for every
+  // coin held, and on an account where nothing has filled it finds nothing,
+  // every ten seconds, for ever.
+  if (
+    cached &&
+    stillStands(network, parsed.keyId, credential, cached.at, FILLS_GOOD_FOR_MS)
+  ) {
+    return cached.answer
+  }
 
   const at = Date.now()
   const answer = readPhemexFills(network, address, since, credential)
@@ -1221,7 +1273,11 @@ async function readPhemexFills(
           at,
           closedPnl: num(row.closedPnlRv) ?? 0,
           fee: num(row.execFeeRv) ?? 0,
-          dir: liquidation ? "Liquidation" : row.side === "Sell" ? "Sell" : "Buy",
+          dir: liquidation
+            ? "Liquidation"
+            : row.side === "Sell"
+              ? "Sell"
+              : "Buy",
           liquidation,
         })
       }

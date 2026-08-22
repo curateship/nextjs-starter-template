@@ -12,6 +12,7 @@ import {
   READ_TIMEOUT_MS,
   requestSignal,
 } from "@/server/protocols/request-timeout"
+import { phemexTouched } from "@/server/protocols/phemex/touched"
 import { scrubSecrets } from "@/server/protocols/scrub"
 
 /**
@@ -138,7 +139,9 @@ function unwrap(payload: Envelope, context: string): unknown {
   }
   if ("error" in payload) {
     if (payload.error !== null && payload.error !== undefined) {
-      throw new Error(`PHEMEX_MD:${scrubSecrets(JSON.stringify(payload.error))}`)
+      throw new Error(
+        `PHEMEX_MD:${scrubSecrets(JSON.stringify(payload.error))}`
+      )
     }
     return payload.result
   }
@@ -200,6 +203,19 @@ export async function phemexSigned(
       .digest("hex")
 
     const acting = method !== "GET"
+    // **Every act rings the doorbell here rather than at 5 call sites.**
+    // Anything but a GET changes this account, and the socket in
+    // `private-feed.ts` says so a moment later — but a moment is long enough
+    // for the next pass to be told the account is quiet and skip the read that
+    // would have shown its own order. Ringing it here means a new kind of act
+    // cannot forget to.
+    //
+    // **Rung when the request finishes, not when it starts.** An act takes a
+    // couple of hundred milliseconds, and a read that lands in the middle of
+    // one sees the account as it was BEFORE it. Ringing first would let that
+    // read be held as current for the next two minutes; ringing last rejects
+    // it, because it was taken before the bell. A refused act rings too: the
+    // exchange may have carried it out anyway and only said so late.
     const response = await fetch(
       `${restBase(network)}${path}${query ? `?${query}` : ""}`,
       {
@@ -214,7 +230,11 @@ export async function phemexSigned(
         },
         ...(bodyText ? { body: bodyText } : {}),
       }
-    ).catch(timedOut(path, acting))
+    )
+      .finally(() => {
+        if (acting) phemexTouched()
+      })
+      .catch(timedOut(path, acting))
     if (response.status === 429) {
       startRationing("phemex", network, "signed")
       throw new Error("EXCHANGE_BUSY")

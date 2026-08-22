@@ -27,6 +27,11 @@ import {
   type KucoinCredential,
 } from "@/server/protocols/kucoin/client"
 import { kucoinMarketRules } from "@/server/protocols/kucoin/markets"
+import {
+  dropIdleKucoinPrivateFeeds,
+  kucoinQuietSince,
+} from "@/server/protocols/kucoin/private-feed"
+import { clearKucoinTouched } from "@/server/protocols/kucoin/touched"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
@@ -792,6 +797,111 @@ const positionSchema = z.object({
   isOpen: z.boolean().optional(),
 })
 
+/**
+ * How long the two order books are held before being read again.
+ *
+ * Two seconds on age alone, the way an answer always stood, so that one cycle
+ * of the screen and one pass of the engine share a read instead of making two.
+ * After that they stand only while the socket says nothing has happened —
+ * which on a quiet account is the whole time, up to the ceiling.
+ */
+const OPEN_ORDERS_GOOD_FOR_MS = 2_000
+
+/**
+ * The longest an answer is held on the socket's word alone.
+ *
+ * **A ceiling, not a target.** The line in `private-feed.ts` is trustworthy
+ * enough that in principle an answer could stand until it says otherwise. In
+ * principle is not good enough for money: if KuCoin ever accepts a
+ * subscription and then quietly stops sending order events while still
+ * answering the heartbeat, nothing else would notice. Two minutes bounds that
+ * to two minutes, and it still turns a read every couple of seconds into a
+ * read every couple of minutes on an account where nothing is happening.
+ */
+const HOLD_WHILE_QUIET_MS = 2 * 60_000
+
+/**
+ * Whether an answer taken at `at` may still be used.
+ *
+ * Young answers stand on their age alone. An older one stands only while the
+ * exchange has told us nothing has happened since it was taken, and never past
+ * the ceiling.
+ */
+function stillStands(
+  network: NetworkId,
+  keyId: string,
+  credential: () => string | null,
+  at: number,
+  goodForMs: number
+): boolean {
+  const age = Date.now() - at
+  if (age < goodForMs) return true
+  if (age >= HOLD_WHILE_QUIET_MS) return false
+  return kucoinQuietSince(network, keyId, credential, at)
+}
+
+const orderBooksCache = new Map<
+  string,
+  { at: number; answer: Promise<{ active: unknown[]; stops: unknown[] }> }
+>()
+
+const fillsCache = new Map<
+  string,
+  { at: number; answer: Promise<WalletOrderFill[]> }
+>()
+
+/**
+ * Empties the short-lived answers. Tests drive their own time, and an answer
+ * carried from one case into the next would make them lie to each other.
+ */
+export function clearKucoinOrderCaches(): void {
+  orderBooksCache.clear()
+  fillsCache.clear()
+  clearKucoinTouched()
+}
+
+/**
+ * What is resting on this account: the live order book and the untriggered
+ * stop book, which KuCoin keeps apart.
+ *
+ * Untriggered stops and targets live in their own book, so a portfolio read
+ * that asked only for orders would show a position with no protection on it at
+ * all.
+ */
+function orderBooks(
+  network: NetworkId,
+  credential: KucoinCredential,
+  /** The ciphertext-holding thunk, so the socket never keeps a plaintext. */
+  blob: () => string | null
+): Promise<{ active: unknown[]; stops: unknown[] }> {
+  const key = `${network}:${credential.keyId}`
+  const cached = orderBooksCache.get(key)
+  if (
+    cached &&
+    stillStands(
+      network,
+      credential.keyId,
+      blob,
+      cached.at,
+      OPEN_ORDERS_GOOD_FOR_MS
+    )
+  ) {
+    return cached.answer
+  }
+  const at = Date.now()
+  const answer = Promise.all([
+    pagedItems(network, credential, "/api/v1/orders", { status: "active" }),
+    pagedItems(network, credential, "/api/v1/stopOrders"),
+  ]).then(([active, stops]) => ({ active, stops }))
+  // A failed read is never remembered as an answer — one refusal would
+  // otherwise be handed to every caller until the ceiling ran out.
+  answer.catch(() => {
+    if (orderBooksCache.get(key)?.at === at) orderBooksCache.delete(key)
+  })
+  orderBooksCache.set(key, { at, answer })
+  return answer
+}
+
 export async function fetchKucoinPortfolio(
   network: NetworkId,
   _address: string,
@@ -800,17 +910,22 @@ export async function fetchKucoinPortfolio(
   const blob = credential()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseKucoinCredential(blob)
+  // Swept from the pass that reads a portfolio rather than on a timer of its
+  // own, which would keep the socket module alive in a process that has
+  // finished with it.
+  dropIdleKucoinPrivateFeeds()
 
-  const [rawPositions, activeRows, stopRows] = await Promise.all([
-    kucoinSigned(network, parsed, "GET", "/api/v1/positions", {
-      currency: "USDT",
-    }),
-    pagedItems(network, parsed, "/api/v1/orders", { status: "active" }),
-    // Untriggered stops and targets live in their own book on KuCoin, so a
-    // portfolio read that asked only for orders would show a position with no
-    // protection on it at all.
-    pagedItems(network, parsed, "/api/v1/stopOrders"),
-  ])
+  const [rawPositions, { active: activeRows, stops: stopRows }] =
+    await Promise.all([
+      // **Positions are read every time, never held.** They carry the open
+      // profit, which moves with the price every second, and KuCoin's position
+      // channel speaks only when the position itself changes. Holding these
+      // would freeze the profit on a wallet card.
+      kucoinSigned(network, parsed, "GET", "/api/v1/positions", {
+        currency: "USDT",
+      }),
+      orderBooks(network, parsed, credential),
+    ])
 
   const open = orderRows(activeRows)
   const untriggered = orderRows(stopRows)
@@ -1003,6 +1118,16 @@ async function closedPositionMoney(
  */
 const FILLS_WINDOW_MS = 24 * 60 * 60_000
 
+/**
+ * How long a fills sweep is held before being made again.
+ *
+ * The sweep is the expensive one: a paged fills read plus a closed-positions
+ * read, and on an account where nothing has filled it finds nothing, over and
+ * over. Ten seconds on age alone, and after that only while the socket says
+ * the account has been silent.
+ */
+const FILLS_GOOD_FOR_MS = 10_000
+
 export async function fetchKucoinOrderFills(
   network: NetworkId,
   _address: string,
@@ -1012,6 +1137,28 @@ export async function fetchKucoinOrderFills(
   const blob = credential()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseKucoinCredential(blob)
+  const key = `${network}:${parsed.keyId}:${Math.floor(since / 60_000)}`
+  const cached = fillsCache.get(key)
+  if (
+    cached &&
+    stillStands(network, parsed.keyId, credential, cached.at, FILLS_GOOD_FOR_MS)
+  ) {
+    return cached.answer
+  }
+  const at = Date.now()
+  const answer = readKucoinFills(network, since, parsed)
+  answer.catch(() => {
+    if (fillsCache.get(key)?.at === at) fillsCache.delete(key)
+  })
+  fillsCache.set(key, { at, answer })
+  return answer
+}
+
+async function readKucoinFills(
+  network: NetworkId,
+  since: number,
+  parsed: KucoinCredential
+): Promise<WalletOrderFill[]> {
   const end = Date.now()
   // **Never further back than the exchange will answer.**
   //

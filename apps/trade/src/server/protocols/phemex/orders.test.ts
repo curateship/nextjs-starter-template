@@ -18,8 +18,22 @@ vi.mock("@/server/protocols/real-money", async (importOriginal) => {
     },
   }
 })
+/**
+ * The socket that says whether anything has happened on the account.
+ *
+ * Stubbed rather than opened: what these tests are about is what the reads do
+ * with its answer, and the line's own rules are proved next door in
+ * `private-feed.test.ts`. It says "I cannot say" unless a case sets otherwise,
+ * which is the same thing a line that is still connecting says.
+ */
+let exchangeIsQuiet = false
+vi.mock("@/server/protocols/phemex/private-feed", () => ({
+  phemexQuietSince: () => exchangeIsQuiet,
+  dropIdlePhemexPrivateFeeds: () => {},
+}))
 import {
   clearPhemexOrderCaches,
+  fetchPhemexOrderFills,
   fetchPhemexOrderInfo,
   fetchPhemexPortfolio,
   placePhemexOrder,
@@ -39,7 +53,10 @@ import { clearPhemexAccountCache } from "@/server/protocols/phemex/account"
  */
 
 const AUTH: OrderAuth = {
-  agentKey: packPhemexCredential({ address: "key-id-0000000000", secret: "s3cret" }),
+  agentKey: packPhemexCredential({
+    address: "key-id-0000000000",
+    secret: "s3cret",
+  }),
   allocateNonce: async () => 1,
 }
 
@@ -84,6 +101,7 @@ beforeEach(() => {
   // reply would still be standing when the next one asks.
   clearPhemexOrderCaches()
   clearPhemexAccountCache()
+  exchangeIsQuiet = false
 })
 
 afterEach(() => {
@@ -178,7 +196,9 @@ describe("placing", () => {
     const create = sent.find((one) => one.url.pathname === "/g-orders/create")
     expect(create?.method).toBe("PUT")
     expect(create?.url.searchParams.get("ordType")).toBe("Limit")
-    expect(create?.url.searchParams.get("timeInForce")).toBe("ImmediateOrCancel")
+    expect(create?.url.searchParams.get("timeInForce")).toBe(
+      "ImmediateOrCancel"
+    )
     // Hedged account: an opening buy belongs to the Long. Sending "Merged"
     // here is what the exchange refused with TE_ERR_INCONSISTENT_POS_MODE,
     // which is why an order placed on phemex.com could not be cancelled.
@@ -278,7 +298,10 @@ describe("placing", () => {
             },
           },
         },
-        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-positions/leverage",
+          answer: { code: 0, msg: "", data: {} },
+        },
         {
           path: "/g-orders/create",
           answer: {
@@ -355,7 +378,10 @@ describe("placing", () => {
             },
           },
         },
-        { path: "/g-positions/leverage", answer: { code: 0, msg: "", data: {} } },
+        {
+          path: "/g-positions/leverage",
+          answer: { code: 0, msg: "", data: {} },
+        },
         {
           path: "/g-orders/create",
           answer: {
@@ -523,7 +549,6 @@ describe("reading the account back", () => {
     expect(order.trigger).toBe(false)
   })
 
-
   it("hangs the untriggered protection legs back on the position", async () => {
     stubExchange(
       [
@@ -647,5 +672,65 @@ describe("reading the account back", () => {
         () => AUTH.agentKey
       )
     ).resolves.toEqual({ kind: "stop", triggerPx: 45_000 })
+  })
+})
+
+describe("how often the exchange is asked at all", () => {
+  /** An account holding nothing, so a sweep is as cheap as one can be. */
+  const EMPTY = [
+    {
+      path: "/g-accounts/positions",
+      answer: {
+        code: 0,
+        data: {
+          account: { accountBalanceRv: "1000", totalUsedBalanceRv: "0" },
+          positions: [],
+        },
+      },
+    },
+    { path: "/g-orders/activeList", answer: { code: 0, data: { rows: [] } } },
+    {
+      path: "/api-data/g-futures/trades",
+      answer: { code: 0, data: { rows: [] } },
+    },
+  ]
+
+  it("stops sweeping fills on an account the exchange says is silent", async () => {
+    const sent: Sent[] = []
+    stubExchange(EMPTY, sent)
+
+    await fetchPhemexOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    const firstSweep = sent.length
+    expect(firstSweep).toBeGreaterThan(0)
+
+    // Eleven seconds on, past the age an answer stands on by itself. The
+    // socket has been up the whole time and has not said a word, so there is
+    // nothing new to find and the sweep does not run.
+    vi.setSystemTime(Date.now() + 11_000)
+    exchangeIsQuiet = true
+    await fetchPhemexOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBe(firstSweep)
+
+    // The moment the exchange says something happened, the sweep runs again.
+    exchangeIsQuiet = false
+    vi.setSystemTime(Date.now() + 11_000)
+    await fetchPhemexOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBeGreaterThan(firstSweep)
+  })
+
+  it("sweeps anyway once the ceiling runs out, however quiet it is", async () => {
+    const sent: Sent[] = []
+    stubExchange(EMPTY, sent)
+
+    await fetchPhemexOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    const firstSweep = sent.length
+    exchangeIsQuiet = true
+
+    // **The socket's word is not unlimited credit.** If Phemex ever accepted a
+    // subscription and then quietly stopped sending order events, nothing else
+    // would notice — so two minutes is as far as silence is ever believed.
+    vi.setSystemTime(Date.now() + 2 * 60_000 + 1_000)
+    await fetchPhemexOrderFills("mainnet", "key-id", 0, () => AUTH.agentKey)
+    expect(sent.length).toBeGreaterThan(firstSweep)
   })
 })

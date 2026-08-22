@@ -125,9 +125,12 @@ that is gone, which took the app down for a full day on 13 August 2026.
 **Every second, because these decide whether a level fires:** the price, what
 the wallet holds, and what is resting on the exchange. Prices already arrive on
 open sockets for the three trading venues. Hyperliquid also pushes positions
-and open orders, but Phemex and KuCoin still answer those account reads by
-request. Those repeated exchange reads now violate the connection rule and must
-move to each venue's private socket.
+and open orders. Phemex and KuCoin hold a private socket that says when
+something has happened on the account, and their resting-order read is skipped
+entirely while it stays silent. Their positions and balances are still read
+each pass, on purpose: they carry the open profit, which moves with the price
+every second, and neither exchange pushes a position when only the price has
+changed.
 
 **Fills, on Hyperliquid, arrive pushed and cost nothing.** They are the record
 of what already happened: they fill the Journal, move each order's watermark and
@@ -157,9 +160,21 @@ Silence is not suspicious here, which is why this feed needs no "quiet for too
 long" rule. A wallet that has not traded for an hour genuinely has no fills to
 be told about, and both real failures announce themselves.
 
-**Phemex and KuCoin still ask for fills**, and their positions and resting
-orders too. Neither has a pushed account feed built. That breaks the rule in
-`trading-rules.md` and is the next piece of work, not a decision.
+**Phemex and KuCoin do not accumulate fills; they wait to be told to look.**
+Both sockets carry the executions themselves and neither is read for them, on
+purpose. Phemex writes the same fill in a different dialect on the socket and
+marks nothing as a liquidation, and a mislabelled liquidation is a wrong line
+in the Journal about real money; KuCoin's channels carry changes only. So the
+socket answers one question — has anything happened on this account — and the
+sweep that was always there runs only when the answer is yes. Measured against
+both live exchanges on 22 August 2026, both accounts quiet, asking every four
+seconds for a hundred seconds: **33 requests without the sockets and 13 with
+them**, and all thirteen were in the first twenty-five seconds while the lines
+were signing in. After that, nothing. `wallet-reads.md` has the safeguards.
+
+What is left is their positions and balances, which are still asked for every
+pass. That is a decision rather than an omission — see above — and it is the
+only exchange read on these two venues that still repeats.
 
 **Every thirty seconds: the flow looking for new coins.** One scan asks about
 twelve coins and each coin's base needs its 4h candles, about 28 weight each,
