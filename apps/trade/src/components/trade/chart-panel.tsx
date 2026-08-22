@@ -624,7 +624,7 @@ export function ChartPanel({
         icon={<CandlestickChartIcon className="size-4" />}
         title="The chart goes here"
       >
-        Pick a market on the left and its candles draw in this space.
+        Pick a market from the list and its candles draw in this space.
       </PanelPlaceholder>
     )
   }

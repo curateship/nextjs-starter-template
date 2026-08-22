@@ -1,9 +1,5 @@
 import * as React from "react"
-import {
-  CandlestickChartIcon,
-  ListIcon,
-  WalletIcon,
-} from "lucide-react"
+import { CandlestickChartIcon, ListIcon, WalletIcon } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { MarketPicker } from "@/components/trade/market-picker"
@@ -101,7 +97,7 @@ export function MarketHeader({
       <WorkspacePanelHeader
         icon={<CandlestickChartIcon className="size-4" />}
         title="Pick a market"
-        meta="Choose one from the Markets list to chart it."
+        meta="Choose one from the market list to chart it."
         action={action}
       />
     )
@@ -112,7 +108,7 @@ export function MarketHeader({
       <WorkspacePanelHeader
         icon={<CandlestickChartIcon className="size-4" />}
         title={selection.marketId}
-        meta="This market is not available on the connected exchange right now."
+        meta="The exchange is not listing this market right now."
         action={action}
       />
     )

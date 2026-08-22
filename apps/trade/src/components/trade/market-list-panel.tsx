@@ -13,10 +13,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import {
-  marketBelongsInTab,
-  type MarketTab,
-} from "@/lib/trade/market-tabs"
+import { marketBelongsInTab, type MarketTab } from "@/lib/trade/market-tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { LiveRefusal } from "@/lib/trade/live"
@@ -56,7 +53,7 @@ const ROW_COLUMNS_INSIDE_LIST = "gap-1 px-3"
 
 /**
  * The width the day's-move column reserves. Set by the widest thing in it,
- * which is the "Change 24h" header rather than any pill — with the column
+ * which is the "24h Change" header rather than any pill — with the column
  * fixed, the pills line up under that label without needing a width of their
  * own.
  */
@@ -185,7 +182,7 @@ export function MarketListPanel({
               : "Nothing starred yet. Open a market and press the star beside its name — it stays here."
             : hasVolumeHiddenMarkets
               ? "No markets meet your daily volume setting."
-              : "The exchange listed no markets."}
+              : "The exchange is not listing any markets right now."}
         </p>
       ) : (
         <div className="flex flex-col p-1">
@@ -236,7 +233,7 @@ export function MarketListPanel({
 
       {/* Row two: the sort, drawn as the column headers it sorts — the same
           sort buttons every dashboard table uses. Left header over the
-          symbols, middle over the kinds, right header over the changes. */}
+          symbols, right header over the changes. */}
       {/* Scrolls sideways at the narrowest drags rather than wrapping a
           label onto two lines. */}
       {/* The headers use the row's own columns — same padding, same gap, the
@@ -275,7 +272,7 @@ export function MarketListPanel({
             CHANGE_COLUMN
           )}
         >
-          Change 24h
+          24h Change
         </TableSortButton>
       </div>
 
@@ -331,7 +328,6 @@ export function MarketListPanel({
           </Link>
         </div>
       ) : null}
-
     </Tabs>
   )
 }
