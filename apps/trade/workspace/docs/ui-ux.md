@@ -26,11 +26,17 @@ and `/admin/kucoin`.
   tab" below. (An earlier draft had a separate Favourites row below the list;
   it was replaced by the Fav tab — two homes for one list is duplication.)
 - **Middle — the market you picked.** One header row, nothing more: the
-  market's own logo (carried as data on the row, with a first-letter circle
-  when an exchange has no art), its name, and on the right the timeframe
-  picker (1m–1d, remembered per browser, 4h the default) with the Indicators
-  dropdown after it. The timeframe picker is one segmented choice. Its raised
-  tab marks the selected interval, and the arrow keys move through the row.
+  star for that market, the market's own logo (carried as data on the row,
+  with a first-letter circle when an exchange has no art), its name, and on
+  the right the timeframe picker (1m–1d, remembered per browser, 4h the
+  default) with the Indicators dropdown after it. The star is amber and filled
+  when the market is in Fav and a hollow outline when it is not, so the two do
+  not differ by colour alone, and it names the market it would star. The star
+  leads the row so that the name is what gives way as the panel narrows. On a
+  phone the timeframe row leaves the name no width at all, and anything behind
+  the name would never be on screen. The timeframe picker is one segmented
+  choice. Its raised tab marks the selected interval, and the arrow keys move
+  through the row.
   Every control in that row is 32px high. Pressing the market name opens the
   full market picker: search; Favorites, All, Crypto, TradFi, HIP-3 and
   Trending tabs; sortable price, day's move, funding, volume and open-interest
@@ -358,9 +364,9 @@ list covers is on screen without spending a row on it.
 - **Three tabs, with icons: Watched, then Fav, then All.** Watched leads and is
   the tab the panel opens on, because a price you have money committed to beats
   a market you might look at. Fav (starred) is one click away, All is the whole
-  catalog and where stars are put on. An empty Fav points at All, and an empty
-  Watched points at both — the panel no longer opens on a list of markets, so
-  its first screen has to say where they went.
+  catalog. An empty Fav points at the star in the market header, and an empty
+  Watched points at the other two tabs — the panel no longer opens on a list
+  of markets, so its first screen has to say where they went.
 - **The panel opens at a fifth of the workspace.** It used to open at a sixth,
   and three tabs did not fit that: "All" was half a label with the row scrolled
   sideways. The width is still yours to drag and still remembered per browser,
@@ -388,9 +394,14 @@ list covers is on screen without spending a row on it.
   shared `TableSortButton` — and clicking the sorted one flips the direction.
   Both headings lead with the time window, and so does the market picker's "24h
   change", so the three read the same way round.
+- **Stars are put on in the market header**, at the head of the row, before the
+  logo of the market on screen. Every row of the market picker has one too. The
+  rows of the market list have no star of their own. One star always on screen
+  beats one per row behind a hover.
 - **Stars save to the account, not the browser**, so favourites follow you
   between machines. Starring is optimistic and reverts with a toast if the save
-  fails.
+  fails. Two presses in a row both count. A save already on its way no longer
+  swallows the next press, it sends that press as soon as it is free.
 - **Settings → Markets holds one minimum daily dollar volume for the account.**
   Every exchange uses the same number. Markets below it disappear from every
   list, including Favorites and search, and a linked or remembered market below

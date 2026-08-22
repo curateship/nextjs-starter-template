@@ -191,29 +191,66 @@ export function TradeWorkspace({
 
   // ----- Favourites: optimistic, saved whole, reverted on failure ----------
   const [favoriteKeys, setFavoriteKeys] = React.useState(initialFavoriteKeys)
-  const [savingFavorites, setSavingFavorites] = React.useState(false)
   const favorites = React.useMemo(() => new Set(favoriteKeys), [favoriteKeys])
 
+  /**
+   * What the stars say on screen, and the last list the account agreed to.
+   *
+   * Held as refs rather than state because a press has to read them the
+   * instant it happens: star then unstar is an ordinary thing to do now the
+   * star is always on screen beside the market's name, and the second press
+   * cannot wait for a render to know what the first one decided.
+   */
+  const intendedKeys = React.useRef(initialFavoriteKeys)
+  const savedKeys = React.useRef(initialFavoriteKeys)
+  const saving = React.useRef(false)
+
+  /**
+   * One save at a time, always sending the newest list.
+   *
+   * A save in flight used to block the next press, which silently threw the
+   * press away — with the account's list a whole-list write, a press made
+   * during a save is simply sent by the save that follows it instead.
+   */
+  const saveFavorites = React.useCallback(async () => {
+    if (saving.current) return
+    saving.current = true
+    try {
+      while (intendedKeys.current !== savedKeys.current) {
+        const attempt = intendedKeys.current
+        try {
+          const saved = await saveMarketFavorites(attempt)
+          savedKeys.current = saved.marketKeys
+          // Nothing pressed while that was away: the account's answer is the
+          // truth. Otherwise leave the newer press alone and send it next.
+          if (intendedKeys.current === attempt) {
+            intendedKeys.current = saved.marketKeys
+            setFavoriteKeys(saved.marketKeys)
+          }
+        } catch (error) {
+          // Back to the last list the account agreed to — including any press
+          // made while this one was away, because none of them landed.
+          intendedKeys.current = savedKeys.current
+          setFavoriteKeys(savedKeys.current)
+          showErrorToast(getMarketFavoritesErrorMessage(error))
+          return
+        }
+      }
+    } finally {
+      saving.current = false
+    }
+  }, [])
+
   const toggleFavorite = React.useCallback(
-    async (key: string) => {
-      if (savingFavorites) return
-      const previous = favoriteKeys
-      const next = previous.includes(key)
+    (key: string) => {
+      const previous = intendedKeys.current
+      intendedKeys.current = previous.includes(key)
         ? previous.filter((candidate) => candidate !== key)
         : [...previous, key]
-      setFavoriteKeys(next)
-      setSavingFavorites(true)
-      try {
-        const saved = await saveMarketFavorites(next)
-        setFavoriteKeys(saved.marketKeys)
-      } catch (error) {
-        setFavoriteKeys(previous)
-        showErrorToast(getMarketFavoritesErrorMessage(error))
-      } finally {
-        setSavingFavorites(false)
-      }
+      setFavoriteKeys(intendedKeys.current)
+      void saveFavorites()
     },
-    [favoriteKeys, savingFavorites]
+    [saveFavorites]
   )
 
   const selection = resolveSelection(catalogs, selectedKey)
@@ -431,7 +468,7 @@ export function TradeWorkspace({
         selection={selection}
         markets={marketRows}
         favorites={favorites}
-        onToggleFavorite={(key) => void toggleFavorite(key)}
+        onToggleFavorite={toggleFavorite}
         onSelectMarket={onSelectMarket}
         // The chart's own controls live in the header row; they only make
         // sense once there is a market to chart. Indicators sit to the right

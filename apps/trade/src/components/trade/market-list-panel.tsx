@@ -26,7 +26,8 @@ import { cn } from "@/lib/utils"
  * Watched is every price you are waiting at. It leads the row and it is the
  * tab the panel opens on, because a level you have money committed to beats a
  * market you might look at. Fav is the starred set, one click away; All is the
- * whole catalog and where stars are put on.
+ * whole catalog. Stars are put on in the market header, at the head of the row
+ * showing the market on screen.
  */
 type PanelTab = MarketTab | "watched"
 
