@@ -562,7 +562,7 @@ describe("live Smart orders", () => {
     await watchThroughTheLevel()
     place.mockRejectedValue(
       new Error(
-        "ASTER_REGION:Aster does not allow trading from Trade's server location. No order was sent."
+        "ASTER_REFUSED:Aster refused the request for a reason Trade does not recognize (code -5019)."
       )
     )
 
