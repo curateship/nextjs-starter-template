@@ -57,6 +57,14 @@ export function formatUsdRounded(value: number): string {
 }
 
 /**
+ * Whole dollars, always: "$98", "$1,014". For a row that only has to tell a
+ * $20 stake from a $1,000 one; the Watched tab asked for its cents gone.
+ */
+export function formatWholeUsd(value: number): string {
+  return `$${USD_WHOLE.format(value)}`
+}
+
+/**
  * A gain or loss, sign always shown: "+$412.65", "-$18.90". In a column of
  * outcomes the sign is the reading, so it is never dropped — except on true
  * zero, which is neither.

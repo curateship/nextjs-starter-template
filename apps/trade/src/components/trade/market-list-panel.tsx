@@ -273,6 +273,7 @@ export function MarketListPanel({
       <TabsContent value="watched" className="min-h-0 flex-1">
         <WatchedOrdersList
           orders={watchedOrders.rows}
+          markets={rows}
           cacheScope={watchedOrders.cacheScope}
           refusals={watchedOrders.refusals}
           walletName={walletName}

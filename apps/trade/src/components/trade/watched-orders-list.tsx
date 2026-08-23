@@ -6,8 +6,8 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { marketSymbol } from "@/lib/protocols/contracts"
-import { formatAway, formatPrice, formatUsd } from "@/lib/trade/format"
+import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
+import { formatAway, formatPrice, formatWholeUsd } from "@/lib/trade/format"
 import type { LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import type { PaperOrder } from "@/lib/trade/paper"
@@ -50,6 +50,7 @@ import { cn } from "@/lib/utils"
  */
 export function WatchedOrdersList({
   orders,
+  markets,
   cacheScope,
   refusals,
   walletName,
@@ -60,6 +61,8 @@ export function WatchedOrdersList({
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly PaperOrder[]
+  /** The catalogue, for a price on an exchange whose feed does not tick. */
+  markets: readonly MarketRow[]
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
   cacheScope: string
   /**
@@ -133,7 +136,18 @@ export function WatchedOrdersList({
   const standingIn = !answered && cached !== null
   const rows = standingIn ? cached : fresh
 
-  const marks = useLiveMarks(rows.map((row) => row.marketKey))
+  const live = useLiveMarks(rows.map((row) => row.marketKey))
+  // **A price from the catalogue when the feed has none.** KuCoin has no
+  // all-markets socket topic, so its levels never got a live mark and sat
+  // without a distance at all; Phemex's feed takes a moment to speak. The
+  // catalogue's last mark is the same price the positions table falls back
+  // on, and it is redrawn whenever the page refetches the markets.
+  const marks = React.useMemo(() => {
+    const out = new Map<string, number>()
+    for (const market of markets) out.set(market.key, market.price)
+    for (const [key, price] of live) out.set(key, price)
+    return out
+  }, [markets, live])
 
   // The wallet is named on a row only when the list spans more than one.
   // The panel is a couple of hundred pixels wide, and with every level in the
@@ -238,10 +252,9 @@ function StaleAfterFailureNote({ onRetry }: { onRetry: () => void }) {
  * One waiting price: the coin, the level, how far the market is from it, and
  * what it will spend when it fires.
  *
- * **Two lines of two columns, both right-hand columns fixed.** The panel is a
- * couple of hundred pixels wide, so anything laid out as one long sentence
- * ends in an ellipsis before it reaches the number that matters. The coin and
- * the level give way first; the stake and the distance never do.
+ * **One line, shaped like a market row.** The panel is a couple of hundred
+ * pixels wide, so the coin gives way to an ellipsis first; the stake and the
+ * distance pill never do. Which way and at what price are on the tooltip.
  *
  * The whole row is the one button and it charts the coin, the same press the
  * market rows above it answer to. Cancelling stays where it already is — the
@@ -270,44 +283,32 @@ function WatchedRow({
     <button
       type="button"
       onClick={onSelect}
+      title={`${symbol} · ${level.side === "buy" ? "Buy" : "Sell"} ${line.at}${wallet ? ` · ${wallet}` : ""}`}
       className={cn(
-        "flex min-w-0 items-start gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-muted/50",
+        "flex min-w-0 flex-col justify-center rounded-lg px-3 py-1.5 text-left hover:bg-muted/50",
         focusRing
       )}
     >
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2">
-          <span
-            title={symbol}
-            className="min-w-0 flex-1 truncate text-sm font-medium"
-          >
-            {symbol}
-          </span>
-          <span className="shrink-0 text-xs tabular-nums">
-            {formatUsd(level.px * level.sz)}
+      {/* The same shape as a market row on Fav and All: the name and a quiet
+          figure on the left, a pill on the right. Here the figure is what the
+          order will spend and the pill is how far the price has to travel,
+          green because a level waiting is a level still safe. Which way, at
+          what price and from which wallet sit on the row's tooltip — the list
+          is for scanning; the chart the press opens shows the level itself. */}
+      <span className="flex h-6 min-w-0 items-center gap-2">
+        <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+          <span className="min-w-0 truncate text-sm font-medium">{symbol}</span>
+          <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
+            {formatWholeUsd(level.px * level.sz)}
           </span>
         </span>
-        <span className="flex items-baseline gap-2 text-xs leading-4 text-muted-foreground">
-          <span className="min-w-0 flex-1 truncate">
-            {/* The colour is decoration; the word is the answer, so a row
-                still reads right to anyone who cannot tell the greens from
-                the reds. */}
-            <span
-              className={
-                level.side === "buy"
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
-              }
-            >
-              {level.side === "buy" ? "Buy" : "Sell"}
-            </span>{" "}
-            {line.at}
-            {wallet ? ` · ${wallet}` : ""}
+        {line.away ? (
+          <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs text-emerald-600 tabular-nums dark:bg-emerald-500/15 dark:text-emerald-400">
+            {line.away}
           </span>
-          <span className="shrink-0 tabular-nums">{line.away}</span>
-        </span>
-        {refusal ? <RefusalNote refusal={refusal} /> : null}
+        ) : null}
       </span>
+      {refusal ? <RefusalNote refusal={refusal} /> : null}
     </button>
   )
 }

@@ -23,6 +23,7 @@ const EMPTY = "Nothing is waiting at a price"
 const READING = "Reading your watched prices"
 
 const shared = {
+  markets: [],
   cacheScope: "test:hyperliquid",
   refusals: new Map(),
   walletName: () => "Main",

@@ -448,10 +448,14 @@ at a time on the chart, or mixed in with everything else under Open orders.
 - **A row per order, not per coin.** Two levels on the same coin are two rows.
   That is the one way this tab differs from Fav and All, which are slices of
   the catalogue. Watched rows show the coin name without its favicon.
-- **Two lines, two columns each.** The coin and what it will spend on the top
-  line; which way, at what price, and how far today's price is from it on the
-  second. The panel is a few hundred pixels wide, so the coin and the level
-  give way to an ellipsis first and the two figures on the right never do.
+- **One line per row, shaped like a market row.** The coin with what the
+  order will spend beside it in the quiet grey the volume figure uses, and on
+  the right a green pill saying how far today's price is from the level:
+  "PENDLE  $199  [36.09% away]". The dollars are whole dollars, because the
+  row is for telling a $20 level from a $1,000 one. Which way, at what price
+  and from which wallet sit on the row's tooltip; the chart the press opens
+  shows the level itself. The coin gives way to an ellipsis first and the
+  figures on the right never do.
 - **The wallet is named only when the list spans more than one.** With every
   level in the same wallet its name is the same word on every row, pushing the
   level into an ellipsis to say nothing.
@@ -464,8 +468,11 @@ at a time on the chart, or mixed in with everything else under Open orders.
   move to sort by, and a sort button that does nothing is worse than none.
 - **"Reached" is the engine's own rule**, so the list and the engine can never
   disagree about whether a price has arrived: a buy is reached when today's
-  price has come down to it, a sell when it has come up. Without a live price
-  the distance column is empty, because a dash there would read as zero.
+  price has come down to it, a sell when it has come up. The price is the
+  live feed's where there is one, and the catalogue's last mark where there
+  is not — KuCoin has no all-markets feed, so its rows had no distance at all
+  until 23 Aug 2026. With neither, the pill is left off, because a dash there
+  would read as zero.
 - **Loading, empty and failed are three different answers.** "Nothing is
   waiting" is only said once the read has come back.
 - **It opens on the levels this browser saw last time**, so there is no spinner
