@@ -2,6 +2,7 @@ import * as React from "react"
 import { ChevronDownIcon, SearchIcon } from "lucide-react"
 
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
+import { MarketIcon } from "@/components/trade/market-icon"
 
 import { Input } from "@/components/ui/input"
 import {
@@ -245,11 +246,17 @@ export function MarketPicker({
             openedByHover.current = false
             searchRef.current?.focus()
           }}
-          className="flex max-w-full items-center gap-1.5 rounded-md px-1 py-0.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="flex h-full max-w-full min-w-0 items-center gap-1.5 rounded-l-lg px-2.5 font-bold transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
+          <MarketIcon symbol={selected.symbol} iconUrl={selected.iconUrl} />
           <span className="truncate">
             {displaySymbol(selected.symbol)}-{selected.quoteAsset}
           </span>
+          {selected.maxLeverage !== null ? (
+            <span className="shrink-0 text-xs font-medium text-muted-foreground">
+              {selected.maxLeverage}×
+            </span>
+          ) : null}
           <ChevronDownIcon className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>

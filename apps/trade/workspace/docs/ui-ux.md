@@ -27,20 +27,23 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, and on
-  the right the timeframe picker (1m–1d, remembered per browser, 4h the
-  default) with the Indicators dropdown after it. The star is amber and filled
-  when the market is in any folder and a hollow outline when it is not, so the
-  two do not differ by colour alone. An empty star names the Fav action. A
+  the right the timeframe dropdown (1m–1d, remembered per browser, 4h the
+  default), the indicator button and the view button. The indicator button's
+  small count says how many indicators are on. Each control uses the muted gray
+  inside its border, while the rest of the header keeps the card background.
+  The star is amber and filled when the market is in any folder and a hollow
+  outline when it is not, so the two do not differ by colour alone. An empty
+  star names the Fav action. A
   filled star names the folder menu. The star
   leads the row so that the name is what gives way as the panel narrows. On a
   phone the timeframe row leaves the name no width at all, and anything behind
-  the name would never be on screen. The timeframe picker is one segmented
-  choice. Its raised tab marks the selected interval, and the arrow keys move
-  through the row.
-  Every control in that row is 32px high. Pressing the market name opens the
-  full market picker: search; segmented tabs; sortable figures; and a star on
-  every row. Favorites, All and Trending are always there. Phemex and KuCoin
-  stop there because every market is crypto. Hyperliquid also has Crypto,
+  the name would never be on screen. The star has its own outlined button. The
+  market logo, name, top leverage, arrow and info button sit in one outlined
+  group. The leverage is secondary 12px text beside the larger market name.
+  Every control in that row is 28px high. Pressing the market name
+  opens the full market picker: search; segmented tabs; sortable figures; and
+  a star on every row. Favorites, All and Trending are always there. Phemex and
+  KuCoin stop there because every market is crypto. Hyperliquid also has Crypto,
   TradFi and HIP-3. Aster adds Crypto and TradFi only while its current list
   contains something outside crypto. An exchange omits funding or open
   interest when it cannot fill that column. Moving to an exchange that lacks
@@ -146,8 +149,8 @@ timeframe, and the rail says what the pointer is holding.
 ## Indicators
 
 **An indicator is a chart control, so it lives in the chart's controls.** There
-is no indicators page and no dashboard behind them. The **Indicators** dropdown
-sits in the market header beside the timeframe, and the number in it says how
+is no indicators page and no dashboard behind them. The indicator button sits
+in the market header beside the timeframe, and the badge on its icon says how
 many are switched on.
 
 - **Each indicator has three separate controls.** Its switch turns the drawing
@@ -166,9 +169,9 @@ many are switched on.
   and not the browser — the same rule as the zoom, and for the same reason: an
   indicator is how you read a chart, not a fact about one coin. It carries onto
   the next market, the next timeframe and the other machine.
-- **The eye after Indicators opens the View options window.** Chart, Your
-  activity and Timezone each have their own card. The five checkboxes show or
-  hide the chart grid, volume bars, crosshair, order arrows and your drawings.
+- **The eye after the indicator button opens the View options window.** Chart,
+  Your activity and Timezone each have their own card. The five checkboxes show
+  or hide the chart grid, volume bars, crosshair, order arrows and your drawings.
   All five start on, and each choice follows the account onto the next market,
   visit and machine. When order arrows are on, **Previous trades** accepts any
   positive whole number for how many finished trades to keep, and an empty

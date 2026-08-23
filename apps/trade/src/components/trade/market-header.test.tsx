@@ -83,10 +83,14 @@ function draw(selection: MarketSelection, favorites: string[]): string {
 describe("the market header's star", () => {
   it("names the exchange, network and quote asset and offers market rules", () => {
     const markup = draw(market, [])
+    expect(markup.match(/bg-muted\/60/g)?.length).toBeGreaterThanOrEqual(2)
     expect(markup).toContain("BTC-USDC")
+    expect(markup).toContain("text-xs font-medium text-muted-foreground")
     expect(markup).toContain("Hyperliquid")
     expect(markup).toContain("Mainnet")
-    expect(markup).toContain('aria-label="About BTC market"')
+    expect(markup).toContain(
+      'aria-label="About BTC market, Hyperliquid, Mainnet"'
+    )
   })
 
   it("states a market's smallest dollar order when the venue gives one", () => {
@@ -126,7 +130,7 @@ describe("the market header's star", () => {
     const star = markup.indexOf('aria-label="Add BTC to Fav"')
     // No logo on this row, so the art is the first-letter circle.
     const art = markup.indexOf("rounded-full")
-    const name = markup.indexOf('aria-label="Choose market"')
+    const name = markup.indexOf(">BTC-USDC<")
     expect(star).toBeLessThan(art)
     expect(art).toBeLessThan(name)
   })

@@ -317,16 +317,14 @@ export function IndicatorsMenu({
             <PopoverTrigger asChild>
               <Button
                 type="button"
-                variant="ghost"
+                variant="outline"
+                size="icon-sm"
                 aria-label={on ? `Indicators, ${on} on` : "Indicators"}
-                className="relative px-2 text-xs"
+                className="relative bg-muted/60 dark:bg-muted/60"
               >
-                <ChartNoAxesCombinedIcon className="size-4 sm:hidden" />
-                <span className="hidden sm:inline">
-                  Indicators{on ? ` (${on})` : ""}
-                </span>
+                <ChartNoAxesCombinedIcon className="size-4" />
                 {on ? (
-                  <span className="absolute top-0.5 right-0.5 text-[9px] leading-none sm:hidden">
+                  <span className="absolute -top-1 -right-1 flex size-3 items-center justify-center rounded-full bg-foreground text-[8px] leading-none text-background">
                     {on}
                   </span>
                 ) : null}

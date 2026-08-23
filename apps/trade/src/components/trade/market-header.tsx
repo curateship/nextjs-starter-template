@@ -6,10 +6,8 @@ import {
   WalletIcon,
 } from "lucide-react"
 
-import { MarketIcon } from "@/components/trade/market-icon"
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { TradeBadge } from "@/components/trade/trade-badge"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import {
@@ -108,7 +106,7 @@ export function MarketHeader({
 
   const action =
     toolbar || sheetButtons ? (
-      <div className="flex items-center gap-0.5 sm:gap-2">
+      <div className="flex items-center gap-2">
         {toolbar}
         {sheetButtons}
       </div>
@@ -148,75 +146,37 @@ export function MarketHeader({
   }
 
   return (
-    <WorkspacePanelHeader
-      /* The star comes first, before the market's own art, and the header's
-         leading slot cannot hold it: that slot is hidden from screen readers,
-         which is right for a decorative glyph and wrong for a button. So the
-         slot is folded away and the title carries all three — star, art, then
-         name — in that order. */
-      className="[&>span:first-child]:hidden"
-      icon={null}
-      title={
-        <span className="flex min-w-0 items-center gap-0.5">
-          <MarketFolderStar
-            symbol={selection.row.symbol}
-            marketKey={selection.row.key}
-            folders={folders}
-            busy={folderActions.busy}
-            onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
-            onToggle={(folderId, saved) =>
-              folderActions.toggle(selection.row.key, folderId, saved)
-            }
-            onCreate={(name) => folderActions.create(selection.row.key, name)}
-          />
-          {/* The star and the name both give way to nothing: the star keeps
-              its size, and the name is what truncates as the panel narrows.
-              On a phone the timeframe row leaves the name no width at all,
-              and anything behind the name would never be on screen. */}
-          <span className="flex min-w-0 items-center gap-2.5">
-            {/* The market's own art, not a generic chart glyph — the row
-                carries the URL, so this header still has no idea which
-                exchange it came from. */}
-            <MarketIcon
-              symbol={selection.row.symbol}
-              iconUrl={selection.row.iconUrl}
-            />
-            <span className="min-w-0">
-              <MarketPicker
-                key={parseMarketKey(selection.row.key)?.protocol}
-                rows={markets}
-                selected={selection.row}
-                capabilities={selection.picker}
-                folders={folders}
-                folderActions={folderActions}
-                onSelect={onSelectMarket}
-              />
-            </span>
-          </span>
-        </span>
-      }
-      meta={
-        <span className="flex items-center gap-2">
-          <span className="text-muted-foreground">
-            {selection.protocolLabel}
-          </span>
-          {selection.row.maxLeverage !== null ? (
-            <span>{selection.row.maxLeverage}×</span>
-          ) : null}
-          <TradeBadge
-            tone={
-              parseMarketKey(selection.row.key)?.network === "testnet"
-                ? "testnet"
-                : "neutral"
-            }
-          >
-            {selection.networkLabel}
-          </TradeBadge>
+    <div
+      data-slot="workspace-panel-header"
+      className="flex h-[3.15rem] shrink-0 items-center gap-2 border-b px-4 sm:px-5"
+    >
+      <MarketFolderStar
+        symbol={selection.row.symbol}
+        marketKey={selection.row.key}
+        folders={folders}
+        busy={folderActions.busy}
+        onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
+        onToggle={(folderId, saved) =>
+          folderActions.toggle(selection.row.key, folderId, saved)
+        }
+        onCreate={(name) => folderActions.create(selection.row.key, name)}
+      />
+      <div className="flex h-7 min-w-0 items-center rounded-lg border bg-muted/60">
+        <MarketPicker
+          key={parseMarketKey(selection.row.key)?.protocol}
+          rows={markets}
+          selected={selection.row}
+          capabilities={selection.picker}
+          folders={folders}
+          folderActions={folderActions}
+          onSelect={onSelectMarket}
+        />
+        <span className="flex h-full shrink-0 items-center border-l">
           <MarketInfo selection={selection} />
         </span>
-      }
-      action={action}
-    />
+      </div>
+      {action ? <div className="ml-auto shrink-0">{action}</div> : null}
+    </div>
   )
 }
 
@@ -236,7 +196,8 @@ function MarketInfo({
           type="button"
           variant="ghost"
           size="icon-sm"
-          aria-label={`About ${selection.row.symbol} market`}
+          aria-label={`About ${selection.row.symbol} market, ${selection.protocolLabel}, ${selection.networkLabel}`}
+          className="h-full rounded-l-none"
         >
           <InfoIcon className="size-4" />
         </Button>

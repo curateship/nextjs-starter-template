@@ -76,7 +76,7 @@ export function MarketFolderStar({
   ) : (
     <Button
       type="button"
-      variant="ghost"
+      variant="outline"
       size="icon-sm"
       aria-label={
         filled ? `Choose folders for ${symbol}` : `Add ${symbol} to Fav`
@@ -84,7 +84,7 @@ export function MarketFolderStar({
       aria-pressed={filled}
       onClick={(event) => event.stopPropagation()}
       className={cn(
-        "text-muted-foreground hover:text-amber-500 focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-solid",
+        "bg-muted/60 text-muted-foreground hover:text-amber-500 focus-visible:ring-0 focus-visible:outline-solid dark:bg-muted/60",
         focusRingInset,
         filled && "text-amber-500 dark:text-amber-400"
       )}

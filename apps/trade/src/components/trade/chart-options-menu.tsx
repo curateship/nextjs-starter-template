@@ -118,9 +118,10 @@ export function ChartOptionsMenu({
         <TooltipTrigger asChild>
           <Button
             type="button"
-            variant="ghost"
-            size="icon"
+            variant="outline"
+            size="icon-sm"
             aria-label="View options"
+            className="bg-muted/60 dark:bg-muted/60"
             onClick={() => openDialog(true)}
           >
             <EyeIcon className="size-4" />

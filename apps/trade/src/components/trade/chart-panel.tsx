@@ -1,5 +1,5 @@
 import * as React from "react"
-import { CandlestickChartIcon } from "lucide-react"
+import { CandlestickChartIcon, ChevronDownIcon } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -39,9 +39,15 @@ import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
+import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
 import {
   FIRST_PAINT_MS,
@@ -108,7 +114,7 @@ function rememberDrawnChart(key: string, candles: CandleBar[]) {
 }
 
 /**
- * The timeframe row. It draws in the middle panel's header — the workspace
+ * The timeframe dropdown. It draws in the middle panel's header — the workspace
  * owns the remembered choice and hands it to both this picker and the chart's
  * fetch, so the two can never disagree.
  */
@@ -120,23 +126,33 @@ export function IntervalPicker({
   onChange: (next: CandleInterval) => void
 }) {
   return (
-    <Tabs
-      value={value}
-      onValueChange={(next) => onChange(next as CandleInterval)}
-      className="block"
-    >
-      <TabsList aria-label="Candle interval">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Candle interval"
+          className="min-w-12 bg-muted/60 px-2 dark:bg-muted/60"
+        >
+          {value}
+          <ChevronDownIcon className="size-3.5 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
         {CANDLE_INTERVALS.map((option) => (
-          <TabsTrigger
+          <DropdownMenuCheckboxItem
             key={option}
-            value={option}
-            className="px-0.5 text-xs sm:px-1.5"
+            checked={option === value}
+            onCheckedChange={(checked) => {
+              if (checked) onChange(option)
+            }}
           >
             {option}
-          </TabsTrigger>
+          </DropdownMenuCheckboxItem>
         ))}
-      </TabsList>
-    </Tabs>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

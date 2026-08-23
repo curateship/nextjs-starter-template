@@ -121,16 +121,24 @@ function Picker() {
 }
 
 describe("the chart interval picker", () => {
-  it("is one named choice and moves through intervals with the arrow keys", async () => {
+  it("shows the current interval as one named dropdown", async () => {
     await act(async () => root.render(<Picker />))
 
-    const group = host.querySelector<HTMLElement>("[role=tablist]")
-    const tabs = Array.from(
-      host.querySelectorAll<HTMLButtonElement>("[role=tab]")
+    const trigger = host.querySelector<HTMLElement>(
+      'button[aria-label="Candle interval"]'
     )
+    expect(trigger?.textContent).toContain("4h")
+    expect(trigger?.getAttribute("aria-haspopup")).toBe("menu")
 
-    expect(group?.getAttribute("aria-label")).toBe("Candle interval")
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
+    await act(async () => {
+      trigger?.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, button: 0 })
+      )
+    })
+    const options = Array.from(
+      document.body.querySelectorAll<HTMLElement>("[role=menuitemcheckbox]")
+    )
+    expect(options.map((option) => option.textContent?.trim())).toEqual([
       "1m",
       "5m",
       "15m",
@@ -138,17 +146,9 @@ describe("the chart interval picker", () => {
       "4h",
       "1d",
     ])
-    expect(tabs[4].getAttribute("aria-selected")).toBe("true")
 
-    tabs[4].focus()
-    await act(async () => {
-      tabs[4].dispatchEvent(
-        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
-      )
-    })
-
-    expect(document.activeElement?.textContent).toBe("1d")
-    expect(tabs[5].getAttribute("aria-selected")).toBe("true")
+    await act(async () => options.at(-1)?.click())
+    expect(trigger?.textContent).toContain("1d")
   })
 })
 
