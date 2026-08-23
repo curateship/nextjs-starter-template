@@ -152,20 +152,22 @@ export function MarketFoldersPanel({
           <div className="flex items-center gap-1">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon-sm"
               aria-label="Add folder"
               title="Add folder"
+              className="bg-muted/60 dark:bg-muted/60"
               onClick={() => setCreating((shown) => !shown)}
             >
               <PlusIcon className="size-4" />
             </Button>
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="icon-sm"
               aria-label="Manage folders"
               title="Manage folders"
+              className="bg-muted/60 dark:bg-muted/60"
               onClick={() => {
                 setCreating(false)
                 setManaging(true)
@@ -249,7 +251,7 @@ export function MarketFoldersPanel({
                           row={market}
                           selected={market.key === selectedMarketKey}
                           onSelect={() => onSelectMarket(market.key)}
-                          className="rounded-none px-4 sm:px-5"
+                          className="px-4 sm:px-5"
                         />
                       ))}
                     </div>

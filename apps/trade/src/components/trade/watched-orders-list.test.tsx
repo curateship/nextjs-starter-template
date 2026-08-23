@@ -30,6 +30,7 @@ const shared = {
   walletName: () => "Main",
   onRetry: () => {},
   onSelectMarket: () => {},
+  selectedKey: null,
 }
 
 const waitingLevel: TradeOrder = {

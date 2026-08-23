@@ -93,6 +93,17 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the panel is the same order as making the decision.
 - **Bottom — what you are holding.** Positions, open orders and fills, as tabs.
 
+**Every tab row and header icon on the workspace uses one pill style**, the
+muted-gray-inside-a-border of the middle header's timeframe button. The
+selected tab of any panel is that pill, 28px high; the tabs not selected are
+plain gray text with no line under them. The old style — a black underline
+under the selected tab — is gone. Icon buttons that sit in a panel header (the
+account panel's add-wallet +, the Folders panel's + and cog, the narrow-screen
+markets and account buttons) carry the same pill background instead of being
+bare icons. The pill itself lives on the shared `WorkspacePanelTab` in
+`src/components/shared/workspace-panel-header.tsx`, a shell file changed in
+Custom Shell first and carried here unchanged.
+
 The right panel is **two rows with a divider between them**. The rows drag
 against each other and their split is remembered. The panel as a whole is what
 shuts, so both rows go together — and both cards have to be taken away at once,
@@ -160,6 +171,11 @@ many are switched on.
   indicator uses the same header, card, field and footer layout. The cards keep
   each indicator's own groups, such as **Settings** and **Visibility** for Base
   or **The session** and **Visibility** for Opening range.
+- **The cards in that window are the shared `Card`, the same one every modal
+  uses** — not a hand-drawn grey block. The EMA window's cards were already
+  the shared one, and one window holding two kinds of card is what got this
+  fixed. The same cards draw the indicator settings on the automation canvas's
+  Signals step, white against the panel's grey.
 - Every setting explains itself through the info icon beside its label.
   **Reset to defaults** resets the open indicator's draft. **Cancel** throws the
   draft away, and **Save changes** applies it to the chart and remembers it.
@@ -378,7 +394,7 @@ does not close the position immediately.
 ## The market list
 
 The panel is shaped like the automation palette, its sibling on the other
-workspace: the underline tab row is the top of the panel, the sort headers sit
+workspace: the pill tab row is the top of the panel, the sort headers sit
 under it, the list fills the middle, and the search is the bottom bar — its
 placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
 list covers is on screen without spending a row on it.
@@ -470,6 +486,11 @@ at a time on the chart, or mixed in with everything else under Open orders.
 - **Pressing a row charts that coin**, the same press the market rows answer
   to. Calling an order off stays where it already is, the × in Open orders and
   the line on the chart, rather than becoming a second place to cancel.
+- **The charted coin's rows carry the same gray fill the All tab uses.** Every
+  level on that coin is filled, because they all belong to the chart on
+  screen — two levels on the charted coin are two filled rows. On both tabs
+  the fill runs edge to edge and the first row sits flush under the header
+  line, the way the Folders panel already draws its rows.
 - **The sort headers are hidden on this tab.** There is no volume and no day's
   move to sort by, and a sort button that does nothing is worse than none.
 - **"Reached" is the engine's own rule**, so the list and the engine can never

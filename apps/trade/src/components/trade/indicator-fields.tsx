@@ -2,6 +2,12 @@ import * as React from "react"
 import { ChevronDownIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ColorSwatch } from "@/components/ui/color-swatch"
 import {
@@ -44,17 +50,6 @@ import { cn } from "@/lib/utils"
  */
 
 /**
- * Where these fields are sitting, which is the only thing that differs between
- * the two callers.
- *
- * On the chart the menu floats on white, so a card of settings is a light grey
- * block. On a node panel the card underneath is already grey, so the same block
- * has to be white to stand off it — the rule `InspectorNote` follows for the
- * same reason. Nothing else about the form changes.
- */
-export type IndicatorFieldsTone = "menu" | "panel"
-
-/**
  * The settings on one card, in the order the card lists them.
  *
  * A card naming a setting that does not exist draws nothing rather than
@@ -93,7 +88,6 @@ export function IndicatorSettingsCards({
         <SettingsCard
           key={group.title}
           title={group.title}
-          tone="menu"
           open
           foldable={false}
           onOpenChange={() => {}}
@@ -113,7 +107,6 @@ export function IndicatorRow({
   module,
   state,
   context,
-  tone = "menu",
   idPrefix = "indicator",
   description,
   onOpenChange,
@@ -131,7 +124,6 @@ export function IndicatorRow({
    * and a session start means nothing without a timezone.
    */
   context: IndicatorContext
-  tone?: IndicatorFieldsTone
   /**
    * What the field ids are built from. Two of these on one screen — a chart
    * behind an open panel — would otherwise give two controls the same id, and
@@ -193,7 +185,6 @@ export function IndicatorRow({
           <SettingsCard
             key={group.title}
             title={group.title}
-            tone={tone}
             open={!state.shutCards.includes(group.title)}
             onOpenChange={(next) => onCardOpenChange(group.title, next)}
             fields={fieldsOn(module, group)}
@@ -229,7 +220,6 @@ export function IndicatorRow({
  */
 function SettingsCard({
   title,
-  tone,
   open,
   onOpenChange,
   fields,
@@ -239,7 +229,6 @@ function SettingsCard({
   foldable = true,
 }: {
   title: string
-  tone: IndicatorFieldsTone
   open: boolean
   onOpenChange: (open: boolean) => void
   fields: IndicatorField[]
@@ -253,40 +242,47 @@ function SettingsCard({
       <button
         type="button"
         className={cn(
-          "group/card flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left text-sm leading-none font-medium select-none",
+          "group/card flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
           focusRingInset
         )}
       >
-        {title}
+        <CardTitle>{title}</CardTitle>
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
       </button>
     </CollapsibleTrigger>
   ) : (
-    <h3 className="text-sm font-medium">{title}</h3>
+    <CardTitle>{title}</CardTitle>
   )
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={onOpenChange}
-      className={cn(
-        "grid gap-4 rounded-lg border p-3",
-        tone === "panel" ? "bg-background" : "bg-muted/30"
-      )}
-    >
-      {heading}
-      <CollapsibleContent className="grid gap-4">
-        {fields.map((field) => (
-          <Setting
-            key={field.key}
-            id={`${idPrefix}-${field.key}`}
-            field={field}
-            value={params[field.key]}
-            onSet={(value) => onSet(field.key, value)}
-          />
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
+    // The shared Card, not a hand-drawn grey block: everything that styles a
+    // card finds it by `data-slot="card"`, and the EMA window's cards are
+    // already this — one window must not hold two kinds of card. The fold
+    // sits INSIDE the card as `display: contents`, because wrapping the card
+    // in the Collapsible (asChild) let the collapsible's own `data-slot`
+    // overwrite the card's, and the element stopped being a card to CSS.
+    <Card size="sm">
+      <Collapsible
+        open={open}
+        onOpenChange={onOpenChange}
+        className="contents"
+      >
+        <CardHeader>{heading}</CardHeader>
+        <CollapsibleContent asChild>
+          <CardContent className="grid gap-4">
+            {fields.map((field) => (
+              <Setting
+                key={field.key}
+                id={`${idPrefix}-${field.key}`}
+                field={field}
+                value={params[field.key]}
+                onSet={(value) => onSet(field.key, value)}
+              />
+            ))}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
   )
 }
 
@@ -311,10 +307,10 @@ function Setting({
           value={typeof value === "string" ? value : field.fallback}
           onValueChange={onSet}
         >
-          {/* Full width rather than content-width: these sit in a narrow card
-              inside a dropdown, where a trigger that resizes itself as the
-              choice changes makes the whole card jump. */}
-          <SelectTrigger id={id} className="w-full bg-background">
+          {/* Full width rather than content-width: these sit in a narrow card,
+              where a trigger that resizes itself as the choice changes makes
+              the whole card jump. */}
+          <SelectTrigger id={id} className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -342,7 +338,6 @@ function Setting({
           id={id}
           type="time"
           value={typeof value === "string" ? value : field.fallback}
-          className="bg-background"
           onChange={(event) => {
             if (event.target.value === "") return
             onSet(event.target.value)
@@ -433,9 +428,6 @@ function NumberSetting({
         id={id}
         inputMode="numeric"
         value={text}
-        // The shared field is see-through, which on a grey card makes a box you
-        // type into look like one you cannot.
-        className="bg-background"
         onChange={(event) => {
           setText(event.target.value)
           const typed = Number(event.target.value)

@@ -98,7 +98,6 @@ export default function TradeSignalsFields({
               zone: DEFAULT_TRADING_ZONE,
               interval: settings.interval,
             }}
-            tone="panel"
             idPrefix={`signals-${node.id}`}
             // The library describes what an indicator DRAWS, which is the right
             // sentence on a chart and the wrong one here. What matters on this

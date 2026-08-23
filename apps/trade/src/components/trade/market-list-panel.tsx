@@ -43,12 +43,12 @@ const SORT_STARTS_DESC: Record<SortKey, boolean> = {
  * whole point is that the two agree; two copies would drift apart the first
  * time either was touched.
  *
- * 16px each side, the same gutter the other panels' headers use, so the list
- * sits in from the card's edge rather than up against it. The rows are inside
- * a container with its own `p-1`, so their buttons carry 12px to reach it.
+ * 16px each side, the same gutter the other panels' headers use. The rows
+ * carry the full 16px themselves and their background runs edge to edge —
+ * Tyler asked for the selected fill to reach the panel's edges (23 Aug 2026),
+ * so the list container keeps no side padding for the rows to sit inside.
  */
 const ROW_COLUMNS = "gap-1 px-4"
-const ROW_COLUMNS_INSIDE_LIST = "gap-1 px-3"
 
 /**
  * The width the day's-move column reserves. Set by the widest thing in it,
@@ -159,7 +159,7 @@ export function MarketListPanel({
             : "The exchange is not listing any markets right now."}
         </p>
       ) : (
-        <div className="flex flex-col p-1">
+        <div className="flex flex-col">
           {visible.map((row) => (
             <MarketRowLine
               key={row.key}
@@ -179,7 +179,7 @@ export function MarketListPanel({
       onValueChange={(value) => setTab(value as MarketPanelTab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      {/* Row one: the same underline tab row as the automation palette. */}
+      {/* Row one: the same pill tab row as the automation palette. */}
       <div className="shrink-0 overflow-x-auto">
         <WorkspacePanelTabsHeader>
           <WorkspacePanelTab
@@ -257,6 +257,7 @@ export function MarketListPanel({
           failed={watchedOrders.failed}
           onRetry={watchedOrders.onRetry}
           onSelectMarket={onSelect}
+          selectedKey={selectedKey}
         />
       </TabsContent>
       <TabsContent value="all" className="min-h-0 flex-1">
@@ -329,8 +330,8 @@ export function MarketRowLine({
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex h-9 min-w-0 items-center rounded-lg text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        ROW_COLUMNS_INSIDE_LIST,
+        "flex h-9 min-w-0 items-center text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        ROW_COLUMNS,
         selected ? "bg-muted" : "hover:bg-muted/50",
         className
       )}

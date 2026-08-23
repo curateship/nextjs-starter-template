@@ -58,6 +58,7 @@ export function WatchedOrdersList({
   failed,
   onRetry,
   onSelectMarket,
+  selectedKey,
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
   orders: readonly TradeOrder[]
@@ -85,6 +86,8 @@ export function WatchedOrdersList({
   failed: boolean
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
+  /** The market on the chart, so its rows read as the one already open. */
+  selectedKey: string | null
 }) {
   // Read a beat after the first render, never during it: this page renders on
   // the server too, and the server has no localStorage. Reading it up front
@@ -199,7 +202,7 @@ export function WatchedOrdersList({
               full market list is under All.
             </p>
           ) : (
-            <div className="flex flex-col p-1">
+            <div className="flex flex-col">
               {rows.map((row) => (
                 <WatchedRow
                   key={row.id}
@@ -207,6 +210,7 @@ export function WatchedOrdersList({
                   wallet={severalWallets ? walletName(row.walletId) : null}
                   mark={marks.get(row.marketKey) ?? null}
                   refusal={refusalForWatchedOrder(refusals, row)}
+                  selected={row.marketKey === selectedKey}
                   onSelect={() => onSelectMarket(row.marketKey)}
                 />
               ))}
@@ -266,6 +270,7 @@ function WatchedRow({
   wallet,
   mark,
   refusal,
+  selected,
   onSelect,
 }: {
   level: WatchedLevel
@@ -275,6 +280,12 @@ function WatchedRow({
   mark: number | null
   /** The last thing the exchange said no to on this market, if anything. */
   refusal: LiveRefusal | null
+  /**
+   * This level's market is the one on the chart. The same `bg-muted` the All
+   * tab's rows use, and every level on that market carries it — they all
+   * belong to the chart being shown.
+   */
+  selected: boolean
   onSelect: () => void
 }) {
   const symbol = marketSymbol(level.marketKey)
@@ -283,9 +294,11 @@ function WatchedRow({
     <button
       type="button"
       onClick={onSelect}
+      aria-current={selected ? "true" : undefined}
       title={`${symbol} · ${level.side === "buy" ? "Buy" : "Sell"} ${line.at}${wallet ? ` · ${wallet}` : ""}`}
       className={cn(
-        "flex min-w-0 flex-col justify-center rounded-lg px-3 py-1.5 text-left hover:bg-muted/50",
+        "flex min-w-0 flex-col justify-center px-4 py-1.5 text-left",
+        selected ? "bg-muted" : "hover:bg-muted/50",
         focusRing
       )}
     >

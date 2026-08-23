@@ -513,10 +513,10 @@ function PositionsGlance({
       {/* A wrapper, NOT `asChild`. The tooltip's trigger writes its own
           `data-state` (open/closed) onto whatever element it becomes — and
           handed the tab itself, that overwrote the tab's own
-          `data-state="active"`, so the underline under the selected tab
+          `data-state="active"`, so the pill behind the selected tab
           stopped being drawn. Wrapping keeps the two states on two elements. */}
       <TooltipTrigger asChild>
-        <span className="flex h-full items-stretch">{children}</span>
+        <span className="flex h-full items-center">{children}</span>
       </TooltipTrigger>
       <TooltipContent align="start" className="max-w-none p-0">
         <div className="flex flex-col gap-1 p-2">

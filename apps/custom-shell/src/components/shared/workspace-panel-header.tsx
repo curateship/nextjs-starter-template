@@ -137,7 +137,7 @@ export function WorkspacePanelTabsHeader({
 }) {
   return (
     <div data-slot="workspace-panel-header" className="shrink-0 border-b px-3">
-      <TabsList className="-mb-px h-[3.15rem] w-full justify-start gap-4 rounded-none bg-transparent p-0">
+      <TabsList className="h-[3.15rem] w-full justify-start gap-2 rounded-none bg-transparent p-0">
         {children}
       </TabsList>
     </div>
@@ -157,15 +157,18 @@ export function WorkspacePanelTab({
 }) {
   return (
     <TabsTrigger
+      // The selected tab is the same light grey pill as the chart toolbar's
+      // buttons — `h-7`, a real border, `bg-muted/60` — so tabs and header
+      // controls read as one family. Unselected tabs are plain text.
       className={cn(
-        "group/panel-tab h-full flex-none rounded-none border-b-2 border-transparent px-0.5 text-muted-foreground data-[state=active]:border-foreground/75 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        "group/panel-tab h-7 flex-none rounded-[min(var(--radius-md),12px)] border border-transparent px-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-border data-[state=active]:bg-muted/60 data-[state=active]:text-foreground data-[state=active]:shadow-none",
         workspacePanelTabClassName,
         className
       )}
       {...props}
     >
-      <span className="flex items-center gap-[3px]">
-        <WorkspacePanelHeaderIcon className="size-7 group-data-[state=active]/panel-tab:text-foreground">
+      <span className="flex items-center gap-1.5">
+        <WorkspacePanelHeaderIcon className="group-data-[state=active]/panel-tab:text-foreground">
           {icon}
         </WorkspacePanelHeaderIcon>
         {label}

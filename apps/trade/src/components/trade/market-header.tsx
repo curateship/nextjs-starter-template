@@ -84,6 +84,7 @@ export function MarketHeader({
             size="icon"
             aria-label="Show markets"
             title="Show markets"
+            className="bg-muted/60 dark:bg-muted/60"
             onClick={onOpenMarkets}
           >
             <ListIcon className="size-4" />
@@ -96,6 +97,7 @@ export function MarketHeader({
             size="icon"
             aria-label="Show account"
             title="Show account"
+            className="bg-muted/60 dark:bg-muted/60"
             onClick={onOpenAccount}
           >
             <WalletIcon className="size-4" />
@@ -148,7 +150,11 @@ export function MarketHeader({
   return (
     <div
       data-slot="workspace-panel-header"
-      className="flex h-[3.15rem] shrink-0 items-center gap-2 border-b px-4 sm:px-5"
+      // px-3, not the px-4/px-5 the title headers use: every control in this
+      // row is a 28px pill in a 50.4px row, ~11px of air above it, and Tyler
+      // asked for the side gaps to read even with that (23 Aug 2026). 12px is
+      // also what the tab headers keep beside their first pill.
+      className="flex h-[3.15rem] shrink-0 items-center gap-2 border-b px-3"
     >
       <MarketFolderStar
         symbol={selection.row.symbol}

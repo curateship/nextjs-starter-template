@@ -240,7 +240,9 @@ describe("the market folder controls", () => {
     const expandedMarket = Array.from(
       folderPanel.querySelectorAll("button")
     ).find((button) => button.textContent?.includes("BTC"))!
-    expect(expandedMarket.className).toContain("rounded-none")
+    // Edge to edge: no rounding anywhere on a list row any more, so the fill
+    // reaches the panel's sides.
+    expect(expandedMarket.className).not.toContain("rounded")
     expect(expandedMarket.className).not.toContain("border-b")
     expect(expandedMarket.className).toContain("sm:px-5")
     const testToggle = Array.from(

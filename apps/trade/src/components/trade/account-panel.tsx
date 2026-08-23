@@ -618,7 +618,7 @@ export function AccountPanel({
       {/* The tab row is the header — same anatomy as the activity panel's,
           with the add button sharing the row the way the mock draws it. */}
       <div className="flex shrink-0 items-center border-b px-3">
-        <TabsList className="-mb-px h-[3.15rem] justify-start gap-4 rounded-none bg-transparent p-0">
+        <TabsList className="h-[3.15rem] justify-start gap-2 rounded-none bg-transparent p-0">
           <WorkspacePanelTab
             value="active"
             icon={<CreditCardIcon className="size-4" />}
@@ -637,9 +637,9 @@ export function AccountPanel({
         </TabsList>
         <Button
           data-slot="account-add-wallet"
-          variant="ghost"
-          size="icon"
-          className="ml-auto"
+          variant="outline"
+          size="icon-sm"
+          className="ml-auto bg-muted/60 dark:bg-muted/60"
           aria-label="Add a wallet"
           onClick={onAddWallet}
         >
