@@ -21,7 +21,11 @@ import {
 } from "@/components/ui/table"
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import type { BacktestTrade } from "@/lib/trade/backtest/result"
+import {
+  openTradePnls,
+  type BacktestCoinSummary,
+  type BacktestTrade,
+} from "@/lib/trade/backtest/result"
 import { cn } from "@/lib/utils"
 
 /**
@@ -53,6 +57,7 @@ type Column =
 
 export function BacktestTradesPanel({
   symbol,
+  summary,
   trades,
   loading,
   selected,
@@ -60,6 +65,7 @@ export function BacktestTradesPanel({
 }: {
   /** The coin on the chart, or null when none is picked. */
   symbol: string | null
+  summary: BacktestCoinSummary | null
   trades: readonly BacktestTrade[]
   loading: boolean
   selected: number | null
@@ -109,6 +115,7 @@ export function BacktestTradesPanel({
   }, [trades, sort, direction, cumulative])
 
   const open = trades.filter((trade) => trade.exitAt === null)
+  const openPnl = summary ? openTradePnls(trades, summary) : null
 
   const head = (label: string, column: Column, right = false) => (
     <TableHead column="meta" className={cn(right && "text-right")}>
@@ -191,6 +198,7 @@ export function BacktestTradesPanel({
                 <Row
                   key={`open-${trade.n}`}
                   trade={trade}
+                  openPnl={openPnl?.get(trade.n) ?? null}
                   cumPnl={null}
                   selected={selected === trade.n}
                   onSelect={() => onSelect(selected === trade.n ? null : trade.n)}
@@ -206,11 +214,13 @@ export function BacktestTradesPanel({
 
 function Row({
   trade,
+  openPnl,
   cumPnl,
   selected,
   onSelect,
 }: {
   trade: BacktestTrade
+  openPnl?: number | null
   cumPnl: number | null
   selected: boolean
   onSelect: () => void
@@ -243,9 +253,16 @@ function Row({
       </TableCell>
       <TableCell
         column="meta"
-        className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
+        className={cn(
+          "text-right tabular-nums",
+          toneClass(open ? (openPnl ?? 0) : trade.pnl)
+        )}
       >
-        {open ? "—" : signedUsd(trade.pnl)}
+        {open
+          ? openPnl == null
+            ? "—"
+            : signedUsd(openPnl)
+          : signedUsd(trade.pnl)}
       </TableCell>
       <TableCell
         column="meta"

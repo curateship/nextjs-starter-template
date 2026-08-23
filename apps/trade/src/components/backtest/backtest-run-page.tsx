@@ -544,10 +544,18 @@ export function BacktestRunPage({
           collapsible
           collapsedSize={BOTTOM_COLLAPSED_HEIGHT}
         >
-          <WorkspacePanel className="flex flex-col" onDoubleClick={tradesDoubleClick}>
+          <WorkspacePanel
+            className="flex flex-col"
+            onDoubleClick={tradesDoubleClick}
+          >
             <BacktestTradesPanel
               symbol={
-                coins.find((coin) => coin.marketKey === activeCoin)?.symbol ?? null
+                coins.find((coin) => coin.marketKey === activeCoin)?.symbol ??
+                null
+              }
+              summary={
+                coins.find((coin) => coin.marketKey === activeCoin)?.summary ??
+                null
               }
               trades={shown?.trades ?? []}
               loading={activeCoin !== null && shown === null}

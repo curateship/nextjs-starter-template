@@ -209,6 +209,7 @@ export function ChartPanel({
     error: string | null
   } | null>(null)
   const [orbAttempt, setOrbAttempt] = React.useState(0)
+  const hasStartedCandleLoad = React.useRef(false)
 
   const wanted = selectedKey ? `${selectedKey}@${interval}` : null
   const needsOrbSource =
@@ -647,9 +648,10 @@ export function ChartPanel({
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
     let stale = false
-    // Let rapid market or timeframe changes settle before asking the
-    // exchange. A request that has already reached the server cannot be
-    // cancelled from here, so starting only the last intended one matters.
+    // The first chart has no earlier choice to settle, so it asks on the next
+    // turn of the event loop. Later market and timeframe changes wait long
+    // enough to collapse rapid clicks into one request. A request that has
+    // already reached the server cannot be cancelled from here.
     const draw = (candles: CandleBar[]) => {
       if (stale) return
       rememberDrawnChart(wanted, candles)
@@ -657,6 +659,7 @@ export function ChartPanel({
     }
 
     const timeout = setTimeout(() => {
+      hasStartedCandleLoad.current = true
       // On a timeframe that loads its whole history, the last two years are
       // drawn first and the rest replaces them a moment later. The whole
       // history takes a second or two to gather, and a chart showing nothing
@@ -693,7 +696,7 @@ export function ChartPanel({
             error: getCandlesErrorMessage(error),
           })
         })
-    }, CANDLE_LOAD_SETTLE_MS)
+    }, hasStartedCandleLoad.current ? CANDLE_LOAD_SETTLE_MS : 0)
     return () => {
       stale = true
       clearTimeout(timeout)

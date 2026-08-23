@@ -18,6 +18,8 @@ Two files outrank the rest, and outrank the code:
   every number, the text scale, and the small badge every table shares.
 - `chart-timezone.md` — the one clock the chart is on, where it is set, and why
   it is stored as a place rather than as an offset.
+- `chart-loading.md` — when the first candle request leaves, and why later
+  market choices still wait briefly.
 - `opening-range-indicator.md` — what the opening range is, its settings, and
   the rules it follows about breaks, gaps and the session in progress.
 - `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.

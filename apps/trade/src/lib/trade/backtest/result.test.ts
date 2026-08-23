@@ -6,6 +6,8 @@ import {
   fillMarksFromStored,
   coinWorstDip,
   middleOf,
+  openPnlOf,
+  openTradePnls,
   pairTrades,
   sideStatsFromTrades,
   worstDip,
@@ -160,9 +162,9 @@ describe("how far one coin's money fell", () => {
   })
 
   it("is nothing at all when it only ever went up", () => {
-    expect(
-      coinWorstDip(pairTrades([buy(0, 100, 1), sell(HOUR, 110, 1)]))
-    ).toBe(0)
+    expect(coinWorstDip(pairTrades([buy(0, 100, 1), sell(HOUR, 110, 1)]))).toBe(
+      0
+    )
   })
 })
 
@@ -337,7 +339,10 @@ describe("measuring one coin's trades", () => {
 
   it("rates a steady run above a wild one that made the same", () => {
     const steady = sideStatsFromTrades([trip(5), trip(5), trip(4), trip(6)], 0)
-    const wild = sideStatsFromTrades([trip(30), trip(-20), trip(25), trip(-15)], 0)
+    const wild = sideStatsFromTrades(
+      [trip(30), trip(-20), trip(25), trip(-15)],
+      0
+    )
 
     expect(steady.sharpe).toBeGreaterThan(wild.sharpe)
   })
@@ -399,8 +404,14 @@ describe("what a sell says it sold", () => {
   it("says how much it sold AND whether that made money", () => {
     // Two different questions. The size alone says nothing about the outcome,
     // and the outcome alone loses the size.
-    const won = buildFillMarks([buy(0, 100, 1), sell(HOUR, 120, 1, 0.5, "take_profit", 20)])
-    const lost = buildFillMarks([buy(0, 100, 1), sell(HOUR, 70, 1, 0.5, "stop_loss", -30)])
+    const won = buildFillMarks([
+      buy(0, 100, 1),
+      sell(HOUR, 120, 1, 0.5, "take_profit", 20),
+    ])
+    const lost = buildFillMarks([
+      buy(0, 100, 1),
+      sell(HOUR, 70, 1, 0.5, "stop_loss", -30),
+    ])
 
     expect(won[1].label).toBe("Sold $120.00 · made +$19.50")
     expect(lost[1].label).toBe("Sold $70.00 · lost -$30.50")
@@ -409,7 +420,10 @@ describe("what a sell says it sold", () => {
 
   it("keeps the money on the first line and the detail on the second", () => {
     // One line of five figures separated by dots is unreadable by the fourth.
-    const marks = buildFillMarks([buy(0, 100, 1, 0, 0), sell(HOUR, 120, 1, 0, "take_profit", 20)])
+    const marks = buildFillMarks([
+      buy(0, 100, 1, 0, 0),
+      sell(HOUR, 120, 1, 0, "take_profit", 20),
+    ])
 
     expect(marks[0].label).toBe("Bought $100.00")
     expect(marks[0].detail).toBe("Rung 1")
@@ -419,7 +433,16 @@ describe("what a sell says it sold", () => {
 
   it("leaves the second line off a buy that was never a ladder step", () => {
     const marks = buildFillMarks([
-      { at: 0, side: "buy", px: 100, sz: 1, fee: 0, closedPnl: 0, reason: "order", rung: null },
+      {
+        at: 0,
+        side: "buy",
+        px: 100,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+        rung: null,
+      },
     ])
     expect(marks[0].label).toBe("Bought $100.00")
     expect(marks[0].detail).toBeNull()
@@ -437,7 +460,16 @@ describe("what a sell says it sold", () => {
 describe("reading a run's fills back", () => {
   it("makes the words now, so a wording change reaches old runs", () => {
     const marks = fillMarksFromStored([
-      { at: 0, side: "buy", px: 100, sz: 1, fee: 0, closedPnl: 0, reason: "order", rung: 0 },
+      {
+        at: 0,
+        side: "buy",
+        px: 100,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+        rung: 0,
+      },
     ])
     expect(marks[0].label).toBe("Bought $100.00")
     expect(marks[0].detail).toBe("Rung 1")
@@ -447,8 +479,22 @@ describe("reading a run's fills back", () => {
     // Runs from before the words moved to read time hold no rung, fee or
     // profit — rebuilding from those printed "Rung NaN" on the chart.
     const marks = fillMarksFromStored([
-      { at: 0, side: "buy", px: 100, sz: 1, valueUsd: 100, label: "Bought $100.00 · Rung 1" },
-      { at: 1, side: "sell", px: 120, sz: 1, valueUsd: 120, label: "Sold $604.57 · Rung 8 · $103.92 left" },
+      {
+        at: 0,
+        side: "buy",
+        px: 100,
+        sz: 1,
+        valueUsd: 100,
+        label: "Bought $100.00 · Rung 1",
+      },
+      {
+        at: 1,
+        side: "sell",
+        px: 120,
+        sz: 1,
+        valueUsd: 120,
+        label: "Sold $604.57 · Rung 8 · $103.92 left",
+      },
     ])
     // Split onto the two lines rather than rebuilt — the rungs and fees were
     // never saved, so rebuilding printed "Rung NaN" on the chart.
@@ -460,9 +506,94 @@ describe("reading a run's fills back", () => {
 
   it("never prints a rung it does not have", () => {
     const marks = buildFillMarks([
-      { at: 0, side: "buy", px: 100, sz: 1, fee: 0, closedPnl: 0, reason: "order" } as never,
+      {
+        at: 0,
+        side: "buy",
+        px: 100,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+      } as never,
     ])
     expect(marks[0].detail).toBeNull()
+  })
+})
+
+describe("open profit in a coin result", () => {
+  it("separates closed trade money from the total", () => {
+    const stats = sideStatsFromTrades(
+      [
+        {
+          n: 1,
+          entryAt: 0,
+          entryPx: 100,
+          exitAt: HOUR,
+          exitPx: 108,
+          sz: 1,
+          amountUsd: 100,
+          pnl: 8,
+          returnPct: 8,
+          exitReason: "take_profit",
+        },
+      ],
+      0
+    )
+
+    expect(openPnlOf({ madeOrLost: 2_904, openAtEndUsd: 3_026, stats })).toBe(
+      2_896
+    )
+  })
+
+  it("shows zero when nothing remains open", () => {
+    expect(openPnlOf({ madeOrLost: 8, openAtEndUsd: 0, stats: null })).toBe(0)
+  })
+
+  it("does not invent the split for an old run without trade stats", () => {
+    expect(
+      openPnlOf({ madeOrLost: 100, openAtEndUsd: 200, stats: null })
+    ).toBeNull()
+  })
+
+  it("splits the exact open total across open trade rows", () => {
+    const openTrades: BacktestTrade[] = [
+      {
+        n: 1,
+        entryAt: 0,
+        entryPx: 100,
+        exitAt: null,
+        exitPx: null,
+        sz: 1,
+        amountUsd: 100,
+        pnl: 0,
+        returnPct: 0,
+        exitReason: null,
+      },
+      {
+        n: 2,
+        entryAt: 0,
+        entryPx: 80,
+        exitAt: null,
+        exitPx: null,
+        sz: 2,
+        amountUsd: 160,
+        pnl: 0,
+        returnPct: 0,
+        exitReason: null,
+      },
+    ]
+    const split = openTradePnls(openTrades, {
+      madeOrLost: 72,
+      openAtEndUsd: 330,
+      stats: sideStatsFromTrades([], 0),
+    })
+
+    expect(split).not.toBeNull()
+    expect(
+      [...(split?.values() ?? [])].reduce((sum, pnl) => sum + pnl, 0)
+    ).toBe(72)
+    expect(split?.get(1)).toBeCloseTo(10.67, 2)
+    expect(split?.get(2)).toBeCloseTo(61.33, 2)
   })
 })
 

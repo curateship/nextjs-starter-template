@@ -3,10 +3,45 @@
 import * as React from "react"
 import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { IntervalPicker } from "@/components/trade/chart-panel"
+import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
+import { loadCandles } from "@/lib/api/candles"
 import type { CandleInterval } from "@/lib/protocols/contracts"
+import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
+import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
+import type { Trading } from "@/components/trade/use-trading"
+
+vi.mock("@/lib/api/candles", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/candles")>()
+  return { ...actual, loadCandles: vi.fn() }
+})
+
+vi.mock("@/lib/trade/live-market", () => ({
+  useLiveCandle: vi.fn(),
+  useLiveCatchUp: vi.fn(),
+}))
+
+vi.mock("@/components/trade/paint/use-drawings", () => ({
+  useChartDrawings: () => ({
+    drawings: [],
+    tool: null,
+    selectedId: null,
+    setTool: vi.fn(),
+    setSelectedId: vi.fn(),
+    create: vi.fn(),
+    move: vi.fn(),
+    remove: vi.fn(),
+    clearAll: vi.fn(),
+  }),
+}))
+
+vi.mock("@/components/trade/use-chart-view", () => ({
+  useRememberedChartView: () => ({
+    readView: () => null,
+    onViewChange: vi.fn(),
+  }),
+}))
 
 let host: HTMLDivElement
 let root: Root
@@ -23,6 +58,8 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount())
   host.remove()
+  vi.useRealTimers()
+  vi.clearAllMocks()
 })
 
 function Picker() {
@@ -59,5 +96,65 @@ describe("the chart interval picker", () => {
 
     expect(document.activeElement?.textContent).toBe("1d")
     expect(tabs[5].getAttribute("aria-selected")).toBe("true")
+  })
+})
+
+const trading = {
+  busy: false,
+  wallet: null,
+  positions: [],
+  orders: [],
+  watchOrders: [],
+  placing: [],
+  ladders: [],
+  grids: [],
+  trades: [],
+  fills: [],
+  smartOrders: [],
+  walletNames: new Map(),
+} as unknown as Trading
+
+function chart(key: string) {
+  return (
+    <React.StrictMode>
+      <ChartPanel
+        selectedKey={key}
+        interval="15m"
+        initialChartView={null}
+        initialQuickOrder={DEFAULT_QUICK_ORDER}
+        options={DEFAULT_CHART_OPTIONS}
+        indicators={{}}
+        market={null}
+        trading={trading}
+        free={0}
+        equity={0}
+        shownTrade={null}
+      />
+    </React.StrictMode>
+  )
+}
+
+describe("the chart candle request", () => {
+  it("asks at once on a cold load and settles rapid later choices", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+
+    await act(async () => root.render(chart("hyperliquid:BTC")))
+    expect(loadCandles).not.toHaveBeenCalled()
+
+    await act(async () => vi.advanceTimersByTime(0))
+    expect(loadCandles).toHaveBeenCalledTimes(1)
+    expect(loadCandles).toHaveBeenLastCalledWith("hyperliquid:BTC", "15m")
+
+    for (const market of ["ETH", "SOL", "DOGE", "XRP", "SUI", "AVAX"]) {
+      await act(async () => root.render(chart(`hyperliquid:${market}`)))
+    }
+
+    await act(async () => vi.advanceTimersByTime(249))
+    expect(loadCandles).toHaveBeenCalledTimes(1)
+
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(loadCandles).toHaveBeenCalledTimes(2)
+    expect(loadCandles).toHaveBeenLastCalledWith("hyperliquid:AVAX", "15m")
   })
 })

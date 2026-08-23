@@ -259,9 +259,7 @@ export function buildFillMarks(
  * Fees are shared out by size, so a sell that closed three buys puts a third of
  * its cost on each. Otherwise one row carries every fee and reads as the loser.
  */
-export function pairTrades(
-  fills: readonly BacktestFill[]
-): BacktestTrade[] {
+export function pairTrades(fills: readonly BacktestFill[]): BacktestTrade[] {
   const open: Array<{ at: number; px: number; sz: number; fee: number }> = []
   const closed: Array<Omit<BacktestTrade, "n">> = []
 
@@ -537,6 +535,58 @@ export const backtestCoinSummarySchema = z.object({
 })
 
 export type BacktestCoinSummary = z.infer<typeof backtestCoinSummarySchema>
+
+/**
+ * The part of a coin's result that is still riding on an open position.
+ *
+ * `madeOrLost` includes both closed trades and the position at the final
+ * price. The trade stats carry the closed half, so the difference explains a
+ * large total without pretending that the money was banked. Old runs without
+ * trade stats cannot answer and return null rather than making up a zero.
+ */
+export function openPnlOf(
+  summary: Pick<BacktestCoinSummary, "madeOrLost" | "openAtEndUsd" | "stats">
+): number | null {
+  if (summary.openAtEndUsd <= 0) return 0
+  if (!summary.stats) return null
+  const closedPnl = summary.stats.grossProfit - summary.stats.grossLoss
+  return summary.madeOrLost - closedPnl
+}
+
+/**
+ * Split a coin's open profit across the open rows in its trade table.
+ *
+ * The saved result has the final value of the whole position rather than one
+ * final price per rung. That value reveals the final price. Fees and funding
+ * can leave a small difference from the raw price move, so the difference is
+ * shared by position size. The rows then add back to the exact open total.
+ */
+export function openTradePnls(
+  trades: readonly BacktestTrade[],
+  summary: Pick<BacktestCoinSummary, "madeOrLost" | "openAtEndUsd" | "stats">
+): Map<number, number> | null {
+  const totalOpenPnl = openPnlOf(summary)
+  if (totalOpenPnl === null) return null
+
+  const open = trades.filter((trade) => trade.exitAt === null)
+  const size = open.reduce((sum, trade) => sum + Math.abs(trade.sz), 0)
+  if (size <= 0) return new Map()
+
+  const finalPx = summary.openAtEndUsd / size
+  const raw = open.map((trade) => ({
+    trade,
+    pnl: (finalPx - trade.entryPx) * trade.sz,
+  }))
+  const rawTotal = raw.reduce((sum, row) => sum + row.pnl, 0)
+  const adjustment = totalOpenPnl - rawTotal
+
+  return new Map(
+    raw.map(({ trade, pnl }) => [
+      trade.n,
+      pnl + adjustment * (Math.abs(trade.sz) / size),
+    ])
+  )
+}
 
 /**
  * The warning a run carries when it did not reach the end of its window.

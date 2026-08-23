@@ -677,6 +677,19 @@ working bar streams beside it.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
 
+## Backtest results
+
+- The Results table calls each coin's main figure Total because the figure
+  includes closed trades and any position still open at the final price.
+- A coin with an open position shows its open profit directly under Total. The
+  table total shows the same split across every coin, so a large paper profit
+  cannot look like money from the closed trade count.
+- The Trades table puts the open profit in each open row's P&L column. Several
+  open rungs share fees and funding by position size, and their figures add up
+  to the open total in Results.
+- Runs saved without the trade figures needed for the split say that open P&L
+  is unavailable. The app never treats an unknown amount as zero.
+
 ## Backtest candle history
 
 - A backtest result opens on the first market in Results and the first trade in
