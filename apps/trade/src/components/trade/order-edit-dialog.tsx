@@ -22,7 +22,7 @@ import {
   bracketTyped,
 } from "@/lib/trade/brackets"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
-import { projectedProfit, type PaperOrder } from "@/lib/trade/paper"
+import { projectedProfit, type TradeOrder } from "@/lib/trade/paper"
 
 /**
  * A waiting order, opened by pressing its own bar on the chart: how much it is
@@ -44,7 +44,7 @@ export function OrderEditDialog({
   onClose,
 }: {
   /** The waiting order being edited, or null when the window is shut. */
-  order: PaperOrder | null
+  order: TradeOrder | null
   busy: boolean
   onSave: (
     walletId: string,
@@ -55,7 +55,7 @@ export function OrderEditDialog({
 }) {
   // The order last opened, kept after `order` goes null so the window still
   // has something to draw while it animates shut.
-  const [shown, setShown] = React.useState<PaperOrder | null>(order)
+  const [shown, setShown] = React.useState<TradeOrder | null>(order)
   const [wasOpen, setWasOpen] = React.useState(order !== null)
   const [size, setSize] = React.useState("")
   const [targetPct, setTargetPct] = React.useState("")

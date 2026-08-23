@@ -14,7 +14,7 @@ import {
   type LadderRungState,
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
-import type { PaperSide } from "@/lib/trade/paper"
+import type { TradeSide } from "@/lib/trade/paper"
 import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import {
@@ -1006,7 +1006,7 @@ export async function placeWatchOrder(
   wallet: TradeWallet,
   input: {
     marketKey: string
-    side: PaperSide
+    side: TradeSide
     /** The level to watch — the price that was clicked. */
     px: number
     sz: number

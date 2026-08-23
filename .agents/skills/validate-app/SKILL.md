@@ -34,14 +34,40 @@ Use the available browser controller or `playwright-cli`; do not require a speci
 
 ## Authentication
 
-- Use an existing authenticated browser session or repository-documented local test account.
-- Use typham2@gmail.com/gundam11 if login to app is required
-- Never store credentials in a skill, command, screenshot, log, or report.
-- If authentication is required and no approved session or test credential exists, ask the user to authenticate.
+- Try an existing authenticated browser state first.
+- If the app needs a login, use the local test account
+  `typham2@gmail.com` / `gundam11`.
+- The local test credentials intentionally live in this skill. Do not repeat
+  them in a shell command, screenshot, log, report, or tracked browser-state
+  file.
+- A failed or unavailable login does not automatically block validation. Follow the fallback workflow below.
+- Ask the user to authenticate only when the changed behavior is itself about authentication, sessions, account permissions, or another condition that no fallback can reproduce.
+
+## When the signed-in app is unavailable
+
+Validate the changed behavior through the closest supported runtime instead of
+handing the check to the user.
+
+1. Prefer an existing browser-accessible test page, story, fixture, or harness
+   that renders the real component. Do not add a temporary route just for the
+   check.
+2. Otherwise run the narrowest component or integration test that renders the
+   changed UI and exercises the changed interaction. The test must assert the
+   visible result and the relevant empty, error, or boundary state. A type check
+   or a unit test of a helper alone is not a UI validation fallback.
+3. Add or strengthen that component test when the current request authorizes
+   implementation or audit fixes. Re-run it and confirm it fails when the
+   requested behavior is absent.
+4. Report which runtime proved the behavior. Mention unavailable signed-in
+   browser coverage once as a limitation, without asking the user to repeat the
+   check.
 
 ## Report
 
-State the app and workflow checked, what passed, any console or network issue, and any runtime limitation. Do not report a native or backend-only path as validated from browser rendering alone.
+State the app and workflow checked, what passed, any console or network issue,
+and the runtime used. Do not call a component test a browser check. Do not keep
+repeating an authentication or environment limitation after a fallback has
+proved the requested behavior.
 
 ## This Repo
 

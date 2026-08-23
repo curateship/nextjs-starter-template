@@ -17,7 +17,7 @@ import {
   type LiveTriggerRecord,
 } from "@/lib/trade/live-trades"
 import type { LiveRefusal } from "@/lib/trade/live"
-import type { PaperSide } from "@/lib/trade/paper"
+import type { TradeSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
@@ -219,7 +219,7 @@ export async function recordLiveFills(
             network: wallet.network,
             marketId: fill.marketId,
           }),
-          side: fill.side as PaperSide,
+          side: fill.side as TradeSide,
           px: fill.px,
           sz: fill.sz,
           at: fill.at,

@@ -1,7 +1,7 @@
 import {
   liquidationDistance,
   positionMargin,
-  type PaperPosition,
+  type TradePosition,
 } from "@/lib/trade/paper"
 
 export type WalletMarginHealth = {
@@ -9,19 +9,19 @@ export type WalletMarginHealth = {
   nearest: { marketKey: string; away: number } | null
 }
 
-export function marginOf(position: PaperPosition): number {
+export function marginOf(position: TradePosition): number {
   return position.live ? position.live.marginUsed : positionMargin(position)
 }
 
 export function liquidationAwayOf(
-  position: PaperPosition,
+  position: TradePosition,
   mark: number
 ): number | null {
   return liquidationDistance(position, mark)?.fraction ?? null
 }
 
 export function walletMarginHealth(
-  positions: readonly PaperPosition[],
+  positions: readonly TradePosition[],
   marks: ReadonlyMap<string, number>,
   fallbackMarks: ReadonlyMap<string, number>,
   walletId: string

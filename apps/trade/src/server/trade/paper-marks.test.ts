@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { defaultPaperCosts } from "@/lib/trade/paper"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   closeBar,
@@ -38,7 +38,7 @@ const wallet: TradeWallet = {
   keyValidUntil: null,
 }
 
-function order(px: number, sz: number): PaperOrder {
+function order(px: number, sz: number): TradeOrder {
   return {
     id: `o-${px}`,
     walletId: "w1",
@@ -57,7 +57,7 @@ function order(px: number, sz: number): PaperOrder {
 }
 
 /** A ladder's worth of waiting buys on one coin. */
-function rungs(market: string): PaperOrder[] {
+function rungs(market: string): TradeOrder[] {
   return [
     [90, 55],
     [70, 71],
@@ -65,13 +65,13 @@ function rungs(market: string): PaperOrder[] {
   ].map(([px, sz]) => ({ ...order(px, sz), id: `o-${market}-${px}`, marketKey: market }))
 }
 
-function bookWith(orders: PaperOrder[]): WalletBook {
+function bookWith(orders: TradeOrder[]): WalletBook {
   return {
     wallet,
     costs: defaultPaperCosts(),
     cash: 10_000,
     marks: new Map([[BTC, 100]]),
-    positions: new Map<string, PaperPosition>(),
+    positions: new Map<string, TradePosition>(),
     orders,
     fills: [],
     touchedMarkets: new Set(),

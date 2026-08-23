@@ -37,8 +37,8 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import {
   defaultPaperCosts,
   type PaperFillReason,
-  type PaperOrder,
-  type PaperPosition,
+  type TradeOrder,
+  type TradePosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
@@ -751,7 +751,7 @@ async function reconcileLiveLaddersOnce(
       wallet.address,
       credential
     ))
-  const warningPositions: PaperPosition[] = portfolio.positions.map((held) => {
+  const warningPositions: TradePosition[] = portfolio.positions.map((held) => {
     const key = toMarketKey({
       protocol: wallet.protocol,
       network: wallet.network,
@@ -887,7 +887,7 @@ async function reconcileLiveLaddersOnce(
     }
   }
 
-  const positions = new Map<string, PaperPosition>()
+  const positions = new Map<string, TradePosition>()
   for (const held of portfolio.positions) {
     const marketKey = refs.get(held.marketId)
     if (!marketKey) continue
@@ -906,7 +906,7 @@ async function reconcileLiveLaddersOnce(
       updatedAt: now,
     })
   }
-  const orders: PaperOrder[] = portfolio.orders.flatMap((order) => {
+  const orders: TradeOrder[] = portfolio.orders.flatMap((order) => {
     const marketKey = refs.get(order.marketId)
     if (!marketKey) return []
     return [
@@ -1350,7 +1350,7 @@ async function reconcileLiveLaddersOnce(
             accepted,
             cancelled: [...pendingCancels]
               .map((id) => originalOrders.get(id))
-              .filter((order): order is PaperOrder => order !== undefined),
+              .filter((order): order is TradeOrder => order !== undefined),
             kind: entry.kind,
             plan: originalPlan,
           })
@@ -1567,7 +1567,7 @@ async function restoreLiveOrders(input: {
   wallet: TradeWallet
   marketKey: string
   accepted: string[]
-  cancelled: PaperOrder[]
+  cancelled: TradeOrder[]
   kind: SmartOrderKind
   plan: SmartPlan
 }): Promise<boolean> {

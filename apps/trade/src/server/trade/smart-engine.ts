@@ -2,7 +2,7 @@ import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import type { DcaBaseDetection } from "@/lib/trade/dca"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
-import type { PaperSide } from "@/lib/trade/paper"
+import type { TradeSide } from "@/lib/trade/paper"
 import type { SmartPlan } from "@/lib/trade/smart-plan"
 import type { WalletBook } from "@/server/trade/paper"
 
@@ -22,7 +22,7 @@ import type { WalletBook } from "@/server/trade/paper"
 
 export type LadderOrderInput = {
   marketKey: string
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   leverage: number
@@ -46,7 +46,7 @@ export type LadderOrderInput = {
 export type EngineFill = {
   id: string
   marketKey: string
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   reason: string
@@ -57,7 +57,7 @@ export type LadderEngineDeps = {
     book: WalletBook,
     input: {
       marketKey: string
-      side: PaperSide
+      side: TradeSide
       px: number
       sz: number
       feeRate: number
@@ -224,7 +224,7 @@ export function nearNullable(a: number | null, b: number | null): boolean {
 export function makeFillClaimer(
   book: { fills: readonly EngineFill[] },
   marketKey: string
-): (side: PaperSide, px: number, maxSz: number) => EngineFill | null {
+): (side: TradeSide, px: number, maxSz: number) => EngineFill | null {
   const used = new Set<string>()
   return (side, px, maxSz) => {
     const found = book.fills.find(

@@ -277,12 +277,22 @@ export default function TradeWalletFields({
     const was = markets.settings.protocol
     if (was === protocol) return
 
-    const hadCoins = Array.isArray(markets.settings.marketKeys)
-      ? markets.settings.marketKeys.length
-      : 0
+    const hadCoins =
+      typeof markets.settings.folderCount === "number"
+        ? markets.settings.folderCount
+        : Array.isArray(markets.settings.marketKeys)
+          ? markets.settings.marketKeys.length
+          : 0
     onChange({
       ...markets,
-      settings: { ...markets.settings, protocol, marketKeys: [] },
+      settings: {
+        ...markets.settings,
+        protocol,
+        folderId: null,
+        folderName: null,
+        folderCount: null,
+        marketKeys: [],
+      },
     })
     // The exchange's proper name, the way every other screen writes it. The
     // raw id is what is stored; "hyperliquid" in a sentence beside a dropdown

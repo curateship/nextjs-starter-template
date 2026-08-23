@@ -19,7 +19,7 @@ import { bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
-import { isMarketable, type PaperSide } from "@/lib/trade/paper"
+import { isMarketable, type TradeSide } from "@/lib/trade/paper"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { cn } from "@/lib/utils"
 
@@ -35,7 +35,7 @@ import { cn } from "@/lib/utils"
  */
 
 export type QuickOrderState = {
-  side: PaperSide
+  side: TradeSide
   px: number
   x: number
   y: number
@@ -85,7 +85,7 @@ export function ChartQuickOrder({
    * is still on its way.
    */
   onPlace: (input: {
-    side: PaperSide
+    side: TradeSide
     px: number
     sz: number
     leverage: number

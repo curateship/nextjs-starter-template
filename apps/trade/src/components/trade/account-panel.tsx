@@ -39,7 +39,7 @@ import {
   type WalletMarginHealth,
 } from "@/lib/trade/margin-health"
 import { moneyTone } from "@/lib/trade/money-tone"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 import {
   venueLabel,
   type TradeWallet,
@@ -547,7 +547,7 @@ export function AccountPanel({
   onContentHeightChange,
 }: {
   account: ReturnType<typeof useTradeAccount>
-  positions: readonly PaperPosition[]
+  positions: readonly TradePosition[]
   fallbackMarks: ReadonlyMap<string, number>
   cacheScope: string
   onAddWallet: () => void

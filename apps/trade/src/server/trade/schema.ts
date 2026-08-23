@@ -37,7 +37,7 @@ import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { LiveJournalAction } from "@/lib/trade/live"
 import type { LiveTriggerRecord } from "@/lib/trade/live-trades"
-import type { PaperFillReason, PaperSide } from "@/lib/trade/paper"
+import type { PaperFillReason, TradeSide } from "@/lib/trade/paper"
 import type {
   BacktestCoinSummary,
   BacktestFill,
@@ -373,7 +373,7 @@ export const tradeLiveJournal = pgTable(
       .$type<LiveJournalAction>()
       .notNull(),
     // Null on the refusals that never got as far as having a side.
-    side: varchar("side", { length: 4 }).$type<PaperSide>(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>(),
     px: doublePrecision("px").notNull().default(0),
     sz: doublePrecision("sz").notNull().default(0),
     // The plain-word sentence — what the exchange answered, or why it refused.
@@ -422,7 +422,7 @@ export const tradeLiveFills = pgTable(
     /** The order it came from, which is how a stop is told from a close. */
     orderId: varchar("order_id", { length: 40 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
-    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
     px: doublePrecision("px").notNull(),
     sz: doublePrecision("sz").notNull(),
     /** When it happened, in milliseconds — the exchange's clock, not ours. */
@@ -619,7 +619,7 @@ export const tradePaperOrders = pgTable(
     ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
-    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
     px: doublePrecision("px").notNull(),
     sz: doublePrecision("sz").notNull(),
     leverage: doublePrecision("leverage").notNull(),
@@ -660,7 +660,7 @@ export const tradePaperJournal = pgTable(
     ...paperOwner(),
     id: varchar("id", { length: 36 }).notNull(),
     marketKey: varchar("market_key", { length: 120 }).notNull(),
-    side: varchar("side", { length: 4 }).$type<PaperSide>().notNull(),
+    side: varchar("side", { length: 4 }).$type<TradeSide>().notNull(),
     px: doublePrecision("px").notNull(),
     sz: doublePrecision("sz").notNull(),
     fee: doublePrecision("fee").notNull(),

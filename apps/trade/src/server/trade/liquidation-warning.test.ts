@@ -2,7 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import {
@@ -36,7 +36,7 @@ const wallet: TradeWallet = {
   keyValidUntil: null,
 }
 
-const position: PaperPosition = {
+const position: TradePosition = {
   id: "p1",
   walletId: wallet.id,
   marketKey: "hyperliquid:mainnet:ETH",

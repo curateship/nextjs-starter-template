@@ -26,9 +26,9 @@ import {
   type PaperFillReason,
   type PaperJournalEntry,
   type PaperCosts,
-  type PaperOrder,
-  type PaperPosition,
-  type PaperSide,
+  type TradeOrder,
+  type TradePosition,
+  type TradeSide,
 } from "@/lib/trade/paper"
 import {
   buildLiveTrades,
@@ -126,7 +126,7 @@ type PositionRow = typeof tradePaperPositions.$inferSelect
 type OrderRow = typeof tradePaperOrders.$inferSelect
 type JournalRow = typeof tradePaperJournal.$inferSelect
 
-function toPosition(row: PositionRow): PaperPosition {
+function toPosition(row: PositionRow): TradePosition {
   return {
     id: row.id,
     walletId: row.walletId,
@@ -143,7 +143,7 @@ function toPosition(row: PositionRow): PaperPosition {
   }
 }
 
-function toOrder(row: OrderRow): PaperOrder {
+function toOrder(row: OrderRow): TradeOrder {
   return {
     id: row.id,
     walletId: row.walletId,
@@ -189,8 +189,8 @@ export type WalletBook = {
   costs: PaperCosts
   /** Starting balance plus everything banked — the cash the account has. */
   cash: number
-  positions: Map<string, PaperPosition>
-  orders: PaperOrder[]
+  positions: Map<string, TradePosition>
+  orders: TradeOrder[]
   /** Fills to record, in the order they happened. */
   fills: PaperJournalEntry[]
   /** Markets whose position row must be rewritten or removed. */
@@ -234,7 +234,7 @@ export type WalletBook = {
    * on a rung's buy. Everything else here is written down when it is asked
    * for, so this is the one list that has to be saved after the fact.
    */
-  addedOrders: PaperOrder[]
+  addedOrders: TradeOrder[]
   /**
    * Bumped every time `orders` gains or loses one, so the answer to "is this
    * order still on the book?" can be worked out once and kept.
@@ -343,7 +343,7 @@ export function fill(
   book: WalletBook,
   input: {
     marketKey: string
-    side: PaperSide
+    side: TradeSide
     px: number
     sz: number
     feeRate: number
@@ -430,7 +430,7 @@ function dropOrder(book: WalletBook, orderId: string): void {
  */
 function fillOrder(
   book: WalletBook,
-  order: PaperOrder,
+  order: TradeOrder,
   input: {
     px: number
     feeRate: number
@@ -504,7 +504,7 @@ function fillOrder(
     order.exitPx !== undefined
   ) {
     if (order.exitPx > 0) {
-      const exit: PaperOrder = {
+      const exit: TradeOrder = {
         id: exitOrderIdOf(order.id),
         walletId: order.walletId,
         marketKey: order.marketKey,
@@ -540,7 +540,7 @@ function fillOrder(
  */
 function takeProfitAt(
   book: WalletBook,
-  position: PaperPosition,
+  position: TradePosition,
   input: { px: number; at: number }
 ): void {
   const tpSz = position.tpSz ?? null
@@ -573,7 +573,7 @@ function takeProfitAt(
 /** Closing the whole of a position at one price. */
 function closeAt(
   book: WalletBook,
-  position: PaperPosition,
+  position: TradePosition,
   input: {
     px: number
     feeRate: number
@@ -583,7 +583,7 @@ function closeAt(
     slip?: boolean
   }
 ): void {
-  const side: PaperSide = position.szi > 0 ? "sell" : "buy"
+  const side: TradeSide = position.szi > 0 ? "sell" : "buy"
   fill(book, {
     marketKey: position.marketKey,
     side,
@@ -615,7 +615,7 @@ function worseOf(szi: number, a: number, b: number): number {
  * already gone. Reading them in this order is what tells those two apart.
  */
 function passedLevels(
-  position: PaperPosition,
+  position: TradePosition,
   mark: number
 ): { reason: PaperFillReason; px: number }[] {
   const long = position.szi > 0
@@ -1363,8 +1363,8 @@ export async function settleWallet(
 // ----- What the screens ask for -----------------------------------------
 
 export type PaperAccount = {
-  positions: PaperPosition[]
-  orders: PaperOrder[]
+  positions: TradePosition[]
+  orders: TradeOrder[]
   /** Every visible fill, including the entries of positions still open. */
   fills: LiveFill[]
   /** Finished practice round trips — the Journal, alongside the real ones. */
@@ -1534,8 +1534,8 @@ export async function loadPaperPortfolio(
       markets: keysByWallet.get(wallet.id) ?? [],
     })
   )
-  const positions: PaperPosition[] = []
-  const orders: PaperOrder[] = []
+  const positions: TradePosition[] = []
+  const orders: TradeOrder[] = []
   for (const book of books) {
     positions.push(...book.positions.values())
     orders.push(...book.orders)
@@ -1685,7 +1685,7 @@ export async function placePaperOrder(
   wallet: TradeWallet,
   input: {
     marketKey: string
-    side: PaperSide
+    side: TradeSide
     px: number
     sz: number
     leverage: number

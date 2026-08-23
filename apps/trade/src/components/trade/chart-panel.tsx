@@ -79,7 +79,7 @@ import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import {
   indicatorPaint,
@@ -311,7 +311,7 @@ export function ChartPanel({
   // The position whose × on the Entry line was pressed. Closing costs real
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
-    React.useState<PaperPosition | null>(null)
+    React.useState<TradePosition | null>(null)
   const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(
     null
   )
@@ -319,7 +319,7 @@ export function ChartPanel({
   // order's × it asks first.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
   // The waiting order opened from its own bar on the chart.
-  const [editing, setEditing] = React.useState<PaperOrder | null>(null)
+  const [editing, setEditing] = React.useState<TradeOrder | null>(null)
   const plotRef = React.useRef<HTMLDivElement | null>(null)
   const surfaceRef = React.useRef<ChartSurface | null>(null)
   const readSurface = React.useCallback((next: ChartSurface) => {
@@ -494,10 +494,10 @@ export function ChartPanel({
    * following the ladder, or the stillness would look like a bug.
    */
   const dragBrackets = (
-    walletId: string,
-    marketKey: string,
+    position: TradePosition,
     brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => {
+    const { walletId, marketKey } = position
     const ladder = trading.ladders.find(
       (one) => one.walletId === walletId && one.marketKey === marketKey
     )
@@ -520,7 +520,7 @@ export function ChartPanel({
         )
       }
     }
-    void trading.dragBrackets(walletId, marketKey, brackets)
+    void trading.dragBrackets(position, brackets)
   }
 
   // The candles on screen right now: an answer whose tag does not match what
@@ -853,8 +853,8 @@ export function ChartPanel({
                   onMoveOrder={(walletId, orderId, price) =>
                     void trading.move(walletId, orderId, price)
                   }
-                  onCancelOrder={(walletId, orderId) =>
-                    void trading.cancel(walletId, orderId)
+                  onCancelOrder={(order) =>
+                    void trading.cancel(order)
                   }
                   // Dragging a waiting order's stop resizes the order so it
                   // still risks the same money. Worked out from the order in
@@ -1044,8 +1044,7 @@ export function ChartPanel({
                   // account refresh continue behind it, through the same path
                   // used when a stop line is dragged.
                   void trading.dragBrackets(
-                    bareStop.walletId,
-                    bareStop.marketKey,
+                    bareStop,
                     bracketsWithStopAt(bareStop, menu.price)
                   )
                   setMenu(null)
@@ -1087,8 +1086,7 @@ export function ChartPanel({
           }
           onSave={(brackets) =>
             void trading.dragBrackets(
-              takeProfitPosition.walletId,
-              takeProfitPosition.marketKey,
+              takeProfitPosition,
               brackets
             )
           }
@@ -1155,10 +1153,7 @@ export function ChartPanel({
         confirmLabel="Close it"
         onConfirm={() => {
           if (closingPosition) {
-            void trading.close(
-              closingPosition.walletId,
-              closingPosition.marketKey
-            )
+            void trading.close(closingPosition)
           }
           setClosingPosition(null)
         }}

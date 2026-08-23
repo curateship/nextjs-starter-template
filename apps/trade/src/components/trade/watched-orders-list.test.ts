@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { watchedLevelLine } from "@/components/trade/watched-orders-list"
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
  * The line under a waiting price in the Watched tab.
@@ -13,7 +13,7 @@ import type { PaperOrder } from "@/lib/trade/paper"
  * position that does not exist.
  */
 
-function order(over: Partial<PaperOrder>): PaperOrder {
+function order(over: Partial<TradeOrder>): TradeOrder {
   return {
     id: "o1",
     walletId: "w1",

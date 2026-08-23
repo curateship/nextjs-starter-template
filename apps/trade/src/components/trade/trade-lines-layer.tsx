@@ -10,8 +10,8 @@ import {
 import {
   liquidationPx,
   projectedProfit,
-  type PaperOrder,
-  type PaperPosition,
+  type TradeOrder,
+  type TradePosition,
 } from "@/lib/trade/paper"
 
 /**
@@ -49,7 +49,7 @@ import {
  * it; a live one carries a zero, and the honest answer there is what the
  * position is worth.
  */
-function orderCostUsd(order: PaperOrder): number {
+function orderCostUsd(order: TradeOrder): number {
   const worth = order.px * order.sz
   return order.leverage > 0 ? worth / order.leverage : worth
 }
@@ -191,8 +191,8 @@ export function TradeLinesLayer({
   colors: ChartColors
   /** The market on screen — lines from other markets are not drawn here. */
   marketKey: string | null
-  positions: readonly PaperPosition[]
-  orders: readonly PaperOrder[]
+  positions: readonly TradePosition[]
+  orders: readonly TradeOrder[]
   /** Names a wallet, for when this market holds more than one wallet's lines. */
   walletName: (walletId: string) => string
   /**
@@ -202,7 +202,7 @@ export function TradeLinesLayer({
    */
   tool: string | null
   /** What a position's entry pill carries besides "Entry", if anything. */
-  entryBadge?: (position: PaperPosition) => EntryBadge | null
+  entryBadge?: (position: TradePosition) => EntryBadge | null
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
   /**
    * Dragging a waiting order's stop, which changes how much the order is for.
@@ -214,21 +214,20 @@ export function TradeLinesLayer({
   onMoveOrderStop?: (walletId: string, orderId: string, price: number) => void
   /** Dragging a waiting order's target. The amount is left alone. */
   onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
-  onCancelOrder: (walletId: string, orderId: string) => void
+  onCancelOrder: (order: TradeOrder) => void
   /**
    * The × on a position's Entry line. Closing costs real money, so it asks
    * first — the panel owns that question, the same one the Positions table
    * asks, rather than a second wording living here.
    */
-  onClosePosition?: (position: PaperPosition) => void
+  onClosePosition?: (position: TradePosition) => void
   /**
    * Pressing a waiting order's bar: its size and where it gets out. Only the
    * order's id — the window reads the row itself, which carries its wallet.
    */
   onEditOrder?: (orderId: string) => void
   onSetBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: TradePosition,
     brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => void
   /**
@@ -341,13 +340,13 @@ export function TradeLinesLayer({
             )
           )}${tag}`,
         onMove: (price) =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: price,
             tpSz,
             slPx: position.slPx,
           }),
         onRemove: () =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: null,
             slPx: position.slPx,
           }),
@@ -361,13 +360,13 @@ export function TradeLinesLayer({
         label: (at) =>
           `Stop Loss ${formatSignedUsd(projectedProfit(position, at))}${tag}`,
         onMove: (price) =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: position.tpPx,
             tpSz: position.tpSz ?? null,
             slPx: price,
           }),
         onRemove: () =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: position.tpPx,
             tpSz: position.tpSz ?? null,
             slPx: null,
@@ -421,7 +420,7 @@ export function TradeLinesLayer({
           ? (price) => onMoveOrder(order.walletId, order.id, price)
           : undefined,
       onRemove: settled
-        ? () => onCancelOrder(order.walletId, order.id)
+        ? () => onCancelOrder(order)
         : undefined,
       onSettings: edit,
       hint: edit

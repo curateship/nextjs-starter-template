@@ -1,10 +1,17 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import type { ChartColors } from "@/lib/trade/chart-theme"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true
 
 const MARKET = "hyperliquid:mainnet:BTC"
 const colors: ChartColors = {
@@ -32,7 +39,7 @@ const surface: ChartSurface = {
   priceAt: (y) => 200 - y,
 }
 
-function position(kind: "target" | "stop"): PaperPosition {
+function position(kind: "target" | "stop"): TradePosition {
   return {
     id: "position",
     walletId: "wallet",
@@ -58,7 +65,7 @@ function order(
   px: number,
   id = "bracket-order",
   walletId = "wallet"
-): PaperOrder {
+): TradeOrder {
   return {
     id,
     walletId,
@@ -85,8 +92,8 @@ function render(kind: "target" | "stop", orderId = "bracket-order"): string {
 }
 
 function renderLines(
-  held: PaperPosition,
-  orders: readonly PaperOrder[]
+  held: TradePosition,
+  orders: readonly TradeOrder[]
 ): string {
   return renderToStaticMarkup(
     <TradeLinesLayer
@@ -105,6 +112,49 @@ function renderLines(
 }
 
 describe("chart bracket lines", () => {
+  it("hands the live position row to the stop remove action", async () => {
+    const held = position("stop")
+    const calls: Array<{
+      position: TradePosition
+      brackets: { tpPx: number | null; slPx: number | null }
+    }> = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={MARKET}
+          positions={[held]}
+          orders={[]}
+          walletName={() => "Wallet"}
+          tool={null}
+          onMoveOrder={() => undefined}
+          onCancelOrder={() => undefined}
+          onSetBrackets={(position, brackets) =>
+            calls.push({ position, brackets })
+          }
+        />
+      )
+    })
+    const remove = host.querySelector<SVGGElement>(
+      '[aria-label^="Remove stop loss"]'
+    )
+    expect(remove).not.toBeNull()
+    await act(async () => {
+      remove?.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      )
+    })
+
+    expect(calls).toEqual([
+      { position: held, brackets: { tpPx: null, tpSz: null, slPx: null } },
+    ])
+    await act(async () => root.unmount())
+  })
+
   it("draws the entry bar in chart blue", () => {
     expect(render("target")).toContain("#2962ff")
   })

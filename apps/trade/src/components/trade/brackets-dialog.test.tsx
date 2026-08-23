@@ -6,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 
-const position: PaperPosition = {
+const position: TradePosition = {
   id: "position",
   walletId: "wallet",
   marketKey: "hyperliquid:mainnet:BTC",

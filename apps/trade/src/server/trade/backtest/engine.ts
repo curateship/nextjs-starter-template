@@ -29,7 +29,7 @@ import {
   positionMargin,
   type PaperCosts,
   type PaperJournalEntry,
-  type PaperPosition,
+  type TradePosition,
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { getProtocol } from "@/server/protocols/registry"
@@ -424,7 +424,7 @@ export type BacktestCoinTrades = {
   marketKey: string
   fills: BacktestEngineFill[]
   /** What was still held when the walk ended, or null. */
-  openAtEnd: PaperPosition | null
+  openAtEnd: TradePosition | null
   /** The last price this coin had inside the window. */
   lastPx: number | null
   /** The first price this coin had inside the window. */

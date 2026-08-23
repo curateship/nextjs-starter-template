@@ -1,6 +1,6 @@
 import { z } from "zod"
 
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
  * The watched prices this browser saw last time, so the Watched tab has rows
@@ -60,7 +60,7 @@ export type WatchedCache = z.infer<typeof cacheSchema>
 export type WatchedLevel = z.infer<typeof levelSchema>
 
 /** One waiting order, cut down to what the tab draws and the cache keeps. */
-export function toWatchedLevel(order: PaperOrder): WatchedLevel {
+export function toWatchedLevel(order: TradeOrder): WatchedLevel {
   return {
     id: order.id,
     walletId: order.walletId,
@@ -110,7 +110,7 @@ export function readWatchedCache(scope: string): WatchedCache | null {
  */
 export function writeWatchedCache(
   scope: string,
-  orders: readonly PaperOrder[]
+  orders: readonly TradeOrder[]
 ): void {
   try {
     const rows = [...orders]

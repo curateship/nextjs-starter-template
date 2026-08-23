@@ -47,7 +47,7 @@ import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
   positionProfit,
   positionValue,
-  type PaperPosition,
+  type TradePosition,
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
 
@@ -112,8 +112,8 @@ export function ActivityPanel({
   // table, and a row that exists but is filtered is something the dropdown
   // can say — a row that is silently missing is not.
   const [shown, setShown] = React.useState<"all" | "manual">("all")
-  const [editing, setEditing] = React.useState<PaperPosition | null>(null)
-  const [flipping, setFlipping] = React.useState<PaperPosition | null>(null)
+  const [editing, setEditing] = React.useState<TradePosition | null>(null)
+  const [flipping, setFlipping] = React.useState<TradePosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
   // The bin on a row and the Remove button over ticked rows both ask first.
   // Nothing here can be put back from the screen, and the two lists sit under
@@ -501,7 +501,7 @@ function PositionsGlance({
   markets,
   children,
 }: {
-  positions: PaperPosition[]
+  positions: TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
   children: React.ReactNode
 }) {

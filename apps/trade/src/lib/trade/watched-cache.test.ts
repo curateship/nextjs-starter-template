@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { TradeOrder } from "@/lib/trade/paper"
 import { readWatchedCache, writeWatchedCache } from "@/lib/trade/watched-cache"
 
 /**
@@ -25,7 +25,7 @@ function store(): Storage {
   }
 }
 
-function order(over: Partial<PaperOrder>): PaperOrder {
+function order(over: Partial<TradeOrder>): TradeOrder {
   return {
     id: "o1",
     walletId: "w1",

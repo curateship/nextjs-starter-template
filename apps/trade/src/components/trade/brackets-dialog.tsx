@@ -33,7 +33,7 @@ import {
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
-import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
+import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
 
 /**
  * Where a position gets out, either way.
@@ -56,7 +56,7 @@ export function BracketsDialog({
   onSave,
   onClose,
 }: {
-  position: PaperPosition | null
+  position: TradePosition | null
   /**
    * A price to start the take-profit box from when the position has no target
    * yet — the level right-clicked on the chart. A target already on the
@@ -69,8 +69,7 @@ export function BracketsDialog({
   startSlPx?: number | null
   busy: boolean
   onSave: (
-    walletId: string,
-    marketKey: string,
+    position: TradePosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -114,13 +113,12 @@ function BracketsForm({
   onSave,
   onClose,
 }: {
-  position: PaperPosition
+  position: TradePosition
   startTpPx: number | null
   startSlPx: number | null
   busy: boolean
   onSave: (
-    walletId: string,
-    marketKey: string,
+    position: TradePosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -190,7 +188,7 @@ function BracketsForm({
 
   const save = async () => {
     if (badTarget || badStop || badSell) return
-    const saved = await onSave(position.walletId, position.marketKey, {
+    const saved = await onSave(position, {
       tpPx,
       tpSz: tpPx !== null ? tpSz : null,
       slPx,

@@ -356,6 +356,34 @@ function protectionParams(input: {
   }
 }
 
+function immediateLimitPrice(input: {
+  mark: number
+  side: "buy" | "sell"
+  priceTick: number | null
+  priceMultiplierUp: number | null
+  priceMultiplierDown: number | null
+}): number {
+  const fixedCap =
+    input.mark * (input.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP)
+  const bandCap =
+    input.side === "buy" &&
+    input.priceMultiplierUp !== null &&
+    input.priceMultiplierUp > 1
+      ? input.mark * (1 + (input.priceMultiplierUp - 1) * PRICE_BAND_SHARE)
+      : input.side === "sell" &&
+          input.priceMultiplierDown !== null &&
+          input.priceMultiplierDown > 0 &&
+          input.priceMultiplierDown < 1
+        ? input.mark * (1 - (1 - input.priceMultiplierDown) * PRICE_BAND_SHARE)
+        : fixedCap
+  return snapToTick(
+    input.side === "buy"
+      ? Math.min(fixedCap, bandCap)
+      : Math.max(fixedCap, bandCap),
+    input.priceTick
+  )
+}
+
 export async function placeAsterOrder(
   network: NetworkId,
   orderAuth: OrderAuth,
@@ -388,30 +416,14 @@ export async function placeAsterOrder(
   remember(network, account(orderAuth), params.marketId)
 
   const market = params.kind === "market"
-  const fixedCap =
-    params.px * (params.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP)
-  const bandCap =
-    params.side === "buy" &&
-    params.priceMultiplierUp !== null &&
-    params.priceMultiplierUp !== undefined &&
-    params.priceMultiplierUp > 1
-      ? params.px *
-        (1 + (params.priceMultiplierUp - 1) * PRICE_BAND_SHARE)
-      : params.side === "sell" &&
-          params.priceMultiplierDown !== null &&
-          params.priceMultiplierDown !== undefined &&
-          params.priceMultiplierDown > 0 &&
-          params.priceMultiplierDown < 1
-        ? params.px *
-          (1 - (1 - params.priceMultiplierDown) * PRICE_BAND_SHARE)
-        : fixedCap
   const orderPx = market
-    ? snapToTick(
-        params.side === "buy"
-          ? Math.min(fixedCap, bandCap)
-          : Math.max(fixedCap, bandCap),
-        params.priceTick ?? null
-      )
+    ? immediateLimitPrice({
+        mark: params.px,
+        side: params.side,
+        priceTick: params.priceTick ?? null,
+        priceMultiplierUp: params.priceMultiplierUp ?? null,
+        priceMultiplierDown: params.priceMultiplierDown ?? null,
+      })
     : params.px
   const placed = await placeRaw(network, orderAuth, {
     symbol: params.marketId,
@@ -614,7 +626,13 @@ export async function fetchAsterOrderPortfolio(
 export async function closeAsterPosition(
   network: NetworkId,
   orderAuth: OrderAuth,
-  params: { marketId: string; szi: number }
+  params: {
+    marketId: string
+    szi: number
+    priceTick?: number | null
+    priceMultiplierUp?: number | null
+    priceMultiplierDown?: number | null
+  }
 ): Promise<{ avgPx: number | null; filledSz: number | null }> {
   await assertRealMoneyAllowed(network)
   const markAnswer = (await asterPublic(network, "/fapi/v3/premiumIndex", 1, {
@@ -622,13 +640,22 @@ export async function closeAsterPosition(
   })) as { markPrice?: unknown }
   const mark = num(markAnswer.markPrice)
   if (mark === null || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+  const side = params.szi > 0 ? "sell" : "buy"
   const placed = await placeRaw(network, orderAuth, {
     symbol: params.marketId,
-    side: params.szi > 0 ? "SELL" : "BUY",
+    side: side.toUpperCase(),
     type: "LIMIT",
     quantity: decimal(Math.abs(params.szi)),
     reduceOnly: "true",
-    price: decimal(mark * (params.szi > 0 ? 1 - MARKET_CAP : 1 + MARKET_CAP)),
+    price: decimal(
+      immediateLimitPrice({
+        mark,
+        side,
+        priceTick: params.priceTick ?? null,
+        priceMultiplierUp: params.priceMultiplierUp ?? null,
+        priceMultiplierDown: params.priceMultiplierDown ?? null,
+      })
+    ),
     timeInForce: "IOC",
   })
   const orderId = String(placed.orderId)

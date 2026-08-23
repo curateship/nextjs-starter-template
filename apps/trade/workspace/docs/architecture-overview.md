@@ -240,7 +240,12 @@ but a testnet run is not required before using the mainnet connector.
 ## Real orders
 
 Live wallets trade for real through the same chart flow the practice engine
-uses (task `Trading/real-orders.md`). The security rules, in the order they
+uses (task `Trading/real-orders.md`). The shared row types in
+`src/lib/trade/paper.ts` are named `TradePosition`, `TradeOrder` and
+`TradeSide` — not "Paper" — because a real exchange row is shaped into the
+same type (with its `live` field filled in) so every screen draws both kinds
+with one set of code. Names that still say "Paper" belong to the practice
+engine alone. The security rules, in the order they
 bite:
 
 - **A pasted trading key is proved before it is saved.** The account's own

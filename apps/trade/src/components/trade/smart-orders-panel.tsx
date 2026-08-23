@@ -15,7 +15,7 @@ import {
   type LiveFill,
   type LiveTrade,
 } from "@/lib/trade/live-trades"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 import { moneyTone } from "@/lib/trade/money-tone"
 import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -69,7 +69,7 @@ export function SmartOrdersPanel({
   cacheScope: string
   smartOrders: readonly SmartOrder[]
   /** What each of them is holding, when it has bought anything yet. */
-  positions: readonly PaperPosition[]
+  positions: readonly TradePosition[]
   /** Fills not yet part of a finished trade — where a grid's sells live. */
   fills: readonly LiveFill[]
   /** Finished round trips, for the orders that do go flat. */
@@ -431,7 +431,7 @@ export function SmartOrdersPanel({
  */
 function whereItHasGot(
   order: SmartOrder,
-  position: PaperPosition | null
+  position: TradePosition | null
 ): string {
   if (order.kind === "dca") {
     const waiting = order.plan.rungs.filter(

@@ -16,9 +16,9 @@ import {
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import {
   isMarketable,
-  type PaperOrder,
-  type PaperPosition,
-  type PaperSide,
+  type TradeOrder,
+  type TradePosition,
+  type TradeSide,
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { floorSize } from "@/lib/trade/dca"
@@ -141,7 +141,7 @@ async function journal(
   marketKey: string,
   entry: {
     action: LiveJournalAction
-    side: PaperSide | null
+    side: TradeSide | null
     px?: number
     sz?: number
     note?: string | null
@@ -169,7 +169,7 @@ async function refuse(
   userId: string,
   walletId: string,
   marketKey: string,
-  side: PaperSide | null,
+  side: TradeSide | null,
   error: unknown
 ): Promise<never> {
   const message = error instanceof Error ? error.message : String(error)
@@ -191,7 +191,7 @@ export async function placeLiveOrder(
   input: {
     walletId: string
     marketKey: string
-    side: PaperSide
+    side: TradeSide
     px: number
     sz: number
     leverage: number
@@ -331,7 +331,7 @@ export async function moveLiveOrder(
     marketKey: string
     orderId: string
     px: number
-    side: PaperSide
+    side: TradeSide
     sz: number
     reduceOnly: boolean
   }
@@ -363,37 +363,36 @@ export async function moveLiveOrder(
 
 export async function cancelLiveOrder(
   userId: string,
-  input: { walletId: string; marketKey: string; orderId: string }
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    side?: TradeSide
+    px?: number
+    sz?: number
+  }
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
-  let side: PaperSide | null = null
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    // Named for the journal: the order being cancelled, as the exchange
-    // lists it right now. Gone already is its own honest refusal.
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
-    const order = portfolio.orders.find((one) => one.orderId === input.orderId)
-    if (!order) throw new Error("LIVE_ORDER_GONE")
-    side = order.side
-
+    // The screen already has the exchange's order id. Asking for the whole
+    // account again before cancelling made a valid cancel depend on a second,
+    // cached account answer. Send the cancel straight to the exchange. The
+    // exchange will say if the order filled or disappeared first.
     await ordersOf(protocol).cancel(row.network, authFor(row), {
       marketId: ref.marketId,
       orderId: input.orderId,
     })
     await journal(userId, row.id, input.marketKey, {
       action: "cancelled",
-      side: order.side,
-      px: order.px,
-      sz: order.sz,
+      side: input.side ?? null,
+      px: input.px,
+      sz: input.sz,
     })
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, side, error)
+    await refuse(userId, row.id, input.marketKey, input.side ?? null, error)
   }
 }
 
@@ -408,7 +407,7 @@ export async function rollbackLiveOrder(
 ): Promise<boolean> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
-  const side: PaperSide | null = null
+  const side: TradeSide | null = null
 
   try {
     const ref = checkedMarket(row, input.marketKey)
@@ -446,7 +445,7 @@ export async function closeLivePosition(
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
-  let side: PaperSide | null = null
+  let side: TradeSide | null = null
 
   try {
     const ref = checkedMarket(row, input.marketKey)
@@ -460,10 +459,14 @@ export async function closeLivePosition(
     )
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
+    const rules = await marketRules(row.protocol, row.network, ref.marketId)
 
     const closed = await ordersOf(protocol).close(row.network, authFor(row), {
       marketId: ref.marketId,
       szi: held.szi,
+      priceTick: rules?.priceTick ?? null,
+      priceMultiplierUp: rules?.priceMultiplierUp ?? null,
+      priceMultiplierDown: rules?.priceMultiplierDown ?? null,
     })
     // The Journal row for this trade is built from the fill this close just
     // made, so the next read must not sit behind the idle wait.
@@ -496,7 +499,7 @@ export async function setLiveBrackets(
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
-  let side: PaperSide | null = null
+  let side: TradeSide | null = null
 
   try {
     const ref = checkedMarket(row, input.marketKey)
@@ -612,8 +615,8 @@ export async function loadLivePortfolio(
     credentials?: ReadonlyMap<string, () => string | null>
   } = {}
 ): Promise<{
-  positions: PaperPosition[]
-  orders: PaperOrder[]
+  positions: TradePosition[]
+  orders: TradeOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
@@ -632,8 +635,8 @@ export async function loadLivePortfolio(
   )
 
   const now = Date.now()
-  const positions: PaperPosition[] = []
-  const orders: PaperOrder[] = []
+  const positions: TradePosition[] = []
+  const orders: TradeOrder[] = []
   const unreachable: string[] = []
 
   // One read for every wallet's key, not one per wallet — or none at all

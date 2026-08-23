@@ -391,7 +391,13 @@ export type ProtocolEntry = {
     close(
       network: NetworkId,
       auth: OrderAuth,
-      params: { marketId: string; szi: number }
+      params: {
+        marketId: string
+        szi: number
+        priceTick?: number | null
+        priceMultiplierUp?: number | null
+        priceMultiplierDown?: number | null
+      }
     ): Promise<{ avgPx: number | null; filledSz: number | null }>
     /** Replaces the stop and target riding on a real position. */
     setBrackets(

@@ -18,7 +18,7 @@ import {
   positionProfit,
   projectedProfit,
   TAKER_FEE_RATE,
-  type PaperPosition,
+  type TradePosition,
   type PositionCore,
 } from "@/lib/trade/paper"
 
@@ -238,7 +238,7 @@ describe("what a position is worth", () => {
 })
 
 describe("the account's five figures", () => {
-  const position: PaperPosition = {
+  const position: TradePosition = {
     id: "p1",
     walletId: "w1",
     marketKey: "hyperliquid:mainnet:BTC",

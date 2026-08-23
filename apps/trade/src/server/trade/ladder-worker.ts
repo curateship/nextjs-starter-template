@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm"
 
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { tradeSmartLadders } from "@/server/trade/schema"
@@ -288,7 +288,7 @@ async function workOneWallet(
       options?: { marks: ReadonlyMap<string, number> }
     ) => Promise<
       | {
-          positions: ReadonlyMap<string, PaperPosition>
+          positions: ReadonlyMap<string, TradePosition>
           marks: ReadonlyMap<string, number>
         }
       | undefined
@@ -297,7 +297,7 @@ async function workOneWallet(
     checkLiquidationWarnings: (input: {
       userId: string
       wallet: TradeWallet
-      positions: readonly PaperPosition[]
+      positions: readonly TradePosition[]
       marks: ReadonlyMap<string, number>
     }) => Promise<void>
     pushedMarks: (keys: readonly string[]) => {

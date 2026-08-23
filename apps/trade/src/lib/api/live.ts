@@ -11,7 +11,7 @@ import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelLiveOrder as cancelOrderRow,
@@ -70,6 +70,9 @@ const cancelSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   orderId: orderIdSchema,
+  side: z.enum(["buy", "sell"]).optional(),
+  px: z.number().positive().finite().optional(),
+  sz: z.number().positive().finite().optional(),
 })
 
 const bracketsSchema = z.object({
@@ -107,8 +110,8 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{
-      positions: PaperPosition[]
-      orders: PaperOrder[]
+      positions: TradePosition[]
+      orders: TradeOrder[]
       /** Every visible fill, including entries for positions still open. */
       fills: LiveFill[]
       /** Finished round trips, newest first — what the Journal tab draws. */

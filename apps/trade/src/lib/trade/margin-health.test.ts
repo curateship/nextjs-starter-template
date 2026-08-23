@@ -5,11 +5,11 @@ import {
   marginOf,
   walletMarginHealth,
 } from "@/lib/trade/margin-health"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 
 function position(
-  values: Partial<PaperPosition> & Pick<PaperPosition, "id" | "marketKey">
-): PaperPosition {
+  values: Partial<TradePosition> & Pick<TradePosition, "id" | "marketKey">
+): TradePosition {
   return {
     walletId: "wallet-one",
     szi: 2,

@@ -226,10 +226,21 @@ the app assumes will stay fixed.
   whatever size remains without a replacement. A partial target names its own
   coin size and is reduce-only. Closing the position removes any whole-position
   stop or target still waiting on that market.
+- Removing or moving a position's stop or target uses the live position row
+  that drew the line. A refresh cannot reroute that press to a practice wallet
+  while the line is still on screen.
 - A resting Aster limit moves with `PUT /fapi/v3/order`. Price and size change
   on the existing order in one command. There is no cancel-and-replace
   fallback. If the order filled during the drag, the app says it is gone and
   the line returns to the exchange's answer.
+- Closing an Aster position sends a reduce-only Immediate-or-Cancel limit
+  through the mark price. The cap stays inside Aster's stated price band and
+  is rounded to that market's stated price tick before it reaches Aster, so
+  the close cannot be refused for crossing the band or sitting between legal
+  price steps.
+- Cancelling a resting order sends the order id already shown on screen straight
+  to Aster. Trade does not ask for the whole account first. A cached account
+  answer can lag behind the exchange, but it cannot block the cancel command.
 
 ## Private account stream
 

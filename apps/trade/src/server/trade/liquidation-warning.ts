@@ -3,7 +3,7 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 import { marketSymbol, protocolLabel } from "@/lib/protocols/contracts"
 import { formatAway, formatUsd } from "@/lib/trade/format"
 import { isInsideLiquidationWarning } from "@/lib/trade/liquidation-warning"
-import { liquidationDistance, type PaperPosition } from "@/lib/trade/paper"
+import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadLiquidationWarning } from "@/server/trade/prefs"
@@ -20,7 +20,7 @@ export async function checkLiquidationWarnings({
 }: {
   userId: string
   wallet: TradeWallet
-  positions: readonly PaperPosition[]
+  positions: readonly TradePosition[]
   marks: ReadonlyMap<string, number>
   checkedAt?: Date
   database?: CustomShellDb
@@ -77,7 +77,7 @@ export async function checkLiquidationWarnings({
   // all of them, and only for the ones whose row still says "warned".
   const clearedKeys: string[] = []
   const inside: {
-    position: PaperPosition
+    position: TradePosition
     mark: number
     distance: NonNullable<ReturnType<typeof liquidationDistance>>
   }[] = []

@@ -3,7 +3,7 @@ import {
   positionMargin,
   positionProfit,
   positionValue,
-  type PaperPosition,
+  type TradePosition,
 } from "@/lib/trade/paper"
 import type { WalletAccountSummary } from "@/lib/trade/wallets"
 import { venueLabel, type TradeWallet } from "@/lib/trade/wallets"
@@ -68,7 +68,7 @@ export type TradingOverview = {
 
 /** Turns the shared position rows into the account-wide open-trades list. */
 export function buildTradingOverviewActiveTrades(
-  positions: readonly PaperPosition[],
+  positions: readonly TradePosition[],
   wallets: readonly TradeWallet[],
   marks: ReadonlyMap<string, number>
 ): TradingOverviewActiveTrade[] {

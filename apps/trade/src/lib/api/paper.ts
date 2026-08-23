@@ -8,7 +8,7 @@ import {
 } from "@/lib/protocols/contracts"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelPaperOrder as cancelOrderRow,
@@ -145,8 +145,8 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       data,
       context,
     }): Promise<{
-      positions: PaperPosition[]
-      orders: PaperOrder[]
+      positions: TradePosition[]
+      orders: TradeOrder[]
       fills: LiveFill[]
       /** Finished practice round trips — the Journal, alongside the real ones. */
       trades: LiveTrade[]

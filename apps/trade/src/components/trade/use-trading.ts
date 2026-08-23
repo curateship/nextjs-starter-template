@@ -62,7 +62,7 @@ import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
 import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
-import type { PaperOrder, PaperPosition, PaperSide } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition, TradeSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
 /**
@@ -227,8 +227,8 @@ export type Trading = {
   /** The wallet an order placed right now would go to, or null until one is picked. */
   wallet: TradeWallet | null
   /** Held across every wallet, practice and real alike. */
-  positions: PaperPosition[]
-  orders: PaperOrder[]
+  positions: TradePosition[]
+  orders: TradeOrder[]
   /**
    * Watched prices drawn as the orders they stand in for. A plain order is a
    * watch by default now, so it has to sit in the Open orders tab and on the
@@ -236,7 +236,7 @@ export type Trading = {
    * building their own was how the tab ended up empty while the chart drew
    * the line.
    */
-  watchOrders: PaperOrder[]
+  watchOrders: TradeOrder[]
   /**
    * The last refusal on each wallet and market.
    *
@@ -253,7 +253,7 @@ export type Trading = {
    * and nothing offers to change or cancel something the server has never
    * heard of.
    */
-  placing: PaperOrder[]
+  placing: TradeOrder[]
   /** Every visible execution, including entries for positions still open. */
   fills: LiveFill[]
   /**
@@ -308,7 +308,7 @@ export type Trading = {
    */
   place: (input: {
     marketKey: string
-    side: PaperSide
+    side: TradeSide
     px: number
     sz: number
     leverage: number
@@ -317,7 +317,7 @@ export type Trading = {
     slPx: number | null
   }) => void
   move: (walletId: string, orderId: string, px: number) => Promise<void>
-  cancel: (order: PaperOrder) => Promise<void>
+  cancel: (order: TradeOrder) => Promise<void>
   /**
    * From the order window: how much a waiting order is for, and where it gets
    * out once it fills. Its price is not here — that is the drag on the chart.
@@ -329,7 +329,7 @@ export type Trading = {
   ) => Promise<boolean>
   /** From the edit window: says so when it saves, and reports a refusal. */
   setBrackets: (
-    position: PaperPosition,
+    position: TradePosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -343,7 +343,7 @@ export type Trading = {
    * announces itself nor waits for the server before showing the new price.
    */
   dragBrackets: (
-    position: PaperPosition,
+    position: TradePosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -351,7 +351,7 @@ export type Trading = {
       slPx: number | null
     }
   ) => Promise<void>
-  close: (position: PaperPosition) => Promise<void>
+  close: (position: TradePosition) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
   /**
@@ -449,8 +449,8 @@ export type Trading = {
 }
 
 type PaperAnswer = {
-  positions: PaperPosition[]
-  orders: PaperOrder[]
+  positions: TradePosition[]
+  orders: TradeOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
@@ -459,8 +459,8 @@ type PaperAnswer = {
 }
 
 type LiveAnswer = {
-  positions: PaperPosition[]
-  orders: PaperOrder[]
+  positions: TradePosition[]
+  orders: TradeOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
@@ -555,7 +555,7 @@ export function useTrading(
     ReadonlyMap<string, { px: number; at: number }>
   >(new Map())
   // Orders asked for whose answer is still on its way.
-  const [placing, setPlacing] = React.useState<PaperOrder[]>([])
+  const [placing, setPlacing] = React.useState<TradeOrder[]>([])
   // A smart order the server has confirmed, standing in until the next read
   // carries it. The window that placed it clears its preview lines as it
   // closes, and the read that would replace them waits on an exchange round
@@ -1130,7 +1130,7 @@ export function useTrading(
 
   const watchOrders = React.useMemo(
     () =>
-      smartOrders.flatMap((order): PaperOrder[] =>
+      smartOrders.flatMap((order): TradeOrder[] =>
         order.kind === "watch" &&
         // **Still drawn while it is being taken, but never beside its own
         // order.** The moment a level is reached the watch stops waiting and
@@ -1172,7 +1172,7 @@ export function useTrading(
                 createdAt: order.createdAt,
                 updatedAt: order.updatedAt,
                 // No order exists behind this row — see `watched` on
-                // `PaperOrder`. Everything that would reach for one steps
+                // `TradeOrder`. Everything that would reach for one steps
                 // aside; the × still works and goes the smart-order way.
                 watched: true,
               },
@@ -1233,7 +1233,7 @@ export function useTrading(
       const kind = wallet.kind
       // Drawn at once, before anything is sent. Its own id, never the
       // server's: this order does not exist anywhere else yet.
-      const ghost: PaperOrder = {
+      const ghost: TradeOrder = {
         id: `placing:${crypto.randomUUID()}`,
         walletId,
         marketKey: input.marketKey,

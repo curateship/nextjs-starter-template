@@ -4,9 +4,9 @@ import {
   isInsideLiquidationWarning,
   liquidationWarningSchema,
 } from "@/lib/trade/liquidation-warning"
-import { liquidationDistance, type PaperPosition } from "@/lib/trade/paper"
+import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
 
-const position: PaperPosition = {
+const position: TradePosition = {
   id: "p1",
   walletId: "w1",
   marketKey: "hyperliquid:mainnet:ETH",

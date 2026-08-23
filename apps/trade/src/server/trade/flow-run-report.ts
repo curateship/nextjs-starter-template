@@ -21,7 +21,7 @@ import {
   type LiveFillMark,
   type LiveTrade,
 } from "@/lib/trade/live-trades"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 import { venueLabel, type TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { customShellAutomations } from "@/server/schema"
@@ -427,7 +427,7 @@ export async function readFlowRun(
   const stillHolding = history.fills.some(
     (fill) => owners.get(fill.orderId) === runId
   )
-  let positionRows: PaperPosition[] = []
+  let positionRows: TradePosition[] = []
   let unreachable = false
   if (wallet && (row.status === "running" || stillHolding)) {
     if (wallet.kind === "live") {

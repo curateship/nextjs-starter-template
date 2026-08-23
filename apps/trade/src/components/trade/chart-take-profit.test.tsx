@@ -5,12 +5,12 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChartTakeProfit } from "@/components/trade/chart-take-profit"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 
 let host: HTMLDivElement
 let root: Root
 
-const position: PaperPosition = {
+const position: TradePosition = {
   id: "position-1",
   walletId: "wallet-1",
   marketKey: "hyperliquid:BTC",

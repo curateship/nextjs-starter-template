@@ -4,7 +4,7 @@ import {
   type ProtocolId,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 
 /**
  * Live trading in the app's own words — browser-safe on purpose, like its
@@ -59,6 +59,20 @@ export type LiveRefusal = {
   at: number
 }
 
+/** A refusal belongs to one wallet and one market, never every matching coin. */
+export function liveRefusalKey(walletId: string, marketKey: string): string {
+  return `${walletId}:${marketKey}`
+}
+
+/** Only the refusal received by this wallet after this watch began. */
+export function refusalForWatchedOrder(
+  refusals: ReadonlyMap<string, LiveRefusal>,
+  order: { walletId: string; marketKey: string; createdAt: number }
+): LiveRefusal | null {
+  const refusal = refusals.get(liveRefusalKey(order.walletId, order.marketKey))
+  return refusal && refusal.at >= order.createdAt ? refusal : null
+}
+
 /**
  * One live wallet's exchange answer as the rows the screens draw. Ids are
  * deliberately stable per (wallet, market) and per exchange order id, so
@@ -69,11 +83,11 @@ export function livePortfolioRows(
   portfolio: WalletPortfolio,
   /** "Now" handed in so the mapping stays pure and testable. */
   now: number
-): { positions: PaperPosition[]; orders: PaperOrder[] } {
+): { positions: TradePosition[]; orders: TradeOrder[] } {
   const keyOf = (marketId: string) =>
     marketKey({ protocol: wallet.protocol, network: wallet.network, marketId })
 
-  const positions = portfolio.positions.map((position): PaperPosition => ({
+  const positions = portfolio.positions.map((position): TradePosition => ({
     id: `live:${wallet.id}:${position.marketId}`,
     walletId: wallet.id,
     marketKey: keyOf(position.marketId),
@@ -96,7 +110,7 @@ export function livePortfolioRows(
     },
   }))
 
-  const orders = portfolio.orders.map((order): PaperOrder => ({
+  const orders = portfolio.orders.map((order): TradeOrder => ({
     id: order.orderId,
     walletId: wallet.id,
     marketKey: keyOf(order.marketId),
@@ -183,8 +197,8 @@ export function keyExpiryWarning(
  */
 export function keepUnreachableRows<
   Answer extends {
-    positions: PaperPosition[]
-    orders: PaperOrder[]
+    positions: TradePosition[]
+    orders: TradeOrder[]
     unreachable: string[]
   },
 >(was: Answer | null, next: Answer): Answer {

@@ -13,7 +13,7 @@ import {
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import type { LiveTrade } from "@/lib/trade/live-trades"
-import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true
@@ -64,7 +64,7 @@ function market(symbol: string, price: number): MarketRow {
   }
 }
 
-function position(symbol: string, size: number): PaperPosition {
+function position(symbol: string, size: number): TradePosition {
   return {
     id: symbol,
     walletId: "practice",
@@ -118,7 +118,7 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 
 describe("the bottom panel's tables say what they know", () => {
   it("hands the live exchange row to its cancel action", async () => {
-    const live: PaperOrder = {
+    const live: TradeOrder = {
       id: "aster-order-77",
       walletId: "live-wallet",
       marketKey: "aster:mainnet:SOLUSDT",
@@ -134,7 +134,7 @@ describe("the bottom panel's tables say what they know", () => {
       updatedAt: 1,
       live: true,
     }
-    const cancelled: PaperOrder[] = []
+    const cancelled: TradeOrder[] = []
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -161,7 +161,7 @@ describe("the bottom panel's tables say what they know", () => {
   })
 
   it("sends one press on a watched row through the watched-order cancel path", async () => {
-    const watched: PaperOrder = {
+    const watched: TradeOrder = {
       id: "new-watch",
       walletId: "live-wallet",
       marketKey: "aster:mainnet:ETHUSDT",

@@ -14,6 +14,12 @@ import type { CandleBar, WalletAccountFigures } from "@/lib/protocols/contracts"
  * `value ÷ leverage` as margin and can lose it; the rest of the account is
  * never at risk from it. That is the simplest honest model of what the real
  * exchange does, and it is the one the numbers on screen are built from.
+ *
+ * `TradePosition`, `TradeOrder` and `TradeSide` are named without "paper"
+ * because they are not only paper: real exchange rows are shaped into the
+ * same types (a real position carries `live`) so every screen draws both
+ * kinds with one set of code. Everything still named "Paper" belongs to the
+ * practice engine alone.
  */
 
 /**
@@ -70,7 +76,7 @@ export function defaultPaperCosts(): PaperCosts {
  */
 export function slippedPx(
   px: number,
-  side: PaperSide,
+  side: TradeSide,
   slippageRate: number
 ): number {
   if (!(slippageRate > 0)) return px
@@ -80,7 +86,7 @@ export function slippedPx(
 /** Below this many coins a position counts as flat — see `applyPaperFill`. */
 const POSITION_DUST = 1e-9
 
-export type PaperSide = "buy" | "sell"
+export type TradeSide = "buy" | "sell"
 
 /**
  * Why a fill happened, kept on every journal row. Not decoration: "the stop
@@ -96,7 +102,7 @@ export type PaperFillReason =
   | "stop_loss"
   | "liquidated"
 
-export type PaperPosition = {
+export type TradePosition = {
   id: string
   walletId: string
   marketKey: string
@@ -143,11 +149,11 @@ export type PaperPosition = {
   }
 }
 
-export type PaperOrder = {
+export type TradeOrder = {
   id: string
   walletId: string
   marketKey: string
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   leverage: number
@@ -207,7 +213,7 @@ export type PaperJournalEntry = {
   id: string
   walletId: string
   marketKey: string
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   fee: number
@@ -234,12 +240,12 @@ export type PaperJournalEntry = {
 
 /** Everything the fill arithmetic reads and rewrites. */
 export type PositionCore = Pick<
-  PaperPosition,
+  TradePosition,
   "szi" | "entryPx" | "leverage" | "maxLeverage" | "tpPx" | "slPx" | "feesPaid"
 >
 
 type PaperFill = {
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   feeRate: number
@@ -335,7 +341,7 @@ export function applyPaperFill(
  */
 export function capReduceOnly(
   position: PositionCore | null,
-  side: PaperSide,
+  side: TradeSide,
   sz: number
 ): number | null {
   const szi = position?.szi ?? 0
@@ -348,7 +354,7 @@ export function capReduceOnly(
 
 /** The stake put up to hold it: what it was worth at entry, over leverage. */
 export function positionMargin(
-  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage">
+  position: Pick<TradePosition, "szi" | "entryPx" | "leverage">
 ): number {
   if (!(position.leverage > 0)) return Math.abs(position.szi) * position.entryPx
   return (Math.abs(position.szi) * position.entryPx) / position.leverage
@@ -356,7 +362,7 @@ export function positionMargin(
 
 /** What it is worth at this price — the whole holding, not the stake. */
 export function positionValue(
-  position: Pick<PaperPosition, "szi">,
+  position: Pick<TradePosition, "szi">,
   mark: number
 ): number {
   return Math.abs(position.szi) * mark
@@ -364,7 +370,7 @@ export function positionValue(
 
 /** Up or down right now, in dollars. The sign of `szi` does the work. */
 export function positionProfit(
-  position: Pick<PaperPosition, "szi" | "entryPx">,
+  position: Pick<TradePosition, "szi" | "entryPx">,
   mark: number
 ): number {
   return (mark - position.entryPx) * position.szi
@@ -376,7 +382,7 @@ export function positionProfit(
  * them in their own column so each figure means exactly one thing.
  */
 export function projectedProfit(
-  position: Pick<PaperPosition, "szi" | "entryPx">,
+  position: Pick<TradePosition, "szi" | "entryPx">,
   exitPx: number
 ): number {
   return (exitPx - position.entryPx) * position.szi
@@ -414,7 +420,7 @@ export function projectedProfit(
  * price the exchange itself publishes and never this.
  */
 export function liquidationPx(
-  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage" | "maxLeverage">
+  position: Pick<TradePosition, "szi" | "entryPx" | "leverage" | "maxLeverage">
 ): number | null {
   const { entryPx, leverage, maxLeverage } = position
   if (!(entryPx > 0) || !(leverage > 0) || !(maxLeverage > 1)) return null
@@ -429,7 +435,7 @@ export function liquidationPx(
  * the "19% away" in the table. Null when there is no liquidation price.
  */
 export function liquidationAway(
-  position: Pick<PaperPosition, "szi" | "entryPx" | "leverage" | "maxLeverage">,
+  position: Pick<TradePosition, "szi" | "entryPx" | "leverage" | "maxLeverage">,
   mark: number
 ): number | null {
   const liq = liquidationPx(position)
@@ -440,7 +446,7 @@ export function liquidationAway(
 /** The dollar and proportional distance to the liquidation price. */
 export function liquidationDistance(
   position: Pick<
-    PaperPosition,
+    TradePosition,
     "szi" | "entryPx" | "leverage" | "maxLeverage" | "live"
   >,
   mark: number
@@ -465,7 +471,7 @@ export function paperAccountFigures(input: {
   startingBalance: number
   /** The sum of every journal row: profit banked, less fees paid. */
   realized: number
-  positions: readonly PaperPosition[]
+  positions: readonly TradePosition[]
   marks: ReadonlyMap<string, number>
 }): WalletAccountFigures {
   const cash = input.startingBalance + input.realized
@@ -496,7 +502,7 @@ export function paperAccountFigures(input: {
  * asked for.
  */
 export function isMarketable(
-  side: PaperSide,
+  side: TradeSide,
   px: number,
   mark: number
 ): boolean {
@@ -556,7 +562,7 @@ export function nextEventOnLeg(input: {
   /** Where along the run price has already been taken. */
   at: number
   position: PositionCore | null
-  orders: readonly Pick<PaperOrder, "id" | "px">[]
+  orders: readonly Pick<TradeOrder, "id" | "px">[]
   /** The stop already owns this candle — see `bracketsTie`. */
   ignoreTakeProfit: boolean
 }): PaperEvent | null {

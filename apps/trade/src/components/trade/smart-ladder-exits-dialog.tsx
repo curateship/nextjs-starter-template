@@ -37,7 +37,7 @@ import {
   type DcaTpMode,
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
-import type { PaperPosition } from "@/lib/trade/paper"
+import type { TradePosition } from "@/lib/trade/paper"
 
 /** A bracket price back to its distance from the entry, for filling a box in. */
 function pctFromEntry(entryPx: number | undefined, px: number | null): number | null {
@@ -62,7 +62,7 @@ export function SmartLadderExitsDialog({
 }: {
   ladder: SmartLadder | null
   /** The position the ladder is riding, for reading hand-moved brackets back. */
-  position: PaperPosition | null
+  position: TradePosition | null
   busy: boolean
   onSave: (
     ladder: SmartLadder,
@@ -104,7 +104,7 @@ function ExitsForm({
   onClose,
 }: {
   ladder: SmartLadder
-  position: PaperPosition | null
+  position: TradePosition | null
   busy: boolean
   onSave: (
     ladder: SmartLadder,

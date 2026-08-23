@@ -287,6 +287,21 @@ time, so this matters most when trading against a dev machine.
   18:57, it was rate-limited on its first attempt and froze again in four
   seconds.
 
+- **Calling a watch off wins over an engine pass already in progress.** The
+  engine may have read the watch just before the press. A later save from that
+  older read cannot make the cancelled watch active again, and pressing the
+  cancel control twice has the same result as pressing it once.
+
+  A watch that has only just been placed can still be the copy held on screen
+  while the account read catches up. Its cancel still goes through the watched
+  order path, and a successful cancel removes that held copy at once. It never
+  falls through to the practice-order path merely because the full read has not
+  returned yet.
+
+- **A refusal stays with the order that received it.** Reusing the same coin
+  in a new watched order does not carry the previous order's refusal onto the
+  new row. Refusals also stay separate when two wallets watch the same coin.
+
 - **Wallet-wide entry rules fire where the trigger fires.** The cap on how
   many coins open per hour, and the crash rule's "only coins the exchange
   allows 10× or more on", are checked at the moment a trigger would open a

@@ -16,7 +16,7 @@ import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { LiveRefusal } from "@/lib/trade/live"
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { TradeOrder } from "@/lib/trade/paper"
 import type { MarketRow, NetworkId } from "@/lib/protocols/contracts"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { cn } from "@/lib/utils"
@@ -87,7 +87,7 @@ export function MarketListPanel({
   network: NetworkId
   /** The prices being waited at, listed under the Watched tab. */
   watchedOrders: {
-    rows: readonly PaperOrder[]
+    rows: readonly TradeOrder[]
     /** Which account and exchange the cached list belongs to. */
     cacheScope: string
     /** Both halves of the trading read have landed — see `Trading`. */

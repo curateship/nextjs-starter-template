@@ -1,4 +1,4 @@
-import type { PaperSide } from "@/lib/trade/paper"
+import type { TradeSide } from "@/lib/trade/paper"
 
 /**
  * Finished trades, practice and real alike, built out of fills.
@@ -35,7 +35,7 @@ export type LiveFill = {
   orderId: string
   walletId: string
   marketKey: string
-  side: PaperSide
+  side: TradeSide
   px: number
   sz: number
   /** Epoch ms, the exchange's clock. */
@@ -293,7 +293,7 @@ function finish(
 export type LiveFillMark = {
   at: number
   px: number
-  side: PaperSide
+  side: TradeSide
   sz: number
   label: string
   detail: string | null

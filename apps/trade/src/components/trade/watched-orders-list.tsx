@@ -8,9 +8,9 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatAway, formatPrice, formatWholeUsd } from "@/lib/trade/format"
-import type { LiveRefusal } from "@/lib/trade/live"
+import { refusalForWatchedOrder, type LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import type { PaperOrder } from "@/lib/trade/paper"
+import type { TradeOrder } from "@/lib/trade/paper"
 import { watchReached } from "@/lib/trade/watch-order"
 import {
   readWatchedCache,
@@ -60,15 +60,15 @@ export function WatchedOrdersList({
   onSelectMarket,
 }: {
   /** Watched prices wearing an order's clothes, from the trading hook. */
-  orders: readonly PaperOrder[]
+  orders: readonly TradeOrder[]
   /** The catalogue, for a price on an exchange whose feed does not tick. */
   markets: readonly MarketRow[]
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
   cacheScope: string
   /**
-   * The last refusal on each market. A level whose order the exchange keeps
-   * refusing looks exactly like one quietly waiting, and that is the whole
-   * reason this list could not answer "why has nothing happened".
+   * The last refusal on each wallet and market. A level whose order the
+   * exchange keeps refusing looks exactly like one quietly waiting, and that
+   * is the whole reason this list could not answer "why has nothing happened".
    */
   refusals: ReadonlyMap<string, LiveRefusal>
   walletName: (walletId: string) => string
@@ -195,8 +195,8 @@ export function WatchedOrdersList({
             <p className="px-3 py-8 text-center text-xs text-muted-foreground">
               Nothing is waiting at a price. Right-click the chart where you
               want to buy or sell — the order you place there waits here until
-              the market reaches it. The markets themselves are under Fav and
-              All.
+              the market reaches it. Saved coins are in Folders below, and the
+              full market list is under All.
             </p>
           ) : (
             <div className="flex flex-col p-1">
@@ -206,7 +206,7 @@ export function WatchedOrdersList({
                   level={row}
                   wallet={severalWallets ? walletName(row.walletId) : null}
                   mark={marks.get(row.marketKey) ?? null}
-                  refusal={refusals.get(row.marketKey) ?? null}
+                  refusal={refusalForWatchedOrder(refusals, row)}
                   onSelect={() => onSelectMarket(row.marketKey)}
                 />
               ))}

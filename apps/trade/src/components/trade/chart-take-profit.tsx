@@ -18,7 +18,7 @@ import {
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
-import { projectedProfit, type PaperPosition } from "@/lib/trade/paper"
+import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
 
 export type ChartTakeProfitState = {
   positionId: string
@@ -41,7 +41,7 @@ export function ChartTakeProfit({
   onClose,
 }: {
   state: ChartTakeProfitState
-  position: PaperPosition
+  position: TradePosition
   wallet: string
   onSave: (brackets: {
     tpPx: number

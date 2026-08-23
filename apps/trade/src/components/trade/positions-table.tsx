@@ -33,8 +33,8 @@ import {
   positionProfit,
   positionValue,
   projectedProfit,
-  type PaperOrder,
-  type PaperPosition,
+  type TradeOrder,
+  type TradePosition,
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
 
@@ -311,7 +311,7 @@ function WalletCell({ wallet }: { wallet: string }) {
 }
 
 /** "Long 5×" — direction and leverage, the two things that set the risk. */
-function SideBadge({ position }: { position: PaperPosition }) {
+function SideBadge({ position }: { position: TradePosition }) {
   const long = position.szi > 0
   return (
     <TradeBadge tone={long ? "made" : "lost"}>
@@ -336,7 +336,7 @@ function PositionRow({
   onFlip,
   onClose,
 }: {
-  position: PaperPosition
+  position: TradePosition
   market: MarketRow | null
   /** Today's price, read once for the whole table so the sort agrees with it. */
   mark: number
@@ -344,9 +344,9 @@ function PositionRow({
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
   onSelectMarket: (marketKey: string) => void
-  onEdit: (position: PaperPosition) => void
-  onFlip: (position: PaperPosition) => void
-  onClose: (position: PaperPosition) => void
+  onEdit: (position: TradePosition) => void
+  onFlip: (position: TradePosition) => void
+  onClose: (position: TradePosition) => void
 }) {
   const margin = marginOf(position)
   const profit = positionProfit(position, mark)
@@ -488,7 +488,7 @@ export function PositionsTable({
   onFlip,
   onClose,
 }: {
-  positions: readonly PaperPosition[]
+  positions: readonly TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   busy: boolean
@@ -504,11 +504,11 @@ export function PositionsTable({
   failed: boolean
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
-  onEdit: (position: PaperPosition) => void
-  onFlip: (position: PaperPosition) => void
-  onClose: (position: PaperPosition) => void
+  onEdit: (position: TradePosition) => void
+  onFlip: (position: TradePosition) => void
+  onClose: (position: TradePosition) => void
 }) {
-  const [confirming, setConfirming] = React.useState<PaperPosition | null>(null)
+  const [confirming, setConfirming] = React.useState<TradePosition | null>(null)
   // Money columns start biggest-first, which is the order anybody scanning a
   // list of positions actually wants.
   const { sort, direction, toggleSort } = useTableSort<PositionColumn>(
@@ -518,7 +518,7 @@ export function PositionsTable({
   )
 
   const marks = useLiveMarks(positions.map((one) => one.marketKey))
-  const markOf = (position: PaperPosition) =>
+  const markOf = (position: TradePosition) =>
     marks.get(position.marketKey) ??
     markets.get(position.marketKey)?.price ??
     position.entryPx
@@ -643,7 +643,7 @@ export function OpenOrdersTable({
   onSelectMarket,
   onCancel,
 }: {
-  orders: readonly PaperOrder[]
+  orders: readonly TradeOrder[]
   markets: ReadonlyMap<string, MarketRow>
   walletName: (walletId: string) => string
   busy: boolean
@@ -659,7 +659,7 @@ export function OpenOrdersTable({
   failed: boolean
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
-  onCancel: (order: PaperOrder) => void
+  onCancel: (order: TradeOrder) => void
 }) {
   const { sort, direction, toggleSort } = useTableSort<OrderColumn>(
     "price",

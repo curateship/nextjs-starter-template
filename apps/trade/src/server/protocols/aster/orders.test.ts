@@ -602,6 +602,35 @@ describe("Aster orders", () => {
     ).toEqual(["8", "9"])
   })
 
+  it("keeps a close cap inside Aster's price band and on its tick", async () => {
+    const sent: Sent[] = []
+    stub((method, url) => {
+      if (url.pathname.endsWith("/premiumIndex")) {
+        return { markPrice: "2467.43" }
+      }
+      if (
+        (method === "POST" || method === "GET") &&
+        url.pathname.endsWith("/order")
+      ) {
+        return order({ status: "FILLED", executedQty: "0.008" })
+      }
+      if (url.pathname.endsWith("/openOrders")) return []
+      return {}
+    }, sent)
+
+    await closeAsterPosition("testnet", AUTH, {
+      marketId: "ETHUSDT",
+      szi: 0.008,
+      priceTick: 0.1,
+      priceMultiplierDown: 0.98,
+    })
+
+    const close = sent.find(
+      (one) => one.method === "POST" && one.url.pathname.endsWith("/order")
+    )
+    expect(close?.url.searchParams.get("price")).toBe("2420.5")
+  })
+
   it("keeps protection when an immediate close only fills part of the position", async () => {
     const sent: Sent[] = []
     stub((method, url) => {

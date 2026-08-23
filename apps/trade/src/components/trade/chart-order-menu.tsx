@@ -8,7 +8,7 @@ import {
   TrendingUpIcon,
 } from "lucide-react"
 
-import type { PaperSide } from "@/lib/trade/paper"
+import type { TradeSide } from "@/lib/trade/paper"
 
 /**
  * The little menu a right-click on the chart puts under the pointer.
@@ -47,7 +47,7 @@ export function ChartOrderMenu({
   menu: ChartMenuState
   /** Whether the smart-order presets apply to the active wallet at all. */
   smartOrders: boolean
-  onPick: (side: PaperSide) => void
+  onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   /**
    * Puts a target on the open position at the level clicked, or null when
@@ -194,7 +194,7 @@ function MenuRow({
   side,
   onPick,
 }: {
-  side: PaperSide
+  side: TradeSide
   onPick: () => void
 }) {
   const buy = side === "buy"
