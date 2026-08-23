@@ -593,6 +593,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
+    SMART_ORDER_NOT_FOUND:
+      "That watched order is not there any more. The account will refresh now.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",
     SMART_GRID_RANGE:
       "The bottom of the grid has to be below the top. Check the two prices and try again.",

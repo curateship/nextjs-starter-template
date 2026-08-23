@@ -640,7 +640,11 @@ export async function saveLadderPlan(
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.id, ladderId)
+        eq(tradeSmartLadders.id, ladderId),
+        // A cancel may land while the engine is finishing a pass it started
+        // from an older copy of this row. Once the cancel marks the row done,
+        // that older pass must not put it back on screen as active.
+        eq(tradeSmartLadders.status, "active")
       )
     )
 }
@@ -1033,12 +1037,15 @@ export async function cancelWatchOrder(
       and(
         eq(tradeSmartLadders.userId, userId),
         eq(tradeSmartLadders.walletId, walletId),
-        eq(tradeSmartLadders.id, watchId),
-        eq(tradeSmartLadders.status, "active")
+        eq(tradeSmartLadders.id, watchId)
       )
     )
     .limit(1)
   if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+  // A stale poll can leave the cancelled row on screen long enough for a
+  // second press. Calling off the same watch twice has the same result and is
+  // not a server failure.
+  if (row.status === "done") return { cancelled: true }
 
   const plan = readWatchPlan(row.plan)
   if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")

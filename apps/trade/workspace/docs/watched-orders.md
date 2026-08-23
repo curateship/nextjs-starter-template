@@ -287,6 +287,11 @@ time, so this matters most when trading against a dev machine.
   18:57, it was rate-limited on its first attempt and froze again in four
   seconds.
 
+- **Calling a watch off wins over an engine pass already in progress.** The
+  engine may have read the watch just before the press. A later save from that
+  older read cannot make the cancelled watch active again, and pressing the
+  cancel control twice has the same result as pressing it once.
+
 - **Wallet-wide entry rules fire where the trigger fires.** The cap on how
   many coins open per hour, and the crash rule's "only coins the exchange
   allows 10× or more on", are checked at the moment a trigger would open a
