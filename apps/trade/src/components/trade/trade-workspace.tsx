@@ -257,7 +257,8 @@ export function TradeWorkspace({
   const selection = resolveSelection(catalogs, selectedKey)
 
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
-  const account = useTradeAccount(protocol)
+  const dashboardCacheScope = `${user.id}:${protocol}`
+  const account = useTradeAccount(protocol, dashboardCacheScope)
   const walletsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const accountColumnRef = React.useRef<HTMLDivElement | null>(null)
   const [addingWallet, setAddingWallet] = React.useState(false)
@@ -280,6 +281,7 @@ export function TradeWorkspace({
   const accountPanel = (
     <AccountPanel
       account={account}
+      cacheScope={dashboardCacheScope}
       onAddWallet={() => setAddingWallet(true)}
       onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
       onContentHeightChange={fitWalletRows}
@@ -427,8 +429,11 @@ export function TradeWorkspace({
   )
 
   const walletNameOf = React.useCallback(
-    (walletId: string) => trading.walletNames.get(walletId) ?? "another wallet",
-    [trading.walletNames]
+    (walletId: string) =>
+      trading.walletNames.get(walletId) ??
+      account.wallets.find((wallet) => wallet.id === walletId)?.label ??
+      "another wallet",
+    [trading.walletNames, account.wallets]
   )
 
   const marketList = (
@@ -628,6 +633,7 @@ export function TradeWorkspace({
                 className="flex flex-col"
               >
                 <SmartOrdersPanel
+                  cacheScope={dashboardCacheScope}
                   smartOrders={trading.smartOrders}
                   positions={trading.positions}
                   fills={trading.fills}

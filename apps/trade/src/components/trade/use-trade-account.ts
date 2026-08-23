@@ -2,11 +2,9 @@ import * as React from "react"
 
 import type { ProtocolId } from "@/lib/protocols/contracts"
 import { loadWalletAccounts, pickWallet } from "@/lib/api/wallets"
+import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
 import { keepGoodSummaries } from "@/lib/trade/wallets"
-import type {
-  TradeWallet,
-  WalletAccountSummary,
-} from "@/lib/trade/wallets"
+import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 
 /**
  * The one owner of wallet state. Mounted once in the workspace so the account
@@ -46,13 +44,18 @@ export type TradeAccount = {
   switchWallet: (walletId: string) => void
 }
 
-export function useTradeAccount(protocol: ProtocolId): TradeAccount {
+export function useTradeAccount(
+  protocol: ProtocolId,
+  cacheScope: string
+): TradeAccount {
   const [wallets, setWallets] = React.useState<TradeWallet[] | null>(null)
   const [summaries, setSummaries] = React.useState<
     ReadonlyMap<string, WalletAccountSummary>
   >(new Map())
   const [lastWalletId, setLastWalletId] = React.useState<string | null>(null)
-  const [chosenWalletId, setChosenWalletId] = React.useState<string | null>(null)
+  const [chosenWalletId, setChosenWalletId] = React.useState<string | null>(
+    null
+  )
   const [failed, setFailed] = React.useState(false)
 
   // Only the newest request may write state — an old answer landing after a
@@ -78,7 +81,10 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
     try {
       const answer = await loadWalletAccounts()
       if (requestRef.current !== request) return
-      setWallets(answer.wallets.filter((one) => one.protocol === protocol))
+      const protocolWallets = answer.wallets.filter(
+        (one) => one.protocol === protocol
+      )
+      setWallets(protocolWallets)
       // A wallet the exchange would not answer for keeps the figures it last
       // had, until it has missed enough reads to be worth saying out loud.
       const merged = keepGoodSummaries(
@@ -89,7 +95,13 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
       summariesRef.current = merged.summaries
       missesRef.current = merged.misses
       setSummaries(merged.summaries)
-      setLastWalletId(answer.lastWalletIds[protocol] ?? null)
+      const lastWalletId = answer.lastWalletIds[protocol] ?? null
+      setLastWalletId(lastWalletId)
+      writeWalletPanelCache(cacheScope, {
+        wallets: protocolWallets,
+        summaries: [...merged.summaries.values()],
+        lastWalletId,
+      })
       setFailed(false)
     } catch {
       if (requestRef.current !== request) return
@@ -97,7 +109,7 @@ export function useTradeAccount(protocol: ProtocolId): TradeAccount {
       // figures already up, the next tick is the retry.
       setFailed(true)
     }
-  }, [protocol])
+  }, [protocol, cacheScope])
 
   /** One poll's turn: skipped outright while the last one is still running. */
   const poll = React.useCallback(() => {

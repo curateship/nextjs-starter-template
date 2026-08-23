@@ -632,13 +632,23 @@ failures.
 screen listing money only one of them is safe to act on. Every panel that
 fetches its own contents says which one it means.
 
+**A return visit starts with the last complete answer this browser saw.** The
+wallets and Smart orders panels cache their last answer for each signed-in
+account and exchange, including an empty answer. The cached rows stand in only
+until the first fresh read lands. A different account or exchange never sees
+them. Cached wallets can only draw the panel. They cannot choose where an order
+goes or open wallet settings. A first visit, a cleared browser, or a cache
+written by an older build still uses the reading state below.
+
 - **One treatment, and it is the shared spinner.** `loading-row.tsx` states the
   rule the whole app follows: a compact centred spinner sitting in the
   surface's own frame, never a skeleton. The wallets panel used to draw five
   grey bars instead, which on a card of figures read as money arriving.
 - **The waiting words name what is being read** — "Reading your wallets",
   "Reading your smart orders", "Reading what you are holding". Whoever is
-  looking should be able to tell which panel is slow.
+  looking should be able to tell which panel is slow. The wallets and Smart
+  orders panels show these words only when this browser has no saved answer to
+  stand on.
 - **A count nobody knows yet shows nothing**, never a zero. The Smart orders
   header says "none working" only once the read has landed; before that its
   count is blank, because a zero is an answer the panel does not have.

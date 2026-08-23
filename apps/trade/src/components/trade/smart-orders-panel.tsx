@@ -20,6 +20,11 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import {
+  readSmartOrdersCache,
+  writeSmartOrdersCache,
+} from "@/lib/trade/dashboard-cache"
 import { cn } from "@/lib/utils"
 
 /**
@@ -48,6 +53,7 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
 }
 
 export function SmartOrdersPanel({
+  cacheScope,
   smartOrders,
   positions,
   fills,
@@ -60,6 +66,7 @@ export function SmartOrdersPanel({
   onRetry,
   onSelectMarket,
 }: {
+  cacheScope: string
   smartOrders: readonly SmartOrder[]
   /** What each of them is holding, when it has bought anything yet. */
   positions: readonly PaperPosition[]
@@ -83,6 +90,17 @@ export function SmartOrdersPanel({
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
 }) {
+  const [cached, setCached] = React.useState<readonly SmartOrder[] | null>(null)
+  useEffectBeforePaint(() => {
+    setCached(readSmartOrdersCache(cacheScope))
+  }, [cacheScope])
+  React.useEffect(() => {
+    if (!settled || failed) return
+    writeSmartOrdersCache(cacheScope, smartOrders)
+  }, [cacheScope, failed, settled, smartOrders])
+  const shownOrders =
+    !settled && !failed && cached !== null ? cached : smartOrders
+
   /** Which rows are open. Several at once, because comparing two is the point. */
   const [opened, setOpened] = React.useState<ReadonlySet<string>>(new Set())
   const [readAt, setReadAt] = React.useState(Date.now)
@@ -102,7 +120,7 @@ export function SmartOrdersPanel({
   // what it looks like on screen anyway.
   const mine = React.useMemo(
     () =>
-      smartOrders.filter(
+      shownOrders.filter(
         // A watched price is a plain order that has not fired yet — it shares
         // the smart orders' table because the engine watches it the same way,
         // but it is not a strategy and it already has a line on the chart and
@@ -110,7 +128,7 @@ export function SmartOrdersPanel({
         // two things.
         (order) => order.flowRunId === null && order.kind !== "watch"
       ),
-    [smartOrders]
+    [shownOrders]
   )
   const marks = useLiveMarks(mine.map((one) => one.marketKey))
   const held = React.useMemo(
@@ -175,7 +193,7 @@ export function SmartOrdersPanel({
                 }`
         }
       />
-      {rows.length === 0 && !settled ? (
+      {rows.length === 0 && !settled && cached === null ? (
         <LoadingRow
           label="Reading your smart orders"
           className="flex-1 text-xs"
@@ -456,9 +474,7 @@ function whereItHasGot(
 }
 
 /** Dollars paid for the coins a grid has not sold yet. */
-function gridHeldToSell(
-  order: Extract<SmartOrder, { kind: "grid" }>
-): number {
+function gridHeldToSell(order: Extract<SmartOrder, { kind: "grid" }>): number {
   return order.plan.levels.reduce(
     (total, level) => total + level.heldSz * level.buyPx,
     0

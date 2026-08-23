@@ -28,6 +28,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { moneyTone } from "@/lib/trade/money-tone"
@@ -510,11 +512,13 @@ function AllWalletsView({
 
 export function AccountPanel({
   account,
+  cacheScope,
   onAddWallet,
   onOpenWallet,
   onContentHeightChange,
 }: {
   account: ReturnType<typeof useTradeAccount>
+  cacheScope: string
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
   /** Lets the desktop split follow the rows instead of reserving half a column. */
@@ -523,8 +527,29 @@ export function AccountPanel({
   const root = React.useRef<HTMLDivElement | null>(null)
   const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
-  const activeWallets = wallets.filter((wallet) => wallet.status === "active")
-  const inactiveWallets = wallets.filter(
+  const [cached, setCached] = React.useState(
+    () => null as ReturnType<typeof readWalletPanelCache>
+  )
+  useEffectBeforePaint(() => {
+    setCached(readWalletPanelCache(cacheScope))
+  }, [cacheScope])
+  // Cached wallets draw the panel only. They never enter `useTradeAccount`,
+  // so they cannot select a wallet, fund an order, or open wallet settings.
+  const shownCache = loading || failed ? cached : null
+  const usingCache = shownCache !== null
+  const shownWallets = shownCache?.wallets ?? wallets
+  const shownActiveWalletId = shownCache
+    ? shownCache.lastWalletId
+    : (activeWallet?.id ?? null)
+  const shownSummaryOf = shownCache
+    ? (walletId: string) =>
+        shownCache.summaries.find((summary) => summary.walletId === walletId) ??
+        null
+    : summaryOf
+  const activeWallets = shownWallets.filter(
+    (wallet) => wallet.status === "active"
+  )
+  const inactiveWallets = shownWallets.filter(
     (wallet) => wallet.status === "inactive"
   )
 
@@ -547,7 +572,7 @@ export function AccountPanel({
     observer.observe(header)
     observer.observe(content)
     return () => observer.disconnect()
-  }, [onContentHeightChange, tab, loading, failed, wallets.length])
+  }, [onContentHeightChange, tab, loading, failed, shownWallets.length])
 
   return (
     <Tabs
@@ -593,37 +618,37 @@ export function AccountPanel({
             content and lets the dollar column run off the panel's right edge.
             Block makes it fill the panel instead. */}
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-          {loading ? (
+          {loading && !usingCache ? (
             <PanelLoading />
-          ) : failed ? (
+          ) : failed && !usingCache ? (
             <LoadFailed onRetry={() => void refresh()} />
           ) : activeWallets.length > 0 ? (
             <ActiveWalletsView
               wallets={activeWallets}
-              summaryOf={summaryOf}
-              activeWalletId={activeWallet?.id ?? null}
-              onUseWallet={account.switchWallet}
-              onOpenWallet={onOpenWallet}
+              summaryOf={shownSummaryOf}
+              activeWalletId={shownActiveWalletId}
+              onUseWallet={usingCache ? () => {} : account.switchWallet}
+              onOpenWallet={usingCache ? () => {} : onOpenWallet}
               onRetry={() => void refresh()}
             />
           ) : (
-            <NoActiveWallets hasWallets={wallets.length > 0} />
+            <NoActiveWallets hasWallets={shownWallets.length > 0} />
           )}
         </ScrollArea>
       </TabsContent>
 
       <TabsContent value="inactive" className="min-h-0 flex-1">
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-          {loading ? (
+          {loading && !usingCache ? (
             <PanelLoading />
-          ) : failed ? (
+          ) : failed && !usingCache ? (
             <LoadFailed onRetry={() => void refresh()} />
           ) : inactiveWallets.length > 0 ? (
             <AllWalletsView
               wallets={inactiveWallets}
-              summaryOf={summaryOf}
+              summaryOf={shownSummaryOf}
               activeWalletId={null}
-              onOpenWallet={onOpenWallet}
+              onOpenWallet={usingCache ? () => {} : onOpenWallet}
             />
           ) : (
             <PanelPlaceholder
@@ -642,16 +667,16 @@ export function AccountPanel({
             content and lets the dollar column run off the panel's right edge.
             Block makes it fill the panel instead. */}
         <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-          {loading ? (
+          {loading && !usingCache ? (
             <PanelLoading />
-          ) : failed ? (
+          ) : failed && !usingCache ? (
             <LoadFailed onRetry={() => void refresh()} />
-          ) : wallets.length > 0 ? (
+          ) : shownWallets.length > 0 ? (
             <AllWalletsView
-              wallets={wallets}
-              summaryOf={summaryOf}
-              activeWalletId={activeWallet?.id ?? null}
-              onOpenWallet={onOpenWallet}
+              wallets={shownWallets}
+              summaryOf={shownSummaryOf}
+              activeWalletId={shownActiveWalletId}
+              onOpenWallet={usingCache ? () => {} : onOpenWallet}
             />
           ) : (
             <NoWalletsYet />

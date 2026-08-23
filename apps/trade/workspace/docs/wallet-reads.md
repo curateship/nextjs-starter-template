@@ -222,6 +222,14 @@ The merge rule is `keepGoodSummaries` in `src/lib/trade/wallets.ts`, and the
 miss counts live in refs in `use-trade-account.ts` so the count cannot be
 double-incremented by a re-render.
 
+The browser also keeps the last complete wallet list and figures for each
+signed-in account and exchange. A return visit draws that answer before the
+first new read lands, so the panel does not go back through "Reading your
+wallets" on every load. The saved answer can only draw the panel. It never
+chooses the wallet used for an order or opens wallet settings. The fresh answer
+always replaces the saved one. A failed refresh keeps the figures already on
+screen under the same missed-read rules above.
+
 **Why the rule exists.** Drawn straight, one failed answer replaced the whole
 card with "Can't reach it" until the next tick fifteen seconds later put it
 back — so the card flickered all day on an account that was never actually

@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
+import { writeSmartOrdersCache } from "@/lib/trade/dashboard-cache"
 import { ladderPlanSchema } from "@/lib/trade/dca"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 
@@ -27,6 +28,7 @@ const EMPTY = "No ladder or grid of your own is working"
 const READING = "Reading your smart orders"
 
 const shared = {
+  cacheScope: "test:hyperliquid",
   positions: [],
   fills: [],
   trades: [],
@@ -124,6 +126,31 @@ describe("the Smart orders panel", () => {
     const half = draw({ smartOrders: [ladder], settled: false, failed: false })
     expect(half).toContain("XMR")
     expect(half).not.toContain(READING)
+  })
+
+  it("draws the last complete answer while the new read is still landing", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    window.localStorage.clear()
+    writeSmartOrdersCache(shared.cacheScope, [ladder])
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[]}
+          settled={false}
+          failed={false}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain("XMR")
+    expect(host.textContent).not.toContain(READING)
+    await act(async () => root.unmount())
   })
 
   it("summarises a grid by waiting and completed levels", () => {
