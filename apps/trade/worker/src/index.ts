@@ -27,14 +27,14 @@ import {
   lastPass,
 } from "@/server/trade/ladder-worker"
 import { listProtocols } from "@/server/protocols/registry"
-import { tryBecomeLeader, type Leadership } from "@/server/trade/leadership"
+import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
 import { writeHeartbeat } from "@/server/trade/workers"
 
 /** How often the ladders are worked once this copy is the one trading. */
 const PASS_EVERY_MS = 1_000
 
-/** How often a standby asks whether the leader has gone. */
-const STANDBY_RETRY_MS = 5_000
+/** How long to wait before reconnecting after the database refuses the lock connection. */
+const DATABASE_RETRY_MS = 5_000
 
 /**
  * How often this copy says it is still alive.
@@ -95,17 +95,17 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
 
 async function becomeLeaderOrWait(): Promise<void> {
   while (!stopping) {
-    const taken = await tryBecomeLeader().catch((error) => {
+    const taken = await waitToBecomeLeader().catch((error) => {
       console.error("trade worker: could not reach the database", error)
       return null
     })
-    if (taken?.held) {
+    if (taken) {
       leadership = taken
       return
     }
-    // Somebody else is trading. Nothing to do but ask again — the lock is
-    // released the moment their process ends, however it ends.
-    await new Promise((done) => setTimeout(done, STANDBY_RETRY_MS))
+    // A database error is different from somebody else holding the lock. The
+    // blocking lock call waits its turn; only a failed connection reaches here.
+    await new Promise((done) => setTimeout(done, DATABASE_RETRY_MS))
   }
 }
 

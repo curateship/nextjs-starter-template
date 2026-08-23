@@ -32,6 +32,12 @@ The watch also keeps the chosen leverage and margin mode while it waits. When
 an Aster watch opens a fresh position, those account settings are applied before
 the order is sent.
 
+The dedicated trading engine waits in PostgreSQL's lock queue when another
+copy is already working. PostgreSQL gives the released lock to that queued
+engine before a website backup or an older copy can race in. This matters
+during a deploy: the new engine takes over as soon as the previous holder lets
+go, while every other copy remains unable to trade.
+
 The exchange's coin-size step is checked before the watch is saved. Aster may
 state a $5 dollar minimum while its smallest coin step costs more. BTC, for
 example, moves in 0.001 BTC order steps. A $10 BTC watch cannot become an Aster

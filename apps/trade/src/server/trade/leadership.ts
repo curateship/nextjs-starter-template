@@ -52,6 +52,45 @@ export type Leadership = {
   release: () => Promise<void>
 }
 
+function heldLeadership(client: Client): Leadership {
+  let lost = false
+  let keepalive: ReturnType<typeof setInterval> | null = null
+  const markLost = () => {
+    lost = true
+    if (keepalive) {
+      clearInterval(keepalive)
+      keepalive = null
+    }
+  }
+
+  // Without a listener, the client re-throws a dropped connection as a
+  // process-killing error. This is not hypothetical: the engine died this
+  // way at sixty minutes old, every hour, from the day it first ran.
+  client.on("error", markLost)
+  client.on("end", markLost)
+
+  keepalive = setInterval(() => {
+    void client.query("select 1").catch(markLost)
+  }, KEEPALIVE_EVERY_MS)
+  // Never a reason to hold the process open on its own.
+  keepalive.unref?.()
+
+  return {
+    held: true,
+    lost: () => lost,
+    release: async () => {
+      markLost()
+      // Unlocking explicitly is politeness, not the mechanism — ending the
+      // connection would do it anyway. It makes a clean shutdown hand over
+      // in milliseconds rather than waiting for the socket to close.
+      await client
+        .query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
+        .catch(() => {})
+      await client.end().catch(() => {})
+    },
+  }
+}
+
 /**
  * Take the lock if it is free. Returns immediately either way — a standby
  * asks again later rather than blocking on a lock that may be held for weeks.
@@ -77,42 +116,30 @@ export async function tryBecomeLeader(): Promise<Leadership> {
       return { held: false, lost: () => true, release: async () => {} }
     }
 
-    let lost = false
-    let keepalive: ReturnType<typeof setInterval> | null = null
-    const markLost = () => {
-      lost = true
-      if (keepalive) {
-        clearInterval(keepalive)
-        keepalive = null
-      }
-    }
+    return heldLeadership(client)
+  } catch (error) {
+    await client.end().catch(() => {})
+    throw error
+  }
+}
 
-    // Without a listener, the client re-throws a dropped connection as a
-    // process-killing error. This is not hypothetical: the engine died this
-    // way at sixty minutes old, every hour, from the day it first ran.
-    client.on("error", markLost)
-    client.on("end", markLost)
-
-    keepalive = setInterval(() => {
-      void client.query("select 1").catch(markLost)
-    }, KEEPALIVE_EVERY_MS)
-    // Never a reason to hold the process open on its own.
-    keepalive.unref?.()
-
-    return {
-      held: true,
-      lost: () => lost,
-      release: async () => {
-        markLost()
-        // Unlocking explicitly is politeness, not the mechanism — ending the
-        // connection would do it anyway. It makes a clean shutdown hand over
-        // in milliseconds rather than waiting for the socket to close.
-        await client
-          .query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
-          .catch(() => {})
-        await client.end().catch(() => {})
-      },
-    }
+/**
+ * Queue the dedicated engine for the lock instead of asking every few seconds.
+ *
+ * PostgreSQL hands a released advisory lock to a queued connection before a
+ * polling website or an old standby can race in and take it. The website must
+ * keep using `tryBecomeLeader`, because a web request may never wait on this
+ * lock. The dedicated engine has no request to hold up and should wait here.
+ */
+export async function waitToBecomeLeader(): Promise<Leadership> {
+  const client = new Client({
+    connectionString: getDatabaseUrl(),
+    keepAlive: true,
+  })
+  await client.connect()
+  try {
+    await client.query("select pg_advisory_lock($1)", [TRADE_ENGINE_LOCK])
+    return heldLeadership(client)
   } catch (error) {
     await client.end().catch(() => {})
     throw error
