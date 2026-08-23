@@ -114,6 +114,7 @@ describe("the remembered order window", () => {
       sizeUnit: "pct" as const,
       size: "25",
       leverage: 3,
+      marginMode: "cross" as const,
       bracketOn: true,
       stopPct: "4",
       targetPct: "9",

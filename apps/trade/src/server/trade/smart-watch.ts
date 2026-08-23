@@ -23,7 +23,9 @@ import type {
  * **It sends nothing until the level is touched.** Every pass it asks one
  * question — has the market reached the price? — and only then does it start
  * asking for an order, which it rests just off the touch and follows, the same
- * chase a signal trade uses. Nothing here ever takes the market.
+ * chase a signal trade uses. A newly placed limit that is already through the
+ * market takes the available price immediately, which matches an ordinary
+ * marketable limit order.
  *
  * The pass runs inside the engine that already works ladders and grids, so a
  * watch survives the browser being closed exactly as they do — and, like them,
@@ -218,6 +220,7 @@ export async function advanceWatch(
       sz: takeSz,
       feeRate: book.costs.takerFeeRate,
       leverage: plan.leverage,
+      marginMode: plan.marginMode ?? null,
       maxLeverage: plan.maxLeverage,
       reduceOnly: plan.reduceOnly,
       reason: "order",
@@ -310,6 +313,7 @@ async function moveOrder(
     px: wanted,
     sz,
     leverage: plan.leverage,
+    marginMode: plan.marginMode ?? null,
     maxLeverage: plan.maxLeverage,
     reduceOnly: plan.reduceOnly,
     now,

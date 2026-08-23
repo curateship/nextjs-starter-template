@@ -24,6 +24,7 @@ const cancel = vi.fn()
 const close = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
+let marketFloor: number | null = null
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -31,7 +32,21 @@ const portfolio = vi.fn()
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
-    markets: { prices },
+    markets: {
+      prices,
+      fetch: async () => ({
+        rows: [
+          {
+            marketId: "BTC",
+            sizeDecimals: 3,
+            priceTick: null,
+            minOrderValueUsd: marketFloor,
+            maxLeverage: 50,
+            volume24hUsd: 1_000_000,
+          },
+        ],
+      }),
+    },
     orders: { place, cancel, close, setBrackets, portfolio },
   }),
 }))
@@ -52,6 +67,7 @@ beforeEach(async () => {
     mock.mockReset()
   }
   prices.mockResolvedValue(new Map([["BTC", 100_000]]))
+  marketFloor = null
   portfolio.mockResolvedValue({ positions: [], orders: [] })
   place.mockResolvedValue({
     status: "resting",
@@ -203,6 +219,20 @@ describe("the rails around placing", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].action).toBe("placed")
     expect(rows[0].sz).toBe(0.5)
+  })
+
+  it("refuses an order below the venue's dollar floor before sending it", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    marketFloor = 10
+    const { clearMarketRulesCache } =
+      await import("@/server/trade/market-rules")
+    clearMarketRulesCache()
+
+    await expect(
+      placeLiveOrder(userId, { ...orderInput(walletId), px: 9, sz: 1 })
+    ).rejects.toThrow("smallest order here is $10, and this order is $9.00")
+    expect(place).not.toHaveBeenCalled()
   })
 
   it("uses a post-only order when a Smart rung must stay resting", async () => {

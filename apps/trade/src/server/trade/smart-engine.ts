@@ -29,6 +29,7 @@ export type LadderOrderInput = {
   px: number
   sz: number
   leverage: number
+  marginMode?: "cross" | "isolated" | null
   maxLeverage: number
   reduceOnly: boolean
   now: number
@@ -65,6 +66,7 @@ export type LadderEngineDeps = {
       sz: number
       feeRate: number
       leverage: number
+      marginMode?: "cross" | "isolated" | null
       maxLeverage: number
       /**
        * This fill may only shrink what is held, never open something new.

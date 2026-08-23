@@ -198,10 +198,10 @@ encrypted blob, and its account reads carry that credential — the registry's
 authenticated reads take a credential thunk that wallet-shaped venues simply
 never call.
 
-Aster is the read-only example. Its mainnet and testnet pages list active USDT
-perpetuals and chart all six intervals. Its registry entry has markets and
-funding, with no account, credentials, orders or pushed-price block yet, so it
-cannot be enabled for live trading.
+Aster has the full live contract. Its registry entry supplies credentials,
+account figures, orders, funding, pushed mark prices and a private account
+stream. Mainnet is the work target. Aster testnet support remains available,
+but a testnet run is not required before using the mainnet connector.
 
 ## Saved data
 
@@ -254,8 +254,8 @@ bite:
   travels. The fence test also keeps `viem` (the signing library) inside that
   one folder.
 - **Real money is blocked server-side.** Testnet signs freely; mainnet
-  signing throws until `TRADE_ENABLE_MAINNET=true` is deliberately set —
-  the funded testnet run in the task file is the condition for setting it.
+  signing throws until `TRADE_ENABLE_MAINNET=true` and the Real-money trading
+  switch in Settings are both on.
   A wallet can only ever trade a market on its OWN network.
 - **Order numbers cannot collide.** One `trade_wallet_nonces` row per signing
   address, bumped atomically (`greatest(last + 1, now)`), shared by every

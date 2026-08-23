@@ -3,6 +3,7 @@ import { and, desc, eq, gt, inArray, sql } from "drizzle-orm"
 import {
   marketKey,
   parseMarketKey,
+  type WalletOrderFill,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import {
@@ -139,10 +140,26 @@ export async function sweepLiveFills(
     await recordTriggers(userId, wallet, portfolio)
     if (!wallet.address) return
 
+    const orders = ordersOf(getProtocol(wallet.protocol))
+    orders.watchFills?.(
+      wallet.network,
+      wallet.address,
+      `${userId}:${wallet.id}`,
+      credential,
+      (fill) => {
+        void recordLiveFills(userId, wallet, [fill])
+      }
+    )
+
     const walletKey = `${userId}:${wallet.id}`
     const now = Date.now()
     const last = sweptAt.get(walletKey) ?? 0
-    if (now - last < SWEEP_EVERY_MS) return
+    const pushedRecovery = orders.fillsNeedRecovery?.(
+      wallet.network,
+      wallet.address
+    )
+    if (orders.watchFills && !pushedRecovery) return
+    if (!pushedRecovery && now - last < SWEEP_EVERY_MS) return
     sweptAt.set(walletKey, now)
 
     await resolveClosingOrders(userId, wallet, credential)
@@ -160,14 +177,28 @@ export async function sweepLiveFills(
     // on its own, and everything it still has is worth having.
     const since = Number(seen[0]?.at ?? 0)
 
-    const fills = await ordersOf(getProtocol(wallet.protocol)).fills(
+    const fills = await orders.fills(
       wallet.network,
       wallet.address,
       since > 0 ? Math.max(0, since - OVERLAP_MS) : 0,
       credential
     )
-    if (fills.length === 0) return
+    await recordLiveFills(userId, wallet, fills)
+    orders.fillsRecovered?.(wallet.network, wallet.address)
+  } catch (error) {
+    // Loud, because a silent gap here is a Journal that quietly stops growing.
+    console.error("trade_live_fills sweep failed", error)
+  }
+}
 
+/** The one idempotent storage path used by pushed fills and recovery reads. */
+export async function recordLiveFills(
+  userId: string,
+  wallet: TradeWallet,
+  fills: readonly WalletOrderFill[]
+): Promise<void> {
+  if (fills.length === 0) return
+  try {
     await db
       .insert(tradeLiveFills)
       .values(
@@ -193,8 +224,7 @@ export async function sweepLiveFills(
       )
       .onConflictDoNothing()
   } catch (error) {
-    // Loud, because a silent gap here is a Journal that quietly stops growing.
-    console.error("trade_live_fills sweep failed", error)
+    console.error("trade_live_fills write failed", error)
   }
 }
 
@@ -320,7 +350,8 @@ async function recordTriggers(
       if (!orderId || px === null) continue
       const memo = `${userId}:${wallet.id}:${orderId}`
       if (writtenTriggers.has(memo)) continue
-      if (writtenTriggers.size >= MAX_REMEMBERED_TRIGGERS) writtenTriggers.clear()
+      if (writtenTriggers.size >= MAX_REMEMBERED_TRIGGERS)
+        writtenTriggers.clear()
       writtenTriggers.add(memo)
       rows.push({
         userId,
@@ -474,8 +505,9 @@ export async function loadLiveHistory(
   // never asked twice, and a trade they belong to simply says "Closed".
   const triggers = new Map(
     triggerRows
-      .filter((row): row is typeof row & { kind: LiveTriggerKind } =>
-        row.kind === "stop" || row.kind === "target"
+      .filter(
+        (row): row is typeof row & { kind: LiveTriggerKind } =>
+          row.kind === "stop" || row.kind === "target"
       )
       .map((row) => [
         row.orderId,

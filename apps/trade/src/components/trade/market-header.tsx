@@ -23,6 +23,7 @@ import {
   type MarketRow,
 } from "@/lib/protocols/contracts"
 import { focusRingInset } from "@/lib/layout/focus-ring"
+import { minimumOrderLabel } from "@/lib/trade/market-info"
 import { cn } from "@/lib/utils"
 
 /**
@@ -240,6 +241,9 @@ function MarketInfo({
         </span>
         <span>List price: mark price</span>
         <span>Chart bars: traded prices</span>
+        {minimumOrderLabel(selection.row) ? (
+          <span>{minimumOrderLabel(selection.row)}</span>
+        ) : null}
         <span>Top leverage: {leverage}</span>
       </TooltipContent>
     </Tooltip>

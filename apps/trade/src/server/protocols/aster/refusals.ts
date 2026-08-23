@@ -15,6 +15,9 @@ const SENTENCES = {
     "Aster will not lower isolated leverage while this position is open. Close the position or keep its current leverage.",
   ASTER_ORDER_GONE:
     "Aster says this order is no longer open. Refresh the account before trying another change.",
+  ASTER_MARGIN_UNCHANGED: "Aster is already using that margin mode.",
+  ASTER_MARGIN_OPEN:
+    "Aster will not change this market's margin mode while it has an open position or order. Close or cancel it first.",
 } as const
 
 export type AsterRefusal = keyof typeof SENTENCES
@@ -33,6 +36,8 @@ export function asterRefusalCode(
   if (code === "-1111" || code === "-4014") return "ASTER_PRICE_STEP"
   if (code === "-4161") return "ASTER_LEVERAGE_OPEN_POSITION"
   if (code === "-2013") return "ASTER_ORDER_GONE"
+  if (code === "-4046") return "ASTER_MARGIN_UNCHANGED"
+  if (code === "-4047" || code === "-4048") return "ASTER_MARGIN_OPEN"
   return null
 }
 

@@ -121,6 +121,7 @@ async function watchThroughTheLevel(): Promise<void> {
     side: "buy",
     sz: 1,
     leverage: 1,
+    marginMode: "isolated",
     maxLeverage: 50,
     sizeDecimals: 3,
     priceTick: null,
@@ -536,6 +537,21 @@ describe("live Smart orders", () => {
     expect(plan.phase).toBe("waiting")
     const rows = await database.select().from(tradeSmartLadders)
     expect(rows[0].status).toBe("active")
+  })
+
+  it("keeps the chosen margin mode when a watched level reaches the exchange", async () => {
+    await watchThroughTheLevel()
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "ord-1",
+      avgPx: 94,
+      filledSz: 1,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place.mock.calls[0]?.[2].marginMode).toBe("isolated")
   })
 
   it("puts a watched level back when the exchange was too busy to look", async () => {

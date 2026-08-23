@@ -34,7 +34,12 @@ import { cn } from "@/lib/utils"
  * and sometimes you want to see that price.
  */
 
-export type QuickOrderState = { side: PaperSide; px: number; x: number; y: number }
+export type QuickOrderState = {
+  side: PaperSide
+  px: number
+  x: number
+  y: number
+}
 
 const PANEL_WIDTH = 288
 /** What the window takes at its tallest, for keeping it on screen. */
@@ -84,6 +89,7 @@ export function ChartQuickOrder({
     px: number
     sz: number
     leverage: number
+    marginMode: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -96,7 +102,10 @@ export function ChartQuickOrder({
   onRemember: (prefs: QuickOrderPrefs) => void
   onClose: () => void
 }) {
-  const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
+  const maxLeverage = Math.max(
+    1,
+    Math.floor(market.maxLeverage ?? (market.marginModes.length > 0 ? 100 : 1))
+  )
 
   // What the market costs right now. An order asking for a price already
   // through it is taken immediately at this instead, so this — not the level
@@ -119,6 +128,7 @@ export function ChartQuickOrder({
   const [leverage, setLeverage] = React.useState(
     Math.max(1, Math.min(prefs.leverage, maxLeverage))
   )
+  const [marginMode, setMarginMode] = React.useState(prefs.marginMode)
   const [bracketOn, setBracketOn] = React.useState(prefs.bracketOn)
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
@@ -131,7 +141,10 @@ export function ChartQuickOrder({
   // ----- Where the window sits, and moving it ------------------------------
 
   const [at, setAt] = React.useState(() => ({
-    x: Math.max(EDGE, Math.min(quick.x, window.innerWidth - PANEL_WIDTH - EDGE)),
+    x: Math.max(
+      EDGE,
+      Math.min(quick.x, window.innerWidth - PANEL_WIDTH - EDGE)
+    ),
     y: Math.max(EDGE, Math.min(quick.y, window.innerHeight - PANEL_HEIGHT)),
   }))
   const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
@@ -143,9 +156,15 @@ export function ChartQuickOrder({
       setAt({
         x: Math.max(
           EDGE,
-          Math.min(event.clientX - grab.dx, window.innerWidth - PANEL_WIDTH - EDGE)
+          Math.min(
+            event.clientX - grab.dx,
+            window.innerWidth - PANEL_WIDTH - EDGE
+          )
         ),
-        y: Math.max(EDGE, Math.min(event.clientY - grab.dy, window.innerHeight - 60)),
+        y: Math.max(
+          EDGE,
+          Math.min(event.clientY - grab.dy, window.innerHeight - 60)
+        ),
       })
     }
     const onUp = () => {
@@ -237,6 +256,7 @@ export function ChartQuickOrder({
       px: quick.px,
       sz: sizeCoin,
       leverage,
+      marginMode: market.marginModes.length > 0 ? marginMode : null,
       reduceOnly,
       tpPx: targetPx,
       slPx: stopPx,
@@ -248,13 +268,13 @@ export function ChartQuickOrder({
       sizeUnit,
       size: sizeInput,
       leverage,
+      marginMode,
       bracketOn,
       stopPct,
       targetPct,
     })
     onClose()
   }
-
 
   return (
     <>
@@ -341,7 +361,7 @@ export function ChartQuickOrder({
                 {shownUsd ? (
                   <span
                     id="quick-size-usd"
-                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm tabular-nums text-muted-foreground"
+                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground tabular-nums"
                   >
                     {shownUsd}
                   </span>
@@ -353,7 +373,10 @@ export function ChartQuickOrder({
                   setSizeUnit(next as SizeUnit)
                 }}
               >
-                <SelectTrigger className="w-fit" aria-label="How size is measured">
+                <SelectTrigger
+                  className="w-fit"
+                  aria-label="How size is measured"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -394,7 +417,7 @@ export function ChartQuickOrder({
             <div className="grid gap-2">
               <div className="flex items-baseline justify-between gap-2">
                 <Label htmlFor="quick-leverage">Leverage</Label>
-                <span className="text-xs tabular-nums text-muted-foreground">
+                <span className="text-xs text-muted-foreground tabular-nums">
                   {leverage}×
                 </span>
               </div>
@@ -409,6 +432,26 @@ export function ChartQuickOrder({
                 }}
                 aria-label="Leverage"
               />
+            </div>
+          ) : null}
+
+          {market.marginModes.length > 0 ? (
+            <div className="grid gap-2">
+              <Label htmlFor="quick-margin-mode">Margin</Label>
+              <Select
+                value={marginMode}
+                onValueChange={(next) =>
+                  setMarginMode(next as "cross" | "isolated")
+                }
+              >
+                <SelectTrigger id="quick-margin-mode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="isolated">Isolated margin</SelectItem>
+                  <SelectItem value="cross">Shared (cross) margin</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
 
@@ -442,7 +485,7 @@ export function ChartQuickOrder({
                     onChange={(event) => setStopPct(event.target.value)}
                     aria-invalid={badStop}
                   />
-                  <span className="text-xs tabular-nums text-muted-foreground">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
                   </span>
                 </div>
@@ -457,7 +500,7 @@ export function ChartQuickOrder({
                     onChange={(event) => setTargetPct(event.target.value)}
                     aria-invalid={badTarget}
                   />
-                  <span className="text-xs tabular-nums text-muted-foreground">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
                   </span>
                 </div>

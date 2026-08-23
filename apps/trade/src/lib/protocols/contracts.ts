@@ -230,6 +230,10 @@ export type MarketRow = {
    * figures). `roundPx` is where either answer is applied.
    */
   priceTick: number | null
+  /** The least dollar notional this market accepts, or null when unstated. */
+  minOrderValueUsd: number | null
+  /** Margin modes this market lets the order window choose. */
+  marginModes: readonly ("cross" | "isolated")[]
   /** The most leverage this market allows, or null when the exchange does not say. */
   maxLeverage: number | null
   /** This market only trades isolated: a trade's stake is all it can lose. */
@@ -432,6 +436,8 @@ export type WalletOrderInfo = {
  */
 export type OrderAuth = {
   agentKey: string
+  /** The account this credential is allowed to trade for. */
+  accountAddress?: string
   /** The next always-rising order number for this signing address. */
   allocateNonce: (signerAddress: string) => Promise<number>
 }
@@ -446,6 +452,8 @@ export type PlaceOrderParams = {
   reduceOnly: boolean
   /** Set when opening fresh; null leaves the account's own setting alone. */
   leverage: number | null
+  /** Set before a fresh entry where the venue supports an explicit choice. */
+  marginMode?: "cross" | "isolated" | null
   tpPx: number | null
   slPx: number | null
 }

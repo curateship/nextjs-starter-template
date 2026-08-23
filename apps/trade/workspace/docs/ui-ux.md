@@ -214,9 +214,9 @@ are cancelled and no ladder is saved.
 
 **Neither window asks twice.** The ladder and the grid both place on the first
 press, on every wallet including real money. There used to be a second,
-confirming press on live wallets; Tyler had it removed. What still stands
-between a real-money order and the exchange is the server's funded test switch:
-mainnet cannot sign unless it is deliberately enabled.
+confirming press on live wallets; Tyler had it removed. Two switches still
+stand between a real-money order and the exchange. The server must allow
+mainnet, and Real-money trading must be on in Settings.
 
 ### A stop that rests under the base
 

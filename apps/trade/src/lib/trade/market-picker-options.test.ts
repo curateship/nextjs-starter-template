@@ -18,6 +18,8 @@ const row = (category: MarketRow["category"]): MarketRow => ({
   category,
   sizeDecimals: 3,
   priceTick: 0.01,
+  minOrderValueUsd: null,
+  marginModes: [],
   maxLeverage: null,
   isolatedOnly: false,
   iconUrl: null,

@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto"
 
 import { and, eq, inArray, ne } from "drizzle-orm"
 
-import {
-  parseMarketKey,
-  type CandleInterval,
-} from "@/lib/protocols/contracts"
+import { parseMarketKey, type CandleInterval } from "@/lib/protocols/contracts"
 import {
   CASH_ONLY,
   dcaLadderPlan,
@@ -114,6 +111,7 @@ export type LadderDraftInput = {
   rules: {
     sizeDecimals: number | null
     priceTick: number | null
+    minOrderValueUsd?: number | null
     maxLeverage: number | null
     volume24hUsd: number | null
   }
@@ -191,11 +189,9 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     volume24hUsd: rules.volume24hUsd,
   })
 
-  // A rung that rounds away to nothing can never become an order, at any
-  // price, so it is refused here. The exchange's dollar minimum is deliberately
-  // NOT checked here: a rung is a price being watched, not an order, and
-  // whether it clears the minimum is a question for the moment it fires — by
-  // which time the pot, and so the rung, may be a different size.
+  // A rung that rounds away to nothing can never become an order. A stated
+  // dollar floor is checked for the whole plan here too: allowing the valid
+  // rungs through and refusing only the thin ones would create half a plan.
   const priced = drawn.rungs.map((rung, index) => {
     const px = roundPx(rung.px)
     const sz = floorSize(rung.sz, rules.sizeDecimals)
@@ -204,6 +200,14 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     }
     return { px, sz }
   })
+  const floor = rules.minOrderValueUsd ?? null
+  if (floor !== null && priced.some((rung) => rung.px * rung.sz < floor)) {
+    const total = priced.reduce((sum, rung) => sum + rung.px * rung.sz, 0)
+    const covered = Math.min(priced.length, Math.floor(total / floor + 1e-9))
+    throw new Error(
+      `SMART_RUNG_DOLLAR_FLOOR:${floor}:${total}:${covered}:${priced.length}`
+    )
+  }
 
   const twoGreen = params.twoGreen
 
@@ -363,7 +367,11 @@ export async function placeDcaLadder(
   input: PlaceLadderInput
 ): Promise<PlacedLadder> {
   const ref = parseMarketKey(input.marketKey)
-  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+  if (
+    !ref ||
+    ref.protocol !== wallet.protocol ||
+    ref.network !== wallet.network
+  ) {
     throw new Error("PAPER_MARKET")
   }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -375,7 +383,8 @@ export async function placeDcaLadder(
   if (existing) throw new Error("SMART_LADDER_EXISTS")
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
+  const roundPx = (px: number) =>
+    protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
   // One mark fetch covers the settle, the sizing and the marketable check.
   const keys = await exposedMarketKeys(userId, [wallet.id])
@@ -417,7 +426,10 @@ export async function placeDcaLadder(
     base,
     rules,
     roundPx,
-    equity: potOf(input, input.params.compound ? figures.equity : wallet.startingBalance),
+    equity: potOf(
+      input,
+      input.params.compound ? figures.equity : wallet.startingBalance
+    ),
     freeCash: freeCash(book),
     // Where the candle watch starts reading. Without this the plan kept the
     // draft's zero, and the first settle walked every candle the feed held —
@@ -436,12 +448,19 @@ export async function placeDcaLadder(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
 
     // Re-checked under the lock: two tabs placing at once must not both win,
     // and neither may a ladder and a grid.
-    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
+    const race = await activeSmartOrderId(
+      userId,
+      wallet.id,
+      input.marketKey,
+      tx
+    )
     if (race) throw new Error("SMART_LADDER_EXISTS")
 
     await saveBook(tx, userId, book, new Date(now))
@@ -573,7 +592,9 @@ export async function activeLadder(
   const row = rows[0]
   if (!row || row.kind !== "dca") return null
   const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
-  return plan ? { id: row.id, marketKey: row.marketKey, status: row.status, plan } : null
+  return plan
+    ? { id: row.id, marketKey: row.marketKey, status: row.status, plan }
+    : null
 }
 
 export async function ladderById(
@@ -892,13 +913,18 @@ export async function placeWatchOrder(
     px: number
     sz: number
     leverage: number
+    marginMode?: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
   }
 ): Promise<{ watching: true }> {
   const ref = parseMarketKey(input.marketKey)
-  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+  if (
+    !ref ||
+    ref.protocol !== wallet.protocol ||
+    ref.network !== wallet.network
+  ) {
     throw new Error("PAPER_MARKET")
   }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -910,6 +936,7 @@ export async function placeWatchOrder(
     side: input.side,
     sz: input.sz,
     leverage: input.leverage,
+    marginMode: input.marginMode ?? null,
     maxLeverage: rules.maxLeverage ?? 1,
     sizeDecimals: rules.sizeDecimals,
     priceTick: rules.priceTick,
@@ -935,7 +962,9 @@ export async function placeWatchOrder(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
     // No one-per-coin check: several plain orders on one coin were always
     // allowed when they rested on the book, and a ladder on the coin is no
@@ -994,7 +1023,10 @@ export async function cancelWatchOrder(
       .update(tradeSmartLadders)
       .set({ status: "done", updatedAt: new Date() })
       .where(
-        and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.id, watchId)
+        )
       )
     return { cancelled: true }
   }
@@ -1006,7 +1038,10 @@ export async function cancelWatchOrder(
       updatedAt: new Date(),
     })
     .where(
-      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, watchId)
+      )
     )
   return { cancelled: true }
 }
@@ -1048,7 +1083,10 @@ export async function editWatchOrder(
       updatedAt: new Date(),
     })
     .where(
-      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, watchId)
+      )
     )
   return { saved: true }
 }
@@ -1092,7 +1130,10 @@ export async function moveWatchOrder(
       updatedAt: new Date(),
     })
     .where(
-      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, watchId))
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, watchId)
+      )
     )
   return { moved: true }
 }

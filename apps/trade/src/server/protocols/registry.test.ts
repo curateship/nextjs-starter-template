@@ -21,9 +21,11 @@ describe("the protocol registry", () => {
       expect(entry.networks.length).toBeGreaterThan(0)
       expect(entry.networks).toContain(entry.defaultNetwork)
     }
-    expect(listProtocols().map((one) => one.id).sort()).toEqual(
-      [...KNOWN_PROTOCOLS].sort()
-    )
+    expect(
+      listProtocols()
+        .map((one) => one.id)
+        .sort()
+    ).toEqual([...KNOWN_PROTOCOLS].sort())
     expect(listProtocols().map((one) => one.label)).toContain("Aster")
   })
 
@@ -54,7 +56,10 @@ describe("the protocol registry", () => {
     // an order and has no feed is the gap this closes.
     for (const entry of listProtocols()) {
       if (!entry.capabilities.orders) continue
-      expect(entry.livePrices, `${entry.label} has no pushed price feed`).toBeTruthy()
+      expect(
+        entry.livePrices,
+        `${entry.label} has no pushed price feed`
+      ).toBeTruthy()
     }
   })
 
@@ -97,5 +102,6 @@ describe("the protocol registry", () => {
     expect(named).toContain("Hyperliquid")
     expect(named).toContain("Phemex")
     expect(named).toContain("KuCoin")
+    expect(named).toContain("Aster")
   })
 })

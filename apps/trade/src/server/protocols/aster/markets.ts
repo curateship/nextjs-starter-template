@@ -16,6 +16,7 @@ const filterSchema = z.object({
   filterType: z.string(),
   tickSize: z.union([z.string(), z.number()]).optional(),
   stepSize: z.union([z.string(), z.number()]).optional(),
+  notional: z.union([z.string(), z.number()]).optional(),
 })
 
 const symbolSchema = z.object({
@@ -76,7 +77,7 @@ function marketCategory(subtypes: readonly string[]): MarketCategory {
 function filterValue(
   filters: readonly unknown[],
   kind: string,
-  field: "tickSize" | "stepSize"
+  field: "tickSize" | "stepSize" | "notional"
 ): number | null {
   for (const raw of filters) {
     const parsed = filterSchema.safeParse(raw)
@@ -129,6 +130,8 @@ export function toAsterMarketCatalog(input: {
         filterValue(one.filters, "LOT_SIZE", "stepSize")
       ),
       priceTick: filterValue(one.filters, "PRICE_FILTER", "tickSize"),
+      minOrderValueUsd: filterValue(one.filters, "MIN_NOTIONAL", "notional"),
+      marginModes: ["isolated", "cross"],
       // V3 exchangeInfo labels both margin percentage fields "ignore". The
       // real leverage ceiling is behind a signed account endpoint, so this
       // public, keys-free task leaves it unknown instead of deriving a guess.
@@ -220,4 +223,9 @@ export async function fetchAsterPrices(
     if (price !== undefined) answer.set(marketId, price)
   }
   return answer
+}
+
+/** Aster never serves a stale fallback when its request lane is rationed. */
+export function asterPricesWereRationed(): boolean {
+  return false
 }

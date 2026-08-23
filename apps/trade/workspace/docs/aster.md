@@ -1,9 +1,9 @@
 # What Aster does differently
 
-Trade can read Aster markets on mainnet and testnet without a wallet or API
-key. A separate Pro API wallet can sign account and position reads. Orders and
-fills are not connected yet. This document records only behavior the app runs
-today or a live response proved.
+Trade can read and trade Aster perpetual markets on mainnet and testnet. A
+separate Pro API wallet signs account reads, order commands and the private
+account stream. This document records only behavior the app runs today or a
+live response proved.
 
 The measurements below came from Aster's V3 API on 22 August 2026. Market and
 price figures were read at 13:08 UTC. They are a dated comparison, not values
@@ -17,10 +17,9 @@ the app assumes will stay fixed.
 - Aster listed one more eligible mainnet market than it had earlier the same
   day. Trade reads the list rather than keeping a fixed set of symbols.
 - Every one of the 536 mainnet markets reported a $5 minimum order value. BTC
-  also reported $5. Trade does not place Aster orders yet, so the value is not
-  used for sizing. Any future ladder child must be worth at least $5 when it is
-  sent. [grid-orders.md](grid-orders.md) holds the shared grid rules; Aster task
-  13 owns applying the exchange's floor.
+  also reported $5. Trade carries the value on the market, prints it in the
+  market information, and refuses a thinner order before signing it. A ladder
+  or grid whose split puts any level below the floor is refused whole.
 - Aster's public market response does not state a trustworthy top leverage.
   The two margin percentage fields are marked "ignore" in Aster's V3 docs, and
   the leverage bracket needs a signed account request. Trade prints "Not
@@ -71,8 +70,8 @@ the app assumes will stay fixed.
   ahead of the midpoint of the local request. The middle sample was 182
   milliseconds ahead. Round trips took 162 to 468 milliseconds.
 - Unit checks cover a machine clock ahead of and behind Aster, two requests in
-  one instant, and a fresh measurement after a clock refusal. A deliberate
-  five-minute wrong-clock check still needs a working Aster practice key.
+  one instant, and a fresh measurement after a clock refusal. Mainnet account
+  reads use the corrected clock without placing an order.
 
 ## Signing in and refusals
 
@@ -117,8 +116,8 @@ the app assumes will stay fixed.
   liquidation price. Isolated positions use Aster's isolated margin. Cross
   positions use Aster's position margin from the account response because the
   isolated field is zero there. A zero or missing liquidation price stays
-  blank. Aster orders remain unavailable, so the positions reader does not
-  open an order or fill path by accident.
+  blank. Open trigger orders are joined back to that position as its stop and
+  target, while ordinary waiting orders stay in Open orders.
 - Account and position refreshes accept only `BOTH`, which is Aster's one-way
   shape. A `LONG` or `SHORT` row stops the refresh before any position figure
   reaches a screen. The wallet says that Aster can hold both directions and
@@ -180,13 +179,63 @@ the app assumes will stay fixed.
   the 2,400-unit mainnet limit. This is a deterministic request count. A live
   several-wallet half hour still needs real Aster keys before funded use.
 
-## Behavior that is not known yet
+## Orders, leverage and protection
 
-- A dragged Aster order has never been moved by this app, so there is no
-  one-step move claim yet. Task 16 owns that measurement.
-- Trade has not placed an Aster stop. Task 15 must prove whether a stop follows
-  the remaining position size after part of the position closes.
-- Trade has not received an Aster fill. Task 17 must record which fields Aster
-  sends and how Trade works out what a finished trade made.
-- Trade cannot place a real Aster trade. Practice trading inside Trade is local
-  simulation and is not evidence about Aster's order behavior.
+- A fresh entry sets the margin mode shown in the order window, then sets the
+  chosen leverage, then sends the order. A reduce-only order changes neither
+  account setting. The last successful setting per account and market is kept
+  for this process so an unchanged choice does not spend another request.
+- If Aster refuses either account setting, no entry is sent. The refusal names
+  the requested leverage or margin mode. An existing position keeps its own
+  settings instead of being changed underneath it.
+- An order that must fill now is still a limit: Trade caps it three percent
+  through the mark and sends it Immediate-or-Cancel. Aster may fill inside that
+  cap or cancel the rest; it never receives a naked market entry from Trade.
+- Aster stops and full targets use its whole-position flag. They follow
+  whatever size remains without a replacement. A partial target names its own
+  coin size and is reduce-only. Closing the position removes any whole-position
+  stop or target still waiting on that market.
+- A resting Aster limit moves with `PUT /fapi/v3/order`. Price and size change
+  on the existing order in one command. There is no cancel-and-replace
+  fallback. If the order filled during the drag, the app says it is gone and
+  the line returns to the exchange's answer.
+
+## Private account stream
+
+- The first account use opens a signed listen key and one private socket per
+  account and network. The key is renewed every thirty minutes. A failed
+  renewal, an expired key, a socket close or a socket error tears the line down
+  and reconnects with a delay that tops out at thirty seconds.
+- Order and account events invalidate the short account cache. Trade fills are
+  translated immediately into the same record used by recovery reads, whose
+  primary key makes the pushed and recovered copy one fill. A REST fill read
+  runs once after the stream opens or reconnects, not on a healthy timer.
+- Aster requires a market name on its recovery trade endpoint. The connector
+  remembers markets seen in positions, open orders and orders sent by this
+  process, then recovers those markets. A newly connected account with only
+  old, fully closed markets has no safe all-market history endpoint to ask.
+
+## Flows and four-venue operation
+
+- Aster now carries the same order adapter and pushed mark-price feed the live
+  flow engine requires. Choosing an Aster wallet moves the Markets step to
+  Aster and clears coins from the old venue. A testnet wallet is named Aster
+  Testnet, and the existing market-key checks keep it away from mainnet.
+- The worker opens price feeds from the registry, so Aster joins Hyperliquid,
+  Phemex and KuCoin without a special engine branch. Its heartbeat is named
+  separately. Blocking one feed is isolated by the existing per-venue error
+  boundary.
+- Mainnet operation is the long-running observation. A separate testnet or
+  twenty-four-hour certification run does not hold up Aster trading.
+
+## Mainnet operation
+
+- Aster work targets the connected mainnet account. Testnet is not a release
+  step and does not hold up live trading work.
+- Opening orders set the chosen margin mode and leverage before the order is
+  signed. Whole-position stops and targets follow the size that remains.
+- The private account stream pushes order, position and fill changes. A recovery
+  read runs when the stream opens again after a disconnect.
+- Mainnet orders still require `TRADE_ENABLE_MAINNET=true` and the Real-money
+  trading switch in Settings. Those two switches protect live money; testnet
+  does not decide whether they can be turned on.

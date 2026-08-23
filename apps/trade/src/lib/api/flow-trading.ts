@@ -2,15 +2,13 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { automationGraphSchema } from "@/lib/automations/graph"
+import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
 } from "@/lib/automations/nodes/trade-markets"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
-import {
-  describeFlowStop,
-  type TradeFlowRunSpec,
-} from "@/lib/trade/flow-run"
+import { describeFlowStop, type TradeFlowRunSpec } from "@/lib/trade/flow-run"
 import {
   describeFlowWait,
   flowHeadline,
@@ -22,9 +20,7 @@ import { flowStartProblem } from "@/lib/trade/flow-words"
 import { venueLabel } from "@/lib/trade/wallets"
 import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
-import {
-  flowNodesOf,
-} from "@/server/trade/flow-start"
+import { flowNodesOf } from "@/server/trade/flow-start"
 import {
   pauseFlowRun,
   retryFlowRunNow,
@@ -211,15 +207,17 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       // under a line that just said a hundred of them were refused the same
       // way is the repetition this panel kept falling into.
       const waiting = head?.code
-        ? all.filter((one) => one.code.split(":")[0] !== head.code!.split(":")[0])
+        ? all.filter(
+            (one) => one.code.split(":")[0] !== head.code!.split(":")[0]
+          )
         : all
-        // Anything needing a person first, then whatever was seen most
-        // recently. A list somebody scans from the top should start with the
-        // thing they can actually act on.
-        .sort((a, b) => {
-          if (a.problem !== b.problem) return a.problem ? -1 : 1
-          return b.at - a.at
-        })
+            // Anything needing a person first, then whatever was seen most
+            // recently. A list somebody scans from the top should start with the
+            // thing they can actually act on.
+            .sort((a, b) => {
+              if (a.problem !== b.problem) return a.problem ? -1 : 1
+              return b.at - a.at
+            })
 
       return {
         mode: "trades",
@@ -273,11 +271,13 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       if (coins === 0) {
         return "No coins are chosen on the Markets step yet."
       }
-      if (
-        markets?.success &&
-        markets.data.protocol !== wallet.protocol
-      ) {
-        return `The coins are from ${markets.data.protocol}, which ${wallet.label} cannot trade.`
+      if (markets?.success && markets.data.protocol !== wallet.protocol) {
+        const marketRef = parseMarketKey(markets.data.marketKeys[0] ?? "")
+        const marketVenue = marketRef
+          ? venueLabel(marketRef.protocol, marketRef.network)
+          : markets.data.protocol
+        const walletVenue = venueLabel(wallet.protocol, wallet.network)
+        return `The Markets step names ${marketVenue}, but ${wallet.label} trades ${walletVenue}. Choose ${walletVenue} markets for this wallet.`
       }
       if (named.capUsd === null) {
         return "Say how much of the wallet this flow may use, on the Wallet step."
@@ -396,7 +396,10 @@ async function nodesForFlow(
   if (!parsed.success) return null
   return flowNodesOf({
     nodes: Object.fromEntries(
-      parsed.data.nodes.map((one) => [one.id, { kind: one.kind, settings: one.settings }])
+      parsed.data.nodes.map((one) => [
+        one.id,
+        { kind: one.kind, settings: one.settings },
+      ])
     ),
   })
 }

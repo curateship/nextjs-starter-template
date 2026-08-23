@@ -42,6 +42,7 @@ import {
 // catalogue of rules, today's prices, and whatever candles a case scripts.
 const marks = new Map<string, number>([["BTC", 100]])
 let candles: CandleBar[] = []
+let minOrderValueUsd: number | null = null
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -64,6 +65,9 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             subExchange: null,
             category: "crypto",
             sizeDecimals: 3,
+            priceTick: null,
+            minOrderValueUsd,
+            marginModes: [],
             maxLeverage: 50,
             isolatedOnly: false,
             iconUrl: null,
@@ -145,7 +149,12 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
     cascade: null,
     entryLimit: null,
-    baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
+    baseDetection: {
+      searchBars: 36,
+      holdBars: 8,
+      withTrendOnly: true,
+      minBarsApart: 20,
+    },
     maxPositionPct: 20,
     sizeMultiplier: 2,
     compound: true,
@@ -261,6 +270,7 @@ beforeEach(async () => {
   database = testDb.db
   clearMarketRulesCache()
   marks.set("BTC", 100)
+  minOrderValueUsd = null
   dipSlot = 9
   // A ladder hangs from the confirmed base, so every test needs one. 100 is
   // the base throughout unless a test swaps the tape, which keeps the rungs
@@ -571,6 +581,16 @@ describe("placing a ladder", () => {
     expect(await orders()).toHaveLength(0)
   })
 
+  it("refuses the whole ladder when its split falls under the dollar floor", async () => {
+    minOrderValueUsd = 1_100
+    clearMarketRulesCache()
+    await expect(place({ sizeMultiplier: 1 })).rejects.toThrow(
+      /SMART_RUNG_DOLLAR_FLOOR:1100:.*:1:2/
+    )
+    expect(await ladderRows()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
   it("refuses a second live ladder on the same market", async () => {
     await place()
     await expect(place()).rejects.toThrow("SMART_LADDER_EXISTS")
@@ -741,7 +761,14 @@ describe("the ladder at work", () => {
     await backdate()
     const base = Date.now() - 4 * MINUTE
     candles = [
-      { openTime: base, open: 96, high: 96, low: 94.9, close: 94.95, volume: 1 },
+      {
+        openTime: base,
+        open: 96,
+        high: 96,
+        low: 94.9,
+        close: 94.95,
+        volume: 1,
+      },
       {
         openTime: base + MINUTE,
         open: 94.95,
@@ -814,7 +841,10 @@ describe("the ladder at work", () => {
     await place()
     const ladder = await onlyLadder()
 
-    await cancelLadderRung(userId, wallet, { ladderId: ladder.id, rungIndex: 0 })
+    await cancelLadderRung(userId, wallet, {
+      ladderId: ladder.id,
+      rungIndex: 0,
+    })
     let after = await onlyLadder()
     expect(after.plan.rungs[0].status).toBe("cancelled")
     expect(after.status).toBe("active")
@@ -857,9 +887,7 @@ describe("everything around a ladder", () => {
 
   it("deleting the wallet takes its ladders with it", async () => {
     await place()
-    await database
-      .delete(tradeWallets)
-      .where(eq(tradeWallets.userId, userId))
+    await database.delete(tradeWallets).where(eq(tradeWallets.userId, userId))
     expect(await ladderRows()).toHaveLength(0)
   })
 
@@ -919,7 +947,9 @@ describe("a stop that rests under the base", () => {
   })
 
   it("rests the chosen percent under the base", async () => {
-    await place({ stopLoss: baseStop({ base: { underPct: 2, reclaimDays: 0 } }) })
+    await place({
+      stopLoss: baseStop({ base: { underPct: 2, reclaimDays: 0 } }),
+    })
     await backdate()
     await dipTo(95)
     // Bought off the 100 base, then the lower one confirms.
@@ -997,7 +1027,10 @@ describe("a stop that rests under the base", () => {
     await settle()
 
     let ladder = await onlyLadder()
-    expect(ladder.plan.reclaim).toMatchObject({ rungIndex: 0, aboveSince: null })
+    expect(ladder.plan.reclaim).toMatchObject({
+      rungIndex: 0,
+      aboveSince: null,
+    })
 
     // Ten fresh 4h candles closing above where the stop cut — comfortably past
     // the one day the buy-back waits for.
@@ -1223,10 +1256,20 @@ describe("may this ladder open a new coin", () => {
       mayOpenCoin(bookWith({ cascading: true, leastLeverage: 10 }), BTC, 3, NOW)
     ).toBe(false)
     expect(
-      mayOpenCoin(bookWith({ cascading: false, leastLeverage: 10 }), BTC, 3, NOW)
+      mayOpenCoin(
+        bookWith({ cascading: false, leastLeverage: 10 }),
+        BTC,
+        3,
+        NOW
+      )
     ).toBe(true)
     expect(
-      mayOpenCoin(bookWith({ cascading: true, leastLeverage: 10 }), BTC, 10, NOW)
+      mayOpenCoin(
+        bookWith({ cascading: true, leastLeverage: 10 }),
+        BTC,
+        10,
+        NOW
+      )
     ).toBe(true)
   })
 

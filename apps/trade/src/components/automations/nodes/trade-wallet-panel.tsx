@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select"
 import { getWalletErrorMessage, loadWalletAccounts } from "@/lib/api/wallets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
-import type { ProtocolId } from "@/lib/protocols/contracts"
+import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import {
   DEFAULT_BACKTEST_PROTOCOL,
   tradeMarketsNode,
@@ -265,7 +265,11 @@ export default function TradeWalletFields({
    * other than its own. That is the only way one step can follow another; it is
    * used deliberately and nowhere else.
    */
-  function followWithMarkets(protocol: ProtocolId, because: string) {
+  function followWithMarkets(
+    protocol: ProtocolId,
+    network: NetworkId,
+    because: string
+  ) {
     const markets = graph?.nodes.find(
       (one) => one.kind === tradeMarketsNode.kind
     )
@@ -283,7 +287,7 @@ export default function TradeWalletFields({
     // The exchange's proper name, the way every other screen writes it. The
     // raw id is what is stored; "hyperliquid" in a sentence beside a dropdown
     // reading "Hyperliquid" reads as two different things.
-    const name = venueLabel(protocol, "mainnet")
+    const name = venueLabel(protocol, network)
     toast.success(
       hadCoins > 0
         ? `Markets moved to ${name} ${because}. Its ${hadCoins} ${plural(hadCoins, "coin was", "coins were")} cleared — pick them again.`
@@ -313,74 +317,79 @@ export default function TradeWalletFields({
               fixed the second visit; this fixes the first one, and every
               reload. */}
           <Select
-              value={named?.id ?? PRETEND}
-              onValueChange={(next) => {
-                if (next === PRETEND) {
-                  // Back to a backtest, which reads price history and sends
-                  // nothing anywhere — so it goes to whichever exchange has the
-                  // most history to read, not to the one it was trading.
-                  followWithMarkets(
-                    DEFAULT_BACKTEST_PROTOCOL,
-                    "— a backtest reads its price history"
-                  )
-                  set({
-                    walletId: null,
-                    walletLabel: null,
-                    walletKind: null,
-                    walletProtocol: null,
-                    walletNetwork: null,
-                    spendCapUsd: null,
-                  })
-                  return
-                }
-                const picked = offered.find((one) => one.id === next)
-                if (!picked) return
-                followWithMarkets(picked.protocol, `to match ${picked.label}`)
+            value={named?.id ?? PRETEND}
+            onValueChange={(next) => {
+              if (next === PRETEND) {
+                // Back to a backtest, which reads price history and sends
+                // nothing anywhere — so it goes to whichever exchange has the
+                // most history to read, not to the one it was trading.
+                followWithMarkets(
+                  DEFAULT_BACKTEST_PROTOCOL,
+                  "mainnet",
+                  "— a backtest reads its price history"
+                )
                 set({
-                  walletId: picked.id,
-                  walletLabel: picked.label,
-                  walletKind: picked.kind,
-                  walletProtocol: picked.protocol,
-                  walletNetwork: picked.network,
-                  // The cap starts at what this wallet actually has free; see
-                  // capForPickedWallet for why anything else is a number the
-                  // flow would not honour. It is still a box somebody can
-                  // change — a smaller cap is a real choice.
-                  spendCapUsd: capForPickedWallet(
-                    summaries.find((one) => one.walletId === picked.id),
-                    named?.capUsd ?? settings.startingUsd
-                  ),
+                  walletId: null,
+                  walletLabel: null,
+                  walletKind: null,
+                  walletProtocol: null,
+                  walletNetwork: null,
+                  spendCapUsd: null,
                 })
-              }}
+                return
+              }
+              const picked = offered.find((one) => one.id === next)
+              if (!picked) return
+              followWithMarkets(
+                picked.protocol,
+                picked.network,
+                `to match ${picked.label}`
+              )
+              set({
+                walletId: picked.id,
+                walletLabel: picked.label,
+                walletKind: picked.kind,
+                walletProtocol: picked.protocol,
+                walletNetwork: picked.network,
+                // The cap starts at what this wallet actually has free; see
+                // capForPickedWallet for why anything else is a number the
+                // flow would not honour. It is still a box somebody can
+                // change — a smaller cap is a real choice.
+                spendCapUsd: capForPickedWallet(
+                  summaries.find((one) => one.walletId === picked.id),
+                  named?.capUsd ?? settings.startingUsd
+                ),
+              })
+            }}
+          >
+            <SelectTrigger
+              id={`wallet-${node.id}-which`}
+              className="w-full sm:w-fit"
             >
-              <SelectTrigger
-                id={`wallet-${node.id}-which`}
-                className="w-full sm:w-fit"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={PRETEND}>
-                  Pretend money — for backtests
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={PRETEND}>
+                Pretend money — for backtests
+              </SelectItem>
+              {offered.map((one) => (
+                <SelectItem key={one.id} value={one.id}>
+                  {one.label} — {walletMoneyWords(one.kind)} on{" "}
+                  {venueLabel(one.protocol, one.network)}
                 </SelectItem>
-                {offered.map((one) => (
-                  <SelectItem key={one.id} value={one.id}>
-                    {one.label} — {walletMoneyWords(one.kind)} on{" "}
-                    {venueLabel(one.protocol, one.network)}
-                  </SelectItem>
-                ))}
-                {/* The wallet this step names, whenever it is not in the list
+              ))}
+              {/* The wallet this step names, whenever it is not in the list
                     on offer — either because the list has not arrived yet, or
                     because the wallet is gone. Without it the box would sit
                     blank with no clue what it is set to. Which of the two it
                     is gets said underneath, and only once the list is in. */}
-                {named && !offered.some((one) => one.id === named.id) ? (
-                  <SelectItem value={named.id}>
-                    {named.label}
-                    {wallets === null ? "" : " — not available"}
-                  </SelectItem>
-                ) : null}
-              </SelectContent>
+              {named && !offered.some((one) => one.id === named.id) ? (
+                <SelectItem value={named.id}>
+                  {named.label}
+                  {wallets === null ? "" : " — not available"}
+                </SelectItem>
+              ) : null}
+            </SelectContent>
           </Select>
         </div>
 
@@ -413,7 +422,9 @@ export default function TradeWalletFields({
           {freeCash !== null ? (
             <p
               className={
-                overCap ? "text-xs text-destructive" : "text-xs text-muted-foreground"
+                overCap
+                  ? "text-xs text-destructive"
+                  : "text-xs text-muted-foreground"
               }
             >
               {named.label} has {formatUsd(freeCash)} free right now

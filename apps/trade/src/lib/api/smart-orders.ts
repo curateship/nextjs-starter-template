@@ -150,7 +150,9 @@ const loadLadderBaseFn = createServerFn({ method: "GET" })
     }
   })
 
-export function loadLadderBase(marketKey: string): Promise<{ basePx: number | null }> {
+export function loadLadderBase(
+  marketKey: string
+): Promise<{ basePx: number | null }> {
   return loadLadderBaseFn({ data: { marketKey } })
 }
 
@@ -232,9 +234,7 @@ const editWatchFn = createServerFn({ method: "POST" })
 /** Drags a watched price to a new level, while it is still watching. */
 const moveWatchFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(
-    ladderSchema.extend({ px: z.number().positive().finite() })
-  )
+  .inputValidator(ladderSchema.extend({ px: z.number().positive().finite() }))
   .handler(async ({ data, context }): Promise<{ moved: true }> => {
     await tradingWallet(context.user.id, data.walletId)
     return await moveWatchRow(
@@ -358,7 +358,11 @@ const placeGridSchema = z.object({
 const gridLevelSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
-  levelIndex: z.number().int().min(0).max(MAX_GRID_LEVELS - 1),
+  levelIndex: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_GRID_LEVELS - 1),
 })
 
 const gridSchema = z.object({
@@ -542,19 +546,21 @@ export function loadSmartGridParams() {
   return loadSmartGridFn()
 }
 
-export const getSmartOrderErrorMessage = createErrorMessage(
+const baseSmartOrderErrorMessage = createErrorMessage(
   {
     PAPER_WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     PAPER_WALLET_KIND: "Only a practice wallet trades this way.",
     WALLET_INACTIVE: "Make this wallet active before placing a Smart order.",
-    LIVE_WALLET_KEY: "This live wallet needs a trading key before it can place a Smart order.",
+    LIVE_WALLET_KEY:
+      "This live wallet needs a trading key before it can place a Smart order.",
     LIVE_MARKET: "That market is not one this live wallet can trade.",
-    LIVE_NO_PRICE: "The exchange would not give a price for that market, so nothing was placed.",
+    LIVE_NO_PRICE:
+      "The exchange would not give a price for that market, so nothing was placed.",
     EXCHANGE_BUSY:
       "The exchange is asking us to slow down, so it would not give a price. Nothing was placed. Try again in a minute — it clears on its own.",
     LIVE_MAINNET_OFF:
-      "Real-money trading is switched off until the funded test run passes and TRADE_ENABLE_MAINNET is deliberately set.",
+      "Real-money trading is switched off. Turn it on in Settings before placing a live Smart order.",
     LIVE_ORDER_GONE:
       "A ladder order is no longer on the exchange. The ladder will reconcile before the next action.",
     LIVE_POSITION_GONE:
@@ -566,7 +572,8 @@ export const getSmartOrderErrorMessage = createErrorMessage(
     LIVE_SMART_ROLLBACK_FAILED:
       "The exchange accepted part of the ladder and would not cancel all of it. Check the open orders now.",
     PAPER_MARKET: "That market is not one this wallet can trade.",
-    PAPER_NO_PRICE: "The exchange would not give a price for that market, so nothing was placed.",
+    PAPER_NO_PRICE:
+      "The exchange would not give a price for that market, so nothing was placed.",
     PAPER_PRICE: "That price cannot be used. Pick a level on the chart again.",
     PAPER_ORDER_LIMIT:
       "That many rungs would pass the fifty-order cap. Cancel some orders or use fewer rungs.",
@@ -576,6 +583,8 @@ export const getSmartOrderErrorMessage = createErrorMessage(
       "This wallet is short this market, and a buy ladder would just shrink the short. Close it first.",
     SMART_RUNG_TOO_SMALL:
       "A rung is too small to be an order at this market's size step — nothing was placed. Use fewer rungs, a gentler ramp, or a bigger share.",
+    SMART_RUNG_DOLLAR_FLOOR:
+      "A rung is below this market's smallest dollar order, so nothing was placed.",
     SMART_LADDER_COST:
       "The whole ladder costs more than the free cash — nothing was placed. Use a smaller share or fewer rungs.",
     SMART_LADDER_ABOVE_MARKET:
@@ -606,3 +615,16 @@ export const getSmartOrderErrorMessage = createErrorMessage(
   },
   "That did not go through. Try it again."
 )
+
+export function getSmartOrderErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "")
+  const floor = message.match(
+    /SMART_RUNG_DOLLAR_FLOOR:([\d.]+):([\d.]+):(\d+):(\d+)/
+  )
+  if (floor) {
+    const dollars = (value: string) =>
+      Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })
+    return `$${dollars(floor[2])} across this coin's $${dollars(floor[1])} floor reaches ${floor[3]} rungs, not ${floor[4]}. Nothing was placed.`
+  }
+  return baseSmartOrderErrorMessage(error)
+}

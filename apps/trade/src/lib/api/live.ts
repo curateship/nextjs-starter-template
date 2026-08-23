@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { parseMarketKey, type PlaceOrderOutcome } from "@/lib/protocols/contracts"
+import {
+  parseMarketKey,
+  type PlaceOrderOutcome,
+} from "@/lib/protocols/contracts"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
@@ -49,6 +52,7 @@ const placeSchema = z.object({
   px: z.number().positive().finite(),
   sz: z.number().positive().finite(),
   leverage: z.number().min(1).max(100),
+  marginMode: z.enum(["cross", "isolated"]).nullable(),
   reduceOnly: z.boolean(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
@@ -102,7 +106,10 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
           context.user.id,
           liveWallets.map((wallet) => wallet.id)
         ),
-        wallets: liveWallets.map((wallet) => ({ id: wallet.id, label: wallet.label })),
+        wallets: liveWallets.map((wallet) => ({
+          id: wallet.id,
+          label: wallet.label,
+        })),
       }
     }
   )
@@ -110,31 +117,33 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
 const placeLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(placeSchema)
-  .handler(async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
-    // Watched rather than rested, when that is what the account is set to.
-    // Nothing reaches the exchange until the price is actually there, so the
-    // answer here is "it is waiting", the same shape a resting order gives.
-    if ((await loadOrderStyle(context.user.id)) === "watch") {
-      const wallet = await findWallet(context.user.id, data.walletId)
-      if (!wallet) throw new Error("LIVE_WALLET")
-      await placeWatchOrder(context.user.id, wallet, data)
-      return {
-        outcome: {
-          status: "resting",
-          // No exchange order to name: there is not one yet, and the whole
-          // point is that there will not be until the price is reached.
-          orderId: null,
-          avgPx: null,
-          filledSz: null,
-          // The stop and target travel with the watch and are handed to the
-          // position it opens, so there is nothing to report on here.
-          protection: null,
-          protectionNote: null,
-        },
+  .handler(
+    async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
+      // Watched rather than rested, when that is what the account is set to.
+      // Nothing reaches the exchange until the price is actually there, so the
+      // answer here is "it is waiting", the same shape a resting order gives.
+      if ((await loadOrderStyle(context.user.id)) === "watch") {
+        const wallet = await findWallet(context.user.id, data.walletId)
+        if (!wallet) throw new Error("LIVE_WALLET")
+        await placeWatchOrder(context.user.id, wallet, data)
+        return {
+          outcome: {
+            status: "resting",
+            // No exchange order to name: there is not one yet, and the whole
+            // point is that there will not be until the price is reached.
+            orderId: null,
+            avgPx: null,
+            filledSz: null,
+            // The stop and target travel with the watch and are handed to the
+            // position it opens, so there is nothing to report on here.
+            protection: null,
+            protectionNote: null,
+          },
+        }
       }
+      return { outcome: await placeOrderRow(context.user.id, data) }
     }
-    return { outcome: await placeOrderRow(context.user.id, data) }
-  })
+  )
 
 const moveSchema = z.object({
   walletId: z.string().max(36),
@@ -239,7 +248,7 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_NETWORK_MISMATCH:
     "This wallet and this chart are on different networks — a test-network wallet cannot trade a real-money market, or the reverse.",
   LIVE_MAINNET_OFF:
-    "Real-money trading is switched off on this server. It stays off until the funded test run passes and TRADE_ENABLE_MAINNET is deliberately set.",
+    "Real-money trading is switched off on this server. Turn it on in Settings before placing a live order.",
   LIVE_NO_PRICE:
     "The exchange would not give a price for that market, so nothing was sent.",
   LIVE_UNLISTED: "The exchange does not list that market for orders.",
@@ -282,16 +291,26 @@ export function hideLiveTrade(walletId: string, fillIds: string[]) {
 
 export function getLiveErrorMessage(error: unknown): string {
   const message =
-    typeof error === "string" ? error : error instanceof Error ? error.message : ""
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
   const auth = describeAuthError(message)
   if (auth) return auth
-  const known = Object.keys(LIVE_SENTENCES).find((code) => message.includes(code))
+  const known = Object.keys(LIVE_SENTENCES).find((code) =>
+    message.includes(code)
+  )
   if (known) return LIVE_SENTENCES[known]
   // A move on a venue with no amend command. Both endings carry their whole
   // sentence from the rails, because what to do next differs: one says the
   // order never moved, the other says two of them are resting.
   const move = message.match(/LIVE_MOVE_(?:REFUSED|DOUBLED):(.*)$/s)
   if (move) return move[1].trim()
+  const tooSmall = message.match(/LIVE_ORDER_TOO_SMALL:(.*)$/s)
+  if (tooSmall) return tooSmall[1].trim()
+  const setting = message.match(/LIVE_(?:LEVERAGE|MARGIN_MODE):(.*)$/s)
+  if (setting) return setting[1].trim()
   // The exchange's own refusal, already scrubbed server-side. Shown because
   // with real money the reason IS the answer.
   const exchange = message.match(/LIVE_(?:EXCHANGE|ORDER_REFUSED):(.*)$/s)

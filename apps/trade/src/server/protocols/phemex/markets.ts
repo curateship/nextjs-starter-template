@@ -93,6 +93,8 @@ export async function fetchPhemexMarkets(
       category: "crypto",
       sizeDecimals: stepToDecimals(num(one.qtyStepSize)),
       priceTick: num(one.tickSize),
+      minOrderValueUsd: null,
+      marginModes: [],
       maxLeverage: num(one.maxLeverage),
       isolatedOnly: false,
       iconUrl: null,

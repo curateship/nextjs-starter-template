@@ -114,6 +114,8 @@ function rowFor(
     // Not carried for Binance: nothing trades there, so nothing rounds an
     // order price against it. The candles-and-backtests role needs no tick.
     priceTick: null,
+    minOrderValueUsd: null,
+    marginModes: [],
     // Deliberately null rather than a number. Leverage is a per-account
     // setting on Binance and asking for it needs a signed request, which this
     // protocol cannot make until it has accounts. A guess here would be a

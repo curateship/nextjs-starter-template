@@ -18,6 +18,7 @@ export const quickOrderPrefsSchema = z.object({
   /** The number typed beside it, kept as typed so it comes back the same. */
   size: z.string().max(24),
   leverage: z.number().int().min(1).max(100),
+  marginMode: z.enum(["cross", "isolated"]).default("isolated"),
   bracketOn: z.boolean(),
   stopPct: z.string().max(12),
   targetPct: z.string().max(12),
@@ -30,6 +31,7 @@ export const DEFAULT_QUICK_ORDER: QuickOrderPrefs = {
   sizeUnit: "usd",
   size: "",
   leverage: 1,
+  marginMode: "isolated",
   bracketOn: false,
   stopPct: "2",
   targetPct: "5",

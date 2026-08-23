@@ -28,9 +28,13 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 Every account starts on watch. One saved setting flips the whole account back
 to resting.
 
+The watch also keeps the chosen leverage and margin mode while it waits. When
+an Aster watch opens a fresh position, those account settings are applied before
+the order is sent.
+
 ## What happens when the price hits the level
 
-The engine never buys at market. When the market reaches a watched buy:
+When the market reaches a watched buy:
 
 1. A **post-only limit** is rested just off the touch — post-only means the
    exchange refuses it rather than let it fill as a taker, so it always pays
@@ -41,6 +45,12 @@ The engine never buys at market. When the market reaches a watched buy:
    long as it takes; a percent gives up once price has run that far past it.
 4. The stop and target typed on the order ride along and are handed to the
    position the moment it opens.
+
+A buy placed above the current price, or a sell placed below it, has already
+reached its level. The engine takes the current price immediately. This is the
+same result as an ordinary limit order placed through the market, and it pays
+the taker fee. The post-only chase applies when the market reaches a level that
+was still waiting after placement.
 
 The DCA ladder's rungs work the same way on real and practice wallets, and the
 grid always has. In a backtest a rung is modelled as a resting order the
@@ -58,7 +68,7 @@ message says why.
   working the exchange, the drag is refused — at that point it is an order in
   flight, not a line to reposition.
 - **A real resting order** (rest mode): the level never ends up with nothing
-  on it. On Hyperliquid and Phemex the exchange's own *modify* command moves
+  on it. On Hyperliquid, Phemex and Aster the exchange's own _modify_ command moves
   the order in place — same order, same size, new price, one call. For years
   the code said a real order "cannot be changed in place"; that was never
   true, the modify command existed all along.
@@ -86,6 +96,7 @@ message says why.
   used to be the other way round — cancel first, place second — and the moment
   in the middle was a level with nothing on it, which is the moment a fall can
   reach it.
+
 - **A practice order**: re-prices its row, same as ever.
 - A waiting order's **stop** drags too, and the order resizes so it still
   risks the same money. Its **target** drags without touching the size.
@@ -241,6 +252,7 @@ time, so this matters most when trading against a dev machine.
   exchange's own client — for the whole key rather than for one market, and
   the next attempt costs no request at all — so a minute on top of it would
   only make the level late once the allowance came back.
+
 - **A refusal puts the level back to waiting.** The moment a watch asks for an
   order it writes down that it has spent, and while that is written and no
   order is in sight it does nothing at all: that is what stops one level
@@ -262,6 +274,7 @@ time, so this matters most when trading against a dev machine.
   the price sat a dollar under the level it was told to buy at. Re-drawn at
   18:57, it was rate-limited on its first attempt and froze again in four
   seconds.
+
 - **Wallet-wide entry rules fire where the trigger fires.** The cap on how
   many coins open per hour, and the crash rule's "only coins the exchange
   allows 10× or more on", are checked at the moment a trigger would open a

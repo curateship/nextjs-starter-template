@@ -267,7 +267,8 @@ export async function asterSigned(
   method: "GET" | "POST" | "PUT" | "DELETE",
   path: string,
   weight: number,
-  params: Record<string, string | number> = {}
+  params: Record<string, string | number> = {},
+  options: { countsAsOrder?: boolean } = {}
 ): Promise<unknown> {
   await prepareAsterBudget(network)
   assertAvailable(network, "signed")
@@ -287,13 +288,12 @@ export async function asterSigned(
   }
   const query = asterSigningQuery(signedParams)
   const signature = await signAsterQuery(credential, query)
+  const countsAsOrder = options.countsAsOrder ?? method !== "GET"
   reserveAsterRequest(network, {
     weight,
     lane: "signed",
-    priority: method === "GET" ? "background" : "order",
-    ...(method === "GET"
-      ? {}
-      : { orders: 1, orderAccount: user.toLowerCase() }),
+    priority: countsAsOrder ? "order" : "background",
+    ...(!countsAsOrder ? {} : { orders: 1, orderAccount: user.toLowerCase() }),
   })
   const response = await send(
     network,

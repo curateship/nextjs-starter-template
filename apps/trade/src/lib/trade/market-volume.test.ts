@@ -35,6 +35,8 @@ describe("the market volume cutoff", () => {
       category: "crypto" as const,
       sizeDecimals: null,
       priceTick: null,
+      minOrderValueUsd: null,
+      marginModes: [],
       maxLeverage: null,
       isolatedOnly: false,
       iconUrl: null,

@@ -7,6 +7,7 @@ import {
 } from "@/components/trade/market-header"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
+import { minimumOrderLabel } from "@/lib/trade/market-info"
 
 /**
  * The star at the head of the market header.
@@ -28,6 +29,8 @@ const row: MarketRow = {
   category: "crypto",
   sizeDecimals: 3,
   priceTick: null,
+  minOrderValueUsd: null,
+  marginModes: [],
   maxLeverage: 40,
   isolatedOnly: false,
   iconUrl: null,
@@ -72,6 +75,13 @@ describe("the market header's star", () => {
     expect(markup).toContain("Hyperliquid")
     expect(markup).toContain("Mainnet")
     expect(markup).toContain('aria-label="About BTC market"')
+  })
+
+  it("states a market's smallest dollar order when the venue gives one", () => {
+    expect(minimumOrderLabel({ ...row, minOrderValueUsd: 5 })).toBe(
+      "Smallest order: $5"
+    )
+    expect(minimumOrderLabel(row)).toBeNull()
   })
 
   it("offers to star the market on screen, naming it", () => {

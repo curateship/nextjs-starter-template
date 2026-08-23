@@ -171,6 +171,8 @@ export async function fetchKucoinMarkets(
         sizeStepOf({ multiplier, lotSize: num(one.lotSize) ?? 1 })
       ),
       priceTick: num(one.tickSize),
+      minOrderValueUsd: null,
+      marginModes: [],
       maxLeverage: num(one.maxLeverage),
       isolatedOnly: false,
       iconUrl: null,

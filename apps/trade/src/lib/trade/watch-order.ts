@@ -34,6 +34,8 @@ export const watchPlanSchema = z.object({
   /** How much of the coin to trade, frozen when the watch was set. */
   sz: z.number().positive(),
   leverage: z.number().positive(),
+  /** The account setting chosen when the watch was placed. */
+  marginMode: z.enum(["cross", "isolated"]).nullable().optional(),
   maxLeverage: z.number().positive(),
   /** The market's size step, frozen the same way every other plan freezes it. */
   sizeDecimals: z.number().nullable(),

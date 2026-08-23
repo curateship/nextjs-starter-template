@@ -14,6 +14,9 @@ add up to.
 
 ## Exchange connections
 
+- **Aster work targets mainnet.** Aster testnet is not a completion step and
+  does not hold up live trading work. Mainnet orders still pass both real-money
+  switches before the connector signs anything.
 - **For prices and orders, use the exchange's direct socket instead of
   polling.** Prices, positions, open orders, order changes and fills arrive as
   pushed events. Trade may ask once when a feed starts, and ask again to recover
@@ -40,9 +43,10 @@ add up to.
 
 ## Orders
 
-- **Nothing is ever bought or sold at market.** Every order waits at its price.
-  When the market reaches it, the engine rests a post-only limit just off the
-  touch and chases — maker fees, never taker.
+- **A waiting plain order chases as a maker when price reaches it.** The engine
+  rests a post-only limit just off the current price and follows it. A buy
+  placed above the current price, or a sell placed below it, is already
+  marketable and takes the current price immediately, with the taker fee.
 - **A plain order is a watched trigger by default.** The level stays in this
   app, invisible to the book, spending nothing until it fires. Resting on the
   exchange remains a choice in Settings → Trading engine, and its honest cost
@@ -51,7 +55,7 @@ add up to.
   coin, several can sit on one coin, it counts and shows under Open orders,
   and it never appears in the Smart orders panel.
 - **A real resting order moves without ever leaving its level empty.** Where
-  the exchange has a modify command — Hyperliquid and Phemex — that is what is
+  the exchange has a modify command — Hyperliquid, Phemex and Aster — that is what is
   used: same order, same size, new price. KuCoin Futures has no such command,
   so there the new order goes on FIRST and the old one comes off after, and for
   the fraction of a second between them that level is covered twice. Cancelling

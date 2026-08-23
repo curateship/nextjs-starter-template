@@ -24,6 +24,7 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { credentialFor, walletCredential } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
+import { marketRules } from "@/server/trade/market-rules"
 import {
   loadLiveHistory,
   loadLiveRefusals,
@@ -116,6 +117,7 @@ function authFor(row: LiveWalletRow): OrderAuth {
   if (!credential) throw new Error("LIVE_WALLET_KEY")
   return {
     agentKey: credential,
+    accountAddress: row.address ?? "",
     allocateNonce: (signerAddress) => allocateNonce(signerAddress, row.network),
   }
 }
@@ -185,6 +187,7 @@ export async function placeLiveOrder(
     px: number
     sz: number
     leverage: number
+    marginMode?: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -209,6 +212,14 @@ export async function placeLiveOrder(
       throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
     }
     const entryPx = marketable ? mark : input.px
+    const rules = await marketRules(row.protocol, row.network, ref.marketId)
+    const floor = rules?.minOrderValueUsd ?? null
+    const asked = entryPx * input.sz
+    if (floor !== null && asked + 1e-9 < floor) {
+      throw new Error(
+        `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${floor}, and this order is $${asked.toFixed(2)}.`
+      )
+    }
 
     // Protection must sit on the winning/losing side of the price the order
     // will actually fill at — validated here, before anything is signed.
@@ -243,6 +254,7 @@ export async function placeLiveOrder(
       sz: input.sz,
       reduceOnly: input.reduceOnly,
       leverage: held ? null : input.leverage,
+      marginMode: held ? null : (input.marginMode ?? null),
       tpPx: input.tpPx,
       slPx: input.slPx,
     })

@@ -89,6 +89,7 @@ describe("the Aster catalogue", () => {
     expect(btc.symbol).toBe("BTC")
     expect(btc.quoteAsset).toBe("USDT")
     expect(btc.priceTick).toBe(0.25)
+    expect(btc.minOrderValueUsd).toBe(5)
     expect(btc.sizeDecimals).toBe(3)
     expect(btc.price).toBe(117_000.5)
     expect(btc.change24h).toBe(0.025)
@@ -96,6 +97,29 @@ describe("the Aster catalogue", () => {
     expect(btc.fundingHourly).toBe(0.0001)
     expect(btc.maxLeverage).toBeNull()
     expect(catalog.rows[1].category).toBe("stocks")
+  })
+
+  it("leaves the dollar floor null when Aster does not state one", () => {
+    const catalog = toAsterMarketCatalog({
+      network: "testnet",
+      exchangeInfo: {
+        symbols: [
+          {
+            symbol: "BTCUSDT",
+            status: "TRADING",
+            contractType: "PERPETUAL",
+            baseAsset: "BTC",
+            quoteAsset: "USDT",
+            marginAsset: "USDT",
+            filters: FILTERS.filter((one) => one.filterType !== "MIN_NOTIONAL"),
+          },
+        ],
+      },
+      tickers: [],
+      marks: [{ symbol: "BTCUSDT", markPrice: "100" }],
+      fundingIntervals: new Map(),
+    })
+    expect(catalog.rows[0].minOrderValueUsd).toBeNull()
   })
 
   it("drops a market whose mark price cannot be read", () => {

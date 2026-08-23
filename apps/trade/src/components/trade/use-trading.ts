@@ -53,17 +53,9 @@ import { keepUnreachableRows, type LiveRefusal } from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
-import type {
-  SmartGrid,
-  SmartLadder,
-  SmartOrder,
-} from "@/lib/trade/smart-plan"
+import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
-import type {
-  PaperOrder,
-  PaperPosition,
-  PaperSide,
-} from "@/lib/trade/paper"
+import type { PaperOrder, PaperPosition, PaperSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
 /**
@@ -242,6 +234,7 @@ export type Trading = {
     px: number
     sz: number
     leverage: number
+    marginMode: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -458,9 +451,9 @@ export function useTrading(
   // second later.
   const [placedSmart, setPlacedSmart] = React.useState<SmartOrder[]>([])
   // Orders whose × has been pressed, still being told to the exchange.
-  const [cancelling, setCancelling] = React.useState<ReadonlyMap<string, number>>(
-    new Map()
-  )
+  const [cancelling, setCancelling] = React.useState<
+    ReadonlyMap<string, number>
+  >(new Map())
   // Keyed by wallet *and* market: two wallets can hold the same coin, and a
   // drag on one must not move the other one's lines while it saves.
   const [droppedBrackets, setDroppedBrackets] = React.useState<
@@ -494,7 +487,6 @@ export function useTrading(
     },
     [dropped, holdExpired]
   )
-
 
   // The wallet an order goes to: a practice wallet, or a live one with a key
   // saved. A live wallet with no key can be looked at but not traded with.
@@ -758,7 +750,11 @@ export function useTrading(
       .filter((order) => !cancelling.has(order.id))
       .map((order) => {
         if (order.kind === "dca") {
-          if (!order.plan.rungs.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+          if (
+            !order.plan.rungs.some((_, at) =>
+              cancelling.has(`${order.id}#${at}`)
+            )
+          )
             return order
           return {
             ...order,
@@ -773,14 +769,19 @@ export function useTrading(
           }
         }
         if (order.kind === "grid") {
-          if (!order.plan.levels.some((_, at) => cancelling.has(`${order.id}#${at}`)))
+          if (
+            !order.plan.levels.some((_, at) =>
+              cancelling.has(`${order.id}#${at}`)
+            )
+          )
             return order
           return {
             ...order,
             plan: {
               ...order.plan,
               levels: order.plan.levels.map((level, at) =>
-                cancelling.has(`${order.id}#${at}`) && level.status === "waiting"
+                cancelling.has(`${order.id}#${at}`) &&
+                level.status === "waiting"
                   ? { ...level, status: "cancelled" as const }
                   : level
               ),
@@ -794,13 +795,12 @@ export function useTrading(
   // still want ladders alone, and one list of both is the truth they filter.
   const ladders = React.useMemo(
     () =>
-      smartOrders.filter(
-        (order): order is SmartLadder => order.kind === "dca"
-      ),
+      smartOrders.filter((order): order is SmartLadder => order.kind === "dca"),
     [smartOrders]
   )
   const grids = React.useMemo(
-    () => smartOrders.filter((order): order is SmartGrid => order.kind === "grid"),
+    () =>
+      smartOrders.filter((order): order is SmartGrid => order.kind === "grid"),
     [smartOrders]
   )
 
@@ -870,7 +870,7 @@ export function useTrading(
         (position) =>
           position.walletId === ghost.walletId &&
           position.marketKey === ghost.marketKey &&
-          (position.szi > 0) === (ghost.side === "buy")
+          position.szi > 0 === (ghost.side === "buy")
       )
       if (filled) return false
       return !real.some((one) => {
@@ -970,12 +970,10 @@ export function useTrading(
     const shown =
       cancelling.size === 0
         ? allPositions
-        : allPositions.filter(
-            (position) => {
-              const key = bracketKey(position.walletId, position.marketKey)
-              return !cancelling.has(key) || holdExpired(cancelling.get(key))
-            }
-          )
+        : allPositions.filter((position) => {
+            const key = bracketKey(position.walletId, position.marketKey)
+            return !cancelling.has(key) || holdExpired(cancelling.get(key))
+          })
     if (droppedBrackets.size === 0) return shown
     return shown.map((position) => {
       const held = droppedBrackets.get(
@@ -1081,7 +1079,9 @@ export function useTrading(
           editWatch({ walletId, ladderId: orderId, ...changes })
         )
       }
-      return await run(() => updatePaperOrder({ walletId, orderId, ...changes }))
+      return await run(() =>
+        updatePaperOrder({ walletId, orderId, ...changes })
+      )
     },
     [run, findOrder]
   )
@@ -1124,9 +1124,7 @@ export function useTrading(
         }
       } catch (error) {
         showErrorToast(
-          order?.live
-            ? getLiveErrorMessage(error)
-            : getPaperErrorMessage(error)
+          order?.live ? getLiveErrorMessage(error) : getPaperErrorMessage(error)
         )
         // A refusal releases the hold at once. Whatever the venue did with
         // the order, the dropped price is not where it is, and holding the

@@ -22,6 +22,7 @@ export type MarketRules = {
   sizeDecimals: number | null
   /** The market's smallest price step, or null where the exchange states none. */
   priceTick: number | null
+  minOrderValueUsd?: number | null
   maxLeverage: number | null
   /** Dollars traded in the last day — what the DCA liquidity guard caps by. */
   volume24hUsd: number | null
@@ -51,6 +52,7 @@ async function rulesFor(
       {
         sizeDecimals: row.sizeDecimals,
         priceTick: row.priceTick,
+        minOrderValueUsd: row.minOrderValueUsd,
         maxLeverage: row.maxLeverage,
         volume24hUsd: row.volume24hUsd,
       },

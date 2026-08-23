@@ -84,6 +84,7 @@ export type GridDraftInput = {
   rules: {
     sizeDecimals: number | null
     priceTick: number | null
+    minOrderValueUsd?: number | null
     maxLeverage: number | null
     volume24hUsd: number | null
   }
@@ -156,11 +157,17 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   }
 
   let totalCost = 0
+  const orderFloor = rules.minOrderValueUsd ?? MIN_ORDER_USD
   const priced = drawn.levels.map((level, index) => {
     const buyPx = roundPx(level.buyPx)
     const sellPx = roundPx(level.sellPx)
     const sz = level.sz
-    if (!(buyPx > 0) || !(sellPx > buyPx) || sz <= 0 || buyPx * sz < MIN_ORDER_USD) {
+    if (
+      !(buyPx > 0) ||
+      !(sellPx > buyPx) ||
+      sz <= 0 ||
+      buyPx * sz < orderFloor
+    ) {
       throw new Error(`SMART_GRID_LEVEL_TOO_SMALL:${index + 1}`)
     }
     totalCost += buyPx * sz
@@ -254,7 +261,11 @@ export async function placeGridOrder(
   input: PlaceGridInput
 ): Promise<PlacedGrid> {
   const ref = parseMarketKey(input.marketKey)
-  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+  if (
+    !ref ||
+    ref.protocol !== wallet.protocol ||
+    ref.network !== wallet.network
+  ) {
     throw new Error("PAPER_MARKET")
   }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -266,7 +277,8 @@ export async function placeGridOrder(
   if (existing) throw new Error("SMART_LADDER_EXISTS")
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
+  const roundPx = (px: number) =>
+    protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
   const keys = await exposedMarketKeys(userId, [wallet.id])
   const marks = await marksForKeys([...new Set([...keys, input.marketKey])])
@@ -303,12 +315,19 @@ export async function placeGridOrder(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
 
     // Re-checked under the lock: two tabs placing at once must not both win,
     // and neither may a grid and a ladder.
-    const race = await activeSmartOrderId(userId, wallet.id, input.marketKey, tx)
+    const race = await activeSmartOrderId(
+      userId,
+      wallet.id,
+      input.marketKey,
+      tx
+    )
     if (race) throw new Error("SMART_LADDER_EXISTS")
 
     // Nothing is bought here, on purpose. Placing a grid spends nothing at all:
@@ -397,7 +416,10 @@ export async function saveGridPlan(
     .update(tradeSmartLadders)
     .set({ plan, status, updatedAt: new Date() })
     .where(
-      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, gridId))
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, gridId)
+      )
     )
 }
 
@@ -460,7 +482,8 @@ export async function updateGridStop(
   const plan = grid.plan
 
   const protocol = getProtocol(wallet.protocol)
-  const roundPx = (px: number) => protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+  const roundPx = (px: number) =>
+    protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
   plan.stopLoss = input.stopLoss
     ? {
@@ -496,7 +519,6 @@ export async function updateGridStop(
   // under a lowered one.
   await settleWallet(userId, wallet)
 }
-
 
 /**
  * Switching following on or off for a grid that is already running.
@@ -611,7 +633,8 @@ export async function reshapeGrid(
     bottomPx: input.bottomPx ?? plan.bottomPx,
     mark,
     rules,
-    roundPx: (px: number) => protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
+    roundPx: (px: number) =>
+      protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
     equity: figures.equity,
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: plan.startedAt,
@@ -645,7 +668,9 @@ export async function reshapeGrid(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
 
     await tx
@@ -684,7 +709,11 @@ export async function moveGridExit(
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
   const protocol = getProtocol(wallet.protocol)
-  const px = protocol.markets.roundPx(input.px, plan.sizeDecimals, plan.priceTick)
+  const px = protocol.markets.roundPx(
+    input.px,
+    plan.sizeDecimals,
+    plan.priceTick
+  )
   if (!(px > 0)) throw new Error("PAPER_PRICE")
 
   if (input.which === "takeProfit") {

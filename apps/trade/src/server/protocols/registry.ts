@@ -142,7 +142,23 @@ import {
 import {
   fetchAsterMarkets,
   fetchAsterPrices,
+  asterPricesWereRationed,
 } from "@/server/protocols/aster/markets"
+import {
+  cancelAsterOrder,
+  closeAsterPosition,
+  fetchAsterOrderFills,
+  fetchAsterOrderInfo,
+  fetchAsterOrderPortfolio,
+  modifyAsterOrder,
+  placeAsterOrder,
+  setAsterBrackets,
+} from "@/server/protocols/aster/orders"
+import {
+  asterFillsNeedRecovery,
+  markAsterFillsRecovered,
+  watchAsterFills,
+} from "@/server/protocols/aster/user-stream"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -419,6 +435,18 @@ export type ProtocolEntry = {
       marketId: string,
       credential: () => string | null
     ): Promise<WalletOrderInfo>
+    /** Opens the venue's private fill stream and keeps this listener current. */
+    watchFills?(
+      network: NetworkId,
+      address: string,
+      listenerId: string,
+      credential: () => string | null,
+      onFill: (fill: WalletOrderFill) => void
+    ): void
+    /** True once a pushed feed is up and needs one gap-closing REST read. */
+    fillsNeedRecovery?(network: NetworkId, address: string): boolean
+    /** Marks that gap-closing read complete for the current connection. */
+    fillsRecovered?(network: NetworkId, address: string): void
   }
 }
 
@@ -663,15 +691,14 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Aster V3 market data and read-only accounts on both networks. Orders stay
-   * absent until their own task proves that private path.
+   * Aster V3 market data, accounts and orders on both networks.
    */
   aster: {
     id: "aster",
     label: "Aster",
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: true, orders: false },
+    capabilities: { markets: true, accounts: true, orders: true },
     markets: {
       fetch: fetchAsterMarkets,
       candles: fetchAsterCandles,
@@ -680,6 +707,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       intervalMs: asterIntervalMs,
       prices: fetchAsterPrices,
       roundPx: roundAsterPx,
+      pricesWereRationed: asterPricesWereRationed,
     },
     livePrices: {
       open: openAsterLivePrices,
@@ -708,6 +736,19 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
           "Make a separate Pro API wallet on Aster's API Wallet page and give it perpetual trading permission. The first field takes your main Aster login wallet. Paste the generated API wallet private key here. Trade derives the generated API wallet address, so you do not paste that address.",
       },
       pack: packAsterCredential,
+    },
+    orders: {
+      place: placeAsterOrder,
+      cancel: cancelAsterOrder,
+      modify: modifyAsterOrder,
+      close: closeAsterPosition,
+      setBrackets: setAsterBrackets,
+      portfolio: fetchAsterOrderPortfolio,
+      fills: fetchAsterOrderFills,
+      orderInfo: fetchAsterOrderInfo,
+      watchFills: watchAsterFills,
+      fillsNeedRecovery: asterFillsNeedRecovery,
+      fillsRecovered: markAsterFillsRecovered,
     },
   },
   binance: {
