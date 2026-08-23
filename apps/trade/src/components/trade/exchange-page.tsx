@@ -1,5 +1,6 @@
 import * as React from "react"
 import {
+  type SearchMiddleware,
   stripSearchParams,
   useLoaderData,
   useNavigate,
@@ -126,7 +127,11 @@ export function mainnetExchangeRoute(page: ExchangePage) {
   return {
     validateSearch: readMarketSearch,
     search: {
-      middlewares: [stripSearchParams(["network"])],
+      // Typed loosely on purpose: each route's full search type also carries
+      // params inherited from parent routes, which this shared factory
+      // cannot name. The middleware itself only ever touches `network`.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      middlewares: [stripSearchParams(["network"]) as SearchMiddleware<any>],
     },
     loaderDeps: () => ({
       network: "mainnet" as const,
