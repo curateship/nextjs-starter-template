@@ -113,6 +113,49 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("hands the live exchange row to its cancel action", async () => {
+    const live: PaperOrder = {
+      id: "aster-order-77",
+      walletId: "live-wallet",
+      marketKey: "aster:mainnet:SOLUSDT",
+      side: "sell",
+      px: 144,
+      sz: 0.1,
+      leverage: 0,
+      maxLeverage: 0,
+      reduceOnly: true,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      live: true,
+    }
+    const cancelled: PaperOrder[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <OpenOrdersTable
+          {...shared}
+          orders={[live]}
+          settled={true}
+          failed={false}
+          onCancel={(order) => cancelled.push(order)}
+        />
+      )
+    })
+    const cancel = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Cancel the SOLUSDT order"]'
+    )
+    expect(cancel).not.toBeNull()
+    await act(async () => cancel?.click())
+
+    expect(cancelled).toEqual([live])
+    expect(orderCancelKind(cancelled[0])).toBe("live")
+    await act(async () => root.unmount())
+  })
+
   it("sends one press on a watched row through the watched-order cancel path", async () => {
     const watched: PaperOrder = {
       id: "new-watch",

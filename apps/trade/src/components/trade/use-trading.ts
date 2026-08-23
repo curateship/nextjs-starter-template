@@ -245,7 +245,7 @@ export type Trading = {
     slPx: number | null
   }) => void
   move: (walletId: string, orderId: string, px: number) => Promise<void>
-  cancel: (walletId: string, orderId: string) => Promise<void>
+  cancel: (order: PaperOrder) => Promise<void>
   /**
    * From the order window: how much a waiting order is for, and where it gets
    * out once it fills. Its price is not here — that is the drag on the chart.
@@ -281,7 +281,7 @@ export type Trading = {
       slPx: number | null
     }
   ) => Promise<void>
-  close: (walletId: string, marketKey: string) => Promise<void>
+  close: (position: PaperPosition) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
   /**
@@ -1164,11 +1164,11 @@ export function useTrading(
   )
 
   const cancel: Trading["cancel"] = React.useCallback(
-    async (walletId, orderId) => {
+    async (order) => {
       // Cancelling costs nothing, so there is no question asked first — and
       // nothing is said afterwards either: the row disappearing is the answer.
-      const order = findOrder(orderId)
       const kind = orderCancelKind(order)
+      const { id: orderId, walletId, marketKey } = order
       await callOff(
         orderId,
         async () => {
@@ -1184,11 +1184,14 @@ export function useTrading(
             )
             return result
           }
-          if (kind === "live" && order) {
+          if (kind === "live") {
             return cancelLiveOrder({
               walletId,
-              marketKey: order.marketKey,
+              marketKey,
               orderId,
+              side: order.side,
+              px: order.px,
+              sz: order.sz,
             })
           }
           return cancelPaperOrder(walletId, orderId)
@@ -1200,7 +1203,7 @@ export function useTrading(
             : getPaperErrorMessage
       )
     },
-    [callOff, findOrder]
+    [callOff]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -1253,13 +1256,14 @@ export function useTrading(
   )
 
   const close: Trading["close"] = React.useCallback(
-    async (walletId, marketKey) => {
+    async (position) => {
       // The row goes the moment it is pressed and the exchange is told behind
       // it, the same way cancelling works. Telling the exchange takes three or
       // four seconds — the close itself, then a fresh read of the account —
       // and a position that sits there through all of it reads as a close
       // that did not happen.
-      const live = findPosition(walletId, marketKey)?.live ?? false
+      const { walletId, marketKey } = position
+      const live = position.live !== undefined
       // The market key names its network, and the words follow it — a testnet
       // close must never announce itself as real money.
       const testnet = parseMarketKey(marketKey)?.network === "testnet"
@@ -1275,7 +1279,7 @@ export function useTrading(
           : `Position closed in ${nameOf(walletId)}.`
       )
     },
-    [callOff, nameOf, findPosition]
+    [callOff, nameOf]
   )
 
   const flip: Trading["flip"] = React.useCallback(

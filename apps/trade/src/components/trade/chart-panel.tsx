@@ -838,8 +838,8 @@ export function ChartPanel({
                   onMoveOrder={(walletId, orderId, price) =>
                     void trading.move(walletId, orderId, price)
                   }
-                  onCancelOrder={(walletId, orderId) =>
-                    void trading.cancel(walletId, orderId)
+                  onCancelOrder={(order) =>
+                    void trading.cancel(order)
                   }
                   // Dragging a waiting order's stop resizes the order so it
                   // still risks the same money. Worked out from the order in
@@ -1140,10 +1140,7 @@ export function ChartPanel({
         confirmLabel="Close it"
         onConfirm={() => {
           if (closingPosition) {
-            void trading.close(
-              closingPosition.walletId,
-              closingPosition.marketKey
-            )
+            void trading.close(closingPosition)
           }
           setClosingPosition(null)
         }}

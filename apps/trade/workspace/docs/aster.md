@@ -225,6 +225,9 @@ the app assumes will stay fixed.
   on the existing order in one command. There is no cancel-and-replace
   fallback. If the order filled during the drag, the app says it is gone and
   the line returns to the exchange's answer.
+- Cancelling a resting order sends the order id already shown on screen straight
+  to Aster. Trade does not ask for the whole account first. A cached account
+  answer can lag behind the exchange, but it cannot block the cancel command.
 
 ## Private account stream
 

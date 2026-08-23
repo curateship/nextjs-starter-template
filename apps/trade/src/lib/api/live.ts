@@ -62,6 +62,9 @@ const cancelSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
   orderId: orderIdSchema,
+  side: z.enum(["buy", "sell"]).optional(),
+  px: z.number().positive().finite().optional(),
+  sz: z.number().positive().finite().optional(),
 })
 
 const bracketsSchema = z.object({

@@ -338,38 +338,37 @@ describe("the rails around placing", () => {
 })
 
 describe("cancelling", () => {
-  it("refuses an order the exchange no longer lists", async () => {
+  it("sends the known order id without waiting for another portfolio read", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
-    await expect(
-      cancelLiveOrder(userId, { walletId, marketKey: MARKET, orderId: "404" })
-    ).rejects.toThrow("LIVE_ORDER_GONE")
-    expect(cancel).not.toHaveBeenCalled()
+    cancel.mockResolvedValue(undefined)
+
+    await cancelLiveOrder(userId, {
+      walletId,
+      marketKey: MARKET,
+      orderId: "404",
+    })
+
+    expect(portfolio).not.toHaveBeenCalled()
+    expect(cancel).toHaveBeenCalledWith(
+      "mainnet",
+      expect.any(Object),
+      { marketId: "BTC", orderId: "404" }
+    )
   })
 
-  it("cancels a listed order and journals what it was", async () => {
+  it("journals a cancel accepted by the exchange", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
-    portfolio.mockResolvedValue({
-      positions: [],
-      orders: [
-        {
-          orderId: "77",
-          marketId: "BTC",
-          side: "sell",
-          px: 120_000,
-          sz: 0.25,
-          reduceOnly: false,
-          trigger: false,
-        },
-      ],
-    })
     cancel.mockResolvedValue(undefined)
 
     await cancelLiveOrder(userId, {
       walletId,
       marketKey: MARKET,
       orderId: "77",
+      side: "sell",
+      px: 120_000,
+      sz: 0.25,
     })
     const rows = await journalRows(userId)
     expect(rows).toHaveLength(1)

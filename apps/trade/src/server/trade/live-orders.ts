@@ -364,37 +364,36 @@ export async function moveLiveOrder(
 
 export async function cancelLiveOrder(
   userId: string,
-  input: { walletId: string; marketKey: string; orderId: string }
+  input: {
+    walletId: string
+    marketKey: string
+    orderId: string
+    side?: PaperSide
+    px?: number
+    sz?: number
+  }
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
-  let side: PaperSide | null = null
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    // Named for the journal: the order being cancelled, as the exchange
-    // lists it right now. Gone already is its own honest refusal.
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
-    const order = portfolio.orders.find((one) => one.orderId === input.orderId)
-    if (!order) throw new Error("LIVE_ORDER_GONE")
-    side = order.side
-
+    // The screen already has the exchange's order id. Asking for the whole
+    // account again before cancelling made a valid cancel depend on a second,
+    // cached account answer. Send the cancel straight to the exchange. Aster
+    // the exchange will say if the order filled or disappeared first.
     await ordersOf(protocol).cancel(row.network, authFor(row), {
       marketId: ref.marketId,
       orderId: input.orderId,
     })
     await journal(userId, row.id, input.marketKey, {
       action: "cancelled",
-      side: order.side,
-      px: order.px,
-      sz: order.sz,
+      side: input.side ?? null,
+      px: input.px,
+      sz: input.sz,
     })
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, side, error)
+    await refuse(userId, row.id, input.marketKey, input.side ?? null, error)
   }
 }
 

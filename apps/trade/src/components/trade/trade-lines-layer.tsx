@@ -214,7 +214,7 @@ export function TradeLinesLayer({
   onMoveOrderStop?: (walletId: string, orderId: string, price: number) => void
   /** Dragging a waiting order's target. The amount is left alone. */
   onMoveOrderTarget?: (walletId: string, orderId: string, price: number) => void
-  onCancelOrder: (walletId: string, orderId: string) => void
+  onCancelOrder: (order: PaperOrder) => void
   /**
    * The × on a position's Entry line. Closing costs real money, so it asks
    * first — the panel owns that question, the same one the Positions table
@@ -421,7 +421,7 @@ export function TradeLinesLayer({
           ? (price) => onMoveOrder(order.walletId, order.id, price)
           : undefined,
       onRemove: settled
-        ? () => onCancelOrder(order.walletId, order.id)
+        ? () => onCancelOrder(order)
         : undefined,
       onSettings: edit,
       hint: edit

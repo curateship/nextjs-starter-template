@@ -306,7 +306,7 @@ export function ActivityPanel({
             onEdit={setEditing}
             onFlip={setFlipping}
             onClose={(position) =>
-              void trading.close(position.walletId, position.marketKey)
+              void trading.close(position)
             }
           />
         </ScrollArea>
@@ -326,7 +326,7 @@ export function ActivityPanel({
             failed={trading.failed}
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
-            onCancel={(order) => void trading.cancel(order.walletId, order.id)}
+            onCancel={(order) => void trading.cancel(order)}
           />
         </ScrollArea>
       </TabsContent>
