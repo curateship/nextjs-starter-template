@@ -220,6 +220,33 @@ describe("Aster orders", () => {
     expect(placed?.url.searchParams.get("price")).toBe("103")
   })
 
+  it("snaps an immediate order cap to Aster's price tick", async () => {
+    const sent: Sent[] = []
+    stub(
+      (_method, url) => (url.pathname.endsWith("/order") ? order() : {}),
+      sent
+    )
+
+    await placeAsterOrder("testnet", AUTH, {
+      marketId: "ETHUSDT",
+      side: "buy",
+      kind: "market",
+      px: 2_467.43,
+      priceTick: 0.01,
+      sz: 0.008,
+      reduceOnly: false,
+      leverage: null,
+      marginMode: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const placed = sent.find(
+      (one) => one.method === "POST" && one.url.pathname.endsWith("/order")
+    )
+    expect(placed?.url.searchParams.get("price")).toBe("2541.45")
+  })
+
   it("sends no order when Aster refuses the chosen margin mode", async () => {
     const sent: Sent[] = []
     stub(

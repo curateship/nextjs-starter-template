@@ -12,6 +12,7 @@ import type {
   WalletPosition,
 } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/aster/translate"
+import { snapToTick } from "@/lib/protocols/tick"
 import {
   clearAsterAccountCache,
   fetchAsterPortfolio,
@@ -303,7 +304,10 @@ export async function placeAsterOrder(
 
   const market = params.kind === "market"
   const orderPx = market
-    ? params.px * (params.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP)
+    ? snapToTick(
+        params.px * (params.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP),
+        params.priceTick ?? null
+      )
     : params.px
   const placed = await placeRaw(network, orderAuth, {
     symbol: params.marketId,

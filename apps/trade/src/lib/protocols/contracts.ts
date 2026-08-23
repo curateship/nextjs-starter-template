@@ -450,6 +450,8 @@ export type PlaceOrderParams = {
   /** Market fills now, limit may cross, and post-only must rest or be refused. */
   kind: "market" | "limit" | "postOnly"
   px: number
+  /** The market's legal price step, where the venue states one. */
+  priceTick?: number | null
   sz: number
   reduceOnly: boolean
   /** Set when opening fresh; null leaves the account's own setting alone. */

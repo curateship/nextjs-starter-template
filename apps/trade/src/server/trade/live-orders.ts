@@ -275,6 +275,7 @@ export async function placeLiveOrder(
       side: input.side,
       kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
       px: marketable ? mark : input.px,
+      priceTick: rules?.priceTick ?? null,
       sz: orderSize,
       reduceOnly: input.reduceOnly,
       leverage: held ? null : input.leverage,
