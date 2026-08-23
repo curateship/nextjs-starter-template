@@ -1,5 +1,7 @@
 import * as React from "react"
-import { ChevronDownIcon, SearchIcon, StarIcon } from "lucide-react"
+import { ChevronDownIcon, SearchIcon } from "lucide-react"
+
+import { MarketFolderStar } from "@/components/trade/market-folder-star"
 
 import { Input } from "@/components/ui/input"
 import {
@@ -37,6 +39,10 @@ import {
 } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
+import type {
+  MarketFolder,
+  MarketFolderActions,
+} from "@/lib/trade/market-folders"
 import { cn } from "@/lib/utils"
 
 type TradFiCategory =
@@ -79,15 +85,15 @@ export function MarketPicker({
   rows,
   selected,
   capabilities,
-  favorites,
-  onToggleFavorite,
+  folders,
+  folderActions,
   onSelect,
 }: {
   rows: MarketRow[]
   selected: MarketRow
   capabilities: MarketPickerCapabilities
-  favorites: ReadonlySet<string>
-  onToggleFavorite: (key: string) => void
+  folders: readonly MarketFolder[]
+  folderActions: MarketFolderActions
   onSelect: (key: string) => void
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
@@ -153,14 +159,20 @@ export function MarketPicker({
       (row) =>
         (row.volume24hUsd > 0 ||
           row.key === selected.key ||
-          favorites.has(row.key)) &&
+          (folders
+            .find((folder) => folder.isFav)
+            ?.marketKeys.includes(row.key) ??
+            false)) &&
         (!trimmed ||
           row.symbol.toUpperCase().includes(trimmed) ||
           displaySymbol(row.symbol).toUpperCase().includes(trimmed))
     )
 
     if (activeView === "favorites") {
-      list = list.filter((row) => favorites.has(row.key))
+      const favKeys = new Set(
+        folders.find((folder) => folder.isFav)?.marketKeys ?? []
+      )
+      list = list.filter((row) => favKeys.has(row.key))
     } else if (activeView === "crypto") {
       list = list.filter((row) => row.category === "crypto")
     } else if (activeView === "tradfi") {
@@ -189,7 +201,7 @@ export function MarketPicker({
         direction
       )
     })
-  }, [activeSort, activeView, category, favorites, query, rows, selected.key])
+  }, [activeSort, activeView, category, folders, query, rows, selected.key])
 
   const toggleSort = (key: MarketPickerSortKey) =>
     setSort((current) =>
@@ -360,9 +372,9 @@ export function MarketPicker({
                   key={row.key}
                   row={row}
                   selected={row.key === selected.key}
-                  favorite={favorites.has(row.key)}
+                  folders={folders}
+                  folderActions={folderActions}
                   capabilities={capabilities}
-                  onToggleFavorite={() => onToggleFavorite(row.key)}
                   onSelect={() => {
                     onSelect(row.key)
                     setOpen(false)
@@ -413,16 +425,16 @@ function PickerTableHead({
 function MarketPickerRow({
   row,
   selected,
-  favorite,
+  folders,
+  folderActions,
   capabilities,
-  onToggleFavorite,
   onSelect,
 }: {
   row: MarketRow
   selected: boolean
-  favorite: boolean
+  folders: readonly MarketFolder[]
+  folderActions: MarketFolderActions
   capabilities: MarketPickerCapabilities
-  onToggleFavorite: () => void
   onSelect: () => void
 }) {
   const live = useLiveFigures(row.key)
@@ -445,20 +457,18 @@ function MarketPickerRow({
     >
       <TableCell className="py-2 pl-3">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            aria-label={favorite ? "Remove from favorites" : "Add to favorites"}
-            aria-pressed={favorite}
-            onClick={onToggleFavorite}
-            className="rounded p-0.5 text-muted-foreground/50 hover:text-amber-500 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <StarIcon
-              className={cn(
-                "size-4",
-                favorite && "fill-amber-500 text-amber-500"
-              )}
-            />
-          </button>
+          <MarketFolderStar
+            compact
+            symbol={row.symbol}
+            marketKey={row.key}
+            folders={folders}
+            busy={folderActions.busy}
+            onQuickAdd={() => folderActions.quickAdd(row.key)}
+            onToggle={(folderId, saved) =>
+              folderActions.toggle(row.key, folderId, saved)
+            }
+            onCreate={(name) => folderActions.create(row.key, name)}
+          />
           <span className="font-semibold">
             {displaySymbol(row.symbol)}-{row.quoteAsset}
           </span>

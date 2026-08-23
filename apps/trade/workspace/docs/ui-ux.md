@@ -12,8 +12,8 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 ```
 ┌────────────┬─────────────────────┬────────────┐
 │ Markets    │ MARKET HEADER       │ Account    │
-│ Watch|Fav… │ ─────────────────── ├────────────┤
-│  (list)    │ Chart               │ Order      │
+│ Watch|All  │ ─────────────────── ├────────────┤
+│ Folders    │ Chart               │ Order      │
 │            │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
@@ -22,16 +22,16 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 
 - **Left — Markets.** The panel is the compact market list: which exchange it
   comes from, search, tabs, and sorting. Live exchange data. Its first tab is
-  the exception, and it lists orders rather than markets — see "The Watched
-  tab" below. (An earlier draft had a separate Favourites row below the list;
-  it was replaced by the Fav tab — two homes for one list is duplication.)
+  the exception, and it lists orders rather than markets. See "The Watched
+  tab" below. Folders occupy a separate lower panel in the same column.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, and on
   the right the timeframe picker (1m–1d, remembered per browser, 4h the
   default) with the Indicators dropdown after it. The star is amber and filled
-  when the market is in Fav and a hollow outline when it is not, so the two do
-  not differ by colour alone, and it names the market it would star. The star
+  when the market is in any folder and a hollow outline when it is not, so the
+  two do not differ by colour alone. An empty star names the Fav action. A
+  filled star names the folder menu. The star
   leads the row so that the name is what gives way as the panel narrows. On a
   phone the timeframe row leaves the name no width at all, and anything behind
   the name would never be on screen. The timeframe picker is one segmented
@@ -380,16 +380,19 @@ under it, the list fills the middle, and the search is the bottom bar — its
 placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
 list covers is on screen without spending a row on it.
 
-- **Three tabs, with icons: Watched, then Fav, then All.** Watched leads and is
+- **Two tabs, with icons: Watched, then All.** Watched leads and is
   the tab the panel opens on, because a price you have money committed to beats
-  a market you might look at. Fav (starred) is one click away, All is the whole
-  catalog. An empty Fav points at the star in the market header, and an empty
-  Watched points at the other two tabs — the panel no longer opens on a list
-  of markets, so its first screen has to say where they went.
-- **The panel opens at a fifth of the workspace.** It used to open at a sixth,
-  and three tabs did not fit that: "All" was half a label with the row scrolled
-  sideways. The width is still yours to drag and still remembered per browser,
-  so a width you have already dragged to wins over this.
+  a market you might look at. All is the whole catalog. Folders sit in their
+  own panel below the market list, matching the two stacked panels in the right
+  column. The lower panel's header reads Folders. Each folder row, including
+  Fav, shows its market count and opens its own coins below the row without
+  changing the Markets panel. The header's + creates a folder. Its cog opens
+  the window for renaming, drag-to-reorder and deletion. An empty folder points
+  at the star in the market header. An empty Watched points at Folders below
+  and All above.
+- **The panel opens at a fifth of the workspace.** The width is still yours to
+  drag and is remembered per browser, so a width you have already dragged to
+  wins over this.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain
@@ -418,21 +421,21 @@ list covers is on screen without spending a row on it.
   Both headings lead with the time window, and so does the market picker's "24h
   change", so the three read the same way round.
 - **Stars are put on in the market header**, at the head of the row, before the
-  logo of the market on screen. Every row of the market picker has one too. The
-  rows of the market list have no star of their own. One star always on screen
-  beats one per row behind a hover.
-- **Stars save to the account, not the browser**, so favourites follow you
-  between machines. Starring is optimistic and reverts with a toast if the save
-  fails. Two presses in a row both count. A save already on its way no longer
-  swallows the next press, it sends that press as soon as it is free.
+  logo of the market on screen. Every row of the market picker has the same
+  star. An empty star adds the coin to Fav in one press. A filled star opens
+  the folder list because the coin may be in more than one folder.
+- **Folders save to the account, not the browser**, so Fav, named folders and
+  their order follow you between machines. Each folder belongs to one
+  exchange and network. Fav is first and cannot be renamed or deleted.
+  Folder changes appear at once and revert with a toast if the save fails.
 - **Settings → Markets holds one minimum daily dollar volume for the account.**
   Every exchange uses the same number. Markets below it disappear from every
-  list, including Favorites and search, and a linked or remembered market below
+  list, including folders and search, and a linked or remembered market below
   it says the volume setting hid it instead of opening its chart or blaming the
   exchange. A zero setting keeps the old rule, where markets with no reported
   volume stay hidden. When the cutoff hides every market, All says none meet the
-  setting. When it hides every starred market, Favorites says the setting hid
-  them rather than saying nothing was starred.
+  setting. A folder with no visible markets names the folder and points back to
+  the star control.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists.

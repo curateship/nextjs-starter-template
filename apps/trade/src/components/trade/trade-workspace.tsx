@@ -23,6 +23,7 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketListPanel } from "@/components/trade/market-list-panel"
+import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -38,9 +39,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import {
-  getMarketFavoritesErrorMessage,
-  saveMarketFavorites,
-} from "@/lib/api/markets"
+  createFolder,
+  getMarketFolderErrorMessage,
+  loadFolders as reloadFolders,
+  setFolderMarket,
+} from "@/lib/api/market-folders"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,
@@ -68,6 +71,11 @@ import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { useRememberedPanelLayoutInPlace } from "@/lib/trade/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import {
+  favFolder,
+  type MarketFolder,
+  type MarketFolderActions,
+} from "@/lib/trade/market-folders"
 import {
   marketWasHiddenByVolume,
   type FilteredMarketCatalog,
@@ -141,7 +149,7 @@ export function TradeWorkspace({
   catalogs,
   marketsError,
   network,
-  initialFavoriteKeys,
+  initialFolders,
   initialChartView,
   initialChartOptions,
   initialIndicators,
@@ -162,7 +170,7 @@ export function TradeWorkspace({
   marketsError: string | null
   /** Which network the whole page is showing — resolved by the route. */
   network: NetworkId
-  initialFavoriteKeys: string[]
+  initialFolders: MarketFolder[]
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
   /** Which supporting parts of the chart this account has visible. */
@@ -190,69 +198,79 @@ export function TradeWorkspace({
     open: false,
   })
 
-  // ----- Favourites: optimistic, saved whole, reverted on failure ----------
-  const [favoriteKeys, setFavoriteKeys] = React.useState(initialFavoriteKeys)
-  const favorites = React.useMemo(() => new Set(favoriteKeys), [favoriteKeys])
-
-  /**
-   * What the stars say on screen, and the last list the account agreed to.
-   *
-   * Held as refs rather than state because a press has to read them the
-   * instant it happens: star then unstar is an ordinary thing to do now the
-   * star is always on screen beside the market's name, and the second press
-   * cannot wait for a render to know what the first one decided.
-   */
-  const intendedKeys = React.useRef(initialFavoriteKeys)
-  const savedKeys = React.useRef(initialFavoriteKeys)
-  const saving = React.useRef(false)
-
-  /**
-   * One save at a time, always sending the newest list.
-   *
-   * A save in flight used to block the next press, which silently threw the
-   * press away — with the account's list a whole-list write, a press made
-   * during a save is simply sent by the save that follows it instead.
-   */
-  const saveFavorites = React.useCallback(async () => {
-    if (saving.current) return
-    saving.current = true
-    try {
-      while (intendedKeys.current !== savedKeys.current) {
-        const attempt = intendedKeys.current
+  // ----- Market folders: one exchange, optimistic item changes -------------
+  const [folders, setFolders] = React.useState(initialFolders)
+  const [folderBusy, setFolderBusy] = React.useState(false)
+  const folderQueues = React.useRef(new Map<string, Promise<void>>())
+  async function toggleFolderMarket(
+    key: string,
+    folderId: string,
+    saved: boolean
+  ) {
+    setFolders((current) =>
+      current.map((folder) =>
+        folder.id !== folderId
+          ? folder
+          : {
+              ...folder,
+              marketKeys: saved
+                ? [...new Set([...folder.marketKeys, key])]
+                : folder.marketKeys.filter((one) => one !== key),
+            }
+      )
+    )
+    const previous = folderQueues.current.get(folderId) ?? Promise.resolve()
+    const queued = previous
+      .then(async () => {
+        await setFolderMarket({ folderId, marketKey: key, saved })
+      })
+      .catch(async (error) => {
+        showErrorToast(getMarketFolderErrorMessage(error))
         try {
-          const saved = await saveMarketFavorites(attempt)
-          savedKeys.current = saved.marketKeys
-          // Nothing pressed while that was away: the account's answer is the
-          // truth. Otherwise leave the newer press alone and send it next.
-          if (intendedKeys.current === attempt) {
-            intendedKeys.current = saved.marketKeys
-            setFavoriteKeys(saved.marketKeys)
-          }
-        } catch (error) {
-          // Back to the last list the account agreed to — including any press
-          // made while this one was away, because none of them landed.
-          intendedKeys.current = savedKeys.current
-          setFavoriteKeys(savedKeys.current)
-          showErrorToast(getMarketFavoritesErrorMessage(error))
-          return
+          setFolders(await reloadFolders(protocol, network))
+        } catch {
+          // The original save error is already visible. A later dashboard load
+          // will reconcile the folders if this recovery read also fails.
         }
-      }
-    } finally {
-      saving.current = false
+      })
+    folderQueues.current.set(folderId, queued)
+    await queued
+    if (folderQueues.current.get(folderId) === queued) {
+      folderQueues.current.delete(folderId)
     }
-  }, [])
+  }
 
-  const toggleFavorite = React.useCallback(
-    (key: string) => {
-      const previous = intendedKeys.current
-      intendedKeys.current = previous.includes(key)
-        ? previous.filter((candidate) => candidate !== key)
-        : [...previous, key]
-      setFavoriteKeys(intendedKeys.current)
-      void saveFavorites()
-    },
-    [saveFavorites]
-  )
+  function quickAddToFav(key: string) {
+    const folder = favFolder(folders)
+    if (folder) {
+      void toggleFolderMarket(key, folder.id, true)
+      return
+    }
+    showErrorToast("Fav could not be loaded. Reload the page and try again.")
+  }
+
+  async function createFolderWithMarket(key: string, name: string) {
+    if (folderBusy) return false
+    setFolderBusy(true)
+    try {
+      setFolders(
+        await createFolder({ protocol, network, name, marketKey: key })
+      )
+      return true
+    } catch (error) {
+      showErrorToast(getMarketFolderErrorMessage(error))
+      return false
+    } finally {
+      setFolderBusy(false)
+    }
+  }
+
+  const folderActions: MarketFolderActions = {
+    busy: folderBusy,
+    quickAdd: quickAddToFav,
+    toggle: toggleFolderMarket,
+    create: createFolderWithMarket,
+  }
 
   // Memoised: the workspace re-renders on every poll and every price tick,
   // and a fresh answer each time made every panel below re-do its own work.
@@ -377,6 +395,9 @@ export function TradeWorkspace({
   const accountColumnLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.accountColumn
   )
+  const marketColumnLayout = useRememberedPanelLayoutInPlace(
+    tradePanelLayoutKey.marketColumn
+  )
 
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
@@ -456,7 +477,6 @@ export function TradeWorkspace({
       catalogs={catalogs}
       marketsError={marketsError}
       network={network}
-      favorites={favorites}
       // The same list the chart draws its waiting lines from and the Open
       // orders tab lists, so the tab can never disagree with either.
       watchedOrders={{
@@ -482,6 +502,38 @@ export function TradeWorkspace({
     />
   )
 
+  const marketColumn = (
+    <ResizablePanelGroup
+      groupRef={marketColumnLayout.groupRef}
+      orientation="vertical"
+      className="min-h-0 flex-1"
+      onLayoutChanged={marketColumnLayout.onLayoutChanged}
+    >
+      <ResizablePanel id="market-list" defaultSize="50%" minSize="52.4px">
+        <WorkspacePanel
+          collapsed={marketsCollapsed}
+          onDoubleClick={marketsDoubleClick}
+        >
+          {marketList}
+        </WorkspacePanel>
+      </ResizablePanel>
+      <ResizableHandle gap className={NO_RING} />
+      <ResizablePanel id="market-folders" defaultSize="50%" minSize="12%">
+        <WorkspacePanel collapsed={marketsCollapsed} className="flex flex-col">
+          <MarketFoldersPanel
+            folders={folders}
+            protocol={protocol}
+            network={network}
+            catalogs={catalogs}
+            selectedMarketKey={selectedKey}
+            onFoldersChange={setFolders}
+            onSelectMarket={onSelectMarket}
+          />
+        </WorkspacePanel>
+      </ResizablePanel>
+    </ResizablePanelGroup>
+  )
+
   // Memoised for the same reason: a new array here re-sorted the whole
   // market picker on every render, with the picker closed.
   const marketRows = React.useMemo(
@@ -505,8 +557,8 @@ export function TradeWorkspace({
       <MarketHeader
         selection={selection}
         markets={marketRows}
-        favorites={favorites}
-        onToggleFavorite={toggleFavorite}
+        folders={folders}
+        folderActions={folderActions}
         onSelectMarket={onSelectMarket}
         // The chart's own controls live in the header row; they only make
         // sense once there is a market to chart. Indicators sit to the right
@@ -591,12 +643,7 @@ export function TradeWorkspace({
         maxSize="30%"
         onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
       >
-        <WorkspacePanel
-          collapsed={marketsCollapsed}
-          onDoubleClick={marketsDoubleClick}
-        >
-          {marketList}
-        </WorkspacePanel>
+        <div className="flex h-full min-h-0">{marketColumn}</div>
       </ResizablePanel>
       <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
       <ResizablePanel id="chart" defaultSize="58%" minSize="30%">
@@ -744,7 +791,7 @@ export function TradeWorkspace({
                 {accountPanel}
               </div>
             ) : (
-              <div className="min-h-0 flex-1">{marketList}</div>
+              <div className="flex min-h-0 flex-1">{marketColumn}</div>
             )}
           </SheetContent>
         </Sheet>

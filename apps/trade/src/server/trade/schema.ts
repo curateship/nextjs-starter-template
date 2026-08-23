@@ -4,6 +4,7 @@ import {
   doublePrecision,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -12,6 +13,7 @@ import {
   uniqueIndex,
   varchar,
 } from "drizzle-orm/pg-core"
+import { sql } from "drizzle-orm"
 
 import type {
   CandleInterval,
@@ -74,6 +76,63 @@ export const tradeMarketFavorites = pgTable("trade_market_favorites", {
     .notNull()
     .defaultNow(),
 })
+
+/** One account-owned list of markets on one exchange and network. */
+export const tradeMarketFolders = pgTable(
+  "trade_market_folders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 })
+      .notNull()
+      .references(() => customShellUsers.id, { onDelete: "cascade" }),
+    protocol: varchar("protocol", { length: 20 }).$type<ProtocolId>().notNull(),
+    network: varchar("network", { length: 10 }).$type<NetworkId>().notNull(),
+    name: varchar("name", { length: 80 }).notNull(),
+    isFav: boolean("is_fav").notNull().default(false),
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ux_trade_market_folders_scope_name").on(
+      table.userId,
+      table.protocol,
+      table.network,
+      sql`lower(${table.name})`
+    ),
+    uniqueIndex("ux_trade_market_folders_scope_fav")
+      .on(table.userId, table.protocol, table.network)
+      .where(sql`${table.isFav} = true`),
+    index("ix_trade_market_folders_scope_position").on(
+      table.userId,
+      table.protocol,
+      table.network,
+      table.position
+    ),
+  ]
+)
+
+/** One market in one folder. Folder deletion removes its items. */
+export const tradeMarketFolderItems = pgTable(
+  "trade_market_folder_items",
+  {
+    folderId: varchar("folder_id", { length: 36 })
+      .notNull()
+      .references(() => tradeMarketFolders.id, { onDelete: "cascade" }),
+    marketKey: varchar("market_key", { length: 180 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.folderId, table.marketKey] }),
+    index("ix_trade_market_folder_items_market").on(table.marketKey),
+  ]
+)
 
 /**
  * Each person's small trading preferences — one row per person, one column

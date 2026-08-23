@@ -19,6 +19,8 @@ How the Markets step decides which exchange and coins a backtest uses.
 
 ## Choosing coins
 
+- **Pick coins** saves the checked list. **Use a folder** saves one folder from
+  the selected exchange and shows its current coin count.
 - Coins can be checked individually or found with search.
 - A minimum and maximum daily-volume filter treats plain numbers as millions,
   so `10` to `100` means $10m to $100m. The visible list is ordered from highest
@@ -32,8 +34,12 @@ How the Markets step decides which exchange and coins a backtest uses.
 ## What gets saved
 
 - Filters only narrow the list while editing. They are not run again later.
-- The step saves the exact full market keys, including exchange, network and
-  coin. Running the same saved flow again tests the same list.
+- A picked list saves the exact full market keys, including exchange, network
+  and coin.
+- A folder choice is read when the backtest starts. The backtest then saves the
+  exact keys it read, so its result stays repeatable after the folder changes.
+- A trading flow reads its folder at every run start. A run already in progress
+  keeps the keys it started with.
 - A later candle-size choice that would use too much memory is refused plainly.
   The app never silently trims the saved list.
 

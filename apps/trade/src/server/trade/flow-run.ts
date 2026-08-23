@@ -5,6 +5,7 @@ import { parseMarketKey } from "@/lib/protocols/contracts"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
 import { tradeDcaSettingsSchema } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsSettingsSchema } from "@/lib/automations/nodes/trade-markets"
+import { trimMarketsToFit } from "@/lib/automations/nodes/trade-markets"
 import { tradeSignalsSettingsSchema } from "@/lib/automations/nodes/trade-signals"
 import type {
   FlowStopOutcome,
@@ -35,6 +36,7 @@ import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
+import { marketFolderForRun } from "@/server/trade/market-folders"
 
 /**
  * Switching a flow on, off, and the pass that gives it something to do.
@@ -80,6 +82,7 @@ export type FlowStartRefusal =
   | "FLOW_WALLET_INACTIVE"
   | "FLOW_WALLET_KEY"
   | "FLOW_NO_COINS"
+  | "FLOW_EMPTY_FOLDER"
   | "FLOW_NO_CAP"
   | "FLOW_WRONG_EXCHANGE"
   | "FLOW_ALREADY_RUNNING"
@@ -125,9 +128,36 @@ export async function flowRunSpec(
   }
 
   const markets = tradeMarketsSettingsSchema.safeParse(nodes.markets)
-  if (!markets.success || markets.data.marketKeys.length === 0) {
+  if (!markets.success) {
     throw new Error("FLOW_NO_COINS")
   }
+  let marketKeys = markets.data.marketKeys
+  if (markets.data.folderId) {
+    let folder
+    try {
+      folder = await marketFolderForRun(userId, markets.data.folderId)
+    } catch {
+      throw new Error(
+        `FLOW_EMPTY_FOLDER:${markets.data.folderName ?? "That folder"}`
+      )
+    }
+    if (
+      folder.protocol !== wallet.protocol ||
+      folder.network !== wallet.network
+    ) {
+      throw new Error("FLOW_WRONG_EXCHANGE")
+    }
+    marketKeys = folder.marketKeys
+    if (marketKeys.length === 0) {
+      throw new Error(`FLOW_EMPTY_FOLDER:${folder.name}`)
+    }
+  }
+  marketKeys = trimMarketsToFit(
+    { ...markets.data, marketKeys },
+    "4h",
+    true
+  ).marketKeys
+  if (marketKeys.length === 0) throw new Error("FLOW_NO_COINS")
   const strategy = readFlowStrategy(nodes.strategy)
   if (!strategy) throw new Error("FLOW_STRATEGY_UNREADABLE")
   // A signals flow with nothing switched on is a flow that will never buy
@@ -145,7 +175,7 @@ export async function flowRunSpec(
   // Every coin, not a sample. One coin from the wrong exchange would be refused
   // at the moment it tried to buy, days later, with the rest of the flow
   // looking healthy.
-  const wrong = markets.data.marketKeys.some((key) => {
+  const wrong = marketKeys.some((key) => {
     const ref = parseMarketKey(key)
     return (
       !ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network
@@ -169,7 +199,7 @@ export async function flowRunSpec(
     spec: {
       protocol: wallet.protocol,
       network: wallet.network,
-      marketKeys: [...markets.data.marketKeys],
+      marketKeys: [...marketKeys],
       strategy,
       capUsd: named.capUsd,
       walletLabel: wallet.label,
@@ -532,10 +562,7 @@ export async function advanceFlowRuns(
           : {}),
       })
       .where(
-        and(
-          eq(tradeFlowRuns.userId, run.userId),
-          eq(tradeFlowRuns.id, run.id)
-        )
+        and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
       )
   }
 }

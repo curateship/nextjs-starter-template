@@ -12,7 +12,7 @@ import { minimumOrderLabel } from "@/lib/trade/market-info"
 /**
  * The star at the head of the market header.
  *
- * The empty Fav tab tells you to press "the star beside its name", so the
+ * The empty Fav folder tells you to press "the star beside its name", so the
  * header has to have one for every market it can chart — and none of the
  * header's other three states may grow one, because there is no market there
  * to star. It leads the row, ahead of the market's own art.
@@ -60,8 +60,21 @@ function draw(selection: MarketSelection, favorites: string[]): string {
       <MarketHeader
         selection={selection}
         markets={[row]}
-        favorites={new Set(favorites)}
-        onToggleFavorite={() => {}}
+        folders={[
+          {
+            id: "00000000-0000-4000-8000-000000000001",
+            name: "Fav",
+            isFav: true,
+            position: 0,
+            marketKeys: favorites,
+          },
+        ]}
+        folderActions={{
+          busy: false,
+          quickAdd: () => {},
+          toggle: async () => {},
+          create: async () => true,
+        }}
         onSelectMarket={() => {}}
       />
     </TooltipProvider>
@@ -98,9 +111,9 @@ describe("the market header's star", () => {
     expect(markup).toContain('aria-pressed="false"')
   })
 
-  it("offers to unstar a market that is already starred", () => {
+  it("opens the folder choices for a market that is already saved", () => {
     const markup = draw(market, [key])
-    expect(markup).toContain('aria-label="Remove BTC from Fav"')
+    expect(markup).toContain('aria-label="Choose folders for BTC"')
     expect(markup).toContain('aria-pressed="true"')
   })
 

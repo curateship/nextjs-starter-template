@@ -28,7 +28,10 @@ function flowOf(
   return { v: 1, kind: "automation", nodes: nodes as never, edges: [] }
 }
 
-const wallet = { kind: tradeWalletNode.kind, settings: tradeWalletNode.createSettings() }
+const wallet = {
+  kind: tradeWalletNode.kind,
+  settings: tradeWalletNode.createSettings(),
+}
 // The exchange is pinned rather than taken from the default, so these tests go
 // on being about the window and the memory budget when the default moves.
 const markets = {
@@ -39,11 +42,16 @@ const markets = {
     marketKeys: ["hyperliquid:mainnet:BTC"],
   },
 }
-const ladder = { kind: tradeDcaNode.kind, settings: tradeDcaNode.createSettings() }
+const ladder = {
+  kind: tradeDcaNode.kind,
+  settings: tradeDcaNode.createSettings(),
+}
 
 describe("a flow that is a backtest", () => {
   it("reads all three steps off it", () => {
-    const read = backtestSpecFromFlow(flowOf({ a: wallet, b: markets, c: ladder }))
+    const read = backtestSpecFromFlow(
+      flowOf({ a: wallet, b: markets, c: ladder })
+    )
 
     expect(read.problem).toBeNull()
     expect(read.spec?.wallet.startingUsd).toBe(10_000)
@@ -64,6 +72,37 @@ describe("a flow that is a backtest", () => {
     )
 
     expect(read.problem).toBeNull()
+  })
+
+  it("freezes the folder keys supplied at the start", () => {
+    const folderId = "00000000-0000-4000-8000-000000000001"
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: {
+          ...markets,
+          settings: {
+            ...markets.settings,
+            folderId,
+            folderName: "Daily",
+            folderCount: 2,
+            marketKeys: [],
+          },
+        },
+        c: ladder,
+      }),
+      {
+        id: folderId,
+        name: "Daily",
+        marketKeys: ["hyperliquid:mainnet:BTC", "hyperliquid:mainnet:ETH"],
+      }
+    )
+
+    expect(read.problem).toBeNull()
+    expect(read.spec?.markets.marketKeys).toEqual([
+      "hyperliquid:mainnet:BTC",
+      "hyperliquid:mainnet:ETH",
+    ])
   })
 })
 
@@ -111,7 +150,10 @@ describe("a flow that is not one yet", () => {
     const read = backtestSpecFromFlow(
       flowOf({
         a: wallet,
-        b: { kind: tradeMarketsNode.kind, settings: { marketKeys: [], days: 30 } },
+        b: {
+          kind: tradeMarketsNode.kind,
+          settings: { marketKeys: [], days: 30 },
+        },
         c: ladder,
       })
     )
@@ -189,9 +231,15 @@ describe("naming the two days a run covers", () => {
   it("counts both days in, so the length is what somebody would say it is", () => {
     // January 1st to June 30th is 181 days. Counting the gap between the two
     // midnights instead gives 180 and quietly loses the last day.
-    expect(windowDays({ days: 30, from: "2023-01-01", to: "2023-06-30" })).toBe(181)
-    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-10" })).toBe(10)
-    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-01" })).toBe(1)
+    expect(windowDays({ days: 30, from: "2023-01-01", to: "2023-06-30" })).toBe(
+      181
+    )
+    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-10" })).toBe(
+      10
+    )
+    expect(windowDays({ days: 30, from: "2023-10-01", to: "2023-10-01" })).toBe(
+      1
+    )
     // No dates named, so the count on the step is the answer.
     expect(windowDays({ days: 30, from: null, to: null })).toBe(30)
   })
@@ -255,7 +303,10 @@ describe("how many coins one run may take on", () => {
     // refused at about two hundred and twenty. The app this is a port of has
     // no such rule — it runs one market at a time and adds the results up.
     const read = tradeMarketsSettingsSchema.safeParse({
-      marketKeys: Array.from({ length: 400 }, (_, index) => `hyperliquid:mainnet:C${index}`),
+      marketKeys: Array.from(
+        { length: 400 },
+        (_, index) => `hyperliquid:mainnet:C${index}`
+      ),
       days: 730,
     })
 
@@ -351,20 +402,25 @@ describe("a ladder saved with the old click setting", () => {
         params: { ...settings.params, anchor: "click" },
       },
     }
-    const read = backtestSpecFromFlow(flowOf({ a: wallet, b: markets, c: clicked }))
+    const read = backtestSpecFromFlow(
+      flowOf({ a: wallet, b: markets, c: clicked })
+    )
 
     expect(read.problem).toBeNull()
     expect(
-      read.spec?.strategy.kind === "dca" ? read.spec.strategy.dca.params.anchor : null
+      read.spec?.strategy.kind === "dca"
+        ? read.spec.strategy.dca.params.anchor
+        : null
     ).toBe("base")
   })
 })
 
 describe("a flow whose Wallet step names a wallet", () => {
   /** The wallet step as the panel writes it once a wallet is picked. */
-  function tradingWallet(
-    patch: Record<string, unknown> = {}
-  ): { kind: string; settings: Record<string, unknown> } {
+  function tradingWallet(patch: Record<string, unknown> = {}): {
+    kind: string
+    settings: Record<string, unknown>
+  } {
     return {
       kind: tradeWalletNode.kind,
       settings: {

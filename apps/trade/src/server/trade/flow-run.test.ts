@@ -18,6 +18,10 @@ import {
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
+import {
+  createMarketFolder,
+  deleteMarketFolder,
+} from "@/server/trade/market-folders"
 
 /**
  * Switching a flow on and off.
@@ -42,7 +46,6 @@ vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
 }))
 
-
 vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
   awaitMarketsWalletHasMoneyOn: async () => null,
   marketsWalletHasMoneyOn: () => null,
@@ -55,9 +58,8 @@ vi.mock("@/server/trade/workers", () => ({
   assertRealMoneySwitchOn: async () => {},
 }))
 
-const { flowRunSpec, startFlowRun, stopFlowRun } = await import(
-  "@/server/trade/flow-run"
-)
+const { flowRunSpec, startFlowRun, stopFlowRun } =
+  await import("@/server/trade/flow-run")
 type FlowNodes = Parameters<typeof flowRunSpec>[1]
 
 function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
@@ -76,10 +78,12 @@ function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
   }
 }
 
-function nodes(patch: {
-  wallet?: Record<string, unknown>
-  markets?: Record<string, unknown>
-} = {}): FlowNodes {
+function nodes(
+  patch: {
+    wallet?: Record<string, unknown>
+    markets?: Record<string, unknown>
+  } = {}
+): FlowNodes {
   return {
     wallet: {
       startingUsd: 10_000,
@@ -263,6 +267,58 @@ describe("what a flow is allowed to start with", () => {
       flowRunSpec(userId, nodes({ markets: { marketKeys: [] } }))
     ).rejects.toThrow("FLOW_NO_COINS")
   })
+
+  it("reads a folder again each time the flow starts", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:ETH",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+
+    const { spec } = await flowRunSpec(
+      userId,
+      nodes({
+        markets: {
+          folderId: daily.id,
+          folderName: daily.name,
+          folderCount: 1,
+          marketKeys: [],
+        },
+      })
+    )
+
+    expect(spec.marketKeys).toEqual(["hyperliquid:mainnet:ETH"])
+  })
+
+  it("names a deleted folder when the next start refuses", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      { protocol: "hyperliquid", network: "mainnet", name: "Daily" },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    await deleteMarketFolder(userId, daily.id, db)
+
+    await expect(
+      flowRunSpec(
+        userId,
+        nodes({
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 0,
+            marketKeys: [],
+          },
+        })
+      )
+    ).rejects.toThrow("FLOW_EMPTY_FOLDER:Daily")
+  })
 })
 
 describe("switching one on", () => {
@@ -366,7 +422,6 @@ describe("switching one off", () => {
       .where(eq(tradeSmartLadders.id, "by-hand"))
     expect(still.status).toBe("active")
   })
-
 
   it("says so when there was nothing running", async () => {
     expect(

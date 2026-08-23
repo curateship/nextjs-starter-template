@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { focusRing } from "@/lib/layout/focus-ring"
-import { EyeIcon, LayoutGridIcon, StarIcon } from "lucide-react"
+import { EyeIcon, LayoutGridIcon } from "lucide-react"
 
 import {
   WorkspacePanelTab,
@@ -13,7 +13,6 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
-import { marketBelongsInTab, type MarketTab } from "@/lib/trade/market-tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { LiveRefusal } from "@/lib/trade/live"
@@ -25,11 +24,10 @@ import { cn } from "@/lib/utils"
 /**
  * Watched is every price you are waiting at. It leads the row and it is the
  * tab the panel opens on, because a level you have money committed to beats a
- * market you might look at. Fav is the starred set, one click away; All is the
- * whole catalog. Stars are put on in the market header, at the head of the row
- * showing the market on screen.
+ * market you might look at. All is the whole catalog. Saved folders have their
+ * own panel below this one.
  */
-type PanelTab = MarketTab | "watched"
+type MarketPanelTab = "watched" | "all"
 
 type SortKey = "vol" | "change"
 
@@ -76,7 +74,6 @@ export function MarketListPanel({
   catalogs,
   marketsError,
   network,
-  favorites,
   watchedOrders,
   walletName,
   selectedKey,
@@ -88,8 +85,6 @@ export function MarketListPanel({
   marketsError: string | null
   /** Which network the whole page is on — testnet wears its label row. */
   network: NetworkId
-  /** Which markets are starred — read only; the star itself is in the header. */
-  favorites: ReadonlySet<string>
   /** The prices being waited at, listed under the Watched tab. */
   watchedOrders: {
     rows: readonly PaperOrder[]
@@ -109,7 +104,7 @@ export function MarketListPanel({
   onSelect: (key: string) => void
   onRetry: () => void
 }) {
-  const [tab, setTab] = React.useState<PanelTab>("watched")
+  const [tab, setTab] = React.useState<MarketPanelTab>("watched")
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
     key: "vol",
     desc: true,
@@ -127,13 +122,6 @@ export function MarketListPanel({
     () => catalogs.flatMap((catalog) => catalog.rows),
     [catalogs]
   )
-  const hasVolumeHiddenFavorite = React.useMemo(
-    () =>
-      catalogs.some((catalog) =>
-        catalog.hiddenByVolumeKeys.some((key) => favorites.has(key))
-      ),
-    [catalogs, favorites]
-  )
   const hasVolumeHiddenMarkets = catalogs.some(
     (catalog) => catalog.hiddenByVolumeKeys.length > 0
   )
@@ -141,18 +129,15 @@ export function MarketListPanel({
   const visible = React.useMemo(() => {
     // Watched lists orders, not markets, and draws its own rows below.
     if (tab === "watched") return []
-    const list = rows.filter((row) =>
-      marketBelongsInTab(tab, row.key, favorites)
-    )
     const direction = sort.desc ? -1 : 1
-    return [...list].sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const [va, vb] =
         sort.key === "vol"
           ? [a.volume24hUsd, b.volume24hUsd]
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, tab, sort, favorites])
+  }, [rows, tab, sort])
 
   const list = (
     // `[&>div]:block!` because Radix wraps what it is given in a `display:
@@ -169,13 +154,9 @@ export function MarketListPanel({
           {/* Searching lives in the market name at the top of the chart,
               which opens the whole catalogue with its own search — one search
               box for markets rather than two that filter different lists. */}
-          {tab === "fav"
-            ? hasVolumeHiddenFavorite
-              ? "Your starred markets are below the daily volume setting."
-              : "Nothing starred yet. Open a market and press the star beside its name — it stays here."
-            : hasVolumeHiddenMarkets
-              ? "No markets meet your daily volume setting."
-              : "The exchange is not listing any markets right now."}
+          {hasVolumeHiddenMarkets
+            ? "No markets meet your daily volume setting."
+            : "The exchange is not listing any markets right now."}
         </p>
       ) : (
         <div className="flex flex-col p-1">
@@ -195,7 +176,7 @@ export function MarketListPanel({
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as PanelTab)}
+      onValueChange={(value) => setTab(value as MarketPanelTab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       {/* Row one: the same underline tab row as the automation palette. */}
@@ -210,11 +191,6 @@ export function MarketListPanel({
             // eye here is never mistaken for it.
             icon={<EyeIcon className="size-4" />}
             label="Watched"
-          />
-          <WorkspacePanelTab
-            value="fav"
-            icon={<StarIcon className="size-4 fill-current" />}
-            label="Fav"
           />
           <WorkspacePanelTab
             value="all"
@@ -283,9 +259,6 @@ export function MarketListPanel({
           onSelectMarket={onSelect}
         />
       </TabsContent>
-      <TabsContent value="fav" className="min-h-0 flex-1">
-        {list}
-      </TabsContent>
       <TabsContent value="all" className="min-h-0 flex-1">
         {list}
       </TabsContent>
@@ -331,14 +304,16 @@ export function MarketListPanel({
  * The whole row is the one button — the star that used to sit at its left edge
  * now lives in the market header, where it is always on screen.
  */
-function MarketRowLine({
+export function MarketRowLine({
   row,
   selected,
   onSelect,
+  className,
 }: {
   row: MarketRow
   selected: boolean
   onSelect: () => void
+  className?: string
 }) {
   // Subscribed per row, so a tick repaints exactly the rows whose numbers
   // moved. The list's ORDER stays on the loaded snapshot on purpose — rows
@@ -356,7 +331,8 @@ function MarketRowLine({
       className={cn(
         "flex h-9 min-w-0 items-center rounded-lg text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         ROW_COLUMNS_INSIDE_LIST,
-        selected ? "bg-muted" : "hover:bg-muted/50"
+        selected ? "bg-muted" : "hover:bg-muted/50",
+        className
       )}
     >
       {/* The name gives way first, and carries its full self in a title —

@@ -8,6 +8,11 @@ import {
 } from "@/server/schema"
 import { createBacktest } from "@/server/trade/backtest/store"
 import { tradeBacktestGroups } from "@/server/trade/schema"
+import { marketFolderForRun } from "@/server/trade/market-folders"
+import {
+  tradeMarketsNode,
+  tradeMarketsSettingsSchema,
+} from "@/lib/automations/nodes/trade-markets"
 
 /**
  * Turning a press of Run into a backtest waiting to be worked on.
@@ -70,7 +75,29 @@ export async function startBacktestForRun(
     }
   }
 
-  const read = backtestSpecFromFlow(flow.compiledConfig)
+  const marketsStep = Object.values(flow.compiledConfig.nodes).find(
+    (node) => node.kind === tradeMarketsNode.kind
+  )
+  const marketSettings = marketsStep
+    ? tradeMarketsSettingsSchema.safeParse(marketsStep.settings)
+    : null
+  let resolvedFolder
+  if (marketSettings?.success && marketSettings.data.folderId) {
+    try {
+      resolvedFolder = await marketFolderForRun(
+        run.userId,
+        marketSettings.data.folderId
+      )
+    } catch {
+      return {
+        started: false,
+        groupId: null,
+        coins: 0,
+        problem: `${marketSettings.data.folderName ?? "That folder"} was deleted. Choose another folder on the Markets step.`,
+      }
+    }
+  }
+  const read = backtestSpecFromFlow(flow.compiledConfig, resolvedFolder)
   if (!read.spec) {
     return { started: false, groupId: null, coins: 0, problem: read.problem }
   }

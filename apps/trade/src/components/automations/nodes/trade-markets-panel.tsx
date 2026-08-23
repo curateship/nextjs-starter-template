@@ -20,11 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  loadMarketProtocols,
-  loadTestableMarkets,
-} from "@/lib/api/backtests"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { loadMarketProtocols, loadTestableMarkets } from "@/lib/api/backtests"
 import { getMarketsErrorMessage } from "@/lib/api/markets"
+import {
+  getMarketFoldersLoadErrorMessage,
+  loadFolders,
+} from "@/lib/api/market-folders"
 import type { AutomationNode } from "@/lib/automations/graph"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
@@ -52,6 +54,7 @@ import {
 } from "@/lib/automations/nodes/trade-wallet"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
+import type { MarketFolder } from "@/lib/trade/market-folders"
 import { formatCompactUsd, formatUsd } from "@/lib/trade/format"
 import {
   changeVisibleMarketSelection,
@@ -162,6 +165,10 @@ export default function TradeMarketsFields({
     ? (parsedSettings.data.marketKeys ?? null)
     : null
   const marketKeys = React.useMemo(() => parsedKeys ?? [], [parsedKeys])
+  const folderId =
+    typeof node.settings.folderId === "string" ? node.settings.folderId : null
+  const [folderModeRequested, setFolderModeRequested] = React.useState(false)
+  const folderMode = folderId !== null || folderModeRequested
   // Both read straight off the step, not through the whole-step parse.
   //
   // The parse is all-or-nothing, and `marketKeys` must hold at least one coin
@@ -203,7 +210,9 @@ export default function TradeMarketsFields({
    * under the dropdown is what says the flow cannot run.
    */
   const network =
-    wallet && !wrongProtocol ? (wallet.network ?? BACKTEST_NETWORK) : BACKTEST_NETWORK
+    wallet && !wrongProtocol
+      ? (wallet.network ?? BACKTEST_NETWORK)
+      : BACKTEST_NETWORK
   /**
    * A wallet named before this step learned to follow one. Nothing is wrong and
    * nothing is lost — opening the Wallet step fills it in — but until then this
@@ -213,7 +222,8 @@ export default function TradeMarketsFields({
   // Read straight off the step rather than through the schema, so a date that
   // does not parse still shows in the box with the reason underneath it. Going
   // through the parse would blank the field and leave nothing to correct.
-  const from = typeof node.settings.from === "string" ? node.settings.from : null
+  const from =
+    typeof node.settings.from === "string" ? node.settings.from : null
   const to = typeof node.settings.to === "string" ? node.settings.to : null
   /** Which of the two ways of naming a window this step is using. */
   const betweenDates = from !== null || to !== null
@@ -272,6 +282,35 @@ export default function TradeMarketsFields({
     ReadonlyArray<{ id: string; label: string; tradeable: boolean }>
   >([])
   const [search, setSearch] = React.useState("")
+  const [folderAttempt, setFolderAttempt] = React.useState(0)
+  const folderKey = `${protocol}:${network}`
+  const [folderAnswer, setFolderAnswer] = React.useState<{
+    key: string
+    rows: MarketFolder[] | null
+    error: string | null
+  } | null>(null)
+  const folders = folderAnswer?.key === folderKey ? folderAnswer.rows : null
+  const foldersError =
+    folderAnswer?.key === folderKey ? folderAnswer.error : null
+
+  React.useEffect(() => {
+    let alive = true
+    void loadFolders(protocol as Parameters<typeof loadFolders>[0], network)
+      .then((next) => {
+        if (alive) setFolderAnswer({ key: folderKey, rows: next, error: null })
+      })
+      .catch((loadError) => {
+        if (alive)
+          setFolderAnswer({
+            key: folderKey,
+            rows: null,
+            error: getMarketFoldersLoadErrorMessage(loadError),
+          })
+      })
+    return () => {
+      alive = false
+    }
+  }, [folderAttempt, folderKey, network, protocol])
 
   /**
    * An exchange's proper name, falling back to its id.
@@ -439,12 +478,7 @@ export default function TradeMarketsFields({
     parsedMaximum !== null &&
     parsedMinimum <= parsedMaximum
   const visible = rangeIsValid
-    ? filterMarketsByVolume(
-        markets ?? [],
-        parsedMinimum,
-        parsedMaximum,
-        search
-      )
+    ? filterMarketsByVolume(markets ?? [], parsedMinimum, parsedMaximum, search)
     : []
 
   const visibleKeys = visible.map((row) => row.key)
@@ -497,110 +531,110 @@ export default function TradeMarketsFields({
           </p>
         </InspectorCard>
       ) : (
-      <InspectorCard title="How far back">
-        <div className="grid gap-1.5">
-          <FieldLabel
-            htmlFor={`markets-${node.id}-window`}
-            className="text-xs"
-            hint="Either the run ends today and you say how long it is, or you name the two days it runs between. Naming the days is how you go back to one particular stretch — a crash, a quiet summer — and get the same run every time."
-          >
-            Window
-          </FieldLabel>
-          <Select
-            value={betweenDates ? "between" : "recent"}
-            onValueChange={(next) =>
-              commit(
-                next === "between"
-                  ? // Filled in rather than left blank, so the panel never
-                    // sits in a half-chosen state: the dates start as the
-                    // same stretch the day count was already describing, and
-                    // moving either end from there is one click.
-                    { ...node.settings, ...recentDaysAsDates(days) }
-                  : { ...node.settings, from: null, to: null }
-              )
-            }
-          >
-            <SelectTrigger
-              id={`markets-${node.id}-window`}
-              className="w-full sm:w-fit"
+        <InspectorCard title="How far back">
+          <div className="grid gap-1.5">
+            <FieldLabel
+              htmlFor={`markets-${node.id}-window`}
+              className="text-xs"
+              hint="Either the run ends today and you say how long it is, or you name the two days it runs between. Naming the days is how you go back to one particular stretch — a crash, a quiet summer — and get the same run every time."
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="recent">The last few days</SelectItem>
-              <SelectItem value="between">Between two dates</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+              Window
+            </FieldLabel>
+            <Select
+              value={betweenDates ? "between" : "recent"}
+              onValueChange={(next) =>
+                commit(
+                  next === "between"
+                    ? // Filled in rather than left blank, so the panel never
+                      // sits in a half-chosen state: the dates start as the
+                      // same stretch the day count was already describing, and
+                      // moving either end from there is one click.
+                      { ...node.settings, ...recentDaysAsDates(days) }
+                    : { ...node.settings, from: null, to: null }
+                )
+              }
+            >
+              <SelectTrigger
+                id={`markets-${node.id}-window`}
+                className="w-full sm:w-fit"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">The last few days</SelectItem>
+                <SelectItem value="between">Between two dates</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-        {betweenDates ? (
-          <>
-            {/* One above the other, not side by side. The inspector is a
+          {betweenDates ? (
+            <>
+              {/* One above the other, not side by side. The inspector is a
                 narrow column, and a written-out date — "August 13th, 2026" —
                 is wider than half of it, so two abreast cut the year off both
                 of them. */}
-            <div className="grid gap-2">
-              <div className="grid gap-1.5">
-                <label
-                  htmlFor={`markets-${node.id}-from`}
-                  className="text-xs text-muted-foreground"
-                >
-                  From
-                </label>
-                <DatePicker
-                  id={`markets-${node.id}-from`}
-                  value={dateFromDay(from)}
-                  onChange={(picked) =>
-                    commit({
-                      ...node.settings,
-                      from: picked ? dayFromDate(picked) : null,
-                    })
-                  }
-                />
+              <div className="grid gap-2">
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor={`markets-${node.id}-from`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    From
+                  </label>
+                  <DatePicker
+                    id={`markets-${node.id}-from`}
+                    value={dateFromDay(from)}
+                    onChange={(picked) =>
+                      commit({
+                        ...node.settings,
+                        from: picked ? dayFromDate(picked) : null,
+                      })
+                    }
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor={`markets-${node.id}-to`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    To
+                  </label>
+                  <DatePicker
+                    id={`markets-${node.id}-to`}
+                    value={dateFromDay(to)}
+                    onChange={(picked) =>
+                      commit({
+                        ...node.settings,
+                        to: picked ? dayFromDate(picked) : null,
+                      })
+                    }
+                  />
+                </div>
               </div>
-              <div className="grid gap-1.5">
-                <label
-                  htmlFor={`markets-${node.id}-to`}
-                  className="text-xs text-muted-foreground"
-                >
-                  To
-                </label>
-                <DatePicker
-                  id={`markets-${node.id}-to`}
-                  value={dateFromDay(to)}
-                  onChange={(picked) =>
-                    commit({
-                      ...node.settings,
-                      to: picked ? dayFromDate(picked) : null,
-                    })
-                  }
-                />
-              </div>
-            </div>
-            <p
-              className={
-                dateProblem
-                  ? "text-xs text-destructive"
-                  : "text-xs text-muted-foreground"
-              }
-            >
-              {dateProblem ??
-                `Both days included — ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} in all. A day past today is cut back to now.`}
-            </p>
-          </>
-        ) : (
-          <TradeNumberField
-            id={`markets-${node.id}-days`}
-            label="Days to test"
-            hint="How much history the run walks, counting back from today. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
-            value={days}
-            min={1}
-            max={MAX_BACKTEST_DAYS}
-            suffix="days"
-            onChange={(next) => commit({ ...node.settings, days: next })}
-          />
-        )}
-      </InspectorCard>
+              <p
+                className={
+                  dateProblem
+                    ? "text-xs text-destructive"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                {dateProblem ??
+                  `Both days included — ${windowLength.toLocaleString()} ${plural(windowLength, "day", "days")} in all. A day past today is cut back to now.`}
+              </p>
+            </>
+          ) : (
+            <TradeNumberField
+              id={`markets-${node.id}-days`}
+              label="Days to test"
+              hint="How much history the run walks, counting back from today. A younger coin is tested from the day its selected exchange first has prices for it, and the result says when that was."
+              value={days}
+              min={1}
+              max={MAX_BACKTEST_DAYS}
+              suffix="days"
+              onChange={(next) => commit({ ...node.settings, days: next })}
+            />
+          )}
+        </InspectorCard>
       )}
 
       <InspectorCard title="Protocol">
@@ -618,16 +652,20 @@ export default function TradeMarketsFields({
           </FieldLabel>
           <Select
             value={protocol}
-            onValueChange={(next) =>
+            onValueChange={(next) => {
+              setFolderModeRequested(false)
               onChange({
                 ...node,
                 settings: {
                   ...node.settings,
                   protocol: next,
+                  folderId: null,
+                  folderName: null,
+                  folderCount: null,
                   marketKeys: [],
                 },
               })
-            }
+            }}
           >
             <SelectTrigger
               id={`markets-${node.id}-protocol`}
@@ -644,7 +682,13 @@ export default function TradeMarketsFields({
                   choosing one is answered by the sentence underneath. */}
               {(protocols.length > 0
                 ? protocols
-                : [{ id: protocol, label: nameOfProtocol(protocol), tradeable: true }]
+                : [
+                    {
+                      id: protocol,
+                      label: nameOfProtocol(protocol),
+                      tradeable: true,
+                    },
+                  ]
               ).map((one) => (
                 <SelectItem key={one.id} value={one.id}>
                   {one.label}
@@ -675,15 +719,108 @@ export default function TradeMarketsFields({
       </InspectorCard>
 
       <InspectorCard title="Coins">
-        {error ? (
-          <ErrorBanner message={error} onRetry={() => setAttemptKey((n) => n + 1)} />
+        <div className="grid gap-1.5">
+          <span
+            id={`markets-${node.id}-source-label`}
+            className="text-xs font-medium"
+          >
+            Market source
+          </span>
+          <Tabs
+            value={folderMode ? "folder" : "picked"}
+            aria-labelledby={`markets-${node.id}-source-label`}
+            onValueChange={(next) => {
+              if (next === "picked") {
+                setFolderModeRequested(false)
+                commit({
+                  ...node.settings,
+                  folderId: null,
+                  folderName: null,
+                  folderCount: null,
+                })
+                return
+              }
+              setFolderModeRequested(true)
+              const first = folders?.[0]
+              commit({
+                ...node.settings,
+                folderId: first?.id ?? null,
+                folderName: first?.name ?? null,
+                folderCount: first?.marketKeys.length ?? null,
+                marketKeys: [],
+              })
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="picked">Pick coins</TabsTrigger>
+              <TabsTrigger value="folder">Use a folder</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {folderMode ? (
+          foldersError ? (
+            <ErrorBanner
+              message={foldersError}
+              onRetry={() => setFolderAttempt((value) => value + 1)}
+            />
+          ) : folders === null ? (
+            <LoadingRow label="Loading folders…" />
+          ) : (
+            <div className="grid gap-1.5">
+              <FieldLabel
+                htmlFor={`markets-${node.id}-folder`}
+                className="text-xs"
+              >
+                Folder
+              </FieldLabel>
+              <Select
+                value={folderId ?? undefined}
+                onValueChange={(next) => {
+                  const folder = folders.find((one) => one.id === next)
+                  if (!folder) return
+                  commit({
+                    ...node.settings,
+                    folderId: folder.id,
+                    folderName: folder.name,
+                    folderCount: folder.marketKeys.length,
+                    marketKeys: [],
+                  })
+                }}
+              >
+                <SelectTrigger
+                  id={`markets-${node.id}-folder`}
+                  className="w-full"
+                >
+                  <SelectValue placeholder="Choose a folder" />
+                </SelectTrigger>
+                <SelectContent>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.name} ({folder.marketKeys.length})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                The flow reads this folder again each time it starts.
+              </p>
+            </div>
+          )
         ) : null}
 
-        {markets === null && !error ? (
+        {!folderMode && error ? (
+          <ErrorBanner
+            message={error}
+            onRetry={() => setAttemptKey((n) => n + 1)}
+          />
+        ) : null}
+
+        {!folderMode && markets === null && !error ? (
           <LoadingRow label="Loading the market list…" />
         ) : null}
 
-        {markets !== null ? (
+        {!folderMode && markets !== null ? (
           <>
             <div className="grid gap-2">
               <FieldLabel
@@ -861,9 +998,11 @@ export default function TradeMarketsFields({
       </InspectorCard>
 
       <InspectorNote>
-        {wallet
-          ? `Every chosen coin shares the one pot from the wallet step above, so all ${marketKeys.length.toLocaleString()} are competing for the same money${wallet.capUsd === null ? "" : ` — ${formatUsd(wallet.capUsd)} of ${walletMoneyWords(wallet.kind)}`}.`
-          : "Every chosen coin shares the one pretend pot from the wallet step above, so twenty coins are competing for the same money — which is what running this for real would be like."}
+        {folderMode
+          ? "A flow reads the folder when it starts. A backtest saves the exact coins it read so the result can be repeated."
+          : wallet
+            ? `Every chosen coin shares the one pot from the wallet step above, so all ${marketKeys.length.toLocaleString()} are competing for the same money${wallet.capUsd === null ? "" : ` — ${formatUsd(wallet.capUsd)} of ${walletMoneyWords(wallet.kind)}`}.`
+            : "Every chosen coin shares the one pretend pot from the wallet step above, so twenty coins are competing for the same money — which is what running this for real would be like."}
       </InspectorNote>
     </>
   )

@@ -18,10 +18,7 @@ import {
   replaceUnnamedRuns,
   saveBacktestResult,
 } from "@/server/trade/backtest/store"
-import {
-  tradeBacktestGroups,
-  tradeBacktests,
-} from "@/server/trade/schema"
+import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 /**
  * Where runs are kept, and how one is picked up to be worked on.
@@ -58,7 +55,16 @@ function specOf(marketKeys: string[]): BacktestSpec {
       walletNetwork: null,
       spendCapUsd: null,
     },
-    markets: { protocol: "hyperliquid", marketKeys, days: 30, from: null, to: null },
+    markets: {
+      protocol: "hyperliquid",
+      folderId: null,
+      folderName: null,
+      folderCount: null,
+      marketKeys,
+      days: 30,
+      from: null,
+      to: null,
+    },
     interval: "4h" as const,
     strategy: {
       kind: "dca" as const,
@@ -211,10 +217,7 @@ describe("writing a run down", () => {
 
   it("refuses a run that mixes exchanges", async () => {
     await expect(
-      makeRun([
-        "hyperliquid:mainnet:AAA",
-        "binance:mainnet:BTC",
-      ])
+      makeRun(["hyperliquid:mainnet:AAA", "binance:mainnet:BTC"])
     ).rejects.toThrow("BACKTEST_MARKET")
   })
 })
@@ -268,7 +271,9 @@ describe("claiming a run", () => {
 
     const ORPHAN = 6 * 60_000
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      expect(await claimBacktestGroup(NOW + attempt * ORPHAN, db)).not.toBeNull()
+      expect(
+        await claimBacktestGroup(NOW + attempt * ORPHAN, db)
+      ).not.toBeNull()
     }
 
     expect(await claimBacktestGroup(NOW + 3 * ORPHAN, db)).toBeNull()
@@ -282,7 +287,10 @@ describe("claiming a run", () => {
 
     for (let pass = 0; pass < 10; pass += 1) {
       const claimed = await claimBacktestGroup(NOW, db)
-      expect(claimed, `pass ${pass + 1} should still be claimable`).not.toBeNull()
+      expect(
+        claimed,
+        `pass ${pass + 1} should still be claimable`
+      ).not.toBeNull()
       await releaseBacktestGroup(
         userId,
         claimed!.groupId,
@@ -582,11 +590,19 @@ describe("the list", () => {
     const { groupId } = await makeRun()
     await db
       .update(tradeBacktests)
-      .set({ status: "running", progress: 0.3, progressNote: "Waiting for the strategy" })
+      .set({
+        status: "running",
+        progress: 0.3,
+        progressNote: "Waiting for the strategy",
+      })
       .where(eq(tradeBacktests.marketKey, "hyperliquid:mainnet:AAA"))
     await db
       .update(tradeBacktests)
-      .set({ status: "running", progress: 0.1, progressNote: "Loading market history" })
+      .set({
+        status: "running",
+        progress: 0.1,
+        progressNote: "Loading market history",
+      })
       .where(eq(tradeBacktests.marketKey, "hyperliquid:mainnet:BBB"))
 
     const [row] = await listBacktests(userId, { automationId: "flow-1" }, db)

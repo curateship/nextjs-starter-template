@@ -10,6 +10,7 @@ import {
   coinsAllowedFor,
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
+  trimMarketsToFit,
   windowDays,
   windowProblem,
   type TradeMarketsSettings,
@@ -27,6 +28,7 @@ import {
   type TradeWalletSettings,
 } from "@/lib/automations/nodes/trade-wallet"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
+import type { MarketFolder } from "@/lib/trade/market-folders"
 
 /**
  * Reading a backtest out of a drawn flow.
@@ -59,13 +61,10 @@ export type BacktestSpec = {
 }
 
 export type BacktestSpecResult =
-  | { spec: BacktestSpec; problem: null }
-  | { spec: null; problem: string }
+  { spec: BacktestSpec; problem: null } | { spec: null; problem: string }
 
 function stepsOfKind(config: AutomationCompiledConfig, kind: string) {
-  return Object.entries(config.nodes).filter(
-    ([, node]) => node.kind === kind
-  )
+  return Object.entries(config.nodes).filter(([, node]) => node.kind === kind)
 }
 
 /**
@@ -76,7 +75,8 @@ function stepsOfKind(config: AutomationCompiledConfig, kind: string) {
  * this only refuses when the three it needs are not there exactly once each.
  */
 export function backtestSpecFromFlow(
-  config: AutomationCompiledConfig
+  config: AutomationCompiledConfig,
+  resolvedFolder?: Pick<MarketFolder, "id" | "name" | "marketKeys">
 ): BacktestSpecResult {
   const wallets = stepsOfKind(config, tradeWalletNode.kind)
   const markets = stepsOfKind(config, tradeMarketsNode.kind)
@@ -153,7 +153,8 @@ export function backtestSpecFromFlow(
   if (!wallet.success) {
     return {
       spec: null,
-      problem: "The Wallet step's settings could not be read. Open it and check the numbers.",
+      problem:
+        "The Wallet step's settings could not be read. Open it and check the numbers.",
     }
   }
 
@@ -176,16 +177,40 @@ export function backtestSpecFromFlow(
       problem: "The Markets to test step needs at least one coin.",
     }
   }
+  if (market.data.folderId) {
+    if (!resolvedFolder || resolvedFolder.id !== market.data.folderId) {
+      return {
+        spec: null,
+        problem: `${market.data.folderName ?? "That folder"} could not be loaded. Open the Markets step and choose a folder again.`,
+      }
+    }
+    if (resolvedFolder.marketKeys.length === 0) {
+      return {
+        spec: null,
+        problem: `${resolvedFolder.name} has no coins. Add at least one coin before running the backtest.`,
+      }
+    }
+    market.data.marketKeys = [...resolvedFolder.marketKeys]
+    market.data.folderName = resolvedFolder.name
+    market.data.folderCount = resolvedFolder.marketKeys.length
+  } else if (market.data.marketKeys.length === 0) {
+    return {
+      spec: null,
+      problem: "The Markets to test step needs at least one coin.",
+    }
+  }
   if (dca && !dca.success) {
     return {
       spec: null,
-      problem: "The DCA ladder step's settings could not be read. Open it and check the numbers.",
+      problem:
+        "The DCA ladder step's settings could not be read. Open it and check the numbers.",
     }
   }
   if (signal && !signal.success) {
     return {
       spec: null,
-      problem: "The Signals step's settings could not be read. Open it and check the numbers.",
+      problem:
+        "The Signals step's settings could not be read. Open it and check the numbers.",
     }
   }
   if (signal?.success && signalIndicatorsOn(signal.data.indicators) === 0) {
@@ -231,6 +256,14 @@ export function backtestSpecFromFlow(
   // worked out from them.
   const dates = windowProblem(market.data)
   if (dates !== null) return { spec: null, problem: dates }
+
+  if (market.data.folderId) {
+    market.data.marketKeys = trimMarketsToFit(
+      market.data,
+      interval,
+      false
+    ).marketKeys
+  }
 
   // Coins × candles is what the run has to hold in memory at once, and only
   // here are both known: the coins and the window sit on one step, the candle

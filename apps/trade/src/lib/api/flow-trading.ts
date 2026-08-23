@@ -32,6 +32,7 @@ import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "@/server/db"
 import { findWallet } from "@/server/trade/wallets"
+import { marketFolderForRun } from "@/server/trade/market-folders"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
 import { createErrorMessage, describeAuthError } from "./error-message"
@@ -166,7 +167,19 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
     const markets = marketStep
       ? tradeMarketsSettingsSchema.safeParse(marketStep.settings)
       : null
-    const drawnKeys = markets?.success ? [...markets.data.marketKeys] : []
+    let folderProblem: string | null = null
+    let drawnKeys = markets?.success ? [...markets.data.marketKeys] : []
+    if (markets?.success && markets.data.folderId) {
+      try {
+        const folder = await marketFolderForRun(
+          context.user.id,
+          markets.data.folderId
+        )
+        drawnKeys = folder.marketKeys
+      } catch {
+        folderProblem = `${markets.data.folderName ?? "That folder"} was deleted. Choose another folder on the Markets step.`
+      }
+    }
     const coins = drawnKeys.length
 
     // What is running is described by the copy it is running, not by the
@@ -268,11 +281,22 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       if (wallet.kind === "live" && !wallet.hasKey) {
         return `${wallet.label} has no trading key saved, so it cannot place an order.`
       }
+      if (folderProblem) return folderProblem
       if (coins === 0) {
         return "No coins are chosen on the Markets step yet."
       }
-      if (markets?.success && markets.data.protocol !== wallet.protocol) {
-        const marketRef = parseMarketKey(markets.data.marketKeys[0] ?? "")
+      const marketRefs = drawnKeys.map(parseMarketKey)
+      if (
+        markets?.success &&
+        (markets.data.protocol !== wallet.protocol ||
+          marketRefs.some(
+            (ref) =>
+              !ref ||
+              ref.protocol !== wallet.protocol ||
+              ref.network !== wallet.network
+          ))
+      ) {
+        const marketRef = marketRefs.find((ref) => ref !== null) ?? null
         const marketVenue = marketRef
           ? venueLabel(marketRef.protocol, marketRef.network)
           : markets.data.protocol

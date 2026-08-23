@@ -48,6 +48,8 @@ Two files outrank the rest, and outrank the code:
   and the smart orders only travel when they changed.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
+- `market-folders.md` — how Fav and named coin folders work on each exchange,
+  and when flows and backtests read them.
 
 ## Adding a doc
 

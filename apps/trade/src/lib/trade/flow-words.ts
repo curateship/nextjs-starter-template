@@ -28,6 +28,10 @@ export function flowStartProblem(code: string, walletLabel: string): string {
   if (code.includes("FLOW_NO_COINS")) {
     return "No coins are chosen on the Markets step, so there is nothing to watch."
   }
+  if (code.includes("FLOW_EMPTY_FOLDER")) {
+    const name = code.split(":").slice(1).join(":") || "That folder"
+    return `${name} has no coins, or it was deleted. Choose another folder on the Markets step.`
+  }
   if (code.includes("FLOW_NO_INDICATORS")) {
     return "No indicators are switched on, so this flow would never buy anything. Open the Signals step and switch one on."
   }

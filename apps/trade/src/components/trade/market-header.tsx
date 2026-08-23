@@ -3,12 +3,12 @@ import {
   CandlestickChartIcon,
   InfoIcon,
   ListIcon,
-  StarIcon,
   WalletIcon,
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { MarketPicker } from "@/components/trade/market-picker"
+import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
@@ -22,9 +22,11 @@ import {
   type MarketPickerCapabilities,
   type MarketRow,
 } from "@/lib/protocols/contracts"
-import { focusRingInset } from "@/lib/layout/focus-ring"
+import type {
+  MarketFolder,
+  MarketFolderActions,
+} from "@/lib/trade/market-folders"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
-import { cn } from "@/lib/utils"
 
 /**
  * What the middle panel is showing.
@@ -53,8 +55,8 @@ export type MarketSelection =
 export function MarketHeader({
   selection,
   markets,
-  favorites,
-  onToggleFavorite,
+  folders,
+  folderActions,
   onSelectMarket,
   toolbar,
   onOpenMarkets,
@@ -62,8 +64,8 @@ export function MarketHeader({
 }: {
   selection: MarketSelection
   markets: MarketRow[]
-  favorites: ReadonlySet<string>
-  onToggleFavorite: (key: string) => void
+  folders: readonly MarketFolder[]
+  folderActions: MarketFolderActions
   onSelectMarket: (key: string) => void
   /** The chart's controls — the interval picker — shown only with a market. */
   toolbar?: React.ReactNode
@@ -156,10 +158,16 @@ export function MarketHeader({
       icon={null}
       title={
         <span className="flex min-w-0 items-center gap-0.5">
-          <FavoriteStar
+          <MarketFolderStar
             symbol={selection.row.symbol}
-            favorite={favorites.has(selection.row.key)}
-            onToggle={() => onToggleFavorite(selection.row.key)}
+            marketKey={selection.row.key}
+            folders={folders}
+            busy={folderActions.busy}
+            onQuickAdd={() => folderActions.quickAdd(selection.row.key)}
+            onToggle={(folderId, saved) =>
+              folderActions.toggle(selection.row.key, folderId, saved)
+            }
+            onCreate={(name) => folderActions.create(selection.row.key, name)}
           />
           {/* The star and the name both give way to nothing: the star keeps
               its size, and the name is what truncates as the panel narrows.
@@ -179,8 +187,8 @@ export function MarketHeader({
                 rows={markets}
                 selected={selection.row}
                 capabilities={selection.picker}
-                favorites={favorites}
-                onToggleFavorite={onToggleFavorite}
+                folders={folders}
+                folderActions={folderActions}
                 onSelect={onSelectMarket}
               />
             </span>
@@ -245,62 +253,6 @@ function MarketInfo({
           <span>{minimumOrderLabel(selection.row)}</span>
         ) : null}
         <span>Top leverage: {leverage}</span>
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
-/**
- * The star for the market on screen, at the head of the header row.
- *
- * An empty Fav tab says to press "the star beside its name", so there has to
- * be one. The picker's per-row stars are the other way in — behind a popover
- * and a search, and no use for the market you are already looking at.
- *
- * Filled amber when the market is starred, a hollow outline when it is not, so
- * the state is not carried by colour alone.
- *
- * Its focus mark is drawn inside the button rather than around it. The
- * header's title box hides what overflows it — that is what truncates a long
- * symbol — and a ring painted outside a child of that box is cut off, which
- * would leave the keyboard with no mark at all.
- */
-function FavoriteStar({
-  symbol,
-  favorite,
-  onToggle,
-}: {
-  symbol: string
-  favorite: boolean
-  onToggle: () => void
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={
-            favorite ? `Remove ${symbol} from Fav` : `Add ${symbol} to Fav`
-          }
-          aria-pressed={favorite}
-          onClick={onToggle}
-          className={cn(
-            // `Button` carries `outline-none`, which sets the outline *style*
-            // to none for the whole element — the inset ring is then a 2px
-            // outline of no style, that is, nothing. `outline-solid` gives it
-            // back. Its own ring is turned off so only one mark is drawn.
-            "text-muted-foreground hover:text-amber-500 focus-visible:border-transparent focus-visible:ring-0 focus-visible:outline-solid",
-            focusRingInset,
-            favorite && "text-amber-500 dark:text-amber-400"
-          )}
-        >
-          <StarIcon className={cn("size-4", favorite && "fill-current")} />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {favorite ? "Remove from Fav" : "Add to Fav"}
       </TooltipContent>
     </Tooltip>
   )

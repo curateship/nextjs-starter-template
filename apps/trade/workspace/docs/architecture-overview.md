@@ -211,12 +211,12 @@ but a testnet run is not required before using the mainnet connector.
   parse or is not listed resolves to "not available", never to a different
   market.
 - **Trade's tables are declared in `src/server/trade/schema.ts`**, not in the
-  shell's schema file. Three so far: `trade_market_favorites` (one row per
-  person, holding their starred market keys), `trade_prefs` (the market they
-  were last looking at, how far the chart was zoomed and scrolled, and the
-  minimum daily market volume shown across every exchange), and
+  shell's schema file. Market folders use `trade_market_folders` and
+  `trade_market_folder_items`; `trade_prefs` holds the market they were last
+  looking at, how far the chart was zoomed and scrolled, and the
+  minimum daily market volume shown across every exchange; and
   `trade_chart_drawings` (one row per line drawn on a chart, tied to its market
-  key). All server-side, so all three follow the account rather than the
+  key). All are server-side, so they follow the account rather than the
   browser.
 - **A drawing's shape is one `jsonb` column, read through one validator.** A
   level and a trendline hold different things, and a third kind later should

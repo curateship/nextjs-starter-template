@@ -192,7 +192,9 @@ export function chosenWindow(
  * How long this step's window is, in days — the number every memory sum is
  * worked out from, whichever way the window was chosen.
  */
-export function windowDays(settings: { days: number } & MarketWindowDates): number {
+export function windowDays(
+  settings: { days: number } & MarketWindowDates
+): number {
   const window = chosenWindow(settings)
   if (!window) return settings.days
   return Math.max(1, Math.round((window.to - window.from) / DAY_MS))
@@ -307,7 +309,9 @@ export function candlesPerCoin(interval: string, days: number): number {
   const warmUp = BASE_STOP_BARS
   if (interval === BASE_STOP_INTERVAL) return window + warmUp
   return (
-    window + Math.ceil((days * 86_400_000) / INTERVAL_MS[BASE_STOP_INTERVAL]) + warmUp
+    window +
+    Math.ceil((days * 86_400_000) / INTERVAL_MS[BASE_STOP_INTERVAL]) +
+    warmUp
   )
 }
 
@@ -328,10 +332,16 @@ export const tradeMarketsSettingsSchema = z.object({
    * default is only ever reached by a saved step that never wrote the field.
    */
   protocol: z.string().min(1).max(30).default("hyperliquid"),
-  marketKeys: z
-    .array(z.string().min(1))
-    .min(1, "Choose at least one coin to test.")
-    .max(MAX_BACKTEST_MARKETS),
+  folderId: z.string().uuid().nullable().default(null),
+  folderName: z.string().max(80).nullable().default(null),
+  folderCount: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_BACKTEST_MARKETS)
+    .nullable()
+    .default(null),
+  marketKeys: z.array(z.string().min(1)).max(MAX_BACKTEST_MARKETS),
   days: z.number().int().min(1).max(MAX_BACKTEST_DAYS),
   /**
    * The exact stretch to walk, when "the last few days" is not what you mean.
@@ -376,6 +386,9 @@ export const tradeMarketsNode = defineNode({
   },
   createSettings: () => ({
     protocol: DEFAULT_BACKTEST_PROTOCOL,
+    folderId: null,
+    folderName: null,
+    folderCount: null,
     marketKeys: [],
     days: DEFAULT_BACKTEST_DAYS,
     from: null,
@@ -384,6 +397,15 @@ export const tradeMarketsNode = defineNode({
   settingsSchema: tradeMarketsSettingsSchema,
   name: () => "Markets",
   description: (settings) => {
+    if (typeof settings.folderId === "string") {
+      const name =
+        typeof settings.folderName === "string"
+          ? settings.folderName
+          : "Chosen folder"
+      const count =
+        typeof settings.folderCount === "number" ? settings.folderCount : 0
+      return `Folder: ${name} (${count} ${plural(count, "coin", "coins")})`
+    }
     const keys = Array.isArray(settings.marketKeys)
       ? settings.marketKeys.length
       : 0

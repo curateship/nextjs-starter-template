@@ -9,10 +9,7 @@ import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { createBacktest } from "@/server/trade/backtest/store"
 import { backtestTick, peakInPlay } from "@/server/trade/backtest/worker"
-import {
-  tradeBacktestGroups,
-  tradeBacktests,
-} from "@/server/trade/schema"
+import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 /**
  * The background pass, end to end: claim a run, fetch what it needs, walk it,
@@ -140,7 +137,16 @@ function specOf(marketKeys: string[]): BacktestSpec {
       walletNetwork: null,
       spendCapUsd: null,
     },
-    markets: { protocol: "hyperliquid", marketKeys, days: 30, from: null, to: null },
+    markets: {
+      protocol: "hyperliquid",
+      folderId: null,
+      folderName: null,
+      folderCount: null,
+      marketKeys,
+      days: 30,
+      from: null,
+      to: null,
+    },
     interval: "4h" as const,
     strategy: {
       kind: "dca" as const,
@@ -844,10 +850,7 @@ describe("a run the worker picks up", () => {
       {
         automationId: "flow-1",
         automationName: "My strategy",
-        spec: specOf([
-          "hyperliquid:mainnet:AAA",
-          "hyperliquid:mainnet:GHOST",
-        ]),
+        spec: specOf(["hyperliquid:mainnet:AAA", "hyperliquid:mainnet:GHOST"]),
         now: START,
       },
       db
@@ -954,7 +957,11 @@ describe("peak wallet", () => {
   it("finds the tightest moment, not the biggest pile of dollars", () => {
     // $9,000 of a $10,000 wallet is nearly out of money. $12,000 of a $40,000
     // wallet is a quiet week that happens to hold more dollars.
-    const peak = peakInPlay(bars([10_000, 40_000, 41_000]), [0, 9_000, 12_000], 10_000)
+    const peak = peakInPlay(
+      bars([10_000, 40_000, 41_000]),
+      [0, 9_000, 12_000],
+      10_000
+    )
     expect(Math.round(peak.pct!)).toBe(90)
     expect(peak.at).toBe(START + FOUR_HOURS)
   })

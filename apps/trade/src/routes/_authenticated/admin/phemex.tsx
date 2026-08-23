@@ -58,7 +58,7 @@ export const Route = createFileRoute("/_authenticated/admin/phemex")({
           error:
             "The server did not answer. Nothing is wrong on your side — try again in a moment.",
         },
-        favoriteKeys: [] as string[],
+        folders: [],
         lastMarketKey: null,
         chartView: null,
         chartOptions: DEFAULT_CHART_OPTIONS,
@@ -79,7 +79,7 @@ function TradeRoute() {
   const {
     markets,
     network,
-    favoriteKeys,
+    folders,
     lastMarketKey,
     chartView,
     chartOptions,
@@ -127,7 +127,7 @@ function TradeRoute() {
       catalogs={shownMarkets.catalogs}
       marketsError={shownMarkets.error}
       network={network}
-      initialFavoriteKeys={favoriteKeys}
+      initialFolders={folders}
       initialChartView={chartView}
       initialChartOptions={chartOptions}
       initialIndicators={indicators}

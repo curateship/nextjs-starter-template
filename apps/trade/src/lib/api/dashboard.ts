@@ -15,9 +15,10 @@ import {
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import type { MarketFolder } from "@/lib/trade/market-folders"
 import { userGet } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
-import { loadMarketFavoriteKeys } from "@/server/trade/market-favorites"
+import { loadMarketFolders } from "@/server/trade/market-folders"
 import { loadDashboardPrefs } from "@/server/trade/prefs"
 
 import { getMarketsErrorMessage } from "./markets"
@@ -38,7 +39,7 @@ import { getMarketsErrorMessage } from "./markets"
  */
 export type DashboardBootstrap = {
   markets: { catalogs: FilteredMarketCatalog[]; error: string | null }
-  favoriteKeys: string[]
+  folders: MarketFolder[]
   lastMarketKey: string | null
   chartView: ChartView | null
   chartOptions: ChartOptions
@@ -62,7 +63,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
     if (!protocol.networks.includes(data.network)) {
       throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
     }
-    const [catalog, prefs, favoriteKeys] = await Promise.all([
+    const [catalog, prefs, folders] = await Promise.all([
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
       protocol.markets.fetch(data.network).then(
@@ -73,8 +74,10 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
         })
       ),
       loadDashboardPrefs(context.user.id, data.protocol),
-      // Losing the stars is cosmetic — an empty set just draws no stars.
-      loadMarketFavoriteKeys(context.user.id).catch(() => [] as string[]),
+      // Losing folders must not keep the rest of the dashboard from opening.
+      loadMarketFolders(context.user.id, data.protocol, data.network).catch(
+        () => [] as MarketFolder[]
+      ),
     ])
     return {
       markets: catalog.catalog
@@ -88,7 +91,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
             error: null,
           }
         : { catalogs: [], error: catalog.error },
-      favoriteKeys,
+      folders,
       lastMarketKey: prefs.lastMarketKey,
       chartView: prefs.chartView,
       chartOptions: prefs.chartOptions,
