@@ -797,7 +797,9 @@ beside Settled says that both totals are short and names the missing trades.
 
 `/admin/trading-overview` answers the account-wide money question without
 belonging to one exchange. The headline card puts total balance, made or lost,
-settled money, and money still open in four large columns. Under it, draggable
+settled money, and money still open in four large figures. Fees stay attached
+to Made or lost as a small muted note rather than taking a figure of their own.
+Under it, draggable
 cards show the wallets, money over time, and every recorded real fill.
 Active Trades is the account-wide exception to the real-money totals. It lists
 every open position across every protocol and every wallet, including practice
@@ -841,6 +843,7 @@ wallet.
 
 The wallet card is one comparison table. Each wallet has a separate Protocol
 column, balance, made or lost, settled money, and money still open on one row.
+Each Made or lost amount carries its fee total as a small muted note beside it.
 Protocol no longer sits under the wallet name. Wallet rows use the same 10px
 vertical padding and plain divider as Active Trades. A switched-off wallet stays
 as a quiet row saying it was not asked or counted. Every column heading sorts
@@ -850,6 +853,10 @@ Testnet wallets do not appear in this card. The Wallets heading tooltip states
 the money rule. Made or lost is settled trade money plus current open profit.
 The settled trades start at midnight two days ago in Toronto. Deposits and
 withdrawals can change Balance but never profit.
+
+Fees are the exchange's stated charges on every fill in the same window,
+including a fill whose profit the exchange did not state. Made or lost stays
+the net figure Tyler reads first; the fee note explains part of that result.
 
 The money-over-time card starts at zero at midnight two days ago in Toronto and
 charts priced settled trade money from then until now. Its final point adds the

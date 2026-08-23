@@ -20,6 +20,7 @@ export type TradingOverviewWallet = {
 
 export type TradingOverviewWalletPerformance = {
   settled: number
+  fees: number
   open: number
   madeOrLost: number
 }
@@ -119,17 +120,24 @@ export function isTradingOverviewWallet(wallet: {
 export function tradingOverviewWalletPerformance(
   walletId: string,
   openProfit: number,
-  fills: readonly Pick<TradingOverviewFill, "walletId" | "money" | "at">[],
+  fills: readonly Pick<
+    TradingOverviewFill,
+    "walletId" | "money" | "fee" | "at"
+  >[],
   since: number
 ): TradingOverviewWalletPerformance {
   let settled = 0
+  let fees = 0
   for (const fill of fills) {
     if (fill.walletId !== walletId || fill.at < since) continue
+    // The exchange still charged the fee when it could not price the sale.
+    fees += fill.fee
     if (fill.money === null) continue
     settled += fill.money
   }
   return {
     settled,
+    fees,
     open: openProfit,
     madeOrLost: settled + openProfit,
   }

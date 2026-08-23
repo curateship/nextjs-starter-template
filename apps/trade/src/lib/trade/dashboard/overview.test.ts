@@ -157,15 +157,16 @@ describe("trading overview money", () => {
         "wallet-1",
         11.4,
         [
-          { walletId: "wallet-1", money: 500, at: 99 },
-          { walletId: "wallet-1", money: 2.5, at: 100 },
-          { walletId: "wallet-1", money: null, at: 101 },
-          { walletId: "wallet-2", money: 900, at: 101 },
+          { walletId: "wallet-1", money: 500, fee: 20, at: 99 },
+          { walletId: "wallet-1", money: 2.5, fee: 0.4, at: 100 },
+          { walletId: "wallet-1", money: null, fee: 0.2, at: 101 },
+          { walletId: "wallet-2", money: 900, fee: 30, at: 101 },
         ],
         100
       )
     ).toEqual({
       settled: 2.5,
+      fees: 0.6000000000000001,
       open: 11.4,
       madeOrLost: 13.9,
     })

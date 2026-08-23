@@ -68,6 +68,14 @@ A backtest span of zero still says `under one candle`. Zero has a specific
 meaning there, and the shared formatter lets that screen name the meaning
 without keeping a second set of duration rules.
 
+## Fees beside profit
+
+The trading overview's Made or lost figure stays net: settled trade money after
+fees, plus current open profit. Settled is the banked part of that answer.
+The small fee note beside Made or lost adds the exchange's stated charge on
+every fill in the same window, even when the exchange did not state what a sale
+made. Fees do not take their own headline figure or wallet column.
+
 ## One text scale
 
 Trade uses the app's type scale and nothing else. The smallest step it offers

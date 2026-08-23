@@ -170,6 +170,7 @@ function HeadlineCard({
   const balance = sum((wallet) => wallet.summary.equity)
   const journey = sum((wallet) => wallet.performance.madeOrLost)
   const settled = sum((wallet) => wallet.performance.settled)
+  const fees = sum((wallet) => wallet.performance.fees)
   const open = sum((wallet) => wallet.performance.open)
 
   const figures = [
@@ -178,6 +179,7 @@ function HeadlineCard({
       detail: `across ${answered.length.toLocaleString()} connected ${answered.length === 1 ? "wallet" : "wallets"}`,
       value: formatUsd(balance),
       tone: "text-foreground",
+      indicator: null,
       hint: overview.missingVenues.length
         ? `${overview.missingVenues.join(" and ")} did not answer. All four figures are short.`
         : null,
@@ -187,18 +189,21 @@ function HeadlineCard({
       detail: "from two days ago until now",
       value: formatSignedUsd(journey),
       rawValue: journey,
+      indicator: `fees ${formatUsd(fees)}`,
     },
     {
       label: "Settled",
       detail: "already banked",
       value: formatSignedUsd(settled),
       rawValue: settled,
+      indicator: null,
     },
     {
       label: "Still open",
       detail: "unrealised on live trades",
       value: formatSignedUsd(open),
       rawValue: open,
+      indicator: null,
     },
   ]
 
@@ -253,6 +258,14 @@ function HeadlineCard({
               >
                 {figure.value}
               </p>
+              {figure.indicator ? (
+                <span
+                  className="shrink-0 text-xs text-muted-foreground"
+                  title="Exchange fees in the same period"
+                >
+                  {figure.indicator}
+                </span>
+              ) : null}
             </div>
           </div>
         ))}
@@ -466,6 +479,12 @@ function WalletRow({
             />
           </span>
           <MoneyValue value={performance.madeOrLost} />
+          <span
+            className="text-xs whitespace-nowrap text-muted-foreground"
+            title="Exchange fees in the same period"
+          >
+            fees {formatUsd(performance.fees)}
+          </span>
         </div>
       </TableCell>
       <MoneyCell value={performance.settled} />
