@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { FlowRunPage } from "@/components/flow-run/flow-run-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadRememberedChartView } from "@/lib/api/chart-view"
@@ -37,7 +38,11 @@ export const Route = createFileRoute("/_authenticated/flow-runs_/$runId")({
     // sit well under today's price fell off the bottom here while showing fine
     // on the trade screen — two charts of one coin disagreeing about where its
     // buy levels are.
-    chartView: (await loadRememberedChartView().catch(() => null))?.chartView ?? null,
+    chartView:
+      (await loadRememberedChartView().catch(() => null))?.chartView ?? null,
+  }),
+  head: ({ matches }) => ({
+    meta: [{ title: marketTitleFromMatches(matches, "coin", "Flow run") }],
   }),
   component: FlowRunRoute,
   errorComponent: routeErrorComponent(getFlowRunErrorMessage),
@@ -51,12 +56,9 @@ function FlowRunRoute() {
   // coin at all, rather than a chart of nothing.
   const openCoin =
     coin && report.coins.some((one) => one.marketKey === coin) ? coin : null
+  useMarketPageTitle(openCoin, "Flow run")
 
   return (
-    <FlowRunPage
-      initial={report}
-      openCoin={openCoin}
-      chartView={chartView}
-    />
+    <FlowRunPage initial={report} openCoin={openCoin} chartView={chartView} />
   )
 }

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { tradePageTitle, useTradePageTitle } from "@/app/page-title"
 import { FlowRunsListPage } from "@/components/flow-run/flow-runs-list-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getFlowRunErrorMessage, loadFlowRuns } from "@/lib/api/flow-runs"
@@ -13,6 +14,9 @@ import { getFlowRunErrorMessage, loadFlowRuns } from "@/lib/api/flow-runs"
  * point of keeping them.
  */
 export const Route = createFileRoute("/_authenticated/flow-runs")({
+  head: ({ matches }) => ({
+    meta: [{ title: tradePageTitle(matches, "Flow runs") }],
+  }),
   // The page keeps a copy of the loader's answer so it can refresh a running
   // flow without a full navigation. Dropping it on close means coming back
   // never draws an older list while the fresh answer is on its way.
@@ -23,5 +27,6 @@ export const Route = createFileRoute("/_authenticated/flow-runs")({
 })
 
 function FlowRunsRoute() {
+  useTradePageTitle("Flow runs")
   return <FlowRunsListPage initial={Route.useLoaderData()} />
 }

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 
+import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { BacktestRunPage } from "@/components/backtest/backtest-run-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { getBacktestErrorMessage, loadBacktest } from "@/lib/api/backtests"
@@ -26,6 +27,9 @@ export const Route = createFileRoute("/_authenticated/backtests_/$groupId")({
   validateSearch: readRunSearch,
   gcTime: 0,
   loader: ({ params }) => loadBacktest(params.groupId),
+  head: ({ matches }) => ({
+    meta: [{ title: marketTitleFromMatches(matches, "run", "Backtest run") }],
+  }),
   component: BacktestRunRoute,
   errorComponent: routeErrorComponent(getBacktestErrorMessage),
 })
@@ -38,6 +42,7 @@ function BacktestRunRoute() {
   // coin at all, rather than a chart of nothing.
   const openCoin =
     run && data.coins.some((coin) => coin.marketKey === run) ? run : null
+  useMarketPageTitle(openCoin, "Backtest run")
 
   return (
     <BacktestRunPage run={data.run} coins={data.coins} openCoin={openCoin} />

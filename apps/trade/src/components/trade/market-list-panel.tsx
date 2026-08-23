@@ -138,14 +138,6 @@ export function MarketListPanel({
     (catalog) => catalog.hiddenByVolumeKeys.length > 0
   )
 
-  // Every market by key, so a waiting price finds its own art without
-  // searching the catalogues itself.
-  const marketsByKey = React.useMemo(() => {
-    const byKey = new Map<string, MarketRow>()
-    for (const row of rows) byKey.set(row.key, row)
-    return byKey
-  }, [rows])
-
   const visible = React.useMemo(() => {
     // Watched lists orders, not markets, and draws its own rows below.
     if (tab === "watched") return []
@@ -282,7 +274,6 @@ export function MarketListPanel({
         <WatchedOrdersList
           orders={watchedOrders.rows}
           cacheScope={watchedOrders.cacheScope}
-          markets={marketsByKey}
           refusals={watchedOrders.refusals}
           walletName={walletName}
           settled={watchedOrders.settled}

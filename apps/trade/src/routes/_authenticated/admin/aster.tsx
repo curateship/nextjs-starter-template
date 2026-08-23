@@ -1,6 +1,7 @@
 import * as React from "react"
 import { createFileRoute, useRouter } from "@tanstack/react-router"
 
+import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
 import type { ProtocolId } from "@/lib/protocols/contracts"
 import {
@@ -109,6 +110,9 @@ export const Route = createFileRoute("/_authenticated/admin/aster")({
       quickOrder: quickOrder.prefs,
     }
   },
+  head: ({ matches }) => ({
+    meta: [{ title: marketTitleFromMatches(matches, "market", "Aster") }],
+  }),
   component: TradeRoute,
 })
 
@@ -147,6 +151,7 @@ function TradeRoute() {
       ? lastMarketKey
       : null
   const selectedKey = market ?? remembered ?? null
+  useMarketPageTitle(selectedKey, "Aster")
 
   // Remember whichever market is on screen, so the next bare visit reopens
   // it. Best-effort and ref-guarded: the same market is never saved twice in

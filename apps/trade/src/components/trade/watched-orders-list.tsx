@@ -2,12 +2,11 @@ import * as React from "react"
 
 import { TriangleAlertIcon } from "lucide-react"
 
-import { MarketIcon } from "@/components/trade/market-icon"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
-import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatAway, formatPrice, formatUsd } from "@/lib/trade/format"
 import type { LiveRefusal } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -52,7 +51,6 @@ import { cn } from "@/lib/utils"
 export function WatchedOrdersList({
   orders,
   cacheScope,
-  markets,
   refusals,
   walletName,
   settled,
@@ -64,7 +62,6 @@ export function WatchedOrdersList({
   orders: readonly PaperOrder[]
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
   cacheScope: string
-  markets: ReadonlyMap<string, MarketRow>
   /**
    * The last refusal on each market. A level whose order the exchange keeps
    * refusing looks exactly like one quietly waiting, and that is the whole
@@ -164,7 +161,10 @@ export function WatchedOrdersList({
         // that DID bring levels draws them at once — the spinner is what
         // stands between somebody and their own levels, and this tab was
         // built to get rid of it.
-        <LoadingRow label="Reading your watched prices" className="py-8 text-xs" />
+        <LoadingRow
+          label="Reading your watched prices"
+          className="py-8 text-xs"
+        />
       ) : (
         <div className="flex flex-col">
           {/* Above whatever follows, rows or the empty wording alike: a read
@@ -190,7 +190,6 @@ export function WatchedOrdersList({
                 <WatchedRow
                   key={row.id}
                   level={row}
-                  market={markets.get(row.marketKey) ?? null}
                   wallet={severalWallets ? walletName(row.walletId) : null}
                   mark={marks.get(row.marketKey) ?? null}
                   refusal={refusals.get(row.marketKey) ?? null}
@@ -251,14 +250,12 @@ function StaleAfterFailureNote({ onRetry }: { onRetry: () => void }) {
  */
 function WatchedRow({
   level,
-  market,
   wallet,
   mark,
   refusal,
   onSelect,
 }: {
   level: WatchedLevel
-  market: MarketRow | null
   /** Named only when the list spans several wallets; null when it does not. */
   wallet: string | null
   /** Today's price, or null when the feed has not said one yet. */
@@ -278,10 +275,12 @@ function WatchedRow({
         focusRing
       )}
     >
-      <MarketIcon symbol={symbol} iconUrl={market?.iconUrl ?? null} />
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
-          <span title={symbol} className="min-w-0 flex-1 truncate text-sm font-medium">
+          <span
+            title={symbol}
+            className="min-w-0 flex-1 truncate text-sm font-medium"
+          >
             {symbol}
           </span>
           <span className="shrink-0 text-xs tabular-nums">

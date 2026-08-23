@@ -24,7 +24,6 @@ const READING = "Reading your watched prices"
 
 const shared = {
   cacheScope: "test:hyperliquid",
-  markets: new Map(),
   refusals: new Map(),
   walletName: () => "Main",
   onRetry: () => {},
@@ -90,6 +89,7 @@ describe("the Watched tab", () => {
     const rows = draw({ orders: [waitingLevel], settled: true, failed: false })
     expect(rows).not.toContain(EMPTY)
     expect(rows).toContain("XMR")
+    expect(rows).not.toContain("<img")
   })
 
   it("draws the levels the landed half brought, without waiting for the other", () => {

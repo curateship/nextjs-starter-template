@@ -443,7 +443,7 @@ at a time on the chart, or mixed in with everything else under Open orders.
 
 - **A row per order, not per coin.** Two levels on the same coin are two rows.
   That is the one way this tab differs from Fav and All, which are slices of
-  the catalogue.
+  the catalogue. Watched rows show the coin name without its favicon.
 - **Two lines, two columns each.** The coin and what it will spend on the top
   line; which way, at what price, and how far today's price is from it on the
   second. The panel is a few hundred pixels wide, so the coin and the level

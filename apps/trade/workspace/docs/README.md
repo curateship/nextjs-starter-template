@@ -41,6 +41,8 @@ Two files outrank the rest, and outrank the code:
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved
   results from before 18 Aug 2026 are too kind.
+- `browser-tab-titles.md` — how each Trade screen names its browser tab, and
+  how chart tabs include their market and exchange.
 
 ## Adding a doc
 
