@@ -4,6 +4,7 @@ import { ArrowLeftRightIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -45,12 +46,13 @@ import { cn } from "@/lib/utils"
  * every other table in the app uses, so a column here behaves exactly like a
  * column anywhere else.
  *
- * What these do *not* take from the shell's dashboard tables is mass
- * selection. A dashboard table lists records that sit still; these are a live
- * readout where a row can close itself between the tick you tick it and the
- * button you press. Every action here is on the one row it sits in, and the
- * single bulk action — Close all — lives in the tab bar where it cannot be
- * mistaken for one.
+ * The positions and orders tables do *not* take mass selection from the
+ * shell's dashboard tables. They are a live readout where a row can close
+ * itself between the tick you tick it and the button you press, so every
+ * action there is on the one row it sits in, and the single bulk action —
+ * Close all — lives in the tab bar where it cannot be mistaken for one. The
+ * Journal is different: its rows are finished trades that sit still, so it
+ * alone has checkboxes and a Remove button over the ticked rows.
  *
  * Prices are read once for the whole table rather than per row, so the column
  * you sorted by and the figure printed in the row are always the same number.
@@ -844,6 +846,10 @@ export function TradesTable({
   onLoadOlder,
   olderBusy = false,
   olderDone = false,
+  ticked,
+  onTickTrade,
+  onTickVisible,
+  tickAllState,
 }: {
   trades: readonly LiveTrade[]
   markets: ReadonlyMap<string, MarketRow>
@@ -868,6 +874,12 @@ export function TradesTable({
   onLoadOlder?: () => void
   olderBusy?: boolean
   olderDone?: boolean
+  /** The trades ticked for a mass remove, by trade id. */
+  ticked: ReadonlySet<string>
+  onTickTrade: (id: string) => void
+  /** The header checkbox: every listed row on, or every listed row off. */
+  onTickVisible: (ids: string[]) => void
+  tickAllState: (ids: string[]) => boolean | "indeterminate"
 }) {
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
     "opened",
@@ -916,10 +928,19 @@ export function TradesTable({
     )
   }
 
+  const listedIds = rows.map((trade) => trade.id)
+
   return (
     <table className="w-full border-collapse">
       <thead>
         <tr className="bg-muted/50">
+          <HeaderCell>
+            <Checkbox
+              checked={tickAllState(listedIds)}
+              onCheckedChange={() => onTickVisible(listedIds)}
+              aria-label="Select every finished trade"
+            />
+          </HeaderCell>
           {TRADE_COLUMNS.map(({ key, label }) => (
             <HeaderCell
               key={key}
@@ -940,7 +961,7 @@ export function TradesTable({
       <tbody>
         {rows.length === 0 ? (
           <TableStateRow
-            span={TRADE_COLUMNS.length + 1}
+            span={TRADE_COLUMNS.length + 2}
             loading={!settled}
             loadingLabel="Reading your finished trades"
             onRetry={onRetry}
@@ -956,6 +977,15 @@ export function TradesTable({
             data-state={trade.id === selectedId ? "selected" : undefined}
             className="border-t"
           >
+            {/* Marked as the select column so ticking a row never also fires
+                the row action and draws the trade on the chart. */}
+            <td data-column="select" className="w-8 px-3 py-2">
+              <Checkbox
+                checked={ticked.has(trade.id)}
+                onCheckedChange={() => onTickTrade(trade.id)}
+                aria-label={`Select the ${marketSymbol(trade.marketKey)} trade`}
+              />
+            </td>
             <MarketCell
               marketKey={trade.marketKey}
               market={markets.get(trade.marketKey) ?? null}
@@ -1024,7 +1054,7 @@ export function TradesTable({
         <tfoot>
           <tr className="border-t">
             <td
-              colSpan={TRADE_COLUMNS.length + 1}
+              colSpan={TRADE_COLUMNS.length + 2}
               className="px-5 py-3 text-center"
             >
               {olderDone ? (

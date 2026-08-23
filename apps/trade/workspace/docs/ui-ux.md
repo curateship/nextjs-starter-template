@@ -457,7 +457,7 @@ at a time on the chart, or mixed in with everything else under Open orders.
 - **One line per row, shaped like a market row.** The coin with what the
   order will spend beside it in the quiet grey the volume figure uses, and on
   the right a green pill saying how far today's price is from the level:
-  "PENDLE  $199  [36.09% away]". The dollars are whole dollars, because the
+  "PENDLE $199  [36.09% away]". The dollars are whole dollars, because the
   row is for telling a $20 level from a $1,000 one. Which way, at what price
   and from which wallet sit on the row's tooltip; the chart the press opens
   shows the level itself. The coin gives way to an ellipsis first and the
@@ -577,6 +577,18 @@ fixed in one is fixed in both.
   landed, which turned a whole table blue. Any highlight left by a press is
   dropped once the press is over. Nobody selects text by pressing a tab, so
   there is nothing lost.
+- **Journal rows can be removed one at a time or many at once.** Every row
+  keeps its own bin, and every row also has a checkbox. Ticking rows puts a
+  Remove (n) button in the tab bar — the button is only there while something
+  is ticked — and the checkbox in the table header ticks or unticks every
+  listed row. One row or many, the same confirm asks first, and confirming
+  only hides the fills behind the trades: a practice wallet's cash is added up
+  from its fills, so nothing about the money moves. Ticking a row never draws
+  its trade on the chart, and a tick disappears with its row when a refresh
+  takes the trade away, so Remove (n) can only ever mean rows on screen. The
+  Journal is the one table down here with checkboxes on purpose — positions
+  and open orders are a live readout where a row can close itself between the
+  tick and the button, so their actions stay one row at a time.
 
 ## Narrow screens
 

@@ -3,6 +3,7 @@ import {
   BookOpenIcon,
   LayersIcon,
   ScrollTextIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
@@ -37,6 +38,7 @@ import {
   type MarketCatalog,
   type MarketRow,
 } from "@/lib/protocols/contracts"
+import { useSelection } from "@/lib/hooks/use-selection"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
@@ -113,9 +115,32 @@ export function ActivityPanel({
   const [editing, setEditing] = React.useState<PaperPosition | null>(null)
   const [flipping, setFlipping] = React.useState<PaperPosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
-  // The bin on a row asks first. Nothing here can be put back from the screen,
-  // and the two lists sit under a chart people click around on all day.
-  const [removingTrade, setRemovingTrade] = React.useState<LiveTrade | null>(null)
+  // The bin on a row and the Remove button over ticked rows both ask first.
+  // Nothing here can be put back from the screen, and the two lists sit under
+  // a chart people click around on all day. One row or many, it is the same
+  // question, so one dialog holds whichever list is being asked about.
+  const [removingTrades, setRemovingTrades] = React.useState<LiveTrade[] | null>(
+    null
+  )
+
+  // Which Journal rows are ticked for a mass remove, by trade id.
+  const journalTicks = useSelection()
+  const { setSelected: setJournalTicks } = journalTicks
+  const tickedTrades = React.useMemo(
+    () => trading.trades.filter((trade) => journalTicks.selected.has(trade.id)),
+    [trading.trades, journalTicks.selected]
+  )
+
+  // A tick never outlives its row. A poll that removes a trade — or a mass
+  // remove that just went through — takes the tick with it, so Remove (n)
+  // can only ever mean rows that are on screen right now.
+  React.useEffect(() => {
+    const listed = new Set(trading.trades.map((trade) => trade.id))
+    setJournalTicks((current) => {
+      const next = new Set([...current].filter((id) => listed.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [trading.trades, setJournalTicks])
 
   /** Each row says which wallet it is in; the panel shows several at once. */
   const walletNames = trading.walletNames
@@ -279,6 +304,20 @@ export function ActivityPanel({
               </SelectContent>
             </Select>
           ) : null}
+          {/* Removes every ticked Journal row at once, through the same
+              confirm the bin on one row uses. Only there once something is
+              ticked — a button that could do nothing would just be furniture. */}
+          {tab === "journal" && tickedTrades.length > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={trading.busy}
+              onClick={() => setRemovingTrades(tickedTrades)}
+            >
+              <Trash2Icon className="size-4" />
+              Remove ({tickedTrades.length})
+            </Button>
+          ) : null}
           {/* The emergency button: one press, one confirm, and every open
               position goes — real money included, each real one through the
               same close its own row uses. */}
@@ -309,7 +348,7 @@ export function ActivityPanel({
             onEdit={setEditing}
             onFlip={setFlipping}
             onClose={(position) =>
-              void trading.close(position.walletId, position.marketKey)
+              void trading.close(position)
             }
           />
         </ScrollArea>
@@ -329,7 +368,7 @@ export function ActivityPanel({
             failed={trading.failed}
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
-            onCancel={(order) => void trading.cancel(order.walletId, order.id)}
+            onCancel={(order) => void trading.cancel(order)}
           />
         </ScrollArea>
       </TabsContent>
@@ -354,28 +393,44 @@ export function ActivityPanel({
               onShowTrade(trade.id === shownTrade?.id ? null : trade)
             }
             onSelectMarket={onSelectMarket}
-            onRemove={setRemovingTrade}
+            onRemove={(trade) => setRemovingTrades([trade])}
+            ticked={journalTicks.selected}
+            onTickTrade={journalTicks.toggle}
+            onTickVisible={journalTicks.toggleVisible}
+            tickAllState={journalTicks.selectAllState}
           />
         </ScrollArea>
       </TabsContent>
 
       <ConfirmDialog
-        open={removingTrade !== null}
+        open={removingTrades !== null}
         onOpenChange={(open) => {
-          if (!open) setRemovingTrade(null)
+          if (!open) setRemovingTrades(null)
         }}
-        title="Remove this trade from the Journal?"
-        description="It stops showing here, and stops being drawn on the chart. Nothing about your money changes — a practice wallet's cash is added up from its fills, so the fills are kept and only hidden."
-        confirmLabel="Remove it"
+        title={
+          removingTrades && removingTrades.length > 1
+            ? `Remove ${removingTrades.length} trades from the Journal?`
+            : "Remove this trade from the Journal?"
+        }
+        description={
+          removingTrades && removingTrades.length > 1
+            ? "They stop showing here, and stop being drawn on the chart. Nothing about your money changes — a practice wallet's cash is added up from its fills, so the fills are kept and only hidden."
+            : "It stops showing here, and stops being drawn on the chart. Nothing about your money changes — a practice wallet's cash is added up from its fills, so the fills are kept and only hidden."
+        }
+        confirmLabel={
+          removingTrades && removingTrades.length > 1 ? "Remove them" : "Remove it"
+        }
         onConfirm={() => {
-          if (removingTrade) {
+          if (removingTrades) {
             // Drawn on the chart right now? Then it goes from there too, or a
             // trade that is no longer in the list stays painted over the
             // candles with nothing to press to be rid of it.
-            if (removingTrade.id === shownTrade?.id) onShowTrade(null)
-            void trading.hideTrade(removingTrade)
+            if (removingTrades.some((trade) => trade.id === shownTrade?.id)) {
+              onShowTrade(null)
+            }
+            void trading.hideTrades(removingTrades)
           }
-          setRemovingTrade(null)
+          setRemovingTrades(null)
         }}
       />
 

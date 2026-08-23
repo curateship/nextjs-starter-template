@@ -176,6 +176,38 @@ function samePrice(a: number | null, b: number | null): boolean {
   return Math.abs(a - b) <= Math.abs(b) * 0.005
 }
 
+/** One trade's fill ids can repeat inside it; the server wants each once. */
+function tradeFillIds(trades: readonly LiveTrade[]): string[] {
+  return [
+    ...new Set(trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))),
+  ]
+}
+
+/**
+ * The server takes at most this many fill ids in one hide call, so a big
+ * removal is dealt into batches — whole trades only, counting each trade's
+ * own fills, so no batch can go over by splitting a trade.
+ */
+const FILL_IDS_PER_CALL = 200
+
+function batchTrades(trades: readonly LiveTrade[]): LiveTrade[][] {
+  const batches: LiveTrade[][] = []
+  let batch: LiveTrade[] = []
+  let fills = 0
+  for (const trade of trades) {
+    const own = tradeFillIds([trade]).length
+    if (batch.length > 0 && fills + own > FILL_IDS_PER_CALL) {
+      batches.push(batch)
+      batch = []
+      fills = 0
+    }
+    batch.push(trade)
+    fills += own
+  }
+  if (batch.length > 0) batches.push(batch)
+  return batches
+}
+
 function getTradingSmartOrderError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "")
   if (message.includes("LIVE_SMART_")) {
@@ -285,7 +317,7 @@ export type Trading = {
     slPx: number | null
   }) => void
   move: (walletId: string, orderId: string, px: number) => Promise<void>
-  cancel: (walletId: string, orderId: string) => Promise<void>
+  cancel: (order: PaperOrder) => Promise<void>
   /**
    * From the order window: how much a waiting order is for, and where it gets
    * out once it fills. Its price is not here — that is the drag on the chart.
@@ -297,8 +329,7 @@ export type Trading = {
   ) => Promise<boolean>
   /** From the edit window: says so when it saves, and reports a refusal. */
   setBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -312,8 +343,7 @@ export type Trading = {
    * announces itself nor waits for the server before showing the new price.
    */
   dragBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -321,15 +351,17 @@ export type Trading = {
       slPx: number | null
     }
   ) => Promise<void>
-  close: (walletId: string, marketKey: string) => Promise<void>
+  close: (position: PaperPosition) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
   /**
-   * The bin on a Journal row. The trade's fills come off the list and nothing
-   * else moves: a practice wallet's cash is the sum of its fills, so really
-   * removing one would change what the wallet is worth.
+   * The bin on a Journal row and the Remove button over ticked rows — one
+   * door for both, taking however many trades were chosen. The trades' fills
+   * come off the list and nothing else moves: a practice wallet's cash is the
+   * sum of its fills, so really removing one would change what the wallet is
+   * worth.
    */
-  hideTrade: (trade: LiveTrade) => Promise<void>
+  hideTrades: (trades: readonly LiveTrade[]) => Promise<void>
   /** Places a whole DCA ladder at once; the toast counts any instant buys. */
   placeLadder: (input: {
     marketKey: string
@@ -1339,11 +1371,11 @@ export function useTrading(
   )
 
   const cancel: Trading["cancel"] = React.useCallback(
-    async (walletId, orderId) => {
+    async (order) => {
       // Cancelling costs nothing, so there is no question asked first — and
       // nothing is said afterwards either: the row disappearing is the answer.
-      const order = findOrder(orderId)
       const kind = orderCancelKind(order)
+      const { id: orderId, walletId, marketKey } = order
       await callOff(
         orderId,
         async () => {
@@ -1354,16 +1386,17 @@ export function useTrading(
             const result = await cancelWatch({ walletId, ladderId: orderId })
             // A watch placed seconds ago may still be standing in from the
             // placement answer while the full account read catches up.
-            setPlacedSmart((held) =>
-              held.filter((one) => one.id !== orderId)
-            )
+            setPlacedSmart((held) => held.filter((one) => one.id !== orderId))
             return result
           }
-          if (kind === "live" && order) {
+          if (kind === "live") {
             return cancelLiveOrder({
               walletId,
-              marketKey: order.marketKey,
+              marketKey,
               orderId,
+              side: order.side,
+              px: order.px,
+              sz: order.sz,
             })
           }
           return cancelPaperOrder(walletId, orderId)
@@ -1375,12 +1408,13 @@ export function useTrading(
             : getPaperErrorMessage
       )
     },
-    [callOff, findOrder]
+    [callOff]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
-    async (walletId, marketKey, brackets) => {
-      if (findPosition(walletId, marketKey)?.live) {
+    async (position, brackets) => {
+      const { walletId, marketKey } = position
+      if (position.live !== undefined) {
         return await runWith(
           getLiveErrorMessage,
           () => setLiveBrackets({ walletId, marketKey, ...brackets }),
@@ -1392,12 +1426,13 @@ export function useTrading(
         "Saved."
       )
     },
-    [run, runWith, findPosition]
+    [run, runWith]
   )
 
   const dragBrackets: Trading["dragBrackets"] = React.useCallback(
-    async (walletId, marketKey, brackets) => {
-      const live = findPosition(walletId, marketKey)?.live !== undefined
+    async (position, brackets) => {
+      const { walletId, marketKey } = position
+      const live = position.live !== undefined
       const key = bracketKey(walletId, marketKey)
 
       setDroppedBrackets((held) => {
@@ -1424,17 +1459,18 @@ export function useTrading(
         void refresh()
       }
     },
-    [refresh, findPosition]
+    [refresh]
   )
 
   const close: Trading["close"] = React.useCallback(
-    async (walletId, marketKey) => {
+    async (position) => {
       // The row goes the moment it is pressed and the exchange is told behind
       // it, the same way cancelling works. Telling the exchange takes three or
       // four seconds — the close itself, then a fresh read of the account —
       // and a position that sits there through all of it reads as a close
       // that did not happen.
-      const live = findPosition(walletId, marketKey)?.live ?? false
+      const { walletId, marketKey } = position
+      const live = position.live !== undefined
       // The market key names its network, and the words follow it — a testnet
       // close must never announce itself as real money.
       const testnet = parseMarketKey(marketKey)?.network === "testnet"
@@ -1450,7 +1486,7 @@ export function useTrading(
           : `Position closed in ${nameOf(walletId)}.`
       )
     },
-    [callOff, nameOf, findPosition]
+    [callOff, nameOf]
   )
 
   const flip: Trading["flip"] = React.useCallback(
@@ -1641,30 +1677,90 @@ export function useTrading(
     [runWith]
   )
 
-  const hideTrade: Trading["hideTrade"] = React.useCallback(
-    async (trade) => {
-      const fillIds = [...new Set(trade.fills.map((fill) => fill.fillId))]
-      // The row goes on the press like everything else — see the note at the
-      // top of this file. It used to wait for the exchange and then for the
-      // next read, so a removed row sat there until the page was reloaded.
-      const removed = await callOff(
-        trade.id,
-        () =>
-          // A trade is not stored; its fills are. Hiding them is what makes
-          // the row go. One list, two stores — the row says which it came from.
-          trade.live
-            ? hideLiveTrade(trade.walletId, fillIds)
-            : hidePaperTrade(fillIds),
-        trade.live ? getLiveErrorMessage : getPaperErrorMessage,
-        "Removed from the Journal."
+  const hideTrades: Trading["hideTrades"] = React.useCallback(
+    async (list) => {
+      if (list.length === 0) return
+      // Every row goes on the press like everything else — see the note at
+      // the top of this file. Waiting for the exchange and then for the next
+      // read left a removed row sitting there until the page was reloaded.
+      const pressedAt = Date.now()
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const trade of list) next.set(trade.id, pressedAt)
+        return next
+      })
+
+      // A trade is not stored; its fills are. Hiding them is what makes the
+      // rows go. One list, two stores — each row says which it came from —
+      // and a real wallet's fills are keyed by wallet, so real trades are
+      // sent per wallet. Batches never split one trade across two calls:
+      // half a hidden trade would come back as a different, wrong-looking
+      // trade rebuilt from the fills that were left.
+      const calls: Array<{ trades: LiveTrade[]; live: boolean }> = []
+      calls.push(
+        ...batchTrades(list.filter((trade) => !trade.live)).map((trades) => ({
+          trades,
+          live: false,
+        }))
       )
-      if (removed) {
-        setOlderTrades((current) =>
-          current.filter((one) => one.id !== trade.id)
+      const byWallet = new Map<string, LiveTrade[]>()
+      for (const trade of list.filter((one) => one.live)) {
+        const wallet = byWallet.get(trade.walletId)
+        if (wallet) wallet.push(trade)
+        else byWallet.set(trade.walletId, [trade])
+      }
+      for (const wallet of byWallet.values()) {
+        calls.push(
+          ...batchTrades(wallet).map((trades) => ({ trades, live: true }))
         )
       }
+
+      const answers = await Promise.allSettled(
+        calls.map(({ trades, live }) =>
+          live
+            ? hideLiveTrade(trades[0].walletId, tradeFillIds(trades))
+            : hidePaperTrade(tradeFillIds(trades))
+        )
+      )
+
+      // A refused batch comes straight back on screen and says why once;
+      // whatever went through stays gone.
+      const removed = new Set<string>()
+      const refused = new Set<string>()
+      let firstRefusal: string | null = null
+      answers.forEach((answer, at) => {
+        const call = calls[at]
+        if (answer.status === "fulfilled") {
+          for (const trade of call.trades) removed.add(trade.id)
+          return
+        }
+        for (const trade of call.trades) refused.add(trade.id)
+        firstRefusal ??= (
+          call.live ? getLiveErrorMessage : getPaperErrorMessage
+        )(answer.reason)
+      })
+
+      if (refused.size > 0) {
+        setCancelling((held) => {
+          const next = new Map(held)
+          for (const id of refused) next.delete(id)
+          return next
+        })
+      }
+      if (firstRefusal) showErrorToast(firstRefusal)
+      if (removed.size > 0) {
+        toast.success(
+          removed.size === 1
+            ? "Removed from the Journal."
+            : `Removed ${removed.size} trades from the Journal.`
+        )
+        setOlderTrades((current) =>
+          current.filter((one) => !removed.has(one.id))
+        )
+      }
+      void refresh()
     },
-    [callOff]
+    [refresh]
   )
 
   /**
@@ -1756,7 +1852,7 @@ export function useTrading(
     close,
     flip,
     closeAll,
-    hideTrade,
+    hideTrades,
     placeLadder,
     cancelRung,
     cancelLadder,

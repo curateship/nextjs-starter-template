@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
@@ -7,7 +11,12 @@ import {
   TradesTable,
 } from "@/components/trade/positions-table"
 import type { MarketRow } from "@/lib/protocols/contracts"
-import type { PaperPosition } from "@/lib/trade/paper"
+import { orderCancelKind } from "@/lib/trade/cancel-order"
+import type { LiveTrade } from "@/lib/trade/live-trades"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true
 
 /**
  * The answers an empty bottom-panel table can give, told apart.
@@ -99,11 +108,162 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
       selectedId={null}
       onSelectTrade={() => {}}
       onRemove={() => {}}
+      ticked={new Set<string>()}
+      onTickTrade={() => {}}
+      onTickVisible={() => {}}
+      tickAllState={() => false}
     />
   )
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("hands the live exchange row to its cancel action", async () => {
+    const live: PaperOrder = {
+      id: "aster-order-77",
+      walletId: "live-wallet",
+      marketKey: "aster:mainnet:SOLUSDT",
+      side: "sell",
+      px: 144,
+      sz: 0.1,
+      leverage: 0,
+      maxLeverage: 0,
+      reduceOnly: true,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      live: true,
+    }
+    const cancelled: PaperOrder[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <OpenOrdersTable
+          {...shared}
+          orders={[live]}
+          settled={true}
+          failed={false}
+          onCancel={(order) => cancelled.push(order)}
+        />
+      )
+    })
+    const cancel = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Cancel the SOLUSDT order"]'
+    )
+    expect(cancel).not.toBeNull()
+    await act(async () => cancel?.click())
+
+    expect(cancelled).toEqual([live])
+    expect(orderCancelKind(cancelled[0])).toBe("live")
+    await act(async () => root.unmount())
+  })
+
+  it("sends one press on a watched row through the watched-order cancel path", async () => {
+    const watched: PaperOrder = {
+      id: "new-watch",
+      walletId: "live-wallet",
+      marketKey: "aster:mainnet:ETHUSDT",
+      side: "buy",
+      px: 1995,
+      sz: 0.1,
+      leverage: 1,
+      maxLeverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+    const cancelKinds: string[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <OpenOrdersTable
+          {...shared}
+          orders={[watched]}
+          settled={true}
+          failed={false}
+          onCancel={(order) => cancelKinds.push(orderCancelKind(order))}
+        />
+      )
+    })
+    const cancel = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Cancel the ETHUSDT order"]'
+    )
+    expect(cancel).not.toBeNull()
+    await act(async () => cancel?.click())
+
+    expect(cancelKinds).toEqual(["watch"])
+    await act(async () => root.unmount())
+  })
+
+  it("ticks Journal rows for a mass remove without firing the row", async () => {
+    const trade = (id: string, symbol: string): LiveTrade => ({
+      id,
+      walletId: "practice",
+      marketKey: `hyperliquid:mainnet:${symbol}`,
+      live: false,
+      direction: "long",
+      openedAt: 1,
+      closedAt: 2,
+      heldMs: 1,
+      entryPx: 100,
+      exitPx: 110,
+      sz: 1,
+      amountUsd: 100,
+      pnl: 10,
+      returnPct: 10,
+      ending: "closed",
+      stopPx: null,
+      fills: [],
+    })
+    const ticked: string[] = []
+    const tickedAll: string[][] = []
+    const opened: string[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TradesTable
+          {...shared}
+          trades={[trade("one", "BTC"), trade("two", "ETH")]}
+          settled={true}
+          failed={false}
+          selectedId={null}
+          onSelectTrade={(chosen) => opened.push(chosen.id)}
+          onRemove={() => {}}
+          ticked={new Set<string>()}
+          onTickTrade={(id) => ticked.push(id)}
+          onTickVisible={(ids) => tickedAll.push(ids)}
+          tickAllState={() => false}
+        />
+      )
+    })
+
+    const rowTick = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Select the BTC trade"]'
+    )
+    expect(rowTick).not.toBeNull()
+    await act(async () => rowTick?.click())
+    const headerTick = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Select every finished trade"]'
+    )
+    expect(headerTick).not.toBeNull()
+    await act(async () => headerTick?.click())
+
+    expect(ticked).toEqual(["one"])
+    expect(tickedAll).toEqual([["one", "two"]])
+    // Ticking is never also a press on the row that draws it on the chart.
+    expect(opened).toEqual([])
+    await act(async () => root.unmount())
+  })
+
   it("opens positions with the largest unrealized profit first", () => {
     const markets = [market("BTC", 150), market("ETH", 110), market("SOL", 80)]
     const html = renderToStaticMarkup(
