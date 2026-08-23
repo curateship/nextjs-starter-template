@@ -66,6 +66,7 @@ const portfolioCache = new Map<
   { at: number; answer: Promise<WalletPortfolio> }
 >()
 const MARKET_CAP = 0.03
+const PRICE_BAND_SHARE = 0.95
 const ACCOUNT_READ_GOOD_FOR_MS = 15_000
 
 function decimal(value: number): string {
@@ -303,9 +304,28 @@ export async function placeAsterOrder(
   remember(network, account(orderAuth), params.marketId)
 
   const market = params.kind === "market"
+  const fixedCap =
+    params.px * (params.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP)
+  const bandCap =
+    params.side === "buy" &&
+    params.priceMultiplierUp !== null &&
+    params.priceMultiplierUp !== undefined &&
+    params.priceMultiplierUp > 1
+      ? params.px *
+        (1 + (params.priceMultiplierUp - 1) * PRICE_BAND_SHARE)
+      : params.side === "sell" &&
+          params.priceMultiplierDown !== null &&
+          params.priceMultiplierDown !== undefined &&
+          params.priceMultiplierDown > 0 &&
+          params.priceMultiplierDown < 1
+        ? params.px *
+          (1 - (1 - params.priceMultiplierDown) * PRICE_BAND_SHARE)
+        : fixedCap
   const orderPx = market
     ? snapToTick(
-        params.px * (params.side === "buy" ? 1 + MARKET_CAP : 1 - MARKET_CAP),
+        params.side === "buy"
+          ? Math.min(fixedCap, bandCap)
+          : Math.max(fixedCap, bandCap),
         params.priceTick ?? null
       )
     : params.px

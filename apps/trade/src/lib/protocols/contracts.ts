@@ -232,6 +232,10 @@ export type MarketRow = {
    * figures). `roundPx` is where either answer is applied.
    */
   priceTick: number | null
+  /** Highest allowed order-price multiplier over the mark, when stated. */
+  priceMultiplierUp?: number | null
+  /** Lowest allowed order-price multiplier under the mark, when stated. */
+  priceMultiplierDown?: number | null
   /** The least dollar notional this market accepts, or null when unstated. */
   minOrderValueUsd: number | null
   /** Margin modes this market lets the order window choose. */
@@ -452,6 +456,8 @@ export type PlaceOrderParams = {
   px: number
   /** The market's legal price step, where the venue states one. */
   priceTick?: number | null
+  priceMultiplierUp?: number | null
+  priceMultiplierDown?: number | null
   sz: number
   reduceOnly: boolean
   /** Set when opening fresh; null leaves the account's own setting alone. */
