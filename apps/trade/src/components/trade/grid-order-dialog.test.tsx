@@ -24,7 +24,6 @@ const market: MarketRow = {
   sizeDecimals: 3,
   priceTick: null,
   minOrderValueUsd: null,
-  marginModes: [],
   maxLeverage: 50,
   isolatedOnly: false,
   iconUrl: null,

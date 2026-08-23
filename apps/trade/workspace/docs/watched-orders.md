@@ -28,9 +28,9 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 Every account starts on watch. One saved setting flips the whole account back
 to resting.
 
-The watch also keeps the chosen leverage and margin mode while it waits. When
-an Aster watch opens a fresh position, those account settings are applied before
-the order is sent.
+The watch keeps the chosen leverage while it waits. An Aster watch reads the
+wallet's current margin choice when it fires, so Settings remains the only
+place that controls Aster margin.
 
 The dedicated trading engine waits in PostgreSQL's lock queue when another
 copy is already working. PostgreSQL gives the released lock to that queued

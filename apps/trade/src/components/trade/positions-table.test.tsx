@@ -44,7 +44,6 @@ function market(symbol: string, price: number): MarketRow {
     sizeDecimals: 2,
     priceTick: null,
     minOrderValueUsd: null,
-    marginModes: [],
     maxLeverage: 10,
     isolatedOnly: false,
     iconUrl: null,

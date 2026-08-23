@@ -36,7 +36,6 @@ describe("the market volume cutoff", () => {
       sizeDecimals: null,
       priceTick: null,
       minOrderValueUsd: null,
-      marginModes: [],
       maxLeverage: null,
       isolatedOnly: false,
       iconUrl: null,

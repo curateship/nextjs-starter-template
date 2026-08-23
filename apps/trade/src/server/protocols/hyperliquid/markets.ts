@@ -127,7 +127,6 @@ export function toMarketRows(
       // applied in `roundOrderPx`, so there is no per-market number to carry.
       priceTick: null,
       minOrderValueUsd: null,
-      marginModes: [],
       maxLeverage: asset.maxLeverage ?? null,
       isolatedOnly: asset.onlyIsolated ?? false,
       // Sub-exchange art keeps its venue namespace. Asking for the bare stock

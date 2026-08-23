@@ -51,7 +51,11 @@ export async function advanceWatch(
   const { book, now } = input
   const plan = row.plan
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+    getProtocol(book.wallet.protocol).markets.roundPx(
+      px,
+      plan.sizeDecimals,
+      plan.priceTick
+    )
 
   const mark = input.marks.get(row.marketKey)
   // No price this pass. Not an error and not a reason to act: anything already
@@ -153,8 +157,7 @@ export async function advanceWatch(
 
   const ceiling = watchCeilingPx(plan)
   const ranAway =
-    ceiling !== null &&
-    (plan.side === "buy" ? mark > ceiling : mark < ceiling)
+    ceiling !== null && (plan.side === "buy" ? mark > ceiling : mark < ceiling)
   if (ranAway) {
     // Price left before it could be filled. Nothing was bought — a part fill
     // still leaves the rest of this order chasing, which is what the size
@@ -236,7 +239,6 @@ export async function advanceWatch(
       sz: takeSz,
       feeRate: book.costs.takerFeeRate,
       leverage: plan.leverage,
-      marginMode: plan.marginMode ?? null,
       maxLeverage: plan.maxLeverage,
       reduceOnly: plan.reduceOnly,
       reason: "order",
@@ -299,7 +301,8 @@ export async function advanceWatch(
     return
   }
 
-  changed = (await moveOrder(input, deps, plan, row.marketKey, wanted, sz)) || changed
+  changed =
+    (await moveOrder(input, deps, plan, row.marketKey, wanted, sz)) || changed
   await deps.saveLadder(row, "active", now)
 }
 
@@ -344,7 +347,6 @@ async function moveOrder(
     px: wanted,
     sz,
     leverage: plan.leverage,
-    marginMode: plan.marginMode ?? null,
     maxLeverage: plan.maxLeverage,
     reduceOnly: plan.reduceOnly,
     now,

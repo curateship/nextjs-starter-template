@@ -14,7 +14,7 @@ const SENTENCES = {
   ASTER_LEVERAGE_OPEN_POSITION:
     "Aster will not lower isolated leverage while this position is open. Close the position or keep its current leverage.",
   ASTER_ISOLATED_MULTI_ASSET:
-    "Aster cannot use isolated margin while the futures account is in Multi-Assets Mode. Change the Aster futures account to Single-Asset Mode, then this order will try again.",
+    "Aster kept the futures account in Multi-Assets Mode after Trade asked for Single-Asset Mode. Close any cross positions or orders on Aster, then try this isolated order again.",
   ASTER_ORDER_GONE:
     "Aster says this order is no longer open. Refresh the account before trying another change.",
   ASTER_MARGIN_UNCHANGED: "Aster is already using that margin mode.",

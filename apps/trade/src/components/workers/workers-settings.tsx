@@ -41,6 +41,7 @@ import {
 } from "@/lib/trade/workers"
 import { cn } from "@/lib/utils"
 import { LiquidationWarningSettings } from "@/components/workers/liquidation-warning-settings"
+import { AsterMarginSettings } from "@/components/workers/aster-margin-settings"
 
 /**
  * Is the trading engine running, the two switches for it, and the real-money
@@ -149,9 +150,7 @@ export default function WorkersSettings() {
   }
 
   if (!data) {
-    return (
-      <p className="text-sm text-muted-foreground">Asking the server…</p>
-    )
+    return <p className="text-sm text-muted-foreground">Asking the server…</p>
   }
 
   return (
@@ -286,6 +285,8 @@ export default function WorkersSettings() {
 
       <LiquidationWarningSettings />
 
+      <AsterMarginSettings />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -304,7 +305,10 @@ export default function WorkersSettings() {
             disabled={styleBusy}
             onValueChange={(next) => void changeStyle(next as OrderStyle)}
           >
-            <SelectTrigger className="w-fit" aria-label="How a plain order waits">
+            <SelectTrigger
+              className="w-fit"
+              aria-label="How a plain order waits"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

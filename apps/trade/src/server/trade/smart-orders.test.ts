@@ -73,7 +73,6 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             priceTick: null,
             minOrderValueUsd,
             minOrderSize,
-            marginModes: [],
             maxLeverage: 50,
             isolatedOnly: false,
             iconUrl: null,

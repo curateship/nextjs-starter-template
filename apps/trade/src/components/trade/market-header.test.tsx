@@ -30,7 +30,6 @@ const row: MarketRow = {
   sizeDecimals: 3,
   priceTick: null,
   minOrderValueUsd: null,
-  marginModes: [],
   maxLeverage: 40,
   isolatedOnly: false,
   iconUrl: null,

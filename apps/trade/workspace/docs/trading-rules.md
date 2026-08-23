@@ -43,6 +43,9 @@ add up to.
 
 ## Orders
 
+- **Aster margin comes from the wallet setting when the order is sent.** A
+  watched order does not keep an older margin choice. Isolated changes Aster
+  to Single-Asset Mode. Cross changes Aster to Multi-Assets Mode.
 - **A waiting plain order chases as a maker when price reaches it.** The engine
   rests a post-only limit just off the current price and follows it. A buy
   placed above the current price, or a sell placed below it, is already

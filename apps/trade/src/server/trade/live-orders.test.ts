@@ -212,6 +212,7 @@ describe("the rails around placing", () => {
       kind: "limit",
       px: 90_000,
       leverage: 5,
+      marginMode: null,
     })
 
     // The nonce counter: strictly rising, one database row per signer.
@@ -223,6 +224,22 @@ describe("the rails around placing", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].action).toBe("placed")
     expect(rows[0].sz).toBe(0.5)
+  })
+
+  it("uses the Aster wallet's saved margin mode for a fresh position", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId, {
+      protocol: "aster",
+      asterMarginMode: "cross",
+    })
+    prices.mockResolvedValue(new Map([["BTCUSDT", 100_000]]))
+
+    await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      marketKey: "aster:mainnet:BTCUSDT",
+    })
+
+    expect(place.mock.calls[0]?.[2].marginMode).toBe("cross")
   })
 
   it("refuses an order below the venue's dollar floor before sending it", async () => {

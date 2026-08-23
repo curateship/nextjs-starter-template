@@ -280,7 +280,6 @@ export type Trading = {
     px: number
     sz: number
     leverage: number
-    marginMode: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null

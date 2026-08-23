@@ -188,10 +188,11 @@ the app assumes will stay fixed.
 - An unknown Aster refusal keeps its numeric code in the Journal while dropping
   Aster's free-form message. The code is enough to name a missing case without
   risking a key or account detail from the exchange's text.
-- Aster refuses isolated margin with code `-4168` while the futures account is
-  in Multi-Assets Mode. Trade names the account setting and tells the person to
-  change Aster to Single-Asset Mode. Trade does not make that account-wide
-  change by itself.
+- Settings holds one margin choice for each connected, active Aster wallet.
+  Isolated puts the futures account in Single-Asset Mode and then sets the
+  market to isolated. Cross puts the account in Multi-Assets Mode and sets the
+  market to cross. Aster can refuse either account-wide change while
+  incompatible positions or orders exist, and then Trade sends no order.
 - The engine shares Aster's account and open orders for fifteen seconds while
   watched prices and the recent-fill check still move every second. One active
   wallet had been spending more than 3,000 signed units a minute against
@@ -204,10 +205,14 @@ the app assumes will stay fixed.
   If the rounded size is below Aster's minimum coin size or dollar value, Trade
   refuses it before the engine can see it. Older undersized watches end without
   sending money instead of sitting forever after their price is reached.
-- A fresh entry sets the margin mode shown in the order window, then sets the
-  chosen leverage, then sends the order. A reduce-only order changes neither
-  account setting. The last successful setting per account and market is kept
-  for this process so an unchanged choice does not spend another request.
+- Every fresh Aster entry, including a watched order that has just reached its
+  price, reads the wallet's current Settings choice. The entry sets the account
+  mode, sets the market mode and leverage, then sends the order. The order
+  window has no second margin choice that can disagree with the wallet.
+  Reduce-only orders change none of those settings.
+- Single-Asset Mode accepts only USDT collateral. Multi-Assets Mode can use
+  USDC and Aster's other supported collateral. The Settings card states that
+  difference beside the choice.
 - If Aster refuses either account setting, no entry is sent. The refusal names
   the requested leverage or margin mode. An existing position keeps its own
   settings instead of being changed underneath it.
@@ -258,8 +263,9 @@ the app assumes will stay fixed.
 
 - Aster work targets the connected mainnet account. Testnet is not a release
   step and does not hold up live trading work.
-- Opening orders set the chosen margin mode and leverage before the order is
-  signed. Whole-position stops and targets follow the size that remains.
+- Opening orders use the Aster wallet's margin choice from Settings and set
+  leverage before the order is signed. Whole-position stops and targets follow
+  the size that remains.
 - The private account stream pushes order, position and fill changes. A recovery
   read runs when the stream opens again after a disconnect.
 - Mainnet orders still require `TRADE_ENABLE_MAINNET=true` and the Real-money

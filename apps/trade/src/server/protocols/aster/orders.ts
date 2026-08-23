@@ -11,6 +11,7 @@ import type {
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
+import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
 import { num } from "@/lib/protocols/aster/translate"
 import { snapToTick } from "@/lib/protocols/tick"
 import {
@@ -58,8 +59,17 @@ const positionSettingSchema = z.object({
   leverage: z.union([z.string(), z.number()]),
 })
 
+const multiAssetsModeSchema = z.object({
+  multiAssetsMargin: z.boolean(),
+})
+
 const leverageCache = new Map<string, number>()
 const marginModeCache = new Map<string, "cross" | "isolated">()
+const accountMarginModeCache = new Map<
+  string,
+  { at: number; mode: AsterMarginMode }
+>()
+const accountMarginModeLoads = new Map<string, Promise<AsterMarginMode>>()
 const knownSymbols = new Map<string, Set<string>>()
 const portfolioCache = new Map<
   string,
@@ -68,6 +78,7 @@ const portfolioCache = new Map<
 const MARKET_CAP = 0.03
 const PRICE_BAND_SHARE = 0.95
 const ACCOUNT_READ_GOOD_FOR_MS = 15_000
+const ACCOUNT_MODE_GOOD_FOR_MS = 15_000
 
 function decimal(value: number): string {
   return value.toLocaleString("en-US", {
@@ -176,6 +187,76 @@ async function setMarginMode(
   marginModeCache.set(key, mode)
 }
 
+export async function readAsterAccountMarginMode(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  fresh = false
+): Promise<AsterMarginMode> {
+  const key = `${network}:${account(orderAuth).toLowerCase()}`
+  const cached = accountMarginModeCache.get(key)
+  if (
+    !fresh &&
+    cached !== undefined &&
+    Date.now() - cached.at < ACCOUNT_MODE_GOOD_FOR_MS
+  )
+    return cached.mode
+  const held = accountMarginModeLoads.get(key)
+  if (held) return held
+
+  const load = (async () => {
+    try {
+      const answer = await signed(
+        network,
+        orderAuth,
+        "GET",
+        "/fapi/v3/multiAssetsMargin",
+        30,
+        {}
+      )
+      const parsed = multiAssetsModeSchema.safeParse(answer)
+      if (!parsed.success)
+        throw new Error("Aster returned an unreadable account mode.")
+      const mode = parsed.data.multiAssetsMargin ? "cross" : "isolated"
+      accountMarginModeCache.set(key, { at: Date.now(), mode })
+      return mode
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `LIVE_MARGIN_MODE:Aster could not read the futures account's margin mode. (${reason})`
+      )
+    }
+  })()
+  accountMarginModeLoads.set(key, load)
+  try {
+    return await load
+  } finally {
+    if (accountMarginModeLoads.get(key) === load)
+      accountMarginModeLoads.delete(key)
+  }
+}
+
+export async function changeAsterAccountMarginMode(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  mode: AsterMarginMode,
+  fresh = false
+): Promise<void> {
+  if ((await readAsterAccountMarginMode(network, orderAuth, fresh)) === mode)
+    return
+  try {
+    await signed(network, orderAuth, "POST", "/fapi/v3/multiAssetsMargin", 1, {
+      multiAssetsMargin: mode === "cross" ? "true" : "false",
+    })
+    const key = `${network}:${account(orderAuth).toLowerCase()}`
+    accountMarginModeCache.set(key, { at: Date.now(), mode })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `LIVE_MARGIN_MODE:Aster could not switch the futures account to ${mode === "cross" ? "Multi-Assets" : "Single-Asset"} Mode. (${reason})`
+    )
+  }
+}
+
 async function currentOrderSettings(
   network: NetworkId,
   orderAuth: OrderAuth,
@@ -281,9 +362,12 @@ export async function placeAsterOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   await assertRealMoneyAllowed(network)
+  if (!params.reduceOnly && params.marginMode != null) {
+    await changeAsterAccountMarginMode(network, orderAuth, params.marginMode)
+  }
   const settings =
     !params.reduceOnly &&
-    (params.marginMode !== null || params.leverage !== null)
+    (params.marginMode != null || params.leverage !== null)
       ? await currentOrderSettings(network, orderAuth, params.marketId)
       : null
   if (
@@ -754,6 +838,8 @@ export async function fetchAsterOrderInfo(
 export function clearAsterOrderState(): void {
   leverageCache.clear()
   marginModeCache.clear()
+  accountMarginModeCache.clear()
+  accountMarginModeLoads.clear()
   knownSymbols.clear()
   portfolioCache.clear()
 }

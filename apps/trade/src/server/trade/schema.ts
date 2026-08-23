@@ -1,6 +1,7 @@
 import {
   bigint,
   boolean,
+  check,
   doublePrecision,
   foreignKey,
   index,
@@ -21,6 +22,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
+import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { DcaParams, LadderStatus } from "@/lib/trade/dca"
@@ -280,6 +282,12 @@ export const tradeWallets = pgTable(
     positionMode: varchar("position_mode", { length: 12 }).$type<
       "one-way" | "two-sided"
     >(),
+    // The Aster account setting every fresh Aster position follows. Other
+    // protocols ignore this column.
+    asterMarginMode: varchar("aster_margin_mode", { length: 8 })
+      .$type<AsterMarginMode>()
+      .notNull()
+      .default("isolated"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -287,7 +295,13 @@ export const tradeWallets = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [primaryKey({ columns: [table.userId, table.id] })]
+  (table) => [
+    primaryKey({ columns: [table.userId, table.id] }),
+    check(
+      "ck_trade_wallets_aster_margin_mode",
+      sql`${table.asterMarginMode} in ('isolated', 'cross')`
+    ),
+  ]
 )
 
 /** One row remembers whether an open position is already inside its warning line. */

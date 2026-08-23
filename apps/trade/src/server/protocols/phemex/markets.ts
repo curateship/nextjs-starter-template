@@ -94,7 +94,6 @@ export async function fetchPhemexMarkets(
       sizeDecimals: stepToDecimals(num(one.qtyStepSize)),
       priceTick: num(one.tickSize),
       minOrderValueUsd: null,
-      marginModes: [],
       maxLeverage: num(one.maxLeverage),
       isolatedOnly: false,
       iconUrl: null,

@@ -151,7 +151,6 @@ export function toAsterMarketCatalog(input: {
         "multiplierDown"
       ),
       minOrderValueUsd: filterValue(one.filters, "MIN_NOTIONAL", "notional"),
-      marginModes: ["isolated", "cross"],
       // V3 exchangeInfo labels both margin percentage fields "ignore". The
       // real leverage ceiling is behind a signed account endpoint, so this
       // public, keys-free task leaves it unknown instead of deriving a guess.

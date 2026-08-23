@@ -1,7 +1,4 @@
-import type {
-  CandleBar,
-  CandleInterval,
-} from "@/lib/protocols/contracts"
+import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import type { DcaBaseDetection } from "@/lib/trade/dca"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
@@ -29,7 +26,6 @@ export type LadderOrderInput = {
   px: number
   sz: number
   leverage: number
-  marginMode?: "cross" | "isolated" | null
   maxLeverage: number
   reduceOnly: boolean
   now: number
@@ -66,7 +62,6 @@ export type LadderEngineDeps = {
       sz: number
       feeRate: number
       leverage: number
-      marginMode?: "cross" | "isolated" | null
       maxLeverage: number
       /**
        * This fill may only shrink what is held, never open something new.

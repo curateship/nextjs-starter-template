@@ -61,7 +61,6 @@ const placeSchema = z.object({
   px: z.number().positive().finite(),
   sz: z.number().positive().finite(),
   leverage: z.number().min(1).max(100),
-  marginMode: z.enum(["cross", "isolated"]).nullable(),
   reduceOnly: z.boolean(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),

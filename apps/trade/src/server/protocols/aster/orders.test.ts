@@ -7,11 +7,13 @@ import {
   packAsterCredential,
 } from "@/server/protocols/aster/client"
 import {
+  changeAsterAccountMarginMode,
   clearAsterOrderState,
   closeAsterPosition,
   fetchAsterOrderPortfolio,
   modifyAsterOrder,
   placeAsterOrder,
+  readAsterAccountMarginMode,
   setAsterBrackets,
 } from "@/server/protocols/aster/orders"
 
@@ -91,9 +93,43 @@ afterEach(() => {
 })
 
 describe("Aster orders", () => {
-  it("sets the chosen margin mode and leverage before the opening order, once", async () => {
+  it("checks Aster again when Settings explicitly saves a mode", async () => {
+    const sent: Sent[] = []
+    let multiAssets = false
+    stub((method, url) => {
+      if (!url.pathname.endsWith("/multiAssetsMargin")) return {}
+      if (method === "GET") return { multiAssetsMargin: multiAssets }
+      multiAssets = url.searchParams.get("multiAssetsMargin") === "true"
+      return { code: 200 }
+    }, sent)
+
+    await readAsterAccountMarginMode("testnet", AUTH)
+    multiAssets = true
+    await changeAsterAccountMarginMode("testnet", AUTH, "isolated", true)
+
+    expect(
+      sent.filter(
+        (one) =>
+          one.method === "GET" &&
+          one.url.pathname.endsWith("/multiAssetsMargin")
+      )
+    ).toHaveLength(2)
+    expect(
+      sent.find(
+        (one) =>
+          one.method === "POST" &&
+          one.url.pathname.endsWith("/multiAssetsMargin")
+      )?.url.searchParams.get("multiAssetsMargin")
+    ).toBe("false")
+    expect(multiAssets).toBe(false)
+  })
+
+  it("sets the wallet margin mode and leverage before the opening order, once", async () => {
     const sent: Sent[] = []
     stub((method, url) => {
+      if (url.pathname.endsWith("/multiAssetsMargin")) {
+        return method === "GET" ? { multiAssetsMargin: true } : { code: 200 }
+      }
       if (url.pathname.endsWith("/positionRisk")) {
         return [{ symbol: "BTCUSDT", marginType: "cross", leverage: "1" }]
       }
@@ -120,18 +156,23 @@ describe("Aster orders", () => {
 
     const mutations = sent.filter((one) => one.method === "POST")
     expect(mutations.map((one) => one.url.pathname)).toEqual([
+      "/fapi/v3/multiAssetsMargin",
       "/fapi/v3/marginType",
       "/fapi/v3/leverage",
       "/fapi/v3/order",
       "/fapi/v3/order",
     ])
-    expect(mutations[0].url.searchParams.get("marginType")).toBe("ISOLATED")
-    expect(mutations[1].url.searchParams.get("leverage")).toBe("3")
+    expect(mutations[0].url.searchParams.get("multiAssetsMargin")).toBe("false")
+    expect(mutations[1].url.searchParams.get("marginType")).toBe("ISOLATED")
+    expect(mutations[2].url.searchParams.get("leverage")).toBe("3")
   })
 
   it("does not rewrite settings Aster already has before the order", async () => {
     const sent: Sent[] = []
     stub((method, url) => {
+      if (url.pathname.endsWith("/multiAssetsMargin")) {
+        return { multiAssetsMargin: false }
+      }
       if (url.pathname.endsWith("/positionRisk")) {
         return [{ symbol: "BTCUSDT", marginType: "isolated", leverage: "1" }]
       }
@@ -160,9 +201,57 @@ describe("Aster orders", () => {
     )
     expect(
       sent.some(
+        (one) =>
+          one.method === "POST" &&
+          one.url.pathname.endsWith("/multiAssetsMargin")
+      )
+    ).toBe(false)
+    expect(
+      sent.some(
         (one) => one.method === "POST" && one.url.pathname.endsWith("/order")
       )
     ).toBe(true)
+  })
+
+  it("switches Aster to Multi-Assets Mode before a cross order", async () => {
+    const sent: Sent[] = []
+    stub((method, url) => {
+      if (url.pathname.endsWith("/multiAssetsMargin")) {
+        return method === "GET" ? { multiAssetsMargin: false } : { code: 200 }
+      }
+      if (url.pathname.endsWith("/positionRisk")) {
+        return [{ symbol: "BTCUSDT", marginType: "isolated", leverage: "3" }]
+      }
+      if (url.pathname.endsWith("/order")) {
+        return order({ status: "FILLED", executedQty: "1" })
+      }
+      return {}
+    }, sent)
+
+    await placeAsterOrder("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "limit",
+      px: 90,
+      sz: 1,
+      reduceOnly: false,
+      leverage: 3,
+      marginMode: "cross",
+      tpPx: null,
+      slPx: null,
+    })
+
+    const accountChange = sent.find(
+      (one) =>
+        one.method === "POST" && one.url.pathname.endsWith("/multiAssetsMargin")
+    )
+    expect(accountChange?.url.searchParams.get("multiAssetsMargin")).toBe(
+      "true"
+    )
+    const marketChange = sent.find(
+      (one) => one.method === "POST" && one.url.pathname.endsWith("/marginType")
+    )
+    expect(marketChange?.url.searchParams.get("marginType")).toBe("CROSSED")
   })
 
   it("does not touch account settings for a reducing order", async () => {
@@ -191,6 +280,37 @@ describe("Aster orders", () => {
     expect(sent.some((one) => one.url.pathname.endsWith("/marginType"))).toBe(
       false
     )
+  })
+
+  it("sends no isolated order when Aster refuses Single-Asset Mode", async () => {
+    const sent: Sent[] = []
+    stub((method, url) => {
+      if (url.pathname.endsWith("/multiAssetsMargin")) {
+        return method === "GET"
+          ? { multiAssetsMargin: true }
+          : { code: -4048, msg: "positions exist" }
+      }
+      return {}
+    }, sent)
+
+    await expect(
+      placeAsterOrder("testnet", AUTH, {
+        marketId: "BTCUSDT",
+        side: "buy",
+        kind: "limit",
+        px: 90,
+        sz: 1,
+        reduceOnly: false,
+        leverage: 3,
+        marginMode: "isolated",
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_MARGIN_MODE")
+    expect(sent.some((one) => one.url.pathname.endsWith("/positionRisk"))).toBe(
+      false
+    )
+    expect(sent.some((one) => one.url.pathname.endsWith("/order"))).toBe(false)
   })
 
   it("caps an immediate order with IOC instead of sending a naked market order", async () => {
@@ -248,7 +368,7 @@ describe("Aster orders", () => {
     expect(placed?.url.searchParams.get("price")).toBe("2514.31")
   })
 
-  it("sends no order when Aster refuses the chosen margin mode", async () => {
+  it("sends no order when Aster refuses the wallet margin mode", async () => {
     const sent: Sent[] = []
     stub(
       (_method, url) =>

@@ -172,7 +172,6 @@ export async function fetchKucoinMarkets(
       ),
       priceTick: num(one.tickSize),
       minOrderValueUsd: null,
-      marginModes: [],
       maxLeverage: num(one.maxLeverage),
       isolatedOnly: false,
       iconUrl: null,

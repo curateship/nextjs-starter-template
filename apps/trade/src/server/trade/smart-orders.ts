@@ -1011,7 +1011,6 @@ export async function placeWatchOrder(
     px: number
     sz: number
     leverage: number
-    marginMode?: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -1054,7 +1053,6 @@ export async function placeWatchOrder(
     side: input.side,
     sz,
     leverage: input.leverage,
-    marginMode: input.marginMode ?? null,
     maxLeverage: rules.maxLeverage ?? 1,
     sizeDecimals: rules.sizeDecimals,
     minOrderSize: rules.minOrderSize ?? null,

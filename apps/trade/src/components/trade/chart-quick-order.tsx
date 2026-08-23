@@ -89,7 +89,6 @@ export function ChartQuickOrder({
     px: number
     sz: number
     leverage: number
-    marginMode: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -102,10 +101,7 @@ export function ChartQuickOrder({
   onRemember: (prefs: QuickOrderPrefs) => void
   onClose: () => void
 }) {
-  const maxLeverage = Math.max(
-    1,
-    Math.floor(market.maxLeverage ?? (market.marginModes.length > 0 ? 100 : 1))
-  )
+  const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
 
   // What the market costs right now. An order asking for a price already
   // through it is taken immediately at this instead, so this — not the level
@@ -128,7 +124,6 @@ export function ChartQuickOrder({
   const [leverage, setLeverage] = React.useState(
     Math.max(1, Math.min(prefs.leverage, maxLeverage))
   )
-  const [marginMode, setMarginMode] = React.useState(prefs.marginMode)
   const [bracketOn, setBracketOn] = React.useState(prefs.bracketOn)
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
@@ -256,7 +251,6 @@ export function ChartQuickOrder({
       px: quick.px,
       sz: sizeCoin,
       leverage,
-      marginMode: market.marginModes.length > 0 ? marginMode : null,
       reduceOnly,
       tpPx: targetPx,
       slPx: stopPx,
@@ -268,7 +262,6 @@ export function ChartQuickOrder({
       sizeUnit,
       size: sizeInput,
       leverage,
-      marginMode,
       bracketOn,
       stopPct,
       targetPct,
@@ -432,26 +425,6 @@ export function ChartQuickOrder({
                 }}
                 aria-label="Leverage"
               />
-            </div>
-          ) : null}
-
-          {market.marginModes.length > 0 ? (
-            <div className="grid gap-2">
-              <Label htmlFor="quick-margin-mode">Margin</Label>
-              <Select
-                value={marginMode}
-                onValueChange={(next) =>
-                  setMarginMode(next as "cross" | "isolated")
-                }
-              >
-                <SelectTrigger id="quick-margin-mode">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="isolated">Isolated margin</SelectItem>
-                  <SelectItem value="cross">Shared (cross) margin</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           ) : null}
 

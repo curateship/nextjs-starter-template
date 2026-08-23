@@ -64,7 +64,7 @@ export type CredentialForm = {
  * ever asking which protocol they are talking to.
  *
  * Flags are added when the screens that need them are built — a capability
- * nobody reads is a guess, and guesses drift. Order types, margin modes and
+ * nobody reads is a guess, and guesses drift. Order types and
  * protective orders get theirs with the ordering work.
  */
 export type ProtocolCapabilities = {
@@ -238,8 +238,6 @@ export type MarketRow = {
   priceMultiplierDown?: number | null
   /** The least dollar notional this market accepts, or null when unstated. */
   minOrderValueUsd: number | null
-  /** Margin modes this market lets the order window choose. */
-  marginModes: readonly ("cross" | "isolated")[]
   /** The most leverage this market allows, or null when the exchange does not say. */
   maxLeverage: number | null
   /** This market only trades isolated: a trade's stake is all it can lose. */
@@ -462,7 +460,7 @@ export type PlaceOrderParams = {
   reduceOnly: boolean
   /** Set when opening fresh; null leaves the account's own setting alone. */
   leverage: number | null
-  /** Set before a fresh entry where the venue supports an explicit choice. */
+  /** The wallet's saved account mode, set before a fresh entry. */
   marginMode?: "cross" | "isolated" | null
   tpPx: number | null
   slPx: number | null

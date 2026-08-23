@@ -31,6 +31,7 @@ import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
+import { openingMarginMode } from "@/server/protocols/order-settings"
 import {
   loadLiveHistoryIfChanged,
   loadLiveRefusals,
@@ -194,7 +195,6 @@ export async function placeLiveOrder(
     px: number
     sz: number
     leverage: number
-    marginMode?: "cross" | "isolated" | null
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
@@ -278,7 +278,9 @@ export async function placeLiveOrder(
       sz: orderSize,
       reduceOnly: input.reduceOnly,
       leverage: held ? null : input.leverage,
-      marginMode: held ? null : (input.marginMode ?? null),
+      marginMode: held
+        ? null
+        : openingMarginMode(row.protocol, row.asterMarginMode),
       tpPx: input.tpPx,
       slPx: input.slPx,
     })
