@@ -558,12 +558,10 @@ describe("live Smart orders", () => {
     expect(plan.phase).toBe("waiting")
   })
 
-  it("puts a watched level back when Aster returns a definite refusal", async () => {
+  it("puts a watched level back when Aster returns a named refusal", async () => {
     await watchThroughTheLevel()
     place.mockRejectedValue(
-      new Error(
-        "ASTER_REFUSED:Aster refused the request for a reason Trade does not recognize (code -5019)."
-      )
+      new Error("ASTER_PRICE_STEP:Aster refused a price between its legal steps.")
     )
 
     await reconcileLiveLadders(userId, wallet)
