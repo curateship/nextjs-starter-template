@@ -479,10 +479,10 @@ export function ChartPanel({
    * following the ladder, or the stillness would look like a bug.
    */
   const dragBrackets = (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => {
+    const { walletId, marketKey } = position
     const ladder = trading.ladders.find(
       (one) => one.walletId === walletId && one.marketKey === marketKey
     )
@@ -505,7 +505,7 @@ export function ChartPanel({
         )
       }
     }
-    void trading.dragBrackets(walletId, marketKey, brackets)
+    void trading.dragBrackets(position, brackets)
   }
 
   // The candles on screen right now: an answer whose tag does not match what
@@ -1029,8 +1029,7 @@ export function ChartPanel({
                   // account refresh continue behind it, through the same path
                   // used when a stop line is dragged.
                   void trading.dragBrackets(
-                    bareStop.walletId,
-                    bareStop.marketKey,
+                    bareStop,
                     bracketsWithStopAt(bareStop, menu.price)
                   )
                   setMenu(null)
@@ -1072,8 +1071,7 @@ export function ChartPanel({
           }
           onSave={(brackets) =>
             void trading.dragBrackets(
-              takeProfitPosition.walletId,
-              takeProfitPosition.marketKey,
+              takeProfitPosition,
               brackets
             )
           }

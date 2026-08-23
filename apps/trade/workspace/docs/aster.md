@@ -221,6 +221,9 @@ the app assumes will stay fixed.
   whatever size remains without a replacement. A partial target names its own
   coin size and is reduce-only. Closing the position removes any whole-position
   stop or target still waiting on that market.
+- Removing or moving a position's stop or target uses the live position row
+  that drew the line. A refresh cannot reroute that press to a practice wallet
+  while the line is still on screen.
 - A resting Aster limit moves with `PUT /fapi/v3/order`. Price and size change
   on the existing order in one command. There is no cancel-and-replace
   fallback. If the order filled during the drag, the app says it is gone and

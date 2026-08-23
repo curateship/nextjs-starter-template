@@ -69,8 +69,7 @@ export function BracketsDialog({
   startSlPx?: number | null
   busy: boolean
   onSave: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -119,8 +118,7 @@ function BracketsForm({
   startSlPx: number | null
   busy: boolean
   onSave: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -190,7 +188,7 @@ function BracketsForm({
 
   const save = async () => {
     if (badTarget || badStop || badSell) return
-    const saved = await onSave(position.walletId, position.marketKey, {
+    const saved = await onSave(position, {
       tpPx,
       tpSz: tpPx !== null ? tpSz : null,
       slPx,

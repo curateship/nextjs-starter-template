@@ -257,8 +257,7 @@ export type Trading = {
   ) => Promise<boolean>
   /** From the edit window: says so when it saves, and reports a refusal. */
   setBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -272,8 +271,7 @@ export type Trading = {
    * announces itself nor waits for the server before showing the new price.
    */
   dragBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: {
       tpPx: number | null
       /** Coins the target sells; leave it out to sell the whole position. */
@@ -1207,8 +1205,9 @@ export function useTrading(
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
-    async (walletId, marketKey, brackets) => {
-      if (findPosition(walletId, marketKey)?.live) {
+    async (position, brackets) => {
+      const { walletId, marketKey } = position
+      if (position.live !== undefined) {
         return await runWith(
           getLiveErrorMessage,
           () => setLiveBrackets({ walletId, marketKey, ...brackets }),
@@ -1220,12 +1219,13 @@ export function useTrading(
         "Saved."
       )
     },
-    [run, runWith, findPosition]
+    [run, runWith]
   )
 
   const dragBrackets: Trading["dragBrackets"] = React.useCallback(
-    async (walletId, marketKey, brackets) => {
-      const live = findPosition(walletId, marketKey)?.live !== undefined
+    async (position, brackets) => {
+      const { walletId, marketKey } = position
+      const live = position.live !== undefined
       const key = bracketKey(walletId, marketKey)
 
       setDroppedBrackets((held) => {
@@ -1252,7 +1252,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [refresh, findPosition]
+    [refresh]
   )
 
   const close: Trading["close"] = React.useCallback(

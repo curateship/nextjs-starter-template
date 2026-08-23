@@ -305,7 +305,7 @@ describe("the chart stop-loss shortcut", () => {
     expect(stop).toBeDefined()
     await act(async () => stop?.click())
 
-    expect(dragBrackets).toHaveBeenCalledWith("wallet-1", "hyperliquid:BTC", {
+    expect(dragBrackets).toHaveBeenCalledWith(position, {
       tpPx: null,
       tpSz: null,
       slPx: 90,

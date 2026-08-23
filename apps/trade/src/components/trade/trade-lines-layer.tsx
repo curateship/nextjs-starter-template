@@ -227,8 +227,7 @@ export function TradeLinesLayer({
    */
   onEditOrder?: (orderId: string) => void
   onSetBrackets: (
-    walletId: string,
-    marketKey: string,
+    position: PaperPosition,
     brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
   ) => void
   /**
@@ -341,13 +340,13 @@ export function TradeLinesLayer({
             )
           )}${tag}`,
         onMove: (price) =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: price,
             tpSz,
             slPx: position.slPx,
           }),
         onRemove: () =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: null,
             slPx: position.slPx,
           }),
@@ -361,13 +360,13 @@ export function TradeLinesLayer({
         label: (at) =>
           `Stop Loss ${formatSignedUsd(projectedProfit(position, at))}${tag}`,
         onMove: (price) =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: position.tpPx,
             tpSz: position.tpSz ?? null,
             slPx: price,
           }),
         onRemove: () =>
-          onSetBrackets(position.walletId, marketKey, {
+          onSetBrackets(position, {
             tpPx: position.tpPx,
             tpSz: position.tpSz ?? null,
             slPx: null,
