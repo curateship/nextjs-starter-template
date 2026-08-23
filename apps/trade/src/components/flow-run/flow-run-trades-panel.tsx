@@ -19,9 +19,9 @@ import {
   TableSortButton,
 } from "@/components/ui/table"
 import type { FlowRunReport } from "@/lib/api/flow-runs"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { formatHeld, tradeEndingLabel } from "@/lib/trade/live-trades"
+import { tradeEndingLabel } from "@/lib/trade/live-trades"
 import { formatPrice } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -164,7 +164,7 @@ export function FlowRunTradesPanel({
                   <TableCell column="meta" className="whitespace-nowrap">
                     {tradeEndingLabel(trade)}
                     <span className="block text-[10px] text-muted-foreground">
-                      held {formatHeld(trade.heldMs)}
+                      held {formatDuration(trade.heldMs)}
                     </span>
                   </TableCell>
                   <TableCell column="meta" className="text-right tabular-nums">

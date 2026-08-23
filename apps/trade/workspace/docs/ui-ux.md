@@ -309,8 +309,10 @@ placed, and for the same reason.
 
 Opening a smart order in the right-hand panel lists what it has sold and what
 that banked. A grid's closed row says how many levels are still waiting and how
-many have bought, such as "3 waiting · 7 completed". The old price-range line
-repeated what the chart already shows and did not say how far the grid had got.
+many have bought, such as "3 waiting · 7 completed". Open the grid's dropdown
+and its first line says how many dollars it still holds to sell. The old
+price-range line repeated what the chart already shows and did not say how far
+the grid had got.
 Two rules decide what appears in the opened sale list.
 
 - **A sell out of a long-only order is a sale**, whether or not the venue put a

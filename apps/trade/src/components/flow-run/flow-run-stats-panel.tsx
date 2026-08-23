@@ -13,9 +13,8 @@ import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import type { FlowRunReport } from "@/lib/api/flow-runs"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { DCA_TP_MODE_LABELS } from "@/lib/trade/dca"
-import { formatHeld } from "@/lib/trade/live-trades"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { cn } from "@/lib/utils"
@@ -111,7 +110,7 @@ export function FlowRunStatsPanel({
               label="Running for"
               value={
                 head.status === "running"
-                  ? runningFor(now - head.startedAt)
+                  ? formatDuration(Math.max(0, now - head.startedAt))
                   : "Stopped"
               }
               sub={
@@ -291,11 +290,6 @@ export function FlowRunStatsPanel({
       </ScrollArea>
     </>
   )
-}
-
-/** "3d 4h" — how long it has been going, in the words a person would use. */
-function runningFor(ms: number): string {
-  return formatHeld(Math.max(0, ms))
 }
 
 function Line({

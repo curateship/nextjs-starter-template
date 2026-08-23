@@ -119,14 +119,3 @@ export function roundedPct(value: number): string {
 function trimZero(text: string): string {
   return text.endsWith(".0") ? text.slice(0, -2) : text
 }
-
-/**
- * How long something lasted, in the plainest unit that fits — "12h", "6d".
- * Zero means it did not survive a single bar's close, which is worth saying.
- */
-export function heldFor(milliseconds: number): string {
-  if (milliseconds <= 0) return "under one candle"
-  const hours = milliseconds / 3_600_000
-  if (hours < 48) return `held ${Math.round(hours)}h`
-  return `held ${Math.round(hours / 24)}d`
-}

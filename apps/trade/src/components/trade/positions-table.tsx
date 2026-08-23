@@ -18,7 +18,7 @@ import {
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
-import { formatDateTime } from "@/lib/format/format-time"
+import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
   marketSymbol,
@@ -32,11 +32,7 @@ import {
   formatUsd,
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import {
-  formatHeld,
-  tradeEndingLabel,
-  type LiveTrade,
-} from "@/lib/trade/live-trades"
+import { tradeEndingLabel, type LiveTrade } from "@/lib/trade/live-trades"
 import { LOST_MONEY, MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import {
   liquidationAway,
@@ -962,7 +958,7 @@ export function TradesTable({
               {formatDateTime(new Date(trade.openedAt))}
             </Cell>
             <Cell className="text-muted-foreground">
-              {formatHeld(trade.heldMs)}
+              {formatDuration(trade.heldMs)}
             </Cell>
             <Cell>{formatPrice(trade.entryPx)}</Cell>
             <Cell>{formatPrice(trade.exitPx)}</Cell>

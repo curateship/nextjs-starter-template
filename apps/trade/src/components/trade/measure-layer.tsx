@@ -1,6 +1,7 @@
 import * as React from "react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
+import { formatDuration } from "@/lib/format/format-time"
 import { formatChange } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -52,23 +53,6 @@ const DRAG_SLOP = 3
 /** Roughly how big the two-line label is, for keeping it inside the plot. */
 const LABEL_HALF_WIDTH = 56
 const LABEL_HALF_HEIGHT = 22
-
-/**
- * How long the box covers, in the one unit that reads naturally at that size:
- * minutes below an hour, then hours, then days. One decimal until the number
- * reaches double figures, where the decimal stops earning its place.
- */
-function formatSpan(ms: number): string {
-  const minutes = Math.abs(ms) / 60_000
-  if (minutes < 60) return `${Math.round(minutes)}m`
-  const hours = minutes / 60
-  if (hours < 24) return `${trimmed(hours)}h`
-  return `${trimmed(hours / 24)}d`
-}
-
-function trimmed(value: number): string {
-  return value < 10 ? value.toFixed(1) : value.toFixed(0)
-}
 
 /** Whether a key went to something somebody is writing in. */
 function typing(target: EventTarget | null): boolean {
@@ -367,7 +351,7 @@ function read(measure: Measure, surface: ChartSurface) {
     up: delta >= 0,
     percent: formatChange(delta / measure.from.price),
     bars: bars === 1 ? "1 bar" : `${bars} bars`,
-    span: formatSpan(measure.to.time - measure.from.time),
+    span: formatDuration(Math.abs(measure.to.time - measure.from.time)),
   }
 }
 

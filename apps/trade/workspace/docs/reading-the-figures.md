@@ -56,6 +56,18 @@ else formats one.
 `40×`. The tables already did; the market header and the picker wrote a letter
 `x`.
 
+## One spelling for how long
+
+`formatDuration` in `src/lib/format/format-time.ts` writes every elapsed time.
+The Journal, chart ruler, flow runs and backtests all use the same answer:
+`20s`, `9m`, `3h 12m`, or `3d 4h`. The smaller part stays when it changes the
+answer. A decimal such as `3.2h` makes the reader turn the fraction back into
+minutes, and rounding the same stretch to `3h` loses twelve minutes.
+
+A backtest span of zero still says `under one candle`. Zero has a specific
+meaning there, and the shared formatter lets that screen name the meaning
+without keeping a second set of duration rules.
+
 ## One text scale
 
 Trade uses the app's type scale and nothing else. The smallest step it offers

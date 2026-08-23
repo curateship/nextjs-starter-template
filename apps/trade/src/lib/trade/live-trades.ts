@@ -579,17 +579,3 @@ function money$(value: number): string {
     maximumFractionDigits: 2,
   })}`
 }
-
-/**
- * How long a trade ran, in the words a person would use. Deliberately coarse:
- * "3h 12m" answers "was this a scalp or a swing", and seconds never do.
- */
-export function formatHeld(ms: number): string {
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s`
-  const minutes = Math.floor(ms / 60_000)
-  if (minutes < 60) return `${minutes}m`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return hours >= 10 ? `${hours}h` : `${hours}h ${minutes % 60}m`
-  const days = Math.floor(hours / 24)
-  return days >= 10 ? `${days}d` : `${days}d ${hours % 24}h`
-}

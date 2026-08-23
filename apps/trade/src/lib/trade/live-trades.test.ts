@@ -5,7 +5,6 @@ import {
   gridRoundTrips,
   openFillMarks,
   fillsOutsideTrades,
-  formatHeld,
   tradeEndingLabel,
   tradeFillMarks,
   type LiveFill,
@@ -326,15 +325,6 @@ describe("tradeFillMarks", () => {
     // The price keeps its places, because a cent coin needs them. The money
     // does not.
     expect(tradeFillMarks(trade)[1].label).toBe("Sold $0.0395 · made $0.50")
-  })
-})
-
-describe("formatHeld", () => {
-  it("says how long in the words a person would use", () => {
-    expect(formatHeld(20_000)).toBe("20s")
-    expect(formatHeld(9 * MINUTE)).toBe("9m")
-    expect(formatHeld(3 * 60 * MINUTE + 12 * MINUTE)).toBe("3h 12m")
-    expect(formatHeld(30 * 60 * MINUTE)).toBe("1d 6h")
   })
 })
 

@@ -25,7 +25,7 @@ import type {
   BacktestSummary,
 } from "@/lib/trade/backtest/result"
 import type { GraphSeries, GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
-import { formatDate } from "@/lib/format/format-time"
+import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
 import { cn } from "@/lib/utils"
@@ -309,7 +309,9 @@ export function BacktestStatsPanel({
                   }
                   sub={
                     stats && stats.avgHoldMs !== null
-                      ? `avg hold ${Math.round(stats.avgHoldMs / 3_600_000)}h`
+                      ? `avg hold ${formatDuration(stats.avgHoldMs, {
+                          zero: "under one candle",
+                        })}`
                       : "needs the run's trades"
                   }
                 />

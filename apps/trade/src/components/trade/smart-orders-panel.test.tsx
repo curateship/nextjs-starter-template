@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
@@ -76,10 +80,14 @@ const grid = {
   kind: "grid",
   plan: {
     levels: [
-      { status: "waiting" },
-      { status: "waiting" },
-      { status: "waiting" },
-      ...Array.from({ length: 7 }, () => ({ status: "holding" })),
+      { status: "waiting", heldSz: 0, buyPx: 10 },
+      { status: "waiting", heldSz: 0, buyPx: 20 },
+      { status: "waiting", heldSz: 0, buyPx: 30 },
+      ...Array.from({ length: 7 }, () => ({
+        status: "holding",
+        heldSz: 1,
+        buyPx: 10,
+      })),
     ],
   },
 } as unknown as SmartOrder
@@ -125,6 +133,39 @@ describe("the Smart orders panel", () => {
       failed: false,
     })
     expect(markup).toContain("3 waiting · 7 completed")
+  })
+
+  it("shows the funds still held to sell inside the opened grid dropdown", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[grid]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    expect(host.textContent).not.toContain("$70.00")
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Show what XMR has done"]'
+        )
+        ?.click()
+    })
+
+    expect(host.textContent).toContain("Held to sell$70.00")
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("says an active smart order cannot act after its key expires", () => {

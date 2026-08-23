@@ -7,7 +7,7 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatDateTime } from "@/lib/format/format-time"
-import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import {
@@ -215,6 +215,8 @@ export function SmartOrdersPanel({
                   ? (mark - position.entryPx) * position.szi - position.feesPaid
                   : null
               const banked = bankedBy(order, fills, trades)
+              const heldToSell =
+                order.kind === "grid" ? gridHeldToSell(order) : null
               const isOpen = opened.has(order.id)
               const keyExpired = expiredWallets.has(order.walletId)
               return (
@@ -310,6 +312,14 @@ export function SmartOrdersPanel({
 
                   {isOpen ? (
                     <div className="border-t bg-muted/30">
+                      {heldToSell === null ? null : (
+                        <div className="flex items-baseline justify-between gap-3 border-b px-3 py-2 text-xs font-medium">
+                          <span>Held to sell</span>
+                          <span className="tabular-nums">
+                            {formatUsd(heldToSell)}
+                          </span>
+                        </div>
+                      )}
                       {banked.sells.length === 0 ? (
                         <p className="px-3 py-2 text-xs text-muted-foreground">
                           Nothing sold yet.
@@ -443,6 +453,16 @@ function whereItHasGot(
   if (phase === "selling") return "Selling out"
   if (phase === "stopping") return "Getting out"
   return position ? `Holding from ${formatPrice(position.entryPx)}` : "Holding"
+}
+
+/** Dollars paid for the coins a grid has not sold yet. */
+function gridHeldToSell(
+  order: Extract<SmartOrder, { kind: "grid" }>
+): number {
+  return order.plan.levels.reduce(
+    (total, level) => total + level.heldSz * level.buyPx,
+    0
+  )
 }
 
 /** How many sales are listed before the list gets in the way of reading it. */
