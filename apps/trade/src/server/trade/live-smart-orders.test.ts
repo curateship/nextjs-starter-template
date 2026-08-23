@@ -558,6 +558,21 @@ describe("live Smart orders", () => {
     expect(plan.phase).toBe("waiting")
   })
 
+  it("puts a watched level back when Aster returns a definite refusal", async () => {
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      new Error(
+        "ASTER_REGION:Aster does not allow trading from Trade's server location. No order was sent."
+      )
+    )
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const plan = await watchPlanNow()
+    expect(plan.sent).toBe(false)
+    expect(plan.phase).toBe("waiting")
+  })
+
   it("keeps the chosen margin mode when a watched level reaches the exchange", async () => {
     await watchThroughTheLevel()
     place.mockResolvedValue({

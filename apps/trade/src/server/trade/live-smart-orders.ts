@@ -593,9 +593,12 @@ export function resetRefusalHolds(): void {
 /**
  * The exchange took nothing, and said so in a way that leaves no doubt.
  *
- * Two messages qualify and nothing else does.
+ * A refusal response and the local pre-order refusals qualify. Nothing else
+ * does.
  *
  * - `LIVE_ORDER_REFUSED` is the exchange reading the order and refusing it.
+ * - `ASTER_REFUSED` and named Aster refusals are negative API responses. The
+ *   exchange read the request and returned an error instead of an order.
  * - `EXCHANGE_BUSY` is a rate limit, and it is just as certain: either the
  *   request was never built at all — `rationing.ts` answers "busy" before a
  *   socket is opened — or the exchange answered 429, which is a request it
@@ -618,6 +621,8 @@ function nothingStood(error: unknown): boolean {
     message.startsWith("LIVE_ORDER_SETTINGS") ||
     message.startsWith("LIVE_MARGIN_MODE") ||
     message.startsWith("LIVE_LEVERAGE") ||
+    message.startsWith("ASTER_REFUSED:") ||
+    message.startsWith("ASTER_REGION:") ||
     message === "EXCHANGE_BUSY"
   )
 }
