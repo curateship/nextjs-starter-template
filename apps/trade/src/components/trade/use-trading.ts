@@ -459,7 +459,12 @@ export function useTrading(
   const [droppedBrackets, setDroppedBrackets] = React.useState<
     ReadonlyMap<
       string,
-      { tpPx: number | null; slPx: number | null; at: number }
+      {
+        tpPx: number | null
+        tpSz?: number | null
+        slPx: number | null
+        at: number
+      }
     >
   >(new Map())
 
@@ -982,7 +987,12 @@ export function useTrading(
       // The moment it was taken travels with it and must not travel onto the
       // position; a hold that has had its turn stops speaking for the row.
       return held && !holdExpired(held.at)
-        ? { ...position, tpPx: held.tpPx, slPx: held.slPx }
+        ? {
+            ...position,
+            tpPx: held.tpPx,
+            tpSz: held.tpPx === null ? null : (held.tpSz ?? null),
+            slPx: held.slPx,
+          }
         : position
     })
   }, [allPositions, droppedBrackets, cancelling, holdExpired])

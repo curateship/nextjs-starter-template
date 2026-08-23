@@ -2,7 +2,6 @@ import * as React from "react"
 import { CandlestickChartIcon } from "lucide-react"
 import { toast } from "sonner"
 
-import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import {
   ChartOrderMenu,
   type ChartMenuState,
@@ -11,6 +10,10 @@ import {
   ChartQuickOrder,
   type QuickOrderState,
 } from "@/components/trade/chart-quick-order"
+import {
+  ChartTakeProfit,
+  type ChartTakeProfitState,
+} from "@/components/trade/chart-take-profit"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { OrderEditDialog } from "@/components/trade/order-edit-dialog"
@@ -71,6 +74,7 @@ import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import {
   indicatorPaint,
   type IndicatorSettings,
@@ -273,15 +277,10 @@ export function ChartPanel({
   // order window one of its rows opens at the same spot.
   const [menu, setMenu] = React.useState<ChartMenuState | null>(null)
   const [quick, setQuick] = React.useState<QuickOrderState | null>(null)
-  // "Take profit" or "Stop loss" from the same menu: the position it was
-  // picked on, the side picked, and the level that was right-clicked. The
-  // position is held by id rather than looked up again by market — a window
-  // that re-found its own subject could reopen itself on a different position.
-  const [bracketAt, setBracketAt] = React.useState<{
-    positionId: string
-    kind: "target" | "stop"
-    px: number
-  } | null>(null)
+  // Take profit from the same menu opens a small chart window because that
+  // exit may sell only part of a position. Stop loss saves at once.
+  const [takeProfit, setTakeProfit] =
+    React.useState<ChartTakeProfitState | null>(null)
   // The DCA window, its live preview lines, and the exits window of a placed
   // ladder — the smart-order half of the same right-click.
   const [smart, setSmart] = React.useState<SmartOrderState | null>(null)
@@ -324,7 +323,7 @@ export function ChartPanel({
     setLastMarket(selectedKey)
     setMenu(null)
     setQuick(null)
-    setBracketAt(null)
+    setTakeProfit(null)
     setSmart(null)
     setPreview(null)
     setExitsFor(null)
@@ -414,6 +413,10 @@ export function ChartPanel({
       held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
     )
   }, [trading.positions, trading.wallet?.id, selectedKey])
+  const takeProfitPosition = takeProfit
+    ? (trading.positions.find((one) => one.id === takeProfit.positionId) ??
+      null)
+    : null
 
   const looseOrders = React.useMemo(
     () => [
@@ -1003,10 +1006,11 @@ export function ChartPanel({
               ? menu.price > bareTarget.entryPx
               : menu.price < bareTarget.entryPx)
               ? () => {
-                  setBracketAt({
+                  setTakeProfit({
                     positionId: bareTarget.id,
-                    kind: "target",
                     px: menu.price,
+                    x: menu.x,
+                    y: menu.y,
                   })
                   setMenu(null)
                 }
@@ -1021,11 +1025,14 @@ export function ChartPanel({
               ? menu.price < bareStop.entryPx
               : menu.price > bareStop.entryPx)
               ? () => {
-                  setBracketAt({
-                    positionId: bareStop.id,
-                    kind: "stop",
-                    px: menu.price,
-                  })
+                  // Draw the stop from local state now. The wallet save and
+                  // account refresh continue behind it, through the same path
+                  // used when a stop line is dragged.
+                  void trading.dragBrackets(
+                    bareStop.walletId,
+                    bareStop.marketKey,
+                    bracketsWithStopAt(bareStop, menu.price)
+                  )
                   setMenu(null)
                 }
               : null
@@ -1055,25 +1062,24 @@ export function ChartPanel({
         onSave={trading.editOrder}
         onClose={() => setEditing(null)}
       />
-      {/* The clicked level arrives as a percentage already typed in, and the
-          window is the same one the positions table opens — the percentage
-          can be changed there before anything is saved. Resolved against the
-          live list, like the order window above it, so the window closes with
-          the position it belongs to rather than standing on a stale row. */}
-      <BracketsDialog
-        position={
-          bracketAt
-            ? (trading.positions.find(
-                (one) => one.id === bracketAt.positionId
-              ) ?? null)
-            : null
-        }
-        startTpPx={bracketAt?.kind === "target" ? bracketAt.px : null}
-        startSlPx={bracketAt?.kind === "stop" ? bracketAt.px : null}
-        busy={trading.busy}
-        onSave={trading.setBrackets}
-        onClose={() => setBracketAt(null)}
-      />
+      {takeProfit && takeProfitPosition ? (
+        <ChartTakeProfit
+          state={takeProfit}
+          position={takeProfitPosition}
+          wallet={
+            trading.walletNames.get(takeProfitPosition.walletId) ??
+            "Another wallet"
+          }
+          onSave={(brackets) =>
+            void trading.dragBrackets(
+              takeProfitPosition.walletId,
+              takeProfitPosition.marketKey,
+              brackets
+            )
+          }
+          onClose={() => setTakeProfit(null)}
+        />
+      ) : null}
       {smart && market ? (
         <SmartOrderDialog
           state={smart}
