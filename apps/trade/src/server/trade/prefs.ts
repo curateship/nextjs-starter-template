@@ -32,7 +32,12 @@ import {
   minimumMarketVolumeSchema,
   readMinimumMarketVolume,
 } from "@/lib/trade/market-volume"
-import { db } from "@/server/db"
+import {
+  liquidationWarningSchema,
+  readLiquidationWarning,
+  type LiquidationWarning,
+} from "@/lib/trade/liquidation-warning"
+import { db, type CustomShellDb } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
 /**
@@ -115,6 +120,47 @@ export async function saveMinimumMarketVolume(
       set: { minimumMarketVolumeUsd, updatedAt: new Date() },
     })
   return minimumMarketVolumeUsd
+}
+
+/** The account-wide distance that asks the engine to warn before liquidation. */
+export async function loadLiquidationWarning(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<LiquidationWarning> {
+  const [row] = await database
+    .select({
+      usd: tradePrefs.liquidationWarnUsd,
+      pct: tradePrefs.liquidationWarnPct,
+    })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readLiquidationWarning(row ?? {})
+}
+
+/** Blank values are null, which switches that half of the warning off. */
+export async function saveLiquidationWarning(
+  userId: string,
+  value: LiquidationWarning
+): Promise<LiquidationWarning> {
+  const warning = liquidationWarningSchema.parse(value)
+  await db
+    .insert(tradePrefs)
+    .values({
+      userId,
+      liquidationWarnUsd: warning.usd,
+      liquidationWarnPct: warning.pct,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        liquidationWarnUsd: warning.usd,
+        liquidationWarnPct: warning.pct,
+        updatedAt: new Date(),
+      },
+    })
+  return warning
 }
 
 /**

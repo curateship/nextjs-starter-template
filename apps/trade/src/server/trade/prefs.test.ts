@@ -15,6 +15,7 @@ import {
   loadLastMarketKey,
   loadLastWalletIds,
   loadMinimumMarketVolume,
+  loadLiquidationWarning,
   loadQuickOrder,
   saveQuickOrder,
   saveChartView,
@@ -22,6 +23,7 @@ import {
   saveLastMarketKey,
   saveLastWalletId,
   saveMinimumMarketVolume,
+  saveLiquidationWarning,
   saveTradingDashboardWidgets,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
@@ -99,6 +101,25 @@ describe("the market volume cutoff", () => {
       "hyperliquid:mainnet:BTC"
     )
     expect(await loadMinimumMarketVolume(id)).toBe(5_000_000)
+  })
+})
+
+describe("the liquidation warning", () => {
+  it("starts switched off and remembers either distance", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadLiquidationWarning(id)).toEqual({ usd: null, pct: null })
+
+    await saveLiquidationWarning(id, { usd: 5, pct: 10 })
+    expect(await loadLiquidationWarning(id)).toEqual({ usd: 5, pct: 10 })
+  })
+
+  it("shares the preference row without wiping the market cutoff", async () => {
+    const { id } = await insertUser(database)
+    await saveMinimumMarketVolume(id, 5_000_000)
+    await saveLiquidationWarning(id, { usd: null, pct: 8 })
+
+    expect(await loadMinimumMarketVolume(id)).toBe(5_000_000)
+    expect(await loadLiquidationWarning(id)).toEqual({ usd: null, pct: 8 })
   })
 })
 

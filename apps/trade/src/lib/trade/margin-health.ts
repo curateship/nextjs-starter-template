@@ -1,5 +1,5 @@
 import {
-  liquidationAway,
+  liquidationDistance,
   positionMargin,
   type PaperPosition,
 } from "@/lib/trade/paper"
@@ -17,10 +17,7 @@ export function liquidationAwayOf(
   position: PaperPosition,
   mark: number
 ): number | null {
-  if (!position.live) return liquidationAway(position, mark)
-  const liquidationPrice = position.live.liquidationPx
-  if (liquidationPrice === null || !(mark > 0)) return null
-  return Math.abs(mark - liquidationPrice) / mark
+  return liquidationDistance(position, mark)?.fraction ?? null
 }
 
 export function walletMarginHealth(

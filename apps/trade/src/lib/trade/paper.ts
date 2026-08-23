@@ -437,6 +437,22 @@ export function liquidationAway(
   return Math.abs(mark - liq) / mark
 }
 
+/** The dollar and proportional distance to the liquidation price. */
+export function liquidationDistance(
+  position: Pick<
+    PaperPosition,
+    "szi" | "entryPx" | "leverage" | "maxLeverage" | "live"
+  >,
+  mark: number
+): { liquidationPx: number; usd: number; fraction: number } | null {
+  const px = position.live
+    ? position.live.liquidationPx
+    : liquidationPx(position)
+  if (px === null || !(mark > 0)) return null
+  const usd = Math.abs(mark - px)
+  return { liquidationPx: px, usd, fraction: usd / mark }
+}
+
 /**
  * The account's five figures, folded from what it started with, what it has
  * banked, and what it is holding.

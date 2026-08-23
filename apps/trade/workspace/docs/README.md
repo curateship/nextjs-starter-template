@@ -31,6 +31,8 @@ Two files outrank the rest, and outrank the code:
 - `watched-orders.md` — how a plain order works now, and what dragging does.
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what a
   failed answer does to the card.
+- `liquidation-warning.md` — where the warning is set, how distance is measured,
+  and why one crossing sends one notice.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how

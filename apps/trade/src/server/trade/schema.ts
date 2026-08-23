@@ -165,6 +165,8 @@ export const tradePrefs = pgTable("trade_prefs", {
   minimumMarketVolumeUsd: doublePrecision("minimum_market_volume_usd")
     .notNull()
     .default(0),
+  liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
+  liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -227,6 +229,29 @@ export const tradeWallets = pgTable(
       .defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.id] })]
+)
+
+/** One row remembers whether an open position is already inside its warning line. */
+export const tradeLiquidationWarnings = pgTable(
+  "trade_liquidation_warnings",
+  {
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    walletId: varchar("wallet_id", { length: 36 }).notNull(),
+    marketKey: varchar("market_key", { length: 180 }).notNull(),
+    warnedAt: timestamp("warned_at", { withTimezone: true }).notNull(),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.userId, table.walletId, table.marketKey] }),
+    foreignKey({
+      columns: [table.userId, table.walletId],
+      foreignColumns: [tradeWallets.userId, tradeWallets.id],
+    }).onDelete("cascade"),
+    index("ix_trade_liquidation_warnings_user_warned").on(
+      table.userId,
+      table.warnedAt
+    ),
+  ]
 )
 
 /**

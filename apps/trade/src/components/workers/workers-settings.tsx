@@ -40,6 +40,7 @@ import {
   type WorkerStatus,
 } from "@/lib/trade/workers"
 import { cn } from "@/lib/utils"
+import { LiquidationWarningSettings } from "@/components/workers/liquidation-warning-settings"
 
 /**
  * Is the trading engine running, the two switches for it, and the real-money
@@ -282,6 +283,8 @@ export default function WorkersSettings() {
           )}
         </CardContent>
       </Card>
+
+      <LiquidationWarningSettings />
 
       <Card>
         <CardHeader>

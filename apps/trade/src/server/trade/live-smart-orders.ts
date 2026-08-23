@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto"
 
 import { and, eq } from "drizzle-orm"
 
-import { parseMarketKey, type WalletPortfolio } from "@/lib/protocols/contracts"
+import {
+  marketKey as toMarketKey,
+  parseMarketKey,
+  type WalletPortfolio,
+} from "@/lib/protocols/contracts"
 import {
   CASH_ONLY,
   dcaLadderPlan,
@@ -37,6 +41,7 @@ import {
   type PaperPosition,
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
+import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
 import { rememberFlowRunOrders } from "@/server/trade/flow-run-orders"
 import {
   accountOf,
@@ -746,6 +751,44 @@ async function reconcileLiveLaddersOnce(
       wallet.address,
       credential
     ))
+  const warningPositions: PaperPosition[] = portfolio.positions.map((held) => {
+    const key = toMarketKey({
+      protocol: wallet.protocol,
+      network: wallet.network,
+      marketId: held.marketId,
+    })
+    return {
+      id: key,
+      walletId: wallet.id,
+      marketKey: key,
+      szi: held.szi,
+      entryPx: held.entryPx,
+      leverage: held.leverage,
+      maxLeverage: held.leverage,
+      tpPx: held.tpPx,
+      tpSz: held.tpSz,
+      slPx: held.slPx,
+      feesPaid: 0,
+      updatedAt: Date.now(),
+      live: {
+        marginUsed: held.marginUsed,
+        liquidationPx: held.liquidationPx,
+        tpOrderId: held.tpOrderId,
+        slOrderId: held.slOrderId,
+      },
+    }
+  })
+  const liveWarningMarks = pushedMarks(
+    warningPositions.map((position) => position.marketKey)
+  ).marks
+  await checkLiquidationWarnings({
+    userId,
+    wallet,
+    positions: warningPositions,
+    marks: liveWarningMarks,
+  }).catch((error) =>
+    console.error(`Liquidation warning failed for wallet ${wallet.id}`, error)
+  )
   const now = Date.now()
   const keys = rows.map((row) => row.marketKey)
   const refs = new Map(

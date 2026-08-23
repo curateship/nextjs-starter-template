@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm"
 
+import type { PaperPosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { tradeSmartLadders } from "@/server/trade/schema"
@@ -285,8 +286,20 @@ async function workOneWallet(
       userId: string,
       wallet: TradeWallet,
       options?: { marks: ReadonlyMap<string, number> }
-    ) => Promise<unknown>
+    ) => Promise<
+      | {
+          positions: ReadonlyMap<string, PaperPosition>
+          marks: ReadonlyMap<string, number>
+        }
+      | undefined
+    >
     reconcileLiveLadders: (userId: string, wallet: TradeWallet) => Promise<void>
+    checkLiquidationWarnings: (input: {
+      userId: string
+      wallet: TradeWallet
+      positions: readonly PaperPosition[]
+      marks: ReadonlyMap<string, number>
+    }) => Promise<void>
     pushedMarks: (keys: readonly string[]) => {
       marks: ReadonlyMap<string, number>
       missing: string[]
@@ -304,7 +317,7 @@ async function workOneWallet(
       const { marks, missing } = engine.pushedMarks(
         await engine.exposedMarketKeys(userId, [wallet.id])
       )
-      await engine.settleWallet(
+      const book = await engine.settleWallet(
         userId,
         wallet,
         // Only when the line covers the LOT. A settle handed half the prices
@@ -312,6 +325,21 @@ async function workOneWallet(
         // quietly worse than asking for them.
         missing.length === 0 ? { marks } : undefined
       )
+      if (book) {
+        await engine
+          .checkLiquidationWarnings({
+            userId,
+            wallet,
+            positions: [...book.positions.values()],
+            marks: book.marks,
+          })
+          .catch((error) =>
+            console.error(
+              `Liquidation warning failed for wallet ${wallet.id}`,
+              error
+            )
+          )
+      }
       return true
     }
     await engine.reconcileLiveLadders(userId, wallet)
@@ -354,12 +382,14 @@ export async function advanceWorkingLadders(): Promise<void> {
       { reconcileLiveLadders },
       { pushedMarks },
       { advanceFlowRuns },
+      { checkLiquidationWarnings },
     ] =
       await Promise.all([
         import("@/server/trade/paper"),
         import("@/server/trade/live-smart-orders"),
         import("@/server/trade/live-marks"),
         import("@/server/trade/flow-run"),
+        import("@/server/trade/liquidation-warning"),
       ])
 
     // Switched-on flows get their coins looked at first, so a ladder placed
@@ -439,6 +469,7 @@ export async function advanceWorkingLadders(): Promise<void> {
           settleWallet,
           reconcileLiveLadders,
           pushedMarks,
+          checkLiquidationWarnings,
         })
           .then((worked) => {
             // **Cleared by a wallet that worked, never by the clock.** This
