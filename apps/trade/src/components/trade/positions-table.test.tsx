@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
@@ -7,7 +11,11 @@ import {
   TradesTable,
 } from "@/components/trade/positions-table"
 import type { MarketRow } from "@/lib/protocols/contracts"
-import type { PaperPosition } from "@/lib/trade/paper"
+import { orderCancelKind } from "@/lib/trade/cancel-order"
+import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
+  .IS_REACT_ACT_ENVIRONMENT = true
 
 /**
  * The answers an empty bottom-panel table can give, told apart.
@@ -105,6 +113,48 @@ function drawTrades(state: { settled: boolean; failed: boolean }): string {
 }
 
 describe("the bottom panel's tables say what they know", () => {
+  it("sends one press on a watched row through the watched-order cancel path", async () => {
+    const watched: PaperOrder = {
+      id: "new-watch",
+      walletId: "live-wallet",
+      marketKey: "aster:mainnet:ETHUSDT",
+      side: "buy",
+      px: 1995,
+      sz: 0.1,
+      leverage: 1,
+      maxLeverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 1,
+      updatedAt: 1,
+      watched: true,
+    }
+    const cancelKinds: string[] = []
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <OpenOrdersTable
+          {...shared}
+          orders={[watched]}
+          settled={true}
+          failed={false}
+          onCancel={(order) => cancelKinds.push(orderCancelKind(order))}
+        />
+      )
+    })
+    const cancel = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Cancel the ETHUSDT order"]'
+    )
+    expect(cancel).not.toBeNull()
+    await act(async () => cancel?.click())
+
+    expect(cancelKinds).toEqual(["watch"])
+    await act(async () => root.unmount())
+  })
+
   it("opens positions with the largest unrealized profit first", () => {
     const markets = [market("BTC", 150), market("ETH", 110), market("SOL", 80)]
     const html = renderToStaticMarkup(

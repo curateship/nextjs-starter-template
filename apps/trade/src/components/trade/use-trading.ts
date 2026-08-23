@@ -55,6 +55,7 @@ import {
   type LiveRefusal,
 } from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
+import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
 import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
@@ -1166,18 +1167,24 @@ export function useTrading(
     async (walletId, orderId) => {
       // Cancelling costs nothing, so there is no question asked first — and
       // nothing is said afterwards either: the row disappearing is the answer.
-      const watch = allSmartOrders.find(
-        (one) => one.kind === "watch" && one.id === orderId
-      )
       const order = findOrder(orderId)
+      const kind = orderCancelKind(order)
       await callOff(
         orderId,
-        () => {
+        async () => {
           // A watched price is drawn as an order and cancelled as one, but
           // there is no order anywhere to cancel — the row IS the order until
           // its level is touched, so it goes back through the smart-order door.
-          if (watch) return cancelWatch({ walletId, ladderId: orderId })
-          if (order?.live) {
+          if (kind === "watch") {
+            const result = await cancelWatch({ walletId, ladderId: orderId })
+            // A watch placed seconds ago may still be standing in from the
+            // placement answer while the full account read catches up.
+            setPlacedSmart((held) =>
+              held.filter((one) => one.id !== orderId)
+            )
+            return result
+          }
+          if (kind === "live" && order) {
             return cancelLiveOrder({
               walletId,
               marketKey: order.marketKey,
@@ -1186,10 +1193,14 @@ export function useTrading(
           }
           return cancelPaperOrder(walletId, orderId)
         },
-        order?.live ? getLiveErrorMessage : getPaperErrorMessage
+        kind === "watch"
+          ? getTradingSmartOrderError
+          : kind === "live"
+            ? getLiveErrorMessage
+            : getPaperErrorMessage
       )
     },
-    [callOff, findOrder, allSmartOrders]
+    [callOff, findOrder]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(

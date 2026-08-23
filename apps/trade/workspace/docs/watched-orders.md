@@ -292,6 +292,12 @@ time, so this matters most when trading against a dev machine.
   older read cannot make the cancelled watch active again, and pressing the
   cancel control twice has the same result as pressing it once.
 
+  A watch that has only just been placed can still be the copy held on screen
+  while the account read catches up. Its cancel still goes through the watched
+  order path, and a successful cancel removes that held copy at once. It never
+  falls through to the practice-order path merely because the full read has not
+  returned yet.
+
 - **A refusal stays with the order that received it.** Reusing the same coin
   in a new watched order does not carry the previous order's refusal onto the
   new row. Refusals also stay separate when two wallets watch the same coin.
