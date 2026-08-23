@@ -622,7 +622,6 @@ function nothingStood(error: unknown): boolean {
     message.startsWith("LIVE_MARGIN_MODE") ||
     message.startsWith("LIVE_LEVERAGE") ||
     message.startsWith("ASTER_REFUSED:") ||
-    message.startsWith("ASTER_REGION:") ||
     message === "EXCHANGE_BUSY"
   )
 }

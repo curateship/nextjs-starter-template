@@ -15,8 +15,6 @@ const SENTENCES = {
     "Aster will not lower isolated leverage while this position is open. Close the position or keep its current leverage.",
   ASTER_ISOLATED_MULTI_ASSET:
     "Aster cannot use isolated margin while the futures account is in Multi-Assets Mode. Change the Aster futures account to Single-Asset Mode, then this order will try again.",
-  ASTER_REGION:
-    "Aster does not allow trading from Trade's server location. No order was sent. Trade must run from a region Aster supports before this order can try again.",
   ASTER_ORDER_GONE:
     "Aster says this order is no longer open. Refresh the account before trying another change.",
   ASTER_MARGIN_UNCHANGED: "Aster is already using that margin mode.",
@@ -40,7 +38,6 @@ export function asterRefusalCode(
   if (code === "-1111" || code === "-4014") return "ASTER_PRICE_STEP"
   if (code === "-4161") return "ASTER_LEVERAGE_OPEN_POSITION"
   if (code === "-4168") return "ASTER_ISOLATED_MULTI_ASSET"
-  if (code === "-5019") return "ASTER_REGION"
   if (code === "-2013") return "ASTER_ORDER_GONE"
   if (code === "-4046") return "ASTER_MARGIN_UNCHANGED"
   if (code === "-4047" || code === "-4048") return "ASTER_MARGIN_OPEN"
