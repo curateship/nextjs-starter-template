@@ -184,7 +184,7 @@ function HeadlineCard({
     },
     {
       label: "Made or lost",
-      detail: "from yesterday until now",
+      detail: "from two days ago until now",
       value: formatSignedUsd(journey),
       rawValue: journey,
     },
@@ -338,8 +338,8 @@ function WalletsCard({
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
                 Made or lost is settled trade money the exchanges stated plus
-                current open profit. Settled trades start at midnight yesterday
-                in Toronto. Deposits and withdrawals never count as profit.
+                current open profit. Settled trades start at midnight two days
+                ago in Toronto. Deposits and withdrawals never count as profit.
                 Trades the exchange did not price are not included.
               </TooltipContent>
             </Tooltip>
@@ -559,7 +559,7 @@ function MoneyChart({
                 </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                Profit since midnight yesterday: settled trade money plus
+                Profit since midnight two days ago: settled trade money plus
                 current open profit. Deposits and withdrawals are excluded.
                 {overview.unpricedFills
                   ? ` The line is short of ${overview.unpricedFills.toLocaleString()} ${overview.unpricedFills === 1 ? "trade" : "trades"} whose money the exchange did not state.`
@@ -576,7 +576,7 @@ function MoneyChart({
               {formatUsd(latest.money)}
             </p>
             <p className="text-sm text-muted-foreground">
-              current · since yesterday
+              current · since two days ago
             </p>
           </div>
         ) : null}

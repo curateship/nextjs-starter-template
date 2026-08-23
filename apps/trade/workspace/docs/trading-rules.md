@@ -153,9 +153,10 @@ add up to.
   last landed stay, marked as a moment old, until enough reads in a row have
   missed to say plainly that the exchange cannot be reached. The same holds
   for positions and orders. See `wallet-reads.md`.
-- **A wallet card's profit starts yesterday.** Settled is recorded trade money
-  since midnight yesterday in Toronto. Made or lost adds current open profit.
-  The balance the wallet had when it was added, older profit, deposits, and
+- **A wallet card's profit starts two days ago.** Settled is recorded trade
+  money since midnight two days ago in Toronto, not just yesterday. Made or
+  lost adds current open profit. The balance the wallet had when it was
+  added, older profit, deposits, and
   withdrawals do not enter either figure.
 
 ## Backtests

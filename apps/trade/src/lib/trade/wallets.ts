@@ -51,9 +51,9 @@ export type WalletAccountSummary =
   | ({
       walletId: string
       state: "ok"
-      /** Settled since yesterday plus what is still open now. */
+      /** Settled since two days ago plus what is still open now. */
       madeOrLost: number
-      /** Trade money already banked since midnight yesterday in Toronto. */
+      /** Trade money already banked since midnight two days ago in Toronto. */
       settled: number
       /** Recent fills whose profit the venue has not stated. */
       unpricedFills: number
@@ -183,7 +183,10 @@ export function moneyForWalletFill(fill: {
   return fill.closedPnl - fill.fee
 }
 
-/** Midnight at the start of yesterday in the account owner's timezone. */
+/**
+ * Midnight two days ago in the account owner's timezone. Tyler's rule: the
+ * widgets count from two days ago, not just yesterday.
+ */
 export function walletProfitWindowStart(now: Date): number {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: WALLET_PROFIT_TIMEZONE,
@@ -196,7 +199,7 @@ export function walletProfitWindowStart(now: Date): number {
   const localDay = new Date(
     Date.UTC(value("year"), value("month") - 1, value("day"))
   )
-  localDay.setUTCDate(localDay.getUTCDate() - 1)
+  localDay.setUTCDate(localDay.getUTCDate() - 2)
   const input = `${localDay.getUTCFullYear()}-${String(localDay.getUTCMonth() + 1).padStart(2, "0")}-${String(localDay.getUTCDate()).padStart(2, "0")}T00:00`
   const instant = runAtFromTimezoneInput(input, WALLET_PROFIT_TIMEZONE)
   if (!instant) throw new Error("WALLET_PROFIT_WINDOW")

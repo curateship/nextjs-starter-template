@@ -787,7 +787,7 @@ working bar streams beside it.
   "Orders on the chart".
 
 The wallet card on each exchange dashboard shows settled trade profit since
-midnight yesterday in Toronto and current open profit. Its final row is Made or
+midnight two days ago in Toronto and current open profit. Its final row is Made or
 lost: those two figures added together. It does not use the wallet's opening
 balance, so older profit, deposits, and withdrawals cannot move either profit
 row. When KuCoin has not stated the profit for a partial sale, an info mark
@@ -848,10 +848,10 @@ the wallet rows, while wallets without figures stay at the end. The table opens
 with the largest open profit first.
 Testnet wallets do not appear in this card. The Wallets heading tooltip states
 the money rule. Made or lost is settled trade money plus current open profit.
-The settled trades start at midnight yesterday in Toronto. Deposits and
+The settled trades start at midnight two days ago in Toronto. Deposits and
 withdrawals can change Balance but never profit.
 
-The money-over-time card starts at zero at midnight yesterday in Toronto and
+The money-over-time card starts at zero at midnight two days ago in Toronto and
 charts priced settled trade money from then until now. Its final point adds the
 current open profit, so the value above the line is the same current profit as
 Made or lost. Opening balances, deposits, withdrawals, and older fills never

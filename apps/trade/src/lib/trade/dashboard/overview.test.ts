@@ -171,13 +171,13 @@ describe("trading overview money", () => {
     })
   })
 
-  it("starts at midnight yesterday in Toronto", () => {
+  it("starts at midnight two days ago in Toronto", () => {
     expect(walletProfitWindowStart(new Date("2026-08-21T16:00:00.000Z"))).toBe(
-      new Date("2026-08-20T04:00:00.000Z").getTime()
+      new Date("2026-08-19T04:00:00.000Z").getTime()
     )
   })
 
-  it("charts profit from yesterday through the current open profit", () => {
+  it("charts profit from two days ago through the current open profit", () => {
     expect(
       buildTradingOverviewProfit(
         [

@@ -2,7 +2,7 @@
 
 The five rows on a wallet card are Free, In trades, Open profit, Settled, and
 Made or lost. The exchange supplies the account and open-position figures.
-Settled comes from its recorded fills since midnight yesterday in Toronto, and
+Settled comes from its recorded fills since midnight two days ago in Toronto, and
 Made or lost adds that settled money to current open profit. Older profit and
 changes to the account balance never enter those two rows. This doc says which
 wallets get asked, how often, what it costs, and why a failed answer no longer
