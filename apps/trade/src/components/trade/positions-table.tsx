@@ -33,10 +33,9 @@ import {
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import { tradeEndingLabel, type LiveTrade } from "@/lib/trade/live-trades"
+import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { LOST_MONEY, MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import {
-  liquidationAway,
-  positionMargin,
   positionProfit,
   positionValue,
   projectedProfit,
@@ -83,22 +82,6 @@ function RealBadge({ marketKey }: { marketKey: string }) {
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
 function PracticeBadge() {
   return <TradeBadge>Practice</TradeBadge>
-}
-
-/**
- * A position's margin: the exchange's own answer for a real position, the
- * formula for a practice one. Same rule for the liquidation distance below —
- * with real money the exchange's number is the one actually enforced.
- */
-function marginOf(position: PaperPosition): number {
-  return position.live ? position.live.marginUsed : positionMargin(position)
-}
-
-function liquidationAwayOf(position: PaperPosition, mark: number): number | null {
-  if (!position.live) return liquidationAway(position, mark)
-  const liq = position.live.liquidationPx
-  if (liq === null || !(mark > 0)) return null
-  return Math.abs(mark - liq) / mark
 }
 
 function HeaderCell({

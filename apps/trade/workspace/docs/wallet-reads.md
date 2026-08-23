@@ -1,12 +1,18 @@
 # Wallet figures — who is asked, how often, and what a miss means
 
-The five rows on a wallet card are Free, In trades, Open profit, Settled, and
-Made or lost. The exchange supplies the account and open-position figures.
+The wallet card shows Free, In trades, Margin used, Nearest position, Open
+profit, Settled, and Made or lost. The exchange supplies the account and
+open-position figures.
 Settled comes from its recorded fills since midnight two days ago in Toronto, and
 Made or lost adds that settled money to current open profit. Older profit and
 changes to the account balance never enter those two rows. This doc says which
 wallets get asked, how often, what it costs, and why a failed answer no longer
 wipes the card.
+
+Margin used and Nearest position come from the positions already held by the
+trading screen. The card never asks the exchange again. It adds each wallet's
+position margin and compares the percentage distance between each current price
+and liquidation price.
 
 KuCoin states profit when a position closes, not on every partial sale. When a
 recent sale is still unpriced, the info mark beside Settled says that Settled

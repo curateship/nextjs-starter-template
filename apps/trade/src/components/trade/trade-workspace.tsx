@@ -278,20 +278,30 @@ export function TradeWorkspace({
     panel.resize(`${Math.min(88, (height / columnHeight) * 100)}%`)
   }, [])
 
+  // ----- Trading: one owner for the chart's lines and the panel ------------
+  // Practice and real wallets flow through the same hook; it is the wallet a
+  // row belongs to that decides which road an action takes.
+  const trading = useTrading(account.activeWallet, protocol)
+  const fallbackMarks = React.useMemo(
+    () =>
+      new Map(
+        catalogs.flatMap((catalog) =>
+          catalog.rows.map((market) => [market.key, market.price] as const)
+        )
+      ),
+    [catalogs]
+  )
   const accountPanel = (
     <AccountPanel
       account={account}
+      positions={trading.positions}
+      fallbackMarks={fallbackMarks}
       cacheScope={dashboardCacheScope}
       onAddWallet={() => setAddingWallet(true)}
       onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
       onContentHeightChange={fitWalletRows}
     />
   )
-
-  // ----- Trading: one owner for the chart's lines and the panel ------------
-  // Practice and real wallets flow through the same hook; it is the wallet a
-  // row belongs to that decides which road an action takes.
-  const trading = useTrading(account.activeWallet, protocol)
   const activeSummary = account.activeWallet
     ? account.summaryOf(account.activeWallet.id)
     : null

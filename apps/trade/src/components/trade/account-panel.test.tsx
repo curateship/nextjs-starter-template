@@ -99,6 +99,17 @@ function WalletPicker({
         onUseWallet={setActiveWalletId}
         onOpenWallet={onOpenWallet}
         onRetry={() => {}}
+        healthOf={(walletId) =>
+          walletId === "main"
+            ? {
+                marginUsed: 1_100,
+                nearest: {
+                  marketKey: "hyperliquid:mainnet:ETH",
+                  away: 0.12,
+                },
+              }
+            : null
+        }
       />
     </TooltipProvider>
   )
@@ -155,6 +166,15 @@ describe("the active wallet picker", () => {
     await act(async () => showScalper?.click())
 
     expect(host.textContent).toContain("$9,000.00")
+    expect(host.textContent).toContain("Margin used—")
+
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Show Main figures"]')
+        ?.click()
+    )
+    expect(host.textContent).toContain("Margin used$1,100.00")
+    expect(host.textContent).toContain("Nearest position12.00% away on ETH")
   })
 
   it("shows every stated key expiry and warns as it gets close", async () => {
@@ -172,6 +192,7 @@ describe("the active wallet picker", () => {
             onUseWallet={() => {}}
             onOpenWallet={() => {}}
             onRetry={() => {}}
+            healthOf={() => null}
           />
         </TooltipProvider>
       )
@@ -239,6 +260,7 @@ describe("the active wallet picker", () => {
             onUseWallet={() => {}}
             onOpenWallet={() => {}}
             onRetry={() => {}}
+            healthOf={() => null}
           />
         </TooltipProvider>
       )

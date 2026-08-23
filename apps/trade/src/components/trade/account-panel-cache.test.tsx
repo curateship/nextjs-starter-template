@@ -49,6 +49,8 @@ it("uses cached wallets only to draw while the real account is loading", async (
     root.render(
       <AccountPanel
         account={account}
+        positions={[]}
+        fallbackMarks={new Map()}
         cacheScope="person:hyperliquid"
         onAddWallet={() => {}}
         onOpenWallet={() => {}}

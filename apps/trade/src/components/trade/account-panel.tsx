@@ -29,10 +29,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { marketSymbol } from "@/lib/protocols/contracts"
 import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatAway, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
+import { useLiveMarks } from "@/lib/trade/live-market"
+import {
+  walletMarginHealth,
+  type WalletMarginHealth,
+} from "@/lib/trade/margin-health"
 import { moneyTone } from "@/lib/trade/money-tone"
+import type { PaperPosition } from "@/lib/trade/paper"
 import {
   venueLabel,
   type TradeWallet,
@@ -129,6 +136,7 @@ function ActiveWalletRow({
   onSelect,
   onOpenWallet,
   onRetry,
+  marginHealth,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
@@ -136,6 +144,7 @@ function ActiveWalletRow({
   onSelect: () => void
   onOpenWallet: () => void
   onRetry: () => void
+  marginHealth: WalletMarginHealth | null
 }) {
   const [open, setOpen] = React.useState(false)
   const ok = summary !== null && summary.state === "ok"
@@ -240,6 +249,18 @@ function ActiveWalletRow({
               <FigureRow label="In trades">
                 <span className="tabular-nums">
                   {formatUsd(summary.inTrades)}
+                </span>
+              </FigureRow>
+              <FigureRow label="Margin used">
+                <span className="tabular-nums">
+                  {marginHealth ? formatUsd(marginHealth.marginUsed) : "—"}
+                </span>
+              </FigureRow>
+              <FigureRow label="Nearest position">
+                <span className="tabular-nums">
+                  {marginHealth?.nearest
+                    ? `${formatAway(marginHealth.nearest.away)} away on ${marketSymbol(marginHealth.nearest.marketKey)}`
+                    : "—"}
                 </span>
               </FigureRow>
               <FigureRow label="Open profit">
@@ -413,6 +434,7 @@ export function ActiveWalletsView({
   onUseWallet,
   onOpenWallet,
   onRetry,
+  healthOf,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
@@ -420,6 +442,7 @@ export function ActiveWalletsView({
   onUseWallet: (walletId: string) => void
   onOpenWallet: (wallet: TradeWallet) => void
   onRetry: () => void
+  healthOf: (walletId: string) => WalletMarginHealth | null
 }) {
   return (
     <div>
@@ -432,6 +455,7 @@ export function ActiveWalletsView({
           onSelect={() => onUseWallet(wallet.id)}
           onOpenWallet={() => onOpenWallet(wallet)}
           onRetry={onRetry}
+          marginHealth={healthOf(wallet.id)}
         />
       ))}
     </div>
@@ -512,12 +536,16 @@ function AllWalletsView({
 
 export function AccountPanel({
   account,
+  positions,
+  fallbackMarks,
   cacheScope,
   onAddWallet,
   onOpenWallet,
   onContentHeightChange,
 }: {
   account: ReturnType<typeof useTradeAccount>
+  positions: readonly PaperPosition[]
+  fallbackMarks: ReadonlyMap<string, number>
   cacheScope: string
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
@@ -527,6 +555,9 @@ export function AccountPanel({
   const root = React.useRef<HTMLDivElement | null>(null)
   const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
+  const marks = useLiveMarks(positions.map((position) => position.marketKey))
+  const healthOf = (walletId: string) =>
+    walletMarginHealth(positions, marks, fallbackMarks, walletId)
   const [cached, setCached] = React.useState(
     () => null as ReturnType<typeof readWalletPanelCache>
   )
@@ -630,6 +661,7 @@ export function AccountPanel({
               onUseWallet={usingCache ? () => {} : account.switchWallet}
               onOpenWallet={usingCache ? () => {} : onOpenWallet}
               onRetry={() => void refresh()}
+              healthOf={healthOf}
             />
           ) : (
             <NoActiveWallets hasWallets={shownWallets.length > 0} />

@@ -76,6 +76,27 @@ The small fee note beside Made or lost adds the exchange's stated charge on
 every fill in the same window, even when the exchange did not state what a sale
 made. Fees do not take their own headline figure or wallet column.
 
+## Margin health on a wallet
+
+An open wallet card adds two position figures after In trades. Margin used is
+the total margin from every open position in that wallet. Nearest position says
+how much the coin's current price can move, as a percentage, before the closest
+position reaches its liquidation price. The coin name follows the percentage.
+
+Live positions use the exchange's margin and liquidation price. Practice
+positions use Trade's margin and liquidation formulas. A wallet with no open
+positions shows dashes for both lines. A position without a liquidation price
+still counts toward Margin used but cannot become the nearest position.
+
+Margin used and In trades can match on a live wallet because both may come from
+the exchange. They can differ on a practice wallet because In trades describes
+the money currently held in positions while Margin used applies each
+position's leverage.
+
+Nearest position is not an account-level liquidation estimate. In a
+cross-margin account, losses on one coin can use margin held for another coin,
+and no exchange adapter supplies that combined answer.
+
 ## One text scale
 
 Trade uses the app's type scale and nothing else. The smallest step it offers
