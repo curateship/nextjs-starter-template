@@ -522,6 +522,61 @@ export function fillsOutsideTrades(
 }
 
 /**
+ * The time cursor for the next Journal page.
+ *
+ * A page can start halfway through an older trade. `buildLiveTrades` correctly
+ * leaves that fragment out, but the next page must include its newest closing
+ * fill again or the older opening fills can never rebuild the whole trade.
+ */
+export function journalPageCursor(
+  fills: readonly LiveFill[],
+  trades: readonly LiveTrade[]
+): number | null {
+  if (fills.length === 0) return null
+  const oldestAt = Math.min(...fills.map((fill) => fill.at))
+  const fillKey = (fill: LiveFill) =>
+    `${fill.walletId} ${fill.marketKey} ${fill.fillId}`
+  const finished = new Set(trades.flatMap((trade) => trade.fills.map(fillKey)))
+  const cutKeys = new Set(
+    fills
+      .filter(
+        (fill) =>
+          fill.at === oldestAt &&
+          !finished.has(fillKey(fill)) &&
+          (fill.dir.startsWith("Close") || fill.closedPnl !== 0)
+      )
+      .map((fill) => `${fill.walletId} ${fill.marketKey}`)
+  )
+  // The bound is strict, so add one millisecond and let the client remove
+  // duplicates. That keeps another fill with the same timestamp from falling
+  // through the join between pages.
+  if (cutKeys.size === 0) return oldestAt + 1
+
+  const newestCutFill = Math.max(
+    ...fills
+      .filter(
+        (fill) =>
+          !finished.has(fillKey(fill)) &&
+          cutKeys.has(`${fill.walletId} ${fill.marketKey}`)
+      )
+      .map((fill) => fill.at)
+  )
+  return newestCutFill + 1
+}
+
+/** The next page starts at the oldest fill carried by the trades returned. */
+export function journalTradePageCursor(
+  trades: readonly LiveTrade[]
+): number | null {
+  if (trades.length === 0) return null
+  return (
+    Math.min(
+      ...trades.flatMap((trade) => trade.fills.map((fill) => fill.at))
+    ) + 1
+  )
+}
+
+/**
  * One order's pieces added back into one fill, at the price it averaged.
  *
  * Grouped on the order rather than the moment, because that is what "one

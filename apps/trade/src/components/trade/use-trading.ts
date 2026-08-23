@@ -5,6 +5,7 @@ import {
   cancelLiveOrder,
   closeLivePosition,
   getLiveErrorMessage,
+  loadOlderLiveTrades,
   loadLiveTrading,
   placeLiveOrder,
   setLiveBrackets,
@@ -18,6 +19,7 @@ import {
   flipPaperPosition,
   getPaperErrorMessage,
   hidePaperTrade,
+  loadOlderPaperTrades,
   loadPaperPortfolio,
   movePaperOrder,
   placePaperOrder,
@@ -188,6 +190,10 @@ export type Trading = {
    * journal is "how did that go" and the answer reads the same either way.
    */
   trades: LiveTrade[]
+  /** Load the next older Journal page without changing the polled page. */
+  loadOlderTrades: () => Promise<void>
+  olderTradesBusy: boolean
+  olderTradesDone: boolean
   /** Every smart order still working across every wallet, of either kind. */
   smartOrders: SmartOrder[]
   /** Just the DCA ladders, for the screens that only know about those. */
@@ -376,6 +382,7 @@ type PaperAnswer = {
   orders: PaperOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
+  nextBefore: number | null
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
 }
@@ -385,6 +392,7 @@ type LiveAnswer = {
   orders: PaperOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
+  nextBefore: number | null
   smartOrders: SmartOrder[]
   wallets: { id: string; label: string }[]
   refusals: LiveRefusal[]
@@ -422,6 +430,32 @@ export function useTrading(
 ): Trading {
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
+  const [olderTrades, setOlderTrades] = React.useState<LiveTrade[]>([])
+  const [paperBefore, setPaperBefore] = React.useState<number | null>()
+  const [liveBefore, setLiveBefore] = React.useState<number | null>()
+  const [olderTradesBusy, setOlderTradesBusy] = React.useState(false)
+  const olderRequestRef = React.useRef(0)
+  const historyScope = `${protocol}:${[
+    ...(paperAnswer?.wallets ?? []),
+    ...(liveAnswer?.wallets ?? []),
+  ]
+    .map((wallet) => wallet.id)
+    .sort()
+    .join(",")}`
+  React.useEffect(() => {
+    let current = true
+    olderRequestRef.current += 1
+    queueMicrotask(() => {
+      if (!current) return
+      setOlderTrades([])
+      setPaperBefore(undefined)
+      setLiveBefore(undefined)
+      setOlderTradesBusy(false)
+    })
+    return () => {
+      current = false
+    }
+  }, [historyScope])
   // The whole read came back with nothing — both halves refused. With rows
   // already on screen the next tick is the retry and nothing is said; this
   // only ever surfaces while there is nothing to fall back on.
@@ -662,7 +696,7 @@ export function useTrading(
       action: () => Promise<unknown>,
       describeError: (error: unknown) => string,
       done?: string
-    ): Promise<void> => {
+    ): Promise<boolean> => {
       setCancelling((held) => new Map(held).set(key, Date.now()))
       const forget = () =>
         setCancelling((held) => {
@@ -678,13 +712,14 @@ export function useTrading(
         forget()
         showErrorToast(describeError(error))
         void refresh()
-        return
+        return false
       }
       if (done) toast.success(done)
       // Not released here. The row is held hidden until a read comes back
       // WITHOUT it — see the reconciling effects below — because a read
       // already on its way knows nothing about this and would flash it back.
       void refresh()
+      return true
     },
     [refresh]
   )
@@ -832,12 +867,63 @@ export function useTrading(
             )
     // A row being removed leaves the Journal at once, and stays gone until a
     // read comes back without it.
-    if (cancelling.size === 0) return all
-    return all.filter(
+    const newestIds = new Set(all.map((trade) => trade.id))
+    const combined = [
+      ...all,
+      ...olderTrades.filter((trade) => !newestIds.has(trade.id)),
+    ].sort((left, right) => right.closedAt - left.closedAt)
+    if (cancelling.size === 0) return combined
+    return combined.filter(
       (trade) =>
         !cancelling.has(trade.id) || holdExpired(cancelling.get(trade.id))
     )
-  }, [paperAnswer, liveAnswer, cancelling, holdExpired])
+  }, [paperAnswer, liveAnswer, olderTrades, cancelling, holdExpired])
+
+  const loadOlderTrades = React.useCallback(async () => {
+    if (olderTradesBusy) return
+    const nextPaper =
+      paperBefore === undefined ? paperAnswer?.nextBefore : paperBefore
+    const nextLive =
+      liveBefore === undefined ? liveAnswer?.nextBefore : liveBefore
+    if (nextPaper == null && nextLive == null) return
+    const request = ++olderRequestRef.current
+    setOlderTradesBusy(true)
+    try {
+      const [paper, live] = await Promise.all([
+        nextPaper == null ? null : loadOlderPaperTrades(nextPaper),
+        nextLive == null ? null : loadOlderLiveTrades(nextLive),
+      ])
+      const pages = [paper, live].filter(
+        (page): page is NonNullable<typeof page> => page !== null
+      )
+      if (request !== olderRequestRef.current) return
+      const mine = pages.flatMap((page) =>
+        page.trades.filter(
+          (trade) => parseMarketKey(trade.marketKey)?.protocol === protocol
+        )
+      )
+      setOlderTrades((current) => {
+        const byId = new Map(current.map((trade) => [trade.id, trade]))
+        for (const trade of mine) byId.set(trade.id, trade)
+        return [...byId.values()]
+      })
+      if (paper) setPaperBefore(paper.nextBefore)
+      if (live) setLiveBefore(live.nextBefore)
+    } catch {
+      if (request === olderRequestRef.current) {
+        showErrorToast("Older trades could not be read. Try again.")
+      }
+    } finally {
+      if (request === olderRequestRef.current) setOlderTradesBusy(false)
+    }
+  }, [
+    liveAnswer?.nextBefore,
+    liveBefore,
+    olderTradesBusy,
+    paperAnswer?.nextBefore,
+    paperBefore,
+    protocol,
+  ])
 
   const fills = React.useMemo(
     () => [
@@ -1457,7 +1543,7 @@ export function useTrading(
       // The row goes on the press like everything else — see the note at the
       // top of this file. It used to wait for the exchange and then for the
       // next read, so a removed row sat there until the page was reloaded.
-      await callOff(
+      const removed = await callOff(
         trade.id,
         () =>
           // A trade is not stored; its fills are. Hiding them is what makes
@@ -1468,6 +1554,11 @@ export function useTrading(
         trade.live ? getLiveErrorMessage : getPaperErrorMessage,
         "Removed from the Journal."
       )
+      if (removed) {
+        setOlderTrades((current) =>
+          current.filter((one) => one.id !== trade.id)
+        )
+      }
     },
     [callOff]
   )
@@ -1529,6 +1620,13 @@ export function useTrading(
     placing: placingShown,
     fills,
     trades,
+    loadOlderTrades,
+    olderTradesBusy,
+    olderTradesDone:
+      (paperBefore === null ||
+        (paperBefore === undefined && paperAnswer?.nextBefore === null)) &&
+      (liveBefore === null ||
+        (liveBefore === undefined && liveAnswer?.nextBefore === null)),
     smartOrders,
     ladders,
     grids,

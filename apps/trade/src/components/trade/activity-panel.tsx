@@ -342,6 +342,9 @@ export function ActivityPanel({
             settled={trading.settled}
             failed={trading.failed}
             onRetry={trading.retry}
+            onLoadOlder={() => void trading.loadOlderTrades()}
+            olderBusy={trading.olderTradesBusy}
+            olderDone={trading.olderTradesDone}
             // Pressing the row already drawn puts the chart back to itself,
             // so the same press both shows and hides.
             onSelectTrade={(trade) =>

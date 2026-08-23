@@ -12,6 +12,7 @@ import {
   closePaperPosition as closePositionRow,
   flipPaperPosition as flipPositionRow,
   hidePaperJournalEntries as hideJournalRows,
+  loadPaperHistoryBefore,
   loadPaperPortfolio as loadPortfolio,
   movePaperOrder as moveOrderRow,
   placePaperOrder as placeOrderRow,
@@ -124,6 +125,7 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       fills: LiveFill[]
       /** Finished practice round trips — the Journal, alongside the real ones. */
       trades: LiveTrade[]
+      nextBefore: number | null
       smartOrders: SmartOrder[]
       wallets: { id: string; label: string }[]
     }> => {
@@ -143,6 +145,21 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       }
     }
   )
+
+const loadOlderPaperTradesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ before: z.number().int().positive() }))
+  .handler(async ({ data, context }) => {
+    const wallets = (await listWallets(context.user.id)).filter(
+      (wallet) => wallet.kind === "paper"
+    )
+    const { trades, nextBefore } = await loadPaperHistoryBefore(
+      context.user.id,
+      wallets.map((wallet) => wallet.id),
+      data.before
+    )
+    return { trades, nextBefore }
+  })
 
 const placePaperOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -241,6 +258,10 @@ const hidePaperTradeFn = createServerFn({ method: "POST" })
 
 export function loadPaperPortfolio() {
   return loadPaperPortfolioFn()
+}
+
+export function loadOlderPaperTrades(before: number) {
+  return loadOlderPaperTradesFn({ data: { before } })
 }
 
 export function placePaperOrder(input: z.infer<typeof placeSchema>) {

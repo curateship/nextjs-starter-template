@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm"
 
 import {
   marketKey,
@@ -9,6 +9,8 @@ import {
 import {
   buildLiveTrades,
   fillsOutsideTrades,
+  journalPageCursor,
+  journalTradePageCursor,
   type LiveFill,
   type LiveTrade,
   type LiveTriggerKind,
@@ -453,9 +455,14 @@ export async function loadLiveRefusals(
 
 export async function loadLiveHistory(
   userId: string,
-  walletIds: readonly string[]
-): Promise<{ fills: LiveFill[]; trades: LiveTrade[] }> {
-  if (walletIds.length === 0) return { fills: [], trades: [] }
+  walletIds: readonly string[],
+  before?: number
+): Promise<{
+  fills: LiveFill[]
+  trades: LiveTrade[]
+  nextBefore: number | null
+}> {
+  if (walletIds.length === 0) return { fills: [], trades: [], nextBefore: null }
 
   const [fillRows, triggerRows] = await Promise.all([
     db
@@ -465,7 +472,8 @@ export async function loadLiveHistory(
         and(
           eq(tradeLiveFills.userId, userId),
           inArray(tradeLiveFills.walletId, [...walletIds]),
-          eq(tradeLiveFills.hidden, false)
+          eq(tradeLiveFills.hidden, false),
+          before === undefined ? undefined : lt(tradeLiveFills.at, before)
         )
       )
       .orderBy(desc(tradeLiveFills.at))
@@ -516,10 +524,26 @@ export async function loadLiveHistory(
   )
 
   const allTrades = buildLiveTrades(fills, triggers)
+  const trades = allTrades.slice(0, MAX_TRADES)
+  const cappedBefore =
+    allTrades.length > trades.length ? journalTradePageCursor(trades) : null
   return {
     fills: fillsOutsideTrades(fills, allTrades),
-    trades: allTrades.slice(0, MAX_TRADES),
+    trades,
+    nextBefore:
+      cappedBefore ??
+      (before !== undefined && fillRows.length < MAX_FILLS
+        ? null
+        : journalPageCursor(fills, allTrades)),
   }
+}
+
+export function loadLiveHistoryBefore(
+  userId: string,
+  walletIds: readonly string[],
+  before: number
+) {
+  return loadLiveHistory(userId, walletIds, before)
 }
 
 /**

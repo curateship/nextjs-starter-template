@@ -602,6 +602,7 @@ export async function loadLivePortfolio(
   orders: PaperOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
+  nextBefore: number | null
   /** The last refusal on each market, so a stuck level can say why. */
   refusals: LiveRefusal[]
   unreachable: string[]

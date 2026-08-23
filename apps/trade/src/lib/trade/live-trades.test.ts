@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   buildLiveTrades,
   gridRoundTrips,
+  journalPageCursor,
+  journalTradePageCursor,
   openFillMarks,
   fillsOutsideTrades,
   tradeEndingLabel,
@@ -146,6 +148,74 @@ describe("buildLiveTrades", () => {
 
     expect(trades).toHaveLength(1)
     expect(trades[0].entryPx).toBe(100)
+  })
+
+  it("overlaps a trade cut by the oldest fill on a Journal page", () => {
+    const cutClose = fill({
+      fillId: "old-close",
+      side: "sell",
+      px: 110,
+      sz: 1,
+      at: 100,
+      dir: "Close Long",
+      closedPnl: 10,
+    })
+    const newerTrade = [
+      fill({ fillId: "new-open", side: "buy", px: 120, sz: 1, at: 110 }),
+      fill({
+        fillId: "new-close",
+        side: "sell",
+        px: 125,
+        sz: 1,
+        at: 120,
+        dir: "Close Long",
+        closedPnl: 5,
+      }),
+    ]
+    const page = [cutClose, ...newerTrade]
+    const trades = buildLiveTrades(page, noTriggers)
+
+    expect(trades.map((trade) => trade.id)).toEqual([
+      "w1:hyperliquid:mainnet:BTC:new-open",
+    ])
+    // Asking strictly before 101 includes the close at 100 again. The next
+    // page can then combine it with the older opening fill.
+    expect(journalPageCursor(page, trades)).toBe(101)
+
+    const olderPage = [
+      fill({ fillId: "old-open", side: "buy", px: 100, sz: 1, at: 50 }),
+      cutClose,
+    ]
+    expect(buildLiveTrades(olderPage, noTriggers)).toHaveLength(1)
+  })
+
+  it("overlaps the boundary timestamp on a complete Journal page", () => {
+    const page = [
+      fill({ fillId: "open", side: "buy", px: 100, sz: 1, at: 50 }),
+      fill({
+        fillId: "close",
+        side: "sell",
+        px: 110,
+        sz: 1,
+        at: 100,
+        dir: "Close Long",
+        closedPnl: 10,
+      }),
+    ]
+    expect(journalPageCursor(page, buildLiveTrades(page, noTriggers))).toBe(51)
+  })
+
+  it("continues after the oldest trade returned when a trade page is capped", () => {
+    const trades = buildLiveTrades(
+      [
+        fill({ fillId: "old-open", side: "buy", px: 100, sz: 1, at: 50 }),
+        fill({ fillId: "old-close", side: "sell", px: 110, sz: 1, at: 60 }),
+        fill({ fillId: "new-open", side: "buy", px: 120, sz: 1, at: 100 }),
+        fill({ fillId: "new-close", side: "sell", px: 130, sz: 1, at: 110 }),
+      ],
+      noTriggers
+    )
+    expect(journalTradePageCursor(trades)).toBe(51)
   })
 
   it("says it was stopped out when the closing order was the stop", () => {

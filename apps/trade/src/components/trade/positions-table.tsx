@@ -833,6 +833,9 @@ export function TradesTable({
   onSelectTrade,
   onSelectMarket,
   onRemove,
+  onLoadOlder,
+  olderBusy = false,
+  olderDone = false,
 }: {
   trades: readonly LiveTrade[]
   markets: ReadonlyMap<string, MarketRow>
@@ -854,6 +857,9 @@ export function TradesTable({
   onSelectTrade: (trade: LiveTrade) => void
   onSelectMarket: (marketKey: string) => void
   onRemove: (trade: LiveTrade) => void
+  onLoadOlder?: () => void
+  olderBusy?: boolean
+  olderDone?: boolean
 }) {
   const { sort, direction, toggleSort } = useTableSort<TradeColumn>(
     "opened",
@@ -1000,6 +1006,32 @@ export function TradesTable({
         ))
         )}
       </tbody>
+      {settled && trades.length > 0 && onLoadOlder ? (
+        <tfoot>
+          <tr className="border-t">
+            <td
+              colSpan={TRADE_COLUMNS.length + 1}
+              className="px-5 py-3 text-center"
+            >
+              {olderDone ? (
+                <span className="text-sm text-muted-foreground">
+                  That is everything
+                </span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={olderBusy}
+                  onClick={onLoadOlder}
+                >
+                  {olderBusy ? "Reading older trades…" : "Show older"}
+                </Button>
+              )}
+            </td>
+          </tr>
+        </tfoot>
+      ) : null}
     </table>
   )
 }

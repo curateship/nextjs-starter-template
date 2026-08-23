@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, desc, eq, inArray, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -33,6 +33,7 @@ import {
 import {
   buildLiveTrades,
   fillsOutsideTrades,
+  journalPageCursor,
   type LiveFill,
   type LiveTrade,
   type LiveTradeEnding,
@@ -1273,6 +1274,7 @@ export type PaperAccount = {
   fills: LiveFill[]
   /** Finished practice round trips — the Journal, alongside the real ones. */
   trades: LiveTrade[]
+  nextBefore: number | null
 }
 
 /**
@@ -1335,9 +1337,14 @@ function toTradeFill(row: JournalRow): LiveFill {
  */
 export async function loadPaperHistory(
   userId: string,
-  walletIds: readonly string[]
-): Promise<{ fills: LiveFill[]; trades: LiveTrade[] }> {
-  if (walletIds.length === 0) return { fills: [], trades: [] }
+  walletIds: readonly string[],
+  before?: number
+): Promise<{
+  fills: LiveFill[]
+  trades: LiveTrade[]
+  nextBefore: number | null
+}> {
+  if (walletIds.length === 0) return { fills: [], trades: [], nextBefore: null }
   const rows = await db
     .select()
     .from(tradePaperJournal)
@@ -1345,7 +1352,10 @@ export async function loadPaperHistory(
       and(
         eq(tradePaperJournal.userId, userId),
         inArray(tradePaperJournal.walletId, [...walletIds]),
-        eq(tradePaperJournal.hidden, false)
+        eq(tradePaperJournal.hidden, false),
+        before === undefined
+          ? undefined
+          : lt(tradePaperJournal.fillTime, new Date(before))
       )
     )
     .orderBy(desc(tradePaperJournal.fillTime))
@@ -1355,7 +1365,22 @@ export async function loadPaperHistory(
   // their own level made, exactly as a real one's do. See `stampGridFills`.
   const fills = await stampGridFills(userId, walletIds, rows.map(toTradeFill))
   const trades = buildLiveTrades(fills, NO_TRIGGERS)
-  return { fills: fillsOutsideTrades(fills, trades), trades }
+  return {
+    fills: fillsOutsideTrades(fills, trades),
+    trades,
+    nextBefore:
+      before !== undefined && rows.length < JOURNAL_PAGE
+        ? null
+        : journalPageCursor(fills, trades),
+  }
+}
+
+export function loadPaperHistoryBefore(
+  userId: string,
+  walletIds: readonly string[],
+  before: number
+) {
+  return loadPaperHistory(userId, walletIds, before)
 }
 
 /**
@@ -1376,7 +1401,13 @@ export async function loadPaperPortfolio(
 ): Promise<PaperAccount> {
   const paper = wallets.filter((wallet) => wallet.kind === "paper")
   if (paper.length === 0) {
-    return { positions: [], orders: [], fills: [], trades: [] }
+    return {
+      positions: [],
+      orders: [],
+      fills: [],
+      trades: [],
+      nextBefore: null,
+    }
   }
 
   const keys = await exposedMarketKeys(
@@ -1424,6 +1455,7 @@ export async function loadPaperPortfolio(
     fills: fillsOutsideTrades(tradeFills, trades),
     // No triggers to look up: a practice fill carries its own reason.
     trades,
+    nextBefore: journalPageCursor(tradeFills, trades),
   }
 }
 

@@ -865,6 +865,13 @@ Fees are the exchange's stated charges on every fill in the same window,
 including a fill whose profit the exchange did not state. Made or lost stays
 the net figure Tyler reads first; the fee note explains part of that result.
 
+The Journal starts with the newest bounded page so the four-second account poll
+does not grow slower as a wallet ages. Show older reads and appends the next
+page without changing that poll. The pages overlap their boundary timestamp so
+fills recorded in the same millisecond do not fall through the join. If a page
+cuts through a trade, the next page also rebuilds the trade whole. Once an empty
+page comes back, the control says That is everything.
+
 The money-over-time card starts at zero at midnight two days ago in Toronto and
 charts priced settled trade money from then until now. Its final point adds the
 current open profit, so the value above the line is the same current profit as

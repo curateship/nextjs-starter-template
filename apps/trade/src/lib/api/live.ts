@@ -19,7 +19,10 @@ import {
   setLiveBrackets as setBracketsRow,
   moveLiveOrder as moveOrderRow,
 } from "@/server/trade/live-orders"
-import { hideLiveTrade as hideTradeRows } from "@/server/trade/live-fills"
+import {
+  hideLiveTrade as hideTradeRows,
+  loadLiveHistoryBefore,
+} from "@/server/trade/live-fills"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import {
   listActiveSmartOrders,
@@ -90,6 +93,7 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       fills: LiveFill[]
       /** Finished round trips, newest first — what the Journal tab draws. */
       trades: LiveTrade[]
+      nextBefore: number | null
       smartOrders: SmartOrder[]
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
@@ -113,6 +117,21 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       }
     }
   )
+
+const loadOlderLiveTradesFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(z.object({ before: z.number().int().positive() }))
+  .handler(async ({ data, context }) => {
+    const wallets = (await listWallets(context.user.id)).filter(
+      (wallet) => wallet.kind === "live"
+    )
+    const { trades, nextBefore } = await loadLiveHistoryBefore(
+      context.user.id,
+      wallets.map((wallet) => wallet.id),
+      data.before
+    )
+    return { trades, nextBefore }
+  })
 
 const placeLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -216,6 +235,10 @@ export function moveLiveOrder(input: z.infer<typeof moveSchema>) {
 
 export function loadLiveTrading() {
   return loadLiveTradingFn()
+}
+
+export function loadOlderLiveTrades(before: number) {
+  return loadOlderLiveTradesFn({ data: { before } })
 }
 
 export function placeLiveOrder(input: z.infer<typeof placeSchema>) {
