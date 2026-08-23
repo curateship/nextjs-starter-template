@@ -19,10 +19,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { WorkspacePanelTab } from "@/components/shared/workspace-panel-header"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   Tooltip,
   TooltipContent,
@@ -615,37 +618,38 @@ export function AccountPanel({
       onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      {/* The tab row is the header — same anatomy as the activity panel's,
-          with the add button sharing the row the way the mock draws it. */}
-      <div className="flex shrink-0 items-center border-b px-3">
-        <TabsList className="h-[3.15rem] justify-start gap-2 rounded-none bg-transparent p-0">
-          <WorkspacePanelTab
-            value="active"
-            icon={<CreditCardIcon className="size-4" />}
-            label="Active"
-          />
-          <WorkspacePanelTab
-            value="all"
-            icon={<LayersIcon className="size-4" />}
-            label="All"
-          />
-          <WorkspacePanelTab
-            value="inactive"
-            icon={<ArchiveIcon className="size-4" />}
-            label="Inactive"
-          />
-        </TabsList>
-        <Button
-          data-slot="account-add-wallet"
-          variant="outline"
-          size="icon-sm"
-          className="ml-auto bg-muted/60 dark:bg-muted/60"
-          aria-label="Add a wallet"
-          onClick={onAddWallet}
-        >
-          <PlusIcon className="size-4" />
-        </Button>
-      </div>
+      {/* The shared tabs header, same as the activity panel's — the add
+          button rides in its `action` slot at the row's right-hand end. */}
+      <WorkspacePanelTabsHeader
+        action={
+          <Button
+            data-slot="account-add-wallet"
+            variant="outline"
+            size="icon-sm"
+            className="bg-muted/60 dark:bg-muted/60"
+            aria-label="Add a wallet"
+            onClick={onAddWallet}
+          >
+            <PlusIcon className="size-4" />
+          </Button>
+        }
+      >
+        <WorkspacePanelTab
+          value="active"
+          icon={<CreditCardIcon className="size-4" />}
+          label="Active"
+        />
+        <WorkspacePanelTab
+          value="all"
+          icon={<LayersIcon className="size-4" />}
+          label="All"
+        />
+        <WorkspacePanelTab
+          value="inactive"
+          icon={<ArchiveIcon className="size-4" />}
+          label="Inactive"
+        />
+      </WorkspacePanelTabsHeader>
 
       <TabsContent value="active" className="min-h-0 flex-1">
         {/* The viewport's own wrapper is `display: table`, which sizes to its

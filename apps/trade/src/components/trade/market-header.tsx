@@ -8,7 +8,10 @@ import {
 
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import {
+  WorkspacePanelHeader,
+  workspacePanelHeaderHeightClassName,
+} from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -25,6 +28,7 @@ import type {
   MarketFolderActions,
 } from "@/lib/trade/market-folders"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
+import { cn } from "@/lib/utils"
 
 /**
  * What the middle panel is showing.
@@ -154,7 +158,10 @@ export function MarketHeader({
       // row is a 28px pill in a 50.4px row, ~11px of air above it, and Tyler
       // asked for the side gaps to read even with that (23 Aug 2026). 12px is
       // also what the tab headers keep beside their first pill.
-      className="flex h-[3.15rem] shrink-0 items-center gap-2 border-b px-3"
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-b px-3",
+        workspacePanelHeaderHeightClassName
+      )}
     >
       <MarketFolderStar
         symbol={selection.row.symbol}

@@ -12,6 +12,13 @@ export const workspacePanelHeadingClassName =
 export const workspacePanelTabClassName =
   "font-heading text-[0.792rem] font-medium"
 
+/**
+ * The one height every workspace panel header is drawn at. Named so a header
+ * built outside this file — a market row header with its own anatomy, say —
+ * can never quietly disagree with the ones built here.
+ */
+export const workspacePanelHeaderHeightClassName = "h-[3.15rem]"
+
 const backTargetClassName =
   "-m-1 flex size-6 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
 
@@ -86,7 +93,8 @@ export function WorkspacePanelHeader({
     <div
       data-slot="workspace-panel-header"
       className={cn(
-        "flex h-[3.15rem] shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
+        "flex shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
+        workspacePanelHeaderHeightClassName,
         className
       )}
     >
@@ -132,14 +140,32 @@ export function WorkspacePanelHeader({
 
 export function WorkspacePanelTabsHeader({
   children,
+  action,
 }: {
   children: React.ReactNode
+  /**
+   * Controls pinned at the row's right-hand end — the account panel's add
+   * button, the bottom panel's Close all. A separate slot rather than an
+   * `ml-auto` child inside the tab list, because the list's own gap would
+   * then sit between the last tab and the control and push it past the
+   * row's edge on a narrow panel.
+   */
+  action?: React.ReactNode
 }) {
   return (
-    <div data-slot="workspace-panel-header" className="shrink-0 border-b px-3">
-      <TabsList className="h-[3.15rem] w-full justify-start gap-2 rounded-none bg-transparent p-0">
+    <div
+      data-slot="workspace-panel-header"
+      className={cn(
+        "flex shrink-0 items-center gap-2 border-b px-3",
+        workspacePanelHeaderHeightClassName
+      )}
+    >
+      <TabsList className="h-full min-w-0 justify-start gap-2 rounded-none bg-transparent p-0">
         {children}
       </TabsList>
+      {action ? (
+        <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>
+      ) : null}
     </div>
   )
 }

@@ -263,7 +263,57 @@ export function ActivityPanel({
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      <WorkspacePanelTabsHeader>
+      <WorkspacePanelTabsHeader
+        action={
+          <>
+            {/* Whether ladder- and flow-run positions are listed too. On the
+                positions tab only — the other tabs have nothing it would
+                mean. */}
+            {tab === "positions" ? (
+              <Select
+                value={shown}
+                onValueChange={(next) => setShown(next as "all" | "manual")}
+              >
+                <SelectTrigger aria-label="Which positions to list">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value="all">All positions</SelectItem>
+                  <SelectItem value="manual">Manual only</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            {/* Removes every ticked Journal row at once, through the same
+                confirm the bin on one row uses. Only there once something is
+                ticked — a button that could do nothing would just be
+                furniture. */}
+            {tab === "journal" && tickedTrades.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={trading.busy}
+                onClick={() => setRemovingTrades(tickedTrades)}
+              >
+                <Trash2Icon className="size-4" />
+                Remove ({tickedTrades.length})
+              </Button>
+            ) : null}
+            {/* The emergency button: one press, one confirm, and every open
+                position goes — real money included, each real one through the
+                same close its own row uses. */}
+            {trading.positions.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={trading.busy}
+                onClick={() => setClosingAll(true)}
+              >
+                Close all
+              </Button>
+            ) : null}
+          </>
+        }
+      >
         <PositionsGlance positions={visible} markets={markets}>
           <WorkspacePanelTab
             value="positions"
@@ -287,51 +337,6 @@ export function ActivityPanel({
           count={countOf(trading.trades.length)}
           onPointerDown={pressTab("journal")}
         />
-        <div className="ml-auto flex items-center gap-2">
-          {/* Whether ladder- and flow-run positions are listed too. On the
-              positions tab only — the other tabs have nothing it would mean. */}
-          {tab === "positions" ? (
-            <Select
-              value={shown}
-              onValueChange={(next) => setShown(next as "all" | "manual")}
-            >
-              <SelectTrigger aria-label="Which positions to list">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectItem value="all">All positions</SelectItem>
-                <SelectItem value="manual">Manual only</SelectItem>
-              </SelectContent>
-            </Select>
-          ) : null}
-          {/* Removes every ticked Journal row at once, through the same
-              confirm the bin on one row uses. Only there once something is
-              ticked — a button that could do nothing would just be furniture. */}
-          {tab === "journal" && tickedTrades.length > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={trading.busy}
-              onClick={() => setRemovingTrades(tickedTrades)}
-            >
-              <Trash2Icon className="size-4" />
-              Remove ({tickedTrades.length})
-            </Button>
-          ) : null}
-          {/* The emergency button: one press, one confirm, and every open
-              position goes — real money included, each real one through the
-              same close its own row uses. */}
-          {trading.positions.length > 0 ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={trading.busy}
-              onClick={() => setClosingAll(true)}
-            >
-              Close all
-            </Button>
-          ) : null}
-        </div>
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="positions" className="min-h-0 flex-1">
