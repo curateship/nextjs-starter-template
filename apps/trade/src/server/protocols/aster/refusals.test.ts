@@ -31,6 +31,7 @@ describe("Aster refusals", () => {
     expect(message).not.toContain(key)
     expect(message).not.toContain("bad")
     expect(message).toContain("reason Trade does not recognize")
+    expect(message).toContain("code -9999")
   })
 
   it("does not call Aster's firewall refusal a bad key", () => {

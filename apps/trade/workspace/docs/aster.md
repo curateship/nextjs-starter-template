@@ -185,6 +185,9 @@ the app assumes will stay fixed.
   leverage. Trade changes only a setting that differs. Trade had been asking
   Aster to set isolated margin without reading the current value first, and
   Aster's refusal kept the SOL buy from being sent.
+- An unknown Aster refusal keeps its numeric code in the Journal while dropping
+  Aster's free-form message. The code is enough to name a missing case without
+  risking a key or account detail from the exchange's text.
 - The engine shares Aster's account and open orders for fifteen seconds while
   watched prices and the recent-fill check still move every second. One active
   wallet had been spending more than 3,000 signed units a minute against

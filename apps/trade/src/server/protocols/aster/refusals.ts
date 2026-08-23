@@ -48,8 +48,9 @@ export function asterRefusalError(input: {
 }): Error {
   const named = asterRefusalCode(input.status, input.code)
   if (named) return new Error(`${named}:${SENTENCES[named]}`)
+  const safeCode = /^-?\d{1,10}$/.test(input.code) ? input.code : "unknown"
   return new Error(
-    "ASTER_REFUSED:Aster refused the request for a reason Trade does not recognize. Check Aster's status before trying again."
+    `ASTER_REFUSED:Aster refused the request for a reason Trade does not recognize (code ${safeCode}). Check Aster's status before trying again.`
   )
 }
 
