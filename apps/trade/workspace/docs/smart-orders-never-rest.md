@@ -204,6 +204,14 @@ Measured on 22 August 2026, on the real wallets:
 A market that never ticks is never covered by a feed, however many lines are
 open, so the REST read stays as the honest fallback for those.
 
+**The open dashboard also nudges the engine**, every four seconds, so a laptop
+with no engine running beside it still trades. That nudge takes the engine's
+lock for one pass and lets it go. It used to open a brand-new database
+connection to do so, which cost half a second each time before any work
+started. It now borrows one kept-warm connection, and an account with no live
+wallet that has a key never touches the lock at all. `dashboard-speed.md` has
+the numbers.
+
 ## The DCA ladder
 
 The ladder has been on watched levels since 14 Aug 2026. Placing one sends

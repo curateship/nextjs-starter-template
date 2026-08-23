@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
+import { KNOWN_PROTOCOLS, type ProtocolId } from "@/lib/protocols/contracts"
 import {
   MAX_STARTING_BALANCE,
   WALLET_LABEL_MAX,
@@ -84,10 +84,22 @@ const updateWalletSchema = z.object({
 
 const walletIdSchema = z.object({ id: z.string().max(36) })
 
+/**
+ * The poll's scope. Optional, and the whole list still comes back: only the
+ * exchange FIGURES are narrowed to one exchange's wallets, because asking
+ * every exchange about wallets the page never draws spent request allowance
+ * for nothing.
+ */
+const pollScopeSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS).optional(),
+})
+
 const loadWalletAccountsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
+  .inputValidator(pollScopeSchema)
   .handler(
     async ({
+      data,
       context,
     }): Promise<{
       wallets: TradeWallet[]
@@ -96,7 +108,7 @@ const loadWalletAccountsFn = createServerFn({ method: "GET" })
       lastWalletIds: Record<string, string>
     }> => {
       const [{ wallets, summaries }, lastWalletIds] = await Promise.all([
-        loadWalletSummaries(context.user.id),
+        loadWalletSummaries(context.user.id, data.protocol),
         loadLastWalletIds(context.user.id),
       ])
       return { wallets, summaries, lastWalletIds }
@@ -135,8 +147,8 @@ const pickWalletFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
-export function loadWalletAccounts() {
-  return loadWalletAccountsFn()
+export function loadWalletAccounts(protocol?: ProtocolId) {
+  return loadWalletAccountsFn({ data: { protocol } })
 }
 
 export function createWallet(input: z.infer<typeof createWalletSchema>) {

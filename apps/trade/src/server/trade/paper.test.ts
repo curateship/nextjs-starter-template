@@ -847,6 +847,34 @@ describe("managing what is open", () => {
   })
 })
 
+describe("the Journal stamp", () => {
+  it("answers 'unchanged' until a fill lands, then sends the rows", async () => {
+    await openLong()
+    const first = await loadPaperPortfolio(userId, [wallet])
+    expect(first.journalUnchanged).toBe(false)
+    expect(first.fills.length + first.trades.length).toBeGreaterThan(0)
+
+    // Nothing has happened: the rows stay home.
+    const again = await loadPaperPortfolio(userId, [wallet], {
+      journalStamp: first.journalStamp,
+    })
+    expect(again.journalUnchanged).toBe(true)
+    expect(again.fills).toEqual([])
+    expect(again.trades).toEqual([])
+    expect(again.journalStamp).toBe(first.journalStamp)
+
+    // A close writes a fill, which is exactly when the Journal changes.
+    marks.set("BTC", 110)
+    await closePaperPosition(userId, wallet, BTC)
+    const changed = await loadPaperPortfolio(userId, [wallet], {
+      journalStamp: first.journalStamp,
+    })
+    expect(changed.journalUnchanged).toBe(false)
+    expect(changed.trades).toHaveLength(1)
+    expect(changed.journalStamp).not.toBe(first.journalStamp)
+  })
+})
+
 describe("what the account is worth", () => {
   it("adds up to the same cash the journal says", async () => {
     await openLong()

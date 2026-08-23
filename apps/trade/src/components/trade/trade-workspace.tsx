@@ -64,9 +64,9 @@ import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import { useRememberedPanelLayoutInPlace } from "@/lib/trade/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import {
   marketWasHiddenByVolume,
@@ -254,7 +254,12 @@ export function TradeWorkspace({
     [saveFavorites]
   )
 
-  const selection = resolveSelection(catalogs, selectedKey)
+  // Memoised: the workspace re-renders on every poll and every price tick,
+  // and a fresh answer each time made every panel below re-do its own work.
+  const selection = React.useMemo(
+    () => resolveSelection(catalogs, selectedKey),
+    [catalogs, selectedKey]
+  )
 
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
   const dashboardCacheScope = `${user.id}:${protocol}`
@@ -363,13 +368,13 @@ export function TradeWorkspace({
   const accountPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
 
-  const horizontalLayout = useRememberedPanelLayout(
+  const horizontalLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.workspaceHorizontal
   )
-  const verticalLayout = useRememberedPanelLayout(
+  const verticalLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.workspaceVertical
   )
-  const accountColumnLayout = useRememberedPanelLayout(
+  const accountColumnLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.accountColumn
   )
 
@@ -477,7 +482,12 @@ export function TradeWorkspace({
     />
   )
 
-  const marketRows = catalogs.flatMap((catalog) => catalog.rows)
+  // Memoised for the same reason: a new array here re-sorted the whole
+  // market picker on every render, with the picker closed.
+  const marketRows = React.useMemo(
+    () => catalogs.flatMap((catalog) => catalog.rows),
+    [catalogs]
+  )
   // Every market by key, so a row can find its own art and its fallback price
   // without searching the catalogues itself.
   const marketsByKey = React.useMemo(() => {
@@ -564,10 +574,9 @@ export function TradeWorkspace({
 
   const upper = desktop ? (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -617,10 +626,9 @@ export function TradeWorkspace({
             goes in next, rather than taken away and rebuilt later. */}
         <div ref={accountColumnRef} className="flex h-full min-h-0">
           <ResizablePanelGroup
-            key={accountColumnLayout.layoutKey}
+            groupRef={accountColumnLayout.groupRef}
             orientation="vertical"
             className="min-h-0 flex-1"
-            defaultLayout={accountColumnLayout.defaultLayout}
             onLayoutChanged={accountColumnLayout.onLayoutChanged}
           >
             <ResizablePanel
@@ -677,10 +685,9 @@ export function TradeWorkspace({
     <CardFolds initial={initialCardFolds}>
       <div className="flex min-h-0 flex-1 flex-col">
         <ResizablePanelGroup
-          key={verticalLayout.layoutKey}
+          groupRef={verticalLayout.groupRef}
           orientation="vertical"
           className="min-h-0 flex-1"
-          defaultLayout={verticalLayout.defaultLayout}
           onLayoutChanged={activityFit.onLayoutChanged}
         >
           <ResizablePanel id="workspace" defaultSize="72%" minSize="35%">

@@ -1,7 +1,11 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  KNOWN_PROTOCOLS,
+  parseMarketKey,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { PaperOrder, PaperPosition } from "@/lib/trade/paper"
@@ -21,7 +25,7 @@ import {
 } from "@/server/trade/paper"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import {
-  listActiveSmartOrders,
+  listActiveSmartOrdersIfChanged,
   placeWatchOrder,
 } from "@/server/trade/smart-orders"
 import {
@@ -114,10 +118,31 @@ async function paperWallet(
  * the one being traded with. The wallet names come back with it so each row
  * can say which wallet it belongs to without a second request.
  */
+/**
+ * What one poll asks for. `protocol` narrows the read to one exchange's
+ * wallets, since every dashboard belongs to one exchange and rows from the
+ * others were fetched and thrown away. The two stamps let the server answer
+ * "unchanged" for the Journal and the smart orders, which is what they are
+ * nearly every four seconds.
+ */
+const pollScopeSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS).optional(),
+  /** The stamp of the Journal the browser holds — same idea, for fills. */
+  journalStamp: z.string().max(200).optional(),
+  /**
+   * The stamp that came back with the smart orders the browser holds. When
+   * nothing has changed since, the answer says so instead of carrying every
+   * ladder's plan again — see `activeSmartOrdersStamp`.
+   */
+  smartOrdersStamp: z.string().max(200).optional(),
+})
+
 const loadPaperPortfolioFn = createServerFn({ method: "GET" })
   .middleware([userGet])
+  .inputValidator(pollScopeSchema)
   .handler(
     async ({
+      data,
       context,
     }): Promise<{
       positions: PaperPosition[]
@@ -126,21 +151,33 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
       /** Finished practice round trips — the Journal, alongside the real ones. */
       trades: LiveTrade[]
       nextBefore: number | null
-      smartOrders: SmartOrder[]
+      /** True when the Journal is the browser's own, unchanged. */
+      journalUnchanged: boolean
+      journalStamp: string
+      /** `null` means "the ones you already hold" — see the stamp. */
+      smartOrders: SmartOrder[] | null
+      smartOrdersStamp: string
       wallets: { id: string; label: string }[]
     }> => {
-      const wallets = await listWallets(context.user.id)
-      const portfolio = await loadPortfolio(context.user.id, wallets)
+      const wallets = (await listWallets(context.user.id)).filter(
+        (wallet) =>
+          data.protocol === undefined || wallet.protocol === data.protocol
+      )
+      const portfolio = await loadPortfolio(context.user.id, wallets, {
+        journalStamp: data.journalStamp,
+      })
       const paper = wallets.filter((wallet) => wallet.kind === "paper")
       // Read after the settle inside the portfolio load, so a smart order a
       // stop just finished is already gone from the answer.
-      const smartOrders = await listActiveSmartOrders(
+      const smart = await listActiveSmartOrdersIfChanged(
         context.user.id,
-        paper.map((wallet) => wallet.id)
+        paper.map((wallet) => wallet.id),
+        data.smartOrdersStamp
       )
       return {
         ...portfolio,
-        smartOrders,
+        smartOrders: smart.smartOrders,
+        smartOrdersStamp: smart.stamp,
         wallets: paper.map((wallet) => ({ id: wallet.id, label: wallet.label })),
       }
     }
@@ -256,8 +293,14 @@ const hidePaperTradeFn = createServerFn({ method: "POST" })
     return { hidden: true }
   })
 
-export function loadPaperPortfolio() {
-  return loadPaperPortfolioFn()
+export function loadPaperPortfolio(scope: PollScope = {}) {
+  return loadPaperPortfolioFn({ data: scope })
+}
+
+export type PollScope = {
+  protocol?: ProtocolId
+  journalStamp?: string
+  smartOrdersStamp?: string
 }
 
 export function loadOlderPaperTrades(before: number) {

@@ -23,9 +23,12 @@ import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
 import {
   cancelLadderRest,
   cancelLadderRung,
+  cancelWatchOrder,
   listActiveSmartOrders,
+  listActiveSmartOrdersIfChanged,
   placeDcaLadder,
   placeWatchOrder,
+  saveLadderPlan,
   updateLadderExits,
 } from "@/server/trade/smart-orders"
 import {
@@ -353,6 +356,111 @@ describe("a watched order's market minimum", () => {
     expect(watch.plan.sz).toBe(0.001)
     expect(watch.plan.minOrderSize).toBe(0.001)
     expect(watch.plan.minOrderValueUsd).toBe(5)
+  })
+})
+
+describe("the smart-order stamp", () => {
+  it("answers 'unchanged' until a plan really changes, then sends the list", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const first = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      undefined
+    )
+    expect(first.smartOrders).toHaveLength(1)
+
+    // The engine touching the row's clock without changing the plan is not
+    // a change the browser needs to hear about.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() + 60_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    const again = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      first.stamp
+    )
+    expect(again.smartOrders).toBeNull()
+    expect(again.stamp).toBe(first.stamp)
+
+    const [watch] = first.smartOrders ?? []
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+    await saveLadderPlan(
+      userId,
+      watch.id,
+      { ...watch.plan, px: 90 } as typeof watch.plan,
+      "active"
+    )
+    const changed = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      first.stamp
+    )
+    expect(changed.smartOrders).toHaveLength(1)
+    expect(changed.stamp).not.toBe(first.stamp)
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    const gone = await listActiveSmartOrdersIfChanged(
+      userId,
+      [wallet.id],
+      changed.stamp
+    )
+    expect(gone.smartOrders).toEqual([])
+  })
+})
+
+describe("cancelling a watched order", () => {
+  it("stays cancelled when an engine pass saves an older copy afterwards", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await cancelWatchOrder(userId, wallet.id, watch.id)
+    await saveLadderPlan(userId, watch.id, watch.plan, "active")
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+    const [stored] = await ladderRows()
+    expect(stored.status).toBe("done")
+  })
+
+  it("accepts a repeated cancel after a stale screen shows the row again", async () => {
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    if (!watch || watch.kind !== "watch") throw new Error("expected watch")
+
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
+    await expect(
+      cancelWatchOrder(userId, wallet.id, watch.id)
+    ).resolves.toEqual({ cancelled: true })
   })
 })
 

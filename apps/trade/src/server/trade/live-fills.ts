@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm"
+import { and, count, desc, eq, gt, inArray, lt, max, sql } from "drizzle-orm"
 
 import {
   marketKey,
@@ -74,6 +74,11 @@ const waitedFor = new Set<string>()
  * made the whole panel sit on a spinner while an exchange was asked about
  * months of old trades nobody was looking at.
  */
+/** The same question without spending the answer — see `loadLivePortfolio`. */
+export function sweepWouldBeWaitedFor(userId: string, walletId: string): boolean {
+  return waitedFor.has(`${userId}:${walletId}`)
+}
+
 export function sweepIsWaitedFor(userId: string, walletId: string): boolean {
   const key = `${userId}:${walletId}`
   if (!waitedFor.has(key)) return false
@@ -451,6 +456,65 @@ export async function loadLiveRefusals(
     })
   }
   return [...newest.values()]
+}
+
+/**
+ * A short string that changes when `loadLiveHistory` would answer
+ * differently: a fill arriving, one being binned, or a trigger being learnt
+ * (which changes how a trade says it ended). One round trip, two small
+ * aggregates, so the poll can ask "did anything happen?" instead of
+ * carrying thousands of rows every four seconds.
+ */
+export async function liveHistoryStamp(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<string> {
+  if (walletIds.length === 0) return "0"
+  const [fills, triggers] = await Promise.all([
+    db
+      .select({ count: count(), newest: max(tradeLiveFills.at) })
+      .from(tradeLiveFills)
+      .where(
+        and(
+          eq(tradeLiveFills.userId, userId),
+          inArray(tradeLiveFills.walletId, [...walletIds]),
+          eq(tradeLiveFills.hidden, false)
+        )
+      ),
+    db
+      .select({ count: count() })
+      .from(tradeLiveTriggers)
+      .where(
+        and(
+          eq(tradeLiveTriggers.userId, userId),
+          inArray(tradeLiveTriggers.walletId, [...walletIds])
+        )
+      ),
+  ])
+  return [
+    fills[0]?.count ?? 0,
+    fills[0]?.newest ?? 0,
+    triggers[0]?.count ?? 0,
+  ].join(":")
+}
+
+/**
+ * The history, or `null` when it is exactly what the caller holds — judged
+ * by the stamp above, which comes back either way for next time.
+ */
+export async function loadLiveHistoryIfChanged(
+  userId: string,
+  walletIds: readonly string[],
+  knownStamp: string | undefined
+): Promise<{
+  history: Awaited<ReturnType<typeof loadLiveHistory>> | null
+  stamp: string
+}> {
+  const stamp = await liveHistoryStamp(userId, walletIds)
+  if (knownStamp !== undefined && knownStamp === stamp) {
+    return { history: null, stamp }
+  }
+  return { history: await loadLiveHistory(userId, walletIds), stamp }
 }
 
 export async function loadLiveHistory(

@@ -1,15 +1,8 @@
 import * as React from "react"
-import {
-  ArrowLeftRightIcon,
-  SettingsIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { ArrowLeftRightIcon, SettingsIcon, Trash2Icon } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
-import {
-  TradeBadge,
-  type TradeBadgeTone,
-} from "@/components/trade/trade-badge"
+import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -120,8 +113,14 @@ function HeaderCell({
 type ColumnSpec<Key extends string> = { key: Key; label: string }
 
 type PositionColumn =
-  | "market" | "wallet" | "value" | "margin"
-  | "liquidation" | "projected" | "fees" | "unrealized"
+  | "market"
+  | "wallet"
+  | "value"
+  | "margin"
+  | "liquidation"
+  | "projected"
+  | "fees"
+  | "unrealized"
 
 const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
   { key: "market", label: "Market" },
@@ -135,7 +134,7 @@ const POSITION_COLUMNS: ColumnSpec<PositionColumn>[] = [
 ]
 
 type OrderColumn =
-  | "market" | "wallet" | "side" | "price" | "size" | "value" | "leverage"
+  "market" | "wallet" | "side" | "price" | "size" | "value" | "leverage"
 
 const ORDER_COLUMNS: ColumnSpec<OrderColumn>[] = [
   { key: "market", label: "Market" },
@@ -148,8 +147,16 @@ const ORDER_COLUMNS: ColumnSpec<OrderColumn>[] = [
 ]
 
 type TradeColumn =
-  | "market" | "wallet" | "side" | "opened" | "held"
-  | "entry" | "exit" | "size" | "pnl" | "ending"
+  | "market"
+  | "wallet"
+  | "side"
+  | "opened"
+  | "held"
+  | "entry"
+  | "exit"
+  | "size"
+  | "pnl"
+  | "ending"
 
 const TRADE_COLUMNS: ColumnSpec<TradeColumn>[] = [
   { key: "market", label: "Market" },
@@ -191,7 +198,7 @@ function Cell({
   return (
     <td
       className={cn(
-        "px-3 py-2 text-left text-xs tabular-nums whitespace-nowrap",
+        "px-3 py-2 text-left text-xs whitespace-nowrap tabular-nums",
         className
       )}
     >
@@ -360,7 +367,9 @@ function PositionRow({
         badge={
           <>
             <SideBadge position={position} />
-            {position.live ? <RealBadge marketKey={position.marketKey} /> : null}
+            {position.live ? (
+              <RealBadge marketKey={position.marketKey} />
+            ) : null}
           </>
         }
         onSelect={() => onSelectMarket(position.marketKey)}
@@ -420,7 +429,10 @@ function PositionRow({
           {profitShare.toFixed(2)}%
         </span>
       </Cell>
-      <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
+      <td
+        data-column="actions"
+        className="px-3 py-2 text-left whitespace-nowrap"
+      >
         <span className="flex items-center gap-0.5">
           {/* Turning a real position around in one go is not built yet, so
               the button is not offered rather than offered and refused. */}
@@ -536,7 +548,11 @@ export function PositionsTable({
   // Empty is only claimed once a read has landed; before that the frame shows
   // it is still reading, and a failed first read says so instead.
   if (positions.length === 0 && settled && !failed) {
-    return <EmptyTable>No open positions. Anything you are holding shows up here.</EmptyTable>
+    return (
+      <EmptyTable>
+        No open positions. Anything you are holding shows up here.
+      </EmptyTable>
+    )
   }
 
   return (
@@ -672,7 +688,11 @@ export function OpenOrdersTable({
   })
 
   if (orders.length === 0 && settled && !failed) {
-    return <EmptyTable>No open orders. Orders waiting to fill show up here.</EmptyTable>
+    return (
+      <EmptyTable>
+        No open orders. Orders waiting to fill show up here.
+      </EmptyTable>
+    )
   }
 
   return (
@@ -704,67 +724,72 @@ export function OpenOrdersTable({
             loadingLabel="Reading your open orders"
             onRetry={onRetry}
           >
-            The orders could not be read, so it is not known whether anything
-            is waiting to fill.
+            The orders could not be read, so it is not known whether anything is
+            waiting to fill.
           </TableStateRow>
         ) : (
-        rows.map((order) => (
-          <TableRow
-            key={order.id}
-            // The whole row charts its market, same as a position's row — one
-            // action the width of the panel. Cancel keeps its own click.
-            rowAction={() => onSelectMarket(order.marketKey)}
-            className="border-t hover:bg-muted/40"
-          >
-            <MarketCell
-              marketKey={order.marketKey}
-              market={markets.get(order.marketKey) ?? null}
-              onSelect={() => onSelectMarket(order.marketKey)}
-              badge={
-                <>
-                  {order.reduceOnly ? (
-                    <TradeBadge>Reduce only</TradeBadge>
-                  ) : null}
-                  {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
-                </>
-              }
-            />
-            <WalletCell wallet={walletName(order.walletId)} />
-            <Cell
-              className={
-                order.side === "buy"
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-red-600 dark:text-red-400"
-              }
+          rows.map((order) => (
+            <TableRow
+              key={order.id}
+              // The whole row charts its market, same as a position's row — one
+              // action the width of the panel. Cancel keeps its own click.
+              rowAction={() => onSelectMarket(order.marketKey)}
+              className="border-t hover:bg-muted/40"
             >
-              {order.side === "buy" ? "Buy" : "Sell"}
-            </Cell>
-            <Cell>{formatPrice(order.px)}</Cell>
-            <Cell>{formatSize(order.sz)}</Cell>
-            <Cell>{formatUsd(order.px * order.sz)}</Cell>
-            <Cell className="text-muted-foreground">
-              {/* A real order rides the account's leverage setting, which is
+              <MarketCell
+                marketKey={order.marketKey}
+                market={markets.get(order.marketKey) ?? null}
+                onSelect={() => onSelectMarket(order.marketKey)}
+                badge={
+                  <>
+                    {order.reduceOnly ? (
+                      <TradeBadge>Reduce only</TradeBadge>
+                    ) : null}
+                    {order.live ? (
+                      <RealBadge marketKey={order.marketKey} />
+                    ) : null}
+                  </>
+                }
+              />
+              <WalletCell wallet={walletName(order.walletId)} />
+              <Cell
+                className={
+                  order.side === "buy"
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-red-600 dark:text-red-400"
+                }
+              >
+                {order.side === "buy" ? "Buy" : "Sell"}
+              </Cell>
+              <Cell>{formatPrice(order.px)}</Cell>
+              <Cell>{formatSize(order.sz)}</Cell>
+              <Cell>{formatUsd(order.px * order.sz)}</Cell>
+              <Cell className="text-muted-foreground">
+                {/* A real order rides the account's leverage setting, which is
                   not the order's to say — a dash beats a made-up number. */}
-              {order.live ? "—" : `${order.leverage}×`}
-            </Cell>
-            {/* Named so a click on a DISABLED cancel — whose button lets the
+                {order.live ? "—" : `${order.leverage}×`}
+              </Cell>
+              {/* Named so a click on a DISABLED cancel — whose button lets the
                 click fall through — does not read as a click on the row. */}
-            <td data-column="actions" className="px-3 py-2 text-left whitespace-nowrap">
-              <span className="flex items-center gap-0.5">
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="ghost"
-                  disabled={busy}
-                  aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
-                  onClick={() => onCancel(order)}
-                >
-                  <Trash2Icon className="size-4" />
-                </Button>
-              </span>
-            </td>
-          </TableRow>
-        ))
+              <td
+                data-column="actions"
+                className="px-3 py-2 text-left whitespace-nowrap"
+              >
+                <span className="flex items-center gap-0.5">
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    disabled={busy}
+                    aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
+                    onClick={() => onCancel(order)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </span>
+              </td>
+            </TableRow>
+          ))
         )}
       </tbody>
     </table>
@@ -851,30 +876,36 @@ export function TradesTable({
       ["market", "wallet", "side", "ending"].includes(column) ? "asc" : "desc"
   )
 
-  const rows = sortRows(trades, direction, (trade) => {
-    switch (sort) {
-      case "market":
-        return marketSymbol(trade.marketKey)
-      case "wallet":
-        return walletName(trade.walletId)
-      case "side":
-        return trade.direction
-      case "held":
-        return trade.heldMs
-      case "entry":
-        return trade.entryPx
-      case "exit":
-        return trade.exitPx
-      case "size":
-        return trade.sz
-      case "pnl":
-        return trade.pnl
-      case "ending":
-        return tradeEndingLabel(trade)
-      default:
-        return trade.openedAt
-    }
-  })
+  // Memoised: this table can hold thousands of rows, and the panel around
+  // it re-renders on every poll and every price tick of a held market.
+  const rows = React.useMemo(
+    () =>
+      sortRows(trades, direction, (trade) => {
+        switch (sort) {
+          case "market":
+            return marketSymbol(trade.marketKey)
+          case "wallet":
+            return walletName(trade.walletId)
+          case "side":
+            return trade.direction
+          case "held":
+            return trade.heldMs
+          case "entry":
+            return trade.entryPx
+          case "exit":
+            return trade.exitPx
+          case "size":
+            return trade.sz
+          case "pnl":
+            return trade.pnl
+          case "ending":
+            return tradeEndingLabel(trade)
+          default:
+            return trade.openedAt
+        }
+      }),
+    [trades, direction, sort, walletName]
+  )
 
   if (trades.length === 0 && settled && !failed) {
     return (

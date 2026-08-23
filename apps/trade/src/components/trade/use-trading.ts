@@ -51,8 +51,13 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { keepUnreachableRows, type LiveRefusal } from "@/lib/trade/live"
+import {
+  keepUnreachableRows,
+  liveRefusalKey,
+  type LiveRefusal,
+} from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
+import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
 import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
@@ -120,6 +125,41 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 
 const REFRESH_MS = 4_000
 
+/** What a poll may leave out, to be carried over from the last answer. */
+type Carried = {
+  fills: LiveFill[]
+  trades: LiveTrade[]
+  nextBefore: number | null
+  smartOrders: SmartOrder[]
+}
+
+/**
+ * A fresh answer filled in from the last one, wherever the server said
+ * "unchanged": the Journal when no fill has happened since the stamp it
+ * was sent, and the smart orders when no ladder has moved. Both keep their
+ * identity then, so nothing downstream re-sorts or re-saves them.
+ */
+function carryOver<
+  T extends Omit<Carried, "smartOrders"> & {
+    smartOrders: SmartOrder[] | null
+    journalUnchanged: boolean
+  },
+>(fresh: T, was: Carried | null): T & Carried {
+  const journal =
+    !fresh.journalUnchanged || !was
+      ? {
+          fills: fresh.fills,
+          trades: fresh.trades,
+          nextBefore: fresh.nextBefore,
+        }
+      : { fills: was.fills, trades: was.trades, nextBefore: was.nextBefore }
+  return {
+    ...fresh,
+    ...journal,
+    smartOrders: fresh.smartOrders ?? was?.smartOrders ?? [],
+  }
+}
+
 /**
  * How long an optimistic hold may outlive its answer.
  *
@@ -166,7 +206,7 @@ export type Trading = {
    */
   watchOrders: PaperOrder[]
   /**
-   * The last refusal on each market, keyed by market key.
+   * The last refusal on each wallet and market.
    *
    * **The engine trades with nobody watching, so this is the only way it can
    * say no.** A refusal that comes back from a press throws to the hand that
@@ -413,13 +453,20 @@ function scopedToProtocol<
 >(answer: T, protocol: ProtocolId): T {
   const mine = (marketKey: string) =>
     parseMarketKey(marketKey)?.protocol === protocol
+  // A list with nothing to drop is handed back AS IS, not as a copy. A list
+  // carried over from the last answer keeps its identity that way, and the
+  // panels that save to localStorage when their list changes stay quiet.
+  const scoped = <T extends { marketKey: string }>(list: T[]): T[] => {
+    const kept = list.filter((one) => mine(one.marketKey))
+    return kept.length === list.length ? list : kept
+  }
   return {
     ...answer,
-    positions: answer.positions.filter((one) => mine(one.marketKey)),
-    orders: answer.orders.filter((one) => mine(one.marketKey)),
-    fills: answer.fills.filter((one) => mine(one.marketKey)),
-    trades: answer.trades.filter((one) => mine(one.marketKey)),
-    smartOrders: answer.smartOrders.filter((one) => mine(one.marketKey)),
+    positions: scoped(answer.positions),
+    orders: scoped(answer.orders),
+    fills: scoped(answer.fills),
+    trades: scoped(answer.trades),
+    smartOrders: scoped(answer.smartOrders),
   }
 }
 
@@ -540,8 +587,30 @@ export function useTrading(
    * is on screen: a read the poll overtook is thrown away, and a caller
    * holding a dragged price has to keep holding it until one really lands.
    */
+  // The stamps each half was last given, sent back so the server can say
+  // "unchanged" for the Journal and the smart orders. Kept per exchange.
+  const stampsRef = React.useRef<{
+    protocol: ProtocolId
+    paper: { journal?: string; smart?: string }
+    live: { journal?: string; smart?: string }
+  }>({ protocol, paper: {}, live: {} })
   const refresh = React.useCallback(async (): Promise<boolean> => {
     const request = ++requestRef.current
+    // Another exchange's stamps mean nothing here: start blank.
+    if (stampsRef.current.protocol !== protocol) {
+      stampsRef.current = { protocol, paper: {}, live: {} }
+    }
+    const stamps = stampsRef.current
+    const paperScope = {
+      protocol,
+      journalStamp: stamps.paper.journal,
+      smartOrdersStamp: stamps.paper.smart,
+    }
+    const liveScope = {
+      protocol,
+      journalStamp: stamps.live.journal,
+      smartOrdersStamp: stamps.live.smart,
+    }
     // The nudge goes out ALONGSIDE the reads, not before them. It tells the
     // engine to look at this wallet's ladders; the panel's rows do not come
     // from it, so waiting for it only meant the whole panel sat on a spinner
@@ -572,25 +641,51 @@ export function useTrading(
     // The clock every optimistic hold is measured against moves with each
     // landing — see `holdExpired`.
     const mine = () => requestRef.current === request
-    const paper = loadPaperPortfolio().then(
+    const paper = loadPaperPortfolio(paperScope).then(
       (value) => {
         if (!mine()) return false
         setReadAt(Date.now())
-        setPaperAnswer(scopedToProtocol(value, protocol))
+        // Off the ref, not the snapshot: the other half may have landed
+        // first and written its own stamps in the meantime.
+        stampsRef.current = {
+          ...stampsRef.current,
+          protocol,
+          paper: {
+            journal: value.journalStamp,
+            smart: value.smartOrdersStamp,
+          },
+        }
+        setPaperAnswer((was) =>
+          scopedToProtocol(carryOver(value, was), protocol)
+        )
         setFailed(false)
         return true
       },
       () => false
     )
-    const live = loadLiveTrading().then(
+    const live = loadLiveTrading(liveScope).then(
       (value) => {
         if (!mine()) return false
         setReadAt(Date.now())
+        // Off the ref, not the snapshot: the other half may have landed
+        // first and written its own stamps in the meantime.
+        stampsRef.current = {
+          ...stampsRef.current,
+          protocol,
+          live: {
+            journal: value.journalStamp,
+            smart: value.smartOrdersStamp,
+          },
+        }
         // Scoped BEFORE the unreachable-rows merge, so kept-alive rows from a
         // wallet the exchange missed are already this page's rows and nothing
         // foreign can ride back in through the merge.
-        const scoped = scopedToProtocol(value, protocol)
-        setLiveAnswer((was) => keepUnreachableRows(was, scoped))
+        setLiveAnswer((was) =>
+          keepUnreachableRows(
+            was,
+            scopedToProtocol(carryOver(value, was), protocol)
+          )
+        )
         setFailed(false)
         return true
       },
@@ -847,11 +942,11 @@ export function useTrading(
   // Live only: a practice wallet's orders are filled from our own numbers and
   // nothing outside can refuse one.
   const refusals = React.useMemo(() => {
-    const byMarket = new Map<string, LiveRefusal>()
+    const byWalletMarket = new Map<string, LiveRefusal>()
     for (const one of liveAnswer?.refusals ?? EMPTY_REFUSALS) {
-      byMarket.set(one.marketKey, one)
+      byWalletMarket.set(liveRefusalKey(one.walletId, one.marketKey), one)
     }
-    return byMarket
+    return byWalletMarket
   }, [liveAnswer])
 
   const trades = React.useMemo((): LiveTrade[] => {
@@ -1248,18 +1343,24 @@ export function useTrading(
     async (walletId, orderId) => {
       // Cancelling costs nothing, so there is no question asked first — and
       // nothing is said afterwards either: the row disappearing is the answer.
-      const watch = allSmartOrders.find(
-        (one) => one.kind === "watch" && one.id === orderId
-      )
       const order = findOrder(orderId)
+      const kind = orderCancelKind(order)
       await callOff(
         orderId,
-        () => {
+        async () => {
           // A watched price is drawn as an order and cancelled as one, but
           // there is no order anywhere to cancel — the row IS the order until
           // its level is touched, so it goes back through the smart-order door.
-          if (watch) return cancelWatch({ walletId, ladderId: orderId })
-          if (order?.live) {
+          if (kind === "watch") {
+            const result = await cancelWatch({ walletId, ladderId: orderId })
+            // A watch placed seconds ago may still be standing in from the
+            // placement answer while the full account read catches up.
+            setPlacedSmart((held) =>
+              held.filter((one) => one.id !== orderId)
+            )
+            return result
+          }
+          if (kind === "live" && order) {
             return cancelLiveOrder({
               walletId,
               marketKey: order.marketKey,
@@ -1268,10 +1369,14 @@ export function useTrading(
           }
           return cancelPaperOrder(walletId, orderId)
         },
-        order?.live ? getLiveErrorMessage : getPaperErrorMessage
+        kind === "watch"
+          ? getTradingSmartOrderError
+          : kind === "live"
+            ? getLiveErrorMessage
+            : getPaperErrorMessage
       )
     },
-    [callOff, findOrder, allSmartOrders]
+    [callOff, findOrder]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, eq, inArray, ne } from "drizzle-orm"
+import { and, count, eq, inArray, max, ne, sql } from "drizzle-orm"
 
 import { parseMarketKey, type CandleInterval } from "@/lib/protocols/contracts"
 import {
@@ -640,7 +640,11 @@ export async function saveLadderPlan(
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.id, ladderId)
+        eq(tradeSmartLadders.id, ladderId),
+        // A cancel may land while the engine is finishing a pass it started
+        // from an older copy of this row. Once the cancel marks the row done,
+        // that older pass must not put it back on screen as active.
+        eq(tradeSmartLadders.status, "active")
       )
     )
 }
@@ -805,22 +809,126 @@ function placedByFlow(
   return row.createdAt.getTime() >= owner.since ? owner.runId : null
 }
 
+function runningFlows(userId: string, walletIds: readonly string[]) {
+  return db
+    .select({
+      id: tradeFlowRuns.id,
+      walletId: tradeFlowRuns.walletId,
+      placed: tradeFlowRuns.placed,
+      startedAt: tradeFlowRuns.startedAt,
+    })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.status, "running"),
+        inArray(tradeFlowRuns.walletId, [...walletIds])
+      )
+    )
+}
+
+/**
+ * A short string that changes whenever `listActiveSmartOrders` would answer
+ * differently, and not otherwise.
+ *
+ * The full answer is every active ladder WITH its plan — measured at 271
+ * rows and half a megabyte for one account on 23 August 2026, which the
+ * poll carried from the database to the server and on to the browser every
+ * four seconds, for 700 ms a time, whether or not anything had moved.
+ *
+ * The stamp is a hash the database computes over what the browser is
+ * actually sent: each row's id, market, kind, plan and flow. Not
+ * `updatedAt` — the engine rewrites a watched ladder's row every few seconds
+ * without changing its plan, so a stamp on that column changed every poll
+ * and saved nothing. Which switched-on flow placed each row comes from the
+ * running flows, so those are in the stamp too. Two small aggregate queries,
+ * one round trip, thirty-two bytes back.
+ */
+export async function activeSmartOrdersStamp(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<string> {
+  if (walletIds.length === 0) return "0"
+  const [ladders, flows] = await Promise.all([
+    db
+      .select({
+        count: count(),
+        digest: sql<string>`md5(coalesce(string_agg(${tradeSmartLadders.id} || ':' || ${tradeSmartLadders.marketKey} || ':' || ${tradeSmartLadders.kind} || ':' || coalesce(${tradeSmartLadders.flowRunId}, '') || ':' || ${tradeSmartLadders.plan}::text, '|' order by ${tradeSmartLadders.id}), ''))`,
+      })
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          inArray(tradeSmartLadders.walletId, [...walletIds]),
+          eq(tradeSmartLadders.status, "active")
+        )
+      ),
+    db
+      .select({
+        count: count(),
+        // Not `updatedAt`: a running flow rewrites its row every time it
+        // looks at a coin, which is every few seconds. What `placedByFlow`
+        // reads is the run's id, when it started, and what it has placed.
+        newest: max(tradeFlowRuns.startedAt),
+        placed: sql<number>`coalesce(sum(jsonb_array_length(${tradeFlowRuns.placed})), 0)`,
+      })
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, userId),
+          eq(tradeFlowRuns.status, "running"),
+          inArray(tradeFlowRuns.walletId, [...walletIds])
+        )
+      ),
+  ])
+  const l = ladders[0]
+  const f = flows[0]
+  return [
+    l?.count ?? 0,
+    l?.digest ?? "",
+    f?.count ?? 0,
+    f?.newest?.getTime() ?? 0,
+    f?.placed ?? 0,
+  ].join(":")
+}
+
+/**
+ * The active smart orders, or `null` when they are exactly what the caller
+ * already holds — judged by the stamp above. The stamp that describes the
+ * answer comes back either way, for the caller to send next time.
+ */
+export async function listActiveSmartOrdersIfChanged(
+  userId: string,
+  walletIds: readonly string[],
+  knownStamp: string | undefined
+): Promise<{ smartOrders: SmartOrder[] | null; stamp: string }> {
+  const stamp = await activeSmartOrdersStamp(userId, walletIds)
+  if (knownStamp !== undefined && knownStamp === stamp) {
+    return { smartOrders: null, stamp }
+  }
+  return { smartOrders: await listActiveSmartOrders(userId, walletIds), stamp }
+}
+
 /** Every smart order still worth drawing, of any kind, across these wallets. */
 export async function listActiveSmartOrders(
   userId: string,
   walletIds: readonly string[]
 ): Promise<SmartOrder[]> {
   if (walletIds.length === 0) return []
-  const rows = await db
-    .select()
-    .from(tradeSmartLadders)
-    .where(
-      and(
-        eq(tradeSmartLadders.userId, userId),
-        inArray(tradeSmartLadders.walletId, [...walletIds]),
-        eq(tradeSmartLadders.status, "active")
-      )
-    )
+  // Both reads leave together: the running flows do not depend on the rows.
+  const [rows, running] = await Promise.all([
+    db
+      .select()
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          inArray(tradeSmartLadders.walletId, [...walletIds]),
+          eq(tradeSmartLadders.status, "active")
+        )
+      ),
+    runningFlows(userId, walletIds),
+  ])
 
   /**
    * Which switched-on flow placed each coin's order, for rows carrying no stamp.
@@ -842,21 +950,6 @@ export async function listActiveSmartOrders(
    * started narrows that to the life of one run. Anything placed from here on
    * carries the stamp and needs none of this.
    */
-  const running = await db
-    .select({
-      id: tradeFlowRuns.id,
-      walletId: tradeFlowRuns.walletId,
-      placed: tradeFlowRuns.placed,
-      startedAt: tradeFlowRuns.startedAt,
-    })
-    .from(tradeFlowRuns)
-    .where(
-      and(
-        eq(tradeFlowRuns.userId, userId),
-        eq(tradeFlowRuns.status, "running"),
-        inArray(tradeFlowRuns.walletId, [...walletIds])
-      )
-    )
   const flowPlaced = new Map<string, { runId: string; since: number }>()
   for (const run of running) {
     for (const marketKey of run.placed) {
@@ -1033,12 +1126,15 @@ export async function cancelWatchOrder(
       and(
         eq(tradeSmartLadders.userId, userId),
         eq(tradeSmartLadders.walletId, walletId),
-        eq(tradeSmartLadders.id, watchId),
-        eq(tradeSmartLadders.status, "active")
+        eq(tradeSmartLadders.id, watchId)
       )
     )
     .limit(1)
   if (!row || row.kind !== "watch") throw new Error("SMART_ORDER_NOT_FOUND")
+  // A stale poll can leave the cancelled row on screen long enough for a
+  // second press. Calling off the same watch twice has the same result and is
+  // not a server failure.
+  if (row.status === "done") return { cancelled: true }
 
   const plan = readWatchPlan(row.plan)
   if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")

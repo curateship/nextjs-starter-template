@@ -43,6 +43,9 @@ Two files outrank the rest, and outrank the code:
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved
   results from before 18 Aug 2026 are too kind.
+- `dashboard-speed.md` — what one database trip costs, why the page opens with
+  one server call, what the four-second poll does now, and why the Journal
+  and the smart orders only travel when they changed.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
 

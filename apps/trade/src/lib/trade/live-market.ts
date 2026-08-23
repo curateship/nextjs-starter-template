@@ -186,33 +186,22 @@ export function useLiveMarks(
 }
 
 /**
- * The working bar of the chart's market, delivered to a callback — the chart
- * updates its last candle in place rather than re-rendering per tick.
+ * The working bar of one market and timeframe, delivered to a callback for as
+ * long as the returned function has not been called. No stream for the
+ * exchange means nothing is delivered and the chart keeps the bars it
+ * fetched. This is the plain form the chart subscribes with itself, so a
+ * tick reaches the candle series directly and never passes through React
+ * state.
  */
-export function useLiveCandle(
+export function watchLiveCandle(
   key: string | null,
   interval: CandleInterval,
   onBar: (bar: CandleBar) => void
-) {
-  // The latest callback without resubscribing the exchange feed per render.
-  const onBarRef = React.useRef(onBar)
-  React.useEffect(() => {
-    onBarRef.current = onBar
-  }, [onBar])
-
-  React.useEffect(() => {
-    if (!key) return
-    const ref = parseMarketKey(key)
-    if (!ref) return
-    // No stream for this exchange: the chart keeps the bars it fetched and
-    // simply does not tick. See the same choice where figures are watched.
-    const adapter = getLiveAdapter(ref.protocol)
-    if (!adapter) return
-    return adapter.watchCandle(
-      ref.network,
-      ref.marketId,
-      interval,
-      (bar) => onBarRef.current(bar)
-    )
-  }, [key, interval])
+): () => void {
+  if (!key) return () => {}
+  const ref = parseMarketKey(key)
+  if (!ref) return () => {}
+  const adapter = getLiveAdapter(ref.protocol)
+  if (!adapter) return () => {}
+  return adapter.watchCandle(ref.network, ref.marketId, interval, onBar)
 }

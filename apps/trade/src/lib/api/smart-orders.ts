@@ -15,7 +15,7 @@ import {
 } from "@/lib/trade/grid"
 import { userGet, userPost } from "@/server/guards"
 import { marketBaseInForce } from "@/server/trade/base-level"
-import { tryBecomeLeader } from "@/server/trade/leadership"
+import { tryBecomeLeaderForOnePass } from "@/server/trade/leadership"
 import {
   cancelLiveGridLevel,
   cancelLiveGridRest,
@@ -277,14 +277,17 @@ const updateLadderExitsFn = createServerFn({ method: "POST" })
 const reconcileLiveLaddersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .handler(async ({ context }): Promise<{ checked: true }> => {
-    const leadership = await tryBecomeLeader()
+    // The wallet list comes first, so an account with nothing that could
+    // trade never touches the lock at all.
+    const wallets = (await listWallets(context.user.id)).filter(
+      (wallet) => wallet.kind === "live" && wallet.hasKey
+    )
+    if (wallets.length === 0) return { checked: true }
+    const leadership = await tryBecomeLeaderForOnePass()
     if (!leadership.held) return { checked: true }
     try {
-      const wallets = await listWallets(context.user.id)
       await Promise.allSettled(
-        wallets
-          .filter((wallet) => wallet.kind === "live" && wallet.hasKey)
-          .map((wallet) => reconcileLiveLadders(context.user.id, wallet))
+        wallets.map((wallet) => reconcileLiveLadders(context.user.id, wallet))
       )
     } finally {
       await leadership.release()
@@ -593,6 +596,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
+    SMART_ORDER_NOT_FOUND:
+      "That watched order is not there any more. The account will refresh now.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",
     SMART_GRID_RANGE:
       "The bottom of the grid has to be below the top. Check the two prices and try again.",

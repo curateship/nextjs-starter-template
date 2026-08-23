@@ -154,6 +154,13 @@ Running out of allowance is exactly what makes a wallet answer with nothing —
 so the wasted reads were causing the very "Can't reach it" they were paying
 for.
 
+**Only this dashboard's exchange is asked, too.** Every dashboard belongs to
+one exchange, and the poll says which. The wallet list still comes back whole,
+but the exchange figures are read only for wallets on that exchange. Before
+this, the Hyperliquid page asked Phemex, KuCoin and Aster about their wallets
+every fifteen seconds and threw the answers away. The same scope applies to
+the positions poll; `dashboard-speed.md` has the full account.
+
 **Inactive is not a failure and must never be drawn as one.** The card says
 "Not switched on" and the picker says "Inactive". Both look identical to
 "Can't reach it" if you are careless, and they mean opposite things: one is a

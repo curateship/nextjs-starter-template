@@ -79,7 +79,7 @@ import {
   indicatorPaint,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
-import { useLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
+import { watchLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
 
 const CANDLE_LOAD_SETTLE_MS = 250
 const ORB_SOURCE_INTERVAL: CandleInterval = "15m"
@@ -224,16 +224,15 @@ export function ChartPanel({
       ? `${selectedKey}@${ORB_SOURCE_INTERVAL}`
       : null
 
-  // The working bar, streamed. Tagged with the market-and-interval it
-  // belongs to, so a tick that arrives just after a switch cannot draw on
-  // the wrong chart.
-  const [liveBar, setLiveBar] = React.useState<{
-    key: string
-    bar: CandleBar
-  } | null>(null)
-  useLiveCandle(selectedKey, interval, (bar) => {
-    if (wanted) setLiveBar({ key: wanted, bar })
-  })
+  // The working bar, streamed — but not through this component. The chart
+  // subscribes with this and applies each tick to its last candle itself.
+  // Holding the bar in state here re-rendered this whole panel, and every
+  // layer drawn over the chart, on every tick of the price.
+  const liveBars = React.useCallback(
+    (onBar: (bar: CandleBar) => void) =>
+      watchLiveCandle(selectedKey, interval, onBar),
+    [selectedKey, interval]
+  )
 
   // The feed came back after a gap: the working bar alone cannot patch a
   // hole in history, so the snapshot is refetched.
@@ -795,7 +794,7 @@ export function ChartPanel({
             }
             readView={readViewForChart}
             onViewChange={chartView.onViewChange}
-            liveBar={liveBar?.key === wanted ? liveBar.bar : null}
+            liveBars={liveBars}
             // The chart is handed a function and a surface, never a drawing or
             // a position. Both layers below draw in the same coordinates and
             // neither is anything the chart itself knows about.

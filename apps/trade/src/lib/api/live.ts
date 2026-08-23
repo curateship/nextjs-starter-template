@@ -2,9 +2,11 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import {
+  KNOWN_PROTOCOLS,
   parseMarketKey,
   type PlaceOrderOutcome,
 } from "@/lib/protocols/contracts"
+import type { PollScope } from "@/lib/api/paper"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
@@ -25,10 +27,14 @@ import {
 } from "@/server/trade/live-fills"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import {
-  listActiveSmartOrders,
+  listActiveSmartOrdersIfChanged,
   placeWatchOrder,
 } from "@/server/trade/smart-orders"
-import { findWallet, listWallets } from "@/server/trade/wallets"
+import {
+  findWallet,
+  listWallets,
+  listWalletsWithCredentials,
+} from "@/server/trade/wallets"
 
 import { describeAuthError } from "./error-message"
 
@@ -81,10 +87,25 @@ const positionSchema = z.object({
   marketKey: marketKeySchema,
 })
 
+/** The same scope the paper poll takes — see `PollScope` in `paper.ts`. */
+const pollScopeSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS).optional(),
+  /** The stamp of the Journal the browser holds — same idea, for fills. */
+  journalStamp: z.string().max(200).optional(),
+  /**
+   * The stamp that came back with the smart orders the browser holds. When
+   * nothing has changed since, the answer says so instead of carrying every
+   * ladder's plan again — see `activeSmartOrdersStamp`.
+   */
+  smartOrdersStamp: z.string().max(200).optional(),
+})
+
 const loadLiveTradingFn = createServerFn({ method: "GET" })
   .middleware([userGet])
+  .inputValidator(pollScopeSchema)
   .handler(
     async ({
+      data,
       context,
     }): Promise<{
       positions: PaperPosition[]
@@ -94,22 +115,41 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       /** Finished round trips, newest first — what the Journal tab draws. */
       trades: LiveTrade[]
       nextBefore: number | null
-      smartOrders: SmartOrder[]
+      /** True when the Journal is the browser's own, unchanged. */
+      journalUnchanged: boolean
+      journalStamp: string
+      /** `null` means "the ones you already hold" — see the stamp. */
+      smartOrders: SmartOrder[] | null
+      smartOrdersStamp: string
       /** Each live wallet's name, for the Wallet column. */
       wallets: { id: string; label: string }[]
       /** The last refusal on each market, so a stuck level can say why. */
       refusals: LiveRefusal[]
       unreachable: string[]
     }> => {
-      const wallets = await listWallets(context.user.id)
-      const portfolio = await loadLivePortfolio(context.user.id, wallets)
+      const read = await listWalletsWithCredentials(context.user.id)
+      const wallets = read.wallets.filter(
+        (wallet) =>
+          data.protocol === undefined || wallet.protocol === data.protocol
+      )
       const liveWallets = wallets.filter((wallet) => wallet.kind === "live")
+      // The exchange read and the smart-order read do not depend on each
+      // other, so they go out together.
+      const [portfolio, smart] = await Promise.all([
+        loadLivePortfolio(context.user.id, wallets, {
+          journalStamp: data.journalStamp,
+          credentials: read.credentials,
+        }),
+        listActiveSmartOrdersIfChanged(
+          context.user.id,
+          liveWallets.map((wallet) => wallet.id),
+          data.smartOrdersStamp
+        ),
+      ])
       return {
         ...portfolio,
-        smartOrders: await listActiveSmartOrders(
-          context.user.id,
-          liveWallets.map((wallet) => wallet.id)
-        ),
+        smartOrders: smart.smartOrders,
+        smartOrdersStamp: smart.stamp,
         wallets: liveWallets.map((wallet) => ({
           id: wallet.id,
           label: wallet.label,
@@ -233,8 +273,8 @@ export function moveLiveOrder(input: z.infer<typeof moveSchema>) {
   return moveLiveOrderFn({ data: input })
 }
 
-export function loadLiveTrading() {
-  return loadLiveTradingFn()
+export function loadLiveTrading(scope: PollScope = {}) {
+  return loadLiveTradingFn({ data: scope })
 }
 
 export function loadOlderLiveTrades(before: number) {

@@ -374,6 +374,14 @@ export const tradeLiveFills = pgTable(
       table.marketKey,
       table.at
     ),
+    // The Journal and the wallet card both read a wallet's newest fills by
+    // time, with no market in the question. Without this the index above
+    // cannot serve that read and every poll sorted the whole history.
+    index("trade_live_fills_time_idx").on(
+      table.userId,
+      table.walletId,
+      table.at
+    ),
     foreignKey({
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],

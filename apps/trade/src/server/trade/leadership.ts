@@ -1,4 +1,4 @@
-import { Client } from "pg"
+import { Client, Pool } from "pg"
 
 import { getDatabaseUrl } from "@/server/db"
 
@@ -18,9 +18,11 @@ import { getDatabaseUrl } from "@/server/db"
  * or too quick to be safe. A connection dying releases the lock at once,
  * whatever killed it.
  *
- * That is also why this opens a connection of its own rather than using the
- * pool. A pooled connection goes back to the pool after the query, and the
- * lock goes with it.
+ * That is also why the long holders open a connection of their own rather
+ * than using the app's pool. A pooled connection goes back to the pool after
+ * the query, and the lock goes with it. The website's one-pass check below
+ * keeps a single connection of its own for the same reason, checked out for
+ * the whole pass.
  */
 
 /** Any number, as long as nothing else in this database picks the same one. */
@@ -121,6 +123,109 @@ export async function tryBecomeLeader(): Promise<Leadership> {
     await client.end().catch(() => {})
     throw error
   }
+}
+
+/**
+ * The lock for ONE short pass, on a connection that is kept warm between
+ * passes.
+ *
+ * The website asks for the lock every four seconds from every open dashboard
+ * tab, holds it for one reconcile pass, and lets it go. `tryBecomeLeader`
+ * opens a brand-new connection each time — connect, TLS, sign in — which
+ * measured at half a second against the database this app runs on. Half a
+ * second of plumbing every four seconds, per tab, before any work starts.
+ *
+ * This keeps a pool of one connection for that job. The lock still lives on
+ * a connection, so the guarantee above holds: the connection stays checked
+ * out for the whole pass, and if the pass fails in a way that might leave
+ * the lock behind, the connection is destroyed rather than returned. A
+ * connection idle for half a minute is closed, so a tab left alone costs
+ * nothing.
+ *
+ * Not for the dedicated engine, and not for the ladder worker: both hold the
+ * lock for hours and need `heldLeadership`'s keepalive and dropped-line
+ * watch. A pass is over in seconds.
+ */
+export async function tryBecomeLeaderForOnePass(): Promise<Leadership> {
+  const pool = lockPool()
+  // The one connection is busy: another tab's pass holds it. That pass is
+  // doing this pass's work, so the answer is "not held", at once — never a
+  // queue behind it, which would run the same pass twice or time out.
+  if (pool.waitingCount > 0 || (pool.totalCount > 0 && pool.idleCount === 0)) {
+    return { held: false, lost: () => true, release: async () => {} }
+  }
+  const client = await pool.connect()
+  let held = false
+  try {
+    const answer = await client.query<{ locked: boolean }>(
+      "select pg_try_advisory_lock($1) as locked",
+      [TRADE_ENGINE_LOCK]
+    )
+    held = answer.rows[0]?.locked === true
+  } catch (error) {
+    client.release(true)
+    throw error
+  }
+  if (!held) {
+    client.release()
+    return { held: false, lost: () => true, release: async () => {} }
+  }
+  let lost = false
+  // A line that drops mid-pass took the lock with it. Listened for the same
+  // way the long holders do, and unhooked on release so the pooled client
+  // does not collect a listener per pass.
+  const markLost = () => {
+    lost = true
+  }
+  client.on("error", markLost)
+  let released = false
+  return {
+    held: true,
+    lost: () => lost || released,
+    release: async () => {
+      if (released) return
+      released = true
+      client.off("error", markLost)
+      if (lost) {
+        client.release(true)
+        return
+      }
+      try {
+        await client.query("select pg_advisory_unlock($1)", [TRADE_ENGINE_LOCK])
+        client.release()
+      } catch {
+        // The unlock did not go through, so the lock may still sit on this
+        // connection. Closing the connection releases it for certain; the
+        // pool opens a fresh one next time.
+        client.release(true)
+      }
+    },
+  }
+}
+
+declare global {
+  var __tradeLockPool: Pool | undefined
+}
+
+/**
+ * On `globalThis`, not a module constant: the dev server bundles this module
+ * more than once, and a pool per bundle would be a pool per copy.
+ */
+function lockPool(): Pool {
+  if (!globalThis.__tradeLockPool) {
+    const pool = new Pool({
+      connectionString: getDatabaseUrl(),
+      max: 1,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+      keepAlive: true,
+    })
+    // A spare connection the far end hung up on must not take the process
+    // down; the pool has already discarded it.
+    pool.on("error", () => {})
+    globalThis.__tradeLockPool = pool
+  }
+  return globalThis.__tradeLockPool
 }
 
 /**

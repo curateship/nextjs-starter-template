@@ -21,7 +21,7 @@ vi.mock("@/lib/api/candles", async (importOriginal) => {
 })
 
 vi.mock("@/lib/trade/live-market", () => ({
-  useLiveCandle: vi.fn(),
+  watchLiveCandle: vi.fn(() => () => {}),
   useLiveCatchUp: vi.fn(),
 }))
 

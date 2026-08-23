@@ -1,28 +1,14 @@
 import * as React from "react"
-import {
-  createFileRoute,
-  stripSearchParams,
-  useRouter,
-} from "@tanstack/react-router"
+import { createFileRoute, stripSearchParams } from "@tanstack/react-router"
 
 import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
+import { useDashboardMarkets } from "@/components/trade/use-dashboard-markets"
 import type { ProtocolId } from "@/lib/protocols/contracts"
-import {
-  getMarketsErrorMessage,
-  loadLastMarket,
-  loadMarketFavorites,
-  loadMarkets,
-  saveLastMarket,
-} from "@/lib/api/markets"
-import { loadRememberedChartOptions } from "@/lib/api/chart-options"
-import { loadRememberedChartView } from "@/lib/api/chart-view"
-import { loadRememberedFolds } from "@/lib/api/card-folds"
-import { loadQuickOrderPrefs } from "@/lib/api/quick-order"
-import { loadIndicatorSettings } from "@/lib/api/indicators"
+import { loadDashboardBootstrap } from "@/lib/api/dashboard"
+import { saveLastMarket } from "@/lib/api/markets"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
-import type { ChartView } from "@/lib/trade/chart-view"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import {
   marketKeyOnDashboard,
@@ -54,70 +40,34 @@ export const Route = createFileRoute("/_authenticated/admin/kucoin")({
   loaderDeps: () => ({
     network: "mainnet" as const,
   }),
+  // The page's data is good for a minute: a market click, or coming back to
+  // this tab inside that window, paints at once instead of asking the server
+  // again. Saving the volume cutoff in Settings invalidates it, so a new
+  // cutoff shows on the next visit regardless.
+  staleTime: 60_000,
   loader: async ({ deps }) => {
-    const [
-      markets,
-      favorites,
-      lastMarket,
-      chartView,
-      chartOptions,
-      indicators,
-      cardFolds,
-      quickOrder,
-    ] = await Promise.all([
-      // A dead exchange must not take the page down with it: the workspace
-      // still opens, and the list explains itself and offers a retry.
-      loadMarkets(PROTOCOL, deps.network)
-        .then((result) => ({ catalogs: result.catalogs, error: null }))
-        .catch((error: unknown) => ({
+    // One server call for everything the page needs — see
+    // `@/lib/api/dashboard`. A dead exchange is answered inside it, with an
+    // empty list and a message. A server that does not answer at all still
+    // opens the workspace: the list explains itself and offers a retry, and
+    // every preference falls back to its default.
+    const boot = await loadDashboardBootstrap(PROTOCOL, deps.network).catch(
+      () => ({
+        markets: {
           catalogs: [],
-          error: getMarketsErrorMessage(error),
-        })),
-      // Losing the stars is cosmetic — an empty set just draws no stars.
-      loadMarketFavorites().catch(() => ({ marketKeys: [] as string[] })),
-      // Losing the memory only means a blank middle panel, never a broken
-      // page.
-      loadLastMarket(PROTOCOL).catch(() => ({
-        marketKey: null as string | null,
-      })),
-      // Read here rather than after the chart is up: arriving late would
-      // frame the whole history first and jump to the remembered zoom a
-      // beat later. Losing it only means the chart frames its own history.
-      loadRememberedChartView().catch(() => ({
-        chartView: null as ChartView | null,
-      })),
-      // The chart starts with the saved visibility choices. A failed read is
-      // cosmetic, so the safe answer is the familiar all-visible chart.
-      loadRememberedChartOptions().catch(() => ({
-        options: DEFAULT_CHART_OPTIONS,
-      })),
-      // Read here too, so the first chart drawn already carries them rather
-      // than painting bare candles and popping dashes on a beat later.
-      // Losing them only means an unmarked chart, never a broken page.
-      loadIndicatorSettings().catch(() => ({
+          error:
+            "The server did not answer. Nothing is wrong on your side — try again in a moment.",
+        },
+        favoriteKeys: [] as string[],
+        lastMarketKey: null,
+        chartView: null,
+        chartOptions: DEFAULT_CHART_OPTIONS,
         indicators: defaultIndicatorSettings(),
-      })),
-      // Read here rather than when a window opens, which would be too late:
-      // its cards would draw open and then fold themselves a moment later,
-      // in front of you. Losing it only means cards open as they always did.
-      loadRememberedFolds().catch(() => ({ folds: {} })),
-      // The right-click order window's last-used sizing, read here for the
-      // same reason: it opens on a click, and a window that filled itself in
-      // after it was already on screen would be no use to anybody typing.
-      // Losing it only means an empty size box.
-      loadQuickOrderPrefs().catch(() => ({ prefs: DEFAULT_QUICK_ORDER })),
-    ])
-    return {
-      markets,
-      network: deps.network,
-      favoriteKeys: favorites.marketKeys,
-      lastMarketKey: lastMarket.marketKey,
-      chartView: chartView.chartView,
-      chartOptions: chartOptions.options,
-      indicators: indicators.indicators,
-      cardFolds: cardFolds.folds,
-      quickOrder: quickOrder.prefs,
-    }
+        cardFolds: {},
+        quickOrder: DEFAULT_QUICK_ORDER,
+      })
+    )
+    return { ...boot, network: deps.network }
   },
   head: ({ matches }) => ({
     meta: [{ title: marketTitleFromMatches(matches, "market", "KuCoin") }],
@@ -139,14 +89,13 @@ function TradeRoute() {
   } = Route.useLoaderData()
   const { market } = Route.useSearch()
   const navigate = Route.useNavigate()
-  const router = useRouter()
-
-  // Stable on purpose: the workspace keys its live-feed effect on this, and
-  // a fresh closure per render would resubscribe the feed on every market
-  // click.
-  const onRetryMarkets = React.useCallback(
-    () => void router.invalidate(),
-    [router]
+  // A retry fetches the market list alone — never the whole loader. Stable
+  // on purpose: the workspace keys its live-feed effect on it, and a fresh
+  // closure per render would resubscribe the feed on every market click.
+  const { markets: shownMarkets, retry: onRetryMarkets } = useDashboardMarkets(
+    markets,
+    PROTOCOL,
+    network
   )
 
   // The address wins; the account's memory fills a bare visit. A remembered
@@ -175,8 +124,8 @@ function TradeRoute() {
   return (
     <TradeWorkspace
       protocol={PROTOCOL}
-      catalogs={markets.catalogs}
-      marketsError={markets.error}
+      catalogs={shownMarkets.catalogs}
+      marketsError={shownMarkets.error}
       network={network}
       initialFavoriteKeys={favoriteKeys}
       initialChartView={chartView}

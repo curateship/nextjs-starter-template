@@ -79,7 +79,7 @@ export function useTradeAccount(
   const refresh = React.useCallback(async () => {
     const request = ++requestRef.current
     try {
-      const answer = await loadWalletAccounts()
+      const answer = await loadWalletAccounts(protocol)
       if (requestRef.current !== request) return
       const protocolWallets = answer.wallets.filter(
         (one) => one.protocol === protocol

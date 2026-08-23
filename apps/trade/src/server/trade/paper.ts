@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm"
+import { and, count, desc, eq, inArray, lt, max, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -39,10 +39,7 @@ import {
   type LiveTradeEnding,
   type LiveTriggerKind,
 } from "@/lib/trade/live-trades"
-import {
-  canOpenAnother,
-  type EntryLimit,
-} from "@/lib/trade/entry-limit"
+import { canOpenAnother, type EntryLimit } from "@/lib/trade/entry-limit"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -165,7 +162,10 @@ function toOrder(row: OrderRow): PaperOrder {
 }
 
 /** Practice fills need no order lookup, so the map they are built with is empty. */
-const NO_TRIGGERS = new Map<string, { kind: LiveTriggerKind; px: number | null }>()
+const NO_TRIGGERS = new Map<
+  string,
+  { kind: LiveTriggerKind; px: number | null }
+>()
 
 // ----- The wallet as the engine holds it --------------------------------
 
@@ -441,7 +441,7 @@ function fillOrder(
      * waited gets the price it asked for.
      */
     slip?: boolean
-    }
+  }
 ): void {
   const held = book.positions.get(order.marketKey) ?? null
   let sz = order.sz
@@ -498,7 +498,11 @@ function fillOrder(
   // `exitPx`. It is stamped with the buy's own time so the same candle walk
   // can reach it, and that walk only ever looks at prices AHEAD of where the
   // buy filled, so it can never sell into the move that bought it.
-  if (!order.reduceOnly && order.exitPx !== null && order.exitPx !== undefined) {
+  if (
+    !order.reduceOnly &&
+    order.exitPx !== null &&
+    order.exitPx !== undefined
+  ) {
     if (order.exitPx > 0) {
       const exit: PaperOrder = {
         id: exitOrderIdOf(order.id),
@@ -583,7 +587,9 @@ function closeAt(
   fill(book, {
     marketKey: position.marketKey,
     side,
-    px: input.slip ? slippedPx(input.px, side, book.costs.slippageRate) : input.px,
+    px: input.slip
+      ? slippedPx(input.px, side, book.costs.slippageRate)
+      : input.px,
     sz: Math.abs(position.szi),
     feeRate: input.feeRate,
     leverage: position.leverage,
@@ -617,16 +623,21 @@ function passedLevels(
   const levels: { reason: PaperFillReason; px: number }[] = []
 
   const liq = liquidationPx(position)
-  if (liq !== null && through(liq)) levels.push({ reason: "liquidated", px: liq })
+  if (liq !== null && through(liq))
+    levels.push({ reason: "liquidated", px: liq })
   if (position.slPx !== null && through(position.slPx)) {
     levels.push({ reason: "stop_loss", px: position.slPx })
   }
-  if (position.tpPx !== null && (long ? mark >= position.tpPx : mark <= position.tpPx)) {
+  if (
+    position.tpPx !== null &&
+    (long ? mark >= position.tpPx : mark <= position.tpPx)
+  ) {
     levels.push({ reason: "take_profit", px: position.tpPx })
   }
 
-  return levels.sort((a, b) =>
-    Math.abs(a.px - position.entryPx) - Math.abs(b.px - position.entryPx)
+  return levels.sort(
+    (a, b) =>
+      Math.abs(a.px - position.entryPx) - Math.abs(b.px - position.entryPx)
   )
 }
 
@@ -793,7 +804,8 @@ export function settleMarket(
   for (let step = 0; step < MAX_OPEN_ORDERS + 2; step += 1) {
     const waiting = book.orders.find(
       (order) =>
-        order.marketKey === marketKey && isMarketable(order.side, order.px, mark)
+        order.marketKey === marketKey &&
+        isMarketable(order.side, order.px, mark)
     )
     if (waiting) {
       // Filled at the price it asked for rather than today's better one: it
@@ -891,7 +903,9 @@ async function readBook(
     // position with no price counts as neither up nor down, which is the only
     // honest thing to do with silence.
     marks: new Map(),
-    positions: new Map(positions.map((row) => [row.marketKey, toPosition(row)])),
+    positions: new Map(
+      positions.map((row) => [row.marketKey, toPosition(row)])
+    ),
     orders: orders.map(toOrder),
     fills: [],
     touchedMarkets: new Set(),
@@ -961,21 +975,22 @@ export async function saveBook(
       )
   }
 
+  // One delete and one upsert for every market the pass touched, where it
+  // used to be one write per market, each awaited before the next inside
+  // the transaction.
+  const gonePositions: string[] = []
+  const keptPositions: (typeof tradePaperPositions.$inferInsert)[] = []
   for (const marketKey of book.touchedMarkets) {
     const position = book.positions.get(marketKey)
     if (!position) {
-      await database
-        .delete(tradePaperPositions)
-        .where(
-          and(
-            eq(tradePaperPositions.userId, userId),
-            eq(tradePaperPositions.walletId, book.wallet.id),
-            eq(tradePaperPositions.marketKey, marketKey)
-          )
-        )
+      gonePositions.push(marketKey)
       continue
     }
-    const values = {
+    keptPositions.push({
+      userId,
+      id: position.id,
+      walletId: book.wallet.id,
+      marketKey,
       szi: position.szi,
       entryPx: position.entryPx,
       leverage: position.leverage,
@@ -985,23 +1000,40 @@ export async function saveBook(
       slPx: position.slPx,
       feesPaid: position.feesPaid,
       updatedAt: new Date(position.updatedAt),
-    }
+    })
+  }
+  if (gonePositions.length > 0) {
+    await database
+      .delete(tradePaperPositions)
+      .where(
+        and(
+          eq(tradePaperPositions.userId, userId),
+          eq(tradePaperPositions.walletId, book.wallet.id),
+          inArray(tradePaperPositions.marketKey, gonePositions)
+        )
+      )
+  }
+  if (keptPositions.length > 0) {
     await database
       .insert(tradePaperPositions)
-      .values({
-        userId,
-        id: position.id,
-        walletId: book.wallet.id,
-        marketKey,
-        ...values,
-      })
+      .values(keptPositions)
       .onConflictDoUpdate({
         target: [
           tradePaperPositions.userId,
           tradePaperPositions.walletId,
           tradePaperPositions.marketKey,
         ],
-        set: values,
+        set: {
+          szi: sql`excluded.szi`,
+          entryPx: sql`excluded.entry_px`,
+          leverage: sql`excluded.leverage`,
+          maxLeverage: sql`excluded.max_leverage`,
+          tpPx: sql`excluded.tp_px`,
+          tpSz: sql`excluded.tp_sz`,
+          slPx: sql`excluded.sl_px`,
+          feesPaid: sql`excluded.fees_paid`,
+          updatedAt: sql`excluded.updated_at`,
+        },
       })
   }
 
@@ -1052,10 +1084,26 @@ export async function exposedMarketKeys(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string[]> {
-  if (walletIds.length === 0) return []
+  const byWallet = await exposedMarketKeysByWallet(userId, walletIds)
+  return [...new Set([...byWallet.values()].flat())]
+}
+
+/**
+ * The same, kept apart by wallet — three queries for every wallet together,
+ * where asking per wallet inside a poll cost three per wallet.
+ */
+export async function exposedMarketKeysByWallet(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<Map<string, string[]>> {
+  const byWallet = new Map<string, string[]>()
+  if (walletIds.length === 0) return byWallet
   const [positions, orders, smart] = await Promise.all([
     db
-      .selectDistinct({ marketKey: tradePaperPositions.marketKey })
+      .selectDistinct({
+        walletId: tradePaperPositions.walletId,
+        marketKey: tradePaperPositions.marketKey,
+      })
       .from(tradePaperPositions)
       .where(
         and(
@@ -1064,7 +1112,10 @@ export async function exposedMarketKeys(
         )
       ),
     db
-      .selectDistinct({ marketKey: tradePaperOrders.marketKey })
+      .selectDistinct({
+        walletId: tradePaperOrders.walletId,
+        marketKey: tradePaperOrders.marketKey,
+      })
       .from(tradePaperOrders)
       .where(
         and(
@@ -1073,7 +1124,10 @@ export async function exposedMarketKeys(
         )
       ),
     db
-      .selectDistinct({ marketKey: tradeSmartLadders.marketKey })
+      .selectDistinct({
+        walletId: tradeSmartLadders.walletId,
+        marketKey: tradeSmartLadders.marketKey,
+      })
       .from(tradeSmartLadders)
       .where(
         and(
@@ -1083,9 +1137,12 @@ export async function exposedMarketKeys(
         )
       ),
   ])
-  return [
-    ...new Set([...positions, ...orders, ...smart].map((row) => row.marketKey)),
-  ]
+  for (const walletId of walletIds) byWallet.set(walletId, [])
+  for (const row of [...positions, ...orders, ...smart]) {
+    const keys = byWallet.get(row.walletId)
+    if (keys && !keys.includes(row.marketKey)) keys.push(row.marketKey)
+  }
+  return byWallet
 }
 
 /**
@@ -1162,6 +1219,32 @@ async function loadBars(
 }
 
 /**
+ * How many wallets settle at once. Each settle holds one pooled connection
+ * for its transaction, the app's pool has ten, and the positions poll and the
+ * wallet poll can both be settling the same wallets at the same moment. Three
+ * at a time leaves room for everything else in the same tick.
+ */
+const SETTLES_AT_ONCE = 3
+
+async function settleTogether<T>(
+  wallets: readonly TradeWallet[],
+  settle: (wallet: TradeWallet) => Promise<T>
+): Promise<T[]> {
+  const books: T[] = new Array(wallets.length)
+  let next = 0
+  const worker = async () => {
+    while (next < wallets.length) {
+      const index = next++
+      books[index] = await settle(wallets[index])
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(SETTLES_AT_ONCE, wallets.length) }, worker)
+  )
+  return books
+}
+
+/**
  * Brings one wallet up to date and hands back its book, already saved.
  *
  * The exchange is asked before the transaction opens, never inside it: holding
@@ -1172,50 +1255,60 @@ async function loadBars(
 export async function settleWallet(
   userId: string,
   wallet: TradeWallet,
-  shared?: { marks: ReadonlyMap<string, number> }
+  shared?: {
+    marks: ReadonlyMap<string, number>
+    /** This wallet's exposed markets, when the caller already looked. */
+    markets?: readonly string[]
+  }
 ): Promise<WalletBook> {
-  const markets = await exposedMarketKeys(userId, [wallet.id])
+  const markets =
+    shared?.markets ?? (await exposedMarketKeys(userId, [wallet.id]))
   const now = Date.now()
+
+  // A wallet holding nothing — no position, no waiting order, no ladder
+  // watching — has nothing to settle and nothing to write. Its book is read
+  // plain, with no lock and no transaction: five round trips fewer, on every
+  // poll, for every empty practice wallet on the account.
+  if (markets.length === 0) {
+    return await readBook(db, userId, wallet)
+  }
 
   // The candles the ladders are watching — a two-green ladder's own timeframe,
   // and the 4h a base stop reads its level off. Asked out here, before the
   // transaction, for the same reason the marks are: a network call must never
   // sit inside the lock. Costs nothing when no ladder is watching.
   const ladderBars = new Map<string, { bars: CandleBar[]; barMs: number }>()
+  // The three reads before the transaction do not depend on one another, so
+  // they leave together: this runs every four seconds, and each round trip
+  // in a row is a tenth of a second the screen waits.
+  const [ladderNeeds, stateRows, marks] = await Promise.all([
+    ladderCandleNeeds(userId, wallet.id, now),
+    db
+      .select()
+      .from(tradePaperState)
+      .where(
+        and(
+          eq(tradePaperState.userId, userId),
+          eq(tradePaperState.walletId, wallet.id)
+        )
+      )
+      .limit(1),
+    shared ? shared.marks : marksFor(wallet.protocol, wallet.network, markets),
+  ])
   // One feed per settle, for the same reason the live pass paces itself: a
   // wallet with a hundred ladders asking for a hundred 4h histories at once
   // is a burst the exchange refuses wholesale. The rest keep their old
   // `seenTo`, so the next settle simply picks up where this one stopped.
-  for (const need of (await ladderCandleNeeds(userId, wallet.id, now)).slice(
-    0,
-    1
-  )) {
+  for (const need of ladderNeeds.slice(0, 1)) {
     ladderBars.set(ladderBarsKey(need.use, need.marketKey), {
       bars: await loadBars(wallet, need.marketKey, need.interval, need.since),
       barMs: need.barMs,
     })
   }
 
-  const stateRows = await db
-    .select()
-    .from(tradePaperState)
-    .where(
-      and(
-        eq(tradePaperState.userId, userId),
-        eq(tradePaperState.walletId, wallet.id)
-      )
-    )
-    .limit(1)
   const settledTo = stateRows[0]?.settledTo.getTime() ?? now
   const gap = now - settledTo
-  const catchingUp = markets.length > 0 && gap >= CATCH_UP_AFTER_MS
-
-  const marks =
-    markets.length === 0
-      ? new Map<string, number>()
-      : (shared ?? {
-          marks: await marksFor(wallet.protocol, wallet.network, markets),
-        }).marks
+  const catchingUp = gap >= CATCH_UP_AFTER_MS
 
   // Candles only when a bar could actually have closed since the last look.
   // Below that the price-right-now half has covered every moment already, and
@@ -1237,7 +1330,9 @@ export async function settleWallet(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
 
     const book = await readBook(tx, userId, wallet)
@@ -1275,6 +1370,9 @@ export type PaperAccount = {
   /** Finished practice round trips — the Journal, alongside the real ones. */
   trades: LiveTrade[]
   nextBefore: number | null
+  /** True when the Journal is the caller's own, unchanged (see `journalStamp`). */
+  journalUnchanged: boolean
+  journalStamp: string
 }
 
 /**
@@ -1397,7 +1495,16 @@ export function loadPaperHistoryBefore(
  */
 export async function loadPaperPortfolio(
   userId: string,
-  wallets: readonly TradeWallet[]
+  wallets: readonly TradeWallet[],
+  options: {
+    /**
+     * The stamp of the Journal the caller already holds. When no fill has
+     * landed or been binned since, the Journal comes back empty with
+     * `journalUnchanged: true` and the caller keeps what it has, instead of
+     * carrying up to two thousand rows every four seconds.
+     */
+    journalStamp?: string
+  } = {}
 ): Promise<PaperAccount> {
   const paper = wallets.filter((wallet) => wallet.kind === "paper")
   if (paper.length === 0) {
@@ -1407,21 +1514,53 @@ export async function loadPaperPortfolio(
       fills: [],
       trades: [],
       nextBefore: null,
+      journalUnchanged: false,
+      journalStamp: "0",
     }
   }
 
-  const keys = await exposedMarketKeys(
+  const keysByWallet = await exposedMarketKeysByWallet(
     userId,
     paper.map((wallet) => wallet.id)
   )
-  const marks = await marksForKeys(keys)
+  const marks = await marksForKeys([...keysByWallet.values()].flat())
 
+  // Wallets together, not one after the other — that was most of the time
+  // this poll took. Each settle locks only its own wallet row, so they
+  // cannot wait on each other; the cap is for the connection pool.
+  const books = await settleTogether(paper, (wallet) =>
+    settleWallet(userId, wallet, {
+      marks,
+      markets: keysByWallet.get(wallet.id) ?? [],
+    })
+  )
   const positions: PaperPosition[] = []
   const orders: PaperOrder[] = []
-  for (const wallet of paper) {
-    const book = await settleWallet(userId, wallet, { marks })
+  for (const book of books) {
     positions.push(...book.positions.values())
     orders.push(...book.orders)
+  }
+
+  // After the settle, so a fill it just wrote is in the stamp.
+  const journalStamp = await paperJournalStamp(
+    userId,
+    paper.map((wallet) => wallet.id)
+  )
+  if (
+    options.journalStamp !== undefined &&
+    options.journalStamp === journalStamp
+  ) {
+    return {
+      positions: positions.sort((a, b) =>
+        a.marketKey.localeCompare(b.marketKey)
+      ),
+      orders: orders.sort((a, b) => a.createdAt - b.createdAt),
+      fills: [],
+      trades: [],
+      nextBefore: null,
+      journalUnchanged: true,
+      journalStamp,
+    }
   }
 
   const fills = await db
@@ -1456,7 +1595,31 @@ export async function loadPaperPortfolio(
     // No triggers to look up: a practice fill carries its own reason.
     trades,
     nextBefore: journalPageCursor(tradeFills, trades),
+    journalUnchanged: false,
+    journalStamp,
   }
+}
+
+/**
+ * A short string that changes when the practice Journal would read
+ * differently: a fill written, or one binned. One small aggregate.
+ */
+export async function paperJournalStamp(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<string> {
+  if (walletIds.length === 0) return "0"
+  const rows = await db
+    .select({ count: count(), newest: max(tradePaperJournal.fillTime) })
+    .from(tradePaperJournal)
+    .where(
+      and(
+        eq(tradePaperJournal.userId, userId),
+        inArray(tradePaperJournal.walletId, [...walletIds]),
+        eq(tradePaperJournal.hidden, false)
+      )
+    )
+  return `${rows[0]?.count ?? 0}:${rows[0]?.newest?.getTime() ?? 0}`
 }
 
 /**
@@ -1473,14 +1636,20 @@ export async function paperWalletFigures(
   const figures = new Map<string, WalletAccountFigures>()
   if (wallets.length === 0) return figures
 
-  const keys = await exposedMarketKeys(
+  const keysByWallet = await exposedMarketKeysByWallet(
     userId,
     wallets.map((wallet) => wallet.id)
   )
-  const marks = await marksForKeys(keys)
+  const marks = await marksForKeys([...keysByWallet.values()].flat())
 
-  for (const wallet of wallets) {
-    const book = await settleWallet(userId, wallet, { marks })
+  const books = await settleTogether(wallets, (wallet) =>
+    settleWallet(userId, wallet, {
+      marks,
+      markets: keysByWallet.get(wallet.id) ?? [],
+    })
+  )
+  for (const [index, wallet] of wallets.entries()) {
+    const book = books[index]
     figures.set(
       wallet.id,
       paperAccountFigures({
@@ -1526,7 +1695,11 @@ export async function placePaperOrder(
   }
 ): Promise<void> {
   const ref = parseMarketKey(input.marketKey)
-  if (!ref || ref.protocol !== wallet.protocol || ref.network !== wallet.network) {
+  if (
+    !ref ||
+    ref.protocol !== wallet.protocol ||
+    ref.network !== wallet.network
+  ) {
     throw new Error("PAPER_MARKET")
   }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -1538,7 +1711,11 @@ export async function placePaperOrder(
   }
 
   const protocol = getProtocol(wallet.protocol)
-  const px = protocol.markets.roundPx(input.px, rules.sizeDecimals, rules.priceTick)
+  const px = protocol.markets.roundPx(
+    input.px,
+    rules.sizeDecimals,
+    rules.priceTick
+  )
   const sz = roundSize(input.sz, rules.sizeDecimals)
   if (!(px > 0)) throw new Error("PAPER_PRICE")
   if (!(sz > 0) || px * sz < MIN_ORDER_VALUE_USD) throw new Error("PAPER_SIZE")
@@ -1546,7 +1723,8 @@ export async function placePaperOrder(
   const mark = await markOf(wallet, input.marketKey)
   const book = await settleWallet(userId, wallet)
 
-  if (book.orders.length >= MAX_OPEN_ORDERS) throw new Error("PAPER_ORDER_LIMIT")
+  if (book.orders.length >= MAX_OPEN_ORDERS)
+    throw new Error("PAPER_ORDER_LIMIT")
 
   const taken = isMarketable(input.side, px, mark)
   // A price already through the market is not going to wait for anything, so
@@ -1575,12 +1753,20 @@ export async function placePaperOrder(
     ? null
     : input.tpPx === null
       ? null
-      : protocol.markets.roundPx(input.tpPx, rules.sizeDecimals, rules.priceTick)
+      : protocol.markets.roundPx(
+          input.tpPx,
+          rules.sizeDecimals,
+          rules.priceTick
+        )
   const slPx = input.reduceOnly
     ? null
     : input.slPx === null
       ? null
-      : protocol.markets.roundPx(input.slPx, rules.sizeDecimals, rules.priceTick)
+      : protocol.markets.roundPx(
+          input.slPx,
+          rules.sizeDecimals,
+          rules.priceTick
+        )
 
   if (tpPx !== null && (long ? tpPx <= entryPx : tpPx >= entryPx)) {
     throw new Error("PAPER_TAKE_PROFIT_SIDE")
@@ -1715,7 +1901,8 @@ export async function updatePaperOrder(
   const held = book.positions.get(order.marketKey) ?? null
   if (order.reduceOnly) {
     const reducible = capReduceOnly(held, order.side, sz)
-    if (reducible === null || reducible <= 0) throw new Error("PAPER_REDUCE_ONLY")
+    if (reducible === null || reducible <= 0)
+      throw new Error("PAPER_REDUCE_ONLY")
   } else if ((order.px * sz) / order.leverage > freeCash(book)) {
     // Waiting orders hold no margin aside, so what this one has to fit inside
     // is the cash free right now — not what was free when it was placed.
@@ -1725,15 +1912,23 @@ export async function updatePaperOrder(
   // A reduce-only order never opens a position, so there is nothing for a stop
   // or a target to ride on. Dropped at the door, exactly as when placing one.
   const round = (px: number | null) =>
-    px === null ? null : protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
+    px === null
+      ? null
+      : protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
   const tpPx = order.reduceOnly ? null : round(input.tpPx)
   const slPx = order.reduceOnly ? null : round(input.slPx)
   const long = order.side === "buy"
 
-  if (tpPx !== null && (!(tpPx > 0) || (long ? tpPx <= order.px : tpPx >= order.px))) {
+  if (
+    tpPx !== null &&
+    (!(tpPx > 0) || (long ? tpPx <= order.px : tpPx >= order.px))
+  ) {
     throw new Error("PAPER_TAKE_PROFIT_SIDE")
   }
-  if (slPx !== null && (!(slPx > 0) || (long ? slPx >= order.px : slPx <= order.px))) {
+  if (
+    slPx !== null &&
+    (!(slPx > 0) || (long ? slPx >= order.px : slPx <= order.px))
+  ) {
     throw new Error("PAPER_STOP_SIDE")
   }
 
@@ -1815,10 +2010,7 @@ export async function setPaperBrackets(
   ) {
     throw new Error("PAPER_TAKE_PROFIT_SIDE")
   }
-  if (
-    slPx !== null &&
-    (!(slPx > 0) || (long ? slPx >= mark : slPx <= mark))
-  ) {
+  if (slPx !== null && (!(slPx > 0) || (long ? slPx >= mark : slPx <= mark))) {
     throw new Error("PAPER_STOP_SIDE")
   }
 

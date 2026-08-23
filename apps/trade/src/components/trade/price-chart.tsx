@@ -186,7 +186,7 @@ export function PriceChart({
   viewKey,
   readView,
   onViewChange,
-  liveBar,
+  liveBars,
   overlay,
 }: {
   candles: CandleBar[]
@@ -221,10 +221,14 @@ export function PriceChart({
    */
   onViewChange?: (view: ChartView) => void
   /**
-   * The working bar from the live feed, applied to the last candle in place —
-   * a tick never re-renders the chart, let alone rebuilds it.
+   * Where the working bar comes from: called once with a callback, it
+   * delivers every tick to it and returns a way to stop. The chart applies
+   * each tick to its last candle in place. Nothing about a tick goes through
+   * React, so a tick re-renders neither this chart nor the panel above it —
+   * which used to happen on every one, taking every overlay layer with it.
+   * Keep the function stable across renders; a new one resubscribes.
    */
-  liveBar?: CandleBar | null
+  liveBars?: (onBar: (bar: CandleBar) => void) => () => void
   /**
    * Drawn over the candles, handed the surface. Called again every time the
    * view moves, so it can render straight from the coordinates it is given.
@@ -630,31 +634,35 @@ export function PriceChart({
   }, [candles, viewKey, frameChart, refreshSurface])
 
   // The live tick: the working bar changes in place, a fresh bar appends.
+  // Subscribed here, applied straight to the series — see `liveBars`.
   React.useEffect(() => {
-    const price = priceSeriesRef.current
-    const volume = volumeSeriesRef.current
-    const colors = colorsRef.current
-    if (!liveBar || !price || !volume || !colors) return
-    if (liveBar.openTime < lastTimeRef.current) return
-    if (liveBar.openTime > lastTimeRef.current) {
-      timesRef.current = [...timesRef.current, liveBar.openTime]
-    }
-    lastTimeRef.current = liveBar.openTime
-    liveBarRef.current = { bar: liveBar, index: timesRef.current.length - 1 }
-    const time = (liveBar.openTime / 1000) as UTCTimestamp
-    price.update({
-      time,
-      open: liveBar.open,
-      high: liveBar.high,
-      low: liveBar.low,
-      close: liveBar.close,
+    if (!liveBars) return
+    return liveBars((liveBar) => {
+      const price = priceSeriesRef.current
+      const volume = volumeSeriesRef.current
+      const colors = colorsRef.current
+      if (!price || !volume || !colors) return
+      if (liveBar.openTime < lastTimeRef.current) return
+      if (liveBar.openTime > lastTimeRef.current) {
+        timesRef.current = [...timesRef.current, liveBar.openTime]
+      }
+      lastTimeRef.current = liveBar.openTime
+      liveBarRef.current = { bar: liveBar, index: timesRef.current.length - 1 }
+      const time = (liveBar.openTime / 1000) as UTCTimestamp
+      price.update({
+        time,
+        open: liveBar.open,
+        high: liveBar.high,
+        low: liveBar.low,
+        close: liveBar.close,
+      })
+      volume.update({
+        time,
+        value: liveBar.volume,
+        color: liveBar.close >= liveBar.open ? colors.upSoft : colors.downSoft,
+      })
     })
-    volume.update({
-      time,
-      value: liveBar.volume,
-      color: liveBar.close >= liveBar.open ? colors.upSoft : colors.downSoft,
-    })
-  }, [liveBar])
+  }, [liveBars])
 
   return (
     <div className="relative h-full min-h-0 w-full">

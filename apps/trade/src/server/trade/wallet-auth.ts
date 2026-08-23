@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 
 import { decryptSecret } from "@/server/auth/encryption"
 import { db } from "@/server/db"
@@ -42,4 +42,31 @@ export async function walletCredential(
     .limit(1)
   const cipher = rows[0]?.agentKeyEncrypted ?? null
   return () => (cipher ? decryptSecret(cipher) : null)
+}
+
+/**
+ * The same for several wallets in one read. The live poll asks for every
+ * live wallet at once, and one query for all of them replaces one per
+ * wallet. A wallet that is not in the answer has no key.
+ */
+export async function walletCredentials(
+  userId: string,
+  walletIds: readonly string[]
+): Promise<Map<string, () => string | null>> {
+  const credentials = new Map<string, () => string | null>()
+  if (walletIds.length === 0) return credentials
+  const rows = await db
+    .select({
+      id: tradeWallets.id,
+      agentKeyEncrypted: tradeWallets.agentKeyEncrypted,
+    })
+    .from(tradeWallets)
+    .where(
+      and(eq(tradeWallets.userId, userId), inArray(tradeWallets.id, [...walletIds]))
+    )
+  for (const row of rows) {
+    const cipher = row.agentKeyEncrypted
+    credentials.set(row.id, () => (cipher ? decryptSecret(cipher) : null))
+  }
+  return credentials
 }

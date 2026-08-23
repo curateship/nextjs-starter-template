@@ -118,8 +118,11 @@ export function ActivityPanel({
   const [removingTrade, setRemovingTrade] = React.useState<LiveTrade | null>(null)
 
   /** Each row says which wallet it is in; the panel shows several at once. */
-  const walletName = (walletId: string) =>
-    trading.walletNames.get(walletId) ?? "another wallet"
+  const walletNames = trading.walletNames
+  const walletName = React.useCallback(
+    (walletId: string) => walletNames.get(walletId) ?? "another wallet",
+    [walletNames]
+  )
 
   // Every market on offer, by key, so a row can find its own art and its
   // fallback price without each one searching the catalogues itself.

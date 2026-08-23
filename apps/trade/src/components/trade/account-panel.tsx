@@ -99,10 +99,13 @@ function FigureRow({
 
 function useKeyExpiryNotice(keyValidUntil: number | null) {
   const [readAt, setReadAt] = React.useState(Date.now)
+  // One clock per wallet row, and only for a row that has a key to run out:
+  // a wallet with no expiry has nothing for the minute to change.
   React.useEffect(() => {
+    if (keyValidUntil === null) return
     const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
     return () => window.clearInterval(timer)
-  }, [])
+  }, [keyValidUntil])
   return keyExpiryNotice(keyValidUntil, readAt)
 }
 

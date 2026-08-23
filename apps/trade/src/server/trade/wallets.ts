@@ -86,12 +86,28 @@ function toWallet(row: WalletFields): TradeWallet {
 
 /** This person's wallets, oldest first — the order the All tab lists them. */
 export async function listWallets(userId: string): Promise<TradeWallet[]> {
+  return (await listWalletsWithCredentials(userId)).wallets
+}
+
+/**
+ * The same list, with each wallet's key kept beside it as a thunk that
+ * decrypts on demand. The live poll needs both, and reading the row once for
+ * the list and again for the keys was a round trip for nothing. The
+ * plaintext still never leaves the server: `TradeWallet` carries only
+ * `hasKey`, and the thunk is consumed by the exchange connector.
+ */
+export async function listWalletsWithCredentials(userId: string): Promise<{
+  wallets: TradeWallet[]
+  credentials: Map<string, () => string | null>
+}> {
   const rows = await db
     .select()
     .from(tradeWallets)
     .where(eq(tradeWallets.userId, userId))
     .orderBy(asc(tradeWallets.createdAt), asc(tradeWallets.id))
-  return rows.map(toWallet)
+  const credentials = new Map<string, () => string | null>()
+  for (const row of rows) credentials.set(row.id, () => credentialFor(row))
+  return { wallets: rows.map(toWallet), credentials }
 }
 
 /**
@@ -307,7 +323,14 @@ export async function deleteWallet(userId: string, id: string): Promise<void> {
  * in — see `paperWalletFigures`.
  */
 export async function loadWalletSummaries(
-  userId: string
+  userId: string,
+  /**
+   * Ask the exchange about this exchange's wallets only. Every dashboard
+   * belongs to one exchange, and asking every other exchange about wallets
+   * the page will never draw spent their request allowance for nothing. The
+   * wallet LIST still comes back whole.
+   */
+  protocol?: ProtocolId
 ): Promise<{ wallets: TradeWallet[]; summaries: WalletAccountSummary[] }> {
   const rows = await db
     .select()
@@ -327,7 +350,11 @@ export async function loadWalletSummaries(
   // spending the same allowance as the one being traded with, and running out
   // is exactly what makes a wallet answer with nothing. A switched-off wallet
   // says so instead, which is the truth and costs nothing.
-  const inUse = wallets.filter((wallet) => wallet.status === "active")
+  const inUse = wallets.filter(
+    (wallet) =>
+      wallet.status === "active" &&
+      (protocol === undefined || wallet.protocol === protocol)
+  )
   const liveWallets = inUse.filter((wallet) => wallet.kind === "live")
   const paperWallets = inUse.filter((wallet) => wallet.kind === "paper")
   const since = walletProfitWindowStart(new Date())

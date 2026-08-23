@@ -34,6 +34,9 @@ const asks: Array<{
 let available: CandleBar[] = []
 let failFromOnce: number | null = null
 
+/** What the fake exchanges say their history batch is; unset means no cap. */
+const FAKE_BATCH_BARS: Record<string, number | undefined> = { aster: 9_000 }
+
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -42,7 +45,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: (protocol: string) => ({
     markets: {
-      historyBatchBars: protocol === "aster" ? 9_000 : undefined,
+      historyBatchBars: FAKE_BATCH_BARS[protocol],
       intervalMs: (interval: string) =>
         interval === "1h" ? HOUR : FOUR_HOURS,
       history: async (

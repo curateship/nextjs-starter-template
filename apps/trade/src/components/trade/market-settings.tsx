@@ -1,4 +1,5 @@
 import * as React from "react"
+import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -64,6 +65,7 @@ export default function MarketSettings() {
     return !nextInvalid
   }
 
+  const router = useRouter()
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
     if (!validate()) return
@@ -76,6 +78,9 @@ export default function MarketSettings() {
       setValue(String(answer.minimumVolumeUsd))
       setInvalid(false)
       toast.success("Market filter saved.")
+      // The dashboards keep their market list for a minute. A new cutoff
+      // must show on the next visit, not a minute later.
+      void router.invalidate()
     } catch (error) {
       showErrorToast(getMarketSettingsSaveErrorMessage(error))
     } finally {

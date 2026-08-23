@@ -40,6 +40,69 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { tradePrefs } from "@/server/trade/schema"
 
+/** Everything a dashboard needs from the preference row, read in one query. */
+export type DashboardPrefs = {
+  lastMarketKey: string | null
+  minimumMarketVolumeUsd: number
+  chartView: ChartView | null
+  chartOptions: ChartOptions
+  indicators: IndicatorSettings
+  cardFolds: CardFolds
+  quickOrder: QuickOrderPrefs
+}
+
+/**
+ * The dashboard's seven preferences in ONE round trip.
+ *
+ * Opening a dashboard used to make seven separate reads of this same row, one
+ * column each, and each read paid a full session lookup first. Against a
+ * database 120 ms away that was most of the wait before the first paint. Each
+ * column still goes through the same reader as its single-column loader, so a
+ * value this build cannot read falls back exactly as before.
+ */
+export async function loadDashboardPrefs(
+  userId: string,
+  protocol: ProtocolId
+): Promise<DashboardPrefs> {
+  const row = await db
+    .select({
+      lastMarketKeys: tradePrefs.lastMarketKeys,
+      minimumMarketVolumeUsd: tradePrefs.minimumMarketVolumeUsd,
+      chartView: tradePrefs.chartView,
+      chartOptions: tradePrefs.chartOptions,
+      indicators: tradePrefs.indicators,
+      cardFolds: tradePrefs.cardFolds,
+      quickOrder: tradePrefs.quickOrder,
+    })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  const found = row[0]
+  return {
+    lastMarketKey: lastMarketKeyFor(found?.lastMarketKeys, protocol),
+    minimumMarketVolumeUsd: readMinimumMarketVolume(
+      found?.minimumMarketVolumeUsd
+    ),
+    chartView: readChartView(found?.chartView ?? null),
+    chartOptions: readChartOptions(found?.chartOptions ?? null),
+    indicators: readIndicatorSettings(found?.indicators ?? null),
+    cardFolds: readCardFolds(found?.cardFolds ?? null),
+    quickOrder: readQuickOrderPrefs(found?.quickOrder ?? null),
+  }
+}
+
+function lastMarketKeyFor(
+  keys: Record<string, unknown> | null | undefined,
+  protocol: ProtocolId
+): string | null {
+  const key = keys?.[protocol]
+  // A saved key that no longer parses, or that was filed under the wrong
+  // exchange by a bad hand-edit, resolves to "nothing remembered" rather
+  // than to some other exchange's market.
+  if (typeof key !== "string") return null
+  return parseMarketKey(key)?.protocol === protocol ? key : null
+}
+
 /**
  * The market this person was last looking at ON THIS EXCHANGE, or null on a
  * first visit to it.
@@ -57,12 +120,7 @@ export async function loadLastMarketKey(
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
-  const key = row[0]?.lastMarketKeys?.[protocol]
-  // A saved key that no longer parses, or that was filed under the wrong
-  // exchange by a bad hand-edit, resolves to "nothing remembered" rather
-  // than to some other exchange's market.
-  if (typeof key !== "string") return null
-  return parseMarketKey(key)?.protocol === protocol ? key : null
+  return lastMarketKeyFor(row[0]?.lastMarketKeys, protocol)
 }
 
 /**

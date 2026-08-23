@@ -28,13 +28,14 @@ import {
   orderDollars,
 } from "@/lib/trade/market-info"
 import { db } from "@/server/db"
-import { credentialFor, walletCredential } from "@/server/trade/wallet-auth"
+import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
 import {
-  loadLiveHistory,
+  loadLiveHistoryIfChanged,
   loadLiveRefusals,
   sweepIsWaitedFor,
+  sweepWouldBeWaitedFor,
   sweepLiveFills,
   sweepSoon,
 } from "@/server/trade/live-fills"
@@ -219,9 +220,7 @@ export async function placeLiveOrder(
     }
     const entryPx = marketable ? mark : input.px
     const rules = await marketRules(row.protocol, row.network, ref.marketId)
-    const orderSize = rules
-      ? floorSize(input.sz, rules.sizeDecimals)
-      : input.sz
+    const orderSize = rules ? floorSize(input.sz, rules.sizeDecimals) : input.sz
     const floor = rules
       ? minimumOrderUsd(
           {
@@ -234,12 +233,10 @@ export async function placeLiveOrder(
     const asked = entryPx * orderSize
     if (
       orderSize <= 0 ||
-      (rules?.minOrderSize != null &&
-        orderSize + 1e-12 < rules.minOrderSize) ||
+      (rules?.minOrderSize != null && orderSize + 1e-12 < rules.minOrderSize) ||
       (floor !== null && asked + 1e-9 < floor)
     ) {
-      const smallest =
-        floor ?? entryPx * 10 ** -(rules?.sizeDecimals ?? 0)
+      const smallest = floor ?? entryPx * 10 ** -(rules?.sizeDecimals ?? 0)
       throw new Error(
         `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${minimumOrderDollars(smallest)}, and this order is $${orderDollars(entryPx * input.sz)}.`
       )
@@ -599,13 +596,28 @@ function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
 
 export async function loadLivePortfolio(
   userId: string,
-  wallets: readonly TradeWallet[]
+  wallets: readonly TradeWallet[],
+  options: {
+    /**
+     * The stamp of the Journal history the caller already holds. When
+     * nothing has happened since — no fill, no binned row, no new trigger —
+     * the history comes back `null` and the caller keeps what it has, instead
+     * of carrying up to four thousand rows every four seconds. The refusals
+     * are small and always come back.
+     */
+    journalStamp?: string
+    /** Each wallet's key, when the caller read the rows already. */
+    credentials?: ReadonlyMap<string, () => string | null>
+  } = {}
 ): Promise<{
   positions: PaperPosition[]
   orders: PaperOrder[]
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
+  /** True when the history is the caller's own, unchanged (see `journalStamp`). */
+  journalUnchanged: boolean
+  journalStamp: string
   /** The last refusal on each market, so a stuck level can say why. */
   refusals: LiveRefusal[]
   unreachable: string[]
@@ -622,6 +634,33 @@ export async function loadLivePortfolio(
   const orders: PaperOrder[] = []
   const unreachable: string[] = []
 
+  // One read for every wallet's key, not one per wallet — or none at all
+  // when the caller's wallet read brought them along.
+  const credentials =
+    options.credentials ??
+    (await walletCredentials(
+      userId,
+      live.map((wallet) => wallet.id)
+    ))
+
+  // The Journal's history and the refusals come from this app's own tables,
+  // so they can be read while the exchanges are being asked — unless a
+  // wallet has just made a fill, in which case the history must be read
+  // AFTER that wallet's sweep has written the fill down (see below).
+  const walletIds = live.map((wallet) => wallet.id)
+  // Peeked, not spent: the flag is spent below, only once the exchange has
+  // answered, so a wallet that cannot be reached keeps its turn to wait.
+  const anyWaited = live.some((wallet) =>
+    sweepWouldBeWaitedFor(userId, wallet.id)
+  )
+
+  const readHistory = () =>
+    Promise.all([
+      loadLiveHistoryIfChanged(userId, walletIds, options.journalStamp),
+      loadLiveRefusals(userId, walletIds),
+    ])
+  const early = anyWaited ? null : readHistory()
+
   await Promise.all(
     live.map(async (wallet) => {
       try {
@@ -632,7 +671,7 @@ export async function loadLivePortfolio(
         // every other wallet's figures waiting behind it.
         await withDeadline(
           (async () => {
-            const credential = await walletCredential(userId, wallet.id)
+            const credential = credentials.get(wallet.id) ?? (() => null)
             const protocol = getProtocol(wallet.protocol)
             const readPortfolio =
               protocol.orders?.portfolio ?? protocol.account?.portfolio
@@ -680,11 +719,20 @@ export async function loadLivePortfolio(
   // in eighteen minutes still drew as "waiting", and the only way to learn
   // why was to query the table by hand. One refusal per market, six hours
   // back — see `loadLiveRefusals`.
-  const walletIds = live.map((wallet) => wallet.id)
-  const [history, refusals] = await Promise.all([
-    loadLiveHistory(userId, walletIds),
-    loadLiveRefusals(userId, walletIds),
-  ])
+  const [read, refusals] = await (early ?? readHistory())
+  const history = read.history ?? {
+    fills: [],
+    trades: [],
+    nextBefore: null,
+  }
 
-  return { positions, orders, ...history, refusals, unreachable }
+  return {
+    positions,
+    orders,
+    ...history,
+    journalUnchanged: read.history === null,
+    journalStamp: read.stamp,
+    refusals,
+    unreachable,
+  }
 }
