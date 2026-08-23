@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
-import { MarketListPanel } from "@/components/trade/market-list-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
 import type { MarketFolder } from "@/lib/trade/market-folders"
@@ -57,6 +56,26 @@ const catalogs = [
     hiddenByVolumeKeys: [],
   },
 ]
+
+/** The props every render shares; the watched read has landed empty. */
+const shared = {
+  protocol: "hyperliquid" as const,
+  network: "mainnet" as const,
+  marketsError: null,
+  watchedOrders: {
+    rows: [],
+    cacheScope: "test",
+    settled: true,
+    failed: false,
+    refusals: new Map(),
+    onRetry: () => {},
+  },
+  walletName: () => "Practice",
+  selectedMarketKey: null,
+  onFoldersChange: () => {},
+  onSelectMarket: () => {},
+  onRetryMarkets: () => {},
+}
 
 let host: HTMLDivElement
 let root: Root
@@ -152,7 +171,7 @@ describe("the market folder controls", () => {
     expect(input.value).toBe("Daily")
   })
 
-  it("keeps folders independent and opens their markets in the lower panel", async () => {
+  it("keeps folders independent and opens their markets in the one panel", async () => {
     const savedFav = { ...fav, marketKeys: [btc.key] }
     const namedFolder: MarketFolder = {
       id: "00000000-0000-4000-8000-000000000002",
@@ -161,52 +180,28 @@ describe("the market folder controls", () => {
       position: 1,
       marketKeys: [],
     }
-    function LeftColumn() {
-      return (
-        <div>
-          <section data-testid="market-panel">
-            <MarketListPanel
-              catalogs={catalogs}
-              marketsError={null}
-              network="mainnet"
-              watchedOrders={{
-                rows: [],
-                cacheScope: "test",
-                settled: true,
-                failed: false,
-                refusals: new Map(),
-                onRetry: () => {},
-              }}
-              walletName={() => "Practice"}
-              selectedKey={null}
-              onSelect={() => {}}
-              onRetry={() => {}}
-            />
-          </section>
-          <section data-testid="folder-panel">
-            <MarketFoldersPanel
-              folders={[savedFav, namedFolder]}
-              protocol="hyperliquid"
-              network="mainnet"
-              catalogs={catalogs}
-              selectedMarketKey={null}
-              onFoldersChange={() => {}}
-              onSelectMarket={() => {}}
-            />
-          </section>
-        </div>
-      )
-    }
     await act(async () => {
-      root.render(<LeftColumn />)
+      root.render(
+        <MarketFoldersPanel
+          {...shared}
+          folders={[savedFav, namedFolder]}
+          catalogs={catalogs}
+        />
+      )
     })
 
-    const marketPanel = host.querySelector('[data-testid="market-panel"]')!
-    const folderPanel = host.querySelector('[data-testid="folder-panel"]')!
-    const favToggle = folderPanel.querySelector(
-      'button[aria-expanded="false"]'
+    const folderPanel = host
+    // Watched leads the panel and opens expanded; All markets closes it out.
+    const toggles = Array.from(
+      folderPanel.querySelectorAll("button[aria-expanded]")
+    )
+    expect(toggles[0]!.textContent).toContain("Watched")
+    expect(toggles[0]!.getAttribute("aria-expanded")).toBe("true")
+    expect(toggles.at(-1)!.textContent).toContain("All markets")
+    expect(toggles.at(-1)!.getAttribute("aria-expanded")).toBe("false")
+    const favToggle = toggles.find((one) =>
+      one.textContent?.includes("Fav")
     )!
-    expect(marketPanel.textContent).not.toContain("Fav")
     expect(folderPanel.textContent).toContain("Folders")
     const addFolder = folderPanel.querySelector(
       'button[aria-label="Add folder"]'
@@ -229,14 +224,14 @@ describe("the market folder controls", () => {
     expect(document.body.textContent).toContain("Order")
     expect(document.body.textContent).toContain("Always first")
     expect(favToggle.textContent).toContain("1 market")
-    expect(favToggle.className).toContain("sm:px-5")
+    // The one 12px gutter the whole panel shares, header and body alike.
+    expect(favToggle.className).toContain("px-3")
     expect(favToggle.getAttribute("aria-expanded")).toBe("false")
     expect(folderPanel.textContent).not.toContain("BTC")
 
     await act(async () => click(favToggle))
     expect(favToggle.getAttribute("aria-expanded")).toBe("true")
     expect(folderPanel.textContent).toContain("BTC")
-    expect(marketPanel.textContent).not.toContain("BTC")
     const expandedMarket = Array.from(
       folderPanel.querySelectorAll("button")
     ).find((button) => button.textContent?.includes("BTC"))!
@@ -244,7 +239,7 @@ describe("the market folder controls", () => {
     // reaches the panel's sides.
     expect(expandedMarket.className).not.toContain("rounded")
     expect(expandedMarket.className).not.toContain("border-b")
-    expect(expandedMarket.className).toContain("sm:px-5")
+    expect(expandedMarket.className).toContain("px-3")
     const testToggle = Array.from(
       folderPanel.querySelectorAll('button[aria-expanded="false"]')
     ).find((button) => button.textContent?.includes("Test"))!
@@ -255,15 +250,11 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <MarketFoldersPanel
+          {...shared}
           folders={[{ ...fav, marketKeys: [btc.key] }]}
-          protocol="hyperliquid"
-          network="mainnet"
           catalogs={[
             { ...catalogs[0], rows: [], hiddenByVolumeKeys: [btc.key] },
           ]}
-          selectedMarketKey={null}
-          onFoldersChange={() => {}}
-          onSelectMarket={() => {}}
         />
       )
     })

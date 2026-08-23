@@ -11,19 +11,20 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 
 ```
 ┌────────────┬─────────────────────┬────────────┐
-│ Markets    │ MARKET HEADER       │ Account    │
-│ Watch|All  │ ─────────────────── ├────────────┤
-│ Folders    │ Chart               │ Order      │
-│            │                     │            │
+│ Folders    │ MARKET HEADER       │ Account    │
+│  Watched   │ ─────────────────── ├────────────┤
+│  Fav …     │ Chart               │ Order      │
+│  All       │                     │            │
 ├────────────┴─────────────────────┴────────────┤
 │ Positions | Open orders | Fills                │
 └───────────────────────────────────────────────┘
 ```
 
-- **Left — Markets.** The panel is the compact market list: which exchange it
-  comes from, search, tabs, and sorting. Live exchange data. Its first tab is
-  the exception, and it lists orders rather than markets. See "The Watched
-  tab" below. Folders occupy a separate lower panel in the same column.
+- **Left — one Folders panel** (decided 23 Aug 2026, replacing the market
+  list panel that sat above it). Every row wears a folder's shape and opens
+  in place: **Watched first** — it lists orders rather than markets, see "The
+  Watched row" below — then the saved folders, then **All markets** last with
+  its sort headers. Live exchange data. The panel opens on Watched.
 - **Middle — the market you picked.** One header row, nothing more: the
   star for that market, the market's own logo (carried as data on the row,
   with a first-letter circle when an exchange has no art), its name, and on
@@ -393,22 +394,28 @@ does not close the position immediately.
 
 ## The market list
 
-The panel is shaped like the automation palette, its sibling on the other
-workspace: the pill tab row is the top of the panel, the sort headers sit
-under it, the list fills the middle, and the search is the bottom bar — its
-placeholder names the exchange ("Search Hyperliquid Mainnet"), so what the
-list covers is on screen without spending a row on it.
+The left column is **one Folders panel** (decided 23 Aug 2026; the separate
+market list panel above it is gone). Its header reads Folders, with the + that
+creates a folder and the cog that opens the window for renaming,
+drag-to-reorder and deletion. The header's buttons, and every row and market
+line in the body, share the panel's one 12px gutter.
 
-- **Two tabs, with icons: Watched, then All.** Watched leads and is
-  the tab the panel opens on, because a price you have money committed to beats
-  a market you might look at. All is the whole catalog. Folders sit in their
-  own panel below the market list, matching the two stacked panels in the right
-  column. The lower panel's header reads Folders. Each folder row, including
-  Fav, shows its market count and opens its own coins below the row without
-  changing the Markets panel. The header's + creates a folder. Its cog opens
-  the window for renaming, drag-to-reorder and deletion. An empty folder points
-  at the star in the market header. An empty Watched points at Folders below
-  and All above.
+- **Every row wears a folder's shape**: the name, a count on the right, and a
+  chevron; pressing the row opens its contents in place, one row open at a
+  time. The open row keeps the same gray fill a selected market row wears, so
+  which section is open never depends on the chevron alone. **Watched is the first row** and the one the panel opens on, because
+  a price you have money committed to beats a market you might look at — it
+  is not a folder, it lists orders, but it dresses as one so the column is
+  one panel. **All markets is the last row**: the whole catalogue under its
+  own 24h Vol / 24h Change sort headers. The saved folders sit between them.
+  Watched's count says "N waiting" only once the read has settled — before
+  that, and after a failed read, it says nothing rather than claiming zero.
+  An empty folder points at the star in the market header.
+- **Searching lives in the market picker** — the market name at the top of
+  the chart opens the whole catalogue with its own search. The panel has no
+  search box of its own.
+- **On testnet, the amber strip sits at the panel's foot** with the Back to
+  Mainnet link, exactly as it did on the old market list panel.
 - **The panel opens at a fifth of the workspace.** The width is still yours to
   drag and is remembered per browser, so a width you have already dragged to
   wins over this.
@@ -459,7 +466,7 @@ list covers is on screen without spending a row on it.
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists.
 
-### The Watched tab
+### The Watched row
 
 Every price you are waiting at, across every coin and every wallet on this
 exchange. A plain order does not rest on the exchange any more — the app holds
@@ -468,7 +475,7 @@ the level and sends nothing until the market comes to it, which
 at a time on the chart, or mixed in with everything else under Open orders.
 
 - **A row per order, not per coin.** Two levels on the same coin are two rows.
-  That is the one way this tab differs from Fav and All, which are slices of
+  That is the one way this row differs from the folders, which are slices of
   the catalogue. Watched rows show the coin name without its favicon.
 - **One line per row, shaped like a market row.** The coin with what the
   order will spend beside it in the quiet grey the volume figure uses, and on
@@ -491,8 +498,8 @@ at a time on the chart, or mixed in with everything else under Open orders.
   screen — two levels on the charted coin are two filled rows. On both tabs
   the fill runs edge to edge and the first row sits flush under the header
   line, the way the Folders panel already draws its rows.
-- **The sort headers are hidden on this tab.** There is no volume and no day's
-  move to sort by, and a sort button that does nothing is worse than none.
+- **The sort headers belong to All markets, not to Watched.** There is no
+  volume and no day's move to sort a waiting price by.
 - **"Reached" is the engine's own rule**, so the list and the engine can never
   disagree about whether a price has arrived: a buy is reached when today's
   price has come down to it, a sell when it has come up. The price is the
@@ -710,7 +717,7 @@ written by an older build still uses the reading state below.
   arrive with the page rather than being fetched by the panel, so there is no
   moment where the list is on screen and its markets are not. A retry after a
   failed read keeps the rows it already had, which is a refresh rather than a
-  load. The Watched tab beside it does fetch its own contents, and it uses the
+  load. The Watched row above it does fetch its own contents, and it uses the
   spinner like everything else.
 - **The chart is the one exception and it is deliberate.** While its candles
   load, the whole empty chart surface fades gently in and out instead of

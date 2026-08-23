@@ -2,32 +2,24 @@ import * as React from "react"
 import { Link } from "@tanstack/react-router"
 
 import { focusRing } from "@/lib/layout/focus-ring"
-import { EyeIcon, LayoutGridIcon } from "lucide-react"
 
-import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
-import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { TableSortButton } from "@/components/ui/table"
-import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
-import type { LiveRefusal } from "@/lib/trade/live"
-import type { TradeOrder } from "@/lib/trade/paper"
-import type { MarketRow, NetworkId } from "@/lib/protocols/contracts"
+import type { MarketRow } from "@/lib/protocols/contracts"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { cn } from "@/lib/utils"
 
 /**
- * Watched is every price you are waiting at. It leads the row and it is the
- * tab the panel opens on, because a level you have money committed to beats a
- * market you might look at. All is the whole catalog. Saved folders have their
- * own panel below this one.
+ * The market rows and the All markets list.
+ *
+ * These used to be their own panel with Watched and All tabs, above the
+ * Folders panel. The two panels are one now (decided 23 Aug 2026): Watched
+ * is the first row of the Folders panel and All markets is its last, so
+ * this file keeps the pieces that panel composes — the sorted list of every
+ * market, the row both it and the folders draw, and the testnet strip.
  */
-type MarketPanelTab = "watched" | "all"
 
 type SortKey = "vol" | "change"
 
@@ -43,12 +35,12 @@ const SORT_STARTS_DESC: Record<SortKey, boolean> = {
  * whole point is that the two agree; two copies would drift apart the first
  * time either was touched.
  *
- * 16px each side, the same gutter the other panels' headers use. The rows
- * carry the full 16px themselves and their background runs edge to edge —
- * Tyler asked for the selected fill to reach the panel's edges (23 Aug 2026),
- * so the list container keeps no side padding for the rows to sit inside.
+ * 12px each side, matching the panel header's own gutter — Tyler asked for
+ * the header, its buttons and the body to share one spacing (23 Aug 2026).
+ * The rows carry the padding themselves and their background runs edge to
+ * edge, so the list container keeps no side padding for rows to sit inside.
  */
-const ROW_COLUMNS = "gap-1 px-4"
+const ROW_COLUMNS = "gap-1 px-3"
 
 /**
  * The width the day's-move column reserves. Set by the widest thing in it,
@@ -59,52 +51,26 @@ const ROW_COLUMNS = "gap-1 px-4"
 const CHANGE_COLUMN = "w-[5.5rem]"
 
 /**
- * The left panel: every market the connected exchanges list, and the ways
- * you slice them.
+ * Every market the exchange lists, sorted, under its own sort header row.
  *
- * Shaped like the automation canvas's palette, its sibling on the other
- * workspace: the underline tab row is the top of the panel, the sort row sits
- * under it, the list fills the middle, and the search is the bottom bar.
- *
- * Handed rows and callbacks; it neither knows nor asks which exchange a row
- * came from. The source line by the search is the only place an exchange's
- * name appears, and it arrives as data.
+ * One section of the Folders panel, so it brings no scroll surface of its
+ * own — the panel scrolls everything together. Handed rows and callbacks; it
+ * neither knows nor asks which exchange a row came from.
  */
-export function MarketListPanel({
+export function AllMarketsList({
   catalogs,
   marketsError,
-  network,
-  watchedOrders,
-  walletName,
   selectedKey,
   onSelect,
   onRetry,
 }: {
-  catalogs: FilteredMarketCatalog[]
+  catalogs: readonly FilteredMarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
-  /** Which network the whole page is on — testnet wears its label row. */
-  network: NetworkId
-  /** The prices being waited at, listed under the Watched tab. */
-  watchedOrders: {
-    rows: readonly TradeOrder[]
-    /** Which account and exchange the cached list belongs to. */
-    cacheScope: string
-    /** Both halves of the trading read have landed — see `Trading`. */
-    settled: boolean
-    /** That read failed and there is nothing to fall back on. */
-    failed: boolean
-    /** The last refusal on each market, so a stuck level can say why. */
-    refusals: ReadonlyMap<string, LiveRefusal>
-    onRetry: () => void
-  }
-  /** Each wallet's name, so a waiting price says which wallet it is in. */
-  walletName: (walletId: string) => string
   selectedKey: string | null
   onSelect: (key: string) => void
   onRetry: () => void
 }) {
-  const [tab, setTab] = React.useState<MarketPanelTab>("watched")
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
     key: "vol",
     desc: true,
@@ -127,8 +93,6 @@ export function MarketListPanel({
   )
 
   const visible = React.useMemo(() => {
-    // Watched lists orders, not markets, and draws its own rows below.
-    if (tab === "watched") return []
     const direction = sort.desc ? -1 : 1
     return [...rows].sort((a, b) => {
       const [va, vb] =
@@ -137,87 +101,41 @@ export function MarketListPanel({
           : [a.change24h ?? 0, b.change24h ?? 0]
       return (va - vb) * direction
     })
-  }, [rows, tab, sort])
+  }, [rows, sort])
 
-  const list = (
-    // `[&>div]:block!` because Radix wraps what it is given in a `display:
-    // table` box, which sizes itself to its widest row instead of to the
-    // panel — a long symbol would then push the change pill out of sight
-    // rather than being truncated.
-    <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-      {marketsError ? (
-        <div className="p-3">
-          <ErrorBanner message={marketsError} onRetry={onRetry} />
-        </div>
-      ) : visible.length === 0 ? (
-        <p className="px-3 py-8 text-center text-xs text-muted-foreground">
-          {/* Searching lives in the market name at the top of the chart,
-              which opens the whole catalogue with its own search — one search
-              box for markets rather than two that filter different lists. */}
-          {hasVolumeHiddenMarkets
-            ? "No markets meet your daily volume setting."
-            : "The exchange is not listing any markets right now."}
-        </p>
-      ) : (
-        <div className="flex flex-col">
-          {visible.map((row) => (
-            <MarketRowLine
-              key={row.key}
-              row={row}
-              selected={row.key === selectedKey}
-              onSelect={() => onSelect(row.key)}
-            />
-          ))}
-        </div>
-      )}
-    </ScrollArea>
-  )
+  if (marketsError) {
+    return (
+      <div className="p-3">
+        <ErrorBanner message={marketsError} onRetry={onRetry} />
+      </div>
+    )
+  }
+
+  if (visible.length === 0) {
+    return (
+      <p className="px-3 py-8 text-center text-xs text-muted-foreground">
+        {/* Searching lives in the market name at the top of the chart,
+            which opens the whole catalogue with its own search — one search
+            box for markets rather than two that filter different lists. */}
+        {hasVolumeHiddenMarkets
+          ? "No markets meet your daily volume setting."
+          : "The exchange is not listing any markets right now."}
+      </p>
+    )
+  }
 
   return (
-    <Tabs
-      value={tab}
-      onValueChange={(value) => setTab(value as MarketPanelTab)}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
-    >
-      {/* Row one: the same pill tab row as the automation palette. */}
-      <div className="shrink-0 overflow-x-auto">
-        <WorkspacePanelTabsHeader>
-          <WorkspacePanelTab
-            value="watched"
-            // An eye, for the one word the tab is called. An hourglass was
-            // tried first and read as a spinner, which made the tab look like
-            // it was still loading. The chart's options button is the only
-            // other eye on the screen and it carries no label, so a labelled
-            // eye here is never mistaken for it.
-            icon={<EyeIcon className="size-4" />}
-            label="Watched"
-          />
-          <WorkspacePanelTab
-            value="all"
-            icon={<LayoutGridIcon className="size-4" />}
-            label="All"
-          />
-        </WorkspacePanelTabsHeader>
-      </div>
-
-      {/* Row two: the sort, drawn as the column headers it sorts — the same
-          sort buttons every dashboard table uses. Two headers, and each sits
-          over the figure it sorts by: 24h Vol over the volume beside each
-          symbol, 24h Change over the day's-move pills. */}
-      {/* Scrolls sideways at the narrowest drags rather than wrapping a
-          label onto two lines. */}
-      {/* The headers use the row's own columns — same padding, same gap, the
-          first one stretching and the last one at the fixed CHANGE_COLUMN
-          width — so every label sits over the values it names. Spreading them
-          evenly instead lines up only the left one. */}
+    <div className="flex flex-col">
+      {/* The sort, drawn as the column headers it sorts — the same sort
+          buttons every dashboard table uses. Each sits over the figure it
+          sorts by: 24h Vol over the volume beside each symbol, 24h Change
+          over the day's-move pills. The headers use the row's own columns —
+          same padding, same gap — so every label sits over the values it
+          names. */}
       <div
         className={cn(
-          "flex shrink-0 items-center overflow-x-auto border-b text-muted-foreground",
-          ROW_COLUMNS,
-          // Watched has no volume and no day's move to sort by. Hidden rather
-          // than left there dead, because a sort button that does nothing is
-          // worse than no sort button.
-          tab === "watched" && "hidden"
+          "flex shrink-0 items-center border-b text-muted-foreground",
+          ROW_COLUMNS
         )}
       >
         {/* Stays at the small size on every screen — the table default steps
@@ -245,58 +163,51 @@ export function MarketListPanel({
           24h Change
         </TableSortButton>
       </div>
-
-      <TabsContent value="watched" className="min-h-0 flex-1">
-        <WatchedOrdersList
-          orders={watchedOrders.rows}
-          markets={rows}
-          cacheScope={watchedOrders.cacheScope}
-          refusals={watchedOrders.refusals}
-          walletName={walletName}
-          settled={watchedOrders.settled}
-          failed={watchedOrders.failed}
-          onRetry={watchedOrders.onRetry}
-          onSelectMarket={onSelect}
-          selectedKey={selectedKey}
+      {visible.map((row) => (
+        <MarketRowLine
+          key={row.key}
+          row={row}
+          selected={row.key === selectedKey}
+          onSelect={() => onSelect(row.key)}
         />
-      </TabsContent>
-      <TabsContent value="all" className="min-h-0 flex-1">
-        {list}
-      </TabsContent>
+      ))}
+    </div>
+  )
+}
 
-      {/* The practice network has no switch on screen any more — paper
-          wallets are the everyday practice path, and the rehearsal gate the
-          switch existed for has been passed (decided 9 Aug 2026, in
-          `testnet-mode.md`). The door is the address (`?network=testnet`, or
-          any testnet market's link — a testnet row in the bottom panel still
-          works). While the page IS on testnet, this row says so, always —
-          the labelling rule outlives the switch. */}
-      {network === "testnet" ? (
-        <div className="flex shrink-0 items-center gap-2 border-t bg-amber-500/10 px-3 py-1.5">
-          <span className="min-w-0 flex-1 truncate text-xs font-medium text-amber-700 dark:text-amber-400">
-            Testnet — practice network, pretend money.
-          </span>
-          {/* The way back, and only here.
+/**
+ * The practice network has no switch on screen any more — paper wallets are
+ * the everyday practice path, and the rehearsal gate the switch existed for
+ * has been passed (decided 9 Aug 2026, in `testnet-mode.md`). The door is
+ * the address (`?network=testnet`, or any testnet market's link — a testnet
+ * row in the bottom panel still works). While the page IS on testnet, this
+ * row says so, always — the labelling rule outlives the switch.
+ */
+export function TestnetStrip() {
+  return (
+    <div className="flex shrink-0 items-center gap-2 border-t bg-amber-500/10 px-3 py-1.5">
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-amber-700 dark:text-amber-400">
+        Testnet — practice network, pretend money.
+      </span>
+      {/* The way back, and only here.
 
-              There is deliberately no network switch on this screen (decided
-              9 Aug 2026): flipping spends the exchange's request allowance and
-              paper wallets are the everyday practice path. But the door in was
-              one-way — charting any testnet coin brings you here, and nothing
-              on screen took you home again. This is that door, and it only
-              exists on the side that needs it. */}
-          <Link
-            to="."
-            search={{ network: "mainnet" }}
-            className={cn(
-              "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:bg-amber-500/10 dark:text-amber-400",
-              focusRing
-            )}
-          >
-            Back to Mainnet
-          </Link>
-        </div>
-      ) : null}
-    </Tabs>
+          There is deliberately no network switch on this screen (decided
+          9 Aug 2026): flipping spends the exchange's request allowance and
+          paper wallets are the everyday practice path. But the door in was
+          one-way — charting any testnet coin brings you here, and nothing
+          on screen took you home again. This is that door, and it only
+          exists on the side that needs it. */}
+      <Link
+        to="."
+        search={{ network: "mainnet" }}
+        className={cn(
+          "shrink-0 rounded-md px-1.5 py-0.5 text-xs font-medium text-amber-700 underline underline-offset-2 hover:bg-amber-500/10 dark:text-amber-400",
+          focusRing
+        )}
+      >
+        Back to Mainnet
+      </Link>
+    </div>
   )
 }
 

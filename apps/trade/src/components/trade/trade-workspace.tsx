@@ -22,7 +22,6 @@ import {
 import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
-import { MarketListPanel } from "@/components/trade/market-list-panel"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -395,9 +394,6 @@ export function TradeWorkspace({
   const accountColumnLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.accountColumn
   )
-  const marketColumnLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.marketColumn
-  )
 
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
@@ -472,66 +468,47 @@ export function TradeWorkspace({
     [trading.walletNames, account.wallets]
   )
 
-  const marketList = (
-    <MarketListPanel
-      catalogs={catalogs}
-      marketsError={marketsError}
-      network={network}
-      // The same list the chart draws its waiting lines from and the Open
-      // orders tab lists, so the tab can never disagree with either.
-      watchedOrders={{
-        rows: trading.watchOrders,
-        // The account and the exchange together, so one person's levels never
-        // flash up for the next person to sign in on this machine, and one
-        // exchange's never flash up on another's page.
-        cacheScope: `${user.id}:${protocol}`,
-        // NOT `trading.loading`: that turns false when the practice half lands
-        // on its own, and a screen whose waiting levels are all on real
-        // wallets would say "nothing is waiting" until the exchange answered.
-        settled: trading.settled,
-        failed: trading.failed,
-        // Why a level has not fired. See `RefusalNote` — without it a level
-        // the exchange keeps refusing reads as one quietly waiting.
-        refusals: trading.refusals,
-        onRetry: trading.retry,
-      }}
-      walletName={walletNameOf}
-      selectedKey={selectedKey}
-      onSelect={onSelectMarket}
-      onRetry={onRetryMarkets}
-    />
-  )
-
+  // One panel now, not a market list above a folders panel: Watched is the
+  // combined panel's first row and All markets its last (decided 23 Aug
+  // 2026), so the column no longer splits vertically.
   const marketColumn = (
-    <ResizablePanelGroup
-      groupRef={marketColumnLayout.groupRef}
-      orientation="vertical"
-      className="min-h-0 flex-1"
-      onLayoutChanged={marketColumnLayout.onLayoutChanged}
+    <WorkspacePanel
+      collapsed={marketsCollapsed}
+      onDoubleClick={marketsDoubleClick}
+      className="flex min-h-0 flex-1 flex-col"
     >
-      <ResizablePanel id="market-list" defaultSize="50%" minSize="52.4px">
-        <WorkspacePanel
-          collapsed={marketsCollapsed}
-          onDoubleClick={marketsDoubleClick}
-        >
-          {marketList}
-        </WorkspacePanel>
-      </ResizablePanel>
-      <ResizableHandle gap className={NO_RING} />
-      <ResizablePanel id="market-folders" defaultSize="50%" minSize="12%">
-        <WorkspacePanel collapsed={marketsCollapsed} className="flex flex-col">
-          <MarketFoldersPanel
-            folders={folders}
-            protocol={protocol}
-            network={network}
-            catalogs={catalogs}
-            selectedMarketKey={selectedKey}
-            onFoldersChange={setFolders}
-            onSelectMarket={onSelectMarket}
-          />
-        </WorkspacePanel>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+      <MarketFoldersPanel
+        folders={folders}
+        protocol={protocol}
+        network={network}
+        catalogs={catalogs}
+        marketsError={marketsError}
+        // The same list the chart draws its waiting lines from and the Open
+        // orders tab lists, so the row can never disagree with either.
+        watchedOrders={{
+          rows: trading.watchOrders,
+          // The account and the exchange together, so one person's levels
+          // never flash up for the next person to sign in on this machine,
+          // and one exchange's never flash up on another's page.
+          cacheScope: `${user.id}:${protocol}`,
+          // NOT `trading.loading`: that turns false when the practice half
+          // lands on its own, and a screen whose waiting levels are all on
+          // real wallets would say "nothing is waiting" until the exchange
+          // answered.
+          settled: trading.settled,
+          failed: trading.failed,
+          // Why a level has not fired. See `RefusalNote` — without it a level
+          // the exchange keeps refusing reads as one quietly waiting.
+          refusals: trading.refusals,
+          onRetry: trading.retry,
+        }}
+        walletName={walletNameOf}
+        selectedMarketKey={selectedKey}
+        onFoldersChange={setFolders}
+        onSelectMarket={onSelectMarket}
+        onRetryMarkets={onRetryMarkets}
+      />
+    </WorkspacePanel>
   )
 
   // Memoised for the same reason: a new array here re-sorted the whole

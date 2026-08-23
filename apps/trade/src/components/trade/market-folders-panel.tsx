@@ -16,7 +16,12 @@ import {
 } from "lucide-react"
 
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
-import { MarketRowLine } from "@/components/trade/market-list-panel"
+import {
+  AllMarketsList,
+  MarketRowLine,
+  TestnetStrip,
+} from "@/components/trade/market-list-panel"
+import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import {
   DRAG_HANDLE_CLASS,
   useNavSensors,
@@ -50,30 +55,64 @@ import {
   reorderFolders,
   renameFolder,
 } from "@/lib/api/market-folders"
+import type { LiveRefusal } from "@/lib/trade/live"
+import type { TradeOrder } from "@/lib/trade/paper"
 import type { MarketFolder } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
+/**
+ * The ids of the two rows that are not folders. Real folder ids are UUIDs,
+ * so neither can collide with one.
+ */
+const WATCHED_ROW = "watched"
+const ALL_ROW = "all"
+
 export function MarketFoldersPanel({
   folders,
   protocol,
   network,
   catalogs,
+  marketsError,
+  watchedOrders,
+  walletName,
   selectedMarketKey,
   onFoldersChange,
   onSelectMarket,
+  onRetryMarkets,
 }: {
   folders: readonly MarketFolder[]
   protocol: ProtocolId
   network: NetworkId
   catalogs: readonly FilteredMarketCatalog[]
+  /** The exchange call failed at load; the All markets row shows it. */
+  marketsError: string | null
+  /** The prices being waited at, listed under the Watched row. */
+  watchedOrders: {
+    rows: readonly TradeOrder[]
+    /** Which account and exchange the cached list belongs to. */
+    cacheScope: string
+    /** Both halves of the trading read have landed — see `Trading`. */
+    settled: boolean
+    /** That read failed and there is nothing to fall back on. */
+    failed: boolean
+    /** The last refusal on each market, so a stuck level can say why. */
+    refusals: ReadonlyMap<string, LiveRefusal>
+    onRetry: () => void
+  }
+  /** Each wallet's name, so a waiting price says which wallet it is in. */
+  walletName: (walletId: string) => string
   selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
   onSelectMarket: (marketKey: string) => void
+  onRetryMarkets: () => void
 }) {
-  const [expandedId, setExpandedId] = React.useState<string | null>(null)
+  // Watched opens the panel: a price you have money committed to beats a
+  // market you might look at, which is the same reason the old panel opened
+  // on its Watched tab.
+  const [expandedId, setExpandedId] = React.useState<string | null>(WATCHED_ROW)
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
   const [managing, setManaging] = React.useState(false)
@@ -91,7 +130,101 @@ export function MarketFoldersPanel({
     () => new Set(catalogs.flatMap((catalog) => catalog.hiddenByVolumeKeys)),
     [catalogs]
   )
+  const marketRows = React.useMemo(
+    () => catalogs.flatMap((catalog) => catalog.rows),
+    [catalogs]
+  )
   const sensors = useNavSensors()
+
+  // Every row of the panel, drawn one way: Watched first — a price you have
+  // money committed to beats a market you might look at — then the saved
+  // folders, then the whole catalogue last. Watched and All are not folders,
+  // but they wear a folder's row (decided 23 Aug 2026) so the left column is
+  // one panel instead of two.
+  const sections: {
+    id: string
+    name: string
+    count: string
+    body: React.ReactNode
+  }[] = [
+    {
+      id: WATCHED_ROW,
+      name: "Watched",
+      // A count that is not known yet says nothing rather than "0 waiting":
+      // before the first read, and after one that failed, zero would be
+      // claiming an answer the panel does not have.
+      count:
+        watchedOrders.settled && !watchedOrders.failed
+          ? `${watchedOrders.rows.length} waiting`
+          : "",
+      body: (
+        <WatchedOrdersList
+          orders={watchedOrders.rows}
+          markets={marketRows}
+          cacheScope={watchedOrders.cacheScope}
+          refusals={watchedOrders.refusals}
+          walletName={walletName}
+          settled={watchedOrders.settled}
+          failed={watchedOrders.failed}
+          onRetry={watchedOrders.onRetry}
+          onSelectMarket={onSelectMarket}
+          selectedKey={selectedMarketKey}
+        />
+      ),
+    },
+    ...folders.map((folder) => {
+      const folderMarkets = folder.marketKeys.flatMap((key) => {
+        const market = markets.get(key)
+        return market ? [market] : []
+      })
+      return {
+        id: folder.id,
+        name: folder.name,
+        count: `${folder.marketKeys.length} ${
+          folder.marketKeys.length === 1 ? "market" : "markets"
+        }`,
+        body:
+          folderMarkets.length > 0 ? (
+            <div className="flex flex-col">
+              {folderMarkets.map((market) => (
+                <MarketRowLine
+                  key={market.key}
+                  row={market}
+                  selected={market.key === selectedMarketKey}
+                  onSelect={() => onSelectMarket(market.key)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+              {folder.marketKeys.some((key) => hiddenByVolume.has(key))
+                ? `${folder.name}'s markets are hidden by your daily volume setting.`
+                : folder.marketKeys.length > 0
+                  ? `${folder.name}'s saved markets are not available in the current market list.`
+                  : `${folder.name} is empty. Add a coin with the star beside its name.`}
+            </p>
+          ),
+      }
+    }),
+    {
+      id: ALL_ROW,
+      name: "All markets",
+      // Blank when the list could not be read — the body carries the error
+      // and the retry, and "0 markets" beside a failed read would be a claim.
+      count: marketsError
+        ? ""
+        : `${marketRows.length} ${marketRows.length === 1 ? "market" : "markets"}`,
+      body: (
+        <AllMarketsList
+          catalogs={catalogs}
+          marketsError={marketsError}
+          selectedKey={selectedMarketKey}
+          onSelect={onSelectMarket}
+          onRetry={onRetryMarkets}
+        />
+      ),
+    },
+  ]
 
   function submitNewFolder(event: React.FormEvent) {
     event.preventDefault()
@@ -148,6 +281,9 @@ export function MarketFoldersPanel({
       <WorkspacePanelHeader
         icon={<FolderIcon />}
         title="Folders"
+        // 12px sides, matching the ~11px above the 28px buttons — the same
+        // evening-up Tyler asked for on the market header (23 Aug 2026).
+        className="px-3 sm:px-3"
         action={
           <div className="flex items-center gap-1">
             <Button
@@ -205,34 +341,35 @@ export function MarketFoldersPanel({
       ) : null}
       <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
         <div className="grid">
-          {folders.map((folder, index) => {
-            const expanded = expandedId === folder.id
-            const followsExpandedFolder =
-              index > 0 && expandedId === folders[index - 1]?.id
-            const folderMarkets = folder.marketKeys.flatMap((key) => {
-              const market = markets.get(key)
-              return market ? [market] : []
-            })
+          {sections.map((section, index) => {
+            const expanded = expandedId === section.id
+            const followsExpandedSection =
+              index > 0 && expandedId === sections[index - 1]?.id
             return (
-              <div key={folder.id}>
+              <div key={section.id}>
                 <div
                   className={cn(
                     "flex h-9 items-center border-b",
-                    followsExpandedFolder && "border-t"
+                    followsExpandedSection && "border-t"
                   )}
                 >
                   <button
                     type="button"
                     aria-expanded={expanded}
-                    className="flex h-full min-w-0 flex-1 items-center gap-2 px-4 text-left text-sm font-medium hover:bg-muted/50 sm:px-5"
-                    onClick={() => setExpandedId(expanded ? null : folder.id)}
+                    // Open rows keep the same gray fill a selected market
+                    // row wears, so which section is open never depends on
+                    // the chevron alone.
+                    className={cn(
+                      "flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm font-medium",
+                      expanded ? "bg-muted" : "hover:bg-muted/50"
+                    )}
+                    onClick={() => setExpandedId(expanded ? null : section.id)}
                   >
                     <span className="min-w-0 flex-1 truncate">
-                      {folder.name}
+                      {section.name}
                     </span>
                     <span className="w-[4.5rem] shrink-0 text-right text-xs font-normal text-muted-foreground tabular-nums">
-                      {folder.marketKeys.length}{" "}
-                      {folder.marketKeys.length === 1 ? "market" : "markets"}
+                      {section.count}
                     </span>
                     <ChevronRightIcon
                       className={cn(
@@ -242,34 +379,13 @@ export function MarketFoldersPanel({
                     />
                   </button>
                 </div>
-                {expanded ? (
-                  folderMarkets.length > 0 ? (
-                    <div className="flex flex-col">
-                      {folderMarkets.map((market) => (
-                        <MarketRowLine
-                          key={market.key}
-                          row={market}
-                          selected={market.key === selectedMarketKey}
-                          onSelect={() => onSelectMarket(market.key)}
-                          className="px-4 sm:px-5"
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="px-4 py-4 text-center text-xs text-muted-foreground sm:px-5">
-                      {folder.marketKeys.some((key) => hiddenByVolume.has(key))
-                        ? `${folder.name}'s markets are hidden by your daily volume setting.`
-                        : folder.marketKeys.length > 0
-                          ? `${folder.name}'s saved markets are not available in the current market list.`
-                          : `${folder.name} is empty. Add a coin with the star beside its name.`}
-                    </p>
-                  )
-                ) : null}
+                {expanded ? section.body : null}
               </div>
             )
           })}
         </div>
       </ScrollArea>
+      {network === "testnet" ? <TestnetStrip /> : null}
 
       <Dialog open={managing} onOpenChange={setManaging}>
         <DialogContent variant="admin">

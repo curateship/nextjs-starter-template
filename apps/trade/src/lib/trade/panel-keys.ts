@@ -16,8 +16,6 @@ export const tradePanelLayoutKey = {
   workspaceVertical: "trade-workspace-vertical",
   /** The wallets above, and the empty panel under them, in the right column. */
   accountColumn: "trade-account-column",
-  /** The market list above, and market folders under it, in the left column. */
-  marketColumn: "trade-market-column",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal",
   /** The backtest workspace above, its coins and trades below. */

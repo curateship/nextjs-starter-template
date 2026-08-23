@@ -3,7 +3,6 @@ import * as React from "react"
 import { TriangleAlertIcon } from "lucide-react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
@@ -21,7 +20,7 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Every price you are waiting on, in the left panel beside Fav and All.
+ * Every price you are waiting on — the first row of the Folders panel.
  *
  * A plain order does not rest on the exchange any more — the app holds the
  * level and only sends anything once the market comes to it, which is what
@@ -34,7 +33,7 @@ import { cn } from "@/lib/utils"
  * Only prices placed by hand reach here. A flow never creates one: a watch is
  * what a hand-placed order becomes, and a flow's orders belong to its own run.
  *
- * The panel OPENS on this tab, so its empty state is the first thing on screen
+ * The panel OPENS on this row, so its empty state is the first thing on screen
  * on the days nothing is waiting. That is why the empty wording says where the
  * markets went as well as how a price gets here.
  *
@@ -159,10 +158,9 @@ export function WatchedOrdersList({
   const severalWallets = new Set(rows.map((row) => row.walletId)).size > 1
 
   return (
-    // Same viewport override the market list uses: Radix wraps its content in
-    // a `display: table` box that sizes to its widest row instead of to the
-    // panel, which would push the dollar figure out of sight.
-    <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+    // No scroll surface of its own: the list is one section of the folders
+    // panel now, and that panel's ScrollArea scrolls everything together.
+    <div>
       {failed && !standingIn ? (
         // "Nothing is waiting" and "I could not find out" are different
         // answers, and only one of them is safe to act on.
@@ -218,7 +216,7 @@ export function WatchedOrdersList({
           )}
         </div>
       )}
-    </ScrollArea>
+    </div>
   )
 }
 
@@ -297,7 +295,7 @@ function WatchedRow({
       aria-current={selected ? "true" : undefined}
       title={`${symbol} · ${level.side === "buy" ? "Buy" : "Sell"} ${line.at}${wallet ? ` · ${wallet}` : ""}`}
       className={cn(
-        "flex min-w-0 flex-col justify-center px-4 py-1.5 text-left",
+        "flex min-w-0 flex-col justify-center px-3 py-1.5 text-left",
         selected ? "bg-muted" : "hover:bg-muted/50",
         focusRing
       )}
