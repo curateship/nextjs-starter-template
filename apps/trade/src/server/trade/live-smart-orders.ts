@@ -613,7 +613,13 @@ export function resetRefusalHolds(): void {
  */
 function nothingStood(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return message.startsWith("LIVE_ORDER_REFUSED") || message === "EXCHANGE_BUSY"
+  return (
+    message.startsWith("LIVE_ORDER_REFUSED") ||
+    message.startsWith("LIVE_ORDER_SETTINGS") ||
+    message.startsWith("LIVE_MARGIN_MODE") ||
+    message.startsWith("LIVE_LEVERAGE") ||
+    message === "EXCHANGE_BUSY"
+  )
 }
 
 /** Advances live ladders from exchange truth using the same state engine as paper. */

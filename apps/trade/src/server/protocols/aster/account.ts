@@ -41,7 +41,10 @@ type Snapshot = {
   portfolio: WalletPortfolio
 }
 
-const ACCOUNT_GOOD_FOR_MS = 2_000
+// Watched prices still move every second on the open stream. Aster charges ten
+// request units for this account pair, so four refreshes a minute are enough.
+// Every successful order clears the cache before the next engine pass.
+const ACCOUNT_GOOD_FOR_MS = 15_000
 const cache = new Map<string, { at: number; answer: Promise<Snapshot> }>()
 
 export const ASTER_ONE_WAY_REQUIRED =

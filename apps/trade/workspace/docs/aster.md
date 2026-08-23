@@ -103,8 +103,9 @@ the app assumes will stay fixed.
 ## Account and positions
 
 - One account refresh asks for Aster's converted account totals and position
-  risk together. The result is shared for two seconds, and a failed answer is
-  never saved in the cache.
+  risk together. The engine shares the result for fifteen seconds, and a
+  failed answer is never saved in the cache. A successful order, cancellation
+  or move clears the saved answer before the next pass.
 - The wallet card uses Aster's total margin balance, available balance and
   total open profit. Aster converts every supported margin asset into those
   totals, so money held as USD1 is not lost behind an empty USDT row. Money in
@@ -180,6 +181,15 @@ the app assumes will stay fixed.
   budget setup, one clock read and a one-minute chart makes 127 units against
   the 2,400-unit mainnet limit. This is a deterministic request count. A live
   several-wallet half hour still needs real Aster keys before funded use.
+- Before an opening order, Trade reads the market's current margin mode and
+  leverage. Trade changes only a setting that differs. Trade had been asking
+  Aster to set isolated margin without reading the current value first, and
+  Aster's refusal kept the SOL buy from being sent.
+- The engine shares Aster's account and open orders for fifteen seconds while
+  watched prices and the recent-fill check still move every second. One active
+  wallet had been spending more than 3,000 signed units a minute against
+  Aster's 2,400-unit limit. The paced reads cost about 500 units a minute for a
+  wallet with one watched market.
 
 ## Orders, leverage and protection
 

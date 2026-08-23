@@ -543,6 +543,21 @@ describe("live Smart orders", () => {
     expect(rows[0].status).toBe("active")
   })
 
+  it("puts a watched level back when Aster refuses a pre-order setting", async () => {
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      new Error(
+        "LIVE_MARGIN_MODE:Aster could not switch BTCUSDT to isolated margin, so nothing was ordered."
+      )
+    )
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const plan = await watchPlanNow()
+    expect(plan.sent).toBe(false)
+    expect(plan.phase).toBe("waiting")
+  })
+
   it("keeps the chosen margin mode when a watched level reaches the exchange", async () => {
     await watchThroughTheLevel()
     place.mockResolvedValue({

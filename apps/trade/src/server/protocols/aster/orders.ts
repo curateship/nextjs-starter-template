@@ -12,7 +12,10 @@ import type {
   WalletPosition,
 } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/aster/translate"
-import { fetchAsterPortfolio } from "@/server/protocols/aster/account"
+import {
+  clearAsterAccountCache,
+  fetchAsterPortfolio,
+} from "@/server/protocols/aster/account"
 import {
   asterPublic,
   asterSigned,
@@ -48,10 +51,21 @@ const fillSchema = z.object({
   time: z.union([z.string(), z.number()]),
 })
 
+const positionSettingSchema = z.object({
+  symbol: z.string(),
+  marginType: z.string(),
+  leverage: z.union([z.string(), z.number()]),
+})
+
 const leverageCache = new Map<string, number>()
 const marginModeCache = new Map<string, "cross" | "isolated">()
 const knownSymbols = new Map<string, Set<string>>()
+const portfolioCache = new Map<
+  string,
+  { at: number; answer: Promise<WalletPortfolio> }
+>()
 const MARKET_CAP = 0.03
+const ACCOUNT_READ_GOOD_FOR_MS = 15_000
 
 function decimal(value: number): string {
   return value.toLocaleString("en-US", {
@@ -74,6 +88,24 @@ function remember(network: NetworkId, account: string, symbol: string): void {
   const held = knownSymbols.get(key) ?? new Set<string>()
   held.add(symbol)
   knownSymbols.set(key, held)
+}
+
+function readKey(
+  network: NetworkId,
+  accountAddress: string,
+  credentialValue: AsterCredential
+): string {
+  return `${network}:${accountAddress.toLowerCase()}:${credentialValue.signer}`
+}
+
+function clearOrderReads(
+  network: NetworkId,
+  accountAddress: string,
+  credentialValue: AsterCredential
+): void {
+  const key = readKey(network, accountAddress, credentialValue)
+  portfolioCache.delete(key)
+  clearAsterAccountCache()
 }
 
 async function signed(
@@ -142,6 +174,53 @@ async function setMarginMode(
   marginModeCache.set(key, mode)
 }
 
+async function currentOrderSettings(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  symbol: string
+): Promise<{ marginMode: "cross" | "isolated"; leverage: number }> {
+  let answer: unknown
+  try {
+    answer = await signed(
+      network,
+      orderAuth,
+      "GET",
+      "/fapi/v3/positionRisk",
+      5,
+      { symbol }
+    )
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `LIVE_ORDER_SETTINGS:Aster could not confirm ${symbol}'s margin and leverage, so nothing was ordered. (${reason})`
+    )
+  }
+  const rows = z.array(z.unknown()).safeParse(answer)
+  const parsed = rows.success
+    ? rows.data
+        .map((row) => positionSettingSchema.safeParse(row))
+        .find((row) => row.success && row.data.symbol === symbol)
+    : null
+  if (!parsed?.success) {
+    throw new Error(
+      `LIVE_ORDER_SETTINGS:Aster did not return ${symbol}'s margin and leverage, so nothing was ordered.`
+    )
+  }
+  const leverage = num(parsed.data.leverage)
+  const marginMode = parsed.data.marginType.toLowerCase()
+  if (
+    leverage === null ||
+    !Number.isInteger(leverage) ||
+    leverage < 1 ||
+    (marginMode !== "cross" && marginMode !== "isolated")
+  ) {
+    throw new Error(
+      `LIVE_ORDER_SETTINGS:Aster returned unreadable ${symbol} settings, so nothing was ordered.`
+    )
+  }
+  return { marginMode, leverage }
+}
+
 async function orderById(
   network: NetworkId,
   orderAuth: OrderAuth,
@@ -171,6 +250,7 @@ async function placeRaw(
   )
   const parsed = orderSchema.safeParse(answer)
   if (!parsed.success) throw new Error("LIVE_UNREADABLE")
+  clearOrderReads(network, account(orderAuth), credential(orderAuth))
   return parsed.data
 }
 
@@ -199,14 +279,24 @@ export async function placeAsterOrder(
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
   await assertRealMoneyAllowed(network)
+  const settings =
+    !params.reduceOnly &&
+    (params.marginMode !== null || params.leverage !== null)
+      ? await currentOrderSettings(network, orderAuth, params.marketId)
+      : null
   if (
     params.marginMode !== null &&
     params.marginMode !== undefined &&
-    !params.reduceOnly
+    !params.reduceOnly &&
+    settings?.marginMode !== params.marginMode
   ) {
     await setMarginMode(network, orderAuth, params.marketId, params.marginMode)
   }
-  if (params.leverage !== null && !params.reduceOnly) {
+  if (
+    params.leverage !== null &&
+    !params.reduceOnly &&
+    settings?.leverage !== Math.max(1, Math.round(params.leverage))
+  ) {
     await setLeverage(network, orderAuth, params.marketId, params.leverage)
   }
   remember(network, account(orderAuth), params.marketId)
@@ -285,6 +375,7 @@ export async function cancelAsterOrder(
     symbol: params.marketId,
     orderId: params.orderId,
   })
+  clearOrderReads(network, account(orderAuth), credential(orderAuth))
 }
 
 export async function modifyAsterOrder(
@@ -307,6 +398,7 @@ export async function modifyAsterOrder(
       quantity: decimal(params.sz),
       price: decimal(params.px),
     })
+    clearOrderReads(network, account(orderAuth), credential(orderAuth))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
     if (message.startsWith("ASTER_ORDER_GONE:")) {
@@ -390,13 +482,25 @@ export async function fetchAsterOrderPortfolio(
   const blob = credentialFn()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseAsterCredential(blob)
-  const [base, rows] = await Promise.all([
+  const key = readKey(network, address, parsed)
+  const cached = portfolioCache.get(key)
+  if (cached && Date.now() - cached.at < ACCOUNT_READ_GOOD_FOR_MS) {
+    return cached.answer
+  }
+  const at = Date.now()
+  const answer = Promise.all([
     fetchAsterPortfolio(network, address, () => blob),
     openOrders(network, address, parsed),
-  ])
-  for (const row of rows) remember(network, address, row.symbol)
-  for (const row of base.positions) remember(network, address, row.marketId)
-  return attachOrders(base, rows)
+  ]).then(([base, rows]) => {
+    for (const row of rows) remember(network, address, row.symbol)
+    for (const row of base.positions) remember(network, address, row.marketId)
+    return attachOrders(base, rows)
+  })
+  answer.catch(() => {
+    if (portfolioCache.get(key)?.at === at) portfolioCache.delete(key)
+  })
+  portfolioCache.set(key, { at, answer })
+  return answer
 }
 
 export async function closeAsterPosition(
@@ -627,4 +731,5 @@ export function clearAsterOrderState(): void {
   leverageCache.clear()
   marginModeCache.clear()
   knownSymbols.clear()
+  portfolioCache.clear()
 }

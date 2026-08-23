@@ -273,12 +273,12 @@ time, so this matters most when trading against a dev machine.
   writes it down for an order that never went out is a level that will never
   fire again.
 
-  So the two answers that promise nothing happened are believed, and only
-  those two. The exchange read the order and refused it; or the exchange was
-  too busy to look, which is refused before a request is even built. Either
-  way no money moved, the level goes back to waiting, and it tries again.
-  Everything else — a timeout above all — may have filled, and those still
-  stop the level dead, because buying twice is worse than waiting.
+  Trade also believes a refusal from the margin or leverage check because the
+  order endpoint has not been called yet. The other two certain answers are an
+  order the exchange read and refused, or an exchange too busy to look. In
+  those cases no money moved, the level goes back to waiting, and it tries
+  again. A timeout after the order starts may have filled, so the level stays
+  marked sent rather than risking the same buy twice.
 
   Both doors were open until 21 Aug 2026. A watch drawn above the price on
   Phemex NFLX was refused at 17:40 because the exchange had put that market

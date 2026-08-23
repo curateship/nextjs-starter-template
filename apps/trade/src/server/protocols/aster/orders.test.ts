@@ -94,6 +94,9 @@ describe("Aster orders", () => {
   it("sets the chosen margin mode and leverage before the opening order, once", async () => {
     const sent: Sent[] = []
     stub((method, url) => {
+      if (url.pathname.endsWith("/positionRisk")) {
+        return [{ symbol: "BTCUSDT", marginType: "cross", leverage: "1" }]
+      }
       if (url.pathname.endsWith("/marginType")) return { code: 200 }
       if (url.pathname.endsWith("/leverage")) return { leverage: 3 }
       if (method === "POST" && url.pathname.endsWith("/order")) return order()
@@ -124,6 +127,42 @@ describe("Aster orders", () => {
     ])
     expect(mutations[0].url.searchParams.get("marginType")).toBe("ISOLATED")
     expect(mutations[1].url.searchParams.get("leverage")).toBe("3")
+  })
+
+  it("does not rewrite settings Aster already has before the order", async () => {
+    const sent: Sent[] = []
+    stub((method, url) => {
+      if (url.pathname.endsWith("/positionRisk")) {
+        return [{ symbol: "BTCUSDT", marginType: "isolated", leverage: "1" }]
+      }
+      if (method === "POST" && url.pathname.endsWith("/order")) return order()
+      return {}
+    }, sent)
+
+    await placeAsterOrder("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "market",
+      px: 100,
+      sz: 1,
+      reduceOnly: false,
+      leverage: 1,
+      marginMode: "isolated",
+      tpPx: null,
+      slPx: null,
+    })
+
+    expect(sent.some((one) => one.url.pathname.endsWith("/marginType"))).toBe(
+      false
+    )
+    expect(sent.some((one) => one.url.pathname.endsWith("/leverage"))).toBe(
+      false
+    )
+    expect(
+      sent.some(
+        (one) => one.method === "POST" && one.url.pathname.endsWith("/order")
+      )
+    ).toBe(true)
   })
 
   it("does not touch account settings for a reducing order", async () => {
@@ -185,9 +224,11 @@ describe("Aster orders", () => {
     const sent: Sent[] = []
     stub(
       (_method, url) =>
-        url.pathname.endsWith("/marginType")
-          ? { code: -4048, msg: "position exists" }
-          : order(),
+        url.pathname.endsWith("/positionRisk")
+          ? [{ symbol: "BTCUSDT", marginType: "isolated", leverage: "1" }]
+          : url.pathname.endsWith("/marginType")
+            ? { code: -4048, msg: "position exists" }
+            : order(),
       sent
     )
 
@@ -361,6 +402,16 @@ describe("Aster orders", () => {
       tpOrderId: "9",
     })
     expect(portfolio.orders).toEqual([])
+
+    await fetchAsterOrderPortfolio("testnet", ACCOUNT, () => AUTH.agentKey)
+    expect(
+      sent.filter((one) =>
+        one.url.pathname.endsWith("/accountWithJoinMargin")
+      )
+    ).toHaveLength(1)
+    expect(
+      sent.filter((one) => one.url.pathname.endsWith("/openOrders"))
+    ).toHaveLength(1)
   })
 
   it("removes whole-position legs after closing the position", async () => {
