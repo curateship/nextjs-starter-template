@@ -19,8 +19,12 @@ import {
   PAGES_AT_ONCE,
 } from "@/server/protocols/full-history"
 
-/** Aster permits 1,500 rows, but 1,000 costs half the request weight. */
-const ROWS_PER_PAGE = 1_000
+/** The largest page Aster permits. */
+const ROWS_PER_PAGE = 1_500
+/** A recent chart stays at the cheaper request tier. */
+const RECENT_ROWS = 1_000
+/** One candle-store request becomes at most six Aster requests together. */
+export const ASTER_HISTORY_BATCH_BARS = ROWS_PER_PAGE * PAGES_AT_ONCE
 
 function barsOf(answer: unknown): CandleBar[] {
   const bars = (Array.isArray(answer) ? answer : [])
@@ -38,7 +42,7 @@ async function candlePage(
   to: number
 ): Promise<CandleBar[]> {
   return barsOf(
-    await asterPublic(network, "/fapi/v3/klines", 5, {
+    await asterPublic(network, "/fapi/v3/klines", 10, {
       symbol: marketId,
       interval: ASTER_INTERVALS[interval],
       startTime: from,
@@ -73,7 +77,7 @@ export async function fetchAsterCandles(
     await asterPublic(network, "/fapi/v3/klines", 5, {
       symbol: marketId,
       interval: ASTER_INTERVALS[interval],
-      limit: ROWS_PER_PAGE,
+      limit: RECENT_ROWS,
     })
   )
 }

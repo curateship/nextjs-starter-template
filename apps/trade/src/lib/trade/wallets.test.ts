@@ -229,4 +229,20 @@ describe("holding a wallet's figures through a missed read", () => {
     const cold = keepGoodSummaries(new Map(), [MISSED], new Map())
     expect(cold.summaries.get("w1")).toEqual(MISSED)
   })
+
+  it("shows a position-mode refusal immediately instead of calling it a hiccup", () => {
+    const refusal = {
+      walletId: "w1",
+      state: "unreachable",
+      reason: "Change Position Mode to One-way Mode on Aster, then refresh.",
+    } as const
+    const held = keepGoodSummaries(
+      new Map([["w1", GOOD]]),
+      [refusal],
+      new Map()
+    )
+
+    expect(held.summaries.get("w1")).toEqual(refusal)
+    expect(held.misses.has("w1")).toBe(false)
+  })
 })

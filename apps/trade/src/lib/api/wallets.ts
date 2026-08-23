@@ -189,6 +189,8 @@ const baseWalletErrorMessage = createErrorMessage(
       "Aster says the request time is outside its allowed window. Trade measured Aster's clock again, so try once more.",
     ASTER_IP_BANNED:
       "Aster has blocked this internet address. Trade has stopped asking Aster and will not retry until the app restarts.",
+    WALLET_POSITION_MODE:
+      "That account uses a position mode Trade cannot read.",
     EXCHANGE_BUSY:
       "The exchange is asking Trade to slow down. Wait for the hold to clear, then try again.",
     WALLET_NOT_FOUND:

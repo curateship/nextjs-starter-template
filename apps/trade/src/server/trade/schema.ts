@@ -214,6 +214,11 @@ export const tradeWallets = pgTable(
     // save time so the wallet card can warn BEFORE orders start being refused.
     // Null: paper wallets, and approvals the exchange gave no expiry for.
     agentValidUntil: timestamp("agent_valid_until", { withTimezone: true }),
+    // Saved when an exchange exposes one account-wide position setting.
+    // Null on paper wallets and venues without that setting.
+    positionMode: varchar("position_mode", { length: 12 }).$type<
+      "one-way" | "two-sided"
+    >(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

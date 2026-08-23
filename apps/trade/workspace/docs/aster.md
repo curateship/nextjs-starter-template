@@ -90,6 +90,9 @@ the app assumes will stay fixed.
   bad key says where to make a replacement. A clock problem, a short request
   hold and an address block have separate messages because each needs a
   different next step.
+- Key verification also asks Aster for the account-wide position mode. A
+  one-way answer is saved on the wallet. A two-sided answer is refused with
+  the name of the Aster setting to change.
 - Aster's known refusals for authentication, time, request limits, address
   blocks, minimum order value, price steps, leverage changes and missing orders
   are translated inside the Aster connector. Trade discards unknown response
@@ -116,6 +119,11 @@ the app assumes will stay fixed.
   isolated field is zero there. A zero or missing liquidation price stays
   blank. Aster orders remain unavailable, so the positions reader does not
   open an order or fill path by accident.
+- Account and position refreshes accept only `BOTH`, which is Aster's one-way
+  shape. A `LONG` or `SHORT` row stops the refresh before any position figure
+  reaches a screen. The wallet says that Aster can hold both directions and
+  asks for One-way Mode. Empty `LONG` and `SHORT` rows count too, so changing
+  the setting on Aster is noticed even when the account holds no position.
 - Switching a wallet off removes it before credentials are read. Account and
   position polling then sends no request for that wallet.
 
@@ -150,7 +158,8 @@ the app assumes will stay fixed.
   allowance. Exchange rules cost 1, every market's 24-hour figures cost 40,
   all mark prices cost 10, and funding intervals cost 10. The response headers
   increased by those exact amounts during the measurement.
-- One 1,000-bar chart request costs 5 units. The shared chart asks again when a
+- One 1,000-bar chart request costs 5 units. A backtest history page asks for
+  Aster's full 1,500 bars and costs 10 units. The shared chart asks again when a
   bar closes, so a visible one-minute chart spends 5 units a minute. A visible
   four-hour chart spends 5 units once every four hours.
 - The browser opens one socket per network. One command subscribes to the
@@ -164,7 +173,8 @@ the app assumes will stay fixed.
   asks for a fresh list and chart after data resumes. The server keeps one
   all-market mark stream per network for the engine and treats it as stale
   after twelve quiet seconds.
-- An account-total read costs 5 units and a position read costs 5. Three active
+- An account-total read costs 5 units and a position read costs 5. Verifying a
+  new key adds one 30-unit position-mode read. Three active
   wallets read every fifteen seconds spend 120 signed units a minute. Including
   budget setup, one clock read and a one-minute chart makes 127 units against
   the 2,400-unit mainnet limit. This is a deterministic request count. A live

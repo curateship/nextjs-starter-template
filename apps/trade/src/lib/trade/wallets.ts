@@ -64,7 +64,12 @@ export type WalletAccountSummary =
        */
       stale?: boolean
     } & WalletAccountFigures)
-  | { walletId: string; state: "unreachable" }
+  | {
+      walletId: string
+      state: "unreachable"
+      /** A safe exchange-specific reason that needs action, not a retry. */
+      reason?: string
+    }
   /**
    * Switched off, so the exchange was never asked. Kept apart from
    * "unreachable" because they look identical on screen and mean opposite
@@ -109,7 +114,11 @@ export function keepGoodSummaries(
 
   for (const summary of next) {
     // A wallet that was never asked has not missed anything.
-    if (summary.state === "ok" || summary.state === "inactive") {
+    if (
+      summary.state === "ok" ||
+      summary.state === "inactive" ||
+      (summary.state === "unreachable" && summary.reason)
+    ) {
       summaries.set(summary.walletId, summary)
       continue
     }
@@ -309,7 +318,9 @@ export function describeKeyRefusal(message: string): string | null {
   // whole message, so anchoring costs nothing and stops the reader lifting
   // out whatever happens to follow those letters inside some longer error
   // that was never meant for a person to read.
-  const match = /^KEY_NOT_APPROVED:([^]+)/.exec(message.trim())
+  const match = /^(?:KEY_NOT_APPROVED|WALLET_POSITION_MODE):([^]+)/.exec(
+    message.trim()
+  )
   if (!match) return null
   const detail = match[1].trim()
   return detail === "" ? null : detail

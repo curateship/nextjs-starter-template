@@ -179,4 +179,73 @@ describe("the Aster account", () => {
 
     expect(snapshot.portfolio.positions[0].marginUsed).toBe(20)
   })
+
+  it("refuses two directions instead of combining or hiding them", () => {
+    expect(() =>
+      toAsterAccountSnapshot({
+        account: {
+          totalMarginBalance: "100",
+          totalUnrealizedProfit: "0",
+          availableBalance: "80",
+          positions: [
+            {
+              symbol: "BTCUSDT",
+              positionSide: "LONG",
+              positionInitialMargin: "10",
+            },
+            {
+              symbol: "BTCUSDT",
+              positionSide: "SHORT",
+              positionInitialMargin: "10",
+            },
+          ],
+        },
+        positions: [
+          {
+            symbol: "BTCUSDT",
+            positionAmt: "0.01",
+            entryPrice: "70000",
+            leverage: "10",
+            marginType: "cross",
+            positionSide: "LONG",
+            isolatedMargin: "0",
+          },
+          {
+            symbol: "BTCUSDT",
+            positionAmt: "-0.01",
+            entryPrice: "71000",
+            leverage: "10",
+            marginType: "cross",
+            positionSide: "SHORT",
+            isolatedMargin: "0",
+          },
+        ],
+      })
+    ).toThrow("WALLET_POSITION_MODE")
+  })
+
+  it("detects two-sided mode even while every position is empty", () => {
+    expect(() =>
+      toAsterAccountSnapshot({
+        account: {
+          totalMarginBalance: "100",
+          totalUnrealizedProfit: "0",
+          availableBalance: "100",
+          positions: [
+            {
+              symbol: "BTCUSDT",
+              positionSide: "LONG",
+              positionInitialMargin: "0",
+            },
+            {
+              symbol: "BTCUSDT",
+              positionSide: "SHORT",
+              positionInitialMargin: "0",
+            },
+          ],
+        },
+        positions: [],
+      })
+    ).toThrow("Change Position Mode to One-way Mode")
+  })
 })

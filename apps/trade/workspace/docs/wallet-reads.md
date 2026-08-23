@@ -136,6 +136,11 @@ for.
 "Can't reach it" if you are careless, and they mean opposite things: one is a
 wallet nobody is using, the other is a wallet that would not answer.
 
+An account setting Trade cannot read is not a short outage either. Aster's
+two-sided position mode arrives as a named reason, replaces old figures at
+once, and tells the wallet owner to choose One-way Mode on Aster. The usual
+three-miss wait does not apply because another retry cannot change the answer.
+
 The same rule covers the shared positions table. The portfolio loader removes
 inactive wallets before reading an encrypted key or calling an exchange. Aster
 uses this read-only route because its account and positions are connected while

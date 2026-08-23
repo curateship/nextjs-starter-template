@@ -173,4 +173,38 @@ describe("the active wallet picker", () => {
       host.querySelector('[aria-label="Show Scalper figures"]')
     ).not.toBeNull()
   })
+
+  it("names the Aster position-mode fix without showing position figures", async () => {
+    const refusal = new Map(summaries)
+    refusal.set("main", {
+      walletId: "main",
+      state: "unreachable",
+      reason:
+        "This Aster account can hold a long and a short in the same coin. Trade works with one direction at a time. Change Position Mode to One-way Mode on Aster, then refresh.",
+    })
+
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <ActiveWalletsView
+            wallets={[{ ...wallets[0], protocol: "aster" }]}
+            summaryOf={(walletId) => refusal.get(walletId) ?? null}
+            activeWalletId="main"
+            onUseWallet={() => {}}
+            onOpenWallet={() => {}}
+            onRetry={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    expect(host.textContent).toContain("Two-sided. Change to one-way mode")
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Show Main figures"]')
+        ?.click()
+    )
+    expect(host.textContent).toContain("Change Position Mode to One-way Mode")
+    expect(host.textContent).not.toContain("Free")
+  })
 })

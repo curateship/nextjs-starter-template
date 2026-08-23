@@ -131,6 +131,7 @@ import {
   readAsterLivePrices,
 } from "@/server/protocols/aster/live-prices"
 import {
+  ASTER_HISTORY_BATCH_BARS,
   fetchAsterCandleHistory,
   fetchAsterCandles,
 } from "@/server/protocols/aster/candles"
@@ -177,6 +178,11 @@ export type ProtocolEntry = {
       from: number,
       to: number
     ): Promise<CandleBar[]>
+    /**
+     * Bars the candle store hands this adapter at once. The adapter may split
+     * the range into its own exchange-sized pages and run them together.
+     */
+    historyBatchBars?: number
     /** How long one bar of a timeframe lasts, in milliseconds. */
     intervalMs(interval: CandleInterval): number
     /**
@@ -308,7 +314,11 @@ export type ProtocolEntry = {
       network: NetworkId,
       accountAddress: string,
       agentKey: string
-    ): Promise<{ validUntil: number | null }>
+    ): Promise<{
+      validUntil: number | null
+      /** Account-wide direction setting where the exchange exposes one. */
+      positionMode?: "one-way" | "two-sided" | null
+    }>
   }
   /**
    * How this exchange's sign-in fields are drawn and packed. Present exactly
@@ -666,6 +676,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fetch: fetchAsterMarkets,
       candles: fetchAsterCandles,
       history: fetchAsterCandleHistory,
+      historyBatchBars: ASTER_HISTORY_BATCH_BARS,
       intervalMs: asterIntervalMs,
       prices: fetchAsterPrices,
       roundPx: roundAsterPx,

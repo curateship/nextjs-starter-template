@@ -42,6 +42,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: (protocol: string) => ({
     markets: {
+      historyBatchBars: protocol === "aster" ? 9_000 : undefined,
       intervalMs: (interval: string) =>
         interval === "1h" ? HOUR : FOUR_HOURS,
       history: async (
@@ -361,6 +362,29 @@ describe("the selected protocol", () => {
     expect(asks.map((ask) => ask.protocol)).toEqual([
       "hyperliquid",
       "binance",
+    ])
+  })
+
+  it("hands Aster enough bars for its adapter to batch six full pages", async () => {
+    available = []
+    const to = START + 9_000 * FOUR_HOURS
+
+    await ensureCandleCoverage(
+      "aster:mainnet:BTCUSDT",
+      "4h",
+      START,
+      to,
+      db
+    )
+
+    expect(asks).toEqual([
+      {
+        protocol: "aster",
+        marketId: "BTCUSDT",
+        interval: "4h",
+        from: START,
+        to,
+      },
     ])
   })
 })

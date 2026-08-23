@@ -4,13 +4,18 @@ How the Markets step decides which exchange and coins a backtest uses.
 
 ## Choosing the exchange
 
-- **Markets from** offers Hyperliquid and Binance.
+- **Markets from** offers Hyperliquid, Binance, Phemex, KuCoin and Aster from
+  the same protocol list used by the rest of Trade.
 - The selected exchange's full mainnet perpetual catalogue is shown. The list
   is not filtered through another exchange or by available candle history.
 - One Markets step belongs to one exchange. Switching exchanges clears the
   chosen coins, preventing one run from mixing exchanges.
-- Binance supplies prices, funding and backtests but does not place orders.
-  Hyperliquid markets can also be traded when the flow and wallet allow it.
+- Binance and Aster supply prices, funding and backtests but do not place
+  orders yet. Aster history comes from Aster, in pages of up to 1,500 candles.
+  The candle store hands over up to six pages at once, and the shared request
+  queue keeps those reads inside one bounded batch.
+  Hyperliquid, Phemex and KuCoin markets can also be traded when the flow and
+  wallet allow it.
 
 ## Choosing coins
 
@@ -34,8 +39,8 @@ How the Markets step decides which exchange and coins a backtest uses.
 
 ## History and missing coins
 
-- Each saved market key chooses its own candle and funding source. Hyperliquid
-  stays Hyperliquid and Binance stays Binance.
+- Each saved market key chooses its own candle and funding source. An Aster key
+  stays on Aster. Trade never substitutes another exchange's longer history.
 - A listed coin remains selectable when its history is short or missing. The
   run records gaps and uses only what that exchange actually provides.
 - A coin with no usable history is shown as skipped. Another exchange is never

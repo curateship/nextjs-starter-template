@@ -134,11 +134,14 @@ function ActiveWalletRow({
   // two. Said quietly rather than shouted: nothing here is wrong, it is only
   // a moment behind.
   const stale = summary?.state === "ok" && summary.stale === true
+  const refusal = summary?.state === "unreachable" ? summary.reason : undefined
   const status = ok
     ? stale
       ? "Figures a moment old"
       : "Connected"
-    : "Can't reach it"
+    : refusal
+      ? "Two-sided. Change to one-way mode"
+      : "Can't reach it"
 
   return (
     <Collapsible
@@ -265,6 +268,8 @@ function ActiveWalletRow({
                 <SignedUsd value={summary.madeOrLost} />
               </FigureRow>
             </div>
+          ) : refusal ? (
+            <p className="text-sm text-muted-foreground">{refusal}</p>
           ) : (
             <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
               <p>
@@ -307,6 +312,7 @@ function WalletCard({
 }) {
   const ok = summary !== null && summary.state === "ok"
   const inactive = summary?.state === "inactive"
+  const refusal = summary?.state === "unreachable" ? summary.reason : undefined
   const stale = summary?.state === "ok" && summary.stale === true
   const expiryWarning = useKeyExpiryWarning(wallet.keyValidUntil)
   const status = inactive
@@ -315,7 +321,9 @@ function WalletCard({
       ? stale
         ? "Figures a moment old"
         : "Connected"
-      : "Can't reach it"
+      : refusal
+        ? "Two-sided. Change to one-way mode"
+        : "Can't reach it"
   return (
     <button
       type="button"

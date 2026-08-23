@@ -45,8 +45,8 @@ import {
  */
 
 /**
- * Each page is saved before the next is requested. If page five fails, pages
- * one through four remain covered and the next run starts at page five.
+ * Each store batch is saved before the next is requested. If a later batch
+ * fails, earlier batches remain covered and the next run starts there.
  */
 const HISTORY_PAGE_BARS = 1_000
 
@@ -169,7 +169,8 @@ async function fetchMissingRange(
   database: CustomShellDb
 ): Promise<void> {
   const protocol = getProtocol(ref.protocol)
-  const pageMs = protocol.markets.intervalMs(interval) * HISTORY_PAGE_BARS
+  const pageBars = protocol.markets.historyBatchBars ?? HISTORY_PAGE_BARS
+  const pageMs = protocol.markets.intervalMs(interval) * pageBars
 
   for (let pageFrom = from; pageFrom < to; pageFrom += pageMs) {
     const pageTo = Math.min(to, pageFrom + pageMs)

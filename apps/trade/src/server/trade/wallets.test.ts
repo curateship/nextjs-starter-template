@@ -160,6 +160,22 @@ describe("adding wallets", () => {
     expect(wallet.keyValidUntil).toBe(expiry)
   })
 
+  it("records the account's position mode when the exchange reports one", async () => {
+    const userId = await person()
+    verifyAgent.mockResolvedValue({
+      validUntil: null,
+      positionMode: "one-way",
+    })
+
+    await createWallet(userId, liveInput())
+    const [row] = await database
+      .select({ positionMode: tradeWallets.positionMode })
+      .from(tradeWallets)
+      .where(eq(tradeWallets.userId, userId))
+
+    expect(row.positionMode).toBe("one-way")
+  })
+
   it("refuses an address the exchange cannot answer for, saving nothing", async () => {
     const userId = await person()
     fetchAccount.mockRejectedValue(new Error("no such account"))

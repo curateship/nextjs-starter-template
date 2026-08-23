@@ -25,6 +25,7 @@ import {
   credentialsOf,
   pricesEverySale,
 } from "@/server/protocols/registry"
+import { scrubbedMessage } from "@/server/protocols/scrub"
 import { paperWalletFigures } from "@/server/trade/paper"
 import { credentialFor } from "@/server/trade/wallet-auth"
 import {
@@ -153,6 +154,7 @@ export async function createWallet(
   let address: string | null = null
   let agentKeyEncrypted: string | null = null
   let agentValidUntil: Date | null = null
+  let positionMode: "one-way" | "two-sided" | null = null
 
   if (input.kind === "paper") {
     if (!input.startingBalance) throw new Error("WALLET_BALANCE_REQUIRED")
@@ -185,6 +187,7 @@ export async function createWallet(
     const verified = await agentOf(entry).verify(input.network, address, blob)
     agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
+    positionMode = verified.positionMode ?? null
     // Reading the account proves it is reachable and records the fixed sizing
     // baseline used when compounding is off.
     // An account the exchange cannot answer for is refused, not saved broken.
@@ -207,6 +210,7 @@ export async function createWallet(
     address,
     agentKeyEncrypted,
     agentValidUntil,
+    positionMode,
   }
   await db.insert(tradeWallets).values(row)
   return toWallet(row)
@@ -272,6 +276,9 @@ export async function updateWallet(
     set.agentKeyEncrypted = encryptSecret(blob)
     set.agentValidUntil =
       verified.validUntil !== null ? new Date(verified.validUntil) : null
+    if (verified.positionMode !== undefined) {
+      set.positionMode = verified.positionMode
+    }
   }
 
   await db
@@ -411,6 +418,7 @@ export async function loadWalletSummaries(
           unpricedFills: 0,
         })
       }
+      let refusal: string | null = null
       const figures = await accountOf(getProtocol(wallet.protocol))
         .fetch(wallet.network, wallet.address ?? "", () =>
           credentialFor({
@@ -418,13 +426,22 @@ export async function loadWalletSummaries(
           })
         )
         .catch((error: unknown) => {
+          const message = scrubbedMessage(error)
+          const mode = /^WALLET_POSITION_MODE:([^]+)/.exec(message)
+          refusal = mode?.[1]?.trim() || null
           console.error(
             `Wallet "${wallet.label}" (${wallet.protocol} ${wallet.network}) could not be read`,
-            error
+            message
           )
           return null
         })
-      if (!figures) return { walletId: wallet.id, state: "unreachable" }
+      if (!figures) {
+        return {
+          walletId: wallet.id,
+          state: "unreachable",
+          ...(refusal ? { reason: refusal } : {}),
+        }
+      }
       return summarizeWallet(wallet, figures, {
         settled: settledByWallet.get(wallet.id) ?? 0,
         unpricedFills: unpricedByWallet.get(wallet.id) ?? 0,

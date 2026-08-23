@@ -1,5 +1,9 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
-import { fetchAsterAccount } from "@/server/protocols/aster/account"
+import {
+  ASTER_ONE_WAY_REQUIRED,
+  fetchAsterAccount,
+  fetchAsterPositionMode,
+} from "@/server/protocols/aster/account"
 import { parseAsterCredential } from "@/server/protocols/aster/client"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
@@ -10,15 +14,27 @@ export async function verifyAsterAgentKey(
   network: NetworkId,
   accountAddress: string,
   blob: string
-): Promise<{ validUntil: number | null }> {
+): Promise<{ validUntil: number | null; positionMode: "one-way" }> {
   const credential = parseAsterCredential(blob)
   if (credential.signer.toLowerCase() === accountAddress.toLowerCase()) {
     throw new Error("ASTER_KEY_MATCHES_ACCOUNT")
   }
   try {
+    const positionMode = await fetchAsterPositionMode(
+      network,
+      accountAddress,
+      () => blob
+    )
+    if (positionMode === "two-sided") {
+      throw new Error(`WALLET_POSITION_MODE:${ASTER_ONE_WAY_REQUIRED}`)
+    }
     await fetchAsterAccount(network, accountAddress, () => blob)
+    return { validUntil: null, positionMode }
   } catch (error) {
     const message = scrubbedMessage(error)
+    if (message.startsWith("WALLET_POSITION_MODE:")) {
+      throw new Error(message)
+    }
     if (message.startsWith("ASTER_AUTH:")) {
       throw new Error(`KEY_NOT_APPROVED:${WHY}`)
     }
@@ -33,5 +49,4 @@ export async function verifyAsterAgentKey(
     }
     throw new Error("KEY_CHECK_UNAVAILABLE")
   }
-  return { validUntil: null }
 }

@@ -235,6 +235,7 @@ export default function TradeWalletFields({
       if (expiry) return expiry
     }
     if (figures?.state === "unreachable" && row.kind === "live") {
+      if (figures.reason) return figures.reason
       return `${row.label} could not be reached just now, so what it holds is not shown. That is usually a hiccup at the exchange.`
     }
     return null

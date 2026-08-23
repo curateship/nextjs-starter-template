@@ -44,10 +44,45 @@ type Snapshot = {
 const ACCOUNT_GOOD_FOR_MS = 2_000
 const cache = new Map<string, { at: number; answer: Promise<Snapshot> }>()
 
+export const ASTER_ONE_WAY_REQUIRED =
+  "This Aster account can hold a long and a short in the same coin. Trade works with one direction at a time. Change Position Mode to One-way Mode on Aster, then refresh."
+
 function required(value: unknown): number {
   const parsed = num(value)
   if (parsed === null) throw new Error("ASTER_ACCOUNT_UNREADABLE")
   return parsed
+}
+
+function assertOneWay(sides: readonly string[]): void {
+  for (const side of sides) {
+    if (side === "BOTH") continue
+    if (side === "LONG" || side === "SHORT") {
+      throw new Error(`WALLET_POSITION_MODE:${ASTER_ONE_WAY_REQUIRED}`)
+    }
+    throw new Error("ASTER_ACCOUNT_UNREADABLE")
+  }
+}
+
+/** Aster's account-wide position mode, read while a credential is verified. */
+export async function fetchAsterPositionMode(
+  network: NetworkId,
+  address: string,
+  credential: () => string | null
+): Promise<"one-way" | "two-sided"> {
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  const parsed = parseAsterCredential(blob)
+  const answer = await asterSigned(
+    network,
+    address,
+    parsed,
+    "GET",
+    "/fapi/v3/positionSide/dual",
+    30
+  )
+  const mode = z.object({ dualSidePosition: z.boolean() }).safeParse(answer)
+  if (!mode.success) throw new Error("ASTER_ACCOUNT_UNREADABLE")
+  return mode.data.dualSidePosition ? "two-sided" : "one-way"
 }
 
 export function toAsterAccountSnapshot(input: {
@@ -60,6 +95,7 @@ export function toAsterAccountSnapshot(input: {
     throw new Error("ASTER_ACCOUNT_UNREADABLE")
   }
   const account = parsedAccount.data
+  assertOneWay(account.positions.map((row) => row.positionSide))
   const equity = required(account.totalMarginBalance)
   const free = required(account.availableBalance)
   const openProfit = required(account.totalUnrealizedProfit)
@@ -75,6 +111,7 @@ export function toAsterAccountSnapshot(input: {
     const parsed = positionSchema.safeParse(raw)
     if (!parsed.success) throw new Error("ASTER_ACCOUNT_UNREADABLE")
     const row = parsed.data
+    assertOneWay([row.positionSide])
     const szi = required(row.positionAmt)
     if (szi === 0) continue
     const liquidation = num(row.liquidationPrice)
