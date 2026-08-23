@@ -233,6 +233,7 @@ describe("Aster orders", () => {
       kind: "market",
       px: 2_467.43,
       priceTick: 0.01,
+      priceMultiplierUp: 1.02,
       sz: 0.008,
       reduceOnly: false,
       leverage: null,
@@ -244,7 +245,7 @@ describe("Aster orders", () => {
     const placed = sent.find(
       (one) => one.method === "POST" && one.url.pathname.endsWith("/order")
     )
-    expect(placed?.url.searchParams.get("price")).toBe("2541.45")
+    expect(placed?.url.searchParams.get("price")).toBe("2514.31")
   })
 
   it("sends no order when Aster refuses the chosen margin mode", async () => {

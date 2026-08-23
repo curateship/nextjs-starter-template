@@ -18,6 +18,8 @@ const filterSchema = z.object({
   stepSize: z.union([z.string(), z.number()]).optional(),
   minQty: z.union([z.string(), z.number()]).optional(),
   notional: z.union([z.string(), z.number()]).optional(),
+  multiplierUp: z.union([z.string(), z.number()]).optional(),
+  multiplierDown: z.union([z.string(), z.number()]).optional(),
 })
 
 const symbolSchema = z.object({
@@ -78,7 +80,13 @@ function marketCategory(subtypes: readonly string[]): MarketCategory {
 function filterValue(
   filters: readonly unknown[],
   kind: string,
-  field: "tickSize" | "stepSize" | "minQty" | "notional"
+  field:
+    | "tickSize"
+    | "stepSize"
+    | "minQty"
+    | "notional"
+    | "multiplierUp"
+    | "multiplierDown"
 ): number | null {
   for (const raw of filters) {
     const parsed = filterSchema.safeParse(raw)
@@ -132,6 +140,16 @@ export function toAsterMarketCatalog(input: {
       ),
       minOrderSize: filterValue(one.filters, "LOT_SIZE", "minQty"),
       priceTick: filterValue(one.filters, "PRICE_FILTER", "tickSize"),
+      priceMultiplierUp: filterValue(
+        one.filters,
+        "PERCENT_PRICE",
+        "multiplierUp"
+      ),
+      priceMultiplierDown: filterValue(
+        one.filters,
+        "PERCENT_PRICE",
+        "multiplierDown"
+      ),
       minOrderValueUsd: filterValue(one.filters, "MIN_NOTIONAL", "notional"),
       marginModes: ["isolated", "cross"],
       // V3 exchangeInfo labels both margin percentage fields "ignore". The

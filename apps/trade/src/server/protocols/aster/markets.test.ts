@@ -4,6 +4,11 @@ import { toAsterMarketCatalog } from "@/server/protocols/aster/markets"
 
 const FILTERS = [
   { filterType: "PRICE_FILTER", tickSize: "0.25" },
+  {
+    filterType: "PERCENT_PRICE",
+    multiplierUp: "1.02",
+    multiplierDown: "0.98",
+  },
   { filterType: "LOT_SIZE", stepSize: "0.001", minQty: "0.001" },
   { filterType: "MIN_NOTIONAL", notional: "5" },
 ]
@@ -89,6 +94,8 @@ describe("the Aster catalogue", () => {
     expect(btc.symbol).toBe("BTC")
     expect(btc.quoteAsset).toBe("USDT")
     expect(btc.priceTick).toBe(0.25)
+    expect(btc.priceMultiplierUp).toBe(1.02)
+    expect(btc.priceMultiplierDown).toBe(0.98)
     expect(btc.minOrderValueUsd).toBe(5)
     expect(btc.minOrderSize).toBe(0.001)
     expect(btc.sizeDecimals).toBe(3)

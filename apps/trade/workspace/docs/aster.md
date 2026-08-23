@@ -212,9 +212,11 @@ the app assumes will stay fixed.
   the requested leverage or margin mode. An existing position keeps its own
   settings instead of being changed underneath it.
 - An order that must fill now is still a limit: Trade caps it three percent
-  through the mark, snaps that cap to the market's legal price step and sends
-  it Immediate-or-Cancel. Aster may fill inside that cap or cancel the rest; it
-  never receives a naked market entry from Trade.
+  through the mark or inside Aster's stated price band, whichever is closer.
+  Trade leaves five percent of that band unused for price movement, snaps the
+  cap to the market's legal price step and sends it Immediate-or-Cancel. Aster
+  may fill inside that cap or cancel the rest; it never receives a naked market
+  entry from Trade.
 - Aster stops and full targets use its whole-position flag. They follow
   whatever size remains without a replacement. A partial target names its own
   coin size and is reduce-only. Closing the position removes any whole-position

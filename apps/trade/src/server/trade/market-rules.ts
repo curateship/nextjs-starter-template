@@ -23,6 +23,8 @@ export type MarketRules = {
   minOrderSize?: number | null
   /** The market's smallest price step, or null where the exchange states none. */
   priceTick: number | null
+  priceMultiplierUp?: number | null
+  priceMultiplierDown?: number | null
   minOrderValueUsd?: number | null
   maxLeverage: number | null
   /** Dollars traded in the last day — what the DCA liquidity guard caps by. */
@@ -54,6 +56,8 @@ async function rulesFor(
         sizeDecimals: row.sizeDecimals,
         minOrderSize: row.minOrderSize,
         priceTick: row.priceTick,
+        priceMultiplierUp: row.priceMultiplierUp,
+        priceMultiplierDown: row.priceMultiplierDown,
         minOrderValueUsd: row.minOrderValueUsd,
         maxLeverage: row.maxLeverage,
         volume24hUsd: row.volume24hUsd,
