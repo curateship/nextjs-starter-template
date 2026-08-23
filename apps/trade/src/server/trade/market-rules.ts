@@ -20,6 +20,7 @@ const CACHE_MS = 5 * 60_000
 
 export type MarketRules = {
   sizeDecimals: number | null
+  minOrderSize?: number | null
   /** The market's smallest price step, or null where the exchange states none. */
   priceTick: number | null
   minOrderValueUsd?: number | null
@@ -51,6 +52,7 @@ async function rulesFor(
       row.marketId,
       {
         sizeDecimals: row.sizeDecimals,
+        minOrderSize: row.minOrderSize,
         priceTick: row.priceTick,
         minOrderValueUsd: row.minOrderValueUsd,
         maxLeverage: row.maxLeverage,

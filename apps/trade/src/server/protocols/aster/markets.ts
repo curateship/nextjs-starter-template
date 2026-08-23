@@ -16,6 +16,7 @@ const filterSchema = z.object({
   filterType: z.string(),
   tickSize: z.union([z.string(), z.number()]).optional(),
   stepSize: z.union([z.string(), z.number()]).optional(),
+  minQty: z.union([z.string(), z.number()]).optional(),
   notional: z.union([z.string(), z.number()]).optional(),
 })
 
@@ -77,7 +78,7 @@ function marketCategory(subtypes: readonly string[]): MarketCategory {
 function filterValue(
   filters: readonly unknown[],
   kind: string,
-  field: "tickSize" | "stepSize" | "notional"
+  field: "tickSize" | "stepSize" | "minQty" | "notional"
 ): number | null {
   for (const raw of filters) {
     const parsed = filterSchema.safeParse(raw)
@@ -129,6 +130,7 @@ export function toAsterMarketCatalog(input: {
       sizeDecimals: stepToDecimals(
         filterValue(one.filters, "LOT_SIZE", "stepSize")
       ),
+      minOrderSize: filterValue(one.filters, "LOT_SIZE", "minQty"),
       priceTick: filterValue(one.filters, "PRICE_FILTER", "tickSize"),
       minOrderValueUsd: filterValue(one.filters, "MIN_NOTIONAL", "notional"),
       marginModes: ["isolated", "cross"],

@@ -223,6 +223,8 @@ export type MarketRow = {
    * size step is 0.001 of the coin. Null when the exchange does not say.
    */
   sizeDecimals: number | null
+  /** The least coin size accepted, or null when the exchange does not say. */
+  minOrderSize?: number | null
   /**
    * The smallest price step this market accepts — 0.5 means $100.5 is a
    * legal price and $100.3 is not. Null on an exchange that states no tick

@@ -16,10 +16,12 @@ the app assumes will stay fixed.
   markets and 9 commodity markets. Testnet returned 17 crypto markets.
 - Aster listed one more eligible mainnet market than it had earlier the same
   day. Trade reads the list rather than keeping a fixed set of symbols.
-- Every one of the 536 mainnet markets reported a $5 minimum order value. BTC
-  also reported $5. Trade carries the value on the market, prints it in the
-  market information, and refuses a thinner order before signing it. A ladder
-  or grid whose split puts any level below the floor is refused whole.
+- Every one of the 536 mainnet markets reported a $5 minimum order value. The
+  coin-size rule can make the real minimum higher. BTC accepts sizes in 0.001
+  BTC steps, so its smallest order is about $77 while BTC trades near $77,000.
+  Trade shows the larger current dollar figure and checks both rules before it
+  saves a watched order. A ladder or grid whose split puts any level below the
+  floor is refused whole.
 - Aster's public market response does not state a trustworthy top leverage.
   The two margin percentage fields are marked "ignore" in Aster's V3 docs, and
   the leverage bracket needs a signed account request. Trade prints "Not
@@ -181,6 +183,10 @@ the app assumes will stay fixed.
 
 ## Orders, leverage and protection
 
+- A watched order is rounded down to Aster's coin-size step before it is saved.
+  If the rounded size is below Aster's minimum coin size or dollar value, Trade
+  refuses it before the engine can see it. Older undersized watches end without
+  sending money instead of sitting forever after their price is reached.
 - A fresh entry sets the margin mode shown in the order window, then sets the
   chosen leverage, then sends the order. A reduce-only order changes neither
   account setting. The last successful setting per account and market is kept

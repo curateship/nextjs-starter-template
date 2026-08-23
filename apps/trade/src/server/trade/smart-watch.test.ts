@@ -88,6 +88,8 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     leverage: 1,
     maxLeverage: 50,
     sizeDecimals: 3,
+    minOrderSize: null,
+    minOrderValueUsd: null,
     priceTick: null,
     tpPx: null,
     slPx: null,
@@ -232,6 +234,16 @@ describe("a price being watched", () => {
     // Bought at the market, not at the level that was drawn.
     expect(held.entryPx).toBeCloseTo(100, 1)
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("ends an old watch whose size rounds below one coin step", async () => {
+    await watchAt({ triggerPx: 105, sz: 0.000129, sizeDecimals: 3 })
+
+    await priceTo(100)
+
+    expect((await row()).status).toBe("done")
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
   })
 
   it("takes the market when the sell level is already below the price", async () => {

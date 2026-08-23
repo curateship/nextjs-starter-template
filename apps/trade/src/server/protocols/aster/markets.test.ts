@@ -4,7 +4,7 @@ import { toAsterMarketCatalog } from "@/server/protocols/aster/markets"
 
 const FILTERS = [
   { filterType: "PRICE_FILTER", tickSize: "0.25" },
-  { filterType: "LOT_SIZE", stepSize: "0.001" },
+  { filterType: "LOT_SIZE", stepSize: "0.001", minQty: "0.001" },
   { filterType: "MIN_NOTIONAL", notional: "5" },
 ]
 
@@ -90,6 +90,7 @@ describe("the Aster catalogue", () => {
     expect(btc.quoteAsset).toBe("USDT")
     expect(btc.priceTick).toBe(0.25)
     expect(btc.minOrderValueUsd).toBe(5)
+    expect(btc.minOrderSize).toBe(0.001)
     expect(btc.sizeDecimals).toBe(3)
     expect(btc.price).toBe(117_000.5)
     expect(btc.change24h).toBe(0.025)
@@ -120,6 +121,7 @@ describe("the Aster catalogue", () => {
       fundingIntervals: new Map(),
     })
     expect(catalog.rows[0].minOrderValueUsd).toBeNull()
+    expect(catalog.rows[0].minOrderSize).toBe(0.001)
   })
 
   it("drops a market whose mark price cannot be read", () => {

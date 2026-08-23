@@ -25,6 +25,7 @@ const close = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
 let marketFloor: number | null = null
+let marketMinSize: number | null = null
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -32,6 +33,7 @@ let marketFloor: number | null = null
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    label: "Hyperliquid",
     markets: {
       prices,
       fetch: async () => ({
@@ -41,6 +43,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             sizeDecimals: 3,
             priceTick: null,
             minOrderValueUsd: marketFloor,
+            minOrderSize: marketMinSize,
             maxLeverage: 50,
             volume24hUsd: 1_000_000,
           },
@@ -68,6 +71,7 @@ beforeEach(async () => {
   }
   prices.mockResolvedValue(new Map([["BTC", 100_000]]))
   marketFloor = null
+  marketMinSize = null
   portfolio.mockResolvedValue({ positions: [], orders: [] })
   place.mockResolvedValue({
     status: "resting",
@@ -231,7 +235,28 @@ describe("the rails around placing", () => {
 
     await expect(
       placeLiveOrder(userId, { ...orderInput(walletId), px: 9, sz: 1 })
-    ).rejects.toThrow("smallest order here is $10, and this order is $9.00")
+    ).rejects.toThrow("smallest order here is $10.00, and this order is $9.00")
+    expect(place).not.toHaveBeenCalled()
+  })
+
+  it("refuses a size below the venue's coin minimum before sending it", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    marketFloor = 5
+    marketMinSize = 0.001
+    const { clearMarketRulesCache } =
+      await import("@/server/trade/market-rules")
+    clearMarketRulesCache()
+
+    await expect(
+      placeLiveOrder(userId, {
+        ...orderInput(walletId),
+        px: 77_000,
+        sz: 10 / 77_000,
+      })
+    ).rejects.toThrow(
+      "smallest order here is $77.00, and this order is $10.00"
+    )
     expect(place).not.toHaveBeenCalled()
   })
 

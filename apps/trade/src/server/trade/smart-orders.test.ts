@@ -25,6 +25,7 @@ import {
   cancelLadderRung,
   listActiveSmartOrders,
   placeDcaLadder,
+  placeWatchOrder,
   updateLadderExits,
 } from "@/server/trade/smart-orders"
 import {
@@ -43,6 +44,7 @@ import {
 const marks = new Map<string, number>([["BTC", 100]])
 let candles: CandleBar[] = []
 let minOrderValueUsd: number | null = null
+let minOrderSize: number | null = null
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -67,6 +69,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             sizeDecimals: 3,
             priceTick: null,
             minOrderValueUsd,
+            minOrderSize,
             marginModes: [],
             maxLeverage: 50,
             isolatedOnly: false,
@@ -271,6 +274,7 @@ beforeEach(async () => {
   clearMarketRulesCache()
   marks.set("BTC", 100)
   minOrderValueUsd = null
+  minOrderSize = null
   dipSlot = 9
   // A ladder hangs from the confirmed base, so every test needs one. 100 is
   // the base throughout unless a test swaps the tape, which keeps the rungs
@@ -305,6 +309,51 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await client.close()
+})
+
+describe("a watched order's market minimum", () => {
+  it("refuses a size below one exchange step before saving the watch", async () => {
+    minOrderValueUsd = 5
+    minOrderSize = 0.001
+
+    await expect(
+      placeWatchOrder(userId, wallet, {
+        marketKey: BTC,
+        side: "buy",
+        px: 77_000,
+        sz: 10 / 77_000,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PAPER_SIZE")
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("freezes the accepted size and both exchange floors in the watch", async () => {
+    minOrderValueUsd = 5
+    minOrderSize = 0.001
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 77_000,
+      sz: 80 / 77_000,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.sz).toBe(0.001)
+    expect(watch.plan.minOrderSize).toBe(0.001)
+    expect(watch.plan.minOrderValueUsd).toBe(5)
+  })
 })
 
 describe("who placed a smart order", () => {

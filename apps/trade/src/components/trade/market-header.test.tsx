@@ -82,6 +82,14 @@ describe("the market header's star", () => {
       "Smallest order: $5"
     )
     expect(minimumOrderLabel(row)).toBeNull()
+    expect(
+      minimumOrderLabel({
+        ...row,
+        price: 77_114.30360888,
+        minOrderValueUsd: 5,
+        minOrderSize: 0.001,
+      })
+    ).toBe("Smallest order now: $77.12")
   })
 
   it("offers to star the market on screen, naming it", () => {

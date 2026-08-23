@@ -1,4 +1,5 @@
 import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { minimumOrderUsd } from "@/lib/trade/market-info"
 import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
 import {
@@ -196,8 +197,23 @@ export async function advanceWatch(
     plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx
   if (throughAlready && plan.orderId === null && !plan.sent) {
     const takeSz = floorSize(plan.sz, plan.sizeDecimals)
-    if (takeSz <= 0 || mark * takeSz < MIN_ORDER_USD) {
-      if (changed) await deps.saveLadder(row, "active", now)
+    const smallestSize =
+      plan.minOrderSize ??
+      (plan.sizeDecimals === null ? null : 10 ** -plan.sizeDecimals)
+    const floor =
+      minimumOrderUsd(
+        {
+          minOrderValueUsd: plan.minOrderValueUsd ?? MIN_ORDER_USD,
+          minOrderSize: smallestSize,
+        },
+        mark
+      ) ?? MIN_ORDER_USD
+    if (
+      takeSz <= 0 ||
+      (smallestSize !== null && takeSz + 1e-12 < smallestSize) ||
+      mark * takeSz + 1e-9 < floor
+    ) {
+      await deps.saveLadder(row, "done", now)
       return
     }
     if (
@@ -254,8 +270,23 @@ export async function advanceWatch(
   }
 
   const sz = floorSize(plan.sz, plan.sizeDecimals)
-  if (sz <= 0 || wanted * sz < MIN_ORDER_USD) {
-    if (changed) await deps.saveLadder(row, "active", now)
+  const smallestSize =
+    plan.minOrderSize ??
+    (plan.sizeDecimals === null ? null : 10 ** -plan.sizeDecimals)
+  const floor =
+    minimumOrderUsd(
+      {
+        minOrderValueUsd: plan.minOrderValueUsd ?? MIN_ORDER_USD,
+        minOrderSize: smallestSize,
+      },
+      wanted
+    ) ?? MIN_ORDER_USD
+  if (
+    sz <= 0 ||
+    (smallestSize !== null && sz + 1e-12 < smallestSize) ||
+    wanted * sz + 1e-9 < floor
+  ) {
+    await deps.saveLadder(row, "done", now)
     return
   }
   // A buy has to be paid for. A sell that only reduces what is held does not.

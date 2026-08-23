@@ -24,6 +24,11 @@ import {
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
+import {
+  minimumOrderDollars,
+  minimumOrderUsd,
+  orderDollars,
+} from "@/lib/trade/market-info"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -929,16 +934,38 @@ export async function placeWatchOrder(
   }
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("PAPER_MARKET")
+  const protocol = getProtocol(wallet.protocol)
+  const sz = floorSize(input.sz, rules.sizeDecimals)
+  const floor = minimumOrderUsd(
+    {
+      minOrderValueUsd: rules.minOrderValueUsd ?? null,
+      minOrderSize: rules.minOrderSize ?? null,
+    },
+    input.px
+  )
+  const tooSmall =
+    sz <= 0 ||
+    (rules.minOrderSize != null && sz + 1e-12 < rules.minOrderSize) ||
+    (floor !== null && input.px * sz + 1e-9 < floor)
+  if (tooSmall) {
+    if (wallet.kind === "paper") throw new Error("PAPER_SIZE")
+    const smallest = floor ?? input.px * 10 ** -(rules.sizeDecimals ?? 0)
+    throw new Error(
+      `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${minimumOrderDollars(smallest)}, and this order is $${orderDollars(input.px * input.sz)}.`
+    )
+  }
 
   const now = new Date()
   const plan: WatchPlan = {
     triggerPx: input.px,
     side: input.side,
-    sz: input.sz,
+    sz,
     leverage: input.leverage,
     marginMode: input.marginMode ?? null,
     maxLeverage: rules.maxLeverage ?? 1,
     sizeDecimals: rules.sizeDecimals,
+    minOrderSize: rules.minOrderSize ?? null,
+    minOrderValueUsd: rules.minOrderValueUsd ?? null,
     priceTick: rules.priceTick,
     tpPx: input.tpPx,
     slPx: input.slPx,

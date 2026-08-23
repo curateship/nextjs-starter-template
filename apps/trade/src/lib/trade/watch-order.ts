@@ -39,6 +39,10 @@ export const watchPlanSchema = z.object({
   maxLeverage: z.number().positive(),
   /** The market's size step, frozen the same way every other plan freezes it. */
   sizeDecimals: z.number().nullable(),
+  /** The least coin size accepted when this watch was placed. */
+  minOrderSize: z.number().positive().nullable().default(null),
+  /** The exchange's stated dollar floor when this watch was placed. */
+  minOrderValueUsd: z.number().positive().nullable().default(null),
   /** The market's smallest price step, frozen with the rest. Null: no tick stated. */
   priceTick: z.number().nullable().default(null),
   /** Handed to the position this opens, once it opens one. */

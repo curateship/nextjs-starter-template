@@ -21,6 +21,12 @@ import {
   type PaperSide,
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
+import { floorSize } from "@/lib/trade/dca"
+import {
+  minimumOrderDollars,
+  minimumOrderUsd,
+  orderDollars,
+} from "@/lib/trade/market-info"
 import { db } from "@/server/db"
 import { credentialFor, walletCredential } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
@@ -213,11 +219,29 @@ export async function placeLiveOrder(
     }
     const entryPx = marketable ? mark : input.px
     const rules = await marketRules(row.protocol, row.network, ref.marketId)
-    const floor = rules?.minOrderValueUsd ?? null
-    const asked = entryPx * input.sz
-    if (floor !== null && asked + 1e-9 < floor) {
+    const orderSize = rules
+      ? floorSize(input.sz, rules.sizeDecimals)
+      : input.sz
+    const floor = rules
+      ? minimumOrderUsd(
+          {
+            minOrderValueUsd: rules.minOrderValueUsd ?? null,
+            minOrderSize: rules.minOrderSize ?? null,
+          },
+          entryPx
+        )
+      : null
+    const asked = entryPx * orderSize
+    if (
+      orderSize <= 0 ||
+      (rules?.minOrderSize != null &&
+        orderSize + 1e-12 < rules.minOrderSize) ||
+      (floor !== null && asked + 1e-9 < floor)
+    ) {
+      const smallest =
+        floor ?? entryPx * 10 ** -(rules?.sizeDecimals ?? 0)
       throw new Error(
-        `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${floor}, and this order is $${asked.toFixed(2)}.`
+        `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${minimumOrderDollars(smallest)}, and this order is $${orderDollars(entryPx * input.sz)}.`
       )
     }
 
@@ -251,7 +275,7 @@ export async function placeLiveOrder(
       side: input.side,
       kind: input.restingOnly ? "postOnly" : marketable ? "market" : "limit",
       px: marketable ? mark : input.px,
-      sz: input.sz,
+      sz: orderSize,
       reduceOnly: input.reduceOnly,
       leverage: held ? null : input.leverage,
       marginMode: held ? null : (input.marginMode ?? null),
