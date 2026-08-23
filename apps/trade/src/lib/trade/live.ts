@@ -126,18 +126,40 @@ export function livePortfolioRows(
  * nothing to say. Wordy on purpose — it appears exactly when acting on it
  * matters, and says what to do.
  */
+export type KeyExpiryNotice = {
+  message: string
+  tone: "quiet" | "warning" | "expired"
+}
+
+export function keyExpiryNotice(
+  keyValidUntil: number | null,
+  now: number
+): KeyExpiryNotice | null {
+  if (keyValidUntil === null) return null
+  const msLeft = keyValidUntil - now
+  if (msLeft <= 0) {
+    return {
+      message:
+        "Trading key expired. Ladders and grids on this wallet will not act until you replace the key.",
+      tone: "expired",
+    }
+  }
+  const daysLeft = Math.ceil(msLeft / 86_400_000)
+  return {
+    message: `Trading key expires in ${daysLeft === 1 ? "1 day" : `${daysLeft} days`}.`,
+    tone: daysLeft <= 14 ? "warning" : "quiet",
+  }
+}
+
+/** A warning-only sentence for places that do not show the full countdown. */
 export function keyExpiryWarning(
   keyValidUntil: number | null,
   now: number
 ): string | null {
-  if (keyValidUntil === null) return null
-  const msLeft = keyValidUntil - now
-  if (msLeft <= 0) {
-    return "The trading key has expired — orders will be refused. Create a fresh API key on the exchange and save it here."
-  }
-  const daysLeft = Math.ceil(msLeft / 86_400_000)
-  if (daysLeft > 14) return null
-  return `The trading key expires in ${daysLeft === 1 ? "1 day" : `${daysLeft} days`}. Renew it on the exchange and save the new key here.`
+  const notice = keyExpiryNotice(keyValidUntil, now)
+  return notice?.tone === "warning" || notice?.tone === "expired"
+    ? notice.message
+    : null
 }
 
 /**

@@ -298,6 +298,8 @@ describe("editing wallets", () => {
         )
     )[0].agentKeyEncrypted
 
+    const freshExpiry = Date.now() + 120 * 86_400_000
+    verifyAgent.mockResolvedValue({ validUntil: freshExpiry })
     await updateWallet(userId, { id: wallet.id, agentKey: "cd".repeat(32) })
     const after = (
       await database
@@ -306,10 +308,11 @@ describe("editing wallets", () => {
         .where(
           and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
         )
-    )[0].agentKeyEncrypted
+    )[0]
 
-    expect(after).toMatch(CIPHERTEXT_SHAPE)
-    expect(after).not.toBe(before)
+    expect(after.agentKeyEncrypted).toMatch(CIPHERTEXT_SHAPE)
+    expect(after.agentKeyEncrypted).not.toBe(before)
+    expect(after.agentValidUntil?.getTime()).toBe(freshExpiry)
   })
 
   it("cannot reach another person's wallet", async () => {

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { WalletPortfolio } from "@/lib/protocols/contracts"
 import {
   keepUnreachableRows,
-  keyExpiryWarning,
+  keyExpiryNotice,
   livePortfolioRows,
 } from "@/lib/trade/live"
 
@@ -75,22 +75,32 @@ describe("live rows for the screens", () => {
   })
 })
 
-describe("the key-expiry warning", () => {
+describe("the key-expiry notice", () => {
   const DAY = 86_400_000
   const now = 1_700_000_000_000
 
-  it("says nothing while there is nothing to say", () => {
-    expect(keyExpiryWarning(null, now)).toBeNull()
-    expect(keyExpiryWarning(now + 15 * DAY, now)).toBeNull()
+  it("says nothing when the exchange states no expiry", () => {
+    expect(keyExpiryNotice(null, now)).toBeNull()
   })
 
-  it("warns inside two weeks, counting the days", () => {
-    expect(keyExpiryWarning(now + 14 * DAY, now)).toContain("14 days")
-    expect(keyExpiryWarning(now + DAY / 2, now)).toContain("1 day")
+  it("counts the days and changes tone inside two weeks", () => {
+    expect(keyExpiryNotice(now + 15 * DAY, now)).toEqual({
+      message: "Trading key expires in 15 days.",
+      tone: "quiet",
+    })
+    expect(keyExpiryNotice(now + 14 * DAY, now)).toEqual({
+      message: "Trading key expires in 14 days.",
+      tone: "warning",
+    })
+    expect(keyExpiryNotice(now + DAY / 2, now)?.message).toContain("1 day")
   })
 
-  it("says expired once it is", () => {
-    expect(keyExpiryWarning(now - 1, now)).toContain("expired")
+  it("states what stops acting once the key has expired", () => {
+    expect(keyExpiryNotice(now - 1, now)).toEqual({
+      message:
+        "Trading key expired. Ladders and grids on this wallet will not act until you replace the key.",
+      tone: "expired",
+    })
   })
 })
 

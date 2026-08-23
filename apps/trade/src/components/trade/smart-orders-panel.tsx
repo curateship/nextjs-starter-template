@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
 import { formatDateTime } from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd } from "@/lib/trade/format"
+import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import {
   gridRoundTrips,
@@ -17,6 +18,7 @@ import {
 import type { PaperPosition } from "@/lib/trade/paper"
 import { moneyTone } from "@/lib/trade/money-tone"
 import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
+import type { TradeWallet } from "@/lib/trade/wallets"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
@@ -51,6 +53,7 @@ export function SmartOrdersPanel({
   fills,
   trades,
   markets,
+  wallets,
   walletName,
   settled,
   failed,
@@ -65,6 +68,7 @@ export function SmartOrdersPanel({
   /** Finished round trips, for the orders that do go flat. */
   trades: readonly LiveTrade[]
   markets: ReadonlyMap<string, MarketRow>
+  wallets: readonly TradeWallet[]
   walletName: (walletId: string) => string
   /**
    * Both halves of the read have landed — see `settled` on `Trading`.
@@ -81,6 +85,11 @@ export function SmartOrdersPanel({
 }) {
   /** Which rows are open. Several at once, because comparing two is the point. */
   const [opened, setOpened] = React.useState<ReadonlySet<string>>(new Set())
+  const [readAt, setReadAt] = React.useState(Date.now)
+  React.useEffect(() => {
+    const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
   const toggle = (id: string) =>
     setOpened((held) => {
       const next = new Set(held)
@@ -110,6 +119,19 @@ export function SmartOrdersPanel({
         positions.map((one) => [`${one.walletId}:${one.marketKey}`, one])
       ),
     [positions]
+  )
+  const expiredWallets = React.useMemo(
+    () =>
+      new Set(
+        wallets
+          .filter(
+            (wallet) =>
+              wallet.status === "active" &&
+              keyExpiryNotice(wallet.keyValidUntil, readAt)?.tone === "expired"
+          )
+          .map((wallet) => wallet.id)
+      ),
+    [wallets, readAt]
   )
 
   // How many of THESE are holding something. Counting every position on the
@@ -177,7 +199,10 @@ export function SmartOrdersPanel({
         // of to the panel — a long wallet name or a grid's price range then
         // pushed the row's dollars off the right edge instead of being
         // truncated. Every other panel on this screen already passes it.
-        <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="[&>div]:block!"
+        >
           <div className="flex flex-col">
             {rows.map((order) => {
               const position = held.get(`${order.walletId}:${order.marketKey}`)
@@ -191,6 +216,7 @@ export function SmartOrdersPanel({
                   : null
               const banked = bankedBy(order, fills, trades)
               const isOpen = opened.has(order.id)
+              const keyExpired = expiredWallets.has(order.walletId)
               return (
                 // Open, the total's own bottom line is what parts this row
                 // from the next, so the row does not draw a second one on top
@@ -244,8 +270,17 @@ export function SmartOrdersPanel({
                             {walletName(order.walletId)}
                           </span>
                         </div>
-                        <p className="truncate text-xs leading-4 text-muted-foreground">
-                          {whereItHasGot(order, position ?? null)}
+                        <p
+                          className={cn(
+                            "truncate text-xs leading-4",
+                            keyExpired
+                              ? "text-red-700 dark:text-red-400"
+                              : "text-muted-foreground"
+                          )}
+                        >
+                          {keyExpired
+                            ? `Trading key expired. This ${order.kind === "grid" ? "grid" : "ladder"} will not act.`
+                            : whereItHasGot(order, position ?? null)}
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
@@ -407,9 +442,7 @@ function whereItHasGot(
   if (phase === "buying") return "Waiting to buy in"
   if (phase === "selling") return "Selling out"
   if (phase === "stopping") return "Getting out"
-  return position
-    ? `Holding from ${formatPrice(position.entryPx)}`
-    : "Holding"
+  return position ? `Holding from ${formatPrice(position.entryPx)}` : "Holding"
 }
 
 /** How many sales are listed before the list gets in the way of reading it. */

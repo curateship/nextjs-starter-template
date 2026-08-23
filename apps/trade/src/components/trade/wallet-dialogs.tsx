@@ -164,7 +164,7 @@ function KindChoice({
     },
     {
       id: "live",
-      label: `Live ${venue}`,
+      label: `Real ${venue}`,
       hint: "Your real account there, added by its own credentials.",
     },
   ]
@@ -298,7 +298,7 @@ export function AddWalletDialog({
   const pickKind = (next: WalletKind) => {
     setKind(next)
     // The default name follows the kind until the person names it themselves.
-    if (!labelTouched) setLabel(next === "paper" ? "Practice" : "Live")
+    if (!labelTouched) setLabel(next === "paper" ? "Practice" : "Real")
   }
 
   const dirty =
@@ -412,10 +412,14 @@ export function AddWalletDialog({
                         inputMode="decimal"
                         value={startingBalance}
                         aria-invalid={
-                          !(balanceNumber > 0 && balanceNumber <= MAX_STARTING_BALANCE) ||
-                          undefined
+                          !(
+                            balanceNumber > 0 &&
+                            balanceNumber <= MAX_STARTING_BALANCE
+                          ) || undefined
                         }
-                        onChange={(event) => setStartingBalance(event.target.value)}
+                        onChange={(event) =>
+                          setStartingBalance(event.target.value)
+                        }
                       />
                       <p className="text-xs text-muted-foreground">
                         In dollars. It can be changed or reset later.
@@ -423,7 +427,10 @@ export function AddWalletDialog({
                     </div>
                   ) : protocols === null ? (
                     <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                      <Loader2Icon className="size-4 animate-spin" aria-hidden />
+                      <Loader2Icon
+                        className="size-4 animate-spin"
+                        aria-hidden
+                      />
                       Asking which exchanges this build carries…
                     </div>
                   ) : !chosen || !form ? (
@@ -497,7 +504,9 @@ export function AddWalletDialog({
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                {saving ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : null}
                 Add wallet
               </Button>
             </DialogFooter>
@@ -651,7 +660,12 @@ function WalletSettingsWindow({
 
   return (
     <>
-      <FormDialog open dirty={dirty} busy={saving || deleting} onClose={onClose}>
+      <FormDialog
+        open
+        dirty={dirty}
+        busy={saving || deleting}
+        onClose={onClose}
+      >
         {(requestClose) => (
           <DialogContent variant="admin" className="sm:max-w-md">
             <DialogHeader>
@@ -673,7 +687,7 @@ function WalletSettingsWindow({
               <DialogDescription>
                 {wallet.kind === "paper"
                   ? "A practice wallet — pretend cash at real prices."
-                  : `A live ${venueLabel(wallet.protocol, wallet.network)} account.`}
+                  : `A real ${venueLabel(wallet.protocol, wallet.network)} account.`}
               </DialogDescription>
             </DialogHeader>
             <form
@@ -735,7 +749,9 @@ function WalletSettingsWindow({
                     </div>
                     {wallet.kind === "paper" ? (
                       <div className="grid gap-2">
-                        <Label htmlFor="wallet-edit-balance">Starting cash</Label>
+                        <Label htmlFor="wallet-edit-balance">
+                          Starting cash
+                        </Label>
                         <Input
                           id="wallet-edit-balance"
                           inputMode="decimal"
@@ -762,7 +778,9 @@ function WalletSettingsWindow({
                             className="text-sm text-muted-foreground"
                             title={wallet.address ?? undefined}
                           >
-                            {wallet.address ? shortenAddress(wallet.address) : "—"}
+                            {wallet.address
+                              ? shortenAddress(wallet.address)
+                              : "—"}
                           </p>
                         </div>
                         {form ? (

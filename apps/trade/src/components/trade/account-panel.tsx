@@ -10,6 +10,7 @@ import {
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
+import { TradeBadge } from "@/components/trade/trade-badge"
 import type { useTradeAccount } from "@/components/trade/use-trade-account"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -28,7 +29,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
-import { keyExpiryWarning } from "@/lib/trade/live"
+import { keyExpiryNotice } from "@/lib/trade/live"
 import { moneyTone } from "@/lib/trade/money-tone"
 import {
   venueLabel,
@@ -45,18 +46,15 @@ import { cn } from "@/lib/utils"
  * never hold two copies of either.
  */
 
-export function KindBadge({ kind }: { kind: TradeWallet["kind"] }) {
+export function KindBadge({ wallet }: { wallet: TradeWallet }) {
+  const testnet = wallet.kind === "live" && wallet.network === "testnet"
   return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium",
-        kind === "paper"
-          ? "bg-muted text-muted-foreground"
-          : "bg-indigo-500/10 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400"
-      )}
+    <TradeBadge
+      className="shrink-0"
+      tone={wallet.kind === "paper" ? "neutral" : testnet ? "testnet" : "real"}
     >
-      {kind === "paper" ? "Paper" : "Live"}
-    </span>
+      {wallet.kind === "paper" ? "Practice" : testnet ? "Testnet" : "Real"}
+    </TradeBadge>
   )
 }
 
@@ -90,13 +88,13 @@ function FigureRow({
   )
 }
 
-function useKeyExpiryWarning(keyValidUntil: number | null) {
+function useKeyExpiryNotice(keyValidUntil: number | null) {
   const [readAt, setReadAt] = React.useState(Date.now)
   React.useEffect(() => {
     const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
-  return keyExpiryWarning(keyValidUntil, readAt)
+  return keyExpiryNotice(keyValidUntil, readAt)
 }
 
 /**
@@ -104,11 +102,20 @@ function useKeyExpiryWarning(keyValidUntil: number | null) {
  * the fix is one click away, and only while it is worth saying.
  */
 function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
-  const warning = useKeyExpiryWarning(wallet.keyValidUntil)
-  if (!warning) return null
+  const notice = useKeyExpiryNotice(wallet.keyValidUntil)
+  if (!notice) return null
   return (
-    <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
-      {warning}
+    <p
+      className={cn(
+        "rounded-md px-2.5 py-1.5 text-xs",
+        notice.tone === "quiet" && "bg-muted text-muted-foreground",
+        notice.tone === "warning" &&
+          "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+        notice.tone === "expired" &&
+          "bg-red-500/10 text-red-700 dark:text-red-400"
+      )}
+    >
+      {notice.message}
     </p>
   )
 }
@@ -171,7 +178,7 @@ function ActiveWalletRow({
               <span className="truncate text-sm font-semibold">
                 {wallet.label}
               </span>
-              <KindBadge kind={wallet.kind} />
+              <KindBadge wallet={wallet} />
             </div>
             <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
               <span className="truncate">
@@ -314,7 +321,9 @@ function WalletCard({
   const inactive = summary?.state === "inactive"
   const refusal = summary?.state === "unreachable" ? summary.reason : undefined
   const stale = summary?.state === "ok" && summary.stale === true
-  const expiryWarning = useKeyExpiryWarning(wallet.keyValidUntil)
+  const expiryNotice = useKeyExpiryNotice(
+    inactive ? null : wallet.keyValidUntil
+  )
   const status = inactive
     ? "Not switched on"
     : ok
@@ -348,7 +357,7 @@ function WalletCard({
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate text-sm font-semibold">{wallet.label}</span>
-          <KindBadge kind={wallet.kind} />
+          <KindBadge wallet={wallet} />
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="truncate">
@@ -368,9 +377,18 @@ function WalletCard({
             aria-hidden
           />
         </span>
-        {expiryWarning ? (
-          <span className="mt-1 block text-xs text-amber-700 dark:text-amber-400">
-            {expiryWarning}
+        {expiryNotice ? (
+          <span
+            className={cn(
+              "mt-1 block text-xs",
+              expiryNotice.tone === "quiet" && "text-muted-foreground",
+              expiryNotice.tone === "warning" &&
+                "text-amber-700 dark:text-amber-400",
+              expiryNotice.tone === "expired" &&
+                "text-red-700 dark:text-red-400"
+            )}
+          >
+            {expiryNotice.message}
           </span>
         ) : null}
       </span>

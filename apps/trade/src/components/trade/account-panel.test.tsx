@@ -5,7 +5,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ActiveWalletsView } from "@/components/trade/account-panel"
+import { ActiveWalletsView, KindBadge } from "@/components/trade/account-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 
@@ -105,6 +105,23 @@ function WalletPicker({
 }
 
 describe("the active wallet picker", () => {
+  it("uses the table words and colours for each kind of money", async () => {
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <KindBadge wallet={wallets[1]} />
+          <KindBadge wallet={{ ...wallets[0], network: "testnet" }} />
+          <KindBadge wallet={wallets[0]} />
+        </TooltipProvider>
+      )
+    )
+
+    expect(host.textContent).toBe("PracticeTestnetReal")
+    expect(host.textContent).not.toContain("Live")
+    expect(host.querySelector(".text-sky-700")).not.toBeNull()
+    expect(host.querySelector(".text-amber-700")).not.toBeNull()
+  })
+
   it("lists every active wallet and switches the wallet in use with one click", async () => {
     await act(async () => root.render(<WalletPicker />))
 
@@ -138,6 +155,35 @@ describe("the active wallet picker", () => {
     await act(async () => showScalper?.click())
 
     expect(host.textContent).toContain("$9,000.00")
+  })
+
+  it("shows every stated key expiry and warns as it gets close", async () => {
+    const expiring = [
+      { ...wallets[0], keyValidUntil: Date.now() + 30 * 86_400_000 },
+      { ...wallets[1], keyValidUntil: null },
+    ]
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <ActiveWalletsView
+            wallets={expiring}
+            summaryOf={(walletId) => summaries.get(walletId) ?? null}
+            activeWalletId="main"
+            onUseWallet={() => {}}
+            onOpenWallet={() => {}}
+            onRetry={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Show Main figures"]')
+        ?.click()
+    )
+    expect(host.textContent).toContain("Trading key expires in 30 days.")
+    expect(host.textContent).not.toContain("unknown")
   })
 
   it("opens wallet settings from the expanded figures", async () => {

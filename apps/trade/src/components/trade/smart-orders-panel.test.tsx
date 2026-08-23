@@ -27,6 +27,7 @@ const shared = {
   fills: [],
   trades: [],
   markets: new Map(),
+  wallets: [],
   walletName: () => "Main",
   onRetry: () => {},
   onSelectMarket: () => {},
@@ -124,5 +125,32 @@ describe("the Smart orders panel", () => {
       failed: false,
     })
     expect(markup).toContain("3 waiting · 7 completed")
+  })
+
+  it("says an active smart order cannot act after its key expires", () => {
+    const markup = renderToStaticMarkup(
+      <SmartOrdersPanel
+        {...shared}
+        smartOrders={[ladder]}
+        wallets={[
+          {
+            id: "w1",
+            label: "Main",
+            kind: "live",
+            status: "active",
+            protocol: "hyperliquid",
+            network: "mainnet",
+            startingBalance: 1_000,
+            address: "0x1",
+            hasKey: true,
+            keyValidUntil: Date.now() - 1,
+          },
+        ]}
+        settled
+        failed={false}
+      />
+    )
+    expect(markup).toContain("Trading key expired. This ladder will not act.")
+    expect(markup).not.toContain("1 rung waiting")
   })
 })

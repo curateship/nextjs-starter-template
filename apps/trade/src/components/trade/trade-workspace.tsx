@@ -633,6 +633,7 @@ export function TradeWorkspace({
                   fills={trading.fills}
                   trades={trading.trades}
                   markets={marketsByKey}
+                  wallets={account.wallets}
                   walletName={walletNameOf}
                   // NOT `trading.loading`: that turns false when the practice
                   // half lands on its own, and a screen whose ladders are all on

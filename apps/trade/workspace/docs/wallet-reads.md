@@ -30,6 +30,23 @@ sweep), each exchange folder's `account.ts`,
 `src/components/trade/use-trade-account.ts` (the poll) and
 `src/components/trade/account-panel.tsx` (the cards).
 
+## Trading-key expiry
+
+Hyperliquid states when an agent key expires. An active wallet shows the days
+left on its card, turns the line amber for the final 14 days, and turns it red
+after the date passes. An expired line says that the wallet's ladders and grids
+will not act. Their rows say the same thing in place of a normal waiting
+message, so an order with no working key never looks healthy.
+
+Phemex, KuCoin, and Aster do not state a key expiry through their APIs. Their
+wallet cards show no expiry line. Trade never guesses a date or writes
+"unknown". Inactive wallets show no warning because Trade does not ask or act
+on them.
+
+Replacing a wallet key verifies the new key with the exchange and saves the
+new expiry in the same update. The next wallet read therefore replaces the old
+countdown with the new key's date.
+
 **Where each exchange stands against the exchange-connection rule.** A screen
 may poll Trade's own server to repaint, but that server must answer from state
 the exchange's own socket keeps. It may not turn each screen poll into another
