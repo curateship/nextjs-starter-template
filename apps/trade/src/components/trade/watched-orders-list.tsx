@@ -8,7 +8,10 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatAway, formatPrice, formatUsd } from "@/lib/trade/format"
-import type { LiveRefusal } from "@/lib/trade/live"
+import {
+  refusalForWatchedOrder,
+  type LiveRefusal,
+} from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
 import type { PaperOrder } from "@/lib/trade/paper"
 import { watchReached } from "@/lib/trade/watch-order"
@@ -63,9 +66,9 @@ export function WatchedOrdersList({
   /** Which account and exchange these belong to; see `watched-cache.ts`. */
   cacheScope: string
   /**
-   * The last refusal on each market. A level whose order the exchange keeps
-   * refusing looks exactly like one quietly waiting, and that is the whole
-   * reason this list could not answer "why has nothing happened".
+   * The last refusal on each wallet and market. A level whose order the
+   * exchange keeps refusing looks exactly like one quietly waiting, and that
+   * is the whole reason this list could not answer "why has nothing happened".
    */
   refusals: ReadonlyMap<string, LiveRefusal>
   walletName: (walletId: string) => string
@@ -192,7 +195,7 @@ export function WatchedOrdersList({
                   level={row}
                   wallet={severalWallets ? walletName(row.walletId) : null}
                   mark={marks.get(row.marketKey) ?? null}
-                  refusal={refusals.get(row.marketKey) ?? null}
+                  refusal={refusalForWatchedOrder(refusals, row)}
                   onSelect={() => onSelectMarket(row.marketKey)}
                 />
               ))}

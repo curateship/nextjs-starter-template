@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
 import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
+import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
 import type { PaperOrder } from "@/lib/trade/paper"
 
 /**
@@ -51,8 +52,15 @@ function draw(state: {
   orders: readonly PaperOrder[]
   settled: boolean
   failed: boolean
+  refusals?: ReadonlyMap<string, LiveRefusal>
 }): string {
-  return renderToStaticMarkup(<WatchedOrdersList {...shared} {...state} />)
+  return renderToStaticMarkup(
+    <WatchedOrdersList
+      {...shared}
+      {...state}
+      refusals={state.refusals ?? shared.refusals}
+    />
+  )
 }
 
 describe("the Watched tab", () => {
@@ -96,5 +104,47 @@ describe("the Watched tab", () => {
     const half = draw({ orders: [waitingLevel], settled: false, failed: false })
     expect(half).toContain("XMR")
     expect(half).not.toContain(READING)
+  })
+
+  it("does not attach an older order's refusal to a new watch on the same coin", () => {
+    const note = "A refusal from the order that already ended"
+    const newWatch = {
+      ...waitingLevel,
+      createdAt: Date.parse("2026-08-23T16:19:07.495Z"),
+    }
+    const refusals = new Map([
+      [
+        liveRefusalKey(newWatch.walletId, newWatch.marketKey),
+        {
+          walletId: newWatch.walletId,
+          marketKey: newWatch.marketKey,
+          note,
+          at: Date.parse("2026-08-23T16:18:55.255Z"),
+        },
+      ],
+    ])
+
+    expect(
+      draw({ orders: [newWatch], settled: true, failed: false, refusals })
+    ).not.toContain(note)
+  })
+
+  it("shows a refusal made while this watch was active", () => {
+    const note = "The exchange refused this watch"
+    const refusals = new Map([
+      [
+        liveRefusalKey(waitingLevel.walletId, waitingLevel.marketKey),
+        {
+          walletId: waitingLevel.walletId,
+          marketKey: waitingLevel.marketKey,
+          note,
+          at: waitingLevel.createdAt + 1,
+        },
+      ],
+    ])
+
+    expect(
+      draw({ orders: [waitingLevel], settled: true, failed: false, refusals })
+    ).toContain(note)
   })
 })

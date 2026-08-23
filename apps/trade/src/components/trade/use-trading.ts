@@ -49,7 +49,11 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { keepUnreachableRows, type LiveRefusal } from "@/lib/trade/live"
+import {
+  keepUnreachableRows,
+  liveRefusalKey,
+  type LiveRefusal,
+} from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
@@ -164,7 +168,7 @@ export type Trading = {
    */
   watchOrders: PaperOrder[]
   /**
-   * The last refusal on each market, keyed by market key.
+   * The last refusal on each wallet and market.
    *
    * **The engine trades with nobody watching, so this is the only way it can
    * say no.** A refusal that comes back from a press throws to the hand that
@@ -812,11 +816,11 @@ export function useTrading(
   // Live only: a practice wallet's orders are filled from our own numbers and
   // nothing outside can refuse one.
   const refusals = React.useMemo(() => {
-    const byMarket = new Map<string, LiveRefusal>()
+    const byWalletMarket = new Map<string, LiveRefusal>()
     for (const one of liveAnswer?.refusals ?? EMPTY_REFUSALS) {
-      byMarket.set(one.marketKey, one)
+      byWalletMarket.set(liveRefusalKey(one.walletId, one.marketKey), one)
     }
-    return byMarket
+    return byWalletMarket
   }, [liveAnswer])
 
   const trades = React.useMemo((): LiveTrade[] => {

@@ -59,6 +59,20 @@ export type LiveRefusal = {
   at: number
 }
 
+/** A refusal belongs to one wallet and one market, never every matching coin. */
+export function liveRefusalKey(walletId: string, marketKey: string): string {
+  return `${walletId}:${marketKey}`
+}
+
+/** Only the refusal received by this wallet after this watch began. */
+export function refusalForWatchedOrder(
+  refusals: ReadonlyMap<string, LiveRefusal>,
+  order: { walletId: string; marketKey: string; createdAt: number }
+): LiveRefusal | null {
+  const refusal = refusals.get(liveRefusalKey(order.walletId, order.marketKey))
+  return refusal && refusal.at >= order.createdAt ? refusal : null
+}
+
 /**
  * One live wallet's exchange answer as the rows the screens draw. Ids are
  * deliberately stable per (wallet, market) and per exchange order id, so

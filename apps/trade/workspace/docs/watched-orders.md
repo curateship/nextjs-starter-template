@@ -292,6 +292,10 @@ time, so this matters most when trading against a dev machine.
   older read cannot make the cancelled watch active again, and pressing the
   cancel control twice has the same result as pressing it once.
 
+- **A refusal stays with the order that received it.** Reusing the same coin
+  in a new watched order does not carry the previous order's refusal onto the
+  new row. Refusals also stay separate when two wallets watch the same coin.
+
 - **Wallet-wide entry rules fire where the trigger fires.** The cap on how
   many coins open per hour, and the crash rule's "only coins the exchange
   allows 10× or more on", are checked at the moment a trigger would open a
