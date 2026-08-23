@@ -71,10 +71,16 @@ proved the requested behavior.
 
 ## This Repo
 
-- **Use the IPv6 loopback address for local apps.** Build the browser target as
-  `http://[::1]:<port>`, using the port from `local-apps.json`. These servers
-  listen on `::1`; probing `127.0.0.1` can report that a running app is down.
-  Keep the brackets around `::1`, as URLs require them for an IPv6 address.
+- **Browse local apps as `http://localhost:<port>`**, using the port from
+  `local-apps.json`. The servers listen on `::1`, and `localhost` resolves
+  there — but the sign-in server fn checks the request's origin and rejects a
+  bare `http://[::1]:<port>` host with "Invalid origin", which the login form
+  swallows into the generic "We could not complete that request." message. A
+  `curl` probe that must hit the raw socket may still use `[::1]`; the browser
+  must not. Probing `127.0.0.1` can report that a running app is down.
+- **Wait a moment after the login form appears before filling it.** Submitting
+  before hydration does a native GET (the URL grows a bare `?`) and nothing
+  happens.
 - **Standalone Playwright is always the browser path in this repo.** Run it
   from the shell against the app's existing port. The optional in-app browser
   controller is unrelated. An empty controller browser list does not mean
