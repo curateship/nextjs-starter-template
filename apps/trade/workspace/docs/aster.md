@@ -188,6 +188,14 @@ the app assumes will stay fixed.
 - An unknown Aster refusal keeps its numeric code in the Journal while dropping
   Aster's free-form message. The code is enough to name a missing case without
   risking a key or account detail from the exchange's text.
+- Aster refuses isolated margin with code `-4168` while the futures account is
+  in Multi-Assets Mode. Trade names the account setting and tells the person to
+  change Aster to Single-Asset Mode. Trade does not make that account-wide
+  change by itself.
+- Aster returns code `-5019` when its regional rules block the server that sent
+  an order. Trade says that no order was sent and leaves a watched level ready
+  instead of freezing it as sent. The engine must run from an Aster-supported
+  region; Trade does not route orders around Aster's location rules.
 - The engine shares Aster's account and open orders for fifteen seconds while
   watched prices and the recent-fill check still move every second. One active
   wallet had been spending more than 3,000 signed units a minute against

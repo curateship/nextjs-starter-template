@@ -14,6 +14,8 @@ describe("Aster refusals", () => {
     [400, "-4164", "ASTER_ORDER_TOO_SMALL"],
     [400, "-4014", "ASTER_PRICE_STEP"],
     [400, "-4161", "ASTER_LEVERAGE_OPEN_POSITION"],
+    [400, "-4168", "ASTER_ISOLATED_MULTI_ASSET"],
+    [400, "-5019", "ASTER_REGION"],
     [400, "-2013", "ASTER_ORDER_GONE"],
   ])("maps %s and %s to %s", (status, code, expected) => {
     expect(asterRefusalError({ status, code }).message).toMatch(
@@ -46,5 +48,9 @@ describe("Aster refusals", () => {
   it("gives every named refusal a next step", () => {
     expect(asterRefusalSentence("ASTER_CLOCK")).toContain("measure")
     expect(asterRefusalSentence("ASTER_IP_BANNED")).toContain("will not retry")
+    expect(asterRefusalSentence("ASTER_ISOLATED_MULTI_ASSET")).toContain(
+      "Single-Asset Mode"
+    )
+    expect(asterRefusalSentence("ASTER_REGION")).toContain("No order was sent")
   })
 })
