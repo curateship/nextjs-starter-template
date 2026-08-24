@@ -375,6 +375,23 @@ save button shows its spinner for exactly the same time. A refusal unlocks the
 window with every typed value still there, so the answer can be corrected and
 sent again without guessing which version reached the exchange.
 
+### The floating order frame
+
+The quick order, DCA ladder and Grid forms use one floating frame on a wide
+screen. Each form still opens at the price that was pressed. The frame keeps an
+eight-pixel gap from every screen edge while it opens and while it is dragged.
+Escape and a press outside close it.
+
+The quick order stays 288 pixels wide and keeps its full form on screen. DCA
+and Grid stay 304 pixels wide. Their fields scroll when the window gets short,
+and their Place button remains visible because the frame never shrinks below
+260 pixels. On a narrow screen all three use the existing bottom sheet instead
+of dragging.
+
+Every grab bar uses the same wallet line: the wallet name, followed by its free
+cash and the word "free". The title and fields still belong to the order type.
+Changing the frame does not change the order sent to the server.
+
 ### A stop that rests under the base
 
 A DCA ladder can put its stop on the confirmed base instead of a fixed distance

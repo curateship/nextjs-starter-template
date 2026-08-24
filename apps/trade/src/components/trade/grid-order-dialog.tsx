@@ -1,10 +1,10 @@
 import * as React from "react"
-import { GripVerticalIcon, Loader2Icon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
-import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -89,7 +89,6 @@ export type GridPreviewLine = {
 const PANEL_WIDTH = 304
 const PANEL_HEIGHT = 560
 const MIN_PANEL_HEIGHT = 260
-const EDGE = 8
 
 /** A number field as typed, and what it parses to. */
 function parsed(value: string): number | null {
@@ -249,57 +248,6 @@ export function GridOrderDialog({
     }
     // Deliberately once: re-running it would overwrite what is being typed.
   }, [])
-
-  // ----- Where the window sits, and moving it ----------------------------
-
-  const [at, setAt] = React.useState(() => ({
-    x: Math.max(
-      EDGE,
-      Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)
-    ),
-    y: Math.max(EDGE, Math.min(state.y, window.innerHeight - PANEL_HEIGHT)),
-  }))
-  const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
-
-  React.useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const grab = dragRef.current
-      if (!grab) return
-      setAt({
-        x: Math.max(
-          EDGE,
-          Math.min(
-            event.clientX - grab.dx,
-            window.innerWidth - PANEL_WIDTH - EDGE
-          )
-        ),
-        y: Math.max(
-          EDGE,
-          Math.min(
-            event.clientY - grab.dy,
-            window.innerHeight - MIN_PANEL_HEIGHT - EDGE
-          )
-        ),
-      })
-    }
-    const onUp = () => {
-      dragRef.current = null
-    }
-    window.addEventListener("pointermove", onMove)
-    window.addEventListener("pointerup", onUp)
-    return () => {
-      window.removeEventListener("pointermove", onMove)
-      window.removeEventListener("pointerup", onUp)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
 
   // ----- The honest arithmetic, live -------------------------------------
 
@@ -527,48 +475,18 @@ export function GridOrderDialog({
       : null
 
   return (
-    <TouchOrderFrame
+    <FloatingOrderWindow
       label={`Grid on ${market.symbol}`}
       wide={wide}
-      // Three rows — bar, fields, button — with the middle one taking
-      // whatever is left, so the fields scroll rather than the window growing
-      // past the screen. Same shape as the ladder's window, deliberately.
-      desktopClassName="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
-      sheetClassName="grid h-[min(680px,calc(100dvh-8px))] grid-rows-[auto_minmax(0,1fr)_auto]"
-      desktopStyle={{
-        left: at.x,
-        top: at.y,
-        width: PANEL_WIDTH,
-        maxHeight: Math.max(
-          MIN_PANEL_HEIGHT,
-          Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
-        ),
-      }}
+      openedAt={state}
+      width={PANEL_WIDTH}
+      height={PANEL_HEIGHT}
+      minimumHeight={MIN_PANEL_HEIGHT}
+      title="Grid"
+      wallet={wallet}
+      free={free}
       onClose={onClose}
     >
-      <div
-        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-        onPointerDown={(event) => {
-          dragRef.current = {
-            dx: event.clientX - at.x,
-            dy: event.clientY - at.y,
-          }
-        }}
-      >
-        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-          Grid
-        </span>
-        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate font-medium text-foreground">
-            {wallet}
-          </span>
-          <span className="shrink-0 tabular-nums">
-            · {formatUsd(free)} free
-          </span>
-        </span>
-      </div>
-
       <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
         <div className="grid gap-4 p-3">
           {/* Where the price is right now, said out loud. The whole range has
@@ -1028,6 +946,6 @@ export function GridOrderDialog({
           }`}
         </Button>
       </div>
-    </TouchOrderFrame>
+    </FloatingOrderWindow>
   )
 }

@@ -1,8 +1,7 @@
 import * as React from "react"
-import { GripVerticalIcon } from "lucide-react"
 
+import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OrderRefusal } from "@/components/trade/order-refusal"
-import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -60,7 +59,6 @@ export type QuickOrderState = {
 const PANEL_WIDTH = 288
 /** What the window takes at its tallest, for keeping it on screen. */
 const PANEL_HEIGHT = 520
-const EDGE = 8
 
 /**
  * How size is being said: in dollars, as a share of free cash, or as the share
@@ -166,54 +164,6 @@ export function ChartQuickOrder({
   const [reduceOnly, setReduceOnly] = React.useState(false)
 
   const buy = quick.side === "buy"
-
-  // ----- Where the window sits, and moving it ------------------------------
-
-  const [at, setAt] = React.useState(() => ({
-    x: Math.max(
-      EDGE,
-      Math.min(quick.x, window.innerWidth - PANEL_WIDTH - EDGE)
-    ),
-    y: Math.max(EDGE, Math.min(quick.y, window.innerHeight - PANEL_HEIGHT)),
-  }))
-  const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
-
-  React.useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const grab = dragRef.current
-      if (!grab) return
-      setAt({
-        x: Math.max(
-          EDGE,
-          Math.min(
-            event.clientX - grab.dx,
-            window.innerWidth - PANEL_WIDTH - EDGE
-          )
-        ),
-        y: Math.max(
-          EDGE,
-          Math.min(event.clientY - grab.dy, window.innerHeight - 60)
-        ),
-      })
-    }
-    const onUp = () => {
-      dragRef.current = null
-    }
-    window.addEventListener("pointermove", onMove)
-    window.addEventListener("pointerup", onUp)
-    return () => {
-      window.removeEventListener("pointermove", onMove)
-      window.removeEventListener("pointerup", onUp)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
 
   // ----- What was typed, in coins -----------------------------------------
 
@@ -362,47 +312,18 @@ export function ChartQuickOrder({
   }
 
   return (
-    <TouchOrderFrame
+    <FloatingOrderWindow
       label={`${buy ? "Buy" : "Sell"} ${market.symbol} at ${formatPrice(quick.px)}`}
       wide={wide}
-      desktopClassName="fixed z-50 w-72 rounded-xl border bg-card shadow-lg"
-      desktopStyle={{ left: at.x, top: at.y }}
-      sheetClassName="h-[min(520px,calc(100dvh-8px))]"
-      sheetScrollable
+      openedAt={quick}
+      width={PANEL_WIDTH}
+      height={PANEL_HEIGHT}
+      title={buy ? "Buy limit" : "Sell limit"}
+      titleClassName={buy ? undefined : "text-red-600 dark:text-red-400"}
+      wallet={wallet}
+      free={free}
       onClose={onClose}
     >
-      <div
-        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-        onPointerDown={(event) => {
-          dragRef.current = {
-            dx: event.clientX - at.x,
-            dy: event.clientY - at.y,
-          }
-        }}
-      >
-        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span
-          className={cn(
-            "text-sm font-semibold",
-            buy
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-red-600 dark:text-red-400"
-          )}
-        >
-          {buy ? "Buy limit" : "Sell limit"}
-        </span>
-        {/* Which wallet this lands in, and what it has to spend. The market
-              and the price are already on screen behind this window; the
-              wallet is not, and the chart may well be showing another one's
-              lines — so it is named here, where the order is actually made. */}
-        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate font-medium text-foreground">
-            {wallet}
-          </span>
-          <span className="shrink-0 tabular-nums">· {formatUsd(free)}</span>
-        </span>
-      </div>
-
       <div className="grid gap-4 p-3">
         {/* What this order is joining, and what it leaves behind. Above the
               size box, because it is the thing the size is being chosen
@@ -643,6 +564,6 @@ export function ChartQuickOrder({
           </Button>
         </div>
       </div>
-    </TouchOrderFrame>
+    </FloatingOrderWindow>
   )
 }

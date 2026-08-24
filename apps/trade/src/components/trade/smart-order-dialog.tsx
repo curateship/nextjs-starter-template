@@ -1,15 +1,10 @@
 import * as React from "react"
-import {
-  GripVerticalIcon,
-  Loader2Icon,
-  PlusIcon,
-  Trash2Icon,
-} from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
-import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -76,7 +71,6 @@ const PANEL_WIDTH = 304
 const PANEL_HEIGHT = 560
 /** Below this there is not enough left to be worth drawing fields into. */
 const MIN_PANEL_HEIGHT = 260
-const EDGE = 8
 
 /** A number field as typed, and what it parses to. */
 function parsed(value: string): number | null {
@@ -260,60 +254,6 @@ export function SmartOrderDialog({
     }
   }, [])
 
-  // ----- Where the window sits, and moving it ----------------------------
-
-  const [at, setAt] = React.useState(() => ({
-    x: Math.max(
-      EDGE,
-      Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)
-    ),
-    y: Math.max(EDGE, Math.min(state.y, window.innerHeight - PANEL_HEIGHT)),
-  }))
-  const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
-
-  React.useEffect(() => {
-    const onMove = (event: PointerEvent) => {
-      const grab = dragRef.current
-      if (!grab) return
-      setAt({
-        x: Math.max(
-          EDGE,
-          Math.min(
-            event.clientX - grab.dx,
-            window.innerWidth - PANEL_WIDTH - EDGE
-          )
-        ),
-        // Never dragged so low that the Place button falls off the bottom:
-        // the window shrinks as it goes down, and this is where it stops
-        // shrinking.
-        y: Math.max(
-          EDGE,
-          Math.min(
-            event.clientY - grab.dy,
-            window.innerHeight - MIN_PANEL_HEIGHT - EDGE
-          )
-        ),
-      })
-    }
-    const onUp = () => {
-      dragRef.current = null
-    }
-    window.addEventListener("pointermove", onMove)
-    window.addEventListener("pointerup", onUp)
-    return () => {
-      window.removeEventListener("pointermove", onMove)
-      window.removeEventListener("pointerup", onUp)
-    }
-  }, [])
-
-  React.useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-    document.addEventListener("keydown", onKeyDown)
-    return () => document.removeEventListener("keydown", onKeyDown)
-  }, [onClose])
-
   // ----- The honest arithmetic, live -------------------------------------
 
   const params = React.useMemo((): DcaParams | null => {
@@ -465,54 +405,18 @@ export function SmartOrderDialog({
     })
 
   return (
-    <TouchOrderFrame
+    <FloatingOrderWindow
       label={`DCA ladder on ${market.symbol} from its base`}
       wide={wide}
-      // Three rows — bar, fields, button — and the middle one takes whatever
-      // is left. A grid rather than a stack of flexing boxes because a grid
-      // row is a real height: the scroller inside can fill it. A flexing box
-      // in a window with a largest size but no set size is not, and anything
-      // told to fill one quietly grows to fit its contents instead, which is
-      // the one thing that never scrolls.
-      desktopClassName="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
-      sheetClassName="grid h-[min(680px,calc(100dvh-8px))] grid-rows-[auto_minmax(0,1fr)_auto]"
-      desktopStyle={{
-        left: at.x,
-        top: at.y,
-        width: PANEL_WIDTH,
-        // However far down the window sits, it ends above the screen's edge,
-        // and it never grows past its own height however many rungs are in
-        // it. Both are why the fields inside scroll.
-        maxHeight: Math.max(
-          MIN_PANEL_HEIGHT,
-          Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
-        ),
-      }}
+      openedAt={state}
+      width={PANEL_WIDTH}
+      height={PANEL_HEIGHT}
+      minimumHeight={MIN_PANEL_HEIGHT}
+      title="DCA ladder"
+      wallet={wallet}
+      free={free}
       onClose={onClose}
     >
-      <div
-        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-        onPointerDown={(event) => {
-          dragRef.current = {
-            dx: event.clientX - at.x,
-            dy: event.clientY - at.y,
-          }
-        }}
-      >
-        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-          DCA ladder
-        </span>
-        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate font-medium text-foreground">
-            {wallet}
-          </span>
-          <span className="shrink-0 tabular-nums">
-            · {formatUsd(free)} free
-          </span>
-        </span>
-      </div>
-
       <ScrollArea className="h-full">
         <div className="grid gap-4 p-3">
           {/* What the whole ladder hangs from. Said out loud rather than
@@ -856,6 +760,6 @@ export function SmartOrderDialog({
           }`}
         </Button>
       </div>
-    </TouchOrderFrame>
+    </FloatingOrderWindow>
   )
 }
