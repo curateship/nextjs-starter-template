@@ -1,8 +1,16 @@
 import * as React from "react"
-import { ChevronDownIcon, ChevronRightIcon, Grid2x2Icon } from "lucide-react"
+import { EllipsisVerticalIcon, Grid2x2Icon } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
@@ -45,8 +53,8 @@ import { cn } from "@/lib/utils"
  * yourself and turn this into a second, worse copy of the run's dashboard.
  * What a flow is doing belongs to that run's page.
  *
- * One row per smart order, saying which kind it is and where it has got to.
- * Clicking a row charts that coin, which is the reason anybody looks here.
+ * One row per smart order, naming its kind and wallet. Clicking a row charts
+ * that coin; the three-dot button opens its progress and sales.
  */
 
 const KIND_LABELS: Record<SmartOrderKind, string> = {
@@ -65,6 +73,7 @@ export function SmartOrdersPanel({
   markets,
   wallets,
   walletName,
+  selectedMarketKey,
   settled,
   failed,
   onRetry,
@@ -81,6 +90,8 @@ export function SmartOrdersPanel({
   markets: ReadonlyMap<string, MarketRow>
   wallets: readonly TradeWallet[]
   walletName: (walletId: string) => string
+  /** The market on the chart. Its smart-order row keeps the selected shade. */
+  selectedMarketKey: string | null
   /**
    * Both halves of the read have landed — see `settled` on `Trading`.
    *
@@ -105,27 +116,19 @@ export function SmartOrdersPanel({
   const shownOrders =
     !settled && !failed && cached !== null ? cached : smartOrders
 
-  /** Which rows are open. Several at once, because comparing two is the point. */
-  const [opened, setOpened] = React.useState<ReadonlySet<string>>(new Set())
   const [readAt, setReadAt] = React.useState(Date.now)
   React.useEffect(() => {
     const timer = window.setInterval(() => setReadAt(Date.now()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
-  const toggle = (id: string) =>
-    setOpened((held) => {
-      const next = new Set(held)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
   // Placed by hand. An order carrying a run id was placed by a flow, and one
   // written before that was recorded reads as a hand-placed one — which is
   // what it looks like on screen anyway. The Positions tab leaves out the
   // coins this same list covers, so both come from one function.
-  const mine = React.useMemo(() => smartOrdersYouPlaced(shownOrders), [
-    shownOrders,
-  ])
+  const mine = React.useMemo(
+    () => smartOrdersYouPlaced(shownOrders),
+    [shownOrders]
+  )
   const marks = useLiveMarks(mine.map((one) => one.marketKey))
   const held = React.useMemo(
     () =>
@@ -208,9 +211,7 @@ export function SmartOrdersPanel({
           place one — a flow&rsquo;s orders live on its own dashboard.
         </p>
       ) : (
-        <ScrollArea
-          className="min-h-0 flex-1"
-        >
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex flex-col">
             {rows.map((order) => {
               const position = held.get(`${order.walletId}:${order.marketKey}`)
@@ -223,36 +224,18 @@ export function SmartOrdersPanel({
                   ? (mark - position.entryPx) * position.szi - position.feesPaid
                   : null
               const banked = bankedBy(order, fills, trades)
-              const heldToSell =
-                order.kind === "grid" ? gridHeldToSell(order) : null
-              const isOpen = opened.has(order.id)
               const keyExpired = expiredWallets.has(order.walletId)
+              const selected = order.marketKey === selectedMarketKey
               return (
-                // Open, the total's own bottom line is what parts this row
-                // from the next, so the row does not draw a second one on top
-                // of it — two hairlines a pixel apart read as a heavier rule
-                // than every other line on the panel.
-                <div key={order.id} className={cn(!isOpen && "border-b")}>
-                  <div className="flex items-stretch">
-                    {/* The chevron opens the detail; the rest of the row still
-                        charts the coin, which is what it did before. Two jobs,
-                        two targets, rather than one that guesses. */}
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      aria-label={`${isOpen ? "Hide" : "Show"} what ${marketSymbol(order.marketKey)} has done`}
-                      onClick={() => toggle(order.id)}
-                      className={cn(
-                        "flex w-7 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground",
-                        focusRing
-                      )}
-                    >
-                      {isOpen ? (
-                        <ChevronDownIcon className="size-3.5" />
-                      ) : (
-                        <ChevronRightIcon className="size-3.5" />
-                      )}
-                    </button>
+                <div key={order.id} className="border-b last:border-b-0">
+                  <div
+                    className={cn(
+                      "flex items-stretch transition-colors",
+                      selected
+                        ? "bg-muted/60 hover:bg-muted/60"
+                        : "hover:bg-muted/40"
+                    )}
+                  >
                     <button
                       type="button"
                       onClick={() => onSelectMarket(order.marketKey)}
@@ -262,7 +245,7 @@ export function SmartOrdersPanel({
                         // offers as its smallest size, hidden overflow or not,
                         // so the row grew to fit the longest sentence in the
                         // list and pushed its dollars off the panel's edge.
-                        "flex min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left transition-colors hover:bg-muted/60",
+                        "flex min-h-10 min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-3 text-left",
                         focusRing
                       )}
                     >
@@ -272,7 +255,7 @@ export function SmartOrdersPanel({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5">
-                          <span className="truncate text-xs font-medium">
+                          <span className="truncate text-sm font-medium">
                             {marketSymbol(order.marketKey)}
                           </span>
                           <span className="truncate text-xs text-muted-foreground">
@@ -280,24 +263,19 @@ export function SmartOrdersPanel({
                             {walletName(order.walletId)}
                           </span>
                         </div>
-                        <p
-                          className={cn(
-                            "truncate text-xs leading-4",
-                            keyExpired
-                              ? "text-red-700 dark:text-red-400"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          {keyExpired
-                            ? `Trading key expired. This ${order.kind === "grid" ? "grid" : "ladder"} will not act.`
-                            : whereItHasGot(order, position ?? null)}
-                        </p>
+                        {keyExpired ? (
+                          <p className="truncate text-xs leading-4 text-red-700 dark:text-red-400">
+                            Trading key expired. This{" "}
+                            {order.kind === "grid" ? "grid" : "ladder"} will not
+                            act.
+                          </p>
+                        ) : null}
                       </div>
-                      <div className="shrink-0 text-right">
+                      <div className="w-[3.75rem] shrink-0 text-right">
                         {open === null ? null : (
                           <span
                             className={cn(
-                              "block text-xs tabular-nums",
+                              "block font-mono text-xs tabular-nums",
                               moneyTone(open)
                             )}
                           >
@@ -307,7 +285,7 @@ export function SmartOrdersPanel({
                         {banked.total === 0 ? null : (
                           <span
                             className={cn(
-                              "block text-xs tabular-nums",
+                              "block font-mono text-xs tabular-nums",
                               moneyTone(banked.total)
                             )}
                           >
@@ -316,92 +294,15 @@ export function SmartOrdersPanel({
                         )}
                       </div>
                     </button>
+                    <SmartOrderDetailsPopover
+                      order={order}
+                      position={position ?? null}
+                      openProfit={open}
+                      banked={banked}
+                      keyExpired={keyExpired}
+                      walletName={walletName(order.walletId)}
+                    />
                   </div>
-
-                  {isOpen ? (
-                    <div className="border-t bg-muted/30">
-                      {heldToSell === null ? null : (
-                        <div className="flex items-baseline justify-between gap-3 border-b px-3 py-2 text-xs font-medium">
-                          <span>Held to sell</span>
-                          <span className="tabular-nums">
-                            {formatUsd(heldToSell)}
-                          </span>
-                        </div>
-                      )}
-                      {banked.sells.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-muted-foreground">
-                          Nothing sold yet.
-                        </p>
-                      ) : (
-                        <>
-                          <div className="flex flex-col gap-1 px-3 py-2">
-                            {banked.capped ? (
-                              <p className="pb-1 text-xs text-muted-foreground">
-                                The {SHOW_AT_MOST} most recent are listed; the
-                                total counts them all.
-                              </p>
-                            ) : null}
-                            {banked.sells.map((sell) => (
-                              <div
-                                key={sell.fillId}
-                                className="flex items-baseline justify-between gap-3 text-xs"
-                              >
-                                <span className="truncate text-muted-foreground">
-                                  {formatDateTime(new Date(sell.at))} ·{" "}
-                                  {formatPrice(sell.px)}
-                                </span>
-                                <span
-                                  className={cn(
-                                    "shrink-0 tabular-nums",
-                                    sell.money === null
-                                      ? "text-muted-foreground"
-                                      : moneyTone(sell.money)
-                                  )}
-                                >
-                                  {sell.money === null
-                                    ? "—"
-                                    : formatSignedUsd(sell.money)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                          {/* The line runs the whole width and the total sits
-                              on its own shade, so the sum reads as the foot of
-                              the list rather than one more row in it. */}
-                          <div className="flex items-baseline justify-between gap-3 border-y bg-muted/60 px-3 py-2 text-xs font-medium">
-                            <span>
-                              {banked.sells.length}{" "}
-                              {banked.sells.length === 1 ? "sale" : "sales"}
-                            </span>
-                            <span
-                              className={cn(
-                                "tabular-nums",
-                                banked.unpriced === banked.sells.length
-                                  ? "text-muted-foreground"
-                                  : moneyTone(banked.total)
-                              )}
-                            >
-                              {banked.unpriced === banked.sells.length
-                                ? "—"
-                                : formatSignedUsd(banked.total)}
-                            </span>
-                          </div>
-                          {/* Said once, under the total, because a total that
-                              quietly leaves sales out is worse than one that
-                              admits it. KuCoin states money per position
-                              closed, and a grid selling part of what it holds
-                              never closes one. */}
-                          {banked.unpriced > 0 ? (
-                            <p className="px-3 py-2 text-xs text-muted-foreground">
-                              {banked.unpriced === 1
-                                ? "The exchange has not said what that sale banked."
-                                : `The exchange has not said what ${banked.unpriced} of these sales banked.`}
-                            </p>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                  ) : null}
                 </div>
               )
             })}
@@ -412,8 +313,147 @@ export function SmartOrdersPanel({
   )
 }
 
+function DetailRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right">{children}</span>
+    </div>
+  )
+}
+
+function SmartOrderDetailsPopover({
+  order,
+  position,
+  openProfit,
+  banked,
+  keyExpired,
+  walletName,
+}: {
+  order: SmartOrder
+  position: TradePosition | null
+  openProfit: number | null
+  banked: ReturnType<typeof bankedBy>
+  keyExpired: boolean
+  walletName: string
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          className="mr-3 self-center"
+          aria-label={`Open ${marketSymbol(order.marketKey)} smart order details`}
+        >
+          <EllipsisVerticalIcon className="size-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 gap-0 p-0">
+        <PopoverHeader className="border-b p-3">
+          <PopoverTitle>
+            {marketSymbol(order.marketKey)} smart order
+          </PopoverTitle>
+          <p className="text-xs text-muted-foreground">
+            {KIND_LABELS[order.kind]} · {walletName}
+          </p>
+        </PopoverHeader>
+        <div className="grid gap-2 p-3">
+          <p className="text-xs font-medium">Progress</p>
+          <DetailRow label="Status">
+            {keyExpired
+              ? `Trading key expired. This ${order.kind === "grid" ? "grid" : "ladder"} will not act.`
+              : whereItHasGot(order, position)}
+          </DetailRow>
+          {order.kind === "grid" ? (
+            <DetailRow label="Held to sell">
+              <span className="tabular-nums">
+                {formatUsd(gridHeldToSell(order))}
+              </span>
+            </DetailRow>
+          ) : null}
+          {openProfit === null ? null : (
+            <DetailRow label="Open profit">
+              <span className={cn("tabular-nums", moneyTone(openProfit))}>
+                {formatSignedUsd(openProfit)}
+              </span>
+            </DetailRow>
+          )}
+        </div>
+        <div className="grid gap-2 border-t p-3">
+          <p className="text-xs font-medium">Sales</p>
+          {banked.sells.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nothing sold yet.</p>
+          ) : (
+            <>
+              {banked.capped ? (
+                <p className="text-xs text-muted-foreground">
+                  The {SHOW_AT_MOST} most recent are listed. The total counts
+                  them all.
+                </p>
+              ) : null}
+              {banked.sells.map((sell) => (
+                <div
+                  key={sell.fillId}
+                  className="flex items-baseline justify-between gap-3 text-sm"
+                >
+                  <span className="truncate text-muted-foreground">
+                    {formatDateTime(new Date(sell.at))} · {formatPrice(sell.px)}
+                  </span>
+                  <span
+                    className={cn(
+                      "shrink-0 tabular-nums",
+                      sell.money === null
+                        ? "text-muted-foreground"
+                        : moneyTone(sell.money)
+                    )}
+                  >
+                    {sell.money === null ? "—" : formatSignedUsd(sell.money)}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-baseline justify-between gap-3 border-t pt-2 text-sm font-medium">
+                <span>
+                  {banked.sells.length}{" "}
+                  {banked.sells.length === 1 ? "sale" : "sales"}
+                </span>
+                <span
+                  className={cn(
+                    "tabular-nums",
+                    banked.unpriced === banked.sells.length
+                      ? "text-muted-foreground"
+                      : moneyTone(banked.total)
+                  )}
+                >
+                  {banked.unpriced === banked.sells.length
+                    ? "—"
+                    : formatSignedUsd(banked.total)}
+                </span>
+              </div>
+              {banked.unpriced > 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  {banked.unpriced === 1
+                    ? "The exchange has not said what that sale banked."
+                    : `The exchange has not said what ${banked.unpriced} of these sales banked.`}
+                </p>
+              ) : null}
+            </>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 /**
- * Where one smart order has got to, in a line.
+ * Where one smart order has got to, shown in its detail popover.
  *
  * Each kind is asked its own question, because the same words would be a lie
  * about the others: a ladder has rungs waiting, a grid has levels recycling,

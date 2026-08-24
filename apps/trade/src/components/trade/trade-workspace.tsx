@@ -299,8 +299,7 @@ export function TradeWorkspace({
   // What this exchange allows beyond placing an order — read from the server's
   // own table rather than decided here, which the protocol fence forbids.
   const abilities = useProtocolAbilities(protocol)
-  const walletsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const accountColumnRef = React.useRef<HTMLDivElement | null>(null)
+  const [walletPanelHeight, setWalletPanelHeight] = React.useState(52.4)
   const [addingWallet, setAddingWallet] = React.useState(false)
   const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
     null
@@ -321,11 +320,7 @@ export function TradeWorkspace({
     account.wallets.find((wallet) => wallet.id === flatteningId) ?? null
 
   const fitWalletRows = React.useCallback((height: number) => {
-    const panel = walletsPanelRef.current
-    const columnHeight = accountColumnRef.current?.clientHeight ?? 0
-    if (!panel || columnHeight === 0) return
-    // Keep at least 12% for Smart orders, matching its own panel minimum.
-    panel.resize(`${Math.min(88, (height / columnHeight) * 100)}%`)
+    setWalletPanelHeight(height)
   }, [])
 
   // ----- Trading: one owner for the chart's lines and the panel ------------
@@ -420,10 +415,6 @@ export function TradeWorkspace({
   const verticalLayout = useRememberedPanelLayoutInPlace(
     tradePanelLayoutKey.workspaceVertical
   )
-  const accountColumnLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.accountColumn
-  )
-
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
   // vertical layout, because a grown height is never the remembered one.
@@ -754,71 +745,49 @@ export function TradeWorkspace({
         panelRef={accountPanelRef}
         collapsible
         collapsedSize="0%"
-        defaultSize="22%"
-        minSize="16%"
-        maxSize="36%"
+        defaultSize="20.5rem"
+        minSize="20.5rem"
+        maxSize="42%"
         // Same rule as the market list: the chart absorbs a window shrink.
         groupResizeBehavior="preserve-pixel-size"
         onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
       >
-        {/* Two panels in this column, not one card inside another.
-
-            A panel IS the card on this screen — its own rounded edges with a
-            gap between it and the next. The automations were tucked inside the
-            wallets' card for a build, which put a card inside a card and let
-            the list grow to eight thousand pixels instead of scrolling.
-
-            The lower one is empty on purpose. Every coin a switched-on flow is
-            watching used to sit there and now has a page of its own; the space,
-            its divider and the size you dragged it to are kept for whatever
-            goes in next, rather than taken away and rebuilt later. */}
-        <div ref={accountColumnRef} className="flex h-full min-h-0">
-          <ResizablePanelGroup
-            groupRef={accountColumnLayout.groupRef}
-            orientation="vertical"
-            className="min-h-0 flex-1"
-            onLayoutChanged={accountColumnLayout.onLayoutChanged}
+        <div className="flex h-full min-h-0 flex-col gap-[var(--shell-gutter,0.75rem)]">
+          <div
+            className="min-h-[52.4px] shrink-0"
+            style={{ height: walletPanelHeight, maxHeight: "88%" }}
           >
-            <ResizablePanel
-              id="wallets"
-              panelRef={walletsPanelRef}
-              defaultSize="50%"
-              minSize="52.4px"
+            <WorkspacePanel
+              collapsed={accountCollapsed}
+              onDoubleClick={accountDoubleClick}
             >
-              <WorkspacePanel
-                collapsed={accountCollapsed}
-                onDoubleClick={accountDoubleClick}
-              >
-                {accountPanel}
-              </WorkspacePanel>
-            </ResizablePanel>
-            <ResizableHandle gap className={NO_RING} />
-            <ResizablePanel id="smart-orders" defaultSize="50%" minSize="12%">
-              <WorkspacePanel
-                collapsed={accountCollapsed}
-                className="flex flex-col"
-              >
-                <SmartOrdersPanel
-                  cacheScope={dashboardCacheScope}
-                  smartOrders={trading.smartOrders}
-                  positions={trading.positions}
-                  fills={trading.fills}
-                  trades={trading.trades}
-                  markets={marketsByKey}
-                  wallets={account.wallets}
-                  walletName={walletNameOf}
-                  // NOT `trading.loading`: that turns false when the practice
-                  // half lands on its own, and a screen whose ladders are all on
-                  // real wallets would say "none working" until the exchange
-                  // answered.
-                  settled={trading.settled}
-                  failed={trading.failed}
-                  onRetry={trading.retry}
-                  onSelectMarket={onSelectMarket}
-                />
-              </WorkspacePanel>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+              {accountPanel}
+            </WorkspacePanel>
+          </div>
+          <WorkspacePanel
+            collapsed={accountCollapsed}
+            className="flex min-h-[52.4px] flex-1 flex-col"
+          >
+            <SmartOrdersPanel
+              cacheScope={dashboardCacheScope}
+              smartOrders={trading.smartOrders}
+              positions={trading.positions}
+              fills={trading.fills}
+              trades={trading.trades}
+              markets={marketsByKey}
+              wallets={account.wallets}
+              walletName={walletNameOf}
+              selectedMarketKey={selectedKey}
+              // NOT `trading.loading`: that turns false when the practice
+              // half lands on its own, and a screen whose ladders are all on
+              // real wallets would say "none working" until the exchange
+              // answered.
+              settled={trading.settled}
+              failed={trading.failed}
+              onRetry={trading.retry}
+              onSelectMarket={onSelectMarket}
+            />
+          </WorkspacePanel>
         </div>
       </ResizablePanel>
     </ResizablePanelGroup>

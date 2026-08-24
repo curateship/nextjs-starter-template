@@ -83,12 +83,28 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
 - **Right, top — Account.** Which account you are trading with.
   The Active tab lists every wallet that is switched on. Pressing anywhere on
   a wallet row makes it the wallet used for the next trade. The selection does
-  not open the figures. The selected wallet has a light-gray background as well
-  as its checked control, so selection never relies on colour alone. Each wallet
-  has a separate chevron for its figures, and every row starts folded. All and
-  Inactive use the same rows, but pressing one there opens its settings instead
-  of changing the trading wallet. The Active tab's open figures end with an
-  Edit wallet link that opens the same settings window.
+  not open the figures. The checked control names the selected wallet and the
+  row keeps the panel background. Each wallet fits on one line: selection,
+  name, connection dot, total, profit and a vertical three-dot button. The
+  three-dot button opens a small popover beside the row with its figures and
+  wallet actions; it never blocks the rest of the screen. A fresh mainnet wallet
+  does not repeat its exchange, connection state or a Real chip. A failed or old
+  read still says what is wrong beside its dot. All and Inactive use the same
+  row grid, selector size, figures and three-dot placement. Pressing a row or
+  its three-dot button there opens its settings instead of changing the trading
+  wallet. Neither tab adds a separate total block above the rows.
+  The account column keeps the reference panel's 328px width on desktop, so
+  names and figures do not collapse into initials. All and Inactive omit the
+  old wallet-type chip; opening settings still shows the wallet's type.
+  Wallets use the same 40px row height as Smart orders, with no extra space
+  above the first wallet or below the last. The wallet name, total and
+  profit keep their own columns, so each set of figures ends at the same point.
+  A wallet turns light gray under the pointer and keeps that background while
+  selected. The selected background stops at the row. The rows use 12px side
+  gutters and 14px primary labels.
+  Money is monospaced and tabular. Wallet and smart-order profit use the same
+  12px type and end on the same right edge. The add-wallet and row menus are
+  plain icon controls rather than filled buttons.
 - **Right, bottom — Order.** The form. Below the account, because the account is
   what decides where an order goes and what it is allowed to be — reading down
   the panel is the same order as making the decision.
@@ -105,14 +121,11 @@ bare icons. The pill itself lives on the shared `WorkspacePanelTab` in
 `src/components/shared/workspace-panel-header.tsx`, a shell file changed in
 Custom Shell first and carried here unchanged.
 
-The right panel is **two rows with a divider between them**. The rows drag
-against each other and their split is remembered. The panel as a whole is what
-shuts, so both rows go together — and both cards have to be taken away at once,
-or a row with no width still paints its side borders and leaves a stray line
-down the workspace. The wallet row fits itself to its active tab when wallet
-rows arrive or change. Two wallets therefore leave the rest of the column to
-Smart orders instead of keeping an empty half-card. The divider can still be
-dragged, and Smart orders always keeps at least its own minimum height.
+The right side is **two separate panels with a gap between them**.
+The wallet panel sits above Smart orders. Choosing Active, All or Inactive grows
+the wallet panel to fit every row in that tab, while Smart orders keeps the rest
+of the column. There is no draggable divider between them. Smart orders always
+keeps at least its own minimum height.
 
 **A smaller window shrinks the chart, never the panels.** The Folders panel,
 the account column and the bottom Positions panel keep the pixel size they
@@ -456,11 +469,14 @@ placed, and for the same reason.
 ### What the Smart orders panel counts as a sale
 
 Opening a smart order in the right-hand panel lists what it has sold and what
-that banked. A grid's closed row says how many levels are still waiting and how
-many have bought, such as "3 waiting · 7 completed". Open the grid's dropdown
-and its first line says how many dollars it still holds to sell. The old
-price-range line repeated what the chart already shows and did not say how far
-the grid had got.
+that banked. The vertical three-dot button at the row's right edge opens a small
+popover without blocking the chart. The whole row turns light gray under the
+pointer, including the three-dot area. Pressing the smart order opens its market
+on the chart and keeps the whole row light gray while that market is selected.
+A grid's waiting and completed counts live inside that popover, such as "3
+waiting · 7 completed", followed by how many dollars it still holds to sell.
+The old price-range line repeated what the chart already shows and did not say
+how far the grid had got.
 Two rules decide what appears in the opened sale list.
 
 - **A sell out of a long-only order is a sale**, whether or not the venue put a
@@ -600,8 +616,9 @@ line in the body, share the panel's one 12px gutter.
 
 - **Every row wears a folder's shape**: the name, a count on the right, and a
   chevron; pressing the row opens its contents in place, one row open at a
-  time. The open row keeps the same gray fill a selected market row wears, so
-  which section is open never depends on the chevron alone. **Watched is the first row** and the one the panel opens on, because
+  time. The open row and its contents use the lighter gray fill. A closed row
+  turns gray under the pointer, so which section is open never depends on the
+  chevron alone. **Watched is the first row** and the one the panel opens on, because
   a price you have money committed to beats a market you might look at — it
   is not a folder, it lists orders, but it dresses as one so the column is
   one panel. **All markets is the last row**: the whole catalogue under its
@@ -750,7 +767,8 @@ Two things the old Trading app had that this does not, on purpose:
 The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
-- Every divider drags.
+- Every visible divider drags. The fixed gap between Wallets and Smart orders
+  is not a divider and does not drag.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back.
 - **The bottom never disappears.** It shuts down to its own tab row, which stays

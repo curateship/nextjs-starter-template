@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, useState } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
@@ -35,6 +35,7 @@ const shared = {
   markets: new Map(),
   wallets: [],
   walletName: () => "Main",
+  selectedMarketKey: null,
   onRetry: () => {},
   onSelectMarket: () => {},
 }
@@ -153,16 +154,81 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
-  it("summarises a grid by waiting and completed levels", () => {
-    const markup = draw({
-      smartOrders: [grid],
-      settled: true,
-      failed: false,
+  it("puts the three-dot detail button at the right of the market row", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[ladder]}
+          settled
+          failed={false}
+        />
+      )
     })
-    expect(markup).toContain("3 waiting · 7 completed")
+
+    const details = host.querySelector(
+      'button[aria-label="Open XMR smart order details"]'
+    )
+    expect(details?.previousElementSibling?.textContent).toContain("XMR")
+    expect(details?.previousElementSibling?.className).toContain("min-h-10")
+    expect(
+      details?.previousElementSibling?.querySelector(".text-sm")?.textContent
+    ).toBe("XMR")
+    expect(
+      host.querySelector('[data-slot="workspace-panel-header"]')?.className
+    ).toContain("h-[3.15rem]")
+    expect(details?.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
+    expect(details?.parentElement?.className).toContain("hover:bg-muted/40")
+    await act(async () => root.unmount())
+    host.remove()
   })
 
-  it("shows the funds still held to sell inside the opened grid dropdown", async () => {
+  it("keeps the charted smart order selected across the whole row", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    function SelectedSmartOrder() {
+      const [selectedMarketKey, setSelectedMarketKey] = useState<string | null>(
+        null
+      )
+      return (
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[ladder]}
+          selectedMarketKey={selectedMarketKey}
+          settled
+          failed={false}
+          onSelectMarket={setSelectedMarketKey}
+        />
+      )
+    }
+
+    await act(async () => root.render(<SelectedSmartOrder />))
+    const details = host.querySelector(
+      'button[aria-label="Open XMR smart order details"]'
+    )
+    await act(async () =>
+      (details?.previousElementSibling as HTMLButtonElement | null)?.click()
+    )
+
+    expect(details?.parentElement?.className).toContain("bg-muted/60")
+    expect(details?.parentElement?.className).toContain("hover:bg-muted/60")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("moves grid progress and held funds into the popover", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -180,17 +246,19 @@ describe("the Smart orders panel", () => {
         />
       )
     })
+    expect(host.textContent).not.toContain("3 waiting · 7 completed")
     expect(host.textContent).not.toContain("$70.00")
 
     await act(async () => {
       host
         .querySelector<HTMLButtonElement>(
-          'button[aria-label="Show what XMR has done"]'
+          'button[aria-label="Open XMR smart order details"]'
         )
         ?.click()
     })
 
-    expect(host.textContent).toContain("Held to sell$70.00")
+    expect(document.body.textContent).toContain("3 waiting · 7 completed")
+    expect(document.body.textContent).toContain("Held to sell$70.00")
     await act(async () => root.unmount())
     host.remove()
   })

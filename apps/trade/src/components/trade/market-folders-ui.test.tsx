@@ -227,9 +227,7 @@ describe("the market folder controls", () => {
     expect(toggles[0]!.getAttribute("aria-expanded")).toBe("true")
     expect(toggles.at(-1)!.textContent).toContain("All markets")
     expect(toggles.at(-1)!.getAttribute("aria-expanded")).toBe("false")
-    const favToggle = toggles.find((one) =>
-      one.textContent?.includes("Fav")
-    )!
+    const favToggle = toggles.find((one) => one.textContent?.includes("Fav"))!
     expect(folderPanel.textContent).toContain("Folders")
     const addFolder = folderPanel.querySelector(
       'button[aria-label="Add folder"]'
@@ -276,6 +274,10 @@ describe("the market folder controls", () => {
 
     await act(async () => click(favToggle))
     expect(favToggle.getAttribute("aria-expanded")).toBe("true")
+    expect(favToggle.className).toContain("bg-muted/60")
+    expect(favToggle.parentElement?.nextElementSibling?.className).toContain(
+      "bg-muted/60"
+    )
     expect(folderPanel.textContent).toContain("BTC")
     const expandedMarket = Array.from(
       folderPanel.querySelectorAll("button")
@@ -288,6 +290,7 @@ describe("the market folder controls", () => {
     const testToggle = Array.from(
       folderPanel.querySelectorAll('button[aria-expanded="false"]')
     ).find((button) => button.textContent?.includes("Test"))!
+    expect(testToggle.className).toContain("hover:bg-muted")
     expect(testToggle.parentElement?.className).toContain("border-t")
   })
 
