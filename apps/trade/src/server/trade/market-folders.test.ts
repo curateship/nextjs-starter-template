@@ -1,27 +1,41 @@
 import { readdir, readFile } from "node:fs/promises"
 import { PGlite } from "@electric-sql/pglite"
 import { drizzle } from "drizzle-orm/pglite"
+import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
+import { readMarketPanelRows } from "@/lib/trade/market-folders"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   createMarketFolder,
   deleteMarketFolder,
   loadMarketFolders,
-  reorderMarketFolders,
   renameMarketFolder,
+  saveMarketPanelLayout,
   setMarketInFolder,
 } from "@/server/trade/market-folders"
 import {
   tradeMarketFavorites,
   tradeMarketFolderItems,
   tradeMarketFolders,
+  tradePrefs,
 } from "@/server/trade/schema"
 
 let client: PGlite
 let database: CustomShellDb
 let userId: string
+
+/** The stored arrangement for one exchange, read the way a dashboard reads it. */
+async function savedPanelRows(protocol: ProtocolId, network: NetworkId) {
+  const [row] = await database
+    .select({ value: tradePrefs.marketPanelRows })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readMarketPanelRows(row?.value?.[`${protocol}:${network}`])
+}
 
 beforeEach(async () => {
   ;({ client, db: database } = await createTestDatabase())
@@ -107,7 +121,7 @@ describe("market folders", () => {
     ).rejects.toThrow("another exchange")
   })
 
-  it("protects Fav and allows a named folder to be renamed and deleted", async () => {
+  it("renames Fav, refuses to delete it, and renames and deletes a named folder", async () => {
     const folders = await createMarketFolder(
       userId,
       { protocol: "hyperliquid", network: "mainnet", name: "Daily" },
@@ -116,9 +130,16 @@ describe("market folders", () => {
     const fav = folders.find((folder) => folder.isFav)!
     const daily = folders.find((folder) => folder.name === "Daily")!
 
+    const favRenamed = await renameMarketFolder(
+      userId,
+      fav.id,
+      "Core",
+      database
+    )
+    expect(favRenamed.find((folder) => folder.isFav)?.name).toBe("Core")
     await expect(
-      renameMarketFolder(userId, fav.id, "Other", database)
-    ).rejects.toThrow("cannot be renamed")
+      renameMarketFolder(userId, fav.id, "Daily", database)
+    ).rejects.toThrow("already have a market folder with that name")
     await expect(deleteMarketFolder(userId, fav.id, database)).rejects.toThrow(
       "cannot be deleted"
     )
@@ -161,7 +182,7 @@ describe("market folders", () => {
     ).rejects.toThrow("at most 500 coins")
   })
 
-  it("keeps named folders inside the reorder limit", async () => {
+  it("keeps named folders inside the hundred-folder limit", async () => {
     await loadMarketFolders(userId, "hyperliquid", "mainnet", database)
     await database.insert(tradeMarketFolders).values(
       Array.from({ length: 100 }, (_, index) => ({
@@ -183,7 +204,7 @@ describe("market folders", () => {
     ).rejects.toThrow("at most 100 named market folders")
   })
 
-  it("reorders every named folder while Fav stays first", async () => {
+  it("saves one order and one set of hidden rows for the whole panel", async () => {
     await createMarketFolder(
       userId,
       { protocol: "hyperliquid", network: "mainnet", name: "Daily" },
@@ -194,34 +215,85 @@ describe("market folders", () => {
       { protocol: "hyperliquid", network: "mainnet", name: "Watching" },
       database
     )
+    const fav = folders.find((folder) => folder.isFav)!
     const daily = folders.find((folder) => folder.name === "Daily")!
     const watching = folders.find((folder) => folder.name === "Watching")!
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 
-    const reordered = await reorderMarketFolders(
+    const saved = await saveMarketPanelLayout(
       userId,
       {
-        protocol: "hyperliquid",
-        network: "mainnet",
-        folderIds: [watching.id, daily.id],
+        ...scope,
+        rowIds: ["all", watching.id, "watched", daily.id, fav.id],
+        hiddenRowIds: ["watched", daily.id],
       },
       database
     )
-    expect(reordered.map((folder) => folder.name)).toEqual([
-      "Fav",
+
+    expect(saved.folders.map((folder) => folder.name)).toEqual([
       "Watching",
       "Daily",
+      "Fav",
     ])
+    expect(saved.folders.map((folder) => folder.hidden)).toEqual([
+      false,
+      true,
+      false,
+    ])
+    expect(saved.panelRows).toEqual({
+      all: { position: 0, hidden: false },
+      watched: { position: 2, hidden: true },
+    })
+    expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual(
+      saved.panelRows
+    )
+    // Another exchange keeps its own arrangement rather than this one.
+    expect(await savedPanelRows("phemex", "mainnet")).toEqual({
+      watched: { position: -1, hidden: false },
+      all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+    })
+  })
+
+  it("refuses a list of rows that is not the panel's own", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      { protocol: "hyperliquid", network: "mainnet", name: "Daily" },
+      database
+    )
+    const fav = folders.find((folder) => folder.isFav)!
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const scope = { protocol: "hyperliquid", network: "mainnet" } as const
+
+    // A folder missing, one sent twice, and a row that is not on this panel.
+    for (const rowIds of [
+      ["watched", "all", fav.id],
+      ["watched", "all", fav.id, daily.id, daily.id],
+      ["watched", "all", fav.id, daily.id, "00000000-0000-4000-8000-000000009999"],
+    ]) {
+      await expect(
+        saveMarketPanelLayout(
+          userId,
+          { ...scope, rowIds, hiddenRowIds: [] },
+          database
+        )
+      ).rejects.toThrow("could not be saved")
+    }
     await expect(
-      reorderMarketFolders(
+      saveMarketPanelLayout(
         userId,
         {
-          protocol: "hyperliquid",
-          network: "mainnet",
-          folderIds: [daily.id],
+          ...scope,
+          rowIds: ["watched", "all", fav.id, daily.id],
+          hiddenRowIds: ["nothing-like-a-row"],
         },
         database
       )
-    ).rejects.toThrow("could not be reordered")
+    ).rejects.toThrow("could not be saved")
+    // Nothing was written by any of the refusals.
+    expect(await savedPanelRows("hyperliquid", "mainnet")).toEqual({
+      watched: { position: -1, hidden: false },
+      all: { position: Number.MAX_SAFE_INTEGER, hidden: false },
+    })
   })
 })
 

@@ -15,7 +15,10 @@ import {
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import type {
+  MarketFolder,
+  MarketPanelRows,
+} from "@/lib/trade/market-folders"
 import { userGet } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
 import { loadMarketFolders } from "@/server/trade/market-folders"
@@ -40,6 +43,8 @@ import { getMarketsErrorMessage } from "./markets"
 export type DashboardBootstrap = {
   markets: { catalogs: FilteredMarketCatalog[]; error: string | null }
   folders: MarketFolder[]
+  /** Where the two rows that are not folders sit in the markets panel. */
+  panelRows: MarketPanelRows
   lastMarketKey: string | null
   chartView: ChartView | null
   chartOptions: ChartOptions
@@ -73,7 +78,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
           error: getMarketsErrorMessage(error),
         })
       ),
-      loadDashboardPrefs(context.user.id, data.protocol),
+      loadDashboardPrefs(context.user.id, data),
       // Losing folders must not keep the rest of the dashboard from opening.
       loadMarketFolders(context.user.id, data.protocol, data.network).catch(
         () => [] as MarketFolder[]
@@ -92,6 +97,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
           }
         : { catalogs: [], error: catalog.error },
       folders,
+      panelRows: prefs.marketPanelRows,
       lastMarketKey: prefs.lastMarketKey,
       chartView: prefs.chartView,
       chartOptions: prefs.chartOptions,

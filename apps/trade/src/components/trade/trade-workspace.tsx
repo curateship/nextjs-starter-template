@@ -76,6 +76,7 @@ import {
   favFolder,
   type MarketFolder,
   type MarketFolderActions,
+  type MarketPanelRows,
 } from "@/lib/trade/market-folders"
 import {
   marketWasHiddenByVolume,
@@ -151,6 +152,7 @@ export function TradeWorkspace({
   marketsError,
   network,
   initialFolders,
+  initialPanelRows,
   initialChartView,
   initialChartOptions,
   initialIndicators,
@@ -172,6 +174,7 @@ export function TradeWorkspace({
   /** Which network the whole page is showing — resolved by the route. */
   network: NetworkId
   initialFolders: MarketFolder[]
+  initialPanelRows: MarketPanelRows
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
   /** Which supporting parts of the chart this account has visible. */
@@ -201,6 +204,10 @@ export function TradeWorkspace({
 
   // ----- Market folders: one exchange, optimistic item changes -------------
   const [folders, setFolders] = React.useState(initialFolders)
+  // Where Watched and All markets sit and whether they show. Beside the
+  // folders rather than inside them: neither row is a folder, and one drag
+  // saves both halves together.
+  const [panelRows, setPanelRows] = React.useState(initialPanelRows)
   const [folderBusy, setFolderBusy] = React.useState(false)
   const folderQueues = React.useRef(new Map<string, Promise<void>>())
   async function toggleFolderMarket(
@@ -582,7 +589,9 @@ export function TradeWorkspace({
         }}
         walletName={walletNameOf}
         selectedMarketKey={selectedKey}
+        panelRows={panelRows}
         onFoldersChange={setFolders}
+        onPanelRowsChange={setPanelRows}
         onSelectMarket={onSelectMarket}
         onRetryMarkets={onRetryMarkets}
       />

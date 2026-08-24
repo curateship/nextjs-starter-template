@@ -65,6 +65,7 @@ function draw(selection: MarketSelection, favorites: string[]): string {
             name: "Fav",
             isFav: true,
             position: 0,
+            hidden: false,
             marketKeys: favorites,
           },
         ]}

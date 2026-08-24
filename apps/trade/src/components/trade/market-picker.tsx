@@ -40,9 +40,10 @@ import {
 } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import { moneyTone } from "@/lib/trade/money-tone"
-import type {
-  MarketFolder,
-  MarketFolderActions,
+import {
+  favFolder,
+  type MarketFolder,
+  type MarketFolderActions,
 } from "@/lib/trade/market-folders"
 import { cn } from "@/lib/utils"
 
@@ -156,23 +157,20 @@ export function MarketPicker({
 
   const visible = React.useMemo(() => {
     const trimmed = query.trim().toUpperCase()
+    // Built once: the two places below both ask whether a row is saved, and
+    // Hyperliquid's list is 1,300 rows long against a folder of up to 500.
+    const favKeys = new Set(favFolder(folders)?.marketKeys ?? [])
     let list = rows.filter(
       (row) =>
         (row.volume24hUsd > 0 ||
           row.key === selected.key ||
-          (folders
-            .find((folder) => folder.isFav)
-            ?.marketKeys.includes(row.key) ??
-            false)) &&
+          favKeys.has(row.key)) &&
         (!trimmed ||
           row.symbol.toUpperCase().includes(trimmed) ||
           displaySymbol(row.symbol).toUpperCase().includes(trimmed))
     )
 
     if (activeView === "favorites") {
-      const favKeys = new Set(
-        folders.find((folder) => folder.isFav)?.marketKeys ?? []
-      )
       list = list.filter((row) => favKeys.has(row.key))
     } else if (activeView === "crypto") {
       list = list.filter((row) => row.category === "crypto")

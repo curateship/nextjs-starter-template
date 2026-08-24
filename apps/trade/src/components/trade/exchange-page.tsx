@@ -16,6 +16,7 @@ import { saveLastMarket } from "@/lib/api/markets"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
+import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
 import {
   marketKeyOnDashboard,
   readMarketSearch,
@@ -62,6 +63,7 @@ function exchangeLoader(protocol: ProtocolId) {
             "The server did not answer. Nothing is wrong on your side — try again in a moment.",
         },
         folders: [],
+        panelRows: DEFAULT_MARKET_PANEL_ROWS,
         lastMarketKey: null,
         chartView: null,
         chartOptions: DEFAULT_CHART_OPTIONS,
@@ -148,6 +150,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
     markets,
     network,
     folders,
+    panelRows,
     lastMarketKey,
     chartView,
     chartOptions,
@@ -196,6 +199,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       marketsError={shownMarkets.error}
       network={network}
       initialFolders={folders}
+      initialPanelRows={panelRows}
       initialChartView={chartView}
       initialChartOptions={chartOptions}
       initialIndicators={indicators}

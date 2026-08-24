@@ -1,13 +1,19 @@
 import { randomUUID } from "node:crypto"
-import { and, asc, count, eq, max, sql } from "drizzle-orm"
+import { and, asc, count, eq, max, ne, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import {
+  ALL_ROW,
+  WATCHED_ROW,
+  type MarketFolder,
+  type MarketPanelRows,
+} from "@/lib/trade/market-folders"
 import { db, type CustomShellDb } from "@/server/db"
+import { saveMarketPanelRows } from "@/server/trade/prefs"
 import {
   tradeMarketFolderItems,
   tradeMarketFolders,
@@ -79,7 +85,10 @@ async function ensureFavFolder(
   return wonRace.id
 }
 
-/** All folders in one exchange scope, with Fav first and item order preserved. */
+/**
+ * All folders in one exchange scope, in saved order with item order kept.
+ * Fav is no longer pinned to the front: it drags like any other row.
+ */
 export async function loadMarketFolders(
   userId: string,
   protocol: ProtocolId,
@@ -93,6 +102,7 @@ export async function loadMarketFolders(
       name: tradeMarketFolders.name,
       isFav: tradeMarketFolders.isFav,
       position: tradeMarketFolders.position,
+      hidden: tradeMarketFolders.hidden,
       marketKey: tradeMarketFolderItems.marketKey,
     })
     .from(tradeMarketFolders)
@@ -120,6 +130,7 @@ export async function loadMarketFolders(
       name: row.name,
       isFav: row.isFav,
       position: row.position,
+      hidden: row.hidden,
       marketKeys: [],
     }
     if (row.marketKey) folder.marketKeys.push(row.marketKey)
@@ -315,6 +326,11 @@ export async function createMarketFolder(
   return loadMarketFolders(userId, input.protocol, input.network, database)
 }
 
+/**
+ * Rename any folder, Fav included. Fav is found by its own flag rather than by
+ * being called Fav, so the star and the picker follow the new name and nothing
+ * has to be called Fav for them to work.
+ */
 export async function renameMarketFolder(
   userId: string,
   folderId: string,
@@ -322,10 +338,28 @@ export async function renameMarketFolder(
   database: CustomShellDb = db
 ) {
   const folder = await ownedFolder(userId, folderId, database)
-  if (folder.isFav) throw new Error("Fav cannot be renamed.")
   const name = cleanName(value)
-  try {
-    await database
+  // Asked before writing, the same way a new folder is. The unique index
+  // behind it raises a database error whose text is the failed query, so
+  // reading that error was never going to produce a sentence for the toast.
+  await database.transaction(async (tx) => {
+    const [duplicate] = await tx
+      .select({ id: tradeMarketFolders.id })
+      .from(tradeMarketFolders)
+      .where(
+        and(
+          eq(tradeMarketFolders.userId, userId),
+          eq(tradeMarketFolders.protocol, folder.protocol),
+          eq(tradeMarketFolders.network, folder.network),
+          ne(tradeMarketFolders.id, folder.id),
+          sql`lower(${tradeMarketFolders.name}) = ${name.toLowerCase()}`
+        )
+      )
+      .limit(1)
+    if (duplicate) {
+      throw new Error("You already have a market folder with that name.")
+    }
+    await tx
       .update(tradeMarketFolders)
       .set({ name, updatedAt: new Date() })
       .where(
@@ -334,59 +368,72 @@ export async function renameMarketFolder(
           eq(tradeMarketFolders.userId, userId)
         )
       )
-  } catch (error) {
-    if (error instanceof Error && /unique|duplicate/i.test(error.message)) {
-      throw new Error("You already have a market folder with that name.")
-    }
-    throw error
-  }
+  })
   return loadMarketFolders(userId, folder.protocol, folder.network, database)
 }
 
-export async function reorderMarketFolders(
+/**
+ * The whole markets panel in one write: what order every row sits in, and
+ * which rows the eye has switched off.
+ *
+ * One call rather than one per row, because a drag moves every row below the
+ * one being dragged, and because the two rows that are not folders live in the
+ * preference row instead of the folder table. Both writes share a transaction,
+ * so a half-saved arrangement cannot be read back.
+ *
+ * The ids sent must be exactly the rows this exchange has, each once. A list
+ * that has drifted — a folder deleted in another tab, a row sent twice — is
+ * refused rather than written, which leaves the saved arrangement alone.
+ */
+export async function saveMarketPanelLayout(
   userId: string,
   input: {
     protocol: ProtocolId
     network: NetworkId
-    folderIds: string[]
+    /** Every row id, top of the panel first. */
+    rowIds: string[]
+    /** The rows the eye has switched off. */
+    hiddenRowIds: string[]
   },
   database: CustomShellDb = db
-) {
+): Promise<{ folders: MarketFolder[]; panelRows: MarketPanelRows }> {
   const favId = await ensureFavFolder(
     userId,
     input.protocol,
     input.network,
     database
   )
-  await database.transaction(async (tx) => {
+  const hidden = new Set(input.hiddenRowIds)
+  const panelRows = await database.transaction(async (tx) => {
     await tx
       .select({ id: tradeMarketFolders.id })
       .from(tradeMarketFolders)
       .where(eq(tradeMarketFolders.id, favId))
       .for("update")
-    const named = await tx
+    const saved = await tx
       .select({ id: tradeMarketFolders.id })
       .from(tradeMarketFolders)
       .where(
         and(
           eq(tradeMarketFolders.userId, userId),
           eq(tradeMarketFolders.protocol, input.protocol),
-          eq(tradeMarketFolders.network, input.network),
-          eq(tradeMarketFolders.isFav, false)
+          eq(tradeMarketFolders.network, input.network)
         )
       )
-    const namedIds = named.map((folder) => folder.id)
+    const rows = new Set([WATCHED_ROW, ALL_ROW, ...saved.map((one) => one.id)])
     if (
-      input.folderIds.length !== namedIds.length ||
-      new Set(input.folderIds).size !== input.folderIds.length ||
-      input.folderIds.some((id) => !namedIds.includes(id))
+      input.rowIds.length !== rows.size ||
+      new Set(input.rowIds).size !== input.rowIds.length ||
+      input.rowIds.some((id) => !rows.has(id)) ||
+      [...hidden].some((id) => !rows.has(id))
     ) {
-      throw new Error("Those market folders could not be reordered.")
+      throw new Error("That folder arrangement could not be saved.")
     }
-    for (const [index, id] of input.folderIds.entries()) {
+    for (const [index, id] of input.rowIds.entries()) {
+      if (id === WATCHED_ROW || id === ALL_ROW) continue
       await tx
         .update(tradeMarketFolders)
-        .set({ position: index + 1, updatedAt: new Date() })
+        .set({ position: index, hidden: hidden.has(id), updatedAt: new Date() })
         .where(
           and(
             eq(tradeMarketFolders.id, id),
@@ -396,8 +443,31 @@ export async function reorderMarketFolders(
           )
         )
     }
+    return saveMarketPanelRows(
+      userId,
+      { protocol: input.protocol, network: input.network },
+      {
+        watched: {
+          position: input.rowIds.indexOf(WATCHED_ROW),
+          hidden: hidden.has(WATCHED_ROW),
+        },
+        all: {
+          position: input.rowIds.indexOf(ALL_ROW),
+          hidden: hidden.has(ALL_ROW),
+        },
+      },
+      tx
+    )
   })
-  return loadMarketFolders(userId, input.protocol, input.network, database)
+  return {
+    folders: await loadMarketFolders(
+      userId,
+      input.protocol,
+      input.network,
+      database
+    ),
+    panelRows,
+  }
 }
 
 export async function deleteMarketFolder(

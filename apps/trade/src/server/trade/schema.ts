@@ -31,6 +31,7 @@ import type { DrawingShape } from "@/lib/trade/drawings"
 import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { FlowHold, FlowWaitReason } from "@/lib/trade/flow-waiting"
 import type { GridParams } from "@/lib/trade/grid"
+import type { MarketPanelRows } from "@/lib/trade/market-folders"
 import type { OrderStyle } from "@/lib/trade/order-style"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { SmartOrderKind, SmartPlan } from "@/lib/trade/smart-plan"
@@ -92,6 +93,9 @@ export const tradeMarketFolders = pgTable(
     name: varchar("name", { length: 80 }).notNull(),
     isFav: boolean("is_fav").notNull().default(false),
     position: integer("position").notNull().default(0),
+    // Switched off with the eye in the cog window. The folder keeps its coins
+    // and still runs in a flow; it just stops taking a row in the panel.
+    hidden: boolean("hidden").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -226,6 +230,18 @@ export const tradePrefs = pgTable("trade_prefs", {
   minimumMarketVolumeUsd: doublePrecision("minimum_market_volume_usd")
     .notNull()
     .default(0),
+  /**
+   * Where Watched and All markets sit in the markets panel and whether each
+   * shows, keyed by exchange and network — `{"hyperliquid:mainnet":{…}}`.
+   *
+   * Here rather than in `trade_market_folders` because neither row is a
+   * folder: they have no coins, no name to change and nothing to delete.
+   * Every real folder's place and eye live on its own row instead.
+   */
+  marketPanelRows: jsonb("market_panel_rows")
+    .$type<Record<string, MarketPanelRows>>()
+    .notNull()
+    .default({}),
   liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
   liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
   updatedAt: timestamp("updated_at", { withTimezone: true })

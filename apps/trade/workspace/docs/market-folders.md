@@ -6,8 +6,10 @@ or Hyperliquid testnet.
 
 ## Fav and the star
 
-Every exchange starts with an empty Fav folder. Fav is always first and cannot
-be renamed or deleted.
+Every exchange starts with an empty folder called Fav. It can be renamed and
+moved like any other folder, and it cannot be deleted. Everything that reaches
+for it finds it by its own flag rather than by the name Fav, so a renamed one
+keeps working. The star and the picker's Favorites tab keep their own wording.
 
 Pressing an empty star adds the coin to Fav. Pressing a filled star opens the
 folder list because the coin may be saved in more than one place. The list can
@@ -34,9 +36,32 @@ again closes its coins. Each row shows how many markets the folder contains.
 Expanded market rows have no dividers between them. The next folder toggle has
 its own top edge, so it remains separate from the markets above it. Folder
 presses never change the Markets panel above. Named folder rows include no
-management controls. The cog window holds create, rename, drag-to-reorder and
-delete instead. Its New folder card holds the folder-name input and Create
-button. Fav stays first and cannot be renamed, moved or deleted.
+management controls. The cog window holds create, rename, drag-to-reorder,
+hide and delete instead. Its New folder card holds the folder-name input and
+Create button.
+
+## The cog window
+
+The Order card lists every row the panel can draw: Watched, Fav, each named
+folder, and All markets. All four kinds of row behave the same way there.
+
+- Drag any row by its handle to put it where you want it. Nothing is pinned,
+  Watched and All markets included.
+- Press a row's name to rename it. Fav can be renamed; Watched and All markets
+  cannot, because neither is a folder. A name another folder on that exchange
+  already has is refused before anything is written, and the row keeps its old
+  name.
+- Press the eye to keep a row out of the panel. The eye gains a line through
+  it, the row's count is replaced by the word Hidden, and the row disappears
+  from the panel. Nothing is deleted: a hidden folder keeps its coins, still
+  takes coins from the star, and still runs in a flow.
+- The bin deletes, and only named folders have one.
+
+Hiding every row leaves the panel saying so and pointing back at the cog.
+
+A drag or an eye saves the whole arrangement in one go, because moving one row
+moves every row under it. The panel shows the change straight away and puts
+back what it had if the save is refused.
 
 The count on a folder is its saved total. If the daily-volume setting hides all
 of a folder's markets, the open row names that setting instead of calling the
@@ -47,10 +72,18 @@ remembers the height of the two left panels.
 
 ## Storage
 
-`trade_market_folders` holds the owner, exchange, network, name, Fav flag and
-order. Names cannot repeat within one exchange when letter case is ignored.
-`trade_market_folder_items` holds one market key per folder and deletes its rows
-when the folder is deleted.
+`trade_market_folders` holds the owner, exchange, network, name, Fav flag,
+order and the hidden flag. Names cannot repeat within one exchange when letter
+case is ignored. `trade_market_folder_items` holds one market key per folder and
+deletes its rows when the folder is deleted.
+
+Watched and All markets are not folders, so they have no row in that table.
+Where those two sit and whether each shows lives in `trade_prefs`, in
+`market_panel_rows`, keyed by exchange and network. A drag writes both places
+inside one transaction, so a half-saved arrangement cannot be read back.
+Migration 0144 adds both. A dashboard whose database is missing them fails its
+single server call, and a failed call is what strips the market header down to
+a plain title with no star and no buttons.
 
 Migration 0141 copies the old starred keys into a Fav folder for each exchange
 and network found in those keys. The old `trade_market_favorites` table remains

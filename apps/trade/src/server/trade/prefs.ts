@@ -1,7 +1,8 @@
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
+  type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
@@ -33,6 +34,10 @@ import {
   readMinimumMarketVolume,
 } from "@/lib/trade/market-volume"
 import {
+  readMarketPanelRows,
+  type MarketPanelRows,
+} from "@/lib/trade/market-folders"
+import {
   liquidationWarningSchema,
   readLiquidationWarning,
   type LiquidationWarning,
@@ -49,10 +54,18 @@ export type DashboardPrefs = {
   indicators: IndicatorSettings
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
+  marketPanelRows: MarketPanelRows
+}
+
+/** One exchange and network — the scope a panel layout belongs to. */
+export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
+
+function panelScopeKey(scope: MarketPanelScope) {
+  return `${scope.protocol}:${scope.network}`
 }
 
 /**
- * The dashboard's seven preferences in ONE round trip.
+ * The dashboard's eight preferences in ONE round trip.
  *
  * Opening a dashboard used to make seven separate reads of this same row, one
  * column each, and each read paid a full session lookup first. Against a
@@ -62,7 +75,7 @@ export type DashboardPrefs = {
  */
 export async function loadDashboardPrefs(
   userId: string,
-  protocol: ProtocolId
+  scope: MarketPanelScope
 ): Promise<DashboardPrefs> {
   const row = await db
     .select({
@@ -73,13 +86,17 @@ export async function loadDashboardPrefs(
       indicators: tradePrefs.indicators,
       cardFolds: tradePrefs.cardFolds,
       quickOrder: tradePrefs.quickOrder,
+      marketPanelRows: tradePrefs.marketPanelRows,
     })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
     .limit(1)
   const found = row[0]
   return {
-    lastMarketKey: lastMarketKeyFor(found?.lastMarketKeys, protocol),
+    lastMarketKey: lastMarketKeyFor(found?.lastMarketKeys, scope.protocol),
+    marketPanelRows: readMarketPanelRows(
+      found?.marketPanelRows?.[panelScopeKey(scope)]
+    ),
     minimumMarketVolumeUsd: readMinimumMarketVolume(
       found?.minimumMarketVolumeUsd
     ),
@@ -517,4 +534,33 @@ export async function saveOrderStyle(
       target: tradePrefs.userId,
       set: { orderStyle, updatedAt: new Date() },
     })
+}
+
+/**
+ * Remember them under their own exchange and network, leaving every other
+ * exchange's arrangement alone. Written inside the same transaction as the
+ * folder places it was dragged with, so the panel can never come back with
+ * half of one drag.
+ */
+export async function saveMarketPanelRows(
+  userId: string,
+  scope: MarketPanelScope,
+  rows: MarketPanelRows,
+  database: CustomShellDb = db
+): Promise<MarketPanelRows> {
+  const patch = { [panelScopeKey(scope)]: rows }
+  await database
+    .insert(tradePrefs)
+    .values({ userId, marketPanelRows: patch, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        // Merged by the database, not read out and written back. Two exchanges
+        // arranged at the same moment each keep their own entry; a read first
+        // would have let the slower one drop the faster one's.
+        marketPanelRows: sql`${tradePrefs.marketPanelRows} || ${JSON.stringify(patch)}::jsonb`,
+        updatedAt: new Date(),
+      },
+    })
+  return rows
 }

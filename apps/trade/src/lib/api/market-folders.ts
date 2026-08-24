@@ -7,14 +7,19 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import {
+  ALL_ROW,
+  WATCHED_ROW,
+  type MarketFolder,
+  type MarketPanelRows,
+} from "@/lib/trade/market-folders"
 import { userGet, userPost } from "@/server/guards"
 import {
   createMarketFolder,
   deleteMarketFolder,
   loadMarketFolders,
-  reorderMarketFolders,
   renameMarketFolder,
+  saveMarketPanelLayout,
   setMarketInFolder,
 } from "@/server/trade/market-folders"
 
@@ -31,10 +36,18 @@ const marketKeySchema = z
   .refine((key) => parseMarketKey(key) !== null, {
     message: "Not a market key.",
   })
-const reorderFoldersSchema = z.object({
+/** Watched, All markets, Fav and the hundred named folders a scope allows. */
+const MAX_PANEL_ROWS = 2 + 1 + 100
+const panelRowIdSchema = z.union([
+  z.literal(WATCHED_ROW),
+  z.literal(ALL_ROW),
+  z.string().uuid(),
+])
+const panelLayoutSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),
   network: z.enum(["mainnet", "testnet"]),
-  folderIds: z.array(z.string().uuid()).max(100),
+  rowIds: z.array(panelRowIdSchema).max(MAX_PANEL_ROWS),
+  hiddenRowIds: z.array(panelRowIdSchema).max(MAX_PANEL_ROWS),
 })
 
 const loadMarketFoldersFn = createServerFn({ method: "GET" })
@@ -74,10 +87,10 @@ const renameMarketFolderFn = createServerFn({ method: "POST" })
     renameMarketFolder(context.user.id, data.folderId, data.name)
   )
 
-const reorderMarketFoldersFn = createServerFn({ method: "POST" })
+const saveMarketPanelLayoutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(reorderFoldersSchema)
-  .handler(({ data, context }) => reorderMarketFolders(context.user.id, data))
+  .inputValidator(panelLayoutSchema)
+  .handler(({ data, context }) => saveMarketPanelLayout(context.user.id, data))
 
 const deleteMarketFolderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -107,12 +120,14 @@ export function createFolder(input: {
 export function renameFolder(folderId: string, name: string) {
   return renameMarketFolderFn({ data: { folderId, name } })
 }
-export function reorderFolders(input: {
+/** The order of every panel row and which ones the eye switched off. */
+export function savePanelLayout(input: {
   protocol: ProtocolId
   network: NetworkId
-  folderIds: string[]
-}) {
-  return reorderMarketFoldersFn({ data: input })
+  rowIds: string[]
+  hiddenRowIds: string[]
+}): Promise<{ folders: MarketFolder[]; panelRows: MarketPanelRows }> {
+  return saveMarketPanelLayoutFn({ data: input })
 }
 export function deleteFolder(folderId: string) {
   return deleteMarketFolderFn({ data: { folderId } })
@@ -125,18 +140,17 @@ export const getMarketFolderErrorMessage = createErrorMessage(
       "Folder names can be at most 80 characters.",
     "You already have a market folder with that name":
       "You already have a market folder with that name.",
-    "A market folder can hold at most 100 coins":
-      "A market folder can hold at most 100 coins.",
+    "A market folder can hold at most 500 coins":
+      "A market folder can hold at most 500 coins.",
     "You can have at most 100 named market folders":
       "You can have at most 100 named market folders.",
     "That coin belongs to another exchange":
       "That coin belongs to another exchange.",
     "That market folder no longer exists":
       "That market folder no longer exists.",
-    "Fav cannot be renamed": "Fav cannot be renamed.",
     "Fav cannot be deleted": "Fav cannot be deleted.",
-    "Those market folders could not be reordered":
-      "Those market folders could not be reordered.",
+    "That folder arrangement could not be saved":
+      "That folder arrangement could not be saved. Reload the page and try it again.",
   },
   "That market folder change did not save. Try it again."
 )

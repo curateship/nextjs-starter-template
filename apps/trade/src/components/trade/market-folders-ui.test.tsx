@@ -8,15 +8,40 @@ import { MarketFolderStar } from "@/components/trade/market-folder-star"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import {
+  DEFAULT_MARKET_PANEL_ROWS,
+  type MarketFolder,
+} from "@/lib/trade/market-folders"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+
+// The panel's saves are server functions, which cannot run in jsdom. Only the
+// layout save is stubbed; everything else in the module stays real.
+const savePanelLayout = vi.fn(
+  async (_input: {
+    protocol: string
+    network: string
+    rowIds: string[]
+    hiddenRowIds: string[]
+  }) => ({
+    folders: [] as MarketFolder[],
+    panelRows: DEFAULT_MARKET_PANEL_ROWS,
+  })
+)
+vi.mock("@/lib/api/market-folders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/market-folders")>()),
+  // Called rather than passed: `vi.mock` is hoisted above the const above it,
+  // so the stub can only be reached once the module is actually used.
+  savePanelLayout: (input: Parameters<typeof savePanelLayout>[0]) =>
+    savePanelLayout(input),
+}))
 
 const fav: MarketFolder = {
   id: "00000000-0000-4000-8000-000000000001",
   name: "Fav",
   isFav: true,
   position: 0,
+  hidden: false,
   marketKeys: [],
 }
 
@@ -72,7 +97,9 @@ const shared = {
   },
   walletName: () => "Practice",
   selectedMarketKey: null,
+  panelRows: DEFAULT_MARKET_PANEL_ROWS,
   onFoldersChange: () => {},
+  onPanelRowsChange: () => {},
   onSelectMarket: () => {},
   onRetryMarkets: () => {},
 }
@@ -178,6 +205,7 @@ describe("the market folder controls", () => {
       name: "Test",
       isFav: false,
       position: 1,
+      hidden: false,
       marketKeys: [],
     }
     await act(async () => {
@@ -215,14 +243,31 @@ describe("the market folder controls", () => {
     )!
     await act(async () => click(manageFolders))
     expect(document.body.textContent).toContain("Manage folders")
-    expect(document.body.textContent).toContain("Fav always stays first")
     expect(
       document.body.querySelector('input[aria-label="New folder name"]')
     ).not.toBeNull()
     expect(document.body.textContent).toContain("New folder")
     expect(document.body.textContent).toContain("Create")
     expect(document.body.textContent).toContain("Order")
-    expect(document.body.textContent).toContain("Always first")
+    // Every row of the panel drags and hides, the two that are not folders
+    // included, and only a named folder can be deleted.
+    for (const name of ["Watched", "Fav", "Test", "All markets"]) {
+      expect(
+        document.body.querySelector(`button[aria-label="Reorder ${name}"]`)
+      ).not.toBeNull()
+      expect(
+        document.body.querySelector(`button[aria-label="Hide ${name}"]`)
+      ).not.toBeNull()
+    }
+    expect(
+      document.body.querySelector('button[aria-label="Delete Test"]')
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('button[aria-label="Delete Fav"]')
+    ).toBeNull()
+    expect(
+      document.body.querySelector('input[aria-label="Rename Fav"]')
+    ).toBeNull()
     expect(favToggle.textContent).toContain("1 market")
     // The one 12px gutter the whole panel shares, header and body alike.
     expect(favToggle.className).toContain("px-3")
@@ -244,6 +289,107 @@ describe("the market folder controls", () => {
       folderPanel.querySelectorAll('button[aria-expanded="false"]')
     ).find((button) => button.textContent?.includes("Test"))!
     expect(testToggle.parentElement?.className).toContain("border-t")
+  })
+
+  it("follows the saved order and leaves a switched-off row out", async () => {
+    const named: MarketFolder = {
+      id: "00000000-0000-4000-8000-000000000002",
+      name: "Daily",
+      isFav: false,
+      position: 1,
+      hidden: true,
+      marketKeys: [],
+    }
+    await act(async () => {
+      root.render(
+        <MarketFoldersPanel
+          {...shared}
+          folders={[fav, named]}
+          catalogs={catalogs}
+          // All markets dragged above everything, Watched switched off.
+          panelRows={{
+            all: { position: -2, hidden: false },
+            watched: { position: -1, hidden: true },
+          }}
+        />
+      )
+    })
+
+    const toggles = Array.from(host.querySelectorAll("button[aria-expanded]"))
+    expect(toggles.map((one) => one.textContent)).toHaveLength(2)
+    expect(toggles[0]!.textContent).toContain("All markets")
+    expect(toggles[1]!.textContent).toContain("Fav")
+    expect(host.textContent).not.toContain("Watched")
+    expect(host.textContent).not.toContain("Daily")
+
+    // Both switched-off rows are still in the cog window, saying so, with an
+    // eye that offers to bring them back.
+    await act(async () =>
+      click(host.querySelector('button[aria-label="Manage folders"]')!)
+    )
+    expect(
+      document.body.querySelector('button[aria-label="Show Watched"]')
+    ).not.toBeNull()
+    expect(
+      document.body.querySelector('button[aria-label="Show Daily"]')
+    ).not.toBeNull()
+    expect(document.body.textContent).toContain("Hidden")
+  })
+
+  it("sends the whole arrangement when an eye is pressed", async () => {
+    savePanelLayout.mockClear()
+    const named: MarketFolder = {
+      id: "00000000-0000-4000-8000-000000000002",
+      name: "Daily",
+      isFav: false,
+      position: 1,
+      hidden: false,
+      marketKeys: [],
+    }
+    await act(async () => {
+      root.render(
+        <MarketFoldersPanel
+          {...shared}
+          folders={[fav, named]}
+          catalogs={catalogs}
+        />
+      )
+    })
+
+    await act(async () =>
+      click(host.querySelector('button[aria-label="Manage folders"]')!)
+    )
+    await act(async () =>
+      click(document.body.querySelector('button[aria-label="Hide Daily"]')!)
+    )
+
+    expect(savePanelLayout).toHaveBeenCalledWith({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      rowIds: ["watched", fav.id, named.id, "all"],
+      hiddenRowIds: [named.id],
+    })
+  })
+
+  it("lets Fav be renamed from the cog window", async () => {
+    await act(async () => {
+      root.render(
+        <MarketFoldersPanel {...shared} folders={[fav]} catalogs={catalogs} />
+      )
+    })
+
+    await act(async () =>
+      click(host.querySelector('button[aria-label="Manage folders"]')!)
+    )
+    // Inside the window, not the panel behind it: both list a row called Fav.
+    const dialog = document.body.querySelector('[role="dialog"]')!
+    const favRow = Array.from(dialog.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim().startsWith("Fav")
+    )!
+    await act(async () => click(favRow))
+    expect(
+      document.body.querySelector('input[aria-label="Rename Fav"]')
+    ).not.toBeNull()
   })
 
   it("does not call a volume-hidden folder empty", async () => {

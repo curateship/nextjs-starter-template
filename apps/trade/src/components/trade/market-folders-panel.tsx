@@ -7,9 +7,10 @@ import {
 } from "@dnd-kit/sortable"
 import {
   ChevronRightIcon,
+  EyeIcon,
+  EyeOffIcon,
   FolderIcon,
   GripVerticalIcon,
-  LockIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
@@ -52,26 +53,42 @@ import {
   createFolder,
   deleteFolder,
   getMarketFolderErrorMessage,
-  reorderFolders,
   renameFolder,
+  savePanelLayout,
 } from "@/lib/api/market-folders"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { TradeOrder } from "@/lib/trade/paper"
-import type { MarketFolder } from "@/lib/trade/market-folders"
+import {
+  ALL_ROW,
+  WATCHED_ROW,
+  type MarketFolder,
+  type MarketPanelRows,
+} from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
- * The ids of the two rows that are not folders. Real folder ids are UUIDs,
- * so neither can collide with one.
+ * One row of the panel: a folder, or one of the two rows that are not folders.
+ *
+ * Watched and All markets have no coins, no name to change and nothing to
+ * delete, so `folder` is null on those two and the cog window leaves out the
+ * controls that would have nothing to act on.
  */
-const WATCHED_ROW = "watched"
-const ALL_ROW = "all"
+type PanelRow = {
+  id: string
+  name: string
+  count: string
+  position: number
+  hidden: boolean
+  folder: MarketFolder | null
+  body: React.ReactNode
+}
 
 export function MarketFoldersPanel({
   folders,
+  panelRows,
   protocol,
   network,
   catalogs,
@@ -80,10 +97,13 @@ export function MarketFoldersPanel({
   walletName,
   selectedMarketKey,
   onFoldersChange,
+  onPanelRowsChange,
   onSelectMarket,
   onRetryMarkets,
 }: {
   folders: readonly MarketFolder[]
+  /** Where Watched and All markets sit, and whether either is switched off. */
+  panelRows: MarketPanelRows
   protocol: ProtocolId
   network: NetworkId
   catalogs: readonly FilteredMarketCatalog[]
@@ -106,12 +126,14 @@ export function MarketFoldersPanel({
   walletName: (walletId: string) => string
   selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
+  onPanelRowsChange: (rows: MarketPanelRows) => void
   onSelectMarket: (marketKey: string) => void
   onRetryMarkets: () => void
 }) {
   // Watched opens the panel: a price you have money committed to beats a
   // market you might look at, which is the same reason the old panel opened
-  // on its Watched tab.
+  // on its Watched tab. Whichever row now sits first wins if Watched has been
+  // hidden or dragged down the list.
   const [expandedId, setExpandedId] = React.useState<string | null>(WATCHED_ROW)
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
@@ -136,17 +158,15 @@ export function MarketFoldersPanel({
   )
   const sensors = useNavSensors()
 
-  // Every row of the panel, drawn one way: Watched first — a price you have
-  // money committed to beats a market you might look at — then the saved
-  // folders, then the whole catalogue last. Watched and All are not folders,
-  // but they wear a folder's row (decided 23 Aug 2026) so the left column is
-  // one panel instead of two.
-  const sections: {
-    id: string
-    name: string
-    count: string
-    body: React.ReactNode
-  }[] = [
+  // Every row of the panel, drawn one way: Watched, the saved folders, then
+  // the whole catalogue. Watched and All are not folders, but they wear a
+  // folder's row (decided 23 Aug 2026) so the left column is one panel
+  // instead of two — and since 24 Aug 2026 they drag and hide like one too.
+  //
+  // Built in the old fixed order and then sorted by saved place. The sort is
+  // stable, so two rows that were given the same number keep this order, which
+  // is what puts a folder created after a drag above All markets.
+  const rows: PanelRow[] = [
     {
       id: WATCHED_ROW,
       name: "Watched",
@@ -157,6 +177,9 @@ export function MarketFoldersPanel({
         watchedOrders.settled && !watchedOrders.failed
           ? `${watchedOrders.rows.length} waiting`
           : "",
+      position: panelRows.watched.position,
+      hidden: panelRows.watched.hidden,
+      folder: null,
       body: (
         <WatchedOrdersList
           orders={watchedOrders.rows}
@@ -183,6 +206,9 @@ export function MarketFoldersPanel({
         count: `${folder.marketKeys.length} ${
           folder.marketKeys.length === 1 ? "market" : "markets"
         }`,
+        position: folder.position,
+        hidden: folder.hidden,
+        folder,
         body:
           folderMarkets.length > 0 ? (
             <div className="flex flex-col">
@@ -214,6 +240,9 @@ export function MarketFoldersPanel({
       count: marketsError
         ? ""
         : `${marketRows.length} ${marketRows.length === 1 ? "market" : "markets"}`,
+      position: panelRows.all.position,
+      hidden: panelRows.all.hidden,
+      folder: null,
       body: (
         <AllMarketsList
           catalogs={catalogs}
@@ -224,7 +253,9 @@ export function MarketFoldersPanel({
         />
       ),
     },
-  ]
+  ].sort((left, right) => left.position - right.position)
+
+  const shown = rows.filter((row) => !row.hidden)
 
   function submitNewFolder(event: React.FormEvent) {
     event.preventDefault()
@@ -240,31 +271,65 @@ export function MarketFoldersPanel({
       .finally(() => setBusy(false))
   }
 
-  function reorder(event: DragEndEvent) {
-    if (!event.over || event.active.id === event.over.id || busy) return
-    const named = folders.filter((folder) => !folder.isFav)
-    const from = named.findIndex((folder) => folder.id === event.active.id)
-    const to = named.findIndex((folder) => folder.id === event.over?.id)
-    if (from < 0 || to < 0) return
-    const moved = arrayMove(named, from, to).map((folder, index) => ({
-      ...folder,
-      position: index + 1,
-    }))
-    const previous = [...folders]
-    const next = [...folders.filter((folder) => folder.isFav), ...moved]
-    onFoldersChange(next)
-    setBusy(true)
-    void reorderFolders({
-      protocol,
-      network,
-      folderIds: moved.map((folder) => folder.id),
+  /**
+   * Save the whole arrangement: what order the rows sit in and which the eye
+   * has switched off. The panel shows the change at once and puts back what it
+   * had if the save is refused, so a failed drag never leaves the panel
+   * showing an order the account does not have.
+   */
+  function saveLayout(rowIds: string[], hiddenRowIds: string[]) {
+    const previousFolders = [...folders]
+    const previousRows = panelRows
+    const hidden = new Set(hiddenRowIds)
+    onFoldersChange(
+      folders.map((folder) => ({
+        ...folder,
+        position: rowIds.indexOf(folder.id),
+        hidden: hidden.has(folder.id),
+      }))
+    )
+    onPanelRowsChange({
+      watched: {
+        position: rowIds.indexOf(WATCHED_ROW),
+        hidden: hidden.has(WATCHED_ROW),
+      },
+      all: { position: rowIds.indexOf(ALL_ROW), hidden: hidden.has(ALL_ROW) },
     })
-      .then(onFoldersChange)
+    setBusy(true)
+    void savePanelLayout({ protocol, network, rowIds, hiddenRowIds })
+      .then((saved) => {
+        onFoldersChange(saved.folders)
+        onPanelRowsChange(saved.panelRows)
+      })
       .catch((error) => {
-        onFoldersChange(previous)
+        onFoldersChange(previousFolders)
+        onPanelRowsChange(previousRows)
         showErrorToast(getMarketFolderErrorMessage(error))
       })
       .finally(() => setBusy(false))
+  }
+
+  const hiddenIds = rows.filter((row) => row.hidden).map((row) => row.id)
+
+  function reorder(event: DragEndEvent) {
+    if (!event.over || event.active.id === event.over.id || busy) return
+    const from = rows.findIndex((row) => row.id === event.active.id)
+    const to = rows.findIndex((row) => row.id === event.over?.id)
+    if (from < 0 || to < 0) return
+    saveLayout(
+      arrayMove(rows, from, to).map((row) => row.id),
+      hiddenIds
+    )
+  }
+
+  function toggleHidden(row: PanelRow) {
+    if (busy) return
+    saveLayout(
+      rows.map((one) => one.id),
+      row.hidden
+        ? hiddenIds.filter((id) => id !== row.id)
+        : [...hiddenIds, row.id]
+    )
   }
 
   function saveName(folder: MarketFolder, name: string) {
@@ -343,12 +408,12 @@ export function MarketFoldersPanel({
       ) : null}
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid">
-          {sections.map((section, index) => {
-            const expanded = expandedId === section.id
+          {shown.map((row, index) => {
+            const expanded = expandedId === row.id
             const followsExpandedSection =
-              index > 0 && expandedId === sections[index - 1]?.id
+              index > 0 && expandedId === shown[index - 1]?.id
             return (
-              <div key={section.id}>
+              <div key={row.id}>
                 <div
                   className={cn(
                     "flex h-9 items-center border-b",
@@ -365,13 +430,11 @@ export function MarketFoldersPanel({
                       "flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm font-medium",
                       expanded ? "bg-muted" : "hover:bg-muted/50"
                     )}
-                    onClick={() => setExpandedId(expanded ? null : section.id)}
+                    onClick={() => setExpandedId(expanded ? null : row.id)}
                   >
-                    <span className="min-w-0 flex-1 truncate">
-                      {section.name}
-                    </span>
+                    <span className="min-w-0 flex-1 truncate">{row.name}</span>
                     <span className="w-[4.5rem] shrink-0 text-right text-xs font-normal text-muted-foreground tabular-nums">
-                      {section.count}
+                      {row.count}
                     </span>
                     <ChevronRightIcon
                       className={cn(
@@ -381,10 +444,16 @@ export function MarketFoldersPanel({
                     />
                   </button>
                 </div>
-                {expanded ? section.body : null}
+                {expanded ? row.body : null}
               </div>
             )
           })}
+          {shown.length === 0 ? (
+            <p className="px-3 py-4 text-center text-xs text-muted-foreground">
+              Every row is switched off. Open the cog above and press an eye to
+              bring one back.
+            </p>
+          ) : null}
         </div>
       </ScrollArea>
       {network === "testnet" ? <TestnetStrip /> : null}
@@ -394,8 +463,8 @@ export function MarketFoldersPanel({
           <DialogHeader>
             <DialogTitle>Manage folders</DialogTitle>
             <DialogDescription>
-              Rename folders, drag them into order, or delete ones you no longer
-              need. Fav always stays first.
+              Rename a folder, drag any row into the order you want, or press an
+              eye to keep a row out of the panel. Deleting is for folders only.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
@@ -424,30 +493,15 @@ export function MarketFoldersPanel({
               <CardHeader>
                 <CardTitle>Order</CardTitle>
                 <CardDescription>
-                  Drag to reorder. This is the order folders appear in the
-                  sidebar.
+                  Drag to reorder. This is the order rows appear in the panel. A
+                  row with a line through its eye is switched off and keeps
+                  everything it holds.
                 </CardDescription>
                 <CardAction className="text-xs text-muted-foreground tabular-nums">
                   {folders.length} {folders.length === 1 ? "folder" : "folders"}
                 </CardAction>
               </CardHeader>
               <CardContent className="grid gap-2">
-                {folders
-                  .filter((folder) => folder.isFav)
-                  .map((folder) => (
-                    <div
-                      key={folder.id}
-                      className="flex h-10 items-center gap-3 px-2"
-                    >
-                      <LockIcon className="size-4 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate font-medium">
-                        {folder.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Always first
-                      </span>
-                    </div>
-                  ))}
                 <DndContext
                   id="trade-market-folders"
                   sensors={sensors}
@@ -455,29 +509,28 @@ export function MarketFoldersPanel({
                   onDragEnd={reorder}
                 >
                   <SortableContext
-                    items={folders
-                      .filter((folder) => !folder.isFav)
-                      .map((folder) => folder.id)}
+                    items={rows.map((row) => row.id)}
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="grid gap-2">
-                      {folders
-                        .filter((folder) => !folder.isFav)
-                        .map((folder) => (
-                          <FolderManagerRow
-                            key={folder.id}
-                            folder={folder}
-                            disabled={busy}
-                            editing={editingId === folder.id}
-                            onEdit={() => setEditingId(folder.id)}
-                            onRename={(name) => saveName(folder, name)}
-                            onFinishEdit={() => setEditingId(null)}
-                            onDelete={() => {
-                              setEditingId(null)
-                              setDeleting(folder)
-                            }}
-                          />
-                        ))}
+                      {rows.map((row) => (
+                        <PanelRowManager
+                          key={row.id}
+                          row={row}
+                          disabled={busy}
+                          editing={editingId === row.id}
+                          onEdit={() => setEditingId(row.id)}
+                          onRename={(name) =>
+                            row.folder && saveName(row.folder, name)
+                          }
+                          onFinishEdit={() => setEditingId(null)}
+                          onToggleHidden={() => toggleHidden(row)}
+                          onDelete={() => {
+                            setEditingId(null)
+                            setDeleting(row.folder)
+                          }}
+                        />
+                      ))}
                     </div>
                   </SortableContext>
                 </DndContext>
@@ -523,28 +576,34 @@ export function MarketFoldersPanel({
   )
 }
 
-function FolderManagerRow({
-  folder,
+function PanelRowManager({
+  row,
   disabled,
   editing,
   onEdit,
   onRename,
   onFinishEdit,
+  onToggleHidden,
   onDelete,
 }: {
-  folder: MarketFolder
+  row: PanelRow
   disabled: boolean
   editing: boolean
   onEdit: () => void
   onRename: (name: string) => void
   onFinishEdit: () => void
+  onToggleHidden: () => void
   onDelete: () => void
 }) {
-  const [name, setName] = React.useState(folder.name)
+  const [name, setName] = React.useState(row.name)
   const { attributes, listeners, setNodeRef, style } = useSortableRow(
-    folder.id,
+    row.id,
     true
   )
+  // Fav can be renamed and Watched and All markets cannot, because those two
+  // are not folders. Only a named folder can be deleted.
+  const renameable = row.folder !== null
+  const deletable = row.folder !== null && !row.folder.isFav
   return (
     <div
       ref={setNodeRef}
@@ -559,65 +618,107 @@ function FolderManagerRow({
         {...attributes}
         {...listeners}
         className={DRAG_HANDLE_CLASS}
-        aria-label={`Reorder ${folder.name}`}
+        aria-label={`Reorder ${row.name}`}
         disabled={disabled}
       >
         <GripVerticalIcon className="size-4" />
       </button>
-      {editing ? (
-        <>
-          <Input
-            autoFocus
-            aria-label={`Rename ${folder.name}`}
-            value={name}
-            maxLength={80}
-            disabled={disabled}
-            onChange={(event) => setName(event.target.value)}
-            onBlur={() => {
-              if (!name.trim()) setName(folder.name)
-              else if (name.trim() !== folder.name) onRename(name)
+      {editing && renameable ? (
+        <Input
+          autoFocus
+          aria-label={`Rename ${row.name}`}
+          value={name}
+          maxLength={80}
+          disabled={disabled}
+          onChange={(event) => setName(event.target.value)}
+          onBlur={() => {
+            if (!name.trim()) setName(row.name)
+            else if (name.trim() !== row.name) onRename(name)
+            onFinishEdit()
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur()
+            if (event.key === "Escape") {
+              setName(row.name)
               onFinishEdit()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") event.currentTarget.blur()
-              if (event.key === "Escape") {
-                setName(folder.name)
-                onFinishEdit()
-              }
-            }}
-          />
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={`Delete ${folder.name}`}
-            title={`Delete ${folder.name}`}
-            disabled={disabled}
-            onPointerDown={(event) => event.preventDefault()}
-            onClick={onDelete}
-          >
-            <Trash2Icon className="size-4" />
-          </Button>
-        </>
-      ) : (
+            }
+          }}
+        />
+      ) : renameable ? (
         <button
           type="button"
           className="flex min-w-0 flex-1 items-center gap-3 self-stretch text-left"
           disabled={disabled}
           onClick={() => {
-            setName(folder.name)
+            setName(row.name)
             onEdit()
           }}
         >
-          <span className="min-w-0 flex-1 truncate font-medium">
-            {folder.name}
-          </span>
-          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-            {folder.marketKeys.length}{" "}
-            {folder.marketKeys.length === 1 ? "market" : "markets"}
-          </span>
+          <RowName name={row.name} count={row.count} hidden={row.hidden} />
         </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <RowName name={row.name} count={row.count} hidden={row.hidden} />
+        </div>
       )}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
+        title={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
+        aria-pressed={row.hidden}
+        disabled={disabled}
+        onPointerDown={(event) => event.preventDefault()}
+        onClick={onToggleHidden}
+      >
+        {row.hidden ? (
+          <EyeOffIcon className="size-4" />
+        ) : (
+          <EyeIcon className="size-4" />
+        )}
+      </Button>
+      {deletable ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`Delete ${row.name}`}
+          title={`Delete ${row.name}`}
+          disabled={disabled}
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={onDelete}
+        >
+          <Trash2Icon className="size-4" />
+        </Button>
+      ) : null}
     </div>
+  )
+}
+
+/** A hidden row is dimmed AND says so, never colour on its own. */
+function RowName({
+  name,
+  count,
+  hidden,
+}: {
+  name: string
+  count: string
+  hidden: boolean
+}) {
+  return (
+    <>
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate font-medium",
+          hidden && "text-muted-foreground"
+        )}
+      >
+        {name}
+      </span>
+      <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+        {hidden ? "Hidden" : count}
+      </span>
+    </>
   )
 }
