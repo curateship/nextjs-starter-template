@@ -30,6 +30,7 @@ export function OptionCard({
   title,
   hint,
   toggle,
+  summary,
   defaultOpen = true,
   footer,
   children,
@@ -39,6 +40,11 @@ export function OptionCard({
   title: string
   hint?: React.ReactNode
   toggle?: { checked: boolean; disabled?: boolean; onChange: (next: boolean) => void }
+  /**
+   * The card's answer — "±5.2%", "$1,200" — printed on the right of the
+   * header, so a folded card still says what will be placed.
+   */
+  summary?: React.ReactNode
   defaultOpen?: boolean
   /**
    * Drawn under the fold rather than inside it — for a note that explains
@@ -76,6 +82,11 @@ export function OptionCard({
         <FieldLabel htmlFor={toggle ? id : undefined} className="min-w-0 flex-1" hint={hint}>
           {title}
         </FieldLabel>
+        {summary !== undefined && summary !== null ? (
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {summary}
+          </span>
+        ) : null}
         <CollapsibleTrigger asChild>
           <button
             type="button"

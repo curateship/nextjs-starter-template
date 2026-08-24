@@ -257,6 +257,14 @@ tell you that. So is the name of each of the four lines you set: UPPER PRICE,
 LOWER PRICE, FINISH and STOP LOSS. The levels in between carry no name, because
 a dozen labelled ones is a wall of text over the price action.
 
+## The card headers say their answer
+
+Each card on the window prints its answer on the right of its own title, so a
+folded window still reads as a summary of what will be placed: Range shows the
+depth ("±5%", or "−10%" when the grid hangs under a click), Money shows what the
+whole grid costs in dollars, Stop loss and Finish the grid show their
+percentages. A dash means that card's numbers do not make sense yet.
+
 ## What is remembered between grids
 
 The window remembers shape, not prices: how deep, how many levels, how the money

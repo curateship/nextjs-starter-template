@@ -539,6 +539,17 @@ export function GridOrderDialog({
               id="grid-range"
               title="Range"
               hint="Where the grid works, and how many buys it is split into. Each buy sells one step above itself."
+              summary={
+                anchor === "click"
+                  ? below === null
+                    ? "—"
+                    : `−${belowPct}%`
+                  : above === null || below === null
+                    ? "—"
+                    : above === below
+                      ? `±${belowPct}%`
+                      : `+${abovePct}% / −${belowPct}%`
+              }
             >
               <div className="grid gap-2">
                 <FieldLabel
@@ -709,6 +720,7 @@ export function GridOrderDialog({
               id="grid-money"
               title="Money"
               hint="The share of the account the whole grid may spend, and how that share is split between the levels. Whatever a level is given, it spends the same amount cycle after cycle."
+              summary={plan === null ? "—" : formatUsd(plan.totalCost)}
             >
               <div className="grid gap-2">
                 <Label htmlFor="grid-pot" className="text-xs">
@@ -781,6 +793,9 @@ export function GridOrderDialog({
               <OptionCard
                 id="grid-tp-on"
                 title="Finish the grid"
+                summary={
+                  tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
+                }
                 hint="How far above the range price has to get before the grid closes itself. It rarely sells anything: by the time price is up there every level has already sold, so what this really does is stop the grid watching. Without it the grid waits above its range for price to come back down."
                 toggle={{ checked: tpOn, disabled: !loaded, onChange: setTpOn }}
               >
@@ -816,6 +831,13 @@ export function GridOrderDialog({
             <OptionCard
               id="grid-sl-on"
               title="Stop loss"
+              summary={
+                slOn
+                  ? parsed(slUnderPct) === null
+                    ? "—"
+                    : `−${slUnderPct}%`
+                  : null
+              }
               hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
               toggle={{
                 checked: slOn,
