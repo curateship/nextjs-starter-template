@@ -1,7 +1,15 @@
 import { useState } from "react"
 import { endOfDay, startOfDay, subMonths, subWeeks } from "date-fns"
 import { ChartNoAxesCombinedIcon, InfoIcon } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, Line, XAxis, YAxis } from "recharts"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "recharts"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -165,10 +173,7 @@ function profitRangeDates(
       firstAt === undefined || lastAt === undefined
         ? undefined
         : Math.max(firstAt, presetFrom ?? firstAt),
-    to:
-      firstAt === undefined || lastAt === undefined
-        ? undefined
-        : lastAt,
+    to: firstAt === undefined || lastAt === undefined ? undefined : lastAt,
   }
 }
 
@@ -281,6 +286,7 @@ export function PnlGraphWidget({
           answered={answered}
           selectedWalletId={activeSelectedWalletId}
           onSelectWallet={setSelectedWalletId}
+          breakdown={breakdown}
         />
         <ProfitChart
           overview={overview}
@@ -288,7 +294,6 @@ export function PnlGraphWidget({
           data={data}
           config={chartConfig}
           selectedWalletId={activeSelectedWalletId}
-          breakdown={breakdown}
           rangeDates={rangeDates}
         />
       </div>
@@ -382,11 +387,13 @@ function WalletList({
   answered,
   selectedWalletId,
   onSelectWallet,
+  breakdown,
 }: {
   overview: TradingOverview
   answered: AnsweredWallet[]
   selectedWalletId: string | null
   onSelectWallet: (walletId: string | null) => void
+  breakdown: ProfitBreakdown
 }) {
   const [sort, rememberSort] = useRememberedChoice<WalletSort>(
     WALLET_SORT_STORAGE_KEY,
@@ -432,7 +439,10 @@ function WalletList({
   }
 
   return (
-    <div className="flex min-h-0 flex-col border-b lg:border-b-0">
+    <section
+      aria-label="Wallets"
+      className="flex min-h-0 flex-col border-b lg:border-b-0"
+    >
       <div className="grid grid-cols-[1fr_auto] gap-3 border-b bg-muted/50 px-5 py-2 text-xs font-medium text-muted-foreground">
         <TableSortButton
           active={sortKey === "wallet"}
@@ -493,7 +503,55 @@ function WalletList({
           )
         })}
       </ScrollArea>
-    </div>
+      <WalletBreakdown breakdown={breakdown} />
+    </section>
+  )
+}
+
+function WalletBreakdown({ breakdown }: { breakdown: ProfitBreakdown }) {
+  return (
+    <aside
+      aria-label={`${breakdown.label} current breakdown`}
+      aria-live="polite"
+      className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3"
+    >
+      <p className="text-xs font-medium">
+        {breakdown.label}
+        <span className="ml-1 font-normal text-muted-foreground">
+          current breakdown
+        </span>
+      </p>
+      <dl className="grid grid-cols-3 gap-x-5 text-xs">
+        <div>
+          <dt className="text-muted-foreground">Settled</dt>
+          <dd
+            className={cn(
+              "font-mono font-medium tabular-nums",
+              moneyTone(breakdown.settled)
+            )}
+          >
+            {formatSignedUsd(breakdown.settled)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Open</dt>
+          <dd
+            className={cn(
+              "font-mono font-medium tabular-nums",
+              moneyTone(breakdown.open)
+            )}
+          >
+            {formatSignedUsd(breakdown.open)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Fees</dt>
+          <dd className="font-mono font-medium tabular-nums">
+            {formatUsd(breakdown.fees)}
+          </dd>
+        </div>
+      </dl>
+    </aside>
   )
 }
 
@@ -529,8 +587,10 @@ function WalletResultRow({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "block w-full cursor-pointer border-b px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-        selected && "bg-muted/60 hover:bg-muted/60"
+        "block w-full cursor-pointer border-r-2 border-b px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+        selected
+          ? "border-r-foreground bg-muted/60 hover:bg-muted/60"
+          : "border-r-transparent"
       )}
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
@@ -564,11 +624,12 @@ function WalletResultRow({
               className="h-full w-full"
               aria-label={`${label} profit over time`}
             >
-              <AreaChart
+              <LineChart
                 data={chartData}
                 margin={{ top: 3, right: 1, bottom: 3, left: 1 }}
               >
                 <ChartTooltip
+                  cursor={false}
                   content={
                     <ChartTooltipContent
                       hideIndicator
@@ -593,14 +654,13 @@ function WalletResultRow({
                     />
                   }
                 />
-                <Area
+                <Line
                   type="stepAfter"
                   dataKey="money"
                   isAnimationActive={false}
                   stroke="var(--color-money)"
                   strokeWidth={1.25}
-                  fill="var(--color-money)"
-                  fillOpacity={0.08}
+                  dot={false}
                   activeDot={{
                     r: 4,
                     fill: "var(--color-money)",
@@ -608,7 +668,7 @@ function WalletResultRow({
                     strokeWidth: 3,
                   }}
                 />
-              </AreaChart>
+              </LineChart>
             </ChartContainer>
           ) : null}
         </div>
@@ -654,7 +714,6 @@ function ProfitChart({
   data,
   config,
   selectedWalletId,
-  breakdown,
   rangeDates,
 }: {
   overview: TradingOverview
@@ -662,20 +721,18 @@ function ProfitChart({
   data: TradingOverviewProfitChartPoint[]
   config: ChartConfig
   selectedWalletId: string | null
-  breakdown: ProfitBreakdown
   rangeDates: ReturnType<typeof profitRangeDates>
 }) {
   const shownData =
     rangeDates.from === undefined || rangeDates.to === undefined
       ? []
-      : filterTradingOverviewProfitSeries(
-          data,
-          rangeDates.from,
-          rangeDates.to
-        )
+      : filterTradingOverviewProfitSeries(data, rangeDates.from, rangeDates.to)
 
   return (
-    <div className="flex min-h-72 min-w-0 flex-col px-5 py-4">
+    <section
+      aria-label="Money over time"
+      className="flex min-h-72 min-w-0 flex-col px-5 py-4"
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-medium text-muted-foreground">
           Money over time
@@ -814,48 +871,6 @@ function ProfitChart({
           </AreaChart>
         </ChartContainer>
       )}
-      <aside
-        aria-label={`${breakdown.label} current breakdown`}
-        aria-live="polite"
-        className="-mx-5 -mb-4 mt-3 flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3"
-      >
-        <p className="text-xs font-medium">
-          {breakdown.label}
-          <span className="ml-1 font-normal text-muted-foreground">
-            current breakdown
-          </span>
-        </p>
-        <dl className="grid grid-cols-3 gap-x-5 text-xs">
-          <div>
-            <dt className="text-muted-foreground">Settled</dt>
-            <dd
-              className={cn(
-                "font-mono font-medium tabular-nums",
-                moneyTone(breakdown.settled)
-              )}
-            >
-              {formatSignedUsd(breakdown.settled)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Open</dt>
-            <dd
-              className={cn(
-                "font-mono font-medium tabular-nums",
-                moneyTone(breakdown.open)
-              )}
-            >
-              {formatSignedUsd(breakdown.open)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground">Fees</dt>
-            <dd className="font-mono font-medium tabular-nums">
-              {formatUsd(breakdown.fees)}
-            </dd>
-          </div>
-        </dl>
-      </aside>
-    </div>
+    </section>
   )
 }

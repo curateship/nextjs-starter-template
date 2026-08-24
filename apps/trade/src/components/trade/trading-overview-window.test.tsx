@@ -103,16 +103,29 @@ describe("what the widgets say about when they started", () => {
     expect(walletButtons[0].textContent).toContain("All wallets")
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("true")
     expect(walletButtons[0].className).toContain("bg-muted/60")
+    expect(walletButtons[0].className).toContain("border-r-foreground")
+    expect(walletButtons[1].className).toContain("border-r-transparent")
     expect(walletButtons[1].className).toContain("cursor-pointer")
+    const accountBreakdown = host.querySelector(
+      '[aria-label="All wallets current breakdown"]'
+    )
+    expect(accountBreakdown).not.toBeNull()
     expect(
-      host.querySelector('[aria-label="All wallets current breakdown"]')
-    ).not.toBeNull()
+      accountBreakdown?.closest("section")?.getAttribute("aria-label")
+    ).toBe("Wallets")
+    expect(
+      host.querySelector(
+        '[aria-label="Money over time"] [aria-label$="current breakdown"]'
+      )
+    ).toBeNull()
 
     act(() => walletButtons[1].click())
 
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("false")
     expect(walletButtons[1].getAttribute("aria-pressed")).toBe("true")
     expect(walletButtons[1].className).toContain("bg-muted/60")
+    expect(walletButtons[0].className).toContain("border-r-transparent")
+    expect(walletButtons[1].className).toContain("border-r-foreground")
     expect(
       host.querySelector('[aria-label="Main current breakdown"]')
     ).not.toBeNull()

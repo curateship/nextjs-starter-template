@@ -1094,18 +1094,23 @@ it produced can be read together.
 
 The left side starts with All wallets and then lists each real mainnet wallet.
 Every answered row has the wallet's balance, Made or lost, and a small line over
-time. Settled, open, and fee figures appear once below the main graph for the
-selected wallet. Selecting All wallets shows the account-wide breakdown there.
+time. Settled, open, and fee figures appear once at the bottom of the wallet
+pane for the selected wallet. Selecting All wallets shows the account-wide
+breakdown there. The graph pane stays clear for the money-over-time chart.
 A switched-off wallet stays as a quiet row saying it was not counted. A wallet
 whose exchange did not answer stays named as a failed answer. It never becomes
 a row of zeroes. The
-All wallets row starts selected. The selected row has a light gray background
-and heavier wallet name. Every answered wallet row has a hand cursor and can be
-selected by mouse or keyboard. Selecting one makes its chart line strong and
-quietens the other lines. The right side draws the All wallets line strongly
+All wallets row starts selected. The selected row has a light gray background,
+a 2px high-contrast right border, and a heavier wallet name. Every row reserves
+the border's width so changing the selection does not shift its contents. Every
+answered wallet row has a hand cursor and can be selected by mouse or keyboard.
+Selecting one makes its chart line strong and quietens the other lines. The
+right side draws the All wallets line strongly
 and each answered wallet as a lighter line. Hovering the chart names the date
 and the amount for every line. Hovering a wallet's small line keeps its dot and
 opens a readout with the date and that wallet's result at the marked point.
+The mini graph is a plain line and does not draw a filled block when it is
+clicked.
 The Wallets and Made or lost headings sort the wallet rows in either direction.
 All wallets is an account summary and stays pinned first. Unavailable results
 stay at the bottom when sorting by money. The last sort is remembered in this
