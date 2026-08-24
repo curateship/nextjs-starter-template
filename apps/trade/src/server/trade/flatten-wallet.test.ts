@@ -22,9 +22,10 @@ import {
  *
  * **The claim these defend is the order of operations.** Selling first leaves a
  * window where a rung waiting below fills and reopens the coin that was just
- * closed, and that is the gap in the existing all-wallets Close all. So every
- * ladder and grid comes off before anything is sold, and a cancel that is
- * refused stops the whole thing rather than selling under a live ladder.
+ * closed, and Close all can still be left in that state by unticking its
+ * ladders. So every ladder and grid comes off before anything is sold here, and
+ * a cancel that is refused stops the whole thing rather than selling under a
+ * live ladder.
  *
  * **And that the selling is a chase, not a market order.** Every position goes
  * through the same reduce-only maker order a part close uses, which is what

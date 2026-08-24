@@ -486,14 +486,23 @@ export type Trading = {
    */
   cancelAllSmartOrders: () => Promise<void>
   /**
+   * Every watched price called off at once, across every wallet holding one.
+   *
+   * A watched price is not resting anywhere until its level is touched, so
+   * this is a row of database writes and they all go together. Nothing is
+   * bought and nothing is sold: the lines leave the chart and that is all.
+   */
+  cancelAllWatchedOrders: () => Promise<void>
+  /**
    * Empties one wallet: its ladders and grids called off, then everything it
    * holds sold with limits that follow the price.
    *
    * **Not `closeAll` scoped to a wallet.** `closeAll` pays the spread on every
-   * coin to be out this second and leaves the waiting orders running, so the
-   * first rung to fill puts a position straight back. This calls those off
-   * first and then sells as a maker, which is what the trading rules ask of a
-   * close. Being out this second is still `closeAll`.
+   * coin to be out this second, and it only ever closes positions — the Close
+   * all menu calls the ladders and watches off through their own functions
+   * beside it, and either can be unticked. This calls them off first, always,
+   * and then sells as a maker, which is what the trading rules ask of a close.
+   * Being out this second is still `closeAll`.
    *
    * The selling happens in the engine, so this returns once every sale has
    * been STARTED, not once anything has sold.
@@ -2050,6 +2059,92 @@ export function useTrading(
       }
     }, [smartOrders, refresh, nameOf])
 
+  /**
+   * Every watched price called off in one press.
+   *
+   * **Together, not one at a time.** A watch is a row in this app's own
+   * database until its level is touched — nothing is resting at an exchange —
+   * so there is no venue queue to be polite about, and this is a press made
+   * while a market is moving.
+   *
+   * Each one goes through `cancelWatch`, the same door the × on its own row
+   * uses, so a sweep can never call a watch off differently from a hand on
+   * each line. Every row leaves the screen on the press and a refused one
+   * comes straight back and says why.
+   */
+  const cancelAllWatchedOrders: Trading["cancelAllWatchedOrders"] =
+    React.useCallback(async () => {
+      const waiting = watchOrders
+      if (waiting.length === 0) return
+      const pressedAt = Date.now()
+
+      setPending((count) => count + 1)
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const order of waiting) next.set(order.id, pressedAt)
+        return next
+      })
+      try {
+        const answers = await Promise.allSettled(
+          waiting.map((order) =>
+            cancelWatch({ walletId: order.walletId, ladderId: order.id })
+          )
+        )
+
+        const refused: { order: TradeOrder; reason: string }[] = []
+        const gone: string[] = []
+        answers.forEach((answer, at) => {
+          if (answer.status === "rejected") {
+            refused.push({
+              order: waiting[at],
+              reason: getTradingSmartOrderError(answer.reason),
+            })
+            return
+          }
+          gone.push(waiting[at].id)
+        })
+
+        // One placed seconds ago may still be standing in from the placement
+        // answer while the full account read catches up — see `cancel`.
+        if (gone.length > 0) {
+          const off = new Set(gone)
+          setPlacedSmart((held) => held.filter((one) => !off.has(one.id)))
+        }
+
+        // A refused watch was never called off, so its hold is let go at once
+        // and its line comes back rather than sitting hidden for thirty
+        // seconds.
+        if (refused.length > 0) {
+          setCancelling((held) => {
+            const next = new Map(held)
+            for (const one of refused) next.delete(one.order.id)
+            return next
+          })
+          // Named with its wallet, because this panel lists several and the
+          // coin on its own does not say which one is still waiting.
+          const named = (one: (typeof refused)[number]) =>
+            `${marketSymbol(one.order.marketKey)} in ${nameOf(one.order.walletId)}`
+          showErrorToast(
+            refused.length === 1
+              ? `${named(refused[0])} is still waiting: ${refused[0].reason}`
+              : `${refused.length} are still waiting — ${refused
+                  .map(named)
+                  .join(", ")}. The first said: ${refused[0].reason}`
+          )
+        }
+        if (gone.length > 0) {
+          toast.success(
+            gone.length === 1
+              ? "1 watched price called off."
+              : `${gone.length} watched prices called off.`
+          )
+        }
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    }, [watchOrders, refresh, nameOf])
+
   const setPositionLeverage: Trading["setPositionLeverage"] =
     React.useCallback(
       async (position, leverage) => {
@@ -2199,6 +2294,7 @@ export function useTrading(
     setGridStop,
     setGridFollow,
     cancelAllSmartOrders,
+    cancelAllWatchedOrders,
     flattenWallet,
     setPositionLeverage,
     adjustPositionMargin,

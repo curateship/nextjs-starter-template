@@ -17,7 +17,11 @@ import {
 } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 import { moneyTone } from "@/lib/trade/money-tone"
-import type { SmartOrder, SmartOrderKind } from "@/lib/trade/smart-plan"
+import {
+  smartOrdersYouPlaced,
+  type SmartOrder,
+  type SmartOrderKind,
+} from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
@@ -117,19 +121,11 @@ export function SmartOrdersPanel({
     })
   // Placed by hand. An order carrying a run id was placed by a flow, and one
   // written before that was recorded reads as a hand-placed one — which is
-  // what it looks like on screen anyway.
-  const mine = React.useMemo(
-    () =>
-      shownOrders.filter(
-        // A watched price is a plain order that has not fired yet — it shares
-        // the smart orders' table because the engine watches it the same way,
-        // but it is not a strategy and it already has a line on the chart and
-        // a row under Open orders. Listing it here too made one order read as
-        // two things.
-        (order) => order.flowRunId === null && order.kind !== "watch"
-      ),
-    [shownOrders]
-  )
+  // what it looks like on screen anyway. The Positions tab leaves out the
+  // coins this same list covers, so both come from one function.
+  const mine = React.useMemo(() => smartOrdersYouPlaced(shownOrders), [
+    shownOrders,
+  ])
   const marks = useLiveMarks(mine.map((one) => one.marketKey))
   const held = React.useMemo(
     () =>

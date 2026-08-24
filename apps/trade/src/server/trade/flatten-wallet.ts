@@ -19,8 +19,9 @@ import {
  *
  * **Stand down first, then sell.** Selling first leaves a window where a rung
  * that was waiting below fills and reopens the coin that was just closed. The
- * app's own "Close all" has that gap today: its confirm says waiting orders are
- * left alone, and the first rung to fill puts a position straight back.
+ * app's own "Close all" offers the ladders in the same press but lets them be
+ * unticked, and then the first rung to fill puts a position straight back.
+ * Emptying a wallet never offers that choice.
  *
  * ## A cancel that is refused stops the whole thing
  *

@@ -123,37 +123,92 @@ and half a window's width left the market list too narrow to read (decided
 everything, and a screen below the wide-screen line keeps its own layout —
 the chart as the page with the side panels behind the header's two buttons.
 
-### The bottom panel's two stand-everything-down buttons
+### What the Positions tab lists
 
-Both live in the bottom panel's tab row, side by side, and each is there only
-while it has something to do. **They are two decisions, not one.** Closing what
-you hold and standing your waiting orders down are different things, and a fast
-market is exactly when somebody wants one without the other.
+The Positions tab lists everything you are holding **except the coins the Smart
+orders panel is already showing on the right** (decided 24 Aug 2026). A ladder's
+coin appears there under the strategy that owns it, with what that strategy is
+doing, so listing its position here too put the same holding on screen twice and
+neither copy said which was which.
 
-- **Close all** closes every open position, real money included. Each real one
-  goes through the same close its own row's button uses. Waiting orders are left
-  alone. It wears the muted grey and the icon the chart's own toolbar buttons
-  wear, and its icon is a cross rather than a bin: on the Journal tab it stands
-  beside **Remove**, which throws records away, and one icon meaning both
-  "delete these rows" and "sell everything I own" is how a fast press goes to
-  the wrong button.
-- **Cancel smart orders** calls off every ladder and every grid you placed
-  yourself, across every wallet, through the same Stop each one has of its own.
-  **It closes nothing.** What those orders already bought stays open with its
-  stop still under it, which the confirm says out loud because the opposite is a
-  reasonable thing to assume.
+There is no filter to switch. The panel on the right is the other half of this
+list, not a hidden state, and the old All positions / Manual only dropdown is
+gone.
 
-What Cancel smart orders deliberately leaves alone: a flow's orders, because the
-flow would place them again on its next pass and standing a flow down belongs on
-that run's dashboard; and a watched price, which is a plain order that has not
-fired yet and is cancelled from its own chart line or its Open orders row.
+A flow's position stays in this tab. Nothing else on this screen shows it — the
+flow's own orders live on that run's dashboard — so leaving it out would be
+money with nowhere on the page to see it.
 
-Its confirm counts what goes before it goes — how many ladders, how many grids,
-and what they are holding in dollars at today's price. Real money puts the
-figure in the question itself, and the confirm is the second press. It also says
-that **a cancelled ladder loses its plan**: `trading-rules.md` holds that a rung
-is never written off and a ladder ends only when its rungs are used up, so the
-waiting rungs were the plan, and calling them off ends that ladder for good.
+The tab's own count is the number of rows drawn, so the count and the table
+never disagree. **Close all is the exception, and it says so**: it closes the
+coins a ladder or grid is running as well, so its Positions row can read 5 while
+the tab reads 4, and the list names how many of the five are in the panel on the
+right rather than in this tab.
+
+### Close all, and the list it opens
+
+**Close all** is the bottom panel's emergency button. It sits in the tab row and
+is only there while there is something for it to take off. Pressing it opens a
+list rather than doing anything, and the list has three ticks, all ticked
+already (decided 24 Aug 2026):
+
+- **Positions** — every open position, real money included. Each real one goes
+  through the same close its own row's button uses. They are closed at whatever
+  their market costs right now.
+- **Watched** — every watched price still waiting. Nothing is bought at it and
+  its line leaves the chart. A watch is a row in this app until its level is
+  touched, so nothing is taken back off an exchange.
+- **Smart** — every ladder and every grid you placed yourself, across every
+  wallet, through the same Stop each one has of its own. **It closes nothing.**
+  What those orders already bought stays open with its stop still under it.
+
+Untick whatever should stay. Closing what you hold and standing your waiting
+orders down are different decisions, and a fast market is exactly when somebody
+wants one without the other. Every opening starts with all three ticked again,
+because last time's answer was about last time's market.
+
+The button at the foot of the list says **Confirm close all**, and that press is
+the confirmation — there is no second window. The three jobs start together and
+none of them queues behind another, so a stuck watch can never be the reason
+real money stayed open.
+
+The button wears the muted grey and the icon the chart's own toolbar buttons
+wear, and its icon is a cross rather than a bin: on the Journal tab it stands
+beside **Remove**, which throws records away, and one icon meaning both "delete
+these rows" and "sell everything I own" is how a fast press goes to the wrong
+button.
+
+#### What the list says before you press
+
+Each row carries its own count, and how much of that count is real money —
+"3, 2 real", or just "3 real" when every one of them is, because printing the
+same number twice is noise. Under the rows, only the sentences that apply to
+what is ticked are shown, so the question stays short enough to actually read
+in a hurry:
+
+- Real money gets its own line, counted across only what is ticked, with the
+  dollars behind the real positions at today's price.
+- **A cancelled ladder loses its plan.** `trading-rules.md` holds that a rung is
+  never written off and a ladder ends only when its rungs are used up, so the
+  waiting rungs were the plan, and calling them off ends that ladder for good.
+- **A plain order still waiting is left alone**, and the line says how many and
+  that any of them can buy back in if it fills. Closing positions without
+  taking those off is how an emptied account holds coins again a minute later.
+  The line says "waiting" rather than "resting on the exchange", because a
+  practice wallet's orders wait inside this app and no exchange has heard of
+  them.
+- **A coin a ladder or grid is running closes with the rest**, and the line says
+  how many, because those coins are listed in the Smart orders panel rather than
+  the Positions tab and the row's count would otherwise look wrong.
+
+With nothing ticked the list says so, and Confirm close all is still pressable:
+pressing it answers with a toast rather than sitting greyed out with no way to
+say why.
+
+What Close all deliberately leaves alone: a flow's orders, because the flow
+would place them again on its next pass and standing a flow down belongs on that
+run's dashboard; and plain orders resting on an exchange, which are cancelled
+from their own chart line or their Open orders row.
 
 A refusal is never dressed up as success. Four called off and two refused says
 which two are still running, in the exchange's own words, and the two that

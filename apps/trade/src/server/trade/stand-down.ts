@@ -23,7 +23,7 @@ import {
  * an exchange that is probably already busy — this is a button pressed when a
  * market is moving. What is bought stays bought either way.
  *
- * Two buttons share this: the Cancel smart orders press in the bottom panel,
+ * Two buttons share this: the Smart tick in the bottom panel's Close all menu,
  * and emptying a wallet, which stands everything down before it sells anything.
  * Written here rather than in one of them so the two can never drift apart.
  */

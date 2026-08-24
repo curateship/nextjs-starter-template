@@ -773,7 +773,7 @@ export function PositionsTable({
               failed={failed}
               loadingLabel="Reading what you are holding"
               onRetry={onRetry}
-              empty="No open positions. Anything you are holding shows up here."
+              empty="No open positions here. A coin a ladder or grid is running shows in the Smart orders panel instead."
             >
               The positions could not be read, so it is not known whether you
               are holding anything.

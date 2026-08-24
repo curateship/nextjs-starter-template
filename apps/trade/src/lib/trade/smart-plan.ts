@@ -91,6 +91,29 @@ export function laddersAndGridsYouPlaced(
   )
 }
 
+/**
+ * The smart orders the Smart orders panel lists — ladders, grids and signals
+ * somebody placed themselves.
+ *
+ * **The same list decides which positions the Positions tab leaves out.** A
+ * coin one of these is running is already on screen in the right-hand panel,
+ * with the strategy that owns it, so listing its position again in the bottom
+ * panel put the same holding on screen twice. One function so the two lists
+ * can never disagree about which coins those are.
+ *
+ * A flow's orders are not here: the flow has its own run dashboard, and its
+ * position stays in the Positions tab because nothing else on this screen
+ * shows it. A watched price is not here either — it has not bought anything
+ * yet, and it already has a chart line and an Open orders row.
+ */
+export function smartOrdersYouPlaced(
+  orders: readonly SmartOrder[]
+): SmartOrder[] {
+  return orders.filter(
+    (order) => order.flowRunId === null && order.kind !== "watch"
+  )
+}
+
 /** The kind a stored row claims to be, or null when it is not one we know. */
 export function readSmartOrderKind(value: unknown): SmartOrderKind | null {
   return SMART_ORDER_KINDS.includes(value as SmartOrderKind)

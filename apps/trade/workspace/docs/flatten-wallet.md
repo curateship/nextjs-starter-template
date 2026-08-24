@@ -9,9 +9,10 @@ has waiting and then sells everything it holds.
 **Stand down first, then sell.** Selling first leaves a window where a rung
 waiting below fills and reopens the coin that was just closed.
 
-That gap is real in the app today. "Close all" in the bottom panel says
-"Waiting orders are left alone", and it means it: a ladder keeps working after
-it, so the first rung to fill puts a position straight back.
+The gap is real whenever the selling happens first. "Close all" in the bottom
+panel now offers the ladders and the watched prices in the same press, but
+untick them and a ladder keeps working after it, so the first rung to fill puts
+a position straight back. Emptying a wallet never offers that choice.
 
 ## A cancel that is refused stops the whole thing
 
@@ -66,8 +67,8 @@ that coin's close rather than taking the order back — see `part-close.md`.
 
 ## What is not covered
 
-The all-wallets "Close all" keeps its own behaviour, including its market
-orders and its "waiting orders are left alone". Changing that is a separate
-decision. Plain watched orders are not cancelled by emptying a wallet either;
-they are a hand-placed level rather than a strategy, and each has its own × on
-the chart and in Open orders.
+The all-wallets "Close all" keeps its own behaviour: it sells at the market to
+be out this second, and it works across every wallet rather than one. See
+`ui-ux.md` for the list it opens. Plain watched orders are not cancelled by
+emptying a wallet; they are a hand-placed level rather than a strategy, and each
+has its own × on the chart and in Open orders. Close all can take them off.
