@@ -78,6 +78,7 @@ import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { useRememberedPanelLayoutInPlace } from "@/lib/trade/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   favFolder,
   type MarketFolder,
@@ -164,6 +165,7 @@ export function TradeWorkspace({
   initialIndicators,
   initialCardFolds,
   initialQuickOrder,
+  initialRunningBots,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -191,6 +193,8 @@ export function TradeWorkspace({
   initialCardFolds: CardFoldsValue
   /** How the right-click order window was last set up. */
   initialQuickOrder: QuickOrderPrefs
+  /** The Bots tab's first answer from the dashboard's one opening call. */
+  initialRunningBots: { rows: RunningBot[]; error: string | null }
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -769,6 +773,10 @@ export function TradeWorkspace({
             className="flex min-h-[52.4px] flex-1 flex-col"
           >
             <SmartOrdersPanel
+              key={protocol}
+              protocol={protocol}
+              initialBots={initialRunningBots.rows}
+              initialBotsError={initialRunningBots.error}
               cacheScope={dashboardCacheScope}
               smartOrders={trading.smartOrders}
               positions={trading.positions}

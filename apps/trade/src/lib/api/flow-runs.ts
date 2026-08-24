@@ -1,10 +1,18 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import {
+  KNOWN_PROTOCOLS,
+  parseMarketKey,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 
 import type { LiveFillMark } from "@/lib/trade/live-trades"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
+import {
+  RUNNING_BOTS_READ_ERROR,
+  type RunningBot,
+} from "@/lib/trade/running-bots"
 import { userGet, userPost } from "@/server/guards"
 import {
   deleteFlowRuns,
@@ -14,6 +22,7 @@ import {
   type FlowRunListRow,
   type FlowRunReport,
 } from "@/server/trade/flow-run-report"
+import { listRunningBots } from "@/server/trade/running-bots"
 
 import { createErrorMessage } from "./error-message"
 
@@ -29,11 +38,19 @@ import { createErrorMessage } from "./error-message"
  */
 
 const runSchema = z.object({ runId: z.string().max(36) })
+const botsSchema = z.object({ protocol: z.enum(KNOWN_PROTOCOLS) })
 
 const listFlowRunsFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .handler(async ({ context }): Promise<FlowRunListRow[]> => {
     return await listFlowRuns(context.user.id)
+  })
+
+const listRunningBotsFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(botsSchema)
+  .handler(async ({ context, data }): Promise<RunningBot[]> => {
+    return await listRunningBots(context.user.id, data.protocol)
   })
 
 const readFlowRunFn = createServerFn({ method: "GET" })
@@ -88,6 +105,10 @@ export function loadFlowRuns() {
   return listFlowRunsFn()
 }
 
+export function loadRunningBots(protocol: ProtocolId) {
+  return listRunningBotsFn({ data: { protocol } })
+}
+
 export function loadFlowRun(runId: string) {
   return readFlowRunFn({ data: { runId } })
 }
@@ -107,6 +128,11 @@ export const getFlowRunErrorMessage = createErrorMessage(
       "That run is not here any more. Switching a flow on writes a new one, so this may have been on a wallet that has since been deleted.",
   },
   "That did not work. Try it again in a moment."
+)
+
+export const getRunningBotsErrorMessage = createErrorMessage(
+  {},
+  RUNNING_BOTS_READ_ERROR
 )
 
 export type { FlowRunListRow, FlowRunReport }

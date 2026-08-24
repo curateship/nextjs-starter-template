@@ -14,7 +14,8 @@ many trips each one makes after the check.
 
 The page opens with **one server call**, `loadDashboardBootstrap` in
 `src/lib/api/dashboard.ts`. It reads the preference row once, asks the
-exchange for the market list once, and reads the stars once, all together.
+exchange for the market list once, reads the stars once, and reads the running
+bots for that exchange, all together.
 
 Before this the page fired eight calls at once: the market list, the stars,
 and six preferences. Seven of them read the same preference row. Each call
@@ -29,6 +30,11 @@ The live feed catching up after a gap used to run the whole loader again,
 preferences and all, every time the connection blinked. It now asks for the
 market list alone (`useDashboardMarkets`), and keeps the list already on
 screen if that ask fails.
+
+The Bots tab gets its first list from that same opening call. While the tab is
+open it checks every six seconds, because a bot can stop without a click on the
+dashboard. Leaving the tab stops those checks. A failed refresh keeps the last
+list rather than replacing it with an empty answer.
 
 ## The screen is built once
 

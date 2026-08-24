@@ -17,14 +17,16 @@ import {
 import type { DcaParams } from "@/lib/trade/dca"
 import type { GridParams } from "@/lib/trade/grid"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
-import type {
-  MarketFolder,
-  MarketPanelRows,
-} from "@/lib/trade/market-folders"
+import {
+  RUNNING_BOTS_READ_ERROR,
+  type RunningBot,
+} from "@/lib/trade/running-bots"
+import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
 import { userGet } from "@/server/guards"
 import { getProtocol } from "@/server/protocols/registry"
 import { loadMarketFolders } from "@/server/trade/market-folders"
 import { loadDashboardPrefs } from "@/server/trade/prefs"
+import { listRunningBots } from "@/server/trade/running-bots"
 
 import { getMarketsErrorMessage } from "./markets"
 
@@ -59,6 +61,8 @@ export type DashboardBootstrap = {
    */
   smartDca: DcaParams | null
   smartGrid: GridParams | null
+  /** The Bots tab's first answer, carried with the rest of the dashboard. */
+  runningBots: { rows: RunningBot[]; error: string | null }
 }
 
 const bootstrapSchema = z.object({
@@ -76,7 +80,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
     if (!protocol.networks.includes(data.network)) {
       throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
     }
-    const [catalog, prefs, folders] = await Promise.all([
+    const [catalog, prefs, folders, runningBots] = await Promise.all([
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
       protocol.markets.fetch(data.network).then(
@@ -90,6 +94,15 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
       // Losing folders must not keep the rest of the dashboard from opening.
       loadMarketFolders(context.user.id, data.protocol, data.network).catch(
         () => [] as MarketFolder[]
+      ),
+      // The bot list must not take the trading screen down. Its own tab says
+      // when this read failed and can retry it without reloading the page.
+      listRunningBots(context.user.id, data.protocol).then(
+        (rows) => ({ rows, error: null as string | null }),
+        () => ({
+          rows: [] as RunningBot[],
+          error: RUNNING_BOTS_READ_ERROR,
+        })
       ),
     ])
     return {
@@ -114,6 +127,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
       quickOrder: prefs.quickOrder,
       smartDca: prefs.smartDca,
       smartGrid: prefs.smartGrid,
+      runningBots,
     }
   })
 

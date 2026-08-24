@@ -1,8 +1,12 @@
 import * as React from "react"
-import { EllipsisVerticalIcon, Grid2x2Icon } from "lucide-react"
+import { Link } from "@tanstack/react-router"
+import { BotIcon, EllipsisVerticalIcon, Grid2x2Icon } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import {
+  WorkspacePanelTab,
+  WorkspacePanelTabsHeader,
+} from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -13,7 +17,16 @@ import {
 } from "@/components/ui/popover"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { marketSymbol, type MarketRow } from "@/lib/protocols/contracts"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+  getRunningBotsErrorMessage,
+  loadRunningBots,
+} from "@/lib/api/flow-runs"
+import {
+  marketSymbol,
+  type MarketRow,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
 import { formatDateTime } from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
@@ -25,6 +38,7 @@ import {
 } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
 import { moneyTone } from "@/lib/trade/money-tone"
+import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   smartOrdersYouPlaced,
   type SmartOrder,
@@ -64,7 +78,190 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
   watch: "Watched price",
 }
 
+/** A running bot can stop on its own, so the open tab checks again. */
+const BOTS_REFRESH_MS = 6_000
+
+type SmartOrdersViewProps = {
+  cacheScope: string
+  smartOrders: readonly SmartOrder[]
+  /** What each of them is holding, when it has bought anything yet. */
+  positions: readonly TradePosition[]
+  /** Fills not yet part of a finished trade, where a grid's sells live. */
+  fills: readonly LiveFill[]
+  /** Finished round trips, for the orders that do go flat. */
+  trades: readonly LiveTrade[]
+  markets: ReadonlyMap<string, MarketRow>
+  wallets: readonly TradeWallet[]
+  walletName: (walletId: string) => string
+  /** The market on the chart. Its smart-order row keeps the selected shade. */
+  selectedMarketKey: string | null
+  /** Both the practice and real-money reads have landed. */
+  settled: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
+  onRetry: () => void
+  onSelectMarket: (marketKey: string) => void
+}
+
+type SmartOrdersPanelProps = SmartOrdersViewProps & {
+  protocol: ProtocolId
+  initialBots: RunningBot[]
+  initialBotsError: string | null
+}
+
 export function SmartOrdersPanel({
+  protocol,
+  initialBots,
+  initialBotsError,
+  ...smartOrdersProps
+}: SmartOrdersPanelProps) {
+  const [tab, setTab] = React.useState<"smart" | "bots">("smart")
+  const [bots, setBots] = React.useState(initialBots)
+  const [botsError, setBotsError] = React.useState(initialBotsError)
+  const [botsKnown, setBotsKnown] = React.useState(initialBotsError === null)
+  const [botsBusy, setBotsBusy] = React.useState(false)
+  const botsReading = React.useRef(false)
+
+  const refreshBots = React.useCallback(async () => {
+    if (botsReading.current) return
+    botsReading.current = true
+    if (!botsKnown) setBotsBusy(true)
+    try {
+      setBots(await loadRunningBots(protocol))
+      setBotsError(null)
+      setBotsKnown(true)
+    } catch (error) {
+      setBotsError(getRunningBotsErrorMessage(error))
+    } finally {
+      botsReading.current = false
+      if (!botsKnown) setBotsBusy(false)
+    }
+  }, [botsKnown, protocol])
+
+  React.useEffect(() => {
+    if (tab !== "bots") return
+    const timer = window.setInterval(() => void refreshBots(), BOTS_REFRESH_MS)
+    return () => window.clearInterval(timer)
+  }, [refreshBots, tab])
+
+  return (
+    <Tabs
+      value={tab}
+      onValueChange={(value) => setTab(value as "smart" | "bots")}
+      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
+    >
+      <WorkspacePanelTabsHeader>
+        <WorkspacePanelTab
+          value="smart"
+          icon={<Grid2x2Icon className="size-4" />}
+          label="Smart orders"
+        />
+        <WorkspacePanelTab
+          value="bots"
+          icon={<BotIcon className="size-4" />}
+          label="Bots"
+        />
+      </WorkspacePanelTabsHeader>
+
+      <TabsContent value="smart" className="min-h-0 flex-1">
+        <SmartOrdersView {...smartOrdersProps} />
+      </TabsContent>
+      <TabsContent value="bots" className="min-h-0 flex-1">
+        <BotsView
+          bots={bots}
+          error={botsError}
+          known={botsKnown}
+          busy={botsBusy}
+          onRetry={() => void refreshBots()}
+        />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function BotsView({
+  bots,
+  error,
+  known,
+  busy,
+  onRetry,
+}: {
+  bots: readonly RunningBot[]
+  error: string | null
+  known: boolean
+  busy: boolean
+  onRetry: () => void
+}) {
+  if (!known && busy) {
+    return <LoadingRow label="Reading your running bots" className="h-full" />
+  }
+
+  if (!known && error) {
+    return (
+      <p className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+        {error}{" "}
+        <button type="button" className="underline" onClick={onRetry}>
+          Try again
+        </button>
+      </p>
+    )
+  }
+
+  const refreshError = error ? (
+    <p className="border-b px-3 py-2 text-xs text-muted-foreground">
+      The list could not be refreshed. The last answer is still shown.{" "}
+      <button type="button" className="underline" onClick={onRetry}>
+        Try again
+      </button>
+    </p>
+  ) : null
+
+  if (bots.length === 0) {
+    return (
+      <div className="flex h-full flex-col">
+        {refreshError}
+        <p className="flex flex-1 items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          No bot is running on this exchange. Switch one on from its automation
+          canvas and it will appear here.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <ScrollArea className="h-full">
+      {refreshError}
+      <ul>
+        {bots.map((bot) => (
+          <li key={bot.runId} className="border-b last:border-b-0">
+            <Link
+              to="/flow-runs/$runId"
+              params={{ runId: bot.runId }}
+              className={cn(
+                "flex min-h-10 items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors hover:bg-muted/40",
+                focusRing
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium hover:underline">
+                  {bot.name}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {bot.strategy}
+                </span>
+              </span>
+              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                {bot.marketCount} {bot.marketCount === 1 ? "market" : "markets"}
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </ScrollArea>
+  )
+}
+
+function SmartOrdersView({
   cacheScope,
   smartOrders,
   positions,
@@ -78,33 +275,7 @@ export function SmartOrdersPanel({
   failed,
   onRetry,
   onSelectMarket,
-}: {
-  cacheScope: string
-  smartOrders: readonly SmartOrder[]
-  /** What each of them is holding, when it has bought anything yet. */
-  positions: readonly TradePosition[]
-  /** Fills not yet part of a finished trade — where a grid's sells live. */
-  fills: readonly LiveFill[]
-  /** Finished round trips, for the orders that do go flat. */
-  trades: readonly LiveTrade[]
-  markets: ReadonlyMap<string, MarketRow>
-  wallets: readonly TradeWallet[]
-  walletName: (walletId: string) => string
-  /** The market on the chart. Its smart-order row keeps the selected shade. */
-  selectedMarketKey: string | null
-  /**
-   * Both halves of the read have landed — see `settled` on `Trading`.
-   *
-   * Not `loading`: that turns false when EITHER half lands, and this panel
-   * lists practice ladders and real ones together. "No ladder of your own is
-   * working" is a claim about money, so it waits for both.
-   */
-  settled: boolean
-  /** The first read failed and there is nothing to fall back on. */
-  failed: boolean
-  onRetry: () => void
-  onSelectMarket: (marketKey: string) => void
-}) {
+}: SmartOrdersViewProps) {
   const [cached, setCached] = React.useState<readonly SmartOrder[] | null>(null)
   useEffectBeforePaint(() => {
     setCached(readSmartOrdersCache(cacheScope))
@@ -151,12 +322,6 @@ export function SmartOrdersPanel({
     [wallets, readAt]
   )
 
-  // How many of THESE are holding something. Counting every position on the
-  // account would say "2 holding" over a list of one.
-  const holding = mine.filter((order) =>
-    held.has(`${order.walletId}:${order.marketKey}`)
-  ).length
-
   // Holding first — that is where the money is — then by coin, so the list
   // does not reshuffle every time a rung fills.
   const rows = React.useMemo(
@@ -176,22 +341,6 @@ export function SmartOrdersPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
-        icon={<Grid2x2Icon />}
-        title="Smart orders"
-        // A count that is not known yet says nothing rather than "none
-        // working" — before the first read, and after one that failed, zero
-        // would be claiming an answer the panel does not have.
-        meta={
-          !settled || failed
-            ? undefined
-            : rows.length === 0
-              ? "none working"
-              : `${rows.length} working${
-                  holding === 0 ? "" : ` · ${holding} holding`
-                }`
-        }
-      />
       {rows.length === 0 && !settled && cached === null ? (
         <LoadingRow
           label="Reading your smart orders"

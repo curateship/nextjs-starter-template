@@ -1,9 +1,34 @@
 // @vitest-environment jsdom
 
-import { act, useState } from "react"
+import { act, useState, type ComponentProps } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
+
+const flowRunsApi = vi.hoisted(() => ({
+  loadRunningBots: vi.fn(),
+  getRunningBotsErrorMessage: vi.fn(
+    () => "The running bots could not be read."
+  ),
+}))
+
+vi.mock("@/lib/api/flow-runs", () => flowRunsApi)
+
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    to,
+    params,
+    children,
+    ...props
+  }: ComponentProps<"a"> & {
+    to: string
+    params: { runId: string }
+  }) => (
+    <a href={to.replace("$runId", params.runId)} {...props}>
+      {children}
+    </a>
+  ),
+}))
 
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
 import { writeSmartOrdersCache } from "@/lib/trade/dashboard-cache"
@@ -27,7 +52,15 @@ import type { SmartOrder } from "@/lib/trade/smart-plan"
 const EMPTY = "No ladder or grid of your own is working"
 const READING = "Reading your smart orders"
 
+afterEach(() => {
+  flowRunsApi.loadRunningBots.mockReset()
+  vi.useRealTimers()
+})
+
 const shared = {
+  protocol: "hyperliquid" as const,
+  initialBots: [],
+  initialBotsError: null,
   cacheScope: "test:hyperliquid",
   positions: [],
   fills: [],
@@ -103,17 +136,27 @@ function draw(state: {
   return renderToStaticMarkup(<SmartOrdersPanel {...shared} {...state} />)
 }
 
+async function openBots(host: HTMLElement) {
+  const trigger = host.querySelector<HTMLButtonElement>(
+    '[data-slot="tabs-trigger"][aria-selected="false"]'
+  )
+  await act(async () => {
+    trigger?.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, button: 0 })
+    )
+  })
+}
+
 describe("the Smart orders panel", () => {
   it("says nothing is working only once both halves have answered", () => {
     const answered = draw({ smartOrders: [], settled: true, failed: false })
     expect(answered).toContain(EMPTY)
-    expect(answered).toContain("none working")
+    expect(answered).not.toContain("none working")
   })
 
   it("keeps reading before both halves have landed", () => {
     const half = draw({ smartOrders: [], settled: false, failed: false })
     expect(half).not.toContain(EMPTY)
-    expect(half).not.toContain("none working")
     expect(half).toContain(READING)
   })
 
@@ -127,6 +170,109 @@ describe("the Smart orders panel", () => {
     const half = draw({ smartOrders: [ladder], settled: false, failed: false })
     expect(half).toContain("XMR")
     expect(half).not.toContain(READING)
+  })
+
+  it("lists each running bot and links its name to the run dashboard", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          initialBots={[
+            {
+              runId: "run-1",
+              name: "Buy the dip",
+              strategy: "DCA ladder",
+              marketCount: 12,
+            },
+          ]}
+          smartOrders={[]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    await openBots(host)
+
+    const link = host.querySelector<HTMLAnchorElement>(
+      'a[href="/flow-runs/run-1"]'
+    )
+    expect(link?.textContent).toContain("Buy the dip")
+    expect(link?.textContent).toContain("DCA ladder")
+    expect(link?.textContent).toContain("12 markets")
+    expect(host.textContent).not.toContain("none running")
+    expect(host.textContent).not.toMatch(/working.*holding/i)
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not call a failed bot read an empty list", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          initialBotsError="The running bots could not be read."
+          smartOrders={[]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    await openBots(host)
+
+    expect(host.textContent).toContain("could not be read")
+    expect(host.textContent).not.toContain("No bot is running")
+    await act(async () => root.unmount())
+  })
+
+  it("keeps the last bot list when a background refresh fails", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useFakeTimers()
+    flowRunsApi.loadRunningBots.mockRejectedValueOnce(new Error("offline"))
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          initialBots={[
+            {
+              runId: "run-1",
+              name: "Buy the dip",
+              strategy: "DCA ladder",
+              marketCount: 12,
+            },
+          ]}
+          smartOrders={[]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    await openBots(host)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000)
+    })
+
+    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledWith("hyperliquid")
+    expect(host.textContent).toContain("Buy the dip")
+    expect(host.textContent).toContain("The list could not be refreshed")
+    await act(async () => root.unmount())
   })
 
   it("draws the last complete answer while the new read is still landing", async () => {

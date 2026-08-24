@@ -18,6 +18,7 @@ import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
+import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
 import {
   marketKeyOnDashboard,
   readMarketSearch,
@@ -73,6 +74,10 @@ function exchangeLoader(protocol: ProtocolId) {
         quickOrder: DEFAULT_QUICK_ORDER,
         smartDca: null,
         smartGrid: null,
+        runningBots: {
+          rows: [],
+          error: RUNNING_BOTS_READ_ERROR,
+        },
       })
     )
     return { ...boot, network: deps.network }
@@ -162,6 +167,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
     quickOrder,
     smartDca,
     smartGrid,
+    runningBots,
   } = useLoaderData({ strict: false }) as ExchangeLoaderData
   // The smart-order windows' saved settings arrived with the page; hand them
   // to the browser-side copy so the first right-click opens on them with
@@ -215,6 +221,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialIndicators={indicators}
       initialCardFolds={cardFolds}
       initialQuickOrder={quickOrder}
+      initialRunningBots={runningBots}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({

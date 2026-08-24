@@ -122,10 +122,25 @@ bare icons. The pill itself lives on the shared `WorkspacePanelTab` in
 Custom Shell first and carried here unchanged.
 
 The right side is **two separate panels with a gap between them**.
-The wallet panel sits above Smart orders. Choosing Active, All or Inactive grows
-the wallet panel to fit every row in that tab, while Smart orders keeps the rest
-of the column. There is no draggable divider between them. Smart orders always
-keeps at least its own minimum height.
+The wallet panel sits above the panel for Smart orders and Bots. Choosing
+Active, All or Inactive grows the wallet panel to fit every row in that tab,
+while the lower panel keeps the rest of the column. There is no draggable
+divider between them. The lower panel always keeps at least its own minimum
+height.
+
+The lower panel opens on **Smart orders**. The Smart orders tab keeps the
+hand-placed ladders and grids it already showed. The header has only the Smart
+orders and Bots tabs, with no working, holding or running summary beside them.
+The **Bots** tab lists every running bot for the exchange on the page. Each row
+shows the bot's name, whether it uses a DCA ladder or Signals, and how many
+markets it watches. The name opens that run's results dashboard. A stopped bot
+leaves the list on the next read.
+
+The Bots tab has its first answer when the dashboard opens, so pressing the tab
+does not wait for another request. While Bots stays open, the list checks again
+every six seconds. A failed first read says the bots could not be read and
+offers Try again. A later failure keeps the last answer on screen and says the
+refresh failed. An empty answer says no bot is running on this exchange.
 
 **A smaller window shrinks the chart, never the panels.** The Folders panel,
 the account column and the bottom Positions panel keep the pixel size they
