@@ -132,7 +132,11 @@ market is exactly when somebody wants one without the other.
 
 - **Close all** closes every open position, real money included. Each real one
   goes through the same close its own row's button uses. Waiting orders are left
-  alone.
+  alone. It wears the muted grey and the icon the chart's own toolbar buttons
+  wear, and its icon is a cross rather than a bin: on the Journal tab it stands
+  beside **Remove**, which throws records away, and one icon meaning both
+  "delete these rows" and "sell everything I own" is how a fast press goes to
+  the wrong button.
 - **Cancel smart orders** calls off every ladder and every grid you placed
   yourself, across every wallet, through the same Stop each one has of its own.
   **It closes nothing.** What those orders already bought stays open with its
@@ -209,6 +213,11 @@ many are switched on.
 - **Each indicator has three separate controls.** Its switch turns the drawing
   on or off. A small mark previews its line colours. The settings button opens
   its window without changing whether the indicator is on.
+- **The switches here are a tenth smaller than everywhere else**, 40 by 22
+  instead of 44 by 24. This is the one place in the app that is not the shared
+  size. Everywhere else a switch is the biggest thing on a settings row; here it
+  sits in a 32px strip beside a 12px label and a colour chip, and at full size
+  it was the loudest thing in a menu that is mostly words.
 - **Indicator settings open in a window, not inside the dropdown.** Every
   indicator uses the same header, card, field and footer layout. The cards keep
   each indicator's own groups, such as **Settings** and **Visibility** for Base

@@ -4,6 +4,7 @@ import {
   LayersIcon,
   ScrollTextIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
@@ -365,14 +366,22 @@ export function ActivityPanel({
             ) : null}
             {/* The emergency button: one press, one confirm, and every open
                 position goes — real money included, each real one through the
-                same close its own row uses. */}
+                same close its own row uses.
+
+                It wears the grey the chart's own toolbar buttons wear, and an
+                X rather than the bin the Journal's Remove uses — the two sit
+                side by side on the Journal tab, and one icon meaning "throw
+                these records away" and "sell everything I own" at once is how
+                a fast press goes to the wrong one. */}
             {trading.positions.length > 0 ? (
               <Button
                 type="button"
                 variant="outline"
+                className="bg-muted/60 dark:bg-muted/60"
                 disabled={trading.busy}
                 onClick={() => setClosingAll(true)}
               >
+                <XIcon className="size-4" />
                 Close all
               </Button>
             ) : null}

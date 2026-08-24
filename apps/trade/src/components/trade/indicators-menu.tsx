@@ -88,6 +88,25 @@ function IndicatorMark({
   )
 }
 
+/**
+ * The on/off switches in this menu, a tenth smaller than the shared one.
+ *
+ * The shared switch is 44 by 24, built for a settings page where it is the
+ * biggest thing on its row. Here it sits in a 32px strip beside a 12px label
+ * and a colour chip, and at full size it was the loudest thing in a menu that
+ * is mostly words. 40 by 22 is the same switch, a tenth down, and it is the
+ * only place in the app that is not the shared size.
+ *
+ * The thumb has to come with it, so it is reached through its slot: 18 across,
+ * 2px of gap all round, and 20px of travel so the gap on the right when it is
+ * on matches the gap on the left when it is off.
+ */
+const SMALLER_SWITCH = [
+  "h-5.5 w-10",
+  "[&_[data-slot=switch-thumb]]:size-4.5",
+  "[&_[data-slot=switch-thumb][data-state=checked]]:translate-x-5",
+].join(" ")
+
 const EMA_ROWS = [
   { show: "show20", period: "period20", color: "color20" },
   { show: "show50", period: "period50", color: "color50" },
@@ -344,6 +363,7 @@ export function IndicatorsMenu({
                 >
                   <Switch
                     checked={state.on}
+                    className={SMALLER_SWITCH}
                     onCheckedChange={(next) =>
                       indicators.toggle(module.kind, next)
                     }
