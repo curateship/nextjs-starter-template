@@ -235,6 +235,19 @@ The merge rule is `keepGoodSummaries` in `src/lib/trade/wallets.ts`, and the
 miss counts live in refs in `use-trade-account.ts` so the count cannot be
 double-incremented by a re-render.
 
+## One read at a time
+
+Every way a wallet read can start goes through the same gate in
+`use-trade-account.ts`: the fifteen-second poll, the nudge after a trade, and
+a dialog saving a wallet all first look for a read already on its way, and
+join it instead of starting a second one. On a slow or rate-limited exchange
+a read can outlast the gap between polls, and stacking them spends a database
+connection per waiting request until the pool is gone and every read in the
+app waits behind them — that has happened once and is not allowed to again.
+This is also why opening a trading screen asks for the wallets exactly once:
+the after-a-trade nudge fires on mount, and the poll's first turn finds that
+read already running and skips.
+
 The browser also keeps the last complete wallet list and figures for each
 signed-in account and exchange. A return visit draws that answer before the
 first new read lands, so the panel does not go back through "Reading your

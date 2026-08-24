@@ -76,7 +76,7 @@ export function useTradeAccount(
   // the app — not just this one — waits forever behind them.
   const inFlightRef = React.useRef<Promise<void> | null>(null)
 
-  const refresh = React.useCallback(async () => {
+  const read = React.useCallback(async () => {
     const request = ++requestRef.current
     try {
       const answer = await loadWalletAccounts(protocol)
@@ -111,14 +111,31 @@ export function useTradeAccount(
     }
   }, [protocol, cacheScope])
 
-  /** One poll's turn: skipped outright while the last one is still running. */
-  const poll = React.useCallback(() => {
-    if (document.hidden || inFlightRef.current) return
-    const running = refresh().finally(() => {
+  /** Starts a read and holds it as THE read until it settles. */
+  const begin = React.useCallback(() => {
+    const running = read().finally(() => {
       if (inFlightRef.current === running) inFlightRef.current = null
     })
     inFlightRef.current = running
-  }, [refresh])
+    return running
+  }, [read])
+
+  /** One poll's turn: skipped outright while the last one is still running. */
+  const poll = React.useCallback(() => {
+    if (document.hidden || inFlightRef.current) return
+    void begin()
+  }, [begin])
+
+  // The same guard for every caller. A dialog's save or a finished trade
+  // wants fresh figures, but if a read is already on its way, that read is
+  // the answer — starting a second one is how the connection pool once
+  // drained. This is also what makes mounting cost one request: the
+  // workspace's after-a-trade effect fires on mount, and the poll's first
+  // turn then finds a read already running and skips.
+  const refresh = React.useCallback(
+    () => inFlightRef.current ?? begin(),
+    [begin]
+  )
 
   React.useEffect(() => {
     // The first read is scheduled rather than called in the effect body, so
