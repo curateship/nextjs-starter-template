@@ -38,6 +38,10 @@ const overview: TradingOverview = {
         unpricedFills: 0,
       },
       performance: { settled: 150, fees: 3, open: 40, madeOrLost: 190 },
+      profit: [
+        { at: new Date("2026-08-20T04:00:00.000Z").getTime(), money: 0 },
+        { at: new Date("2026-08-24T16:00:00.000Z").getTime(), money: 190 },
+      ],
     },
   ],
   fills: [],
@@ -51,14 +55,14 @@ const overview: TradingOverview = {
 let host: HTMLDivElement
 let root: Root
 
-function show(on: string) {
+function show(on: string, shownOverview = overview) {
   vi.setSystemTime(new Date(on))
   act(() => {
     root.render(
       <TooltipProvider>
         <TradingOverviewDashboard
-          overview={overview}
-          layout={{ top: ["figures"], left: [], right: [] }}
+          overview={shownOverview}
+          layout={{ top: ["equity"], left: [], right: [] }}
         />
       </TooltipProvider>
     )
@@ -68,6 +72,7 @@ function show(on: string) {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  window.localStorage.clear()
   host = document.createElement("div")
   document.body.append(host)
   root = createRoot(host)
@@ -80,23 +85,146 @@ afterEach(() => {
 })
 
 describe("what the widgets say about when they started", () => {
-  it("reads four days ago on 24 August 2026", () => {
-    expect(show("2026-08-24T16:00:00.000Z")).toContain(
-      "from 4 days ago until now"
+  it("replaces the separate money cards with PnL Graph", () => {
+    const shown = show("2026-08-24T16:00:00.000Z")
+    expect(shown).toContain("PnL Graph")
+    expect(shown).toContain("1W1M3M6MAll")
+    expect(shown).toContain("Reset")
+    expect(shown).not.toContain("Total balance")
+  })
+
+  it("selects All wallets first and lets another wallet be selected", () => {
+    show("2026-08-24T16:00:00.000Z")
+    const walletButtons = [
+      ...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
+    ]
+
+    expect(walletButtons).toHaveLength(2)
+    expect(walletButtons[0].textContent).toContain("All wallets")
+    expect(walletButtons[0].getAttribute("aria-pressed")).toBe("true")
+    expect(walletButtons[0].className).toContain("bg-muted/60")
+    expect(walletButtons[1].className).toContain("cursor-pointer")
+    expect(
+      host.querySelector('[aria-label="All wallets current breakdown"]')
+    ).not.toBeNull()
+
+    act(() => walletButtons[1].click())
+
+    expect(walletButtons[0].getAttribute("aria-pressed")).toBe("false")
+    expect(walletButtons[1].getAttribute("aria-pressed")).toBe("true")
+    expect(walletButtons[1].className).toContain("bg-muted/60")
+    expect(
+      host.querySelector('[aria-label="Main current breakdown"]')
+    ).not.toBeNull()
+  })
+
+  it("sorts wallet columns and remembers the choice", () => {
+    const secondWallet: TradingOverview["wallets"][number] = {
+      ...overview.wallets[0],
+      id: "alpha",
+      label: "Alpha",
+      summary: {
+        walletId: "alpha",
+        state: "ok",
+        equity: 5_010,
+        free: 5_010,
+        inTrades: 0,
+        openProfit: 0,
+        madeOrLost: 10,
+        settled: 10,
+        unpricedFills: 0,
+      },
+      performance: { settled: 10, fees: 1, open: 0, madeOrLost: 10 },
+    }
+    show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [...overview.wallets, secondWallet],
+    })
+
+    const walletHeader = host.querySelector<HTMLButtonElement>(
+      'button[aria-label^="Sort wallets by wallet"]'
     )
+    expect(walletHeader).not.toBeNull()
+    act(() => walletHeader?.click())
+
+    const walletRows = [
+      ...host.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"),
+    ]
+    expect(walletRows[1].textContent).toContain("Alpha")
+    expect(walletRows[2].textContent).toContain("Main")
+    expect(window.localStorage.getItem("trade-overview-wallet-sort")).toBe(
+      "wallet-asc"
+    )
+  })
+
+  it("reads four days ago on 24 August 2026", () => {
+    expect(show("2026-08-24T16:00:00.000Z")).toContain("since 4 days ago")
   })
 
   it("reads five days ago the next day, with nothing rebuilt", () => {
     // The whole failure was a sentence that stayed still while the calendar
     // moved. One day later the same widget must say something different.
-    expect(show("2026-08-25T16:00:00.000Z")).toContain(
-      "from 5 days ago until now"
-    )
+    expect(show("2026-08-25T16:00:00.000Z")).toContain("since 5 days ago")
   })
 
   it("never says two days ago again", () => {
     const shown = show("2026-08-24T16:00:00.000Z")
     expect(shown).not.toContain("two days ago")
     expect(shown).not.toContain("2 days ago")
+  })
+
+  it("keeps switched-off and unreachable wallets honest", () => {
+    const shown = show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [
+        ...overview.wallets,
+        {
+          id: "off",
+          label: "Off wallet",
+          network: "mainnet",
+          venue: "Aster",
+          startingBalance: 1_000,
+          summary: { walletId: "off", state: "inactive" },
+          performance: null,
+          profit: null,
+        },
+        {
+          id: "missing",
+          label: "Missing wallet",
+          network: "mainnet",
+          venue: "Phemex",
+          startingBalance: 1_000,
+          summary: { walletId: "missing", state: "unreachable" },
+          performance: null,
+          profit: null,
+        },
+        {
+          id: "also-missing",
+          label: "Also missing",
+          network: "mainnet",
+          venue: "Phemex",
+          startingBalance: 1_000,
+          summary: { walletId: "also-missing", state: "unreachable" },
+          performance: null,
+          profit: null,
+        },
+      ],
+      missingVenues: ["Phemex"],
+    })
+
+    expect(shown).toContain("Switched off · not counted")
+    expect(shown).toContain("Phemex did not answer")
+    expect(shown).toContain("2 missing")
+  })
+
+  it("keeps the card useful before a real wallet has any trades", () => {
+    const shown = show("2026-08-24T16:00:00.000Z", {
+      ...overview,
+      wallets: [],
+      profit: [],
+    })
+
+    expect(shown).toContain("0 wallets")
+    expect(shown).toContain("No real trades have been recorded yet.")
   })
 })

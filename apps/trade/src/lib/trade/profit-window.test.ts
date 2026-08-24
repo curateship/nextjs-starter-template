@@ -33,7 +33,7 @@ function code(text: string): string {
 
 /** Every file that draws the profit widgets and could name their period. */
 const WIDGET_FILES = [
-  "components/trade/trading-overview-dashboard.tsx",
+  "components/trade/pnl-graph-widget.tsx",
   "components/trade/account-panel.tsx",
 ]
 
@@ -72,7 +72,7 @@ describe("the profit start day", () => {
 
   it("gets the words for the period from the one helper", () => {
     // A second way of phrasing it is a second thing to forget to update.
-    const source = read("components/trade/trading-overview-dashboard.tsx")
+    const source = read("components/trade/pnl-graph-widget.tsx")
     expect(source).toMatch(/walletProfitWindowLabel/)
   })
 

@@ -16,6 +16,7 @@ export type TradingOverviewWallet = {
   startingBalance: number
   summary: WalletAccountSummary
   performance: TradingOverviewWalletPerformance | null
+  profit: TradingOverviewPoint[] | null
 }
 
 export type TradingOverviewWalletPerformance = {

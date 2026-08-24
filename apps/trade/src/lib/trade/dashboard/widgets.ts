@@ -2,8 +2,6 @@ import {
   ChartNoAxesCombinedIcon,
   ListChecksIcon,
   ListIcon,
-  Rows3Icon,
-  WalletCardsIcon,
   type LucideIcon,
 } from "lucide-react"
 
@@ -12,8 +10,7 @@ export const TRADING_DASHBOARD_WIDGET_SLOTS = ["top", "left", "right"] as const
 export type TradingDashboardWidgetSlot =
   (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
 
-export type TradingDashboardWidgetId =
-  "figures" | "wallets" | "equity" | "active-trades" | "trades"
+export type TradingDashboardWidgetId = "equity" | "active-trades" | "trades"
 
 export type TradingDashboardWidgetLayout = Record<
   TradingDashboardWidgetSlot,
@@ -31,28 +28,12 @@ export type TradingDashboardWidget = {
 
 const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
   {
-    id: "figures",
-    label: "Headline figures",
-    description: "Total real money, made or lost, settled, and still open.",
-    icon: Rows3Icon,
-    size: 3,
-    minSize: "16%",
-  },
-  {
-    id: "wallets",
-    label: "Wallets",
-    description: "Each real wallet and what it has made or lost.",
-    icon: WalletCardsIcon,
-    size: 5,
-    minSize: "24%",
-  },
-  {
     id: "equity",
-    label: "Money over time",
-    description: "Real wallet opening balances plus the money trades banked.",
+    label: "PnL Graph",
+    description: "The account result, every real wallet, and money over time.",
     icon: ChartNoAxesCombinedIcon,
-    size: 5,
-    minSize: "24%",
+    size: 10,
+    minSize: "40%",
   },
   {
     id: "active-trades",
@@ -84,8 +65,8 @@ export function findTradingDashboardWidget(
 
 export function createDefaultTradingDashboardWidgets(): TradingDashboardWidgetLayout {
   return {
-    top: ["figures", "active-trades"],
-    left: ["wallets", "equity"],
+    top: ["equity", "active-trades"],
+    left: [],
     right: ["trades"],
   }
 }

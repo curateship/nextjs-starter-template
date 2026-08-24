@@ -106,18 +106,36 @@ export async function loadTradingOverview(
 
   const now = new Date()
   const performanceSince = walletProfitWindowStart()
-  const wallets: TradingOverviewWallet[] = walletRows.map((wallet) => ({
-    ...wallet,
-    performance:
+  const fillsByWallet = new Map<string, TradingOverviewFill[]>()
+  for (const fill of fills) {
+    const walletFills = fillsByWallet.get(fill.walletId)
+    if (walletFills) walletFills.push(fill)
+    else fillsByWallet.set(fill.walletId, [fill])
+  }
+  const wallets: TradingOverviewWallet[] = walletRows.map((wallet) => {
+    const walletFills = fillsByWallet.get(wallet.id) ?? []
+    const performance =
       wallet.summary.state === "ok"
         ? tradingOverviewWalletPerformance(
             wallet.id,
             wallet.summary.openProfit,
-            fills,
+            walletFills,
             performanceSince
           )
+        : null
+    return {
+      ...wallet,
+      performance,
+      profit: performance
+        ? buildTradingOverviewProfit(
+            walletFills,
+            performanceSince,
+            performance.open,
+            now.getTime()
+          )
         : null,
-  }))
+    }
+  })
   const countedWalletIds = new Set(
     wallets.flatMap((wallet) => (wallet.performance ? [wallet.id] : []))
   )

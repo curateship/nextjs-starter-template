@@ -1086,15 +1086,44 @@ beside Settled says that both totals are short and names the missing trades.
 ## The trading overview
 
 `/admin/trading-overview` answers the account-wide money question without
-belonging to one exchange. The headline card puts total balance, made or lost,
-settled money, and money still open in four large figures. Fees stay attached
-to Made or lost as a small muted note rather than taking a figure of their own.
-Under it, draggable
-cards show the wallets, money over time, and every recorded real fill.
+belonging to one exchange. PnL Graph, short for profit and loss, is the main
+card. Its heading puts Made or lost first, then names the account balance and
+fees underneath. The old headline figures, Wallets card, and Money over time
+card are gone. Their answers now share this one card, so a wallet and the line
+it produced can be read together.
+
+The left side starts with All wallets and then lists each real mainnet wallet.
+Every answered row has the wallet's balance, Made or lost, and a small line over
+time. Settled, open, and fee figures appear once below the main graph for the
+selected wallet. Selecting All wallets shows the account-wide breakdown there.
+A switched-off wallet stays as a quiet row saying it was not counted. A wallet
+whose exchange did not answer stays named as a failed answer. It never becomes
+a row of zeroes. The
+All wallets row starts selected. The selected row has a light gray background
+and heavier wallet name. Every answered wallet row has a hand cursor and can be
+selected by mouse or keyboard. Selecting one makes its chart line strong and
+quietens the other lines. The right side draws the All wallets line strongly
+and each answered wallet as a lighter line. Hovering the chart names the date
+and the amount for every line. Hovering a wallet's small line keeps its dot and
+opens a readout with the date and that wallet's result at the marked point.
+The Wallets and Made or lost headings sort the wallet rows in either direction.
+All wallets is an account summary and stays pinned first. Unavailable results
+stay at the bottom when sorting by money. The last sort is remembered in this
+browser.
+
+The graph records results from midnight on 20 August 2026 in Toronto through
+the latest account read. Controls in the card's top-right space show one week,
+one month, three months, six months, or all recorded results. The two calendar
+fields set an exact start and end date, and Reset returns to All. Every wallet
+line changes together. Filtering crops the graph without changing the current
+account and wallet figures. Dates outside recorded history show that no results
+fall inside the range. The graph does not carry the last known result into days
+the app has not read.
+
 Active Trades is the account-wide exception to the real-money totals. It lists
 every open position across every protocol and every wallet, including practice
 and testnet wallets. Each row names its account type so pretend money cannot be
-read as real money. New dashboards put Active Trades under the headline figures;
+read as real money. New dashboards put Active Trades under PnL Graph;
 an account with a saved arrangement finds it under Settings → Widgets until it
 is placed.
 
@@ -1117,33 +1146,18 @@ not be read shows a dash for both value and profit, never a made-up zero. A plai
 between every pair of trade rows, including the final two. The sticky table
 header uses the lighter muted gray rather than the full muted background. Every
 Active Trades column is left-aligned, including Value and P/L.
-The Wallets, Money over time, and Trades cards use the same shared
-workspace-panel header as the rest of the dashboard, including its icon,
-height, spacing, and divider; none carries a second descriptive line in the
-header. The Wallets table uses the same sizing, sticky light-gray header,
-horizontal scrolling, compact cells, and dividers as Active Trades rather than
-a separate fixed-width layout. Every Wallets column is left-aligned.
-Headline and chart totals use the dashboard's shared stat typography: Inter
-for labels and the dashboard's semibold tabular monospace treatment for values.
+The PnL Graph and Trades cards use the same card, text, divider, and muted
+background rules as the rest of the dashboard. Money values use the dashboard's
+semibold tabular monospace treatment.
 
 Practice wallets never enter a number on this screen. If one real wallet cannot
 be read, the rest of the screen stays up, the missing exchange is named, and
 every affected total says it is short. A failed read is never drawn as an empty
 wallet.
 
-The wallet card is one comparison table. Each wallet has a separate Protocol
-column, balance, made or lost, settled money, and money still open on one row.
-Each Made or lost amount carries its fee total as a small muted note beside it.
-Protocol no longer sits under the wallet name. Wallet rows use the same 10px
-vertical padding and plain divider as Active Trades. A switched-off wallet stays
-as a quiet row saying it was not asked or counted. Every column heading sorts
-the wallet rows, while wallets without figures stay at the end. The table opens
-with the largest open profit first.
-Testnet wallets do not appear in this card. The Wallets heading tooltip states
-the money rule. Made or lost is settled trade money plus current open profit.
-The settled trades start at midnight on the start day in Toronto, which the
-tooltip names by how long ago it was — four days ago on 24 August 2026, five
-the next day. Deposits and withdrawals can change Balance but never profit.
+Testnet wallets do not appear in PnL Graph. Made or lost is settled trade money
+plus current open profit. Deposits and withdrawals can change Balance but never
+profit.
 
 Fees are the exchange's stated charges on every fill in the same window,
 including a fill whose profit the exchange did not state. Made or lost stays
@@ -1156,15 +1170,11 @@ fills recorded in the same millisecond do not fall through the join. If a page
 cuts through a trade, the next page also rebuilds the trade whole. Once an empty
 page comes back, the control says That is everything.
 
-The money-over-time card starts at zero at midnight on the start day in
-Toronto and charts priced settled trade money from then until now. The words
-under the figure count the days since that day rather than naming a fixed
-number, so they stay true as the calendar moves. Its final point adds the
-current open profit, so the value above the line is the same current profit as
-Made or lost. Opening balances, deposits, withdrawals, and older fills never
-enter the line. There are no longer historical range controls because the card
-has one stated period. The area under the line fades to transparent toward the
-bottom, and the profit rule is in the heading tooltip.
+Each line starts at zero on the start date and adds priced settled trade money
+until now. Its final point adds current open profit. Opening balances, deposits,
+withdrawals, and older fills never enter a line. If an exchange did not state a
+trade's money, the chart names how many trades are missing instead of counting
+them as zero.
 
 The trades table uses the money each exchange stated. A KuCoin sale that did
 not close the position has no stated profit, so its Money cell is a dash. The
