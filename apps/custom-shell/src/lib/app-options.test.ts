@@ -7,6 +7,7 @@ import {
   appAutomationNodes,
   appCanvasHeaderStatus,
   appCanvasPanel,
+  appNotificationLinks,
   appShowsRunButton,
   appOffersMemberTest,
   appPaletteGroups,
@@ -68,6 +69,14 @@ describe("an option nobody set means what the shell always did", () => {
     expect(appAutomationNodes({})).toEqual([])
   })
 
+  it("says no notice of its own leads anywhere", async () => {
+    // The bell then falls back to what it always read off the notice itself,
+    // which for an announcement is to open nothing and stay up.
+    expect(
+      await appNotificationLinks([{ id: "n1", type: "announcement" }], {})
+    ).toEqual({})
+  })
+
   it("leaves the catch-all to the written pages", () => {
     // Null is what `$.tsx` checks for before it asks anything of the app, so
     // this is the difference between "written pages as always" and an app
@@ -77,6 +86,41 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("sends a notice where the app says it came from", async () => {
+    const asked: string[] = []
+    const links = await appNotificationLinks(
+      [
+        { id: "n1", type: "announcement" },
+        { id: "n2", type: "feedback_vote" },
+      ],
+      {
+        notifications: {
+          linksFor: async (notices) => {
+            for (const one of notices) asked.push(one.id)
+            return { n1: "/admin/hyper-liquid?market=x" }
+          },
+        },
+      }
+    )
+    expect(links).toEqual({ n1: "/admin/hyper-liquid?market=x" })
+    // Which notices reach the app is the app's own business; the shell hands
+    // over everything on screen and lets the app say which ones it knows.
+    expect(asked).toEqual(["n1", "n2"])
+  })
+
+  it("does not ask the app about an empty tray", async () => {
+    let asked = 0
+    await appNotificationLinks([], {
+      notifications: {
+        linksFor: async () => {
+          asked += 1
+          return {}
+        },
+      },
+    })
+    expect(asked).toBe(0)
+  })
+
   it("hands over the front page", () => {
     const page = { Component: () => null }
     expect(landingPageOverride({ landing: { page } })).toBe(page)

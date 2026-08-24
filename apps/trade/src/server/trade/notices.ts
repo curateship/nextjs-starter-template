@@ -10,6 +10,7 @@ import {
   customShellUsers,
   customShellWorkspaces,
 } from "@/server/schema"
+import { tradeNoticeLinks } from "@/server/trade/schema"
 
 /** Write one app notice to the wallet owner's current workspace and inbox. */
 export async function writeTradeNotice({
@@ -17,6 +18,7 @@ export async function writeTradeNotice({
   title,
   body,
   level,
+  href,
   createdAt = new Date(),
   database = db,
 }: {
@@ -24,6 +26,14 @@ export async function writeTradeNotice({
   title: string
   body: string
   level: "info" | "warning" | "critical"
+  /**
+   * The page this notice came off, so clicking it in the bell goes there.
+   *
+   * A path inside this app or nothing. Nothing is the honest answer for a
+   * notice with no page behind it, and it leaves the notice exactly as every
+   * trade notice used to be: words, and no click.
+   */
+  href?: string | null
   createdAt?: Date
   database?: CustomShellDb
 }): Promise<void> {
@@ -64,5 +74,11 @@ export async function writeTradeNotice({
     announcementId,
     createdAt,
   })
+  // Written after the notice itself and only when there is a page to point at.
+  // A notice that arrives without its address is still a true notice; one that
+  // never arrives because its address would not save is a lost notice.
+  if (href) {
+    await database.insert(tradeNoticeLinks).values({ announcementId, href })
+  }
   await publishNotificationCreated(userId, database)
 }

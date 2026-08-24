@@ -26,6 +26,7 @@ import {
   type NotificationItem,
 } from "@/lib/api/notification"
 import { notificationAction } from "@/lib/notification-action"
+import { useAppNotificationLinks } from "@/lib/hooks/use-app-notification-links"
 import { useNotificationStream } from "@/lib/hooks/use-notification-stream"
 import { cn } from "@/lib/utils"
 
@@ -107,6 +108,10 @@ export function NotificationCenter({
     filter === "unread"
       ? notifications.filter((item) => !item.read_at)
       : notifications
+
+  // Where this app's own notices lead, looked up while the tray is being read
+  // rather than after a click. Empty in an app that has not set the option.
+  const appLinks = useAppNotificationLinks(notifications)
 
   // The Unread tab can only filter the rows it has pulled, so with unread
   // notices sitting further back than the first page the tab would say 3 and
@@ -275,6 +280,19 @@ export function NotificationCenter({
   }
 
   function openNotification(item: NotificationItem) {
+    // The app's own answer first. A notice the app wrote knows where it came
+    // from — the coin that filled, the flow that stopped — and the app is the
+    // only side that can say so. To the shell those same rows are
+    // announcements, which it opens nothing for, so without this the reading
+    // that has an address loses to the one that does not.
+    const appHref = appLinks[item.id]
+    if (appHref) {
+      setOpen(false)
+      void navigate({ href: appHref })
+      markReadInBackground(item)
+      return
+    }
+
     const action = notificationAction(item)
 
     // A notice with nowhere to go — an announcement, whose own words are the

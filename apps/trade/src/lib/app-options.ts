@@ -40,6 +40,45 @@ export type AppOptions = {
   automations?: AutomationOptions
   workspaces?: WorkspaceOptions
   settings?: SettingsOptions
+  notifications?: NotificationOptions
+}
+
+/**
+ * The little the shell says about a notice when it asks the app where that
+ * notice came from. The id and the kind, and nothing else.
+ *
+ * Deliberately not the whole notice row. That type lives in
+ * `src/lib/api/notification.ts`, which reaches into the server's inbox module,
+ * which reaches back — and this file is imported by the browser. The two
+ * fields an app actually needs are written out here instead, the same way
+ * `notification-types.ts` keeps the words out of the circle.
+ */
+export type NoticeToLink = { id: string; type: string }
+
+type NotificationOptions = {
+  /**
+   * Where the app's own notices go when somebody clicks one.
+   *
+   * The shell knows what its own notices are about — a piece of feedback, a
+   * published update, a run waiting for approval — and opens each one. It
+   * cannot know what an app's notices are about. Trade writes its notices as
+   * announcements, so to the shell they are a title and a body with nowhere to
+   * go, and clicking one did nothing at all.
+   *
+   * The app is asked once per page of notices, not once per click, so the
+   * click itself never waits on a database sitting a second away. It is handed
+   * only the notices now on screen and answers with the ones it recognises:
+   * `{ <notice id>: "/admin/hyper-liquid?market=..." }`. A notice it says
+   * nothing about keeps the shell's own behaviour, which for an announcement
+   * is to open nothing and leave the tray up.
+   *
+   * Addresses inside this app only. Anything else — another site, a
+   * `javascript:` address, a protocol-relative `//host` — is dropped rather
+   * than followed, because these strings come out of a database.
+   */
+  linksFor?: (
+    notices: readonly NoticeToLink[]
+  ) => Promise<Record<string, string>>
 }
 
 type SettingsOptions = {
@@ -546,4 +585,23 @@ export function workspaceWord(options: AppOptions = appOptions): WorkspaceWord {
 /** The same word with its first letter raised, for a heading or a button. */
 export function capitalise(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
+/**
+ * Where the app says its own notices lead, or nothing when it has no answer.
+ *
+ * An app that never set the option, which is every app by default, returns an
+ * empty answer and every notice behaves exactly as it did before this existed.
+ *
+ * The argument is only ever passed by the tests, which check that an unset
+ * option still means today's behaviour — written this way so that check keeps
+ * working inside an app that has set the option.
+ */
+export async function appNotificationLinks(
+  notices: readonly NoticeToLink[],
+  options: AppOptions = appOptions
+): Promise<Record<string, string>> {
+  const ask = options.notifications?.linksFor
+  if (!ask || notices.length === 0) return {}
+  return await ask(notices)
 }

@@ -37,6 +37,7 @@ import { scrubSecrets } from "@/server/protocols/scrub"
 import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
 import { customShellAutomations } from "@/server/schema"
+import { flowRunNoticeHref } from "@/lib/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
@@ -323,10 +324,17 @@ export async function flowName(
 async function tellFlowOwner(
   userId: string,
   words: { title: string; body: string; level: "info" | "warning" | "critical" },
-  database: CustomShellDb
+  database: CustomShellDb,
+  /** The run this is about, so clicking the notice opens its own page. */
+  runId: string
 ): Promise<void> {
   try {
-    await writeTradeNotice({ userId, ...words, database })
+    await writeTradeNotice({
+      userId,
+      ...words,
+      href: flowRunNoticeHref(runId),
+      database,
+    })
   } catch (error) {
     console.error("flow notice failed", error)
   }
@@ -463,7 +471,8 @@ export async function stopFlowRun(
         body: input.reason ?? "The flow stopped without a reason being given.",
         level: "warning",
       },
-      database
+      database,
+      row.id
     )
   }
 
@@ -619,7 +628,8 @@ export async function advanceFlowRuns(
           hold,
           now
         ),
-        database
+        database,
+        run.id
       )
     }
 
@@ -782,7 +792,8 @@ async function advanceSignalRun(
         hold,
         now
       ),
-      database
+      database,
+      run.id
     )
   }
 

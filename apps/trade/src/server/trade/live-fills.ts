@@ -1,6 +1,7 @@
 import { and, count, desc, eq, gt, inArray, lt, max, sql } from "drizzle-orm"
 
 import {
+  marketChartHref,
   marketKey,
   parseMarketKey,
   type WalletOrderFill,
@@ -294,6 +295,7 @@ async function announceFills(
     try {
       await writeTradeNotice({
         userId,
+        href: marketChartHref(key),
         ...fillNoticeWords({
           marketKey: key,
           side: fill.side,
@@ -320,6 +322,7 @@ async function announceFills(
       if (!known || (known.kind !== "stop" && known.kind !== "target")) continue
       await writeTradeNotice({
         userId,
+        href: marketChartHref(key),
         ...triggerNoticeWords({
           kind: known.kind,
           marketKey: key,
@@ -456,6 +459,7 @@ async function resolveClosingOrders(
       if (made.length === 0) continue
       await writeTradeNotice({
         userId,
+        href: marketChartHref(made[0].marketKey),
         ...triggerNoticeWords({
           kind: one.kind,
           marketKey: made[0].marketKey,

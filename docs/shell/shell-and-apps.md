@@ -75,6 +75,12 @@ the guess that one might:
   header, for what the flow IS right now rather than what a run produced
 - `automations.runControl` — the app's own control in place of Run
 - `automations.pauseControl` — the app's own control in place of Pause all
+- `notifications.linksFor` — where the app's own notices go when one is
+  clicked, asked once per page of notices rather than once per click. The shell
+  knows what its own notices are about; an app that writes notices as
+  announcements has a title, a body and nowhere to go, which is what this
+  answers. Addresses inside the app only: anything else is dropped rather than
+  followed, because these strings come out of a database
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.

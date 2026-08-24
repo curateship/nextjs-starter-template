@@ -1,4 +1,5 @@
 
+import { loadTradeNoticeLinks } from "@/lib/api/notice-links"
 import type { AppOptions } from "@/lib/app-options"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
@@ -115,5 +116,27 @@ export const appOptions: AppOptions = {
      * thing beside them meaning something else again.
      */
     runButton: "hidden",
+  },
+  notifications: {
+    /**
+     * Where a trade notice goes when it is clicked.
+     *
+     * Every notice this app sends is written as an announcement, because that
+     * is the shell's one way to put a sentence in somebody's inbox — so to the
+     * shell they all look like a title with nowhere to go. The page each one
+     * came off is remembered in `trade_notice_links` when the notice is
+     * written, and this is where the bell asks for it.
+     *
+     * Only announcements are asked about. The shell's own notices — a reply on
+     * a piece of feedback, a published update, a run waiting for approval —
+     * already know where they lead, and asking about them would be a database
+     * trip that can only ever come back empty.
+     */
+    linksFor: (notices) =>
+      loadTradeNoticeLinks(
+        notices
+          .filter((one) => one.type === "announcement")
+          .map((one) => one.id)
+      ),
   },
 }

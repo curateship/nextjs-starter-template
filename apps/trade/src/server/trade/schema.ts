@@ -49,7 +49,7 @@ import type {
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
 import type { WalletKind, WalletStatus } from "@/lib/trade/wallets"
-import { customShellUsers } from "@/server/schema"
+import { customShellAnnouncements, customShellUsers } from "@/server/schema"
 
 /**
  * This app's own tables. The shell's `schema.ts` is a shell file and can
@@ -1268,3 +1268,29 @@ export const tradeFlowRunOrders = pgTable(
     }).onDelete("cascade"),
   ]
 )
+
+/**
+ * Where one of this app's bell notices came from.
+ *
+ * A trade notice is written as an announcement, because that is the shell's
+ * one way to put a sentence in somebody's inbox. The shell then has a title
+ * and a body and nowhere to send a click, which is why clicking a fill used to
+ * do nothing. This is the missing half: one row per notice saying which page
+ * of this app it came off — the coin's chart for a fill, a stop or a
+ * liquidation warning, and the run's own page for a flow that stopped.
+ *
+ * Keyed by the announcement rather than the notification, because the
+ * announcement is the notice and the notification is one person's copy of it.
+ * The address is the same wherever it is read from.
+ *
+ * Only ever a path inside this app. It is checked again in the browser before
+ * anything is followed — this column is written by this app's own code today,
+ * and a check on the reading side is the one that still holds if that ever
+ * stops being true.
+ */
+export const tradeNoticeLinks = pgTable("trade_notice_links", {
+  announcementId: varchar("announcement_id", { length: 36 })
+    .primaryKey()
+    .references(() => customShellAnnouncements.id, { onDelete: "cascade" }),
+  href: text("href").notNull(),
+})

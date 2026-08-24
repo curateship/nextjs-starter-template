@@ -7,6 +7,52 @@ the open browser at once. A notice that cannot be written is a log line and
 nothing more — the trade, the stop or the flow pass it belongs to always
 finishes first.
 
+## Clicking a notice opens where it came from
+
+Every notice above points at the page it happened on, and pressing it goes
+there.
+
+- **A fill, a stop, a target or a liquidation warning opens that coin's chart**
+  on the exchange it happened on. The chart, not the Journal: a stop that fired
+  at 3am is a thing to look at and decide about, and the Journal is where it is
+  read back later. The market key carries its own exchange and network, so a
+  practice fill opens the practice chart rather than the real one wearing the
+  same coin's name.
+- **A flow notice opens that run's own page**, where the reason and the coins it
+  watched are already written down. A flow a trigger could not start has no run
+  to open, so that one opens the flow's canvas instead.
+- **A notice with no page behind it still opens nothing**, and the tray stays up
+  rather than shutting on the words somebody just clicked. A coin on an exchange
+  with no dashboard here is one of those.
+
+**How it is stored.** The shell's bell knows what the shell's own notices are
+about and opens each one. It cannot know what this app's notices are about,
+because they are written as announcements — a title and a body, with nowhere to
+go. So the page each notice came off is written into `trade_notice_links` at the
+same moment the notice is, and the bell asks for it through the shell's
+`notifications.linksFor` app option.
+
+The bell asks **once per page of notices, while the tray is being read**, not
+once per click. The database is a second away, and a second of nothing between
+pressing a notice and the page moving reads as a dead button.
+
+**Addresses are checked, not trusted.** These strings come out of a database, so
+the browser follows one only when it is plainly a path inside this app.
+`isOwnAppHref` is that check, and it does two things: the address has to start
+with a slash, and it has to still be on the same site once the browser has
+resolved it.
+
+The second half is the one that matters, and reading the text cannot replace it.
+A browser treats a backslash as a slash, so `/\example.com` is `//example.com`
+wearing a disguise: one leading slash by eye, another site in fact. Resolving
+the address and comparing the site it lands on catches that, and catches the
+next disguise nobody has thought of yet. Anything that fails is dropped and the
+notice opens nothing.
+
+Asking for somebody else's notice comes back empty. The read joins through the
+notice's own recipient, so a guessed id is not that reader's notice and is not
+in the answer.
+
 ## When an order fills
 
 One notice per fill, never a digest. The words come from

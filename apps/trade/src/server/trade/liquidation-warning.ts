@@ -1,6 +1,10 @@
 import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 
-import { marketSymbol, protocolLabel } from "@/lib/protocols/contracts"
+import {
+  marketChartHref,
+  marketSymbol,
+  protocolLabel,
+} from "@/lib/protocols/contracts"
 import { formatAway, formatUsd } from "@/lib/trade/format"
 import { isInsideLiquidationWarning } from "@/lib/trade/liquidation-warning"
 import { liquidationDistance, type TradePosition } from "@/lib/trade/paper"
@@ -140,6 +144,7 @@ export async function checkLiquidationWarnings({
       const words = `${marketSymbol(position.marketKey)} on ${venue} is ${formatAway(distance.fraction)} from liquidation at ${formatUsd(distance.liquidationPx)}. Price is ${formatUsd(mark)}.`
       await writeTradeNotice({
         userId,
+        href: marketChartHref(position.marketKey),
         title: words,
         body: "The exchange liquidates the account at this price.",
         level: "critical",

@@ -16,6 +16,7 @@ import {
 } from "@/server/schema"
 import { startBacktestForRun } from "@/server/trade/backtest/start"
 import { flowName, startFlowRun, type FlowNodes } from "@/server/trade/flow-run"
+import { flowEditorNoticeHref } from "@/lib/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { flowStartProblem } from "@/lib/trade/flow-words"
 
@@ -158,6 +159,9 @@ export async function runTradeFlow(
       try {
         await writeTradeNotice({
           userId: run.userId,
+          // No run was made, so there is no run page. The flow's own canvas is
+          // where the refusing step is and where switching it on again lives.
+          href: flowEditorNoticeHref(run.automationId),
           title: `Flow ${await flowName(run.automationId, db)} could not start`,
           body: problem,
           level: "warning",
