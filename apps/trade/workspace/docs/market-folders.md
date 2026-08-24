@@ -13,8 +13,10 @@ Pressing an empty star adds the coin to Fav. Pressing a filled star opens the
 folder list because the coin may be saved in more than one place. The list can
 add or remove the coin from any folder and can create a named folder with the
 coin already in it. A failed create keeps the typed name in place for another
-try. Each folder holds at most 100 coins, and one exchange can have at most 100
-named folders plus Fav.
+try. Each folder holds at most 500 coins (raised from 100 on 23 Aug 2026,
+because Tyler keeps whole-category folders — every stock, every liquid coin —
+and one exchange lists more than 100 of each), and one exchange can have at
+most 100 named folders plus Fav.
 
 The market picker uses the same control. Its Favorites view reads Fav only.
 

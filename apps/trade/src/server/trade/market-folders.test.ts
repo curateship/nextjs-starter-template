@@ -134,7 +134,7 @@ describe("market folders", () => {
     expect(remaining[0].isFav).toBe(true)
   })
 
-  it("keeps a folder at the 100-coin limit", async () => {
+  it("keeps a folder at the 500-coin limit", async () => {
     const [fav] = await loadMarketFolders(
       userId,
       "hyperliquid",
@@ -142,7 +142,7 @@ describe("market folders", () => {
       database
     )
     await database.insert(tradeMarketFolderItems).values(
-      Array.from({ length: 100 }, (_, index) => ({
+      Array.from({ length: 500 }, (_, index) => ({
         folderId: fav.id,
         marketKey: `hyperliquid:mainnet:COIN${index}`,
       }))
@@ -158,7 +158,7 @@ describe("market folders", () => {
         },
         database
       )
-    ).rejects.toThrow("at most 100 coins")
+    ).rejects.toThrow("at most 500 coins")
   })
 
   it("keeps named folders inside the reorder limit", async () => {

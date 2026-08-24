@@ -13,7 +13,10 @@ import {
   tradeMarketFolders,
 } from "@/server/trade/schema"
 
-const MAX_FOLDER_MARKETS = 100
+// Raised from 100 on 23 Aug 2026: Tyler keeps whole-category folders — every
+// stock, every liquid coin — and Hyperliquid alone lists more than 100 of
+// each. 500 still bounds a runaway script without cutting a real folder off.
+const MAX_FOLDER_MARKETS = 500
 const MAX_NAMED_FOLDERS = 100
 
 function cleanName(value: string) {
@@ -189,7 +192,9 @@ export async function setMarketInFolder(
         )
         .limit(1)
       if (!already && Number(total?.value ?? 0) >= MAX_FOLDER_MARKETS) {
-        throw new Error("A market folder can hold at most 100 coins.")
+        throw new Error(
+          `A market folder can hold at most ${MAX_FOLDER_MARKETS} coins.`
+        )
       }
       await tx
         .insert(tradeMarketFolderItems)
