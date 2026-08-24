@@ -11,6 +11,7 @@ import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
   moveLiveGridExit,
+  nothingStood,
   placeLiveDcaLadder,
   reconcileLiveLadders,
   resetRefusalHolds,
@@ -753,5 +754,31 @@ describe("dragging a live grid's stop", () => {
 
     expect(setBrackets).toHaveBeenCalled()
     expect(await gridPlan()).toMatchObject({ aimedSlPx: 70 })
+  })
+})
+
+describe("which refusals promise nothing stood", () => {
+  it("trusts the post-only refusal even when it arrives out of a modify", () => {
+    expect(
+      nothingStood(
+        new Error(
+          "LIVE_EXCHANGE:Error placing new order during modify: Post only order would have immediately matched, bbo was 2440.1@2440.2"
+        )
+      )
+    ).toBe(true)
+  })
+
+  it("still trusts it from a plain place", () => {
+    expect(
+      nothingStood(
+        new Error(
+          "LIVE_ORDER_REFUSED:Post only order would have immediately matched, bbo was 84.1@84.2"
+        )
+      )
+    ).toBe(true)
+  })
+
+  it("keeps not trusting an ambiguous transport failure", () => {
+    expect(nothingStood(new Error("LIVE_EXCHANGE:fetch failed"))).toBe(false)
   })
 })

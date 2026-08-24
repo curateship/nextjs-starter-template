@@ -165,6 +165,24 @@ The reason now sits under the level, on the Watched tab row.
   codes into a sentence, because that is the only place that knows what the
   number means — Phemex's are in `src/server/protocols/phemex/orders.ts`.
 
+### A refused chase clears itself and tries again
+
+The chase only ever sends post-only orders, and a market that moves into one
+between the price read and the send is refused by the exchange rather than
+filled as a taker. That refusal is normal; the next pass simply asks again.
+
+What decides whether the watch survives it is `nothingStood` in
+`live-smart-orders.ts`: the short list of exchange answers trusted to mean
+"nothing was kept", which clear the watch's money-was-sent flag so it can act
+again. Hyperliquid says this refusal two ways — as an order status on a plain
+place, and wrapped in "Error placing new order during modify" when the chase
+moved an order — and both are on the list. The second was not until
+23 Aug 2026, and the untrusted wording left a reached ETH watch frozen for
+good: flag raised, no order anywhere, and nothing left that could clear it.
+Any answer NOT on the list still freezes the watch on purpose, because a
+timeout mid-order may have filled, and spending again on top of that fill is
+worse than standing still.
+
 ### The Watched tab opens on last time's levels
 
 The rows come from the trading read, and that read takes about three and a half

@@ -619,8 +619,20 @@ export function resetRefusalHolds(): void {
  * ends the order for good. That is what happened to a Phemex watch on
  * 21 Aug 2026 — twice in eighty minutes, on the same coin.
  */
-function nothingStood(error: unknown): boolean {
+export function nothingStood(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
+  // Hyperliquid refusing a post-only order that would have paid the spread.
+  // From a plain place it already arrives as `LIVE_ORDER_REFUSED` and is
+  // covered below — but the same refusal out of a MODIFY arrives wrapped as
+  // `LIVE_EXCHANGE:Error placing new order during modify: Post only order
+  // would have immediately matched…`, which the prefixes below do not trust.
+  // It is just as certain: the exchange said in words that it kept nothing,
+  // and the modify's cancel half already took the old order off the book. Not
+  // trusting it froze a reached ETH watch for good on 23 Aug 2026 — `sent`
+  // raised, no order anywhere, and nothing left that could ever clear it.
+  if (/post only order would have immediately matched/i.test(message)) {
+    return true
+  }
   return (
     message.startsWith("LIVE_ORDER_REFUSED") ||
     message.startsWith("LIVE_ORDER_SETTINGS") ||
