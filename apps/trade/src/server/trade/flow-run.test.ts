@@ -12,7 +12,11 @@ import {
   insertUser,
   insertWorkspace,
 } from "@/server/test-support"
-import { customShellAutomations } from "@/server/schema"
+import {
+  customShellAnnouncements,
+  customShellAutomations,
+  customShellNotifications,
+} from "@/server/schema"
 import {
   tradeFlowRuns,
   tradeSmartLadders,
@@ -121,7 +125,9 @@ beforeEach(async () => {
   // Two real flows to hang the runs off. The table points at `automations` so
   // that deleting a flow stops it looking for coins, which means a test needs
   // one to exist.
-  const workspace = await insertWorkspace(db)
+  // Owned by the same person, so a stop's bell notice has a workspace to
+  // hang its announcement row on — the way a real account always does.
+  const workspace = await insertWorkspace(db, { userId })
   for (const id of ["flow-1", "flow-2"]) {
     await db.insert(customShellAutomations).values({
       id,
@@ -462,5 +468,49 @@ describe("switching one off", () => {
         db
       )
     ).resolves.toBeTruthy()
+  })
+})
+
+describe("who is told about a stop", () => {
+  it("puts a notice in the owner's bell when the engine stopped it", async () => {
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, reason: "Practice was switched off." },
+      db
+    )
+
+    const notices = await db.select().from(customShellNotifications)
+    expect(notices).toHaveLength(1)
+    expect(notices[0].recipientUserId).toBe(userId)
+    const [announcement] = await db.select().from(customShellAnnouncements)
+    expect(announcement.title).toBe("Flow Flow flow-1 stopped")
+    expect(announcement.body).toBe("Practice was switched off.")
+    expect(announcement.level).toBe("warning")
+    expect(announcement.showBanner).toBe(false)
+  })
+
+  it("stays silent when a person pressed Stop", async () => {
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await stopFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        now: NOW + 1,
+        reason: "Switched off by hand.",
+        byHand: true,
+      },
+      db
+    )
+
+    expect(await db.select().from(customShellNotifications)).toHaveLength(0)
   })
 })

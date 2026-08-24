@@ -4,6 +4,7 @@ import {
   describeFlowWait,
   flowHeadline,
   flowHoldFor,
+  flowHoldJustBegan,
   flowWaitBacksOff,
   flowWaitCode,
   flowWaitIsProblem,
@@ -188,5 +189,37 @@ describe("the exchange refusing in its own words", () => {
     expect(flowWaitCode(new Error("LIVE_EXCHANGE:something new"))).toBe(
       "FLOW_UNKNOWN"
     )
+  })
+})
+
+describe("the one moment a hold's notice goes out", () => {
+  const held = (code: string, strikes: number) => ({
+    code,
+    strikes,
+    until: strikes >= 3 ? 1_000_000 : 0,
+  })
+
+  it("fires exactly when the third identical refusal begins the hold", () => {
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 2), held("SMART_LADDER_COST", 3))).toBe(true)
+    expect(flowHoldJustBegan(null, held("SMART_LADDER_COST", 3))).toBe(true)
+  })
+
+  it("stays quiet while the strikes keep rising on the same answer", () => {
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 3), held("SMART_LADDER_COST", 4))).toBe(false)
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 7), held("SMART_LADDER_COST", 8))).toBe(false)
+  })
+
+  it("stays quiet before three, and after the hold clears", () => {
+    expect(flowHoldJustBegan(null, held("SMART_LADDER_COST", 1))).toBe(false)
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 1), held("SMART_LADDER_COST", 2))).toBe(false)
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 3), null)).toBe(false)
+  })
+
+  it("speaks again when a different problem starts its own hold", () => {
+    expect(flowHoldJustBegan(held("SMART_LADDER_COST", 5), held("LIVE_WALLET_KEY", 3))).toBe(true)
+  })
+
+  it("reads the code without the rung number some of them carry", () => {
+    expect(flowHoldJustBegan(held("SMART_RUNG_TOO_SMALL:3", 3), held("SMART_RUNG_TOO_SMALL:5", 4))).toBe(false)
   })
 })

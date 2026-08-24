@@ -15,7 +15,8 @@ import {
   type CustomShellAutomationRun,
 } from "@/server/schema"
 import { startBacktestForRun } from "@/server/trade/backtest/start"
-import { startFlowRun, type FlowNodes } from "@/server/trade/flow-run"
+import { flowName, startFlowRun, type FlowNodes } from "@/server/trade/flow-run"
+import { writeTradeNotice } from "@/server/trade/notices"
 import { flowStartProblem } from "@/lib/trade/flow-words"
 
 /**
@@ -146,11 +147,25 @@ export async function runTradeFlow(
     // Every refusal reaches the person as a sentence on the step, the way every
     // other failure on this flow already does. A thrown code here would show as
     // an engine error on a screen about money.
-    return {
-      summary: flowStartProblem(
-        error instanceof Error ? error.message : "",
-        named.label
-      ),
+    const problem = flowStartProblem(
+      error instanceof Error ? error.message : "",
+      named.label
+    )
+    // A run a trigger started has nobody watching the step, so the refusal
+    // also goes to the bell. A run somebody pressed Run on stays as it was:
+    // the sentence lands on the step in front of them.
+    if (run.triggerKind) {
+      try {
+        await writeTradeNotice({
+          userId: run.userId,
+          title: `Flow ${await flowName(run.automationId, db)} could not start`,
+          body: problem,
+          level: "warning",
+        })
+      } catch (noticeError) {
+        console.error("flow start notice failed", noticeError)
+      }
     }
+    return { summary: problem }
   }
 }

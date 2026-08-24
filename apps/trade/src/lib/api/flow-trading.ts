@@ -453,6 +453,8 @@ const stopFlowFn = createServerFn({ method: "POST" })
       automationId: data.automationId,
       now: Date.now(),
       reason: "Switched off by hand.",
+      // The person pressing Stop already knows, so no bell notice for this one.
+      byHand: true,
     })
     if (!outcome) return { summary: "That flow was not switched on." }
     return { summary: describeFlowStop(outcome) }

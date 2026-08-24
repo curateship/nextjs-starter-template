@@ -85,6 +85,24 @@ export function nextFlowHold(
   }
 }
 
+/**
+ * True at the one moment a hold actually begins: the strikes have just reached
+ * three, and the hold before this pass had not. That moment gets one notice.
+ * The strikes keep rising while the hold doubles, and every later pass answers
+ * false — a notice per doubling would say the same thing four times.
+ */
+export function flowHoldJustBegan(
+  before: FlowHold | null,
+  after: FlowHold | null
+): boolean {
+  if (!after || after.strikes < STRIKES_BEFORE_HOLD) return false
+  if (!before) return true
+  return (
+    bare(before.code) !== bare(after.code) ||
+    before.strikes < STRIKES_BEFORE_HOLD
+  )
+}
+
 /** One coin's last refusal, as a screen reads it. */
 export type FlowWaiting = {
   marketKey: string

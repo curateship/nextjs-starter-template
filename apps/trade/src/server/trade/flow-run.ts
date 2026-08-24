@@ -13,7 +13,9 @@ import type {
   TradeFlowStrategy,
 } from "@/lib/trade/flow-run"
 import {
+  flowHoldJustBegan,
   flowWaitCode,
+  flowWaitWords,
   nextFlowHold,
   STRIKES_BEFORE_HOLD,
   type FlowHold,
@@ -34,6 +36,8 @@ import {
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
 import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
+import { customShellAutomations } from "@/server/schema"
+import { writeTradeNotice } from "@/server/trade/notices"
 import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
@@ -297,9 +301,50 @@ export async function startFlowRun(
  * somebody's protection off a live trade because they flicked a switch, and it
  * is the version that looks tidy in the moment.
  */
+/** The flow's own name for a notice title, so nobody reads an id. */
+export async function flowName(
+  automationId: string,
+  database: CustomShellDb
+): Promise<string> {
+  const [row] = await database
+    .select({ name: customShellAutomations.name })
+    .from(customShellAutomations)
+    .where(eq(customShellAutomations.id, automationId))
+    .limit(1)
+  return row?.name ?? "flow"
+}
+
+/**
+ * One bell notice to the flow's owner, and never a reason for the stop or the
+ * pass that sends it to fail. `writeTradeNotice` throws when the owner has no
+ * workspace; here that is a log line, because the stop already happened and
+ * the money side must not depend on the messaging side.
+ */
+async function tellFlowOwner(
+  userId: string,
+  words: { title: string; body: string; level: "info" | "warning" | "critical" },
+  database: CustomShellDb
+): Promise<void> {
+  try {
+    await writeTradeNotice({ userId, ...words, database })
+  } catch (error) {
+    console.error("flow notice failed", error)
+  }
+}
+
 export async function stopFlowRun(
   userId: string,
-  input: { automationId: string; now: number; reason?: string },
+  input: {
+    automationId: string
+    now: number
+    reason?: string
+    /**
+     * True only when a person pressed Stop. They already know, so the stop is
+     * silent; every other stop — the engine noticing a wallet switched off or
+     * deleted — puts a notice in the owner's bell.
+     */
+    byHand?: boolean
+  },
   database: CustomShellDb = db
 ): Promise<FlowStopOutcome | null> {
   const [row] = await database
@@ -407,6 +452,20 @@ export async function stopFlowRun(
       updatedAt: new Date(input.now),
     })
     .where(and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, row.id)))
+
+  if (!input.byHand) {
+    await tellFlowOwner(
+      userId,
+      {
+        title: `Flow ${await flowName(input.automationId, database)} stopped`,
+        // The same sentence that went into the run's row, so the bell and the
+        // history can never tell two stories about one stop.
+        body: input.reason ?? "The flow stopped without a reason being given.",
+        level: "warning",
+      },
+      database
+    )
+  }
 
   return { cancelled, held }
 }
@@ -551,6 +610,19 @@ export async function advanceFlowRuns(
       }
     }
 
+    if (flowHoldJustBegan(run.hold ?? null, hold) && hold) {
+      await tellFlowOwner(
+        run.userId,
+        holdNoticeWords(
+          await flowName(run.automationId, database),
+          run.spec.walletLabel,
+          hold,
+          now
+        ),
+        database
+      )
+    }
+
     await database
       .update(tradeFlowRuns)
       .set({
@@ -564,6 +636,28 @@ export async function advanceFlowRuns(
       .where(
         and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
       )
+  }
+}
+
+/**
+ * The one sentence a hold sends: what keeps refusing, on which wallet, and how
+ * long the flow waits before asking again. Sent once, at the moment the third
+ * identical refusal begins the hold — see `flowHoldJustBegan`.
+ */
+function holdNoticeWords(
+  name: string,
+  walletLabel: string,
+  hold: FlowHold,
+  now: number
+): { title: string; body: string; level: "warning" } {
+  const minutes = Math.max(1, Math.round((hold.until - now) / 60_000))
+  return {
+    title: `Flow ${name} has gone quiet`,
+    body:
+      `${flowWaitWords(hold.code)} (${walletLabel}). The same answer came back ` +
+      `${hold.strikes} times in a row, so the flow waits about ${minutes} ` +
+      `${minutes === 1 ? "minute" : "minutes"} before asking again.`,
+    level: "warning",
   }
 }
 
@@ -584,6 +678,7 @@ async function advanceSignalRun(
   run: {
     userId: string
     id: string
+    automationId: string
     walletId: string
     spec: TradeFlowRunSpec
     waiting: Record<string, FlowWaitReason>
@@ -676,6 +771,19 @@ async function advanceSignalRun(
   // first one closes.
   for (const [key, one] of working) {
     acted[key] = Math.max(acted[key] ?? 0, one.plan.signalAt)
+  }
+
+  if (flowHoldJustBegan(run.hold ?? null, hold) && hold) {
+    await tellFlowOwner(
+      run.userId,
+      holdNoticeWords(
+        await flowName(run.automationId, database),
+        run.spec.walletLabel,
+        hold,
+        now
+      ),
+      database
+    )
   }
 
   await database
