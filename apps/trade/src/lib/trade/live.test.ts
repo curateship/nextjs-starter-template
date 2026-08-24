@@ -27,6 +27,7 @@ const PORTFOLIO: WalletPortfolio = {
       slPx: 90_000,
       tpOrderId: "11",
       slOrderId: "12",
+      protectionOrderIds: ["11", "12"],
     },
   ],
   orders: [

@@ -608,6 +608,10 @@ describe("reading the account back", () => {
     // A leg that closes the whole position states no size, which is what
     // "all of it" means.
     expect(held.tpSz).toBeNull()
+    // Both legs are counted, not only the two named above. Replacing the
+    // protection cancels this list, so a leg missing from it is a leg that can
+    // never be cancelled and sells the position a second time.
+    expect([...held.protectionOrderIds].sort()).toEqual(["sl-1", "tp-1"])
     expect(portfolio.orders.every((one) => one.trigger)).toBe(true)
   })
 })

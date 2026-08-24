@@ -140,6 +140,8 @@ const CLOSE_WIDTH = 16
 const GRIP_WIDTH = 14
 /** The gap between the pill and the price badge that follows it. */
 const BADGE_GAP = 4
+/** The gap left between two pills that had to share a stretch of chart. */
+const PILL_GAP = 6
 /** How round both the pill and the price badge are. */
 const PILL_RADIUS = 8
 
@@ -375,6 +377,31 @@ export function TradeLinesLayer({
     }
   }
 
+  /**
+   * A second stop or target the position is carrying, if this order is one.
+   *
+   * A position is meant to hold one stop and one target, and those are drawn
+   * from the position itself. An exchange will happily hold more: brackets
+   * attached to an entry order arrive as their own legs, and a position that
+   * grows afterwards gets another pair put over the top. Drawn as a plain
+   * "Sell $167" a leg like that reads as an ordinary order somebody placed,
+   * which is the opposite of the truth — it is protection, it fires by itself,
+   * and on 24 Aug 2026 one sat exactly on top of the stop it was a copy of.
+   *
+   * Which one it is comes from the price, not from a flag: an exit above where
+   * a long got in takes a profit, one below it stops a loss.
+   */
+  const extraLeg = (order: TradeOrder): "take_profit" | "stop_loss" | null => {
+    if (!order.trigger || !order.reduceOnly) return null
+    const position = held.find(
+      (one) => one.walletId === order.walletId && one.marketKey === marketKey
+    )
+    if (!position) return null
+    const winning =
+      position.szi > 0 ? order.px > position.entryPx : order.px < position.entryPx
+    return winning ? "take_profit" : "stop_loss"
+  }
+
   for (const order of waiting) {
     const tag = whose(order.walletId)
     // An order still on its way to the server has no id anything could act on,
@@ -393,9 +420,11 @@ export function TradeLinesLayer({
         ? () => onEditOrder(order.id)
         : undefined
 
+    const spare = extraLeg(order)
+
     lines.push({
       id: `order:${order.id}`,
-      kind: "order",
+      kind: spare ?? "order",
       price: order.px,
       // **The cash it takes, not what it buys.** In dollars first, because
       // "Buy 3.2754" is an amount of something whose price is the other number
@@ -407,9 +436,13 @@ export function TradeLinesLayer({
       // zero and fall back to what the position would be worth. Saying the
       // wrong figure with a straight face is worse than saying the plain one.
       label: () =>
-        `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
-          orderCostUsd(order)
-        )}${tag}${settled ? "" : " · sending"}`,
+        spare
+          ? `Extra ${spare === "take_profit" ? "Target" : "Stop"} ${formatUsdRounded(
+              orderCostUsd(order)
+            )}${tag}`
+          : `${order.side === "buy" ? "Buy" : "Sell"} ${formatUsdRounded(
+              orderCostUsd(order)
+            )}${tag}${settled ? "" : " · sending"}`,
       // Every kind drags except a real trigger leg. A practice order
       // re-prices its row, a real resting order is moved in place by the
       // exchange's modify, and a watched price changes the level the app is
@@ -506,6 +539,111 @@ export function TradeLinesLayer({
     setGrab(null)
   }
 
+  // Where every pill and price badge goes, settled before anything is drawn.
+  //
+  // A pill is 22 pixels tall and they all want the same place: hard against
+  // the price axis, centred on the line. Two prices closer together than that
+  // on screen used to land on the same spot and the second one drawn covered
+  // the first, words and × and all. So each pill is put down in turn, and one
+  // that lands on a pill already there moves LEFT of it. Never up or down: a
+  // pill off its own line points at a price that is not its own.
+  const pills: Array<{ top: number; bottom: number; x: number }> = []
+  const badges: Array<{ top: number; bottom: number; text: string }> = []
+  const drawn = lines.flatMap((line) => {
+    const price = grab?.id === line.id ? grab.price : line.price
+    const y = surface.yOf(price)
+    if (y === null) return []
+    const label = line.label(price)
+    const priceText = formatPrice(price)
+
+    // Line, then an outlined pill saying what it is, then the price in a solid
+    // badge over the axis. The words sit in the line's own colour on the
+    // chart's background rather than in white on a block of it: a solid bar
+    // that wide reads as a thing in its own right and hides the candles behind
+    // it, while the price — the one figure that has to be found at a glance —
+    // keeps the colour to itself.
+    const grip = line.onMove ? GRIP_WIDTH : 0
+    // 20 of padding, plus room for the grip and for whichever controls the
+    // line carries — with a gap of its own before them, so the words never
+    // butt straight up against the gear.
+    const controls =
+      (line.onRemove ? CLOSE_WIDTH : 0) + (line.onSettings ? CLOSE_WIDTH : 0)
+    const pillWidth =
+      label.length * CHAR_WIDTH + 20 + grip + (controls > 0 ? controls + 4 : 0)
+    const badgeWidth = Math.max(
+      surface.axisWidth,
+      priceText.length * CHAR_WIDTH + 12
+    )
+    const top = y - PILL_HEIGHT / 2
+    const bottom = top + PILL_HEIGHT
+
+    let pillX = surface.width - pillWidth - BADGE_GAP
+    // One try per pill already down is enough: every move puts this pill fully
+    // left of one of them, and the list is finite.
+    for (let tries = 0; tries <= pills.length; tries++) {
+      const clash = pills.find(
+        (one) =>
+          one.top < bottom &&
+          top < one.bottom &&
+          pillX + pillWidth + PILL_GAP > one.x
+      )
+      if (!clash) break
+      pillX = clash.x - PILL_GAP - pillWidth
+    }
+    pillX = Math.max(2, pillX)
+    pills.push({ top, bottom, x: pillX })
+
+    // A price badge cannot move sideways, because the axis is the only place a
+    // price is read. Two badges saying the SAME price are one fact printed
+    // twice, so the second is dropped. Two saying different prices both have to
+    // be legible, so the later one slides down until it is clear.
+    let badgeY = y
+    let sameTwice = false
+    for (let tries = 0; tries <= badges.length; tries++) {
+      const clash = badges.find(
+        (one) =>
+          one.top < badgeY + PILL_HEIGHT / 2 &&
+          badgeY - PILL_HEIGHT / 2 < one.bottom
+      )
+      if (!clash) break
+      if (clash.text === priceText) {
+        sameTwice = true
+        break
+      }
+      badgeY = clash.bottom + PILL_HEIGHT / 2
+    }
+    // A badge that slid past the bottom of the chart is a price nobody can
+    // read, which is worse than two badges touching. Kept on the chart even
+    // when that means giving the sliding up.
+    badgeY = Math.min(
+      Math.max(badgeY, PILL_HEIGHT / 2),
+      Math.max(PILL_HEIGHT / 2, surface.height - PILL_HEIGHT / 2)
+    )
+    if (!sameTwice) {
+      badges.push({
+        top: badgeY - PILL_HEIGHT / 2,
+        bottom: badgeY + PILL_HEIGHT / 2,
+        text: priceText,
+      })
+    }
+
+    return [
+      {
+        line,
+        y,
+        label,
+        priceText,
+        pillWidth,
+        badgeWidth,
+        pillX,
+        top,
+        grip,
+        badgeY,
+        showBadge: !sameTwice,
+      },
+    ]
+  })
+
   return (
     <svg
       // Marks everything these lines own, so a press anywhere else on the page
@@ -517,39 +655,24 @@ export function TradeLinesLayer({
       height={surface.height}
       className="absolute top-0 left-0"
     >
-      {lines.map((line) => {
-        const price = grab?.id === line.id ? grab.price : line.price
-        const y = surface.yOf(price)
-        if (y === null) return null
-        const held = grab?.id === line.id
+      {drawn.map(
+        ({
+          line,
+          y,
+          label,
+          priceText,
+          pillWidth,
+          badgeWidth,
+          pillX,
+          top,
+          grip,
+          badgeY,
+          showBadge,
+        }) => {
+        // Not `held`: that name belongs to the positions above, and this
+        // callback now sits under a helper that reads them.
+        const dragging = grab?.id === line.id
         const color = colorOf(line.kind, colors)
-        const priceText = formatPrice(price)
-        const label = line.label(price)
-
-        // Line, then an outlined pill saying what it is, then the price in a
-        // solid badge over the axis. The words sit in the line's own colour on
-        // the chart's background rather than in white on a block of it: a
-        // solid bar that wide reads as a thing in its own right and hides the
-        // candles behind it, while the price — the one figure that has to be
-        // found at a glance — keeps the colour to itself.
-        const grip = line.onMove ? GRIP_WIDTH : 0
-        // 20 of padding, plus room for the grip and for whichever controls the
-        // line carries — with a gap of its own before them, so the words never
-        // butt straight up against the gear.
-        const controls =
-          (line.onRemove ? CLOSE_WIDTH : 0) +
-          (line.onSettings ? CLOSE_WIDTH : 0)
-        const pillWidth =
-          label.length * CHAR_WIDTH +
-          20 +
-          grip +
-          (controls > 0 ? controls + 4 : 0)
-        const badgeWidth = Math.max(
-          surface.axisWidth,
-          priceText.length * CHAR_WIDTH + 12
-        )
-        const pillX = Math.max(2, surface.width - pillWidth - BADGE_GAP)
-        const top = y - PILL_HEIGHT / 2
 
         return (
           <g key={line.id}>
@@ -561,7 +684,7 @@ export function TradeLinesLayer({
               x2={Math.max(0, pillX - 2)}
               y2={y}
               stroke={color}
-              strokeWidth={held ? 2 : 1.5}
+              strokeWidth={dragging ? 2 : 1.5}
               strokeDasharray={DASHED[line.kind]}
             />
 
@@ -575,7 +698,7 @@ export function TradeLinesLayer({
                 fill="var(--card)"
                 fillOpacity={0.92}
                 stroke={color}
-                strokeWidth={held ? 1.75 : 1.25}
+                strokeWidth={dragging ? 1.75 : 1.25}
               />
               {line.onMove ? (
                 <Grip x={pillX + 9} y={y - 4} color={color} />
@@ -593,23 +716,28 @@ export function TradeLinesLayer({
                 {label}
               </text>
               {/* The price in the line's colour, over the axis, where every
-                  other price on the chart is read. */}
-              <rect
-                x={surface.width + BADGE_GAP}
-                y={top}
-                width={badgeWidth}
-                height={PILL_HEIGHT}
-                rx={PILL_RADIUS}
-                fill={color}
-              />
-              <text
-                x={surface.width + BADGE_GAP + 6}
-                y={y + 4}
-                fill={colors.badgeText}
-                style={{ fontSize: 11, fontWeight: 600 }}
-              >
-                {priceText.replace("$", "")}
-              </text>
+                  other price on the chart is read. Dropped when a badge for
+                  this same price is already there — see the layout above. */}
+              {showBadge ? (
+                <>
+                  <rect
+                    x={surface.width + BADGE_GAP}
+                    y={badgeY - PILL_HEIGHT / 2}
+                    width={badgeWidth}
+                    height={PILL_HEIGHT}
+                    rx={PILL_RADIUS}
+                    fill={color}
+                  />
+                  <text
+                    x={surface.width + BADGE_GAP + 6}
+                    y={badgeY + 4}
+                    fill={colors.badgeText}
+                    style={{ fontSize: 11, fontWeight: 600 }}
+                  >
+                    {priceText.replace("$", "")}
+                  </text>
+                </>
+              ) : null}
             </g>
 
             {line.onMove && !tool ? (
@@ -724,8 +852,9 @@ export function TradeLinesLayer({
               />
             ) : null}
           </g>
-        )
-      })}
+          )
+        }
+      )}
     </svg>
   )
 }

@@ -107,6 +107,12 @@ add up to.
   liquidation inside it replaces that worst case with a bigger one quietly.
   Already being inside is not the same as being brought inside, and only the
   second is refused — see `position-margin.md`.
+- **A position never carries a stop the app cannot see.** Replacing a stop or a
+  target cancels every protection order the exchange is holding on that market,
+  not the two the app happens to show. A leg it cannot see is a leg it can
+  never cancel, and two live stops sell the position twice: the first closes
+  it, the second opens a new one the other way round. See
+  `position-protection.md`.
 - **Dragging is instant on screen.** The line stays where the hand let go; the
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is

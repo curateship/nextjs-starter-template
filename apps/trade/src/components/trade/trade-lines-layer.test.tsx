@@ -170,12 +170,81 @@ describe("chart bracket lines", () => {
     expect(html).not.toContain("theme-neutral")
   })
 
-  it("keeps a separate order at the same price", () => {
+  it("names a spare protection leg for what it is, not as a plain sell", () => {
+    // A position can end up carrying two stops or two targets, and the extra
+    // one used to draw as "Sell $110" in the neutral grey of an ordinary
+    // waiting order. It is not one: it fires by itself and sells the position.
     const html = render("target", "another-order")
 
     expect(html).toContain("Take Profit")
-    expect(html).toContain("Sell $110")
-    expect(html).toContain("theme-neutral")
+    expect(html).toContain("Extra Target $110")
+    expect(html).not.toContain("Sell $110")
+    expect(html).not.toContain("theme-neutral")
+  })
+
+  it("reads a spare leg on a short the other way round", () => {
+    // On a short the exit is a buy, so the profit is BELOW where it got in and
+    // the loss is above. Getting this backwards would paint a stop green and
+    // call it a target, on a line that sells real money by itself.
+    const held = position("stop")
+    held.szi = -1
+    held.slPx = 130
+
+    const below = renderLines(held, [order(80, "another-order")])
+    expect(below).toContain("Extra Target $80")
+    expect(below).toContain("theme-up")
+
+    const above = renderLines(held, [order(150, "another-order")])
+    expect(above).toContain("Extra Stop $150")
+    expect(above).toContain("theme-down")
+  })
+
+  /** Every label pill on the chart, as boxes, from the drawn SVG. */
+  function pillBoxes(html: string) {
+    const host = document.createElement("div")
+    host.innerHTML = html
+    return [...host.querySelectorAll("rect")]
+      .filter((rect) => rect.getAttribute("fill") === "var(--card)")
+      .map((rect) => ({
+        left: Number(rect.getAttribute("x")),
+        top: Number(rect.getAttribute("y")),
+        width: Number(rect.getAttribute("width")),
+        height: Number(rect.getAttribute("height")),
+      }))
+  }
+
+  it("moves a pill off the pill it landed on instead of covering it", () => {
+    // Two lines at one price put both pills in the same place, and the second
+    // one drawn covered the first: on 24 Aug 2026 a stop read "Stop Lo", the
+    // rest of its words and its × hidden under a sell order's pill.
+    const held = position("stop")
+    held.slPx = 60
+    const boxes = pillBoxes(renderLines(held, [order(60, "another-order")]))
+    expect(boxes).toHaveLength(3)
+
+    for (const [at, box] of boxes.entries()) {
+      for (const other of boxes.slice(at + 1)) {
+        const sameBand =
+          box.top < other.top + other.height && other.top < box.top + box.height
+        const sameColumn =
+          box.left < other.left + other.width && other.left < box.left + box.width
+        expect(sameBand && sameColumn).toBe(false)
+      }
+    }
+  })
+
+  it("prints one price badge when two lines sit on the same price", () => {
+    const held = position("stop")
+    held.slPx = 60
+    const host = document.createElement("div")
+    host.innerHTML = renderLines(held, [order(60, "another-order")])
+    // The badges are the solid blocks over the axis, which starts at the
+    // plot's width plus the gap. Three lines, two prices between them, so two
+    // badges: printing "60" twice says one fact twice.
+    const badges = [...host.querySelectorAll("rect")].filter(
+      (rect) => Number(rect.getAttribute("x")) === surface.width + 4
+    )
+    expect(badges).toHaveLength(2)
   })
 
   it("keeps the same exchange order ID when it belongs to another wallet", () => {

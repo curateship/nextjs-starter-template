@@ -634,6 +634,10 @@ describe("reading the account back", () => {
     expect(held.tpOrderId).toBe("tp-1")
     // The whole position — so no partial-target size is claimed.
     expect(held.tpSz).toBeNull()
+    // Both legs are counted, not only the two named above. Replacing the
+    // protection cancels this list, so a leg missing from it is a leg that can
+    // never be cancelled and sells the position a second time.
+    expect([...held.protectionOrderIds].sort()).toEqual(["sl-1", "tp-1"])
     expect(portfolio.orders.every((one) => one.trigger)).toBe(true)
   })
 

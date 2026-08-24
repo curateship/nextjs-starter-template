@@ -697,7 +697,7 @@ export async function setKucoinBrackets(
   orderAuth: OrderAuth,
   params: {
     marketId: string
-    position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+    position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     tpPx: number | null
     tpSz: number | null
     slPx: number | null
@@ -711,11 +711,11 @@ export async function setKucoinBrackets(
   const long = params.position.szi > 0
 
   // Old legs first, so the position is never guarded twice. A leg already
-  // gone is fine — that is the state being aimed for.
-  const replacing = [
-    params.position.tpOrderId,
-    params.position.slOrderId,
-  ].filter((id): id is string => Boolean(id))
+  // gone is fine — that is the state being aimed for. EVERY leg goes, not the
+  // two the read named: a spare stop the app cannot see is a stop that can
+  // never be cancelled and sells the position a second time. See
+  // `protectionOrderIds`.
+  const replacing = [...new Set(params.position.protectionOrderIds)]
   for (const orderId of replacing) {
     await kucoinSigned(
       network,
@@ -954,7 +954,14 @@ export async function fetchKucoinPortfolio(
     const szi = coinsOf(lots, lot)
     const long = szi > 0
 
-    const legs = bySymbol.get(row.data.symbol) ?? []
+    // Sorted by id, so a position carrying more than one stop names the same
+    // one on every read instead of flipping between them. By id and not by
+    // time because the order id is the only thing here that never changes;
+    // whether that puts the oldest first depends on how KuCoin builds an id,
+    // and the point is that the answer holds still, not which leg wins.
+    const legs = [...(bySymbol.get(row.data.symbol) ?? [])].sort((left, right) =>
+      left.id.localeCompare(right.id)
+    )
     const stop = legs.find((one) => legOf(one.stop, long) === "stop")
     const target = legs.find((one) => legOf(one.stop, long) === "target")
     const targetLots = target ? num(target.size) : null
@@ -976,6 +983,10 @@ export async function fetchKucoinPortfolio(
       slPx: stop ? num(stop.stopPrice) : null,
       tpOrderId: target?.id ?? null,
       slOrderId: stop?.id ?? null,
+      // Every untriggered leg on this market, not only the two picked above,
+      // because `setBrackets` has to cancel all of them — see
+      // `protectionOrderIds`.
+      protectionOrderIds: legs.map((one) => one.id),
     })
   }
 

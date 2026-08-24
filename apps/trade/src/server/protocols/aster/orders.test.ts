@@ -483,7 +483,7 @@ describe("Aster orders", () => {
     sent.length = 0
     await setAsterBrackets("testnet", AUTH, {
       marketId: "BTCUSDT",
-      position: { szi: 2, tpOrderId: null, slOrderId: null },
+      position: { szi: 2, protectionOrderIds: [] },
       tpPx: 120,
       tpSz: 0.5,
       slPx: null,
@@ -493,6 +493,92 @@ describe("Aster orders", () => {
     )
     expect(partial?.url.searchParams.get("quantity")).toBe("0.5")
     expect(partial?.url.searchParams.has("closePosition")).toBe(false)
+  })
+
+  it("counts every protection leg when the position is carrying spares", async () => {
+    // A position can end up holding two stops and two targets: brackets
+    // attached to an entry leave their own pair behind, and a position that
+    // grows afterwards gets a whole-position pair put over the top. Only two
+    // ids used to come back, so the other two could never be cancelled.
+    const sent: Sent[] = []
+    stub((_method, url) => {
+      if (url.pathname.endsWith("/accountWithJoinMargin")) {
+        return {
+          totalMarginBalance: "100",
+          totalUnrealizedProfit: "0",
+          availableBalance: "90",
+          positions: [
+            {
+              symbol: "BTCUSDT",
+              positionSide: "BOTH",
+              positionInitialMargin: "10",
+            },
+          ],
+        }
+      }
+      if (url.pathname.endsWith("/positionRisk")) {
+        return [
+          {
+            symbol: "BTCUSDT",
+            positionAmt: "2",
+            entryPrice: "90",
+            leverage: "3",
+            marginType: "cross",
+            positionSide: "BOTH",
+            isolatedMargin: "0",
+          },
+        ]
+      }
+      if (url.pathname.endsWith("/openOrders")) {
+        // Newest first, the way an exchange happens to answer.
+        return [
+          order({
+            orderId: 44,
+            side: "SELL",
+            type: "STOP_MARKET",
+            stopPrice: "70",
+            origQty: "1",
+          }),
+          order({
+            orderId: 43,
+            side: "SELL",
+            type: "TAKE_PROFIT_MARKET",
+            stopPrice: "110",
+            origQty: "1",
+          }),
+          order({
+            orderId: 42,
+            side: "SELL",
+            type: "STOP_MARKET",
+            stopPrice: "70",
+            closePosition: true,
+          }),
+          order({
+            orderId: 41,
+            side: "SELL",
+            type: "TAKE_PROFIT_MARKET",
+            stopPrice: "110",
+            closePosition: true,
+          }),
+        ]
+      }
+      return {}
+    }, sent)
+
+    const portfolio = await fetchAsterOrderPortfolio(
+      "testnet",
+      ACCOUNT,
+      () => AUTH.agentKey
+    )
+    const held = portfolio.positions[0]
+
+    // All four, so replacing the protection can take all four off.
+    expect(held.protectionOrderIds).toEqual(["41", "42", "43", "44"])
+    // The same leg is named on every read. The last one used to win, which
+    // meant whichever the exchange listed last.
+    expect(held.tpOrderId).toBe("41")
+    expect(held.slOrderId).toBe("42")
+    expect(held.tpSz).toBeNull()
   })
 
   it("reads a whole-position target back as tracking everything left", async () => {

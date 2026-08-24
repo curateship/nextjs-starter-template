@@ -30,6 +30,9 @@ Two files outrank the rest, and outrank the code:
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is
   split between levels, what a sell is worth, and what following price up does.
 - `watched-orders.md` — how a plain order works now, and what dragging does.
+- `position-protection.md` — the stop and target riding on an open position: how
+  a position ends up carrying spares, why replacing one takes every leg off, and
+  how the chart keeps two labels at one price apart.
 - `part-close.md` — selling some of a position instead of all of it: why a part
   is chased as a maker where all of it is not, what the window asks, and what
   happens to the stop on the rest.

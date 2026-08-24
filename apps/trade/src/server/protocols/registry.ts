@@ -430,7 +430,7 @@ export type ProtocolEntry = {
       auth: OrderAuth,
       params: {
         marketId: string
-        position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+        position: Pick<WalletPosition, "szi" | "protectionOrderIds">
         tpPx: number | null
         /** Coins the target sells; null sells the whole position. */
         tpSz: number | null

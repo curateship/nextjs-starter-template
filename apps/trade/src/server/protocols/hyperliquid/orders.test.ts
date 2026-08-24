@@ -412,6 +412,61 @@ describe("reading the portfolio", () => {
     expect(portfolio.orders).toHaveLength(0)
   })
 
+  it("counts every protection leg when the position is carrying spares", async () => {
+    // A real Hyperliquid position on 24 Aug 2026: two targets and two stops,
+    // a whole-position pair and a 48% pair left over from an entry's own
+    // brackets. Only two ids were ever read back, so the other two could never
+    // be cancelled and the pile grew every time the stop was moved.
+    clearinghouseState.mockResolvedValue({
+      assetPositions: [
+        {
+          position: {
+            coin: "BTC",
+            szi: "0.33",
+            entryPx: "1205.7",
+            leverage: { value: 5 },
+            liquidationPx: null,
+            marginUsed: "80",
+          },
+        },
+      ],
+    })
+    const leg = (oid: number, px: string, sz: string, kind: string) => ({
+      coin: "BTC",
+      side: "A",
+      limitPx: px,
+      sz,
+      oid,
+      isTrigger: true,
+      triggerPx: px,
+      isPositionTpsl: false,
+      reduceOnly: true,
+      orderType: kind,
+    })
+    // Newest first, the way the exchange happened to answer.
+    frontendOpenOrders.mockResolvedValue([
+      leg(44, "1047.3", "0.159", "Stop Market"),
+      leg(43, "1769.2", "0.159", "Take Profit Market"),
+      leg(42, "1047.3", "0.33", "Stop Market"),
+      leg(41, "1769.2", "0.33", "Take Profit Market"),
+    ])
+
+    const portfolio = await fetchHyperliquidPortfolio("mainnet", TEST_ADDRESS)
+    const held = portfolio.positions[0]
+
+    // All four, so replacing the protection can take all four off.
+    expect(held.protectionOrderIds).toEqual(["41", "42", "43", "44"])
+    // Oldest wins, so the same leg is named on every read. Before this the
+    // answer flipped between reads: "Take Profit 48% +$89.60" one second and
+    // "Take Profit +$185.96" the next, on a position nobody had touched.
+    expect(held.tpOrderId).toBe("41")
+    expect(held.slOrderId).toBe("42")
+    expect(held.tpSz).toBeNull()
+    // The spares are still shown. Hiding a real order that sells the position
+    // by itself would be worse than drawing it in the wrong place.
+    expect(portfolio.orders.map((one) => one.orderId)).toEqual(["43", "44"])
+  })
+
   it("reads only the main venue while the funding feed warms up", async () => {
     // A fresh server's feed is always cold, and sweeping every venue on boot
     // was five hundred calls in the first half minute — the app rate-limited
@@ -553,7 +608,7 @@ describe("the protection on a real position", () => {
     allocateNonce: async () => Date.now(),
   }
   /** A position holding half a coin, with a stop and a target already on it. */
-  const HELD = { szi: 0.5, tpOrderId: "11", slOrderId: "12" }
+  const HELD = { szi: 0.5, protectionOrderIds: ["11", "12"] }
 
   beforeEach(() => {
     exchangeOrder.mockReset()
@@ -638,6 +693,26 @@ describe("the protection on a real position", () => {
     const both = exchangeOrder.mock.calls[0][0]
     expect(both.grouping).toBe("positionTpsl")
     expect(both.orders.map((one: { s: string }) => one.s)).toEqual(["0.5", "0.5"])
+  })
+
+  it("cancels every leg the position carries, not the two it shows", async () => {
+    // The position from the read test above: four legs, of which the app only
+    // ever named two. Replacing the stop has to take all four off, or the
+    // spares sell the position a second time on their own.
+    exchangeCancel.mockResolvedValue({
+      response: { data: { statuses: ["success", "success", "success", "success"] } },
+    })
+    await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: { szi: 0.5, protectionOrderIds: ["41", "42", "43", "44"] },
+      tpPx: null,
+      tpSz: null,
+      slPx: 90_000,
+    })
+
+    expect(exchangeCancel).toHaveBeenCalledTimes(1)
+    const cancelled = exchangeCancel.mock.calls[0][0].cancels
+    expect(cancelled.map((one: { o: number }) => one.o)).toEqual([41, 42, 43, 44])
   })
 
   it("clears both sides by cancelling and sending nothing", async () => {

@@ -136,6 +136,7 @@ export function toAsterAccountSnapshot(input: {
       slPx: null,
       tpOrderId: null,
       slOrderId: null,
+      protectionOrderIds: [],
     })
   }
 

@@ -634,7 +634,7 @@ export async function setHyperliquidBrackets(
   auth: OrderAuth,
   params: {
     marketId: string
-    position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+    position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     tpPx: number | null
     /** Coins the target sells; null sells the whole position. */
     tpSz: number | null
@@ -688,8 +688,10 @@ export async function setHyperliquidBrackets(
       : []),
   ]
 
-  const oldLegs = [params.position.tpOrderId, params.position.slOrderId]
-    .filter((id): id is string => id !== null)
+  // EVERY protection leg on the position, not the two the read named. A
+  // position holding a spare stop the app cannot see is a position that gets
+  // sold twice — see `protectionOrderIds`.
+  const oldLegs = [...new Set(params.position.protectionOrderIds)]
     .map(Number)
     .filter((oid) => Number.isSafeInteger(oid) && oid > 0)
 
@@ -1113,12 +1115,19 @@ async function readHyperliquidPortfolio(
         slPx: null,
         tpOrderId: null,
         slOrderId: null,
+        protectionOrderIds: [],
       })
     }
     for (const order of read.open) {
       openAcrossVenues.push({ dex: read.dex, order })
     }
   }
+  // Oldest order id first, so which leg becomes THE stop is the same answer on
+  // every read. The exchange does not promise an order, and while a position
+  // carried two targets the chart named one of them on one read and the other
+  // on the next: "Take Profit 48% +$89.60" and then "Take Profit +$185.96",
+  // for the same unchanged position.
+  openAcrossVenues.sort((left, right) => left.order.oid - right.order.oid)
   if (sweeping || told) {
     activeVenues.set(rememberKey, { at: Date.now(), names: [...used] })
   }
@@ -1139,6 +1148,11 @@ async function readHyperliquidPortfolio(
     // and the drag replaces. First one per slot; an extra stays an order row
     // rather than being hidden.
     if (position && order.isTrigger && order.reduceOnly) {
+      // Counted whether or not it becomes the position's own stop or target,
+      // and before the price is read: a leg whose price cannot be read is
+      // still a leg the exchange will fire, and cancelling it by id works
+      // whatever its price says — see `protectionOrderIds`.
+      position.protectionOrderIds.push(String(order.oid))
       const triggerPx = num(order.triggerPx)
       if (triggerPx === null) continue
       const isTakeProfit = /take profit/i.test(order.orderType)

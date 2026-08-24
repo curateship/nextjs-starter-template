@@ -582,9 +582,19 @@ function attachOrders(
   base: WalletPortfolio,
   rows: Awaited<ReturnType<typeof openOrders>>
 ): WalletPortfolio {
-  const positions = base.positions.map((position) => ({ ...position }))
+  const positions = base.positions.map((position) => ({
+    ...position,
+    protectionOrderIds: [...position.protectionOrderIds],
+  }))
   const orders: WalletOpenOrder[] = []
-  for (const row of rows) {
+  // Oldest first, so a position carrying more than one stop names the same one
+  // on every read instead of flipping between them.
+  const oldestFirst = [...rows].sort((left, right) =>
+    String(left.orderId).localeCompare(String(right.orderId), undefined, {
+      numeric: true,
+    })
+  )
+  for (const row of oldestFirst) {
     const type = row.type.toUpperCase()
     const target = type === "TAKE_PROFIT_MARKET"
     const stop = type === "STOP_MARKET"
@@ -593,11 +603,14 @@ function attachOrders(
       if (!position) continue
       const triggerPx = num(row.stopPrice)
       if (triggerPx === null) continue
-      if (target) {
+      // Every leg is counted, even the ones that do not become the position's
+      // own stop or target, because `setBrackets` has to cancel all of them.
+      position.protectionOrderIds.push(String(row.orderId))
+      if (target && position.tpPx === null) {
         position.tpPx = triggerPx
         position.tpSz = row.closePosition ? null : num(row.origQty)
         position.tpOrderId = String(row.orderId)
-      } else {
+      } else if (stop && position.slPx === null) {
         position.slPx = triggerPx
         position.slOrderId = String(row.orderId)
       }
@@ -720,18 +733,18 @@ export async function setAsterBrackets(
   orderAuth: OrderAuth,
   params: {
     marketId: string
-    position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+    position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     tpPx: number | null
     tpSz: number | null
     slPx: number | null
   }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
-  for (const orderId of [
-    params.position.tpOrderId,
-    params.position.slOrderId,
-  ]) {
-    if (!orderId) continue
+  // EVERY protection leg, not the two the read named — see
+  // `protectionOrderIds`. A spare stop the app cannot see never gets cancelled,
+  // and it sells the position a second time.
+  const oldIds = [...new Set(params.position.protectionOrderIds)]
+  for (const orderId of oldIds) {
     try {
       await cancelAsterOrder(network, orderAuth, {
         marketId: params.marketId,
@@ -742,9 +755,6 @@ export async function setAsterBrackets(
       if (!message.startsWith("ASTER_ORDER_GONE:")) throw error
     }
   }
-  const oldIds = [params.position.tpOrderId, params.position.slOrderId].filter(
-    (id): id is string => id !== null
-  )
   if (oldIds.length > 0) {
     const stillOpen = await openOrders(
       network,

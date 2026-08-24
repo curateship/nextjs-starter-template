@@ -378,9 +378,27 @@ export type WalletPosition = {
    */
   tpSz: number | null
   slPx: number | null
-  /** The exchange's ids for those protection legs — needed to replace them. */
+  /** The exchange's ids for the two legs drawn above, needed to replace them. */
   tpOrderId: string | null
   slOrderId: string | null
+  /**
+   * Every reduce-only protection order the exchange is holding on this market,
+   * the two above included.
+   *
+   * A position is only supposed to carry one stop and one target, and the four
+   * fields above say which. It can end up carrying more: brackets attached to
+   * an entry order arrive as their own fixed-size legs, and a position that
+   * later grows gets a second pair placed over the top. On 24 Aug 2026 one
+   * Hyperliquid position was found holding four, a whole-position pair and a
+   * 48% pair, drawn on the chart as two stray sell orders sitting exactly on
+   * top of the stop and the target.
+   *
+   * `setBrackets` cancels this whole list rather than the two named ids, so
+   * replacing a stop leaves one stop behind and never a pile. Without it every
+   * extra leg is permanent: the app cannot see it, so it can never cancel it,
+   * and the position quietly gets sold twice over.
+   */
+  protectionOrderIds: string[]
 }
 
 /** One real order still waiting on the exchange. */

@@ -747,7 +747,7 @@ export async function setPhemexBrackets(
   orderAuth: OrderAuth,
   params: {
     marketId: string
-    position: Pick<WalletPosition, "szi" | "tpOrderId" | "slOrderId">
+    position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     tpPx: number | null
     tpSz: number | null
     slPx: number | null
@@ -769,11 +769,11 @@ export async function setPhemexBrackets(
   )
 
   // Old legs first, so the position is never guarded twice. A leg already
-  // gone is fine — that is the state being aimed for.
-  for (const orderId of [
-    params.position.tpOrderId,
-    params.position.slOrderId,
-  ]) {
+  // gone is fine — that is the state being aimed for. EVERY leg goes, not the
+  // two the read named: a spare stop the app cannot see is a stop that can
+  // never be cancelled and sells the position a second time. See
+  // `protectionOrderIds`.
+  for (const orderId of new Set(params.position.protectionOrderIds)) {
     if (!orderId) continue
     await phemexSigned(network, credential, "DELETE", "/g-orders/cancel", {
       symbol: params.marketId,
@@ -1030,9 +1030,13 @@ export async function fetchPhemexPortfolio(
     // The protection legs are the untriggered exit orders sitting on the
     // same symbol: a stop-family order guards the downside, a touched-family
     // one takes the profit. Their ids are what `setBrackets` replaces.
-    const legs = (openBySymbol.get(row.data.symbol) ?? []).filter(
-      (one) => statusNameOf(one) === "Untriggered"
-    )
+    // Sorted by id, so a position carrying more than one stop names the same
+    // one on every read instead of flipping between them. By id and not by
+    // time because the order id is the only thing here that never changes;
+    // the point is that the answer holds still, not which leg wins.
+    const legs = (openBySymbol.get(row.data.symbol) ?? [])
+      .filter((one) => statusNameOf(one) === "Untriggered")
+      .sort((left, right) => idOf(left).localeCompare(idOf(right)))
     const stop = legs.find((one) => STOP_TYPES.has(typeNameOf(one)))
     const target = legs.find((one) => TARGET_TYPES.has(typeNameOf(one)))
 
@@ -1054,6 +1058,10 @@ export async function fetchPhemexPortfolio(
       slPx: stop ? num(stop.stopPxRp) : null,
       tpOrderId: target ? idOf(target) || null : null,
       slOrderId: stop ? idOf(stop) || null : null,
+      // Every untriggered leg on this market, not only the two picked above,
+      // because `setBrackets` has to cancel all of them — see
+      // `protectionOrderIds`.
+      protectionOrderIds: legs.map((one) => idOf(one)).filter(Boolean),
     })
   }
 
