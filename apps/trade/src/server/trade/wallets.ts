@@ -357,7 +357,7 @@ export async function loadWalletSummaries(
   )
   const liveWallets = inUse.filter((wallet) => wallet.kind === "live")
   const paperWallets = inUse.filter((wallet) => wallet.kind === "paper")
-  const since = walletProfitWindowStart(new Date())
+  const since = walletProfitWindowStart()
   const [paper, liveMoney, paperMoney] = await Promise.all([
     paperWalletFigures(userId, paperWallets).catch((error) => {
       console.error("Paper wallets could not be settled", error)

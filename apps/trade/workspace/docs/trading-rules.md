@@ -156,11 +156,17 @@ add up to.
   last landed stay, marked as a moment old, until enough reads in a row have
   missed to say plainly that the exchange cannot be reached. The same holds
   for positions and orders. See `wallet-reads.md`.
-- **A wallet card's profit starts two days ago.** Settled is recorded trade
-  money since midnight two days ago in Toronto, not just yesterday. Made or
-  lost adds current open profit. The balance the wallet had when it was
-  added, older profit, deposits, and
-  withdrawals do not enter either figure.
+- **The widgets start on 20 August 2026 and never move.** Tyler's words: the
+  stats start from that day, so the screen said two days ago, then three, then
+  four, and it keeps counting up. It is a start date, never "the last two
+  days" and never "since yesterday" — a rolling window would drop the earliest
+  trades every midnight. Settled is recorded trade money since midnight that
+  day in Toronto; Made or lost adds current open profit. The balance the
+  wallet had when it was added, older profit, deposits, and withdrawals do not
+  enter either figure. This rule was broken twice by writing it as "today
+  minus N days", so it is now fenced: `profit-window.test.ts` fails any build
+  where the start is worked out from a clock, or where a screen writes the
+  period as a fixed number of days instead of counting up from the start day.
 
 ## Backtests
 

@@ -51,9 +51,9 @@ export type WalletAccountSummary =
   | ({
       walletId: string
       state: "ok"
-      /** Settled since two days ago plus what is still open now. */
+      /** Settled since the start day plus what is still open now. */
       madeOrLost: number
-      /** Trade money already banked since midnight two days ago in Toronto. */
+      /** Trade money already banked since the start day, midnight in Toronto. */
       settled: number
       /** Recent fills whose profit the venue has not stated. */
       unpricedFills: number
@@ -184,10 +184,30 @@ export function moneyForWalletFill(fill: {
 }
 
 /**
- * Midnight two days ago in the account owner's timezone. Tyler's rule: the
- * widgets count from two days ago, not just yesterday.
+ * The one day the widgets start counting from: 20 August 2026, midnight in
+ * Toronto.
+ *
+ * **A fixed day, never a rolling window.** Tyler's rule is that the figures
+ * begin at one moment and count everything since. Written as "two days ago"
+ * it was right for one day and then quietly started dropping the earliest
+ * trades every midnight, which is the bug this constant exists to end. The
+ * day it names does not move; the words on screen count up from it — two days
+ * ago, then three, then four.
  */
-export function walletProfitWindowStart(now: Date): number {
+const WALLET_PROFIT_START_DAY = "2026-08-20"
+
+/** Midnight on the start day, in Toronto, as epoch ms. */
+export function walletProfitWindowStart(): number {
+  const instant = runAtFromTimezoneInput(
+    `${WALLET_PROFIT_START_DAY}T00:00`,
+    WALLET_PROFIT_TIMEZONE
+  )
+  if (!instant) throw new Error("WALLET_PROFIT_WINDOW")
+  return new Date(instant).getTime()
+}
+
+/** The Toronto calendar day `now` falls on, as a UTC midnight. */
+function torontoDay(now: Date): number {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: WALLET_PROFIT_TIMEZONE,
     year: "numeric",
@@ -196,14 +216,28 @@ export function walletProfitWindowStart(now: Date): number {
   }).formatToParts(now)
   const value = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value)
-  const localDay = new Date(
-    Date.UTC(value("year"), value("month") - 1, value("day"))
-  )
-  localDay.setUTCDate(localDay.getUTCDate() - 2)
-  const input = `${localDay.getUTCFullYear()}-${String(localDay.getUTCMonth() + 1).padStart(2, "0")}-${String(localDay.getUTCDate()).padStart(2, "0")}T00:00`
-  const instant = runAtFromTimezoneInput(input, WALLET_PROFIT_TIMEZONE)
-  if (!instant) throw new Error("WALLET_PROFIT_WINDOW")
-  return new Date(instant).getTime()
+  return Date.UTC(value("year"), value("month") - 1, value("day"))
+}
+
+/**
+ * How many whole Toronto days ago the widgets started counting. Grows by one
+ * every midnight, because the start day stands still.
+ */
+export function walletProfitWindowDaysAgo(now: Date): number {
+  const [year, month, day] = WALLET_PROFIT_START_DAY.split("-").map(Number)
+  const start = Date.UTC(year, month - 1, day)
+  return Math.max(0, Math.round((torontoDay(now) - start) / 86_400_000))
+}
+
+/**
+ * The words the widgets use for their start: "4 days ago". One phrase, so the
+ * dashboard and its tooltips can never drift apart.
+ */
+export function walletProfitWindowLabel(now: Date): string {
+  const days = walletProfitWindowDaysAgo(now)
+  if (days === 0) return "today"
+  if (days === 1) return "1 day ago"
+  return `${days} days ago`
 }
 
 /**

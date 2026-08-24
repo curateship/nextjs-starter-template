@@ -105,7 +105,7 @@ export async function loadTradingOverview(
   ].sort()
 
   const now = new Date()
-  const performanceSince = walletProfitWindowStart(now)
+  const performanceSince = walletProfitWindowStart()
   const wallets: TradingOverviewWallet[] = walletRows.map((wallet) => ({
     ...wallet,
     performance:

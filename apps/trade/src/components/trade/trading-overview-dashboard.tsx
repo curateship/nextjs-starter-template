@@ -72,7 +72,17 @@ import {
   formatUsd,
 } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
+import { walletProfitWindowLabel } from "@/lib/trade/wallets"
 import { cn } from "@/lib/utils"
+
+/**
+ * When the figures started counting, in words — "4 days ago". Read fresh on
+ * every render so the phrase grows with the calendar instead of being frozen
+ * into the sentence the way "two days ago" was.
+ */
+function startedLabel() {
+  return walletProfitWindowLabel(new Date())
+}
 
 const moneyChartConfig: ChartConfig = {
   money: { label: "Money", color: "var(--foreground)" },
@@ -186,7 +196,7 @@ function HeadlineCard({
     },
     {
       label: "Made or lost",
-      detail: "from two days ago until now",
+      detail: `from ${startedLabel()} until now`,
       value: formatSignedUsd(journey),
       rawValue: journey,
       indicator: `fees ${formatUsd(fees)}`,
@@ -351,9 +361,10 @@ function WalletsCard({
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
                 Made or lost is settled trade money the exchanges stated plus
-                current open profit. Settled trades start at midnight two days
-                ago in Toronto. Deposits and withdrawals never count as profit.
-                Trades the exchange did not price are not included.
+                current open profit. Settled trades start at midnight{" "}
+                {startedLabel()} in Toronto. Deposits and withdrawals never
+                count as profit. Trades the exchange did not price are not
+                included.
               </TooltipContent>
             </Tooltip>
           </span>
@@ -578,7 +589,7 @@ function MoneyChart({
                 </button>
               </TooltipTrigger>
               <TooltipContent className="max-w-64">
-                Profit since midnight two days ago: settled trade money plus
+                Profit since midnight {startedLabel()}: settled trade money plus
                 current open profit. Deposits and withdrawals are excluded.
                 {overview.unpricedFills
                   ? ` The line is short of ${overview.unpricedFills.toLocaleString()} ${overview.unpricedFills === 1 ? "trade" : "trades"} whose money the exchange did not state.`
@@ -595,7 +606,7 @@ function MoneyChart({
               {formatUsd(latest.money)}
             </p>
             <p className="text-sm text-muted-foreground">
-              current · since two days ago
+              current · since {startedLabel()}
             </p>
           </div>
         ) : null}

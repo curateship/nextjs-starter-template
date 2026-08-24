@@ -940,7 +940,8 @@ working bar streams beside it.
   "Orders on the chart".
 
 The wallet card on each exchange dashboard shows settled trade profit since
-midnight two days ago in Toronto and current open profit. Its final row is Made or
+midnight on the start day, 20 August 2026, in Toronto, and current open
+profit. Its final row is Made or
 lost: those two figures added together. It does not use the wallet's opening
 balance, so older profit, deposits, and withdrawals cannot move either profit
 row. When KuCoin has not stated the profit for a partial sale, an info mark
@@ -1004,8 +1005,9 @@ the wallet rows, while wallets without figures stay at the end. The table opens
 with the largest open profit first.
 Testnet wallets do not appear in this card. The Wallets heading tooltip states
 the money rule. Made or lost is settled trade money plus current open profit.
-The settled trades start at midnight two days ago in Toronto. Deposits and
-withdrawals can change Balance but never profit.
+The settled trades start at midnight on the start day in Toronto, which the
+tooltip names by how long ago it was — four days ago on 24 August 2026, five
+the next day. Deposits and withdrawals can change Balance but never profit.
 
 Fees are the exchange's stated charges on every fill in the same window,
 including a fill whose profit the exchange did not state. Made or lost stays
@@ -1018,8 +1020,10 @@ fills recorded in the same millisecond do not fall through the join. If a page
 cuts through a trade, the next page also rebuilds the trade whole. Once an empty
 page comes back, the control says That is everything.
 
-The money-over-time card starts at zero at midnight two days ago in Toronto and
-charts priced settled trade money from then until now. Its final point adds the
+The money-over-time card starts at zero at midnight on the start day in
+Toronto and charts priced settled trade money from then until now. The words
+under the figure count the days since that day rather than naming a fixed
+number, so they stay true as the calendar moves. Its final point adds the
 current open profit, so the value above the line is the same current profit as
 Made or lost. Opening balances, deposits, withdrawals, and older fills never
 enter the line. There are no longer historical range controls because the card

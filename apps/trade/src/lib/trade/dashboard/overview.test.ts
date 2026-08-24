@@ -6,7 +6,12 @@ import {
   isTradingOverviewWallet,
   tradingOverviewWalletPerformance,
 } from "./overview"
-import { moneyForWalletFill, walletProfitWindowStart } from "../wallets"
+import {
+  moneyForWalletFill,
+  walletProfitWindowDaysAgo,
+  walletProfitWindowLabel,
+  walletProfitWindowStart,
+} from "../wallets"
 
 describe("trading overview money", () => {
   it("combines open trades from every wallet", () => {
@@ -172,13 +177,28 @@ describe("trading overview money", () => {
     })
   })
 
-  it("starts at midnight two days ago in Toronto", () => {
-    expect(walletProfitWindowStart(new Date("2026-08-21T16:00:00.000Z"))).toBe(
-      new Date("2026-08-19T04:00:00.000Z").getTime()
+  it("starts at midnight on 20 August 2026 in Toronto, whatever day it is", () => {
+    expect(walletProfitWindowStart()).toBe(
+      new Date("2026-08-20T04:00:00.000Z").getTime()
     )
   })
 
-  it("charts profit from two days ago through the current open profit", () => {
+  it("counts the days since the start day, so the label grows", () => {
+    expect(
+      walletProfitWindowDaysAgo(new Date("2026-08-24T16:00:00.000Z"))
+    ).toBe(4)
+    expect(
+      walletProfitWindowDaysAgo(new Date("2026-08-25T16:00:00.000Z"))
+    ).toBe(5)
+    expect(walletProfitWindowLabel(new Date("2026-08-24T16:00:00.000Z"))).toBe(
+      "4 days ago"
+    )
+    expect(walletProfitWindowLabel(new Date("2026-08-21T16:00:00.000Z"))).toBe(
+      "1 day ago"
+    )
+  })
+
+  it("charts profit from the start day through the current open profit", () => {
     expect(
       buildTradingOverviewProfit(
         [

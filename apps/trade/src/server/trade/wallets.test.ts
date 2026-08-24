@@ -372,13 +372,13 @@ describe("the figures sweep", () => {
     expect(summaries).toEqual([{ walletId: wallet.id, state: "inactive" }])
   })
 
-  it("uses settled profit since yesterday instead of the wallet baseline", async () => {
+  it("uses settled profit since the start day instead of the wallet baseline", async () => {
     const userId = await person()
     const wallet = await createWallet(userId, {
       ...liveInput(),
       protocol: "kucoin",
     })
-    const since = walletProfitWindowStart(new Date())
+    const since = walletProfitWindowStart()
     await database.insert(tradeLiveFills).values([
       {
         userId,

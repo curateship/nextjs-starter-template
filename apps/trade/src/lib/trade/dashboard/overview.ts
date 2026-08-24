@@ -143,7 +143,7 @@ export function tradingOverviewWalletPerformance(
   }
 }
 
-/** Settled profit since two days ago, with current open profit at the endpoint. */
+/** Settled profit since the start day, with current open profit at the endpoint. */
 export function buildTradingOverviewProfit(
   fills: readonly Pick<TradingOverviewFill, "at" | "money">[],
   since: number,
