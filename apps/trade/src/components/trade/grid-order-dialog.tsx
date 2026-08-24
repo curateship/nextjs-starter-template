@@ -561,7 +561,7 @@ export function GridOrderDialog({
                 </FieldLabel>
                 <Select
                   value={anchor}
-                  disabled={!loaded}
+                  disabled={busy || !loaded}
                   onValueChange={(next) => setAnchor(next as GridAnchor)}
                 >
                   <SelectTrigger
@@ -593,7 +593,7 @@ export function GridOrderDialog({
                     id="grid-bottom"
                     inputMode="decimal"
                     value={belowPct}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     aria-invalid={below === null}
                     onChange={(event) => setBelowPct(event.target.value)}
                     className="bg-background"
@@ -609,7 +609,7 @@ export function GridOrderDialog({
                       id="grid-top"
                       inputMode="decimal"
                       value={abovePct}
-                      disabled={!loaded}
+                      disabled={busy || !loaded}
                       aria-invalid={above === null}
                       onChange={(event) => setAbovePct(event.target.value)}
                       className="bg-background"
@@ -623,7 +623,7 @@ export function GridOrderDialog({
                       id="grid-bottom"
                       inputMode="decimal"
                       value={belowPct}
-                      disabled={!loaded}
+                      disabled={busy || !loaded}
                       aria-invalid={below === null}
                       onChange={(event) => setBelowPct(event.target.value)}
                       className="bg-background"
@@ -661,7 +661,7 @@ export function GridOrderDialog({
                   id="grid-levels"
                   inputMode="numeric"
                   value={levels}
-                  disabled={!loaded}
+                  disabled={busy || !loaded}
                   aria-invalid={parsed(levels) === null}
                   onChange={(event) => setLevels(event.target.value)}
                   className="bg-background"
@@ -731,7 +731,7 @@ export function GridOrderDialog({
                   id="grid-pot"
                   inputMode="decimal"
                   value={potPct}
-                  disabled={!loaded}
+                  disabled={busy || !loaded}
                   aria-invalid={parsed(potPct) === null}
                   onChange={(event) => setPotPct(event.target.value)}
                   className="bg-background"
@@ -746,6 +746,7 @@ export function GridOrderDialog({
                 </FieldLabel>
                 <Select
                   value={sizing}
+                  disabled={busy}
                   onValueChange={(next) => setSizing(next as GridSizing)}
                 >
                   <SelectTrigger
@@ -771,7 +772,7 @@ export function GridOrderDialog({
               hint="When price climbs past the top, the range slides up behind it and the grid carries on. It costs nothing, because by then every level has already sold. The stop slides up too, so it keeps what it has made, and it never finishes on its own: it runs until you switch this off or the stop is hit. Levels the same dollars apart thin as the range climbs, so following stops once a round trip no longer clears the fee. The same percent apart has no such limit."
               toggle={{
                 checked: follow,
-                disabled: !loaded,
+                disabled: busy || !loaded,
                 onChange: (next) => {
                   setFollow(next)
                   // A range that slides up ahead of price can never reach a
@@ -798,7 +799,11 @@ export function GridOrderDialog({
                   tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
                 }
                 hint="How far above the range price has to get before the grid closes itself. It rarely sells anything: by the time price is up there every level has already sold, so what this really does is stop the grid watching. Without it the grid waits above its range for price to come back down."
-                toggle={{ checked: tpOn, disabled: !loaded, onChange: setTpOn }}
+                toggle={{
+                  checked: tpOn,
+                  disabled: busy || !loaded,
+                  onChange: setTpOn,
+                }}
               >
                 {tpOn ? (
                   <>
@@ -810,7 +815,7 @@ export function GridOrderDialog({
                         id="grid-tp-pct"
                         inputMode="decimal"
                         value={tpPct}
-                        disabled={!loaded}
+                        disabled={busy || !loaded}
                         aria-invalid={parsed(tpPct) === null}
                         onChange={(event) => setTpPct(event.target.value)}
                         className="bg-background"
@@ -842,7 +847,7 @@ export function GridOrderDialog({
               hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
               toggle={{
                 checked: slOn,
-                disabled: !loaded,
+                disabled: busy || !loaded,
                 onChange: setSlOn,
               }}
             >
@@ -859,7 +864,7 @@ export function GridOrderDialog({
                       id="grid-sl-pct"
                       inputMode="decimal"
                       value={slUnderPct}
-                      disabled={!loaded}
+                      disabled={busy || !loaded}
                       aria-invalid={parsed(slUnderPct) === null}
                       onChange={(event) => setSlUnderPct(event.target.value)}
                       className="bg-background"
@@ -875,7 +880,7 @@ export function GridOrderDialog({
                     on={baseOn}
                     underPct={baseUnderPct}
                     reclaimDays={baseReclaimDays}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     onOn={setBaseOn}
                     onUnderPct={setBaseUnderPct}
                     onReclaimDays={setBaseReclaimDays}
@@ -906,6 +911,7 @@ export function GridOrderDialog({
                 </FieldLabel>
                 <Select
                   value={spacing}
+                  disabled={busy}
                   onValueChange={(next) => setSpacing(next as GridSpacing)}
                 >
                   <SelectTrigger
@@ -934,7 +940,7 @@ export function GridOrderDialog({
                   id="grid-vol-pct"
                   inputMode="decimal"
                   value={maxOrderVolPct}
-                  disabled={!loaded}
+                  disabled={busy || !loaded}
                   aria-invalid={parsed(maxOrderVolPct) === null}
                   onChange={(event) => setMaxOrderVolPct(event.target.value)}
                   className="bg-background"

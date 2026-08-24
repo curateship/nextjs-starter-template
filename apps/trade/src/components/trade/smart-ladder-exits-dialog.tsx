@@ -230,6 +230,7 @@ function ExitsForm({
               <Checkbox
                 id="ladder-tp-on"
                 checked={tpOn}
+                disabled={busy}
                 onCheckedChange={(next) => setTpOn(next === true)}
               />
               <FieldLabel htmlFor="ladder-tp-on" hint={DCA_TP_MODE_HINTS[tpMode]}>
@@ -240,9 +241,13 @@ function ExitsForm({
               <div className="grid gap-4">
                 <Select
                   value={tpMode}
+                  disabled={busy}
                   onValueChange={(next) => setTpMode(next as DcaTpMode)}
                 >
-                  <SelectTrigger aria-label="How the ladder takes profit">
+                  <SelectTrigger
+                    id="ladder-tp-mode"
+                    aria-label="How the ladder takes profit"
+                  >
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -266,6 +271,7 @@ function ExitsForm({
                       inputMode="decimal"
                       value={tpPct}
                       aria-invalid={badTp}
+                      disabled={busy}
                       onChange={(event) => setTpPct(event.target.value)}
                     />
                   </div>
@@ -290,6 +296,7 @@ function ExitsForm({
               <Checkbox
                 id="ladder-sl-on"
                 checked={slOn}
+                disabled={busy}
                 onCheckedChange={(next) => setSlOn(next === true)}
               />
               <FieldLabel
@@ -308,6 +315,7 @@ function ExitsForm({
                     inputMode="decimal"
                     value={slPct}
                     aria-invalid={badSl}
+                    disabled={busy}
                     onChange={(event) => setSlPct(event.target.value)}
                   />
                 </div>

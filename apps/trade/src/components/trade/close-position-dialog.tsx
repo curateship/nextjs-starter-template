@@ -191,12 +191,14 @@ function CloseForm({
                   inputMode="decimal"
                   className="flex-1"
                   value={amount}
+                  disabled={busy}
                   onChange={(event) => setAmount(event.target.value)}
                   aria-invalid={refusal !== null}
                   aria-describedby={refusal ? "close-refusal" : undefined}
                 />
                 <Select
                   value={unit}
+                  disabled={busy}
                   onValueChange={(next) => {
                     const chosen = next as "usd" | "coins"
                     // The same amount, said in the other unit, so switching
@@ -232,6 +234,7 @@ function CloseForm({
                     type="button"
                     size="sm"
                     variant="outline"
+                    disabled={busy}
                     onClick={() => setShare(share)}
                   >
                     {share === 100 ? "All of it" : `${share}%`}

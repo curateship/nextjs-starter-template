@@ -343,6 +343,12 @@ confirming press on live wallets; Tyler had it removed. Two switches still
 stand between a real-money order and the exchange. The server must allow
 mainnet, and Real-money trading must be on in Settings.
 
+Once an order or position window sends a change, every box, tick and choice in
+that window locks while the answer is on its way. Cancel and Done lock too. The
+save button shows its spinner for exactly the same time. A refusal unlocks the
+window with every typed value still there, so the answer can be corrected and
+sent again without guessing which version reached the exchange.
+
 ### A stop that rests under the base
 
 A DCA ladder can put its stop on the confirmed base instead of a fixed distance

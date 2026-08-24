@@ -257,6 +257,7 @@ function BracketsForm({
                   inputMode="decimal"
                   placeholder="None"
                   value={targetPct}
+                  disabled={busy}
                   onChange={(event) => setTargetPct(event.target.value)}
                   aria-invalid={badTarget}
                 />
@@ -288,6 +289,7 @@ function BracketsForm({
                   inputMode="decimal"
                   placeholder="None"
                   value={stopPct}
+                  disabled={busy}
                   onChange={(event) => setStopPct(event.target.value)}
                   aria-invalid={badStop}
                 />
@@ -312,11 +314,13 @@ function BracketsForm({
                     inputMode="decimal"
                     className="flex-1"
                     value={sellAmount}
+                    disabled={busy}
                     onChange={(event) => setSellAmount(event.target.value)}
                     aria-invalid={badSell}
                   />
                   <Select
                     value={sellUnit}
+                    disabled={busy}
                     onValueChange={(next) => {
                       const unit = next as "pct" | "usd"
                       // The same piece, said in the other unit, so switching

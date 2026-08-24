@@ -280,6 +280,7 @@ function MarginForm({
                       id="margin-leverage"
                       inputMode="numeric"
                       value={leverage}
+                      disabled={busy}
                       onChange={(event) => setLeverage(event.target.value)}
                       aria-invalid={leverageBad !== null}
                       aria-describedby={
@@ -340,6 +341,7 @@ function MarginForm({
                       inputMode="decimal"
                       placeholder="200, or -100 to take it back"
                       value={margin}
+                      disabled={busy}
                       onChange={(event) => setMargin(event.target.value)}
                       aria-invalid={marginBad !== null}
                       aria-describedby={

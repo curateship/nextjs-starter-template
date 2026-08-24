@@ -174,6 +174,7 @@ export function OrderEditDialog({
                     id="order-size"
                     inputMode="decimal"
                     value={size}
+                    disabled={busy}
                     onChange={(event) => setSize(event.target.value)}
                     aria-invalid={badSize}
                   />
@@ -209,6 +210,7 @@ export function OrderEditDialog({
                         inputMode="decimal"
                         placeholder="None"
                         value={targetPct}
+                        disabled={busy}
                         onChange={(event) => setTargetPct(event.target.value)}
                         aria-invalid={badTarget}
                       />
@@ -230,6 +232,7 @@ export function OrderEditDialog({
                         inputMode="decimal"
                         placeholder="None"
                         value={stopPct}
+                        disabled={busy}
                         onChange={(event) => setStopPct(event.target.value)}
                         aria-invalid={badStop}
                       />

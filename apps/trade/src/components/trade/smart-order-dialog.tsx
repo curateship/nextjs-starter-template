@@ -501,7 +501,7 @@ export function SmartOrderDialog({
                       id={`smart-rung-${index + 1}`}
                       inputMode="decimal"
                       value={rung.value}
-                      disabled={!loaded}
+                      disabled={busy || !loaded}
                       aria-label={`Rung ${index + 1}, percent below the buy above`}
                       aria-invalid={parsed(rung.value) === null}
                       onChange={(event) => setRung(rung.id, event.target.value)}
@@ -517,7 +517,7 @@ export function SmartOrderDialog({
                       variant="ghost"
                       size="icon"
                       className="size-7 text-muted-foreground"
-                      disabled={!loaded || rungs.length <= 1}
+                      disabled={busy || !loaded || rungs.length <= 1}
                       aria-label={`Remove rung ${index + 1}`}
                       onClick={() => removeRung(rung.id)}
                     >
@@ -531,7 +531,7 @@ export function SmartOrderDialog({
                 variant="outline"
                 size="sm"
                 className="justify-start"
-                disabled={!loaded || rungs.length >= 20}
+                disabled={busy || !loaded || rungs.length >= 20}
                 onClick={addRung}
               >
                 <PlusIcon className="size-4" />
@@ -556,7 +556,7 @@ export function SmartOrderDialog({
                     id="smart-pot"
                     inputMode="decimal"
                     value={maxPositionPct}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     aria-invalid={params === null && parsed(maxPositionPct) === null}
                     onChange={(event) => setMaxPositionPct(event.target.value)}
                     className="bg-background"
@@ -573,7 +573,7 @@ export function SmartOrderDialog({
                     id="smart-ramp"
                     inputMode="decimal"
                     value={sizeMultiplier}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     onChange={(event) => setSizeMultiplier(event.target.value)}
                     className="bg-background"
                   />
@@ -587,7 +587,7 @@ export function SmartOrderDialog({
               hint={DCA_TP_MODE_HINTS[tpMode]}
               toggle={{
                 checked: tpOn,
-                disabled: !loaded,
+                disabled: busy || !loaded,
                 onChange: setTpOn,
               }}
             >
@@ -599,6 +599,7 @@ export function SmartOrderDialog({
                     </Label>
                     <Select
                       value={tpMode}
+                      disabled={busy}
                       onValueChange={(next) => setTpMode(next as DcaTpMode)}
                     >
                       <SelectTrigger id="smart-tp-mode" className="w-full">
@@ -622,7 +623,7 @@ export function SmartOrderDialog({
                         id="smart-tp-pct"
                         inputMode="decimal"
                         value={tpPct}
-                        disabled={!loaded}
+                        disabled={busy || !loaded}
                         aria-invalid={tpOn && parsed(tpPct) === null}
                         onChange={(event) => setTpPct(event.target.value)}
                         className="bg-background"
@@ -639,7 +640,7 @@ export function SmartOrderDialog({
               hint="Percent below the average buy, following it as it moves. If the stop hits, everything sells and the waiting rungs are cancelled — unless the base rule below is on, which steps the ladder down to its next rung instead."
               toggle={{
                 checked: slOn,
-                disabled: !loaded,
+                disabled: busy || !loaded,
                 onChange: (on) => {
                   setSlOn(on)
                   // Switched on, it starts below the deepest rung rather than
@@ -661,7 +662,7 @@ export function SmartOrderDialog({
                       id="smart-sl-pct"
                       inputMode="decimal"
                       value={slPct}
-                      disabled={!loaded}
+                      disabled={busy || !loaded}
                       aria-invalid={slOn && parsed(slPct) === null}
                       onChange={(event) => setSlPct(event.target.value)}
                       className="bg-background"
@@ -671,7 +672,7 @@ export function SmartOrderDialog({
                     on={baseOn}
                     underPct={baseUnderPct}
                     reclaimDays={baseReclaimDays}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     onOn={setBaseOn}
                     onUnderPct={setBaseUnderPct}
                     onReclaimDays={setBaseReclaimDays}
@@ -712,6 +713,7 @@ export function SmartOrderDialog({
                   </FieldLabel>
                   <Select
                     value={anchor}
+                    disabled={busy}
                     onValueChange={(next) => setAnchor(next as DcaAnchor)}
                   >
                     <SelectTrigger id="smart-anchor" className="w-full bg-background">
@@ -738,7 +740,7 @@ export function SmartOrderDialog({
                     id="smart-vol-guard"
                     inputMode="decimal"
                     value={maxOrderVolPct}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     // The shared field is see-through, which on a grey card
                     // means a box you type into looks like one you cannot.
                     className="bg-background"
@@ -750,7 +752,7 @@ export function SmartOrderDialog({
                   <Checkbox
                     id="smart-two-green"
                     checked={twoGreen}
-                    disabled={!loaded}
+                    disabled={busy || !loaded}
                     onCheckedChange={(next) => setTwoGreen(next === true)}
                   />
                   <FieldLabel
