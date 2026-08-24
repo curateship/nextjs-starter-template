@@ -55,6 +55,7 @@ import {
   rollbackLiveOrder,
   setLiveBrackets,
 } from "@/server/trade/live-orders"
+import { sweepLiveFills } from "@/server/trade/live-fills"
 import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
 import { walletCredential } from "@/server/trade/wallet-auth"
@@ -95,6 +96,13 @@ import {
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
+
+/**
+ * How often the ENGINE asks a wallet's venue for its fills. See the sweep
+ * call in `reconcileLiveLaddersOnce` for why this throttle exists at all.
+ */
+const ENGINE_SWEEP_EVERY_MS = 30_000
+const engineSweptAt = new Map<string, number>()
 
 /** The flow's cap when it has one, never more than the account holds. */
 function livePotOf(
@@ -763,6 +771,26 @@ async function reconcileLiveLaddersOnce(
       wallet.address,
       credential
     ))
+  // The fills record used to be kept only by the browser's poll, so a stop
+  // that fired at three in the morning was written down — and its bell notice
+  // sent — whenever somebody next opened the page. The engine is already here
+  // every second for every wallet with working orders, so it keeps the record
+  // too.
+  //
+  // **Throttled here, on top of the sweep's own pacing.** The sweep skips its
+  // 30-second wait whenever the venue's push feed says it needs a recovery
+  // read — right for a browser poll, wrong here: on a venue whose feed cannot
+  // connect (Phemex under its rate limit), "needs recovery" never clears, so
+  // an every-second caller ran the full history read and its order lookups
+  // every single second. That spent the venue's whole request ration and got
+  // every OTHER request refused — placing a watched order included, measured
+  // 23 Aug 2026. A fill is still written down within half a minute of
+  // happening, which is what the 3am case needs.
+  const lastSweepAt = engineSweptAt.get(wallet.id) ?? 0
+  if (Date.now() - lastSweepAt >= ENGINE_SWEEP_EVERY_MS) {
+    engineSweptAt.set(wallet.id, Date.now())
+    void sweepLiveFills(userId, wallet, portfolio, credential)
+  }
   const warningPositions: TradePosition[] = portfolio.positions.map((held) => {
     const key = toMarketKey({
       protocol: wallet.protocol,

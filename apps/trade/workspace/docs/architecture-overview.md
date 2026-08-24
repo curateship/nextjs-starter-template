@@ -277,9 +277,11 @@ the recovery view (`recovery-tools.md`), and automations trading real money.
 
 ## Deliberately not built yet
 
-- **Alerts.** When they arrive they attach to a drawn line through the chart's
-  surface, not through the chart. The market list's Watch tab is already used
-  by markets with active smart orders.
+- **Price alerts on drawn lines.** When they arrive they attach to a drawn
+  line through the chart's surface, not through the chart. The market list's
+  Watch tab is already used by markets with active smart orders. Notices about
+  things that already happened — a fill, a stop firing, a flow stopping on its
+  own — exist now; see `trade-notices.md`.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in

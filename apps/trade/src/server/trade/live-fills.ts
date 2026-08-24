@@ -18,7 +18,12 @@ import {
 } from "@/lib/trade/live-trades"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { TradeSide } from "@/lib/trade/paper"
+import {
+  fillNoticeWords,
+  triggerNoticeWords,
+} from "@/lib/trade/trade-notice-words"
 import type { TradeWallet } from "@/lib/trade/wallets"
+import { writeTradeNotice } from "@/server/trade/notices"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
@@ -118,6 +123,14 @@ const MAX_REMEMBERED_TRIGGERS = 5_000
 /** How many old closing orders are looked up per sweep. See `resolveClosingOrders`. */
 const MAX_LOOKUPS = 8
 
+/**
+ * How old a fill may be and still get a bell notice. Anything older is
+ * catch-up — a first sweep, a long reconnect — and belongs in the Journal, not
+ * in the bell. Comfortably wider than the sweep's own pacing, so a fill made
+ * while nobody was reading is still announced by the read that finds it.
+ */
+const ANNOUNCED_IF_NEWER_MS = 15 * 60_000
+
 /** When each wallet was last asked, so a four-second poll does not. */
 const sweptAt = new Map<string, number>()
 
@@ -206,7 +219,7 @@ export async function recordLiveFills(
 ): Promise<void> {
   if (fills.length === 0) return
   try {
-    await db
+    const inserted = await db
       .insert(tradeLiveFills)
       .values(
         fills.map((fill) => ({
@@ -230,8 +243,96 @@ export async function recordLiveFills(
         }))
       )
       .onConflictDoNothing()
+      // Which rows were actually NEW — the whole answer to "who gets told".
+      // A recovery read re-inserting a month of history conflicts on every
+      // row, returns nothing here, and announces nothing. And when the web
+      // container and the engine both receive the same pushed fill, only the
+      // one whose insert went in tells the person.
+      .returning({ fillId: tradeLiveFills.fillId })
+    await announceFills(
+      userId,
+      wallet,
+      fills.filter((fill) =>
+        inserted.some((row) => row.fillId === fill.fillId)
+      )
+    )
   } catch (error) {
     console.error("trade_live_fills write failed", error)
+  }
+}
+
+/**
+ * One bell notice per fresh fill, and a second one straight away when the fill
+ * came from a stop or a target this app already knew about.
+ *
+ * The known-trigger case is the common one — `recordTriggers` writes a stop
+ * down while it rests on the position, long before it fires. A stop this app
+ * never saw resting is learnt later by `resolveClosingOrders`, which sends the
+ * same second notice then.
+ *
+ * Never throws. A notice that cannot be written is a log line, not a reason
+ * for the fill sweep — or the trading pass driving it — to stop.
+ */
+async function announceFills(
+  userId: string,
+  wallet: TradeWallet,
+  fresh: readonly WalletOrderFill[]
+): Promise<void> {
+  const cutoff = Date.now() - ANNOUNCED_IF_NEWER_MS
+  for (const fill of fresh) {
+    // News, not history. A wallet's FIRST sweep writes months of old fills as
+    // brand-new rows, and every one of them would pass the "was it inserted"
+    // test — a bell with three hundred notices about last spring. Only a fill
+    // made just now is worth a notice.
+    if (fill.at < cutoff) continue
+    const key = marketKey({
+      protocol: wallet.protocol,
+      network: wallet.network,
+      marketId: fill.marketId,
+    })
+    const practice = wallet.network !== "mainnet"
+    try {
+      await writeTradeNotice({
+        userId,
+        ...fillNoticeWords({
+          marketKey: key,
+          side: fill.side,
+          px: fill.px,
+          sz: fill.sz,
+          closedPnl: fill.closedPnl,
+          liquidation: fill.liquidation,
+          walletLabel: wallet.label,
+          practice,
+        }),
+      })
+      if (fill.closedPnl === 0 || fill.liquidation) continue
+      const [known] = await db
+        .select({ kind: tradeLiveTriggers.kind, px: tradeLiveTriggers.px })
+        .from(tradeLiveTriggers)
+        .where(
+          and(
+            eq(tradeLiveTriggers.userId, userId),
+            eq(tradeLiveTriggers.walletId, wallet.id),
+            eq(tradeLiveTriggers.orderId, fill.orderId)
+          )
+        )
+        .limit(1)
+      if (!known || (known.kind !== "stop" && known.kind !== "target")) continue
+      await writeTradeNotice({
+        userId,
+        ...triggerNoticeWords({
+          kind: known.kind,
+          marketKey: key,
+          side: fill.side,
+          px: fill.px,
+          closedPnl: fill.closedPnl,
+          walletLabel: wallet.label,
+          practice,
+        }),
+      })
+    } catch (error) {
+      console.error("trade fill notice failed", error)
+    }
   }
 }
 
@@ -318,7 +419,59 @@ async function resolveClosingOrders(
     })
   }
 
-  await db.insert(tradeLiveTriggers).values(rows).onConflictDoNothing()
+  const learnt = await db
+    .insert(tradeLiveTriggers)
+    .values(rows)
+    .onConflictDoNothing()
+    .returning({
+      orderId: tradeLiveTriggers.orderId,
+      kind: tradeLiveTriggers.kind,
+    })
+
+  // The fills these orders made were announced without the stop fact, because
+  // it was not known yet. Now it is, the second notice goes out — only from
+  // the process whose insert actually went in, so two processes learning the
+  // same order cannot both say it.
+  for (const one of learnt) {
+    if (one.kind !== "stop" && one.kind !== "target") continue
+    try {
+      const made = await db
+        .select({
+          marketKey: tradeLiveFills.marketKey,
+          side: tradeLiveFills.side,
+          px: tradeLiveFills.px,
+          closedPnl: tradeLiveFills.closedPnl,
+        })
+        .from(tradeLiveFills)
+        .where(
+          and(
+            eq(tradeLiveFills.userId, userId),
+            eq(tradeLiveFills.walletId, wallet.id),
+            eq(tradeLiveFills.orderId, one.orderId),
+            // News, not history — this path also catches up on stops from
+            // months ago, and those belong in the Journal, not the bell.
+            gt(tradeLiveFills.at, Date.now() - ANNOUNCED_IF_NEWER_MS)
+          )
+        )
+      if (made.length === 0) continue
+      await writeTradeNotice({
+        userId,
+        ...triggerNoticeWords({
+          kind: one.kind,
+          marketKey: made[0].marketKey,
+          side: made[0].side,
+          px: made[0].px,
+          // One order can close in several fills; the person cares what the
+          // whole order banked, not each slice.
+          closedPnl: made.reduce((sum, fill) => sum + fill.closedPnl, 0),
+          walletLabel: wallet.label,
+          practice: wallet.network !== "mainnet",
+        }),
+      })
+    } catch (error) {
+      console.error("trade trigger notice failed", error)
+    }
+  }
 }
 
 /**

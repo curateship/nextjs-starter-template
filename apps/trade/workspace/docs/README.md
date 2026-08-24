@@ -36,6 +36,8 @@ Two files outrank the rest, and outrank the code:
   the starting.
 - `liquidation-warning.md` — where the warning is set, how distance is measured,
   and why one crossing sends one notice.
+- `trade-notices.md` — the bell notices: one per fill, a second when a stop or
+  target fires, and what a flow says when it stops or goes quiet on its own.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how
