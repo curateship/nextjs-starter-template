@@ -1063,6 +1063,12 @@ export const tradeWorkerControls = pgTable("trade_worker_controls", {
     .defaultNow(),
   /** Paused means running but not trading — meant to be switched back on. */
   paused: boolean("paused").notNull().default(false),
+  /**
+   * Somebody pressed Restart. The engine reads this every pass, clears it,
+   * finishes nothing more, and exits — the container supervisor starts the
+   * replacement. Null means nothing asked.
+   */
+  restartRequestedAt: timestamp("restart_requested_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),

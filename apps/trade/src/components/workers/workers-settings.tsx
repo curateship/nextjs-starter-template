@@ -1,7 +1,11 @@
 import * as React from "react"
 import { BanknoteIcon, ClockIcon, CpuIcon } from "lucide-react"
 
+import { toast } from "sonner"
+
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Card,
   CardAction,
@@ -18,6 +22,7 @@ import {
   changeWorkerSwitch,
   getWorkersErrorMessage,
   loadWorkers,
+  restartWorker,
 } from "@/lib/api/workers"
 import {
   Select,
@@ -138,6 +143,31 @@ export default function WorkersSettings() {
     }
   }
 
+  // Which worker the Restart question is open for, and whether the request
+  // is on its way. The dialog owns the consequence sentence; the card's
+  // "Doing now" line then says "Restart requested" until the engine picks the
+  // mark up at the top of its next pass.
+  const [restartAsking, setRestartAsking] = React.useState<WorkerStatus | null>(
+    null
+  )
+  const [restartBusy, setRestartBusy] = React.useState(false)
+
+  const confirmRestart = async () => {
+    if (!restartAsking) return
+    setRestartBusy(true)
+    try {
+      setData(await restartWorker(restartAsking.kind))
+      setRestartAsking(null)
+      toast.success(
+        "Restart requested. The engine finishes its pass, stops, and is started again in a few seconds."
+      )
+    } catch (thrown) {
+      showErrorToast(getWorkersErrorMessage(thrown))
+    } finally {
+      setRestartBusy(false)
+    }
+  }
+
   const flipRealMoney = async (on: boolean) => {
     setBusy(true)
     try {
@@ -188,7 +218,12 @@ export default function WorkersSettings() {
             ) : null}
 
             <dl className="grid gap-1 text-sm sm:grid-cols-2">
-              <Line label="Doing now" value={worker.activity} />
+              <Line
+                label="Doing now"
+                value={
+                  worker.restartRequested ? "Restart requested" : worker.activity
+                }
+              />
               <Line
                 label="Last heard from"
                 value={
@@ -228,6 +263,16 @@ export default function WorkersSettings() {
                 disabled={busy || !worker.enabled}
                 onChange={(on) => void flip(worker, { paused: !on })}
               />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="ml-auto"
+                disabled={busy}
+                onClick={() => setRestartAsking(worker)}
+              >
+                Restart
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -327,6 +372,18 @@ export default function WorkersSettings() {
       <p className="text-xs text-muted-foreground">
         Read {formatRelativeTime(data.checkedAt)}.
       </p>
+      <ConfirmDialog
+        open={restartAsking !== null}
+        onOpenChange={(open) => {
+          if (!open) setRestartAsking(null)
+        }}
+        title={`Restart ${restartAsking?.label ?? "the engine"}?`}
+        description="The engine will finish its current pass, stop, and be started again by the server. Watched orders are not worked for a few seconds."
+        confirmLabel="Restart"
+        destructive={false}
+        loading={restartBusy}
+        onConfirm={() => void confirmRestart()}
+      />
     </CardGroup>
   )
 }

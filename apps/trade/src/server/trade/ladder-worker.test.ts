@@ -15,7 +15,14 @@ const settled = vi.hoisted(() => ({
   /** How long each wallet's turn takes, so a slow one can be staged. */
   delays: new Map<string, number>(),
 }))
-const control = vi.hoisted(() => ({ value: { enabled: true, paused: false } }))
+const control = vi.hoisted(() => ({
+  value: { enabled: true, paused: false } as {
+    enabled: boolean
+    paused: boolean
+    restartRequestedAt?: Date | null
+  },
+  cleared: 0,
+}))
 
 vi.mock("@/server/db", () => ({
   db: {
@@ -42,7 +49,10 @@ vi.mock("@/server/trade/wallets", () => ({
 }))
 
 vi.mock("@/server/trade/workers", () => ({
-  workerControl: async () => control.value,
+  workerControl: async () => ({ restartRequestedAt: null, ...control.value }),
+  clearWorkerRestart: async () => {
+    control.cleared += 1
+  },
 }))
 
 vi.mock("@/server/trade/live-marks", () => ({
@@ -130,6 +140,46 @@ describe("the server's ladder job", () => {
     // Pausing is meant to stop trading dead while somebody looks at something,
     // and it has to take effect on the very next pass rather than at a restart.
     control.value = { enabled: true, paused: true }
+    await advanceWorkingLadders()
+    expect(settled.count).toBe(1)
+  })
+
+  it("honours a restart request between passes, and clears it", async () => {
+    control.cleared = 0
+    const asked: string[] = []
+    globalThis.__tradeLadderRestart = (reason: string) => asked.push(reason)
+    try {
+      control.value = {
+        enabled: true,
+        paused: false,
+        restartRequestedAt: new Date(),
+      }
+      await advanceWorkingLadders()
+      // Nothing was worked: the pass ends before any wallet is touched, so
+      // the exit always lands between passes, never inside one.
+      expect(settled.count).toBe(0)
+      // Cleared BEFORE the handler runs, so the replacement boots clean.
+      expect(control.cleared).toBe(1)
+      expect(asked).toEqual(["restart requested"])
+      expect(lastPass.activity).toBe("Restarting")
+    } finally {
+      globalThis.__tradeLadderRestart = undefined
+    }
+  })
+
+  it("clears a restart request and keeps running when nothing registered an exit", async () => {
+    control.cleared = 0
+    control.value = {
+      enabled: true,
+      paused: false,
+      restartRequestedAt: new Date(),
+    }
+    await advanceWorkingLadders()
+    expect(control.cleared).toBe(1)
+    expect(settled.count).toBe(0)
+
+    // The dev server survives: the next pass simply works as normal.
+    control.value = { enabled: true, paused: false }
     await advanceWorkingLadders()
     expect(settled.count).toBe(1)
   })

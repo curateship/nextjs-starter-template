@@ -51,6 +51,23 @@ declare global {
   var __tradeLadderLock: { release: () => Promise<void> } | undefined
   /** When it must be offered back around — see `WEB_YIELDS_EVERY_MS`. */
   var __tradeLadderHeldSince: number | undefined
+  /**
+   * What honouring a restart request means HERE. The worker binary registers
+   * its own shutdown (release the lock, exit 0); the dev server registers
+   * nothing, so a Restart pressed against dev clears the mark and kills
+   * nothing. On `globalThis` because the dev server holds a module cache per
+   * bundle, and a module-scoped handler would quietly vanish between them.
+   */
+  var __tradeLadderRestart: ((reason: string) => void) | undefined
+}
+
+/**
+ * Called once by `worker/src/index.ts` so a restart request can end the
+ * process. The exit lives there, not here — this file also runs inside the
+ * website, which must never exit itself.
+ */
+export function onLadderRestartRequest(handler: (reason: string) => void): void {
+  globalThis.__tradeLadderRestart = handler
 }
 
 /** True while a pass is still going, so two can never overlap. */
@@ -367,8 +384,26 @@ export async function advanceWorkingLadders(): Promise<void> {
     // Both switches are read every pass, so switching one takes effect within
     // a second rather than at the next restart. Off and paused differ in what
     // they mean, not in what they do here — see `workers.ts`.
-    const { workerControl } = await import("@/server/trade/workers")
+    const { workerControl, clearWorkerRestart } = await import(
+      "@/server/trade/workers"
+    )
     const control = await workerControl("ladders")
+    if (control.restartRequestedAt) {
+      // Between passes on purpose: the `working` guard above means a pass in
+      // flight always finishes before this runs. The mark is cleared BEFORE
+      // the exit, so the replacement copy boots clean instead of reading the
+      // same request and restarting itself again.
+      lastPass.activity = "Restarting"
+      await clearWorkerRestart("ladders")
+      const restart = globalThis.__tradeLadderRestart
+      if (restart) restart("restart requested")
+      else {
+        console.log(
+          "Trade ladders: restart requested — cleared; the dev server keeps running"
+        )
+      }
+      return
+    }
     if (!control.enabled || control.paused) {
       lastPass.activity = control.enabled ? "Paused" : "Switched off"
       return

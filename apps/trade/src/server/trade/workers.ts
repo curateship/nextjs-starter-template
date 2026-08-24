@@ -53,19 +53,29 @@ export async function listWorkerControls(database: CustomShellDb = db) {
 export async function workerControl(
   kind: WorkerKind,
   database: CustomShellDb = db
-): Promise<{ enabled: boolean; paused: boolean }> {
+): Promise<{
+  enabled: boolean
+  paused: boolean
+  restartRequestedAt: Date | null
+}> {
   const rows = await database
     .select()
     .from(tradeWorkerControls)
     .where(eq(tradeWorkerControls.kind, kind))
     .limit(1)
-  if (rows[0]) return { enabled: rows[0].enabled, paused: rows[0].paused }
+  if (rows[0]) {
+    return {
+      enabled: rows[0].enabled,
+      paused: rows[0].paused,
+      restartRequestedAt: rows[0].restartRequestedAt,
+    }
+  }
 
   await database
     .insert(tradeWorkerControls)
     .values({ kind, enabled: true, paused: false })
     .onConflictDoNothing()
-  return { enabled: true, paused: false }
+  return { enabled: true, paused: false, restartRequestedAt: null }
 }
 
 export async function setWorkerSwitch(
@@ -83,6 +93,41 @@ export async function setWorkerSwitch(
       ...(change.enabled === true ? { enabledAt: changedAt } : {}),
       updatedAt: changedAt,
     })
+    .where(eq(tradeWorkerControls.kind, kind))
+}
+
+/**
+ * Ask the running engine to stop cleanly and be started again.
+ *
+ * A mark on the control row, not a signal: the engine reads the row every
+ * pass, so it sees this within a second, finishes the pass in flight, clears
+ * the mark, releases the leader lock, and exits — the container supervisor
+ * does the starting. There is no path here that can leave two copies trading.
+ */
+export async function requestWorkerRestart(
+  kind: WorkerKind,
+  database: CustomShellDb = db
+): Promise<void> {
+  // Seeded first so pressing Restart on an engine that has never run still writes.
+  await workerControl(kind, database)
+  const now = new Date()
+  await database
+    .update(tradeWorkerControls)
+    .set({ restartRequestedAt: now, updatedAt: now })
+    .where(eq(tradeWorkerControls.kind, kind))
+}
+
+/**
+ * The engine clearing the mark before it exits, so the replacement copy does
+ * not read yesterday's request and restart itself again on boot.
+ */
+export async function clearWorkerRestart(
+  kind: WorkerKind,
+  database: CustomShellDb = db
+): Promise<void> {
+  await database
+    .update(tradeWorkerControls)
+    .set({ restartRequestedAt: null, updatedAt: new Date() })
     .where(eq(tradeWorkerControls.kind, kind))
 }
 
@@ -201,6 +246,10 @@ export async function workersDashboard(
     const control = controls.find((one) => one.kind === kind)
     const enabled = control?.enabled ?? true
     const paused = control?.paused ?? false
+    // True from the button press until the engine picks the mark up, which it
+    // does at the top of its next pass — so the card only says "Restart
+    // requested" for the second or two the request is actually outstanding.
+    const restartRequested = control?.restartRequestedAt != null
 
     const alive = beats.filter(
       (beat) =>
@@ -230,6 +279,7 @@ export async function workersDashboard(
       state,
       enabled,
       paused,
+      restartRequested,
       online: alive.length > 0,
       copies: alive.length,
       role: leader ? "leader" : alive.length > 0 ? "standby" : null,

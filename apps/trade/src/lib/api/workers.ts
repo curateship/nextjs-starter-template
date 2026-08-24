@@ -4,6 +4,7 @@ import { z } from "zod"
 import { WORKER_KINDS } from "@/lib/trade/workers"
 import { adminGet, adminPost } from "@/server/guards"
 import {
+  requestWorkerRestart,
   setRealMoneySwitch,
   setWorkerSwitch,
   workersDashboard,
@@ -45,6 +46,21 @@ const setWorkerSwitchFn = createServerFn({ method: "POST" })
   })
 
 /**
+ * Ask the engine to finish its pass, exit cleanly, and be started again by
+ * the container supervisor. A mark on the control row the engine reads every
+ * second — see `requestWorkerRestart`.
+ */
+const requestWorkerRestartFn = createServerFn({ method: "POST" })
+  .middleware([adminPost])
+  .inputValidator(z.object({ kind: z.enum(WORKER_KINDS) }))
+  .handler(async ({ data }) => {
+    await requestWorkerRestart(data.kind)
+    // Same shape as the switches: the fresh dashboard comes back with the
+    // write, so the card says "Restart requested" at once.
+    return workersDashboard(true)
+  })
+
+/**
  * The Settings toggle for real money. The environment master lock is not
  * reachable from here on purpose — an install that was never allowed real
  * money cannot be armed by any request, admin or not.
@@ -63,6 +79,10 @@ export function loadWorkers() {
 
 export function changeWorkerSwitch(input: z.infer<typeof switchSchema>) {
   return setWorkerSwitchFn({ data: input })
+}
+
+export function restartWorker(kind: (typeof WORKER_KINDS)[number]) {
+  return requestWorkerRestartFn({ data: { kind } })
 }
 
 export function changeRealMoneySwitch(on: boolean) {

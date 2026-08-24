@@ -37,6 +37,8 @@ export type WorkerStatus = {
   state: WorkerState
   enabled: boolean
   paused: boolean
+  /** Restart pressed, and the engine has not picked the mark up yet. */
+  restartRequested: boolean
   /** Whether anything has beat inside the window. */
   online: boolean
   /** How many copies are alive, counting standbys. */

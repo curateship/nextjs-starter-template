@@ -25,6 +25,7 @@ import { hostname } from "node:os"
 import {
   advanceWorkingLadders,
   lastPass,
+  onLadderRestartRequest,
 } from "@/server/trade/ladder-worker"
 import { listProtocols } from "@/server/protocols/registry"
 import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
@@ -180,5 +181,11 @@ async function shutdown(signal: string): Promise<void> {
 
 process.on("SIGINT", () => void shutdown("SIGINT"))
 process.on("SIGTERM", () => void shutdown("SIGTERM"))
+
+// The Restart button on the Workers screen. The pass loop sees the mark on
+// the control row, clears it, and calls this — the same clean exit as a
+// signal, so the lock is handed back and the supervisor starts the
+// replacement within seconds.
+onLadderRestartRequest((reason) => void shutdown(reason))
 
 await main()
