@@ -1267,7 +1267,9 @@ The app's background pass checks the trading engine every 15 seconds. The engine
 writes its own heartbeat every 5 seconds. A heartbeat older than 45 seconds,
 which is three checks by the app worker, counts as an outage only while the
 Ladders switch is on. Switching Ladders off on purpose clears the outage memory
-and sends nothing.
+and sends nothing. The same is true when Ladders goes off and back on between
+two checks: the old outage is cleared, and only a later missed heartbeat can
+start a new one.
 
 Switching Ladders back on starts a new 45-second window. A heartbeat left from
 before the switch cannot cause an immediate outage notice. Pausing the engine

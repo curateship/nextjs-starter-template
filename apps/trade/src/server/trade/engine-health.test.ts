@@ -187,6 +187,56 @@ describe("trading engine health notices", () => {
     expect(await database.select().from(tradeEngineOutages)).toEqual([])
   })
 
+  it("stays quiet when switched off and on again between checks", async () => {
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + ENGINE_OUTAGE_AFTER_MS + 1),
+      publish,
+    })
+    publish.mockClear()
+
+    await setControl(false, new Date(startedAt.getTime() + 60_000))
+    const switchedOnAt = new Date(startedAt.getTime() + 61_000)
+    await setControl(true, switchedOnAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(switchedOnAt.getTime() + 1_000),
+      publish,
+    })
+
+    expect(await notices()).toHaveLength(1)
+    expect(publish).not.toHaveBeenCalled()
+    expect(await database.select().from(tradeEngineOutages)).toEqual([])
+  })
+
+  it("starts a new outage after a quick off and on reaches 45 seconds", async () => {
+    await setControl(true)
+    await heartbeat(startedAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(startedAt.getTime() + ENGINE_OUTAGE_AFTER_MS + 1),
+      publish,
+    })
+    publish.mockClear()
+
+    await setControl(false, new Date(startedAt.getTime() + 60_000))
+    const switchedOnAt = new Date(startedAt.getTime() + 61_000)
+    await setControl(true, switchedOnAt)
+    await monitorTradingEngine({
+      database,
+      checkedAt: new Date(switchedOnAt.getTime() + ENGINE_OUTAGE_AFTER_MS + 1),
+      publish,
+    })
+
+    expect(await notices()).toHaveLength(2)
+    expect(publish).toHaveBeenCalledTimes(1)
+    expect(await database.select().from(tradeEngineOutages)).toEqual([
+      expect.objectContaining({ outageStartedAt: switchedOnAt }),
+    ])
+  })
+
   it("gives a newly switched-on engine the full 45 seconds", async () => {
     await setControl(false)
     await heartbeat(startedAt)

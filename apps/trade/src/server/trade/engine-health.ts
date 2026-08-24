@@ -163,20 +163,32 @@ export async function monitorTradingEngine({
       )
       .orderBy(desc(tradeWorkerHeartbeats.lastSeenAt))
       .limit(1)
-    const [outage] = await tx
+    const [savedOutage] = await tx
       .select()
       .from(tradeEngineOutages)
       .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
       .limit(1)
 
     if (!control?.enabled) {
-      if (outage) {
+      if (savedOutage) {
         await tx
           .delete(tradeEngineOutages)
           .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
       }
       return { recipients: [] }
     }
+
+    // The switch may have gone off and back on between two monitoring passes.
+    // In that case the old outage belongs to the earlier run, and the fresh
+    // start-up window is not proof that a heartbeat came back.
+    const outageIsFromPreviousRun =
+      savedOutage !== undefined && control.enabledAt > savedOutage.announcedAt
+    if (outageIsFromPreviousRun) {
+      await tx
+        .delete(tradeEngineOutages)
+        .where(eq(tradeEngineOutages.kind, LADDER_WORKER_KIND))
+    }
+    const outage = outageIsFromPreviousRun ? undefined : savedOutage
 
     const lastExpectedAt =
       heartbeat && heartbeat.lastSeenAt > control.enabledAt
