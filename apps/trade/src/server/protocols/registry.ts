@@ -33,6 +33,8 @@ import {
   fetchHyperliquidOrderInfo,
   fetchHyperliquidPortfolio,
   placeHyperliquidOrder,
+  adjustHyperliquidMargin,
+  setHyperliquidLeverage,
   setHyperliquidBrackets,
   modifyHyperliquidOrder,
 } from "@/server/protocols/hyperliquid/orders"
@@ -153,6 +155,7 @@ import {
   modifyAsterOrder,
   placeAsterOrder,
   setAsterBrackets,
+  setAsterLeverage,
 } from "@/server/protocols/aster/orders"
 import {
   asterFillsNeedRecovery,
@@ -399,6 +402,28 @@ export type ProtocolEntry = {
         priceMultiplierDown?: number | null
       }
     ): Promise<{ avgPx: number | null; filledSz: number | null }>
+    /**
+     * Changes the leverage on a position that is already open.
+     *
+     * Optional, and `capabilities.changeLeverage` is the flag the screens
+     * read. Present only where the venue really allows it, so the button is
+     * hidden rather than offered and refused — a stub that throws is a door
+     * that looks open.
+     */
+    setLeverage?(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: { marketId: string; leverage: number }
+    ): Promise<void>
+    /**
+     * Adds or takes back the cash behind one isolated position. `dollars` is
+     * signed: negative takes margin out. Optional, like `setLeverage`.
+     */
+    adjustMargin?(
+      network: NetworkId,
+      auth: OrderAuth,
+      params: { marketId: string; szi: number; dollars: number }
+    ): Promise<void>
     /** Replaces the stop and target riding on a real position. */
     setBrackets(
       network: NetworkId,
@@ -471,7 +496,13 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     label: "Hyperliquid",
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: true, orders: true },
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
+    },
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
@@ -524,6 +555,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       cancel: cancelHyperliquidOrder,
       modify: modifyHyperliquidOrder,
       close: closeHyperliquidPosition,
+      setLeverage: setHyperliquidLeverage,
+      adjustMargin: adjustHyperliquidMargin,
       setBrackets: setHyperliquidBrackets,
       portfolio: fetchHyperliquidPortfolio,
       fills: fetchHyperliquidOrderFills,
@@ -560,7 +593,21 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     label: "Phemex",
     networks: ["mainnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: true, orders: true },
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      changeLeverage: {
+        can: false,
+        because:
+          "Phemex sets leverage as part of an order, and a hedged account keeps a separate figure for each side. Changing it on an open position has not been read back from Phemex yet, so it is not offered here.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Adding or taking back the cash behind one Phemex position has not been built. Close the position or change its size instead.",
+      },
+    },
     markets: {
       fetch: fetchPhemexMarkets,
       candles: fetchPhemexCandles,
@@ -631,7 +678,21 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     label: "KuCoin",
     networks: ["mainnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: true, orders: true },
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      changeLeverage: {
+        can: false,
+        because:
+          "KuCoin keeps leverage per market for cross margin only; an isolated position carries the figure its own order asked for. Changing it on an open position has not been read back from KuCoin yet, so it is not offered here.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Adding or taking back the cash behind one KuCoin position has not been built. Close the position or change its size instead.",
+      },
+    },
     markets: {
       fetch: fetchKucoinMarkets,
       candles: fetchKucoinCandles,
@@ -704,7 +765,17 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     label: "Aster",
     networks: ["mainnet", "testnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: true, orders: true },
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      changeLeverage: { can: true },
+      adjustMargin: {
+        can: false,
+        because:
+          "Adding or taking back the cash behind one Aster position has not been built. Change its leverage instead, which moves the same figure.",
+      },
+    },
     markets: {
       fetch: fetchAsterMarkets,
       candles: fetchAsterCandles,
@@ -748,6 +819,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       cancel: cancelAsterOrder,
       modify: modifyAsterOrder,
       close: closeAsterPosition,
+      setLeverage: setAsterLeverage,
       setBrackets: setAsterBrackets,
       portfolio: fetchAsterOrderPortfolio,
       fills: fetchAsterOrderFills,
@@ -764,7 +836,19 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     // practice wallets pretend against.
     networks: ["mainnet"],
     defaultNetwork: "mainnet",
-    capabilities: { markets: true, accounts: false, orders: false },
+    capabilities: {
+      markets: true,
+      accounts: false,
+      orders: false,
+      changeLeverage: {
+        can: false,
+        because: "Binance is here for its candles only — no wallet trades on it.",
+      },
+      adjustMargin: {
+        can: false,
+        because: "Binance is here for its candles only — no wallet trades on it.",
+      },
+    },
     markets: {
       fetch: fetchBinanceMarkets,
       candles: fetchBinanceCandles,

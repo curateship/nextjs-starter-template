@@ -47,3 +47,23 @@ const loadProtocolsFn = createServerFn({ method: "GET" })
 export function loadProtocols() {
   return loadProtocolsFn()
 }
+
+/**
+ * The same list, asked for once per page load.
+ *
+ * The list is fixed at build time, so a second screen opening should not ask
+ * again. Module-level rather than per component for that reason. A failed read
+ * clears the memory instead of sticking as an empty list forever, which is the
+ * one way a cache here could do harm.
+ */
+let once: Promise<{ protocols: ProtocolDescription[] }> | null = null
+
+export function loadProtocolsOnce(): Promise<{
+  protocols: ProtocolDescription[]
+}> {
+  once ??= loadProtocols().catch((error: unknown) => {
+    once = null
+    throw error
+  })
+  return once
+}

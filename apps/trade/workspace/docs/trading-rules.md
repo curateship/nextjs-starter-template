@@ -82,6 +82,31 @@ add up to.
   never more than the position holds, and on the exchange a sized target is a
   fixed-size reduce-only trigger, never a position-scaled leg the exchange
   would grow back to everything.
+- **A part close chases as a maker and never leaves the rest unprotected.**
+  Selling some of a position rests a reduce-only post-only limit off the price
+  and follows it until it fills, never taking the market. It does not give up,
+  because being half out is worse than any price the rest would have got. A
+  fixed-size target bigger than what will be left is brought down to what will
+  be left before the close is placed. Closing the WHOLE position keeps its own
+  behaviour and is still a market order — see `part-close.md`.
+- **A remainder too small to be an order is not a remainder.** An amount that
+  would leave less than the exchange's smallest order sells the whole position
+  instead, because a scrap under the floor can never be closed again.
+- **Emptying a wallet stands its smart orders down before selling anything.**
+  Selling first leaves a window where a rung waiting below fills and reopens
+  the coin that was just closed. A cancel that is refused stops the whole
+  thing: nothing is sold while something is still able to buy back in. Each
+  position is then sold with the same chased maker order a part close uses —
+  see `flatten-wallet.md`.
+- **Leverage and margin on an open position come from the exchange, never from
+  a copy.** Changing either asks the venue and writes nothing here; the row's
+  leverage, margin and liquidation price all come from the next portfolio read,
+  so a venue that clamps a request shows its own number.
+- **Taking margin out is refused when it would bring the liquidation price
+  inside the stop.** The stop is the worst case that was agreed to, and a
+  liquidation inside it replaces that worst case with a bigger one quietly.
+  Already being inside is not the same as being brought inside, and only the
+  second is refused — see `position-margin.md`.
 - **Dragging is instant on screen.** The line stays where the hand let go; the
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is

@@ -49,6 +49,44 @@ export const watchPlanSchema = z.object({
   /** Only shrink what is held — never open the other way round. */
   reduceOnly: z.boolean().default(false),
   /**
+   * Never take the market: rest just off it and follow, however far price goes.
+   *
+   * **This is what a part close is made of.** An ordinary watch takes the
+   * market when the level is already through it, because a level drawn past
+   * the price means "get me in, I will pay up to here". A close is the
+   * opposite errand: the trading rules say a close chases a post-only limit
+   * and never pays the spread, so there is no price at which taking the market
+   * is the right answer. With this on, the market-take path is skipped and the
+   * order rests and follows for as long as it takes.
+   *
+   * It pairs with `chaseGiveUp` at zero, which means it never gives up. That
+   * is deliberate and it is the app's existing rule: being half out of a
+   * position is worse than any price the rest would have got.
+   *
+   * Defaults false, so every watch written before this existed behaves exactly
+   * as it did.
+   */
+  maker: z.boolean().default(false),
+  /**
+   * How much of the coin the wallet held when a close was asked for.
+   *
+   * **This is what stops a part close selling more than it was asked to.** The
+   * chase cancels and re-places its order every time the price drifts, and a
+   * fill that landed in between would otherwise be forgotten: the next order
+   * would go out at the full size again, and four coins asked for could leave
+   * as six. Rather than keeping a count of what has been sold — a second
+   * number that can disagree with the position it describes — the position
+   * itself is the count. What is left to sell is the size asked for, less how
+   * far the holding has already come down from here.
+   *
+   * The one way it can be wrong is something ELSE reducing the position: a
+   * stop firing, or a ladder exit on the same coin. The close then thinks its
+   * order filled and stops early, which sells less than asked and never more.
+   *
+   * Meaningless without `maker`, and zero on every plan that is not a close.
+   */
+  heldAtStart: z.number().default(0),
+  /**
    * How far past the level it will follow the price before giving up, as a
    * share of the level. Zero waits at the level for as long as it takes.
    */

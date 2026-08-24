@@ -1,22 +1,32 @@
 import * as React from "react"
 import {
   ArrowLeftRightIcon,
+  GaugeIcon,
+  InfoIcon,
   PlusIcon,
   SettingsIcon,
   Trash2Icon,
 } from "lucide-react"
 
+import {
+  ClosePositionDialog,
+  type PartCloseAsk,
+} from "@/components/trade/close-position-dialog"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   TableRow,
   TableSortButton,
   type TableSortDirection,
 } from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
@@ -25,14 +35,20 @@ import {
   type MarketRow,
 } from "@/lib/protocols/contracts"
 import {
+  formatFeeUsd,
   formatPrice,
   formatSignedUsd,
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import { tradeEndingLabel, type LiveTrade } from "@/lib/trade/live-trades"
+import {
+  tradeEndingLabel,
+  type LiveFill,
+  type LiveTrade,
+} from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
+import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
 import { LOST_MONEY, MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import {
   positionProfit,
@@ -84,35 +100,94 @@ function PracticeBadge() {
   return <TradeBadge>Practice</TradeBadge>
 }
 
+/**
+ * The heading row's own background, and why it is a mix rather than a tint.
+ *
+ * A pinned heading has rows sliding underneath it, so it has to be opaque or
+ * the numbers show through the words. `bg-muted/50` is a half-transparent
+ * tint: it looked right only because the panel behind it is `bg-card`. So the
+ * same two tokens are mixed here instead of layered, which gives the same
+ * shade in light and in dark and survives a theme change, where a hardcoded
+ * grey would not.
+ */
+const HEADER_BACKGROUND = "bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
+
+/**
+ * The one info mark, used where a figure needs a sentence a cell has no room
+ * for. Same shape as the wallet card's, so the two read as one thing.
+ */
+function InfoMark({
+  label,
+  children,
+}: {
+  /** What the mark itself is called, for a screen reader and the keyboard. */
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          className="text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <InfoIcon className="size-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72">{children}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function HeaderCell({
   children,
   sort,
+  info,
 }: {
   children: React.ReactNode
   /** Omitted on the actions column, which is the one thing never sorted. */
   sort?: { active: boolean; direction: TableSortDirection; onClick: () => void }
+  /**
+   * A mark beside the label, for a column whose figures need a sentence. A
+   * sibling of the sort button rather than inside it: a button inside a button
+   * is not something a browser will draw.
+   */
+  info?: React.ReactNode
 }) {
   return (
     <th
       scope="col"
-      className="px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground"
-    >
-      {sort ? (
-        <TableSortButton
-          active={sort.active}
-          direction={sort.direction}
-          onClick={sort.onClick}
-          // The shared button stands 32px tall for a dashboard's roomy header.
-          // This header is a trading readout packed into a panel, so it keeps
-          // the row exactly as tall as its text — the same control, just not
-          // padding the row out.
-          className="h-auto text-xs sm:text-xs"
-        >
-          {children}
-        </TableSortButton>
-      ) : (
-        children
+      className={cn(
+        "px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
+        // Pinned to the top of the scrolling box, so eleven columns of dollars
+        // never end up under an empty strip. `z-10` because a focused row
+        // paints an outline and would otherwise draw over the headings.
+        "sticky top-0 z-10",
+        HEADER_BACKGROUND
       )}
+    >
+      {/* A row, because the sort control is itself a flex box and an info mark
+          after it would otherwise drop onto a second line. */}
+      <span className="flex items-center gap-1">
+        {sort ? (
+          <TableSortButton
+            active={sort.active}
+            direction={sort.direction}
+            onClick={sort.onClick}
+            // The shared button stands 32px tall for a dashboard's roomy
+            // header. This header is a trading readout packed into a panel, so
+            // it keeps the row exactly as tall as its text — the same control,
+            // just not padding the row out.
+            className="h-auto text-xs sm:text-xs"
+          >
+            {children}
+          </TableSortButton>
+        ) : (
+          children
+        )}
+        {info}
+      </span>
     </th>
   )
 }
@@ -341,10 +416,12 @@ function PositionRow({
   position,
   market,
   mark,
+  fees,
   wallet,
   busy,
   onSelectMarket,
   onAdd,
+  onMargin,
   onEdit,
   onFlip,
   onClose,
@@ -353,11 +430,15 @@ function PositionRow({
   market: MarketRow | null
   /** Today's price, read once for the whole table so the sort agrees with it. */
   mark: number
+  /** What it has cost in fees, or null on a real one with nothing swept. */
+  fees: PositionFees | null
   wallet: string
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
   onSelectMarket: (marketKey: string) => void
   onAdd: (position: TradePosition) => void
+  /** Null on an exchange that allows neither change — the button is hidden. */
+  onMargin: ((position: TradePosition) => void) | null
   onEdit: (position: TradePosition) => void
   onFlip: (position: TradePosition) => void
   onClose: (position: TradePosition) => void
@@ -429,9 +510,28 @@ function PositionRow({
         </span>
       </Cell>
       <Cell className="text-muted-foreground">
-        {/* A real position's running fees are the exchange's to know; a dash
-            is honest where a $0.00 would be a lie. */}
-        {position.live ? "—" : `-${formatUsd(position.feesPaid)}`}
+        {/* The practice engine charges its own fees and knows the total
+            exactly. A real position's total is added up here from the fills
+            the exchange reported, and a dash still means nobody has answered:
+            no fill swept is not the same as no fee charged. */}
+        {!position.live ? (
+          formatFeeUsd(position.feesPaid)
+        ) : fees === null ? (
+          <span>—</span>
+        ) : (
+          <span className="inline-flex items-center gap-1">
+            {formatFeeUsd(fees.paid)}
+            {fees.whole ? null : (
+              <InfoMark
+                label={`Why the ${marketSymbol(position.marketKey)} fee total is short`}
+              >
+                Only part of this position&rsquo;s fees. The fills on hand go
+                back to {formatDateTime(new Date(fees.countedFrom))}, which is
+                after this position opened, so the real total is bigger.
+              </InfoMark>
+            )}
+          </span>
+        )}
       </Cell>
       <Cell>
         <span className={cn("font-medium", moneyTone(profit))}>
@@ -478,6 +578,21 @@ function PositionRow({
           >
             <PlusIcon className="size-4" />
           </Button>
+          {/* Leverage and the cash behind the position. Only where the
+              exchange really allows one of the two, so a button is never
+              offered and then refused. */}
+          {onMargin ? (
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Change the ${marketSymbol(position.marketKey)} leverage and margin`}
+              onClick={() => onMargin(position)}
+            >
+              <GaugeIcon className="size-4" />
+            </Button>
+          ) : null}
           <Button
             type="button"
             size="icon-sm"
@@ -506,6 +621,7 @@ function PositionRow({
 export function PositionsTable({
   positions,
   markets,
+  fills,
   walletName,
   busy,
   settled,
@@ -513,12 +629,19 @@ export function PositionsTable({
   onRetry,
   onSelectMarket,
   onAdd,
+  onMargin,
   onEdit,
   onFlip,
   onClose,
+  onClosePart,
 }: {
   positions: readonly TradePosition[]
   markets: ReadonlyMap<string, MarketRow>
+  /**
+   * Every execution on hand, which is what a real position's fee total is
+   * added up from — see `positionFees`.
+   */
+  fills: readonly LiveFill[]
   walletName: (walletId: string) => string
   busy: boolean
   /**
@@ -535,9 +658,18 @@ export function PositionsTable({
   onSelectMarket: (marketKey: string) => void
   /** Buy more of this one: charts it, switches wallet, opens the order window. */
   onAdd: (position: TradePosition) => void
+  /**
+   * Change its leverage or the cash behind it. Null where the exchange allows
+   * neither, and while the list of what it allows is still on its way — a
+   * button that appeared a moment later would be worse than one that waited.
+   */
+  onMargin: ((position: TradePosition) => void) | null
   onEdit: (position: TradePosition) => void
   onFlip: (position: TradePosition) => void
+  /** Sells the whole thing, at whatever the market costs right now. */
   onClose: (position: TradePosition) => void
+  /** Sells a piece of it, with a limit that follows the price. */
+  onClosePart: (position: TradePosition, ask: PartCloseAsk) => void
 }) {
   const [confirming, setConfirming] = React.useState<TradePosition | null>(null)
   // Money columns start biggest-first, which is the order anybody scanning a
@@ -553,6 +685,16 @@ export function PositionsTable({
     marks.get(position.marketKey) ??
     markets.get(position.marketKey)?.price ??
     position.entryPx
+
+  // Worked out once per position rather than per row render, because each one
+  // walks that coin's fills and this panel redraws on every price tick.
+  const feesById = React.useMemo(() => {
+    const byId = new Map<string, PositionFees | null>()
+    for (const one of positions) byId.set(one.id, positionFees(fills, one))
+    return byId
+  }, [positions, fills])
+  const feesOf = (position: TradePosition) =>
+    feesById.get(position.id) ?? null
 
   const rows = sortRows(positions, direction, (position) => {
     const mark = markOf(position)
@@ -572,7 +714,12 @@ export function PositionsTable({
           ? Number.NEGATIVE_INFINITY
           : projectedProfit(position, position.tpPx)
       case "fees":
-        return position.feesPaid
+        // The figure the row prints, so the order and the number agree. A
+        // real position with nothing swept has no figure at all and sorts to
+        // the end, the way a missing liquidation price already does.
+        return position.live
+          ? (feesOf(position)?.paid ?? Number.POSITIVE_INFINITY)
+          : position.feesPaid
       default:
         return positionProfit(position, mark)
     }
@@ -581,8 +728,11 @@ export function PositionsTable({
   return (
     <>
       <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-muted/50">
+        {/* Named as the shell's heading row so it takes the same hairline
+            under it that every other table in the app draws — and so the
+            Styling settings' divider colour reaches it. See `theme.css`. */}
+        <thead data-slot="table-header">
+          <tr>
             {POSITION_COLUMNS.map(({ key, label }) => (
               <HeaderCell
                 key={key}
@@ -591,6 +741,21 @@ export function PositionsTable({
                   direction,
                   onClick: () => toggleSort(key),
                 }}
+                // Whose number this is, said once for the whole column rather
+                // than on every row. No exchange reports "fees so far on this
+                // open position", so printing one without saying where it came
+                // from would break the rule the dash was there to protect.
+                info={
+                  key === "fees" ? (
+                    <InfoMark label="Where the fee totals come from">
+                      Added up by this app from the fills the exchange has
+                      reported, not a total the exchange states itself. A
+                      practice position&rsquo;s figure is the engine&rsquo;s
+                      own. A dash means nothing has been reported yet, which is
+                      not the same as nothing charged.
+                    </InfoMark>
+                  ) : undefined
+                }
               >
                 {label}
               </HeaderCell>
@@ -620,10 +785,12 @@ export function PositionsTable({
                 position={position}
                 market={markets.get(position.marketKey) ?? null}
                 mark={markOf(position)}
+                fees={feesOf(position)}
                 wallet={walletName(position.walletId)}
                 busy={busy}
                 onSelectMarket={onSelectMarket}
                 onAdd={onAdd}
+                onMargin={onMargin}
                 onEdit={onEdit}
                 onFlip={onFlip}
                 onClose={setConfirming}
@@ -633,24 +800,16 @@ export function PositionsTable({
         </tbody>
       </table>
 
-      <ConfirmDialog
-        open={confirming !== null}
-        onOpenChange={(open) => {
-          if (!open) setConfirming(null)
-        }}
-        // Both the market and the wallet, because this table lists several
-        // wallets and the rows only differ by one small column.
-        title={
-          confirming
-            ? `Close the ${marketSymbol(confirming.marketKey)} position in ${walletName(confirming.walletId)}?`
-            : "Close this position?"
-        }
-        description="It is sold at whatever the market costs right now, and whatever it has made or lost is banked. This cannot be undone."
-        confirmLabel="Close position"
-        onConfirm={() => {
-          if (confirming) onClose(confirming)
-          setConfirming(null)
-        }}
+      {/* Both the market and the wallet in the title, because this table
+          lists several wallets and the rows only differ by one small column. */}
+      <ClosePositionDialog
+        position={confirming}
+        mark={confirming ? markOf(confirming) : 0}
+        walletName={confirming ? walletName(confirming.walletId) : ""}
+        busy={busy}
+        onCloseAll={onClose}
+        onClosePart={onClosePart}
+        onDismiss={() => setConfirming(null)}
       />
     </>
   )
@@ -715,8 +874,11 @@ export function OpenOrdersTable({
 
   return (
     <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-muted/50">
+      {/* Named as the shell's heading row so it takes the same hairline under
+          it that every other table in the app draws — and so the Styling
+          settings' divider colour reaches it. See `theme.css`. */}
+      <thead data-slot="table-header">
+        <tr>
           {ORDER_COLUMNS.map(({ key, label }) => (
             <HeaderCell
               key={key}
@@ -941,8 +1103,11 @@ export function TradesTable({
 
   return (
     <table className="w-full border-collapse">
-      <thead>
-        <tr className="bg-muted/50">
+      {/* Named as the shell's heading row so it takes the same hairline under
+          it that every other table in the app draws — and so the Styling
+          settings' divider colour reaches it. See `theme.css`. */}
+      <thead data-slot="table-header">
+        <tr>
           <HeaderCell>
             <Checkbox
               checked={tickAllState(listedIds)}

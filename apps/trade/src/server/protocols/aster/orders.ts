@@ -384,6 +384,31 @@ function immediateLimitPrice(input: {
   )
 }
 
+/**
+ * Sets the leverage on a market whose position is already open.
+ *
+ * The same command placement uses, exposed on its own. **Aster refuses to
+ * LOWER isolated leverage while a position is open** and says so with its own
+ * code, which `refusals.ts` already turns into a sentence — that refusal is
+ * the venue's rule and not something this app can work around. Raising it is
+ * allowed.
+ *
+ * The leverage cache is cleared first, because a hand-set leverage has to
+ * reach the exchange even when it matches what the cache last saw: the cache
+ * exists to save a call before an order, and here the call IS the point.
+ */
+export async function setAsterLeverage(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; leverage: number }
+): Promise<void> {
+  leverageCache.delete(
+    `${network}:${account(orderAuth).toLowerCase()}:${params.marketId}`
+  )
+  await setLeverage(network, orderAuth, params.marketId, params.leverage)
+  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+}
+
 export async function placeAsterOrder(
   network: NetworkId,
   orderAuth: OrderAuth,

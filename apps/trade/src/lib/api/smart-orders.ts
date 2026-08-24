@@ -48,12 +48,25 @@ import {
   saveSmartDca,
   saveSmartGrid,
 } from "@/server/trade/prefs"
-import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
+import {
+  openPartClose,
+  type PartCloseOutcome,
+} from "@/server/trade/part-close"
+
+export type { PartCloseOutcome }
+import {
+  flattenWallet,
+  type FlattenOutcome,
+} from "@/server/trade/flatten-wallet"
+import {
+  standDownWallet,
+  type RefusedSmartOrder,
+  type StoodDownSmartOrder,
+} from "@/server/trade/stand-down"
 import {
   cancelLadderRest as cancelRestRows,
   cancelWatchOrder as cancelWatchRow,
   editWatchOrder as editWatchRow,
-  listActiveSmartOrders,
   moveWatchOrder as moveWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
@@ -201,16 +214,6 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
       : await cancelRestRows(context.user.id, wallet, data)
   })
 
-/** One ladder or grid, named the way a message about it would name it. */
-export type StoodDownSmartOrder = {
-  id: string
-  marketKey: string
-  kind: "dca" | "grid"
-}
-
-/** One that would not come off, and the exchange's reason in plain words. */
-export type RefusedSmartOrder = StoodDownSmartOrder & { reason: string }
-
 const cancelAllSmartOrdersSchema = z.object({
   walletId: z.string().max(36),
 })
@@ -218,19 +221,11 @@ const cancelAllSmartOrdersSchema = z.object({
 /**
  * Every ladder and grid on one wallet, stood down in one call.
  *
- * **It reuses the cancels that already exist**, one per order, rather than
- * writing a second path into the exchange. Each of those is the same door the
- * order's own Stop button uses, so an emergency press can never call an order
- * off differently from a hand on each one.
- *
- * **One at a time, in order.** A live wallet's cancels already queue behind
- * each other on a lock, so firing them together would only pile up requests at
- * an exchange that is probably already busy — this is a button pressed when a
- * market is moving. What is bought stays bought either way.
- *
- * **A refusal stops nothing else.** Four off and two refused is a real answer
- * and the caller is told which two and why, so the two that are still running
- * can stay on screen where somebody can see them.
+ * The loop itself is `standDownWallet`, shared with emptying a wallet so the
+ * two presses can never call an order off differently. What this one adds is
+ * that **a refusal stops nothing else**: four off and two refused is a real
+ * answer and the caller is told which two and why, so the two that are still
+ * running can stay on screen where somebody can see them.
  */
 const cancelAllSmartOrdersFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -242,41 +237,67 @@ const cancelAllSmartOrdersFn = createServerFn({ method: "POST" })
     }): Promise<{
       stood: StoodDownSmartOrder[]
       refused: RefusedSmartOrder[]
-    }> => {
-      const userId = context.user.id
-      const wallet = await tradingWallet(userId, data.walletId)
-      const live = wallet.kind === "live"
-      const working = laddersAndGridsYouPlaced(
-        await listActiveSmartOrders(userId, [wallet.id])
+    }> =>
+      await standDownWallet(
+        context.user.id,
+        await tradingWallet(context.user.id, data.walletId),
+        getSmartOrderErrorMessage
       )
+  )
 
-      const stood: StoodDownSmartOrder[] = []
-      const refused: RefusedSmartOrder[] = []
-      for (const order of working) {
-        const named = {
-          id: order.id,
-          marketKey: order.marketKey,
-          kind: order.kind,
+/**
+ * Emptying one wallet: its ladders and grids called off, then everything it
+ * holds sold with limits that follow the price.
+ *
+ * See `flatten-wallet.ts` for the order of operations and why a refused cancel
+ * stops the whole thing.
+ */
+const flattenWalletFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(cancelAllSmartOrdersSchema)
+  .handler(
+    async ({ data, context }): Promise<FlattenOutcome> =>
+      await flattenWallet(
+        context.user.id,
+        await tradingWallet(context.user.id, data.walletId, true),
+        getSmartOrderErrorMessage
+      )
+  )
+
+/**
+ * Sells part of a position, through a reduce-only limit that chases the price.
+ *
+ * One door for both kinds of wallet, because the chase itself belongs to the
+ * engine and the engine already knows how to place an order in either lane —
+ * see `part-close.ts` for why a part close is not the close button with a
+ * number on it.
+ *
+ * The answer says which road it took. `whole` means the size covered the
+ * position, so the browser sends the ordinary whole close instead: two
+ * mechanisms with one obvious meaning between them, decided on the server
+ * where the held size is known for certain.
+ */
+const closePartOfPositionFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({
+      walletId: z.string().max(36),
+      marketKey: marketKeySchema,
+      /** Coins, or dollars at the price the exchange is quoting on arrival. */
+      unit: z.enum(["coins", "usd"]),
+      amount: z.number().positive().finite(),
+    })
+  )
+  .handler(
+    async ({ data, context }): Promise<PartCloseOutcome> =>
+      await openPartClose(
+        context.user.id,
+        await tradingWallet(context.user.id, data.walletId, true),
+        {
+          marketKey: data.marketKey,
+          size: { unit: data.unit, amount: data.amount },
         }
-        try {
-          if (order.kind === "dca") {
-            const input = { ladderId: order.id }
-            if (live) await cancelLiveLadderRest(userId, wallet, input)
-            else await cancelRestRows(userId, wallet, input)
-          } else {
-            const input = { gridId: order.id }
-            if (live) await cancelLiveGridRest(userId, wallet, input)
-            else await cancelGridRestRows(userId, wallet, input)
-          }
-          stood.push(named)
-        } catch (error) {
-          // Turned into words here rather than thrown on, so nothing the
-          // exchange or the database said to us reaches the browser raw.
-          refused.push({ ...named, reason: getSmartOrderErrorMessage(error) })
-        }
-      }
-      return { stood, refused }
-    }
+      )
   )
 
 /**
@@ -388,6 +409,21 @@ export function placeDcaLadder(input: z.infer<typeof placeSchema>) {
 
 export function cancelLadderRung(input: z.infer<typeof rungSchema>) {
   return cancelLadderRungFn({ data: input })
+}
+
+/** Empties one wallet: everything called off, then everything sold. */
+export function flattenWalletApi(input: { walletId: string }) {
+  return flattenWalletFn({ data: input })
+}
+
+/** Sells part of a position, or says the ask was really all of it. */
+export function closePartOfPosition(input: {
+  walletId: string
+  marketKey: string
+  unit: "coins" | "usd"
+  amount: number
+}) {
+  return closePartOfPositionFn({ data: input })
 }
 
 export function cancelWatch(input: z.infer<typeof ladderSchema>) {
@@ -701,6 +737,17 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
     SMART_GRID_TARGET_PASSED:
       "The line that finishes the grid sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
+    PART_CLOSE_MARKET: "That market is not one this wallet can trade.",
+    PART_CLOSE_NO_PRICE:
+      "The exchange would not give a price for that market, so nothing was placed.",
+    PART_CLOSE_POSITION_GONE:
+      "That position is not there any more, so there was nothing to sell part of.",
+    // The practice lane's word for the same thing. Reachable from here because
+    // an amount covering the whole position falls back to the ordinary close.
+    PAPER_POSITION_NOT_FOUND:
+      "That position is not there any more, so there was nothing to sell.",
+    PART_CLOSE_SIZE:
+      "How much to sell has to be a number above zero. Nothing was placed.",
     SMART_GRID_STARTED:
       "This grid is holding coins, so its range cannot be moved. Those coins were bought at a level's own price and sell one step above it, and sliding the range under them would leave that level selling coins it never paid that price for.",
   },
@@ -709,6 +756,11 @@ const baseSmartOrderErrorMessage = createErrorMessage(
 
 export function getSmartOrderErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "")
+  // A part close smaller than the venue will take. It carries its whole
+  // sentence because it names two figures — this market's floor and what the
+  // piece came to — and a fixed sentence could say neither.
+  const tooSmall = message.match(/PART_CLOSE_TOO_SMALL:(.*)$/s)
+  if (tooSmall) return tooSmall[1].trim()
   const floor = message.match(
     /SMART_RUNG_DOLLAR_FLOOR:([\d.]+):([\d.]+):(\d+):(\d+)/
   )

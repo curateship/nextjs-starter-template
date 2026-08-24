@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   formatChange,
   formatCompactUsd,
+  formatFeeUsd,
   formatFunding,
   formatPrice,
   formatSignedUsd,
@@ -82,5 +83,27 @@ describe("how much of the coin", () => {
 
   it("groups a big size the way every other figure is grouped", () => {
     expect(formatSize(1_500)).toBe("1,500")
+  })
+})
+
+describe("what a position has cost in fees", () => {
+  it("shows a charge as money leaving and a rebate as money coming back", () => {
+    expect(formatFeeUsd(0.05)).toBe("-$0.05")
+    expect(formatFeeUsd(12.4)).toBe("-$12.40")
+    expect(formatFeeUsd(-0.02)).toBe("+$0.02")
+  })
+
+  it("says a sub-cent charge in words rather than rounding it to nothing", () => {
+    // A real Hyperliquid sub-exchange position had been charged four
+    // ten-thousandths of a dollar, and dollars-and-cents printed "-$0.00",
+    // which reads as nothing charged. That is the one thing a fee total may
+    // never say.
+    expect(formatFeeUsd(0.0004)).toBe("under $0.01")
+    expect(formatFeeUsd(0.004)).toBe("under $0.01")
+    expect(formatFeeUsd(-0.0004)).toBe("back under $0.01")
+  })
+
+  it("keeps true zero as zero, which means nothing was charged", () => {
+    expect(formatFeeUsd(0)).toBe("$0.00")
   })
 })

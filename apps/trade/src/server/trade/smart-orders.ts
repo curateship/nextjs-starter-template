@@ -1061,6 +1061,11 @@ export async function placeWatchOrder(
     tpPx: input.tpPx,
     slPx: input.slPx,
     reduceOnly: input.reduceOnly,
+    // A plain order still takes the market when the level is already through
+    // it, which is what somebody drawing a line past the price is asking for.
+    // Only a part close refuses to — see `maker` on `WatchPlan`.
+    maker: false,
+    heldAtStart: 0,
     // It waits at the level rather than following the price away from it,
     // which is the closest thing to the resting order this stands in for.
     chaseGiveUp: 0,

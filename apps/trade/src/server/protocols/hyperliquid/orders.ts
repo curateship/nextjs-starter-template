@@ -545,6 +545,81 @@ export async function closeHyperliquidPosition(
   return { avgPx: outcome.avgPx, filledSz: outcome.filledSz }
 }
 
+// ----- Leverage and margin on a position already open ---------------------
+
+/**
+ * Sets the account's leverage for one market, isolated.
+ *
+ * **`isCross: false` everywhere, and that is a decision.** Every position this
+ * app opens on Hyperliquid is opened isolated — a trade's stake is all it can
+ * lose, which is the promise the screens make — so asking for isolated here
+ * keeps a hand-changed leverage on the same footing as the one placement sets.
+ * On a position opened isolated, which is every one of ours, the mode does not
+ * change; on one opened cross elsewhere, Hyperliquid switches it to isolated,
+ * and the row's next read shows that. Nothing here silently leaves a position
+ * on a mode the app cannot describe.
+ *
+ * Hyperliquid allows this while a position is open. Lowering leverage needs the
+ * margin to cover it and is refused when the account cannot, in the venue's own
+ * words.
+ */
+export async function setHyperliquidLeverage(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: { marketId: string; leverage: number }
+): Promise<void> {
+  forgetHyperliquidPortfolios()
+  const client = await exchangeClient(network, auth)
+  const asset = await resolveAsset(network, params.marketId)
+  try {
+    await client.updateLeverage({
+      asset: asset.assetId,
+      isCross: false,
+      leverage: Math.max(1, Math.round(params.leverage)),
+    })
+  } catch (error) {
+    throw exchangeError(error)
+  }
+}
+
+/**
+ * Adds or takes back the cash behind one isolated position.
+ *
+ * `dollars` is signed: positive puts more of your own money behind the trade
+ * and moves the liquidation price further away, negative takes it back out and
+ * brings it closer.
+ *
+ * **The venue counts in millionths.** `ntli` is the dollar amount times a
+ * million, as a whole number, so the smallest move this can make is a
+ * hundredth of a cent. Rounded rather than truncated, because truncating a
+ * request to take money out would leave a fraction behind and the row would
+ * not add up.
+ *
+ * `isBuy` is the POSITION's side, not an order's — which way the trade is
+ * facing, so the venue knows which isolated position the money belongs to.
+ */
+export async function adjustHyperliquidMargin(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: { marketId: string; szi: number; dollars: number }
+): Promise<void> {
+  if (params.szi === 0) throw new Error("LIVE_POSITION_GONE")
+  const ntli = Math.round(params.dollars * 1e6)
+  if (ntli === 0) throw new Error("LIVE_MARGIN_NOTHING")
+  forgetHyperliquidPortfolios()
+  const client = await exchangeClient(network, auth)
+  const asset = await resolveAsset(network, params.marketId)
+  try {
+    await client.updateIsolatedMargin({
+      asset: asset.assetId,
+      isBuy: params.szi > 0,
+      ntli,
+    })
+  } catch (error) {
+    throw exchangeError(error)
+  }
+}
+
 // ----- The protection on an existing position -----------------------------
 
 /**

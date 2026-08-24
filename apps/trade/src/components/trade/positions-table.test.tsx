@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import * as React from "react"
 import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
@@ -10,6 +11,7 @@ import {
   PositionsTable,
   TradesTable,
 } from "@/components/trade/positions-table"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import type { LiveTrade } from "@/lib/trade/live-trades"
@@ -41,6 +43,9 @@ const shared = {
   onSelectMarket: () => {},
   onRetry: () => {},
 }
+
+/** Only the positions table reads fills; the other two never see them. */
+const positionsShared = { ...shared, fills: [] }
 
 function market(symbol: string, price: number): MarketRow {
   return {
@@ -80,16 +85,26 @@ function position(symbol: string, size: number): TradePosition {
   }
 }
 
+/**
+ * The provider the app's root already wraps every screen in. Needed here
+ * because the Fees column carries an info mark saying whose figure it is.
+ */
+function draw(node: React.ReactNode): string {
+  return renderToStaticMarkup(<TooltipProvider>{node}</TooltipProvider>)
+}
+
 function drawPositions(state: { settled: boolean; failed: boolean }): string {
-  return renderToStaticMarkup(
+  return draw(
     <PositionsTable
-      {...shared}
+      {...positionsShared}
       {...state}
       positions={[]}
       onAdd={() => {}}
       onEdit={() => {}}
       onFlip={() => {}}
       onClose={() => {}}
+      onClosePart={() => {}}
+      onMargin={null}
     />
   )
 }
@@ -267,9 +282,9 @@ describe("the bottom panel's tables say what they know", () => {
 
   it("opens positions with the largest unrealized profit first", () => {
     const markets = [market("BTC", 150), market("ETH", 110), market("SOL", 80)]
-    const html = renderToStaticMarkup(
+    const html = draw(
       <PositionsTable
-        {...shared}
+        {...positionsShared}
         markets={new Map(markets.map((one) => [one.key, one]))}
         positions={[
           position("SOL", 10),
@@ -282,6 +297,8 @@ describe("the bottom panel's tables say what they know", () => {
         onEdit={() => {}}
         onFlip={() => {}}
         onClose={() => {}}
+        onClosePart={() => {}}
+        onMargin={null}
       />
     )
 
@@ -303,10 +320,36 @@ describe("the bottom panel's tables say what they know", () => {
       expect(html).toContain(words)
       // The heading row stays put, so closing the last position does not take
       // the columns off screen and jog the whole panel.
-      expect(html).toContain("<thead>")
+      expect(html).toContain("<thead ")
       expect(html).toContain("Market")
       // Inside the table's frame, under the headings — not instead of them.
-      expect(html.indexOf("<thead>")).toBeLessThan(html.indexOf(words))
+      expect(html.indexOf("<thead ")).toBeLessThan(html.indexOf(words))
+    }
+  })
+
+  /**
+   * The Journal has eleven columns and thousands of rows. Scrolled, its
+   * headings used to leave with the rows, and a column of dollars with nothing
+   * written over it answers nothing. Every heading cell is pinned to the top of
+   * the box it scrolls in, and pinned cells have rows sliding under them — so
+   * an opaque background is part of the fix, not decoration. A half-transparent
+   * tint would let the numbers read through the words.
+   */
+  it("pins every heading cell, over a background that hides the rows", () => {
+    for (const draw of [drawPositions, drawOrders, drawTrades]) {
+      const html = draw({ settled: true, failed: false })
+      const headings = html
+        .slice(html.indexOf("<thead "), html.indexOf("</thead>"))
+        .split("<th ")
+        .slice(1)
+      expect(headings.length).toBeGreaterThan(1)
+      for (const cell of headings) {
+        expect(cell).toContain("sticky")
+        expect(cell).toContain("top-0")
+        // Mixed with the surface behind it rather than a tint over it.
+        expect(cell).toContain("color-mix")
+        expect(cell).not.toContain("bg-muted/50")
+      }
     }
   })
 
@@ -319,7 +362,7 @@ describe("the bottom panel's tables say what they know", () => {
       const html = draw({ settled: false, failed: false })
       expect(html).toContain(label)
       // The real header is already up, so nothing moves when the rows land.
-      expect(html).toContain("<thead>")
+      expect(html).toContain("<thead ")
       expect(html).not.toContain("No open")
       expect(html).not.toContain("No finished")
     }
@@ -330,7 +373,7 @@ describe("the bottom panel's tables say what they know", () => {
       const html = draw({ settled: true, failed: true })
       expect(html).toContain("could not be read")
       expect(html).toContain("Try again")
-      expect(html).toContain("<thead>")
+      expect(html).toContain("<thead ")
       expect(html).not.toContain("No open")
       expect(html).not.toContain("No finished")
     }

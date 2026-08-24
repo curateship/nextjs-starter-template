@@ -31,7 +31,7 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { loadProtocols, type ProtocolDescription } from "@/lib/api/protocols"
+import { loadProtocolsOnce, type ProtocolDescription } from "@/lib/api/protocols"
 import {
   createWallet,
   deleteWallet,
@@ -83,7 +83,7 @@ const NETWORK_LABELS: Record<NetworkId, string> = {
 let protocolsPromise: Promise<ProtocolDescription[]> | null = null
 
 function walletProtocols(): Promise<ProtocolDescription[]> {
-  protocolsPromise ??= loadProtocols()
+  protocolsPromise ??= loadProtocolsOnce()
     .then((result) =>
       result.protocols.filter(
         (one) => one.capabilities.accounts && one.credentialForm

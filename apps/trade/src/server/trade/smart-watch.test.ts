@@ -94,6 +94,8 @@ function plan(over: Partial<WatchPlan> = {}): WatchPlan {
     tpPx: null,
     slPx: null,
     reduceOnly: false,
+    maker: false,
+    heldAtStart: 0,
     chaseGiveUp: 0,
     phase: "waiting",
     sent: false,

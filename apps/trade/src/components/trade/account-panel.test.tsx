@@ -98,6 +98,7 @@ function WalletPicker({
         activeWalletId={activeWalletId}
         onUseWallet={setActiveWalletId}
         onOpenWallet={onOpenWallet}
+        onFlattenWallet={() => {}}
         onRetry={() => {}}
         healthOf={(walletId) =>
           walletId === "main"
@@ -191,6 +192,7 @@ describe("the active wallet picker", () => {
             activeWalletId="main"
             onUseWallet={() => {}}
             onOpenWallet={() => {}}
+            onFlattenWallet={() => {}}
             onRetry={() => {}}
             healthOf={() => null}
           />
@@ -259,6 +261,7 @@ describe("the active wallet picker", () => {
             activeWalletId="main"
             onUseWallet={() => {}}
             onOpenWallet={() => {}}
+            onFlattenWallet={() => {}}
             onRetry={() => {}}
             healthOf={() => null}
           />

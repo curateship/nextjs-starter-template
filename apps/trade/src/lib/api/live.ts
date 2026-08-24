@@ -20,6 +20,8 @@ import {
   placeLiveOrder as placeOrderRow,
   setLiveBrackets as setBracketsRow,
   moveLiveOrder as moveOrderRow,
+  changeLiveLeverage as changeLeverageRow,
+  changeLiveMargin as changeMarginRow,
 } from "@/server/trade/live-orders"
 import {
   hideLiveTrade as hideTradeRows,
@@ -243,6 +245,46 @@ const setLiveBracketsFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+/**
+ * Changes the leverage on a position that is already open.
+ *
+ * The exchange is asked and nothing is written here: the row's leverage,
+ * margin and liquidation price all come from the next portfolio read, so what
+ * is on screen afterwards is the venue's own answer rather than what was
+ * asked for.
+ */
+const changeLiveLeverageFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    positionSchema.extend({
+      leverage: z.number().int().min(1).max(200),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ asked: true }> => {
+    await changeLeverageRow(context.user.id, data)
+    return { asked: true }
+  })
+
+/**
+ * Adds or takes back the cash behind one isolated position. Signed dollars:
+ * negative takes margin out, which is refused when it would bring the
+ * liquidation price inside the position's own stop.
+ */
+const changeLiveMarginFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    positionSchema.extend({
+      dollars: z
+        .number()
+        .finite()
+        .refine((value) => value !== 0, { message: "LIVE_MARGIN_NOTHING" }),
+    })
+  )
+  .handler(async ({ data, context }): Promise<{ asked: true }> => {
+    await changeMarginRow(context.user.id, data)
+    return { asked: true }
+  })
+
 const closeLivePositionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(positionSchema)
@@ -299,6 +341,22 @@ export function closeLivePosition(walletId: string, marketKey: string) {
   return closeLivePositionFn({ data: { walletId, marketKey } })
 }
 
+export function changeLiveLeverage(input: {
+  walletId: string
+  marketKey: string
+  leverage: number
+}) {
+  return changeLiveLeverageFn({ data: input })
+}
+
+export function changeLiveMargin(input: {
+  walletId: string
+  marketKey: string
+  dollars: number
+}) {
+  return changeLiveMarginFn({ data: input })
+}
+
 const LIVE_SENTENCES: Record<string, string> = {
   LIVE_WALLET_NOT_FOUND:
     "That wallet is not there any more — it may have been deleted in another tab.",
@@ -329,6 +387,12 @@ const LIVE_SENTENCES: Record<string, string> = {
   LIVE_ORDER_GONE:
     "That order is not on the exchange any more — it may have filled or been cancelled elsewhere.",
   LIVE_POSITION_GONE: "That position is not on the exchange any more.",
+  LIVE_LEVERAGE_UNSUPPORTED:
+    "This exchange cannot change leverage on a position that is already open.",
+  LIVE_MARGIN_UNSUPPORTED:
+    "This exchange cannot add or take back the cash behind one position.",
+  LIVE_MARGIN_NOTHING:
+    "Type how much margin to add or take back. Zero changes nothing.",
   LIVE_UNREADABLE:
     "The exchange answered with figures that could not be read, so nothing was done.",
   SECRET_UNREADABLE:
@@ -376,6 +440,14 @@ export function getLiveErrorMessage(error: unknown): string {
   if (tooSmall) return tooSmall[1].trim()
   const setting = message.match(/LIVE_(?:LEVERAGE|MARGIN_MODE):(.*)$/s)
   if (setting) return setting[1].trim()
+  // The rails' own refusals about leverage and margin on an open position.
+  // Each carries its whole sentence because each names figures — the cap this
+  // market allows, what the position is holding, where liquidation would land
+  // against the stop — and a fixed sentence could not say any of them.
+  const holding = message.match(
+    /LIVE_(?:LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):(.*)$/s
+  )
+  if (holding) return holding[1].trim()
   // The exchange's own refusal, already scrubbed server-side. Shown because
   // with real money the reason IS the answer.
   const exchange = message.match(/LIVE_(?:EXCHANGE|ORDER_REFUSED):(.*)$/s)

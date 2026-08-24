@@ -3,10 +3,12 @@ import { randomUUID } from "node:crypto"
 import { and, eq, sql } from "drizzle-orm"
 
 import {
+  marketKey as marketKeyOf,
   parseMarketKey,
   type NetworkId,
   type OrderAuth,
   type PlaceOrderOutcome,
+  type WalletPosition,
 } from "@/lib/protocols/contracts"
 import {
   livePortfolioRows,
@@ -16,6 +18,7 @@ import {
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import {
   isMarketable,
+  liquidationPx,
   type TradeOrder,
   type TradePosition,
   type TradeSide,
@@ -179,7 +182,7 @@ async function refuse(
     // The move codes carry a whole written sentence rather than a bare
     // reason, so stripping the code leaves the Journal reading properly.
     note: message.replace(
-      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED):/,
+      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
       ""
     ),
   })
@@ -484,6 +487,244 @@ export async function closeLivePosition(
   } catch (error) {
     await refuse(userId, row.id, input.marketKey, side, error)
   }
+}
+
+/**
+ * What one live wallet holds of one market, straight from the exchange.
+ *
+ * The exchange's own answer, not this app's copy of it, because the thing it
+ * is used for is checking a size against what is really there. A part close
+ * sized off a cached number could ask to sell more than the account holds, and
+ * a sell bigger than the position is how a close becomes a short.
+ *
+ * Null means the position is not there. That is a real answer and the caller
+ * decides what it means, rather than a throw from inside a read.
+ */
+export async function liveHeldPosition(
+  userId: string,
+  walletId: string,
+  marketKey: string
+): Promise<WalletPosition | null> {
+  const row = await liveWallet(userId, walletId)
+  const protocol = getProtocol(row.protocol)
+  const ref = checkedMarket(row, marketKey)
+  const portfolio = await ordersOf(protocol).portfolio(
+    row.network,
+    row.address ?? "",
+    () => credentialFor(row)
+  )
+  return portfolio.positions.find((one) => one.marketId === ref.marketId) ?? null
+}
+
+/**
+ * Changes the leverage on a position that is already open.
+ *
+ * **The exchange's answer is the only answer.** Nothing here writes a leverage
+ * anywhere: the command goes out, and what the row shows afterwards comes from
+ * the next portfolio read. So a venue that quietly clamps what was asked for
+ * shows its own number rather than ours, which is the whole point of not
+ * keeping a copy.
+ *
+ * Refused where the venue refuses it — Aster will not lower isolated leverage
+ * on an open position — and that refusal reaches the screen in the venue's own
+ * words through the journal's refusal path.
+ */
+export async function changeLiveLeverage(
+  userId: string,
+  input: { walletId: string; marketKey: string; leverage: number }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  const change = ordersOf(protocol).setLeverage
+  if (!change) throw new Error("LIVE_LEVERAGE_UNSUPPORTED")
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    const asked = Math.max(1, Math.round(input.leverage))
+    const rules = await marketRules(row.protocol, row.network, ref.marketId)
+    if (rules?.maxLeverage != null && asked > rules.maxLeverage) {
+      throw new Error(
+        `LIVE_LEVERAGE_TOO_HIGH:${protocol.label} allows at most ${rules.maxLeverage}x on this market.`
+      )
+    }
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+
+    await change(row.network, authFor(row), {
+      marketId: ref.marketId,
+      leverage: asked,
+    })
+    await journal(userId, row.id, input.marketKey, {
+      action: "brackets",
+      side: held.szi > 0 ? "buy" : "sell",
+      note: `Leverage asked to change from ${held.leverage}x to ${asked}x.`,
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+/**
+ * Adds or takes back the cash behind one isolated position. Signed: negative
+ * takes margin out.
+ *
+ * **Taking margin out is refused when it would bring the liquidation price
+ * inside the stop.** A stop at $90 with liquidation moved to $92 means the
+ * exchange takes the trade before the stop can fire, so the stop is no longer
+ * the worst case and the trade is not the trade that was agreed to. The
+ * refusal names both prices.
+ *
+ * The estimate uses this app's own formula, because the exchange will not tell
+ * us where liquidation WOULD move to until after the money has moved. That is
+ * said out loud on the window as well: what the row shows afterwards is the
+ * exchange's own figure, read back.
+ */
+export async function changeLiveMargin(
+  userId: string,
+  input: { walletId: string; marketKey: string; dollars: number }
+): Promise<void> {
+  const row = await liveWallet(userId, input.walletId)
+  if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
+  const protocol = getProtocol(row.protocol)
+  const adjust = ordersOf(protocol).adjustMargin
+  if (!adjust) throw new Error("LIVE_MARGIN_UNSUPPORTED")
+
+  try {
+    const ref = checkedMarket(row, input.marketKey)
+    if (!Number.isFinite(input.dollars) || input.dollars === 0) {
+      throw new Error("LIVE_MARGIN_NOTHING")
+    }
+    const portfolio = await ordersOf(protocol).portfolio(
+      row.network,
+      row.address ?? "",
+      () => credentialFor(row)
+    )
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+    if (!held) throw new Error("LIVE_POSITION_GONE")
+
+    if (input.dollars < 0) {
+      if (held.marginUsed + input.dollars <= 0) {
+        throw new Error(
+          `LIVE_MARGIN_TOO_MUCH:This position is holding $${money(held.marginUsed)} of margin, and taking $${money(-input.dollars)} back would leave nothing behind it.`
+        )
+      }
+      const rules = await marketRules(row.protocol, row.network, ref.marketId)
+      const cap = rules?.maxLeverage ?? null
+      const wouldBe = liquidationAfterMargin(
+        held,
+        held.marginUsed + input.dollars,
+        cap
+      )
+      // **"Would bring it inside" and "is already inside" are different, and
+      // only the first is refused.** A position whose stop already sits past
+      // its liquidation price is in that state whatever anybody does next, so
+      // blocking a withdrawal there traps the cash and fixes nothing. Both
+      // sides use this app's own estimate: measuring "after" with our formula
+      // and "now" with the exchange's would compare two arithmetics, and the
+      // difference between them would read as a change the withdrawal caused.
+      const nowAt = liquidationAfterMargin(held, held.marginUsed, cap)
+      const inside = (px: number | null) =>
+        px !== null &&
+        held.slPx !== null &&
+        (held.szi > 0 ? px >= held.slPx : px <= held.slPx)
+      if (held.slPx !== null && inside(wouldBe) && !inside(nowAt)) {
+        throw new Error(
+          `LIVE_MARGIN_PAST_STOP:Taking that out moves the liquidation price to about $${money(wouldBe ?? 0)}, which the market reaches before the stop at $${money(held.slPx)} — the exchange would take the trade before the stop could. Take out less, or move the stop first.`
+        )
+      }
+    }
+
+    await adjust(row.network, authFor(row), {
+      marketId: ref.marketId,
+      szi: held.szi,
+      dollars: input.dollars,
+    })
+    await journal(userId, row.id, input.marketKey, {
+      action: "brackets",
+      side: held.szi > 0 ? "buy" : "sell",
+      note:
+        input.dollars > 0
+          ? `Asked to put $${money(input.dollars)} more margin behind the position.`
+          : `Asked to take $${money(-input.dollars)} of margin back out.`,
+    })
+  } catch (error) {
+    await refuse(userId, row.id, input.marketKey, null, error)
+  }
+}
+
+/** Dollars inside a sentence, to two decimals. */
+function money(value: number): string {
+  return Math.abs(value).toFixed(2)
+}
+
+/**
+ * Where liquidation would sit with a different amount of margin behind the
+ * position — this app's estimate, never a figure from the exchange.
+ *
+ * The margin decides the effective leverage, and the leverage decides how far
+ * price can travel before the stake is gone. `liquidationPx` holds that one
+ * formula for the whole app, so this only works out the leverage to hand it.
+ *
+ * Null when the venue states no maximum leverage for the market: without it
+ * there is no maintenance buffer to work from, and an estimate on a guess is
+ * worse than no estimate. The stop check then does not fire, which leaves the
+ * venue's own refusal as the backstop.
+ */
+function liquidationAfterMargin(
+  held: WalletPosition,
+  margin: number,
+  maxLeverage: number | null
+): number | null {
+  const notional = Math.abs(held.szi) * held.entryPx
+  if (!(margin > 0) || !(notional > 0) || maxLeverage === null) return null
+  return liquidationPx({
+    szi: held.szi,
+    entryPx: held.entryPx,
+    leverage: notional / margin,
+    maxLeverage,
+  })
+}
+
+/**
+ * Everything one live wallet holds, market key and all, in ONE read.
+ *
+ * **The positions come back, not just their names, and that is the point.**
+ * Emptying a wallet works through this list, and asking the exchange again for
+ * each coin turned four positions into five whole-account reads — on the one
+ * press somebody makes while a market is moving and the venue is already
+ * rationing requests. One read, handed down.
+ */
+export async function liveHeldPositions(
+  userId: string,
+  walletId: string
+): Promise<{ marketKey: string; held: WalletPosition }[]> {
+  const row = await liveWallet(userId, walletId)
+  const protocol = getProtocol(row.protocol)
+  const portfolio = await ordersOf(protocol).portfolio(
+    row.network,
+    row.address ?? "",
+    () => credentialFor(row)
+  )
+  return portfolio.positions
+    .filter((one) => Math.abs(one.szi) > 0)
+    .map((one) => ({
+      marketKey: marketKeyOf({
+        protocol: row.protocol,
+        network: row.network,
+        marketId: one.marketId,
+      }),
+      held: one,
+    }))
 }
 
 export async function setLiveBrackets(

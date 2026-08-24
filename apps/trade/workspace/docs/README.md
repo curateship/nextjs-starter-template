@@ -15,7 +15,8 @@ Two files outrank the rest, and outrank the code:
 
 - `architecture-overview.md` — how Trade is put together on top of the shell.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
-  every number, the text scale, and the small badge every table shares.
+  every number, the text scale, the small badge every table shares, and what an
+  open position has cost in fees.
 - `chart-timezone.md` — the one clock the chart is on, where it is set, and why
   it is stored as a place rather than as an offset.
 - `chart-loading.md` — when the first candle request leaves, and why later
@@ -29,6 +30,15 @@ Two files outrank the rest, and outrank the code:
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is
   split between levels, what a sell is worth, and what following price up does.
 - `watched-orders.md` — how a plain order works now, and what dragging does.
+- `part-close.md` — selling some of a position instead of all of it: why a part
+  is chased as a maker where all of it is not, what the window asks, and what
+  happens to the stop on the rest.
+- `flatten-wallet.md` — Empty wallet: why the waiting orders come off before
+  anything is sold, what a refused cancel stops, and how it differs from
+  Close all.
+- `position-margin.md` — changing leverage and the cash behind an open
+  position: what each exchange allows, when taking margin out is refused, and
+  why the liquidation figure on the window is an estimate.
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what a
   failed answer does to the card.
 - `worker-restart.md` — the Restart button on the Workers screen: how the

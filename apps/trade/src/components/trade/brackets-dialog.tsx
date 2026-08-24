@@ -29,12 +29,16 @@ import {
   bracketTyped,
 } from "@/lib/trade/brackets"
 import {
+  formatFeeUsd,
   formatPrice,
   formatSignedUsd,
   formatSize,
   formatUsd,
 } from "@/lib/trade/format"
+import type { LiveFill } from "@/lib/trade/live-trades"
 import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
+import { positionFees } from "@/lib/trade/position-fees"
+import { formatDateTime } from "@/lib/format/format-time"
 
 /**
  * Where a position gets out, either way.
@@ -51,6 +55,7 @@ import { projectedProfit, type TradePosition } from "@/lib/trade/paper"
 
 export function BracketsDialog({
   position,
+  fills,
   startTpPx = null,
   startSlPx = null,
   busy,
@@ -58,6 +63,8 @@ export function BracketsDialog({
   onClose,
 }: {
   position: TradePosition | null
+  /** Every execution on hand — what the fee total is added up from. */
+  fills: readonly LiveFill[]
   /**
    * A price to start the take-profit box from when the position has no target
    * yet — the level right-clicked on the chart. A target already on the
@@ -94,6 +101,7 @@ export function BracketsDialog({
             // its own figures rather than the last one's.
             key={position.id}
             position={position}
+            fills={fills}
             startTpPx={startTpPx}
             startSlPx={startSlPx}
             busy={busy}
@@ -108,6 +116,7 @@ export function BracketsDialog({
 
 function BracketsForm({
   position,
+  fills,
   startTpPx,
   startSlPx,
   busy,
@@ -115,6 +124,7 @@ function BracketsForm({
   onClose,
 }: {
   position: TradePosition
+  fills: readonly LiveFill[]
   startTpPx: number | null
   startSlPx: number | null
   busy: boolean
@@ -350,6 +360,8 @@ function BracketsForm({
             ) : null}
           </CardContent>
         </Card>
+
+        <PositionCost position={position} fills={fills} />
       </DialogBody>
 
       <DialogFooter>
@@ -381,4 +393,64 @@ function BracketsForm({
       </DialogFooter>
     </>
   )
+}
+
+/**
+ * What this position has cost so far, in one line the row has no room for.
+ *
+ * **Whose figure it is has to be on screen, not implied.** No exchange reports
+ * "fees so far on this open position", so this is an addition of the fills the
+ * app has been given, and the words say that. Where the count starts is part
+ * of the answer for the same reason: a total that begins after the position
+ * opened is a smaller number than the truth, and printing it plain would be
+ * the made-up figure `ui-ux.md` exists to prevent.
+ *
+ * A practice position is different in one way only: the engine charged the
+ * fees itself, so it has the whole figure and nothing to qualify.
+ */
+function PositionCost({
+  position,
+  fills,
+}: {
+  position: TradePosition
+  fills: readonly LiveFill[]
+}) {
+  const fees = React.useMemo(
+    () => (position.live ? positionFees(fills, position) : null),
+    [fills, position]
+  )
+  const paid = position.live ? fees?.paid : position.feesPaid
+
+  return (
+    <Card size="sm">
+      <CardHeader>
+        <CardTitle>What it has cost so far</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-1">
+        <p className="text-sm tabular-nums">
+          {paid === undefined ? "—" : formatFeeUsd(paid)}{" "}
+          <span className="text-xs text-muted-foreground">in fees</span>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {!position.live
+            ? "Charged by the practice engine on every fill this position has made."
+            : fees === null
+              ? "No fill has been reported for this position yet, so there is nothing to add up. That is not the same as no fee having been charged."
+              : `Added up by this app from ${countedFills(fees.countedFills)} the exchange reported, starting ${formatDateTime(new Date(fees.countedFrom))}. It is not a total the exchange states itself.`}
+        </p>
+        {fees !== null && !fees.whole ? (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            That start is after this position opened, so the real total is
+            bigger. The fills on hand do not reach back any further — KuCoin
+            only answers for a day at a time, and the panel holds the newest
+            few thousand fills rather than an account&rsquo;s whole history.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  )
+}
+
+function countedFills(count: number): string {
+  return count === 1 ? "1 fill" : `${count} fills`
 }

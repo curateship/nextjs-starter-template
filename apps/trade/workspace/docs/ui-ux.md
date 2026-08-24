@@ -467,6 +467,42 @@ is the only thing left to fill in, and it starts empty and focused.
   deliberately no "double it" press that skips the window — the window is where
   the size is chosen and where the real-money check happens.
 
+### Selling part of a position
+
+The bin on a position row opens a window asking how much comes off, in dollars
+or in coins, with 25%, 50% and All of it as presses that fill the box. It starts
+on all of it, so the old one-press behaviour needs nothing filled in.
+
+- **All of it and part of it are sold differently, and the window says which.**
+  All of it is a market order. A part is a reduce-only limit that follows the
+  price and never pays the spread, which is what the trading rules ask of a
+  close.
+- **It says what happens to the rest**, in dollars, including where its stop
+  is. A refused amount says why above the button, with the box outlined.
+- **An amount leaving less than the exchange's smallest order sells all of it.**
+  A scrap under the floor could never be closed again. See `part-close.md`.
+
+### Leverage and the cash behind a position
+
+Every position row also carries a gauge button, labelled "Change the BTC
+leverage and margin". It opens a window with two boxes, each with its own
+button: the leverage the position runs on, and how much of your own cash is
+behind it.
+
+- **The button is hidden where the exchange allows neither**, and the window
+  says the exchange's own reason for the half it cannot do. Hyperliquid allows
+  both today; Aster allows leverage but will not lower it while a position is
+  open; Phemex and KuCoin allow neither yet.
+- **The liquidation figure on the window is this app's estimate and says so.**
+  What the row shows afterwards is the exchange's own figure, read back —
+  nothing about the change is written down here.
+- **Taking margin out is refused when it would bring liquidation inside the
+  stop**, with both prices in the sentence. Already being inside is not the
+  same as being brought inside, and only the second is refused.
+- **A practice wallet is refused rather than faked.** The practice engine has no
+  lender to renegotiate with, and the window says that instead of drawing boxes
+  that would pretend otherwise. See `position-margin.md`.
+
 ## The market list
 
 The left column is **one Folders panel** (decided 23 Aug 2026; the separate
@@ -674,6 +710,20 @@ fixed in one is fixed in both.
 - **The panel jumps to the new height, with nothing animating.** So the
   reduced-motion setting has nothing to switch off here, and a chart in the
   middle of drawing is not redrawn thirty times on the way.
+- **The column headings stay on screen while the rows scroll.** All three
+  tables down here pin their heading row to the top of the box it scrolls in,
+  so scrolling a long Journal never leaves you reading eleven unlabelled
+  columns of dollars. The pinned row is opaque, because rows slide underneath
+  it, and it takes the same hairline under it that every other table in the app
+  draws. Nothing is covered until something is scrolled: at rest the headings
+  sit exactly where the first row begins.
+- **The market list's headings stay put the same way.** That list scrolls in
+  the table's own box rather than a scroll area, which is the thing that makes
+  it work: a table always wraps itself in a box that scrolls sideways, and a
+  box that scrolls sideways is what a pinned heading inside it holds on to. The
+  sideways box has the height now, so one box scrolls both ways and the heading
+  has something to hold on to. It used to be 10,889 pixels tall inside a
+  separate scrolling box, so it never scrolled and the heading never stuck.
 - **A tab press never leaves the table highlighted.** The press moves
   everything under the pointer, and the browser finishes by highlighting
   whatever ended up between where the press started and where the content
@@ -920,6 +970,7 @@ working bar streams beside it.
   the same place, and the button points at the sentence with
   `aria-describedby`. A box nobody has typed in yet is not outlined; the
   sentence alone explains what the button is waiting for.
+
 - **The exchange and network stay one glance or one hover away** wherever a
   market or an account could be read as belonging to the wrong one — the
   search box names them outright, the market header holds them behind its
@@ -934,8 +985,10 @@ working bar streams beside it.
   about $X…") that must be pressed a second time before anything is sent.
   A live Smart order follows the same rule and confirms the ladder's buy count
   and maximum cost.
-  Figures the exchange did not report (a live position's running fees, a live
-  order's leverage) show as dashes, never as made-up zeros. The warning is all
+  Figures the exchange did not report (a live order's leverage) show as
+  dashes, never as made-up zeros. A live position's fee total is the one that
+  is counted rather than dashed, and it carries its own honesty rules — see
+  "Fees beside profit" in `reading-the-figures.md`. The warning is all
   in front of the press; nothing is said afterwards, real or pretend — see
   "Orders on the chart".
 

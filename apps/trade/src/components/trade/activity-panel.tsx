@@ -7,6 +7,7 @@ import {
 } from "lucide-react"
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
+import { PositionMarginDialog } from "@/components/trade/position-margin-dialog"
 import {
   OpenOrdersTable,
   PositionsTable,
@@ -101,6 +102,10 @@ export function ActivityPanel({
   wallets,
   onSelectMarket,
   onAddToPosition,
+  canChangeLeverage,
+  leverageRefusal,
+  canAdjustMargin,
+  marginRefusal,
   shownTrade,
   onShowTrade,
   fit,
@@ -116,6 +121,14 @@ export function ActivityPanel({
    * switches, which is why the row's button reaches all the way up here.
    */
   onAddToPosition: (position: TradePosition) => void
+  /**
+   * Whether this exchange allows leverage or margin to be changed on an open
+   * position, and its own reason when it does not — see `useProtocolAbilities`.
+   */
+  canChangeLeverage: boolean
+  leverageRefusal: string | null
+  canAdjustMargin: boolean
+  marginRefusal: string | null
   /** The trade drawn on the chart right now, owned by the workspace. */
   shownTrade: LiveTrade | null
   onShowTrade: (trade: LiveTrade | null) => void
@@ -129,6 +142,11 @@ export function ActivityPanel({
   // can say — a row that is silently missing is not.
   const [shown, setShown] = React.useState<"all" | "manual">("all")
   const [editing, setEditing] = React.useState<TradePosition | null>(null)
+  const [changingMargin, setChangingMargin] =
+    React.useState<TradePosition | null>(null)
+  // Offered when the exchange allows either of the two. The window itself says
+  // which half it cannot do, so one refused half never hides the other.
+  const canChangeMargin = canChangeLeverage || canAdjustMargin
   const [flipping, setFlipping] = React.useState<TradePosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
   const [standingDown, setStandingDown] = React.useState(false)
@@ -212,6 +230,8 @@ export function ActivityPanel({
   // something that is no longer there.
   const editingNow =
     trading.positions.find((one) => one.id === editing?.id) ?? null
+  const marginNow =
+    trading.positions.find((one) => one.id === changingMargin?.id) ?? null
 
   // A count that is not known yet shows nothing rather than a zero — before
   // the first read, and after a first read that failed, "0" would be claiming
@@ -389,6 +409,8 @@ export function ActivityPanel({
           <PositionsTable
             positions={visible}
             markets={markets}
+            // What a real position's fee total is added up from.
+            fills={trading.fills}
             walletName={walletName}
             busy={trading.busy}
             settled={trading.settled}
@@ -396,10 +418,12 @@ export function ActivityPanel({
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
             onAdd={onAddToPosition}
+            onMargin={canChangeMargin ? setChangingMargin : null}
             onEdit={setEditing}
             onFlip={setFlipping}
-            onClose={(position) =>
-              void trading.close(position)
+            onClose={(position) => void trading.close(position)}
+            onClosePart={(position, ask) =>
+              void trading.closePart(position, ask)
             }
           />
         </ScrollArea>
@@ -485,8 +509,29 @@ export function ActivityPanel({
         }}
       />
 
+      <PositionMarginDialog
+        position={marginNow}
+        maxLeverage={
+          marginNow ? (markets.get(marginNow.marketKey)?.maxLeverage ?? null) : null
+        }
+        walletName={marginNow ? walletName(marginNow.walletId) : ""}
+        canChangeLeverage={canChangeLeverage}
+        leverageRefusal={leverageRefusal}
+        canAdjustMargin={canAdjustMargin}
+        marginRefusal={marginRefusal}
+        busy={trading.busy}
+        onSetLeverage={(position, leverage) =>
+          void trading.setPositionLeverage(position, leverage)
+        }
+        onAdjustMargin={(position, dollars) =>
+          void trading.adjustPositionMargin(position, dollars)
+        }
+        onDismiss={() => setChangingMargin(null)}
+      />
+
       <BracketsDialog
         position={editingNow}
+        fills={trading.fills}
         busy={trading.busy}
         onSave={trading.setBrackets}
         onClose={() => setEditing(null)}

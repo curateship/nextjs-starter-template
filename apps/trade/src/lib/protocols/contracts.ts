@@ -74,7 +74,29 @@ export type ProtocolCapabilities = {
   accounts: boolean
   /** Can sign and place real orders for a live wallet. */
   orders: boolean
+  /** Can change the leverage on a position that is already open. */
+  changeLeverage: ProtocolAbility
+  /** Can add or take back the cash behind an isolated position. */
+  adjustMargin: ProtocolAbility
 }
+
+/**
+ * Something one exchange can do and another cannot, with the reason attached.
+ *
+ * **The reason is the point.** A flag on its own lets a screen hide a button,
+ * which leaves somebody looking for a button that is not there. Carrying the
+ * sentence with the flag means the screen can say why instead — and the
+ * sentence is written where the knowledge is, beside the exchange's own module,
+ * rather than in a screen that would then have to know which exchange it was
+ * looking at.
+ */
+export type ProtocolAbility =
+  | { can: true }
+  | {
+      can: false
+      /** Plain words for the screen: what cannot be done here, and why. */
+      because: string
+    }
 
 /**
  * How a saved market is written down: protocol, network, and the market's own

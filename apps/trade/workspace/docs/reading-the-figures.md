@@ -76,6 +76,39 @@ The small fee note beside Made or lost adds the exchange's stated charge on
 every fill in the same window, even when the exchange did not state what a sale
 made. Fees do not take their own headline figure or wallet column.
 
+### What an open position has cost
+
+The Positions row and the position's own window both say what the position has
+been charged so far. A ladder that bought eight times on the way down and sold
+four rungs back out has run up twelve fees, and without this the profit on the
+screen is bigger than the profit in the account.
+
+- **It is this app's count, and it says so.** No exchange reports "fees so far
+  on this open position". What an exchange does report is every fill it charged
+  for, and those are added up here. The Fees column heading carries a mark
+  saying whose figure it is, and the position's window says it in a full
+  sentence.
+- **The count starts at the moment the position opened.** Which fill that was
+  is found by walking back from the newest one until the sizes add up to what
+  the exchange says is held. Everything from there on belongs to this
+  position's life, including any part-close inside it.
+- **A fill that flips the position is shared by size.** One row that shuts a
+  long and opens a short carries one fee for the whole row, so only the part
+  belonging to the position now held is counted.
+- **A count that cannot reach the opening says so.** The window says where the
+  count starts, and adds that the real total is bigger. KuCoin only answers for
+  a day of fills at a time, and the panel holds the newest few thousand fills
+  rather than an account's whole history. The row gets a mark for the same
+  reason. A short total printed plain would be exactly the made-up figure the
+  dash rule exists to prevent.
+- **A dash and a zero are different answers.** A dash means no fill has been
+  reported yet. `$0.00` means the venue charged nothing, which happens. A
+  charge under a cent reads "under $0.01" rather than `-$0.00`, because
+  dollars-and-cents rounding would print a real charge as nothing.
+- **A practice position is the engine's own figure**, charged as it filled, so
+  it has the whole total and nothing to qualify. It reads the same way on
+  screen.
+
 ## Margin health on a wallet
 
 An open wallet card adds two position figures after In trades. Margin used is

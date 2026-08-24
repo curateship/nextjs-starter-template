@@ -7,6 +7,7 @@ import {
   LayersIcon,
   PlusIcon,
   SettingsIcon,
+  Trash2Icon,
 } from "lucide-react"
 
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
@@ -141,6 +142,7 @@ function ActiveWalletRow({
   selected,
   onSelect,
   onOpenWallet,
+  onFlatten,
   onRetry,
   marginHealth,
 }: {
@@ -149,6 +151,8 @@ function ActiveWalletRow({
   selected: boolean
   onSelect: () => void
   onOpenWallet: () => void
+  /** Sell everything on this wallet and call off what it has waiting. */
+  onFlatten: () => void
   onRetry: () => void
   marginHealth: WalletMarginHealth | null
 }) {
@@ -317,7 +321,7 @@ function ActiveWalletRow({
               </Button>
             </div>
           )}
-          <div className="flex justify-center border-t pt-2">
+          <div className="flex items-center justify-center gap-1 border-t pt-2">
             <Button
               type="button"
               size="sm"
@@ -326,6 +330,20 @@ function ActiveWalletRow({
             >
               <SettingsIcon className="size-4" />
               Edit wallet
+            </Button>
+            {/* Sells everything this wallet holds and calls off what it has
+                waiting. Here rather than in the tab bar beside Close all,
+                because the whole point of it is that it is one wallet — and
+                inside the open card, so it takes a press to reach. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="link"
+              className="text-destructive hover:text-destructive"
+              onClick={onFlatten}
+            >
+              <Trash2Icon className="size-4" />
+              Empty wallet
             </Button>
           </div>
         </div>
@@ -439,6 +457,7 @@ export function ActiveWalletsView({
   activeWalletId,
   onUseWallet,
   onOpenWallet,
+  onFlattenWallet,
   onRetry,
   healthOf,
 }: {
@@ -447,6 +466,7 @@ export function ActiveWalletsView({
   activeWalletId: string | null
   onUseWallet: (walletId: string) => void
   onOpenWallet: (wallet: TradeWallet) => void
+  onFlattenWallet: (wallet: TradeWallet) => void
   onRetry: () => void
   healthOf: (walletId: string) => WalletMarginHealth | null
 }) {
@@ -460,6 +480,7 @@ export function ActiveWalletsView({
           selected={wallet.id === activeWalletId}
           onSelect={() => onUseWallet(wallet.id)}
           onOpenWallet={() => onOpenWallet(wallet)}
+          onFlatten={() => onFlattenWallet(wallet)}
           onRetry={onRetry}
           marginHealth={healthOf(wallet.id)}
         />
@@ -547,6 +568,7 @@ export function AccountPanel({
   cacheScope,
   onAddWallet,
   onOpenWallet,
+  onFlattenWallet,
   onContentHeightChange,
 }: {
   account: ReturnType<typeof useTradeAccount>
@@ -555,6 +577,8 @@ export function AccountPanel({
   cacheScope: string
   onAddWallet: () => void
   onOpenWallet: (wallet: TradeWallet) => void
+  /** Ask before emptying a wallet — the workspace owns the question. */
+  onFlattenWallet: (wallet: TradeWallet) => void
   /** Lets the desktop split follow the rows instead of reserving half a column. */
   onContentHeightChange?: (height: number) => void
 }) {
@@ -664,6 +688,7 @@ export function AccountPanel({
               activeWalletId={shownActiveWalletId}
               onUseWallet={usingCache ? () => {} : account.switchWallet}
               onOpenWallet={usingCache ? () => {} : onOpenWallet}
+              onFlattenWallet={usingCache ? () => {} : onFlattenWallet}
               onRetry={() => void refresh()}
               healthOf={healthOf}
             />

@@ -54,6 +54,7 @@ it("uses cached wallets only to draw while the real account is loading", async (
         cacheScope="person:hyperliquid"
         onAddWallet={() => {}}
         onOpenWallet={() => {}}
+        onFlattenWallet={() => {}}
       />
     )
   })

@@ -3,6 +3,12 @@ import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
 import { AccountPanel } from "@/components/trade/account-panel"
+import { FlattenWalletDialog } from "@/components/trade/flatten-wallet-dialog"
+import {
+  allowed,
+  refusalOf,
+  useProtocolAbilities,
+} from "@/components/trade/use-protocol-abilities"
 import { ActivityPanel } from "@/components/trade/activity-panel"
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
@@ -290,16 +296,29 @@ export function TradeWorkspace({
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
   const dashboardCacheScope = `${user.id}:${protocol}`
   const account = useTradeAccount(protocol, dashboardCacheScope)
+  // What this exchange allows beyond placing an order — read from the server's
+  // own table rather than decided here, which the protocol fence forbids.
+  const abilities = useProtocolAbilities(protocol)
   const walletsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const accountColumnRef = React.useRef<HTMLDivElement | null>(null)
   const [addingWallet, setAddingWallet] = React.useState(false)
   const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
     null
   )
+  /**
+   * The wallet whose "Empty wallet" press is being asked about.
+   *
+   * Held by id, and resolved against the live list on every render, so a wallet
+   * deleted or switched off in another tab closes its own question instead of
+   * emptying a ghost.
+   */
+  const [flatteningId, setFlatteningId] = React.useState<string | null>(null)
   // Resolved against the live list on every render, so a wallet deleted in
   // another tab closes its own window instead of editing a ghost.
   const editingWallet =
     account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
+  const flattening =
+    account.wallets.find((wallet) => wallet.id === flatteningId) ?? null
 
   const fitWalletRows = React.useCallback((height: number) => {
     const panel = walletsPanelRef.current
@@ -330,6 +349,7 @@ export function TradeWorkspace({
       cacheScope={dashboardCacheScope}
       onAddWallet={() => setAddingWallet(true)}
       onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+      onFlattenWallet={(wallet) => setFlatteningId(wallet.id)}
       onContentHeightChange={fitWalletRows}
     />
   )
@@ -845,6 +865,10 @@ export function TradeWorkspace({
                 wallets={account.wallets}
                 onSelectMarket={onSelectMarket}
                 onAddToPosition={addToPosition}
+      canChangeLeverage={allowed(abilities?.changeLeverage)}
+      leverageRefusal={refusalOf(abilities?.changeLeverage)}
+      canAdjustMargin={allowed(abilities?.adjustMargin)}
+      marginRefusal={refusalOf(abilities?.adjustMargin)}
                 shownTrade={shownTrade}
                 onShowTrade={showTrade}
                 fit={activityFit}
@@ -894,6 +918,17 @@ export function TradeWorkspace({
             if (!account.activeWallet) account.switchWallet(wallet.id)
             void account.refresh()
           }}
+        />
+        <FlattenWalletDialog
+          wallet={flattening}
+          positions={trading.positions}
+          smartOrders={trading.smartOrders}
+          busy={trading.busy}
+          onConfirm={(wallet) => {
+            void trading.flattenWallet(wallet.id)
+            setFlatteningId(null)
+          }}
+          onDismiss={() => setFlatteningId(null)}
         />
         <WalletSettingsDialog
           wallet={editingWallet}

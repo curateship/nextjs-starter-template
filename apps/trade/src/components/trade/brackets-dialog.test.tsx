@@ -68,6 +68,7 @@ describe("the stop-and-target window says why it will not save", () => {
         <TooltipProvider>
           <BracketsDialog
             position={position}
+            fills={[]}
             busy={false}
             onSave={async () => true}
             onClose={() => {}}
@@ -116,6 +117,7 @@ describe("the stop-and-target window's clicked price", () => {
         <TooltipProvider>
           <BracketsDialog
             position={position}
+            fills={[]}
             startSlPx={95}
             busy={false}
             onSave={async () => true}

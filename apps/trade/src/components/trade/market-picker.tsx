@@ -10,7 +10,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -325,10 +324,30 @@ export function MarketPicker({
           </Tabs>
         ) : null}
 
-        <ScrollArea className="min-h-0 flex-1">
-          <Table className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3">
-            <TableHeader className="sticky top-0 z-10 [&_th]:!shadow-none">
-              <TableRow className="border-b">
+        {/*
+         * The list scrolls in its own box rather than a `ScrollArea`, and that
+         * is what makes the heading stay put.
+         *
+         * `Table` always wraps itself in a sideways-scrolling box, and a box
+         * that scrolls sideways is what a sticky heading inside it sticks to.
+         * Wrapped in a `ScrollArea`, that box was 10,889px tall and never
+         * scrolled, so the heading had nothing to stick to and scrolled away
+         * with the rows — measured on Hyperliquid's 1,300 markets. Giving that
+         * same box the height makes one box scroll both ways, which is what
+         * `Table`'s own note says to do, and the heading sticks to it.
+         */}
+        <Table
+          // Not `flex-1`: it shrinks to whatever room is left and scrolls, but
+          // it never stretches past its rows, so "No matching markets" stays
+          // under the heading instead of at the bottom of an empty window.
+          containerClassName="min-h-0"
+          className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
+        >
+          {/* Opaque, because rows now slide underneath it: the muted tint is
+              half-transparent and only read correctly while nothing was behind
+              it. Mixed with the window's own surface so it holds in dark mode. */}
+          <TableHeader className="sticky top-0 z-10 [&_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--popover))]">
+            <TableRow>
                 <PickerTableHead
                   label="Market"
                   sortKey="market"
@@ -387,13 +406,12 @@ export function MarketPicker({
                 />
               ))}
             </TableBody>
-          </Table>
-          {visible.length === 0 ? (
-            <div className="p-8 text-center text-xs text-muted-foreground">
-              No matching markets.
-            </div>
-          ) : null}
-        </ScrollArea>
+        </Table>
+        {visible.length === 0 ? (
+          <div className="p-8 text-center text-xs text-muted-foreground">
+            No matching markets.
+          </div>
+        ) : null}
 
         <div className="border-t px-3 py-2 text-xs text-muted-foreground">
           {visible.length} market{visible.length === 1 ? "" : "s"}

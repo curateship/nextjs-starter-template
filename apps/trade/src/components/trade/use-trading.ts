@@ -3,6 +3,8 @@ import { toast } from "sonner"
 
 import {
   cancelLiveOrder,
+  changeLiveLeverage,
+  changeLiveMargin,
   closeLivePosition,
   getLiveErrorMessage,
   loadOlderLiveTrades,
@@ -41,6 +43,9 @@ import {
   getSmartOrderErrorMessage,
   placeDcaLadder,
   cancelWatch,
+  closePartOfPosition,
+  type PartCloseOutcome,
+  flattenWalletApi,
   reconcileLiveSmartOrders,
   updateLadderExits,
   moveWatch,
@@ -359,6 +364,22 @@ export type Trading = {
     }
   ) => Promise<void>
   close: (position: TradePosition) => Promise<void>
+  /**
+   * Sells part of a position and leaves the rest running.
+   *
+   * A different mechanism from `close`, not a smaller version of it. `close`
+   * pays the spread to be out now; this rests a reduce-only limit and follows
+   * the price with it, which is what the trading rules ask of a close and what
+   * makes taking some profit worth doing. Nothing is on the exchange the
+   * moment this returns — the engine's next pass places it.
+   *
+   * An amount that turns out to be the whole position falls back to `close`,
+   * decided on the server where the held size is known for certain.
+   */
+  closePart: (
+    position: TradePosition,
+    ask: { unit: "coins" | "usd"; amount: number }
+  ) => Promise<void>
   flip: (walletId: string, marketKey: string) => Promise<void>
   closeAll: () => Promise<void>
   /**
@@ -464,6 +485,40 @@ export type Trading = {
    * with their stops still under them.
    */
   cancelAllSmartOrders: () => Promise<void>
+  /**
+   * Empties one wallet: its ladders and grids called off, then everything it
+   * holds sold with limits that follow the price.
+   *
+   * **Not `closeAll` scoped to a wallet.** `closeAll` pays the spread on every
+   * coin to be out this second and leaves the waiting orders running, so the
+   * first rung to fill puts a position straight back. This calls those off
+   * first and then sells as a maker, which is what the trading rules ask of a
+   * close. Being out this second is still `closeAll`.
+   *
+   * The selling happens in the engine, so this returns once every sale has
+   * been STARTED, not once anything has sold.
+   */
+  flattenWallet: (walletId: string) => Promise<void>
+  /**
+   * Changes the leverage on a real position that is already open.
+   *
+   * Nothing is written here. The exchange is asked, and the row's leverage,
+   * margin and liquidation price all come from the next portfolio read — so
+   * what ends up on screen is the venue's answer, not what was asked for.
+   */
+  setPositionLeverage: (
+    position: TradePosition,
+    leverage: number
+  ) => Promise<void>
+  /**
+   * Adds or takes back the cash behind one real isolated position. Signed:
+   * a minus takes margin out, which is refused when it would bring the
+   * liquidation price inside the position's own stop.
+   */
+  adjustPositionMargin: (
+    position: TradePosition,
+    dollars: number
+  ) => Promise<void>
 }
 
 type PaperAnswer = {
@@ -1394,9 +1449,29 @@ export function useTrading(
       // nothing is said afterwards either: the row disappearing is the answer.
       const kind = orderCancelKind(order)
       const { id: orderId, walletId, marketKey } = order
+      /**
+       * The order resting on the exchange belongs to a part close that is
+       * chasing — so the × means "stop closing".
+       *
+       * Taking that one order back would be answered by the engine placing
+       * another a few seconds later, because a chase's whole job is to keep an
+       * order there until it fills. The row would come back and the press
+       * would look broken. Calling the close off is what stops it, and the
+       * engine takes the resting order back on its next pass.
+       */
+      const chasing = smartOrders.find(
+        (one) =>
+          one.kind === "watch" &&
+          one.plan.maker &&
+          one.plan.orderId === orderId &&
+          one.walletId === walletId
+      )
       await callOff(
         orderId,
         async () => {
+          if (chasing) {
+            return await cancelWatch({ walletId, ladderId: chasing.id })
+          }
           // A watched price is drawn as an order and cancelled as one, but
           // there is no order anywhere to cancel — the row IS the order until
           // its level is touched, so it goes back through the smart-order door.
@@ -1419,14 +1494,14 @@ export function useTrading(
           }
           return cancelPaperOrder(walletId, orderId)
         },
-        kind === "watch"
+        chasing || kind === "watch"
           ? getTradingSmartOrderError
           : kind === "live"
             ? getLiveErrorMessage
             : getPaperErrorMessage
       )
     },
-    [callOff]
+    [callOff, smartOrders]
   )
 
   const setBrackets: Trading["setBrackets"] = React.useCallback(
@@ -1505,6 +1580,46 @@ export function useTrading(
       )
     },
     [callOff, nameOf]
+  )
+
+  const closePart: Trading["closePart"] = React.useCallback(
+    async (position, ask) => {
+      const { walletId, marketKey } = position
+      const symbol = marketSymbol(marketKey)
+      // Not `callOff`: the row does NOT go away. Part of the position stays,
+      // and the piece being sold has not been sold yet — the engine has to
+      // rest an order and wait for it to fill. Hiding the row here would say
+      // the money had moved when nothing has left the account.
+      // **What is said afterwards depends on which road it took**, and the
+      // server decides that, not the window. An amount that covered the
+      // position is market-closed, and telling somebody an order was following
+      // the price when the coin has already been sold is a false statement
+      // about money that has moved. So the toast is raised here, once the
+      // answer is in, rather than handed to `runWith` before the call.
+      let sold: PartCloseOutcome["kind"] | null = null
+      const went = await runWith(getSmartOrderErrorMessage, async () => {
+        const answer = await closePartOfPosition({
+          walletId,
+          marketKey,
+          unit: ask.unit,
+          amount: ask.amount,
+        })
+        if (answer.kind === "whole") {
+          await (position.live !== undefined
+            ? closeLivePosition(walletId, marketKey)
+            : closePaperPosition(walletId, marketKey))
+        }
+        sold = answer.kind
+        return answer
+      })
+      if (!went || sold === null) return
+      toast.success(
+        sold === "whole"
+          ? `All of ${symbol} sold in ${nameOf(walletId)} — that amount covered the position.`
+          : `Selling part of ${symbol} in ${nameOf(walletId)}. The order follows the price until it fills.`
+      )
+    },
+    [runWith, nameOf]
   )
 
   const flip: Trading["flip"] = React.useCallback(
@@ -1935,6 +2050,100 @@ export function useTrading(
       }
     }, [smartOrders, refresh, nameOf])
 
+  const setPositionLeverage: Trading["setPositionLeverage"] =
+    React.useCallback(
+      async (position, leverage) => {
+        const { walletId, marketKey } = position
+        if (position.live === undefined) {
+          showErrorToast(
+            "A practice position's leverage decided how big it was when it was placed — there is nothing behind it to move now. Close it and open again at the leverage you want."
+          )
+          return
+        }
+        await runWith(
+          getLiveErrorMessage,
+          () => changeLiveLeverage({ walletId, marketKey, leverage }),
+          `${marketSymbol(marketKey)} asked to change to ${leverage}× in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+        )
+      },
+      [runWith, nameOf]
+    )
+
+  const adjustPositionMargin: Trading["adjustPositionMargin"] =
+    React.useCallback(
+      async (position, dollars) => {
+        const { walletId, marketKey } = position
+        if (position.live === undefined) {
+          showErrorToast(
+            "A practice wallet has no lender to take cash from. Close the position and open again at the size you want."
+          )
+          return
+        }
+        await runWith(
+          getLiveErrorMessage,
+          () => changeLiveMargin({ walletId, marketKey, dollars }),
+          dollars > 0
+            ? `${formatUsd(dollars)} asked to go behind ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+            : `${formatUsd(-dollars)} asked back out of ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+        )
+      },
+      [runWith, nameOf]
+    )
+
+  const flattenWallet: Trading["flattenWallet"] = React.useCallback(
+    async (walletId) => {
+      setPending((count) => count + 1)
+      try {
+        const answer = await flattenWalletApi({ walletId })
+        const where = nameOf(walletId)
+
+        // **A refused cancel means nothing was sold**, and that is the whole
+        // message: the wallet is exactly as it was apart from whatever did come
+        // off, and the one order in the way has to be dealt with by hand.
+        if (answer.cancelRefused.length > 0) {
+          const first = answer.cancelRefused[0]
+          showErrorToast(
+            `Nothing was sold in ${where}. ${marketSymbol(first.marketKey)} would not come off: ${first.reason}` +
+              (answer.cancelRefused.length > 1
+                ? ` ${answer.cancelRefused.length - 1} more are still running.`
+                : "")
+          )
+          return
+        }
+        if (answer.sellRefused.length > 0) {
+          const first = answer.sellRefused[0]
+          showErrorToast(
+            `${answer.selling.length} of ${answer.selling.length + answer.sellRefused.length} started selling in ${where}. ${marketSymbol(first.marketKey)} did not: ${first.reason}`
+          )
+        }
+        if (answer.selling.length > 0) {
+          toast.success(
+            `${where} is emptying — ${
+              answer.selling.length === 1
+                ? "1 position is"
+                : `${answer.selling.length} positions are`
+            } being sold with limits that follow the price.` +
+              (answer.stood.length > 0
+                ? ` ${answer.stood.length} smart ${answer.stood.length === 1 ? "order was" : "orders were"} called off first.`
+                : "")
+          )
+        } else if (answer.sellRefused.length === 0) {
+          toast.success(
+            answer.stood.length > 0
+              ? `${where} held nothing to sell. ${answer.stood.length} smart ${answer.stood.length === 1 ? "order was" : "orders were"} called off.`
+              : `${where} was already empty.`
+          )
+        }
+      } catch (error) {
+        showErrorToast(getTradingSmartOrderError(error))
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    },
+    [refresh, nameOf]
+  )
+
   return {
     wallet: tradable ? wallet : null,
     walletNames,
@@ -1973,6 +2182,7 @@ export function useTrading(
     setBrackets,
     dragBrackets,
     close,
+    closePart,
     flip,
     closeAll,
     hideTrades,
@@ -1989,5 +2199,8 @@ export function useTrading(
     setGridStop,
     setGridFollow,
     cancelAllSmartOrders,
+    flattenWallet,
+    setPositionLeverage,
+    adjustPositionMargin,
   }
 }

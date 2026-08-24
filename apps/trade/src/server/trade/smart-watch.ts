@@ -124,7 +124,11 @@ export async function advanceWatch(
   // filled carried no brackets, and this row is the only thing that still
   // remembers what was asked for. Written onto the position here, which is
   // also what the live lane reads when it sets them on the exchange.
-  if (plan.phase === "taking" && position) {
+  // Not for a close. A close's position is the thing being SOLD, so its being
+  // there proves nothing about the order — and this branch would mark the
+  // close finished on its very first pass, before anything had been placed.
+  // What is left to sell is worked out below instead, off the same position.
+  if (!plan.maker && plan.phase === "taking" && position) {
     if (plan.tpPx !== null) position.tpPx = plan.tpPx
     if (plan.slPx !== null) position.slPx = plan.slPx
     if (plan.tpPx !== null || plan.slPx !== null) {
@@ -178,7 +182,15 @@ export async function advanceWatch(
   // live lane does that only when the exchange confirmed the cancel), or a
   // person calls the watch off. Placing here instead is how one $50 watch
   // bought $150 of coin on 20 Aug 2026.
-  if (plan.orderId === null && plan.sent) {
+  //
+  // **A close does not need this wait, because its size is not fixed.** What
+  // the guard protects against is placing the SAME size again — that is how a
+  // $50 watch bought $150 of coin. A close asks for what is still held, less
+  // what has already come off (see `heldAtStart`), so placing again can only
+  // ever ask for the part that is genuinely left. Waiting here instead would
+  // strand a close that had been cancelled on the exchange's own website:
+  // nothing clears `sent` but a fill, and a close is meant not to give up.
+  if (plan.orderId === null && plan.sent && !plan.maker) {
     if (changed) await deps.saveLadder(row, "active", now)
     return
   }
@@ -196,8 +208,12 @@ export async function advanceWatch(
   // Same rule mirrored for a sell drawn below the market, and the same rule a
   // ladder rung already follows — it fires at market the moment price crosses
   // it. This makes a watched price behave like the rest of the app.
+  // A maker plan is never taken at the market, whatever the price has done —
+  // see `maker` on `WatchPlan`. A part close is the only thing that sets it,
+  // and paying the spread is the one thing it exists to avoid.
   const throughAlready =
-    plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx
+    !plan.maker &&
+    (plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx)
   if (throughAlready && plan.orderId === null && !plan.sent) {
     const takeSz = floorSize(plan.sz, plan.sizeDecimals)
     const smallestSize =
@@ -263,6 +279,26 @@ export async function advanceWatch(
     return
   }
 
+  /**
+   * How much is still to be sold.
+   *
+   * For a close, the position is the count: what was asked for, less how far
+   * the holding has come down since — see `heldAtStart` on `WatchPlan`. A
+   * position that has gone entirely leaves nothing to reduce, and the close is
+   * over rather than resting an order against something that is not there.
+   */
+  const stillToDo = plan.maker
+    ? plan.sz -
+      Math.max(0, plan.heldAtStart - Math.abs(position?.szi ?? 0))
+    : plan.sz
+  if (plan.maker && (position === null || stillToDo <= 0)) {
+    if (plan.orderId) deps.dropOrder(book, plan.orderId)
+    plan.orderId = null
+    plan.orderPx = null
+    await deps.saveLadder(row, "done", now)
+    return
+  }
+
   const wanted = restingChasePx(plan.side, mark, roundPx)
   if (wanted === null) {
     // This coin's prices are too coarse to sit just off the market. Saying
@@ -271,7 +307,7 @@ export async function advanceWatch(
     return
   }
 
-  const sz = floorSize(plan.sz, plan.sizeDecimals)
+  const sz = floorSize(stillToDo, plan.sizeDecimals)
   const smallestSize =
     plan.minOrderSize ??
     (plan.sizeDecimals === null ? null : 10 ** -plan.sizeDecimals)

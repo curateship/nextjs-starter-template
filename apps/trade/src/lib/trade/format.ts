@@ -74,6 +74,26 @@ export function formatSignedUsd(value: number): string {
   return `${value > 0 ? "+" : "-"}$${USD.format(Math.abs(value))}`
 }
 
+/**
+ * What a position has been charged: "-$0.05", "+$0.02" for a rebate.
+ *
+ * **A charge under a cent says so in words.** Dollars and cents round
+ * $0.0009 to "-$0.00", which reads as nothing charged and is the one thing
+ * this figure must never say — a fee total exists precisely to stop the profit
+ * on screen looking bigger than the profit in the account. Real: a Hyperliquid
+ * sub-exchange position on 24 Aug 2026 had been charged four ten-thousandths
+ * of a dollar and the cell said "-$0.00".
+ *
+ * True zero keeps "$0.00", which here means the venue charged nothing, and is
+ * a different answer again from the dash that means nobody has reported yet.
+ */
+export function formatFeeUsd(paid: number): string {
+  if (paid === 0) return "$0.00"
+  const under = Math.abs(paid) < 0.005
+  if (under) return paid > 0 ? "under $0.01" : "back under $0.01"
+  return formatSignedUsd(-paid)
+}
+
 const SIZE = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 6,
 })
