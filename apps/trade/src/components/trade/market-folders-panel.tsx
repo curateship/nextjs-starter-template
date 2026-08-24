@@ -285,7 +285,9 @@ export function MarketFoldersPanel({
         // evening-up Tyler asked for on the market header (23 Aug 2026).
         className="px-3 sm:px-3"
         action={
-          <div className="flex items-center gap-1">
+          // gap-2, the same 8px the middle header keeps between its
+          // controls — the two headers sit side by side.
+          <div className="flex items-center gap-2">
             <Button
               type="button"
               variant="outline"
@@ -339,7 +341,7 @@ export function MarketFoldersPanel({
           </Button>
         </form>
       ) : null}
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="grid">
           {sections.map((section, index) => {
             const expanded = expandedId === section.id
