@@ -392,4 +392,34 @@ describe("selling part of a position", () => {
     })
     expect((await held())[0].tpSz).toBeNull()
   })
+
+  it("keeps the nearest targets and trims the last one when a part close leaves less coin", async () => {
+    await openTen()
+    await database
+      .update(tradePaperPositions)
+      .set({
+        targets: [
+          { px: 120, sz: 4, orderId: null },
+          { px: 130, sz: 4, orderId: null },
+          { px: 140, sz: 2, orderId: null },
+        ],
+        tpPx: 120,
+        tpSz: 4,
+        slPx: 90,
+      })
+      .where(eq(tradePaperPositions.userId, userId))
+
+    await openPartClose(userId, wallet, {
+      marketKey: BTC,
+      size: { unit: "coins", amount: 4 },
+    })
+    const after = (await held())[0]
+    expect(after.targets).toEqual([
+      { px: 120, sz: 4, orderId: null },
+      { px: 130, sz: 2, orderId: null },
+    ])
+    expect(after.tpPx).toBe(120)
+    expect(after.tpSz).toBe(4)
+    expect(after.slPx).toBe(90)
+  })
 })

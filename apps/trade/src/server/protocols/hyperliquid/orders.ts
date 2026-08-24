@@ -634,22 +634,14 @@ export async function adjustHyperliquidMargin(
 
 // ----- The protection on an existing position -----------------------------
 
-/**
- * Replaces a position's stop and target: the old legs are cancelled, the new
- * ones placed as `positionTpsl` triggers the exchange scales with the
- * position. Cancel-first on purpose — the moment between is a moment without
- * protection, and if placing then fails that gap is REPORTED (the thrown
- * message says the old protection is gone), never discovered later.
- */
+/** Replaces protection without leaving the position uncovered. */
 export async function setHyperliquidBrackets(
   network: NetworkId,
   auth: OrderAuth,
   params: {
     marketId: string
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
-    tpPx: number | null
-    /** Coins the target sells; null sells the whole position. */
-    tpSz: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
@@ -658,36 +650,22 @@ export async function setHyperliquidBrackets(
 
   const isBuy = params.position.szi > 0
   const fullSz = formatSize(Math.abs(params.position.szi), asset.szDecimals)
-  // A whole-position leg goes in as `positionTpsl`, which the exchange scales
-  // with the position. A sized target must NOT — the exchange would grow it
-  // back to the whole position — so it goes in as a plain reduce-only trigger
-  // with its own fixed size, which the portfolio read already recognises as
-  // the position's protection.
-  const partialTp =
-    params.tpSz !== null &&
-    params.tpSz < Math.abs(params.position.szi) * (1 - 1e-6)
-  // Every leg is made ready — size and price both — BEFORE the old legs are
-  // cancelled below. `formatSize` and `formatPx` refuse a size or price this
-  // market cannot take, and a refusal after the cancel would leave a real
-  // position standing with no stop at all.
   const legs: Array<{
     tpsl: "tp" | "sl"
     px: string
     sz: string
     grouping: "positionTpsl" | "na"
+    label: string
   }> = [
-    ...(params.tpPx !== null
-      ? [
-          {
-            tpsl: "tp" as const,
-            px: formatPx(params.tpPx, asset.szDecimals),
-            sz: partialTp
-              ? formatSize(params.tpSz ?? 0, asset.szDecimals)
-              : fullSz,
-            grouping: partialTp ? ("na" as const) : ("positionTpsl" as const),
-          },
-        ]
-      : []),
+    ...params.targets.map((target) => ({
+      tpsl: "tp" as const,
+      px: formatPx(target.px, asset.szDecimals),
+      sz: target.sz === null ? fullSz : formatSize(target.sz, asset.szDecimals),
+      // Targets are fixed-size reduce-only orders. `positionTpsl` would grow a
+      // target after the position grows, which changes the promised slice.
+      grouping: "na" as const,
+      label: `target at ${target.px}`,
+    })),
     ...(params.slPx !== null
       ? [
           {
@@ -695,6 +673,7 @@ export async function setHyperliquidBrackets(
             px: formatPx(params.slPx, asset.szDecimals),
             sz: fullSz,
             grouping: "positionTpsl" as const,
+            label: `stop at ${params.slPx}`,
           },
         ]
       : []),
@@ -707,43 +686,12 @@ export async function setHyperliquidBrackets(
     .map(Number)
     .filter((oid) => Number.isSafeInteger(oid) && oid > 0)
 
-  if (oldLegs.length > 0) {
-    try {
-      const response = await client.cancel({
-        cancels: oldLegs.map((oid) => ({ a: asset.assetId, o: oid })),
-      })
-      const statuses = response.response.data.statuses as OrderStatus[]
-      const failed = statuses.map(statusError).find((error) => error !== null)
-      // A leg that is already gone (filled or cancelled elsewhere) is fine —
-      // the aim is "no old legs", and it already isn't there.
-      if (
-        failed &&
-        !/never placed|already|filled|canceled|cancelled/i.test(failed)
-      ) {
-        throw new Error(`LIVE_EXCHANGE:${failed}`)
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("LIVE_EXCHANGE:"))
-        throw error
-      throw exchangeError(error)
-    }
-  }
-
-  // Nothing wanted: the old legs are gone and that is the whole job.
-  if (legs.length === 0) return
-
-  // One call per grouping — the exchange takes one grouping per batch. The
-  // stop's grouping goes first on purpose: it is the leg that matters if the
-  // second call never lands.
-  //
-  // What has already landed is remembered so a refusal can say what is still
-  // standing. "The position is UNPROTECTED" is the right thing to shout when
-  // nothing went on, and the wrong thing when the stop is sitting there.
-  const landed = new Set<"tp" | "sl">()
+  // Place first. If any new leg is refused, every old leg stays where it was
+  // and the error names the extra new legs that did land.
+  const landed: string[] = []
   for (const grouping of ["positionTpsl", "na"] as const) {
     const batch = legs.filter((leg) => leg.grouping === grouping)
     if (batch.length === 0) continue
-    const stillOn = landed.has("sl") ? "LIVE_TARGET_GONE" : "LIVE_BRACKETS_GONE"
     let statuses: OrderStatus[]
     try {
       const response = await client.order({
@@ -766,16 +714,49 @@ export async function setHyperliquidBrackets(
       })
       statuses = response.response.data.statuses as OrderStatus[]
     } catch (error) {
-      throw new Error(`${stillOn}:${scrubbedMessage(error)}`)
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The replacement was refused: ${scrubbedMessage(error)}`
+      )
     }
 
-    // Every leg must stand — a short or failed list here means the position is
-    // sitting with less protection than was just asked for.
-    const failed = batch
-      .map((_, index) => statusError(statuses[index]))
-      .find((error) => error !== null)
-    if (failed) throw new Error(`${stillOn}:${failed}`)
-    for (const leg of batch) landed.add(leg.tpsl)
+    // One batch can partly succeed. Count every accepted leg before reporting
+    // the first refusal, including accepted legs that appear later in the
+    // response, so the refusal names everything now standing on the account.
+    const answered = batch.map((leg, index) => ({
+      leg,
+      error: statusError(statuses[index]),
+    }))
+    landed.push(
+      ...answered
+        .filter((one) => one.error === null)
+        .map((one) => one.leg.label)
+    )
+    const refused = answered.find((one) => one.error !== null)
+    if (refused) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The new ${refused.leg.label} was refused: ${refused.error}`
+      )
+    }
+  }
+
+  if (oldLegs.length > 0) {
+    try {
+      const response = await client.cancel({
+        cancels: oldLegs.map((oid) => ({ a: asset.assetId, o: oid })),
+      })
+      const statuses = response.response.data.statuses as OrderStatus[]
+      const failed = statuses.map(statusError).find((error) => error !== null)
+      if (
+        failed &&
+        !/never placed|already|filled|canceled|cancelled/i.test(failed)
+      ) {
+        throw new Error(failed)
+      }
+    } catch (error) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} the old protection could not be cancelled: ${scrubbedMessage(error)}`
+      )
+    }
   }
 }
 
@@ -1134,6 +1115,7 @@ async function readHyperliquidPortfolio(
         liquidationPx: position.liquidationPx
           ? num(position.liquidationPx)
           : null,
+        targets: [],
         tpPx: null,
         tpSz: null,
         slPx: null,
@@ -1180,19 +1162,19 @@ async function readHyperliquidPortfolio(
       const triggerPx = num(order.triggerPx)
       if (triggerPx === null) continue
       const isTakeProfit = /take profit/i.test(order.orderType)
-      if (isTakeProfit && position.tpPx === null) {
-        position.tpPx = triggerPx
-        position.tpOrderId = String(order.oid)
-        // A leg smaller than the position is a partial target and its size
-        // matters; one that matches (or a position-scaled leg reported as 0)
-        // sells everything, which null already says.
+      if (isTakeProfit) {
         const legSz = num(order.sz)
-        position.tpSz =
+        const sz =
           legSz !== null &&
           legSz > 0 &&
           legSz < Math.abs(position.szi) * (1 - 1e-6)
             ? legSz
             : null
+        position.targets.push({
+          px: triggerPx,
+          sz,
+          orderId: String(order.oid),
+        })
         continue
       }
       if (!isTakeProfit && position.slPx === null) {
@@ -1213,6 +1195,13 @@ async function readHyperliquidPortfolio(
       reduceOnly: order.reduceOnly,
       trigger: order.isTrigger,
     })
+  }
+  for (const position of positions.values()) {
+    position.targets.sort((left, right) => left.px - right.px)
+    const first = position.targets[0] ?? null
+    position.tpPx = first?.px ?? null
+    position.tpSz = first?.sz ?? null
+    position.tpOrderId = first?.orderId ?? null
   }
 
   return { positions: [...positions.values()], orders }

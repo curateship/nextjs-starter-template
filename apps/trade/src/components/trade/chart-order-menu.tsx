@@ -17,7 +17,7 @@ import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
  * Buy at the level clicked, sell at it — and under a "Smart order" heading,
  * the presets that place a whole plan at once, starting with the DCA ladder.
  *
- * With a position open on this market and no exit set at the clicked side, a
+ * With a position open on this market and room for another exit, a
  * "Take profit" or "Stop loss" row sits above everything: the fastest way to
  * put that exit where the pointer is. The target appears on the winning side
  * of the entry and the stop appears on the losing side.
@@ -54,9 +54,9 @@ export function ChartOrderMenu({
   onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   /**
-   * Puts a target on the open position at the level clicked, or null when
-   * there is nothing to put one on — no position here, a target already set,
-   * or the click on the losing side of the entry.
+   * Adds a target to the open position at the level clicked, or null when
+   * there is nothing to put one on, all three targets are used, or the click
+   * is on the losing side of the entry.
    */
   onPickTakeProfit: (() => void) | null
   /**

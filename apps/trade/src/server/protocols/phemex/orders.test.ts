@@ -613,6 +613,15 @@ describe("reading the account back", () => {
                 stopPxRp: "60000",
                 orderQtyRq: "0.01",
               },
+              {
+                orderId: "tp-2",
+                symbol: "BTCUSDT",
+                side: "Sell",
+                ordType: 5,
+                ordStatus: 1,
+                stopPxRp: "65000",
+                orderQtyRq: "0.003",
+              },
             ],
           },
         },
@@ -632,13 +641,21 @@ describe("reading the account back", () => {
     expect(held.slOrderId).toBe("sl-1")
     expect(held.tpPx).toBe(60_000)
     expect(held.tpOrderId).toBe("tp-1")
+    expect(held.targets).toEqual([
+      { px: 60_000, sz: null, orderId: "tp-1" },
+      { px: 65_000, sz: 0.003, orderId: "tp-2" },
+    ])
     // The whole position — so no partial-target size is claimed.
     expect(held.tpSz).toBeNull()
     // Both legs are counted, not only the two named above. Replacing the
     // protection cancels this list, so a leg missing from it is a leg that can
     // never be cancelled and sells the position a second time.
-    expect([...held.protectionOrderIds].sort()).toEqual(["sl-1", "tp-1"])
-    expect(portfolio.orders.every((one) => one.trigger)).toBe(true)
+    expect([...held.protectionOrderIds].sort()).toEqual([
+      "sl-1",
+      "tp-1",
+      "tp-2",
+    ])
+    expect(portfolio.orders).toEqual([])
   })
 
   it("still recognises a dead stop as a stop", async () => {

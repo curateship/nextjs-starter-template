@@ -499,15 +499,19 @@ With a position open, the same menu offers Take profit when the clicked price
 is on the winning side of the entry and Stop loss when it is on the losing
 side. Stop loss draws at the clicked price as soon as it is picked, while the
 wallet saves and refreshes in the background. Take profit opens a small window
-at the clicked level, matching the limit-order window. The window chooses how
-much of the position comes off and shows the profit at that price, then draws
-the target while the wallet saves in the background. An exit already set on
-that side keeps its shortcut out of the menu because its chart line is the
-place to change it.
+at the clicked level, matching the limit-order window. It chooses how much of
+the still-unassigned position comes off and shows the profit at that price, so
+100% always means everything left after earlier targets. The full Stop and
+target window can hold up to three rows, with a running figure showing how much
+of the position they cover. The chart draws one labelled line for every target
+while the wallet saves in the background. The Take profit shortcut stays in
+the menu until the position has three targets. A stop already set keeps the
+Stop loss shortcut out because its chart line is the place to change it.
 
 A live take-profit or stop-loss order appears once, as its coloured target or
-stop bar. This includes a grid's own STOP LOSS line. The chart does not draw
-the exchange's copy of that order as a second gray Sell bar.
+stop bar. Each target label states the dollars sold and the profit at its
+price. This includes a grid's own STOP LOSS line. The chart does not draw the
+exchange's copy of that order as a second gray Sell bar.
 
 The Entry bar is chart blue. It does not borrow the account accent, so changing
 the theme cannot turn the entry into the colour of some other kind of line.

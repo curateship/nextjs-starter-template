@@ -431,9 +431,7 @@ export type ProtocolEntry = {
       params: {
         marketId: string
         position: Pick<WalletPosition, "szi" | "protectionOrderIds">
-        tpPx: number | null
-        /** Coins the target sells; null sells the whole position. */
-        tpSz: number | null
+        targets: Array<{ px: number; sz: number | null }>
         slPx: number | null
       }
     ): Promise<void>
@@ -842,11 +840,13 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       orders: false,
       changeLeverage: {
         can: false,
-        because: "Binance is here for its candles only — no wallet trades on it.",
+        because:
+          "Binance is here for its candles only — no wallet trades on it.",
       },
       adjustMargin: {
         can: false,
-        because: "Binance is here for its candles only — no wallet trades on it.",
+        because:
+          "Binance is here for its candles only — no wallet trades on it.",
       },
     },
     markets: {

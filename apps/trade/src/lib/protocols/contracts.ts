@@ -353,6 +353,15 @@ export type WalletAccountFigures = {
   openProfit: number
 }
 
+/** One fixed-size take-profit order attached to a position. */
+export type TakeProfitTarget = {
+  px: number
+  /** Coins sold at this price. Null is only valid for a lone whole-position target. */
+  sz: number | null
+  /** The exchange order id. Practice targets have no exchange order. */
+  orderId: string | null
+}
+
 /**
  * One real position a live wallet holds, in the app's own words. Everything
  * here is the exchange's OWN answer — margin held and the liquidation price
@@ -370,7 +379,9 @@ export type WalletPosition = {
   marginUsed: number
   /** Where the exchange takes the trade away, or null when it says nothing. */
   liquidationPx: number | null
-  /** The protection riding on the position, read back from its trigger orders. */
+  /** Every take-profit order riding on the position, sorted by price. */
+  targets: TakeProfitTarget[]
+  /** First target, kept for one compatibility release. */
   tpPx: number | null
   /**
    * Coins the target's leg sells, when it covers less than the position.
@@ -378,7 +389,7 @@ export type WalletPosition = {
    */
   tpSz: number | null
   slPx: number | null
-  /** The exchange's ids for the two legs drawn above, needed to replace them. */
+  /** First target id and the stop id, kept for one compatibility release. */
   tpOrderId: string | null
   slOrderId: string | null
   /**

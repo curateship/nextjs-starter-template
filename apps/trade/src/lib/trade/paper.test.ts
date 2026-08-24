@@ -28,6 +28,7 @@ function core(over: Partial<PositionCore> = {}): PositionCore {
     entryPx: 100,
     leverage: 5,
     maxLeverage: 50,
+    targets: [],
     tpPx: null,
     slPx: null,
     feesPaid: 0,
@@ -213,7 +214,10 @@ describe("what a position is worth", () => {
   it("puts liquidation far away when nothing is borrowed", () => {
     // 1x on a market allowing 50x: the whole value is put up and the exchange
     // keeps 1%, so price has to lose almost everything before the position goes.
-    expect(liquidationPx(core({ leverage: 1, maxLeverage: 50 }))).toBeCloseTo(1, 10)
+    expect(liquidationPx(core({ leverage: 1, maxLeverage: 50 }))).toBeCloseTo(
+      1,
+      10
+    )
   })
 
   it("gives no answer when the figures cannot support one", () => {
@@ -228,7 +232,9 @@ describe("what a position is worth", () => {
     // $100 in, closed at $50, with nothing borrowed. Every replay coin on
     // Binance candles arrives this way.
     expect(liquidationPx(core({ leverage: 1, maxLeverage: 1 }))).toBeNull()
-    expect(liquidationAway(core({ leverage: 1, maxLeverage: 1 }), 100)).toBeNull()
+    expect(
+      liquidationAway(core({ leverage: 1, maxLeverage: 1 }), 100)
+    ).toBeNull()
   })
 
   it("says how far away liquidation is as a share of today's price", () => {
@@ -246,6 +252,7 @@ describe("the account's five figures", () => {
     entryPx: 100,
     leverage: 5,
     maxLeverage: 50,
+    targets: [],
     tpPx: null,
     slPx: null,
     feesPaid: 0,
@@ -488,6 +495,7 @@ describe("what closing a position does to the cash", () => {
         entryPx: 100,
         leverage: 3,
         maxLeverage: 3,
+        targets: [],
         tpPx: null,
         slPx: null,
         feesPaid: 0,
@@ -506,6 +514,7 @@ describe("what closing a position does to the cash", () => {
         entryPx: 100,
         leverage: 3,
         maxLeverage: 3,
+        targets: [],
         tpPx: null,
         slPx: null,
         feesPaid: 0,

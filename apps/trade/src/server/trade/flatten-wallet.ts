@@ -1,10 +1,7 @@
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { liveHeldPositions } from "@/server/trade/live-orders"
 import { settleWallet } from "@/server/trade/paper"
-import {
-  openPartClose,
-  type HeldPosition,
-} from "@/server/trade/part-close"
+import { openPartClose, type HeldPosition } from "@/server/trade/part-close"
 import {
   standDownWallet,
   type RefusedSmartOrder,
@@ -67,7 +64,11 @@ export async function flattenWallet(
   wallet: TradeWallet,
   describeError: (error: unknown) => string
 ): Promise<FlattenOutcome> {
-  const { stood, refused } = await standDownWallet(userId, wallet, describeError)
+  const { stood, refused } = await standDownWallet(
+    userId,
+    wallet,
+    describeError
+  )
   // Nothing is sold while something is still able to buy back in.
   if (refused.length > 0) {
     return { stood, cancelRefused: refused, selling: [], sellRefused: [] }
@@ -117,6 +118,10 @@ async function heldPositions(
       held: {
         szi: one.szi,
         leverage: one.leverage,
+        targets: one.targets.map((target) => ({
+          px: target.px,
+          sz: target.sz,
+        })),
         tpPx: one.tpPx,
         tpSz: one.tpSz ?? null,
         slPx: one.slPx,

@@ -33,10 +33,11 @@ const allPerpMetas = vi.fn()
 const userFillsByTime = vi.fn()
 /** The funding feed, controllable. Warming = just opened, nothing pushed yet. */
 const feedState = vi.hoisted(
-  () => ({ warming: false, moneyOn: null }) as {
-    warming: boolean
-    moneyOn: string[] | null
-  }
+  () =>
+    ({ warming: false, moneyOn: null }) as {
+      warming: boolean
+      moneyOn: string[] | null
+    }
 )
 
 vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
@@ -229,7 +230,11 @@ describe("reading order fills", () => {
         time: 5,
         oid: 3,
         tid: 4,
-        liquidation: { liquidatedUser: "0xabc", markPx: "50000", method: "market" },
+        liquidation: {
+          liquidatedUser: "0xabc",
+          markPx: "50000",
+          method: "market",
+        },
       },
     ])
 
@@ -319,6 +324,7 @@ describe("reading the portfolio", () => {
     expect(btc.liquidationPx).toBe(81_000)
     expect(btc.tpPx).toBe(120_000)
     expect(btc.tpOrderId).toBe("11")
+    expect(btc.targets).toEqual([{ px: 120_000, sz: null, orderId: "11" }])
     expect(btc.slPx).toBe(90_000)
     expect(btc.slOrderId).toBe("12")
 
@@ -462,9 +468,10 @@ describe("reading the portfolio", () => {
     expect(held.tpOrderId).toBe("41")
     expect(held.slOrderId).toBe("42")
     expect(held.tpSz).toBeNull()
-    // The spares are still shown. Hiding a real order that sells the position
-    // by itself would be worse than drawing it in the wrong place.
-    expect(portfolio.orders.map((one) => one.orderId)).toEqual(["43", "44"])
+    expect(held.targets.map((target) => target.orderId)).toEqual(["41", "43"])
+    // Every target belongs to the position now. The second stop is still a
+    // spare because a position has only one stop.
+    expect(portfolio.orders.map((one) => one.orderId)).toEqual(["44"])
   })
 
   it("reads only the main venue while the funding feed warms up", async () => {
@@ -627,7 +634,9 @@ describe("the protection on a real position", () => {
     })
     exchangeOrder.mockResolvedValue({
       response: {
-        data: { statuses: [{ resting: { oid: 21 } }, { resting: { oid: 22 } }] },
+        data: {
+          statuses: [{ resting: { oid: 21 } }, { resting: { oid: 22 } }],
+        },
       },
     })
   })
@@ -641,8 +650,7 @@ describe("the protection on a real position", () => {
       setHyperliquidBrackets("testnet", AUTH, {
         marketId: "BTC",
         position: HELD,
-        tpPx: 120_000,
-        tpSz: 0.000001,
+        targets: [{ px: 120_000, sz: 0.000001 }],
         slPx: 90_000,
       })
     ).rejects.toThrow("LIVE_SIZE")
@@ -651,12 +659,26 @@ describe("the protection on a real position", () => {
     expect(exchangeOrder).not.toHaveBeenCalled()
   })
 
-  it("sends a part-sized target as its own fixed-size leg, the stop as the position's", async () => {
+  it("places three fixed-size targets and the new stop before cancelling the old protection", async () => {
+    exchangeOrder.mockResolvedValue({
+      response: {
+        data: {
+          statuses: [
+            { resting: { oid: 21 } },
+            { resting: { oid: 22 } },
+            { resting: { oid: 23 } },
+          ],
+        },
+      },
+    })
     await setHyperliquidBrackets("testnet", AUTH, {
       marketId: "BTC",
       position: HELD,
-      tpPx: 120_000,
-      tpSz: 0.2,
+      targets: [
+        { px: 110_000, sz: 0.1 },
+        { px: 120_000, sz: 0.2 },
+        { px: 135_000, sz: 0.2 },
+      ],
       slPx: 90_000,
     })
 
@@ -675,24 +697,99 @@ describe("the protection on a real position", () => {
     // NOT positionTpsl — the exchange grows those back to the whole position,
     // which would sell everything at the target instead of the part asked for.
     expect(target.grouping).toBe("na")
-    expect(target.orders[0].s).toBe("0.2")
-    expect(target.orders[0].r).toBe(true)
-    expect(target.orders[0].t.trigger.tpsl).toBe("tp")
+    expect(target.orders.map((order: { s: string }) => order.s)).toEqual([
+      "0.1",
+      "0.2",
+      "0.2",
+    ])
+    expect(target.orders.every((order: { r: boolean }) => order.r)).toBe(true)
+    expect(
+      target.orders.every(
+        (order: { t: { trigger: { tpsl: string } } }) =>
+          order.t.trigger.tpsl === "tp"
+      )
+    ).toBe(true)
+    expect(exchangeOrder.mock.invocationCallOrder[1]).toBeLessThan(
+      exchangeCancel.mock.invocationCallOrder[0]
+    )
   })
 
-  it("keeps a whole-position target on one position-scaled call", async () => {
+  it("keeps the old protection and names the new legs when part of the target list is refused", async () => {
+    exchangeOrder
+      .mockResolvedValueOnce({
+        response: { data: { statuses: [{ resting: { oid: 21 } }] } },
+      })
+      .mockResolvedValueOnce({
+        response: {
+          data: {
+            statuses: [
+              { resting: { oid: 22 } },
+              { error: "Price is too far from the market" },
+            ],
+          },
+        },
+      })
+
+    await expect(
+      setHyperliquidBrackets("testnet", AUTH, {
+        marketId: "BTC",
+        position: HELD,
+        targets: [
+          { px: 110_000, sz: 0.2 },
+          { px: 180_000, sz: 0.2 },
+        ],
+        slPx: 90_000,
+      })
+    ).rejects.toThrow(
+      "The old protection is still on. The new stop at 90000 and target at 110000 also went on. The new target at 180000 was refused"
+    )
+    expect(exchangeCancel).not.toHaveBeenCalled()
+  })
+
+  it("names accepted targets that follow a refused target in the same exchange answer", async () => {
+    exchangeOrder
+      .mockResolvedValueOnce({
+        response: { data: { statuses: [{ resting: { oid: 21 } }] } },
+      })
+      .mockResolvedValueOnce({
+        response: {
+          data: {
+            statuses: [
+              { error: "Price is too far from the market" },
+              { resting: { oid: 23 } },
+            ],
+          },
+        },
+      })
+
+    await expect(
+      setHyperliquidBrackets("testnet", AUTH, {
+        marketId: "BTC",
+        position: HELD,
+        targets: [
+          { px: 180_000, sz: 0.2 },
+          { px: 120_000, sz: 0.2 },
+        ],
+        slPx: 90_000,
+      })
+    ).rejects.toThrow(
+      "The old protection is still on. The new stop at 90000 and target at 120000 also went on. The new target at 180000 was refused"
+    )
+    expect(exchangeCancel).not.toHaveBeenCalled()
+  })
+
+  it("sends a whole-position target as a fixed-size target", async () => {
     await setHyperliquidBrackets("testnet", AUTH, {
       marketId: "BTC",
       position: HELD,
-      tpPx: 120_000,
-      tpSz: null,
+      targets: [{ px: 120_000, sz: null }],
       slPx: 90_000,
     })
 
-    expect(exchangeOrder).toHaveBeenCalledTimes(1)
-    const both = exchangeOrder.mock.calls[0][0]
-    expect(both.grouping).toBe("positionTpsl")
-    expect(both.orders.map((one: { s: string }) => one.s)).toEqual(["0.5", "0.5"])
+    expect(exchangeOrder).toHaveBeenCalledTimes(2)
+    const target = exchangeOrder.mock.calls[1][0]
+    expect(target.grouping).toBe("na")
+    expect(target.orders[0].s).toBe("0.5")
   })
 
   it("cancels every leg the position carries, not the two it shows", async () => {
@@ -700,27 +797,29 @@ describe("the protection on a real position", () => {
     // ever named two. Replacing the stop has to take all four off, or the
     // spares sell the position a second time on their own.
     exchangeCancel.mockResolvedValue({
-      response: { data: { statuses: ["success", "success", "success", "success"] } },
+      response: {
+        data: { statuses: ["success", "success", "success", "success"] },
+      },
     })
     await setHyperliquidBrackets("testnet", AUTH, {
       marketId: "BTC",
       position: { szi: 0.5, protectionOrderIds: ["41", "42", "43", "44"] },
-      tpPx: null,
-      tpSz: null,
+      targets: [],
       slPx: 90_000,
     })
 
     expect(exchangeCancel).toHaveBeenCalledTimes(1)
     const cancelled = exchangeCancel.mock.calls[0][0].cancels
-    expect(cancelled.map((one: { o: number }) => one.o)).toEqual([41, 42, 43, 44])
+    expect(cancelled.map((one: { o: number }) => one.o)).toEqual([
+      41, 42, 43, 44,
+    ])
   })
 
   it("clears both sides by cancelling and sending nothing", async () => {
     await setHyperliquidBrackets("testnet", AUTH, {
       marketId: "BTC",
       position: HELD,
-      tpPx: null,
-      tpSz: null,
+      targets: [],
       slPx: null,
     })
 

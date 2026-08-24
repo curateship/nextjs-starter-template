@@ -36,6 +36,8 @@ Two files outrank the rest, and outrank the code:
 - `position-protection.md` — the stop and target riding on an open position: how
   a position ends up carrying spares, why replacing one takes every leg off, and
   how the chart keeps two labels at one price apart.
+- `take-profit-levels.md` — how one position banks profit at up to three fixed
+  prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part
   is chased as a maker where all of it is not, what the window asks, and what
   happens to the stop on the rest.

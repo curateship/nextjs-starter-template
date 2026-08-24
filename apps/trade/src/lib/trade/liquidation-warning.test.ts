@@ -14,6 +14,7 @@ const position: TradePosition = {
   entryPx: 100,
   leverage: 5,
   maxLeverage: 20,
+  targets: [],
   tpPx: null,
   slPx: null,
   feesPaid: 0,

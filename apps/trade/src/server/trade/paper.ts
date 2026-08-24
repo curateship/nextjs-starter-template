@@ -22,6 +22,7 @@ import {
   paperAccountFigures,
   positionMargin,
   positionProfit,
+  positionTargets,
   slippedPx,
   type PaperFillReason,
   type PaperJournalEntry,
@@ -127,6 +128,14 @@ type OrderRow = typeof tradePaperOrders.$inferSelect
 type JournalRow = typeof tradePaperJournal.$inferSelect
 
 function toPosition(row: PositionRow): TradePosition {
+  const targets = (
+    row.targets.length > 0
+      ? row.targets
+      : row.tpPx !== null
+        ? [{ px: row.tpPx, sz: row.tpSz, orderId: null }]
+        : []
+  ).sort((left, right) => left.px - right.px)
+  const first = targets[0] ?? null
   return {
     id: row.id,
     walletId: row.walletId,
@@ -135,8 +144,9 @@ function toPosition(row: PositionRow): TradePosition {
     entryPx: row.entryPx,
     leverage: row.leverage,
     maxLeverage: row.maxLeverage,
-    tpPx: row.tpPx,
-    tpSz: row.tpSz,
+    targets,
+    tpPx: first?.px ?? null,
+    tpSz: first?.sz ?? null,
     slPx: row.slPx,
     feesPaid: row.feesPaid,
     updatedAt: row.updatedAt.getTime(),
@@ -384,6 +394,11 @@ export function fill(
       ...outcome.position,
       // A fill that opened a position takes the brackets the order carried;
       // one that added to a position leaves the ones already set alone.
+      targets: opened
+        ? input.brackets?.tpPx != null
+          ? [{ px: input.brackets.tpPx, sz: null, orderId: null }]
+          : []
+        : outcome.position.targets,
       tpPx: opened ? (input.brackets?.tpPx ?? null) : outcome.position.tpPx,
       // A sized target stays as coins, not a fraction: adding to the position
       // does not grow what the target sells, and a fresh open starts clean.
@@ -543,7 +558,11 @@ function takeProfitAt(
   position: TradePosition,
   input: { px: number; at: number }
 ): void {
-  const tpSz = position.tpSz ?? null
+  const target = positionTargets(position).find(
+    (one) => Math.abs(one.px - input.px) <= 1e-9
+  )
+  if (!target) return
+  const tpSz = target.sz
   if (tpSz === null || tpSz >= Math.abs(position.szi) - 1e-9) {
     closeAt(book, position, {
       px: input.px,
@@ -566,7 +585,14 @@ function takeProfitAt(
   })
   const rest = book.positions.get(position.marketKey)
   if (rest) {
-    book.positions.set(position.marketKey, { ...rest, tpPx: null, tpSz: null })
+    const targets = rest.targets.filter((one) => one !== target)
+    const first = targets[0] ?? null
+    book.positions.set(position.marketKey, {
+      ...rest,
+      targets,
+      tpPx: first?.px ?? null,
+      tpSz: first?.sz ?? null,
+    })
   }
 }
 
@@ -628,11 +654,10 @@ function passedLevels(
   if (position.slPx !== null && through(position.slPx)) {
     levels.push({ reason: "stop_loss", px: position.slPx })
   }
-  if (
-    position.tpPx !== null &&
-    (long ? mark >= position.tpPx : mark <= position.tpPx)
-  ) {
-    levels.push({ reason: "take_profit", px: position.tpPx })
+  for (const target of positionTargets(position)) {
+    if (long ? mark >= target.px : mark <= target.px) {
+      levels.push({ reason: "take_profit", px: target.px })
+    }
   }
 
   return levels.sort(
@@ -995,6 +1020,7 @@ export async function saveBook(
       entryPx: position.entryPx,
       leverage: position.leverage,
       maxLeverage: position.maxLeverage,
+      targets: position.targets,
       tpPx: position.tpPx,
       tpSz: position.tpSz ?? null,
       slPx: position.slPx,
@@ -1028,6 +1054,7 @@ export async function saveBook(
           entryPx: sql`excluded.entry_px`,
           leverage: sql`excluded.leverage`,
           maxLeverage: sql`excluded.max_leverage`,
+          targets: sql`excluded.targets`,
           tpPx: sql`excluded.tp_px`,
           tpSz: sql`excluded.tp_sz`,
           slPx: sql`excluded.sl_px`,
@@ -1976,9 +2003,7 @@ export async function setPaperBrackets(
   wallet: TradeWallet,
   input: {
     marketKey: string
-    tpPx: number | null
-    /** Coins the target sells; null or the whole position sells everything. */
-    tpSz?: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
@@ -2000,16 +2025,9 @@ export async function setPaperBrackets(
           rules?.priceTick ?? null
         )
 
-  const tpPx = round(input.tpPx)
   const slPx = round(input.slPx)
   const long = held.szi > 0
-
-  if (
-    tpPx !== null &&
-    (!(tpPx > 0) || (long ? tpPx <= held.entryPx : tpPx >= held.entryPx))
-  ) {
-    throw new Error("PAPER_TAKE_PROFIT_SIDE")
-  }
+  if (input.targets.length > 3) throw new Error("PAPER_TAKE_PROFIT_COUNT")
   if (slPx !== null && (!(slPx > 0) || (long ? slPx >= mark : slPx <= mark))) {
     throw new Error("PAPER_STOP_SIDE")
   }
@@ -2022,21 +2040,62 @@ export async function setPaperBrackets(
   // few lines below: practice is meant to model the exchange, and a size the
   // exchange would never accept is not a rehearsal of anything.
   const heldSz = Math.abs(held.szi)
-  let tpSz =
-    tpPx === null || input.tpSz === null || input.tpSz === undefined
-      ? null
-      : roundSize(input.tpSz, rules?.sizeDecimals ?? null)
-  if (tpSz !== null) {
-    // Zero here is a size that floored away to nothing, not a size of zero.
-    if (!(tpSz > 0) || tpSz > heldSz + 1e-9) {
-      throw new Error("PAPER_TAKE_PROFIT_SIZE")
-    }
-    if (tpSz >= heldSz - 1e-9) tpSz = null
+  const targets = input.targets
+    .map((target) => ({
+      px: round(target.px),
+      sz:
+        target.sz === null
+          ? null
+          : roundSize(target.sz, rules?.sizeDecimals ?? null),
+      orderId: null,
+    }))
+    .sort((left, right) => (left.px ?? 0) - (right.px ?? 0))
+  if (
+    targets.some(
+      (target) =>
+        target.px === null ||
+        !(target.px > 0) ||
+        (long ? target.px <= held.entryPx : target.px >= held.entryPx)
+    )
+  ) {
+    throw new Error("PAPER_TAKE_PROFIT_SIDE")
   }
+  if (targets.length > 1 && targets.some((target) => target.sz === null)) {
+    throw new Error("PAPER_TAKE_PROFIT_LIST_SIZE")
+  }
+  const coveredSz = targets.reduce(
+    (sum, target) => sum + (target.sz ?? heldSz),
+    0
+  )
+  if (targets.some((target) => target.sz !== null && !(target.sz > 0))) {
+    throw new Error("PAPER_TAKE_PROFIT_SIZE")
+  }
+  if (coveredSz > heldSz + 1e-9) {
+    const targetsUsd = targets.reduce(
+      (sum, target) => sum + (target.sz ?? heldSz) * (target.px ?? 0),
+      0
+    )
+    throw new Error(
+      `PAPER_TAKE_PROFIT_TOTAL:${targetsUsd}:${heldSz * held.entryPx}`
+    )
+  }
+
+  const safeTargets = targets as Array<{
+    px: number
+    sz: number | null
+    orderId: null
+  }>
+  const first = safeTargets[0] ?? null
 
   await db
     .update(tradePaperPositions)
-    .set({ tpPx, tpSz, slPx, updatedAt: new Date() })
+    .set({
+      targets: safeTargets,
+      tpPx: first?.px ?? null,
+      tpSz: first?.sz ?? null,
+      slPx,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         eq(tradePaperPositions.userId, userId),

@@ -131,6 +131,7 @@ export function toAsterAccountSnapshot(input: {
       marginUsed: required(margin),
       liquidationPx:
         liquidation !== null && liquidation > 0 ? liquidation : null,
+      targets: [],
       tpPx: null,
       tpSz: null,
       slPx: null,

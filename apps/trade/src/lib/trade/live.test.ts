@@ -22,6 +22,7 @@ const PORTFOLIO: WalletPortfolio = {
       leverage: 5,
       marginUsed: 10_000,
       liquidationPx: 81_000,
+      targets: [{ px: 120_000, sz: null, orderId: "11" }],
       tpPx: 120_000,
       tpSz: null,
       slPx: 90_000,

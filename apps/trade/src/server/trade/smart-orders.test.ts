@@ -893,7 +893,7 @@ describe("the ladder at work", () => {
     // Clearing the stop by hand: the ladder stops following, the rung wakes.
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: null,
+      targets: [],
       slPx: null,
     })
     await settle()

@@ -494,12 +494,12 @@ export function ChartPanel({
       ),
     [trading.positions, gridStops]
   )
-  // The position the menu's "Take profit" row would put a target on: held on
-  // this market with no target set yet. The active wallet's comes first, so
-  // when two wallets both hold the coin the row acts on the one being traded.
-  const bareTarget = React.useMemo(() => {
+  // The position the menu's "Take profit" row would add a target to. Keep the
+  // shortcut until all three places are used. The active wallet's comes first,
+  // so when two wallets both hold the coin the row acts on the one being traded.
+  const targetablePosition = React.useMemo(() => {
     const held = trading.positions.filter(
-      (one) => one.marketKey === selectedKey && one.tpPx === null
+      (one) => one.marketKey === selectedKey && one.targets.length < 3
     )
     return (
       held.find((one) => one.walletId === trading.wallet?.id) ?? held[0] ?? null
@@ -588,8 +588,7 @@ export function ChartPanel({
     (
       position: TradePosition,
       brackets: {
-        tpPx: number | null
-        tpSz?: number | null
+        targets: Array<{ px: number; sz: number | null }>
         slPx: number | null
       }
     ) => {
@@ -608,7 +607,8 @@ export function ChartPanel({
           ladder.plan.takeProfit.mode !== "prevRung"
         const slFollowed = ladder.plan.stopLoss?.mode === "percent"
         if (
-          (tpFollowed && !same(brackets.tpPx, ladder.plan.aimedTpPx)) ||
+          (tpFollowed &&
+            !same(brackets.targets[0]?.px ?? null, ladder.plan.aimedTpPx)) ||
           (slFollowed && !same(brackets.slPx, ladder.plan.aimedSlPx))
         ) {
           toast.info(
@@ -1205,13 +1205,13 @@ export function ChartPanel({
           // "target" on the losing side is a stop, and the row would set one
           // at the mirrored price instead, which is worse than not offering.
           onPickTakeProfit={
-            bareTarget &&
-            (bareTarget.szi > 0
-              ? menu.price > bareTarget.entryPx
-              : menu.price < bareTarget.entryPx)
+            targetablePosition &&
+            (targetablePosition.szi > 0
+              ? menu.price > targetablePosition.entryPx
+              : menu.price < targetablePosition.entryPx)
               ? () => {
                   setTakeProfit({
-                    positionId: bareTarget.id,
+                    positionId: targetablePosition.id,
                     px: menu.price,
                     x: menu.x,
                     y: menu.y,

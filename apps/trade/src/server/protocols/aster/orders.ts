@@ -25,6 +25,7 @@ import {
   type AsterCredential,
 } from "@/server/protocols/aster/client"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
+import { scrubbedMessage } from "@/server/protocols/scrub"
 
 const orderSchema = z.object({
   orderId: z.union([z.string(), z.number()]),
@@ -606,10 +607,12 @@ function attachOrders(
       // Every leg is counted, even the ones that do not become the position's
       // own stop or target, because `setBrackets` has to cancel all of them.
       position.protectionOrderIds.push(String(row.orderId))
-      if (target && position.tpPx === null) {
-        position.tpPx = triggerPx
-        position.tpSz = row.closePosition ? null : num(row.origQty)
-        position.tpOrderId = String(row.orderId)
+      if (target) {
+        position.targets.push({
+          px: triggerPx,
+          sz: row.closePosition ? null : num(row.origQty),
+          orderId: String(row.orderId),
+        })
       } else if (stop && position.slPx === null) {
         position.slPx = triggerPx
         position.slOrderId = String(row.orderId)
@@ -628,6 +631,13 @@ function attachOrders(
       reduceOnly: row.reduceOnly ?? false,
       trigger: false,
     })
+  }
+  for (const position of positions) {
+    position.targets.sort((left, right) => left.px - right.px)
+    const first = position.targets[0] ?? null
+    position.tpPx = first?.px ?? null
+    position.tpSz = first?.sz ?? null
+    position.tpOrderId = first?.orderId ?? null
   }
   return { positions, orders }
 }
@@ -705,8 +715,7 @@ export async function closeAsterPosition(
   ).catch(() => placed)
   const filledSz = num(final?.executedQty)
   const fullyClosed =
-    filledSz !== null &&
-    filledSz + 1e-9 >= Math.abs(params.szi)
+    filledSz !== null && filledSz + 1e-9 >= Math.abs(params.szi)
   if (fullyClosed) {
     const rows = await openOrders(
       network,
@@ -734,16 +743,53 @@ export async function setAsterBrackets(
   params: {
     marketId: string
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
-    tpPx: number | null
-    tpSz: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
-  // EVERY protection leg, not the two the read named — see
-  // `protectionOrderIds`. A spare stop the app cannot see never gets cancelled,
-  // and it sells the position a second time.
   const oldIds = [...new Set(params.position.protectionOrderIds)]
+  const long = params.position.szi > 0
+  const size = Math.abs(params.position.szi)
+  const legs = [
+    ...(params.slPx !== null
+      ? [
+          {
+            label: `stop at ${params.slPx}`,
+            order: protectionParams({
+              marketId: params.marketId,
+              long,
+              kind: "stop" as const,
+              triggerPx: params.slPx,
+              size: null,
+            }),
+          },
+        ]
+      : []),
+    ...params.targets.map((target) => ({
+      label: `target at ${target.px}`,
+      order: protectionParams({
+        marketId: params.marketId,
+        long,
+        kind: "target" as const,
+        triggerPx: target.px,
+        size: target.sz ?? size,
+      }),
+    })),
+  ]
+
+  const landed: string[] = []
+  for (const leg of legs) {
+    try {
+      await placeRaw(network, orderAuth, leg.order)
+      landed.push(leg.label)
+    } catch (error) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The new ${leg.label} was refused: ${scrubbedMessage(error)}`
+      )
+    }
+  }
+
   for (const orderId of oldIds) {
     try {
       await cancelAsterOrder(network, orderAuth, {
@@ -752,7 +798,10 @@ export async function setAsterBrackets(
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      if (!message.startsWith("ASTER_ORDER_GONE:")) throw error
+      if (message.startsWith("ASTER_ORDER_GONE:")) continue
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} an old protection order could not be cancelled: ${scrubbedMessage(error)}`
+      )
     }
   }
   if (oldIds.length > 0) {
@@ -762,48 +811,13 @@ export async function setAsterBrackets(
       credential(orderAuth),
       params.marketId
     )
-    if (stillOpen.some((row) => oldIds.includes(String(row.orderId)))) {
-      throw new Error(
-        "LIVE_EXCHANGE:Aster left the old stop or target open, so no replacement was sent."
-      )
-    }
-  }
-  const long = params.position.szi > 0
-  let stopPlaced = false
-  if (params.slPx !== null) {
-    await placeRaw(
-      network,
-      orderAuth,
-      protectionParams({
-        marketId: params.marketId,
-        long,
-        kind: "stop",
-        triggerPx: params.slPx,
-        size: null,
-      })
+    const still = stillOpen.filter((row) =>
+      oldIds.includes(String(row.orderId))
     )
-    stopPlaced = true
-  }
-  if (params.tpPx !== null) {
-    const whole =
-      params.tpSz === null ||
-      params.tpSz >= Math.abs(params.position.szi) * (1 - 1e-6)
-    try {
-      await placeRaw(
-        network,
-        orderAuth,
-        protectionParams({
-          marketId: params.marketId,
-          long,
-          kind: "target",
-          triggerPx: params.tpPx,
-          size: whole ? null : params.tpSz,
-        })
+    if (still.length > 0) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} ${still.length} old protection ${still.length === 1 ? "order is" : "orders are"} still on Aster.`
       )
-    } catch (error) {
-      if (!stopPlaced) throw error
-      const reason = error instanceof Error ? error.message : String(error)
-      throw new Error(`LIVE_TARGET_GONE:${reason}`)
     }
   }
 }

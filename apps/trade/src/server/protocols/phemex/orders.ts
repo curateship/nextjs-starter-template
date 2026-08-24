@@ -720,8 +720,7 @@ export async function setPhemexBrackets(
   params: {
     marketId: string
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
-    tpPx: number | null
-    tpSz: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
@@ -739,20 +738,6 @@ export async function setPhemexBrackets(
     params.position.szi > 0 ? "sell" : "buy",
     true
   )
-
-  // Old legs first, so the position is never guarded twice. A leg already
-  // gone is fine — that is the state being aimed for. EVERY leg goes, not the
-  // two the read named: a spare stop the app cannot see is a stop that can
-  // never be cancelled and sells the position a second time. See
-  // `protectionOrderIds`.
-  for (const orderId of new Set(params.position.protectionOrderIds)) {
-    if (!orderId) continue
-    await phemexSigned(network, credential, "DELETE", "/g-orders/cancel", {
-      symbol: params.marketId,
-      orderID: orderId,
-      posSide: legPosSide,
-    }).catch(() => {})
-  }
 
   const placeLeg = async (leg: {
     ordType: "Stop" | "MarketIfTouched"
@@ -776,19 +761,42 @@ export async function setPhemexBrackets(
     })
   }
 
+  const landed: string[] = []
   try {
     if (params.slPx !== null) {
       await placeLeg({ ordType: "Stop", triggerPx: params.slPx, sz: size })
+      landed.push(`stop at ${params.slPx}`)
     }
-    if (params.tpPx !== null) {
+    for (const target of params.targets) {
       await placeLeg({
         ordType: "MarketIfTouched",
-        triggerPx: params.tpPx,
-        sz: params.tpSz ?? size,
+        triggerPx: target.px,
+        sz: target.sz ?? size,
       })
+      landed.push(`target at ${target.px}`)
     }
   } catch (error) {
-    throw exchangeError(error)
+    throw new Error(
+      `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The replacement was refused: ${scrubbedMessage(error)}`
+    )
+  }
+
+  // Every new leg is standing before an old one is touched. Phemex allows 20
+  // conditional orders per market, so the largest replacement uses eight for
+  // the brief overlap: four old and four new.
+  for (const orderId of new Set(params.position.protectionOrderIds)) {
+    if (!orderId) continue
+    try {
+      await phemexSigned(network, credential, "DELETE", "/g-orders/cancel", {
+        symbol: params.marketId,
+        orderID: orderId,
+        posSide: legPosSide,
+      })
+    } catch (error) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} an old protection order could not be cancelled: ${scrubbedMessage(error)}`
+      )
+    }
   }
 }
 
@@ -991,6 +999,7 @@ export async function fetchPhemexPortfolio(
     openBySymbol.set(row.symbol, list)
   }
 
+  const protectionIds = new Set<string>()
   const positions: WalletPosition[] = []
   for (const raw of rawPositions) {
     const row = positionSchema.safeParse(raw)
@@ -1009,8 +1018,37 @@ export async function fetchPhemexPortfolio(
     const legs = (openBySymbol.get(row.data.symbol) ?? [])
       .filter((one) => statusNameOf(one) === "Untriggered")
       .sort((left, right) => idOf(left).localeCompare(idOf(right)))
-    const stop = legs.find((one) => STOP_TYPES.has(typeNameOf(one)))
-    const target = legs.find((one) => TARGET_TYPES.has(typeNameOf(one)))
+    const protection = legs.filter((one) => {
+      const type = typeNameOf(one)
+      return STOP_TYPES.has(type) || TARGET_TYPES.has(type)
+    })
+    for (const leg of protection) {
+      const id = idOf(leg)
+      if (id) protectionIds.add(id)
+    }
+    const stop = protection.find((one) => STOP_TYPES.has(typeNameOf(one)))
+    const targets = protection
+      .filter((one) => TARGET_TYPES.has(typeNameOf(one)))
+      .map((target) => ({
+        px: num(target.stopPxRp),
+        sz: (() => {
+          const legSz = num(target.orderQtyRq)
+          if (legSz === null) return null
+          return legSz < size * (1 - 1e-6) ? legSz : null
+        })(),
+        orderId: idOf(target) || null,
+      }))
+      .filter(
+        (
+          target
+        ): target is {
+          px: number
+          sz: number | null
+          orderId: string | null
+        } => target.px !== null
+      )
+      .sort((left, right) => left.px - right.px)
+    const target = targets[0] ?? null
 
     positions.push({
       marketId: row.data.symbol,
@@ -1019,40 +1057,37 @@ export async function fetchPhemexPortfolio(
       leverage: Math.abs(num(row.data.leverageRr) ?? 1),
       marginUsed: num(row.data.positionMarginRv) ?? 0,
       liquidationPx: num(row.data.liquidationPriceRp),
-      tpPx: target ? num(target.stopPxRp) : null,
-      // Null when the target's leg covers the whole position; a smaller leg
-      // reports its own size so a partial take-profit reads back honestly.
-      tpSz: (() => {
-        const legSz = target ? num(target.orderQtyRq) : null
-        if (legSz === null) return null
-        return legSz < size * (1 - 1e-6) ? legSz : null
-      })(),
+      targets,
+      tpPx: target?.px ?? null,
+      tpSz: target?.sz ?? null,
       slPx: stop ? num(stop.stopPxRp) : null,
-      tpOrderId: target ? idOf(target) || null : null,
+      tpOrderId: target?.orderId ?? null,
       slOrderId: stop ? idOf(stop) || null : null,
       // Every untriggered leg on this market, not only the two picked above,
       // because `setBrackets` has to cancel all of them — see
       // `protectionOrderIds`.
-      protectionOrderIds: legs.map((one) => idOf(one)).filter(Boolean),
+      protectionOrderIds: protection.map((one) => idOf(one)).filter(Boolean),
     })
   }
 
-  const walletOrders: WalletOpenOrder[] = orders.map((row) => {
-    const trigger = statusNameOf(row) === "Untriggered"
-    const sz = Math.max(
-      0,
-      (num(row.orderQtyRq) ?? 0) - (num(row.cumQtyRq) ?? 0)
-    )
-    return {
-      orderId: idOf(row),
-      marketId: row.symbol,
-      side: sideOf(row.side),
-      px: (trigger ? num(row.stopPxRp) : num(row.priceRp)) ?? 0,
-      sz,
-      reduceOnly: row.reduceOnly ?? false,
-      trigger,
-    }
-  })
+  const walletOrders: WalletOpenOrder[] = orders
+    .filter((row) => !protectionIds.has(idOf(row)))
+    .map((row) => {
+      const trigger = statusNameOf(row) === "Untriggered"
+      const sz = Math.max(
+        0,
+        (num(row.orderQtyRq) ?? 0) - (num(row.cumQtyRq) ?? 0)
+      )
+      return {
+        orderId: idOf(row),
+        marketId: row.symbol,
+        side: sideOf(row.side),
+        px: (trigger ? num(row.stopPxRp) : num(row.priceRp)) ?? 0,
+        sz,
+        reduceOnly: row.reduceOnly ?? false,
+        trigger,
+      }
+    })
 
   return { positions, orders: walletOrders }
 }

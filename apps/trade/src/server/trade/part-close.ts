@@ -76,6 +76,7 @@ export type PartCloseSize =
 export type HeldPosition = {
   szi: number
   leverage: number
+  targets: Array<{ px: number; sz: number | null }>
   tpPx: number | null
   tpSz: number | null
   slPx: number | null
@@ -121,7 +122,8 @@ export async function openPartClose(
   const mark = prices.get(ref.marketId)
   if (mark === undefined || !(mark > 0)) throw new Error("PART_CLOSE_NO_PRICE")
 
-  const held = input.held ?? (await heldPosition(userId, wallet, input.marketKey))
+  const held =
+    input.held ?? (await heldPosition(userId, wallet, input.marketKey))
   if (held === null) throw new Error("PART_CLOSE_POSITION_GONE")
   const heldSz = Math.abs(held.szi)
 
@@ -137,7 +139,10 @@ export async function openPartClose(
   }
   const smallest = rules.minOrderSize ?? null
   const floor = minimumOrderUsd(
-    { minOrderValueUsd: rules.minOrderValueUsd ?? null, minOrderSize: smallest },
+    {
+      minOrderValueUsd: rules.minOrderValueUsd ?? null,
+      minOrderSize: smallest,
+    },
     mark
   )
   /** Too small to be an order on this market at today's price. */
@@ -181,19 +186,31 @@ export async function openPartClose(
     )
   }
 
-  // **A fixed-size target has to come down to what is left.** A target set to
-  // sell a fixed number of coins does not shrink with the position — only a
-  // whole-position one does — so after this sells, a target bigger than the
-  // remainder is one the exchange refuses when it fires. Brought down here
-  // rather than after the fill, because the fill happens in the engine minutes
-  // later and a refused target is a position with no way out. The cost is that
-  // a close which never fills leaves a smaller target than was asked for,
-  // which sells less than intended and never more.
+  // A part close can leave less coin than the fixed targets cover. Keep the
+  // nearest targets first, trim the last one to the remainder, and drop any
+  // farther target that no longer has a slice to sell.
   const left = heldSz - sz
-  if (held.tpPx !== null && held.tpSz !== null && held.tpSz > left) {
-    await shrinkTarget(userId, wallet, input.marketKey, {
-      tpPx: held.tpPx,
-      tpSz: left,
+  const orderedTargets = [...held.targets].sort(
+    (a, b) => Math.abs(a.px - mark) - Math.abs(b.px - mark)
+  )
+  let room = left
+  const targets = orderedTargets.flatMap((target) => {
+    if (room <= 1e-9) return []
+    const wanted = target.sz ?? heldSz
+    const targetSz = Math.min(wanted, room)
+    room -= targetSz
+    return [{ px: target.px, sz: targetSz }]
+  })
+  // A lone blank size still means "whatever remains", so it needs no rewrite.
+  const wholePositionTarget =
+    held.targets.length === 1 && held.targets[0]?.sz === null
+  const covered = held.targets.reduce(
+    (sum, target) => sum + (target.sz ?? heldSz),
+    0
+  )
+  if (!wholePositionTarget && covered > left + 1e-9) {
+    await shrinkTargets(userId, wallet, input.marketKey, {
+      targets,
       slPx: held.slPx,
     })
   }
@@ -241,7 +258,9 @@ export async function openPartClose(
     await tx
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
-      .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id)))
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
       .for("update")
     await tx.insert(tradeSmartLadders).values({
       userId,
@@ -274,6 +293,7 @@ async function heldPosition(
   return {
     szi: held.szi,
     leverage: held.leverage,
+    targets: held.targets,
     tpPx: held.tpPx,
     tpSz: held.tpSz ?? null,
     slPx: held.slPx,
@@ -281,14 +301,21 @@ async function heldPosition(
 }
 
 /** One door for both lanes, so the shrink cannot be written twice. */
-async function shrinkTarget(
+async function shrinkTargets(
   userId: string,
   wallet: TradeWallet,
   marketKey: string,
-  brackets: { tpPx: number; tpSz: number; slPx: number | null }
+  brackets: {
+    targets: Array<{ px: number; sz: number | null }>
+    slPx: number | null
+  }
 ): Promise<void> {
   if (wallet.kind === "live") {
-    await setLiveBrackets(userId, { walletId: wallet.id, marketKey, ...brackets })
+    await setLiveBrackets(userId, {
+      walletId: wallet.id,
+      marketKey,
+      ...brackets,
+    })
     return
   }
   await setPaperBrackets(userId, wallet, { marketKey, ...brackets })

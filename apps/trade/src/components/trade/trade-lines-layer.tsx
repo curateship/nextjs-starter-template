@@ -236,7 +236,10 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   onEditOrder?: (orderId: string) => void
   onSetBrackets: (
     position: TradePosition,
-    brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
+    brackets: {
+      targets: Array<{ px: number; sz: number | null }>
+      slPx: number | null
+    }
   ) => void
   /**
    * Hands the chart's coordinates back up, so a right-click anywhere on the
@@ -256,9 +259,10 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   const bracketOrderIds = new Map<string, Set<string>>()
   for (const position of held) {
     if (!position.live) continue
-    const ids = [position.live.tpOrderId, position.live.slOrderId].filter(
-      (orderId): orderId is string => orderId !== null
-    )
+    const ids = [
+      ...position.targets.map((target) => target.orderId),
+      position.live.slOrderId,
+    ].filter((orderId): orderId is string => orderId !== null)
     if (ids.length === 0) continue
     const walletIds =
       bracketOrderIds.get(position.walletId) ?? new Set<string>()
@@ -320,42 +324,35 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       })
     }
 
-    if (position.tpPx !== null) {
-      // A sized target pays on the slice it sells, and the label says what
-      // share of the position that is — a line selling half must not read
-      // like one closing the trade.
-      const tpSz = position.tpSz ?? null
-      const share =
-        tpSz !== null && Math.abs(position.szi) > 0
-          ? Math.round((tpSz / Math.abs(position.szi)) * 100)
-          : null
+    for (const [targetIndex, target] of position.targets.entries()) {
+      const targetSz = target.sz ?? Math.abs(position.szi)
       lines.push({
-        id: `tp:${position.id}`,
+        id: `tp:${position.id}:${target.orderId ?? targetIndex}`,
         kind: "take_profit",
-        price: position.tpPx,
-        // What it would pay at whatever price it is being held at — the
-        // number that decides whether the target is where you want it.
+        price: target.px,
         label: (at) =>
-          `Take Profit${share !== null ? ` ${share}%` : ""} ${formatSignedUsd(
+          `Take Profit ${formatUsdRounded(targetSz * at)} ${formatSignedUsd(
             projectedProfit(
-              tpSz !== null
-                ? {
-                    szi: Math.sign(position.szi) * tpSz,
-                    entryPx: position.entryPx,
-                  }
-                : position,
+              {
+                szi: Math.sign(position.szi) * targetSz,
+                entryPx: position.entryPx,
+              },
               at
             )
           )}${tag}`,
         onMove: (price) =>
           onSetBrackets(position, {
-            tpPx: price,
-            tpSz,
+            targets: position.targets.map((one, index) => ({
+              px: index === targetIndex ? price : one.px,
+              sz: one.sz,
+            })),
             slPx: position.slPx,
           }),
         onRemove: () =>
           onSetBrackets(position, {
-            tpPx: null,
+            targets: position.targets
+              .filter((_, index) => index !== targetIndex)
+              .map((one) => ({ px: one.px, sz: one.sz })),
             slPx: position.slPx,
           }),
       })
@@ -369,14 +366,18 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
           `Stop Loss ${formatSignedUsd(projectedProfit(position, at))}${tag}`,
         onMove: (price) =>
           onSetBrackets(position, {
-            tpPx: position.tpPx,
-            tpSz: position.tpSz ?? null,
+            targets: position.targets.map((target) => ({
+              px: target.px,
+              sz: target.sz,
+            })),
             slPx: price,
           }),
         onRemove: () =>
           onSetBrackets(position, {
-            tpPx: position.tpPx,
-            tpSz: position.tpSz ?? null,
+            targets: position.targets.map((target) => ({
+              px: target.px,
+              sz: target.sz,
+            })),
             slPx: null,
           }),
       })

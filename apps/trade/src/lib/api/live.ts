@@ -12,6 +12,7 @@ import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import { formatUsd } from "@/lib/trade/format"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelLiveOrder as cancelOrderRow,
@@ -77,12 +78,15 @@ const cancelSchema = z.object({
   sz: z.number().positive().finite().optional(),
 })
 
+const targetSchema = z.object({
+  px: z.number().positive().finite(),
+  sz: z.number().positive().finite().nullable(),
+})
+
 const bracketsSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
-  tpPx: z.number().positive().finite().nullable(),
-  // Coins the target sells when it fires; null sells the whole position.
-  tpSz: z.number().positive().finite().nullable().optional(),
+  targets: z.array(targetSchema).max(3),
   slPx: z.number().positive().finite().nullable(),
 })
 
@@ -379,6 +383,9 @@ const LIVE_SENTENCES: Record<string, string> = {
     "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
   LIVE_TAKE_PROFIT_SIZE:
     "The take profit cannot sell more than the position holds.",
+  LIVE_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
+  LIVE_TAKE_PROFIT_LIST_SIZE:
+    "Each target needs its own size when a position has more than one target.",
   LIVE_STOP_SIDE:
     "A stop must stay beyond the current price — below it on a long, above it on a short.",
   LIVE_SIZE: "That size is smaller than this market's smallest step.",
@@ -427,6 +434,14 @@ export function getLiveErrorMessage(error: unknown): string {
         : ""
   const auth = describeAuthError(message)
   if (auth) return auth
+  const targetTotal = message.match(/LIVE_TAKE_PROFIT_TOTAL:([^:]+):([^:]+)/)
+  if (targetTotal) {
+    return `The targets add up to ${formatUsd(Number(targetTotal[1]))}, but the position holds ${formatUsd(Number(targetTotal[2]))}. Lower one or more target sizes.`
+  }
+  const bracketReplacement = message.match(
+    /LIVE_BRACKET_REPLACE_(?:PARTIAL|DOUBLED):(.*)$/s
+  )
+  if (bracketReplacement) return bracketReplacement[1].trim()
   const known = Object.keys(LIVE_SENTENCES).find((code) =>
     message.includes(code)
   )

@@ -1,4 +1,8 @@
-import type { CandleBar, WalletAccountFigures } from "@/lib/protocols/contracts"
+import type {
+  CandleBar,
+  TakeProfitTarget,
+  WalletAccountFigures,
+} from "@/lib/protocols/contracts"
 
 /**
  * Practice trading, in the app's own words — browser-safe on purpose.
@@ -121,6 +125,8 @@ export type TradePosition = {
    * answer can change under a position that is already open.
    */
   maxLeverage: number
+  targets: TakeProfitTarget[]
+  /** First target, kept for one compatibility release. */
   tpPx: number | null
   /**
    * How many coins the target sells when it fires. Empty means all of them —
@@ -241,8 +247,25 @@ export type PaperJournalEntry = {
 /** Everything the fill arithmetic reads and rewrites. */
 export type PositionCore = Pick<
   TradePosition,
-  "szi" | "entryPx" | "leverage" | "maxLeverage" | "tpPx" | "slPx" | "feesPaid"
+  | "szi"
+  | "entryPx"
+  | "leverage"
+  | "maxLeverage"
+  | "targets"
+  | "tpPx"
+  | "slPx"
+  | "feesPaid"
 >
+
+/** Compatibility for positions written before the target-list migration. */
+export function positionTargets(
+  position: Pick<TradePosition, "targets" | "tpPx"> & { tpSz?: number | null }
+): TakeProfitTarget[] {
+  if (position.targets.length > 0) return position.targets
+  return position.tpPx === null
+    ? []
+    : [{ px: position.tpPx, sz: position.tpSz ?? null, orderId: null }]
+}
 
 type PaperFill = {
   side: TradeSide
@@ -306,6 +329,7 @@ export function applyPaperFill(
         entryPx: fill.px,
         leverage: fill.leverage,
         maxLeverage: fill.maxLeverage,
+        targets: [],
         tpPx: null,
         slPx: null,
         feesPaid: fee,
@@ -320,6 +344,7 @@ export function applyPaperFill(
     entryPx,
     leverage: position?.leverage ?? fill.leverage,
     maxLeverage: position?.maxLeverage ?? fill.maxLeverage,
+    targets: position?.targets ?? [],
     tpPx: position?.tpPx ?? null,
     slPx: position?.slPx ?? null,
     feesPaid: (position?.feesPaid ?? 0) + fee,
@@ -540,7 +565,9 @@ export function candleLegs(bar: CandleBar): PriceLeg[] {
 
 /** Price passed through this level somewhere along the run. */
 export function legCrosses(leg: PriceLeg, level: number): boolean {
-  return level >= Math.min(leg.from, leg.to) && level <= Math.max(leg.from, leg.to)
+  return (
+    level >= Math.min(leg.from, leg.to) && level <= Math.max(leg.from, leg.to)
+  )
 }
 
 /**
@@ -577,12 +604,12 @@ export function nextEventOnLeg(input: {
 
   const position = input.position
   if (position) {
-    if (
-      !input.ignoreTakeProfit &&
-      position.tpPx !== null &&
-      legCrosses(remaining, position.tpPx)
-    ) {
-      candidates.push({ kind: "take_profit", px: position.tpPx })
+    if (!input.ignoreTakeProfit) {
+      for (const target of positionTargets(position)) {
+        if (legCrosses(remaining, target.px)) {
+          candidates.push({ kind: "take_profit", px: target.px })
+        }
+      }
     }
     if (position.slPx !== null && legCrosses(remaining, position.slPx)) {
       candidates.push({ kind: "stop_loss", px: position.slPx })
@@ -610,8 +637,19 @@ export function nextEventOnLeg(input: {
  * `candleLegs` could hand out a profit that never happened, and a practice
  * account that flatters itself is worse than useless.
  */
-export function bracketsTie(bar: CandleBar, position: PositionCore | null): boolean {
-  if (!position || position.tpPx === null || position.slPx === null) return false
+export function bracketsTie(
+  bar: CandleBar,
+  position: PositionCore | null
+): boolean {
+  if (
+    !position ||
+    positionTargets(position).length === 0 ||
+    position.slPx === null
+  )
+    return false
   const covers = (level: number) => level >= bar.low && level <= bar.high
-  return covers(position.tpPx) && covers(position.slPx)
+  return (
+    positionTargets(position).some((target) => covers(target.px)) &&
+    covers(position.slPx)
+  )
 }

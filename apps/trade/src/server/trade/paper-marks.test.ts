@@ -195,6 +195,7 @@ describe("what a book is worth while a bar is walked", () => {
       entryPx: 100,
       leverage: 1,
       maxLeverage: 1,
+      targets: [],
       tpPx: null,
       slPx: null,
       feesPaid: 0,

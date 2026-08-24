@@ -115,11 +115,13 @@ describe("Aster orders", () => {
       )
     ).toHaveLength(2)
     expect(
-      sent.find(
-        (one) =>
-          one.method === "POST" &&
-          one.url.pathname.endsWith("/multiAssetsMargin")
-      )?.url.searchParams.get("multiAssetsMargin")
+      sent
+        .find(
+          (one) =>
+            one.method === "POST" &&
+            one.url.pathname.endsWith("/multiAssetsMargin")
+        )
+        ?.url.searchParams.get("multiAssetsMargin")
     ).toBe("false")
     expect(multiAssets).toBe(false)
   })
@@ -484,8 +486,7 @@ describe("Aster orders", () => {
     await setAsterBrackets("testnet", AUTH, {
       marketId: "BTCUSDT",
       position: { szi: 2, protectionOrderIds: [] },
-      tpPx: 120,
-      tpSz: 0.5,
+      targets: [{ px: 120, sz: 0.5 }],
       slPx: null,
     })
     const partial = sent.find(
@@ -579,6 +580,7 @@ describe("Aster orders", () => {
     expect(held.tpOrderId).toBe("41")
     expect(held.slOrderId).toBe("42")
     expect(held.tpSz).toBeNull()
+    expect(held.targets.map((target) => target.orderId)).toEqual(["41", "43"])
   })
 
   it("reads a whole-position target back as tracking everything left", async () => {
@@ -639,9 +641,7 @@ describe("Aster orders", () => {
 
     await fetchAsterOrderPortfolio("testnet", ACCOUNT, () => AUTH.agentKey)
     expect(
-      sent.filter((one) =>
-        one.url.pathname.endsWith("/accountWithJoinMargin")
-      )
+      sent.filter((one) => one.url.pathname.endsWith("/accountWithJoinMargin"))
     ).toHaveLength(1)
     expect(
       sent.filter((one) => one.url.pathname.endsWith("/openOrders"))

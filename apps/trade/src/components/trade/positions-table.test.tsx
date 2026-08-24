@@ -17,8 +17,9 @@ import { orderCancelKind } from "@/lib/trade/cancel-order"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
 
 /**
  * The answers an empty bottom-panel table can give, told apart.
@@ -78,6 +79,7 @@ function position(symbol: string, size: number): TradePosition {
     entryPx: 100,
     leverage: 1,
     maxLeverage: 10,
+    targets: [],
     tpPx: null,
     slPx: null,
     feesPaid: 0,

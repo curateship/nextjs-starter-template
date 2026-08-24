@@ -97,6 +97,7 @@ export function livePortfolioRows(
     // Unused for live rows — the screens read `live.liquidationPx` instead of
     // the formula this feeds. Carried so the shape stays one shape.
     maxLeverage: position.leverage,
+    targets: position.targets,
     tpPx: position.tpPx,
     tpSz: position.tpSz,
     slPx: position.slPx,

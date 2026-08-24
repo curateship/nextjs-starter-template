@@ -20,6 +20,7 @@ import type {
   CandleInterval,
   NetworkId,
   ProtocolId,
+  TakeProfitTarget,
 } from "@/lib/protocols/contracts"
 import type { CardFolds } from "@/lib/trade/card-folds"
 import type { AsterMarginMode } from "@/lib/trade/aster-margin-mode"
@@ -598,6 +599,7 @@ export const tradePaperPositions = pgTable(
     // The market's own limit, copied at that moment — the liquidation estimate
     // is built from it and the exchange's answer can change underneath.
     maxLeverage: doublePrecision("max_leverage").notNull(),
+    targets: jsonb("targets").$type<TakeProfitTarget[]>().notNull().default([]),
     tpPx: doublePrecision("tp_px"),
     // How many coins the target sells when it fires; empty sells them all.
     tpSz: doublePrecision("tp_sz"),

@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
@@ -15,13 +15,6 @@ import {
 } from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import {
   bracketPercent,
@@ -43,14 +36,9 @@ import { formatDateTime } from "@/lib/format/format-time"
 /**
  * Where a position gets out, either way.
  *
- * Written as a distance from the entry price rather than as two prices,
- * because that is how the decision is actually made — "I'll risk two percent
- * to make five" — and because a percentage means the same thing on a $118,000
- * coin as on a $0.02 one. The price each percentage works out to is shown
- * underneath, along with what it would pay, so nothing has to be taken on trust.
- *
- * Leaving a box empty removes that side. That is the only way to clear one,
- * and it is why the boxes start empty when nothing is set.
+ * A position can bank profit at three fixed prices and sizes. The stop remains
+ * one whole-position price. Leaving the stop empty removes it, while removing
+ * every target row clears the targets.
  */
 
 export function BracketsDialog({
@@ -79,9 +67,7 @@ export function BracketsDialog({
   onSave: (
     position: TradePosition,
     brackets: {
-      tpPx: number | null
-      /** Coins the target sells; leave it out to sell the whole position. */
-      tpSz?: number | null
+      targets: Array<{ px: number; sz: number | null }>
       slPx: number | null
     }
   ) => Promise<boolean>
@@ -131,71 +117,65 @@ function BracketsForm({
   onSave: (
     position: TradePosition,
     brackets: {
-      tpPx: number | null
-      /** Coins the target sells; leave it out to sell the whole position. */
-      tpSz?: number | null
+      targets: Array<{ px: number; sz: number | null }>
       slPx: number | null
     }
   ) => Promise<boolean>
   onClose: () => void
 }) {
-  const [targetPct, setTargetPct] = React.useState(() =>
-    bracketPercent(position.entryPx, position.tpPx ?? startTpPx)
-  )
   const [stopPct, setStopPct] = React.useState(() =>
     bracketPercent(position.entryPx, position.slPx ?? startSlPx)
   )
-  // How much of the position the target sells — as a share of it, or as
-  // dollars measured at the target price. Everything is the answer a take
-  // profit has always given, so that is what the box starts on.
   const heldSz = Math.abs(position.szi)
-  const [sellUnit, setSellUnit] = React.useState<"pct" | "usd">("pct")
-  const [sellAmount, setSellAmount] = React.useState(() =>
-    position.tpSz != null && heldSz > 0
-      ? String(Number(((position.tpSz / heldSz) * 100).toFixed(2)))
-      : "100"
-  )
+  const [targets, setTargets] = React.useState(() => {
+    const existing =
+      position.targets.length > 0
+        ? position.targets
+        : startTpPx !== null
+          ? [{ px: startTpPx, sz: null, orderId: null }]
+          : []
+    return existing.map((target) => ({
+      id: crypto.randomUUID(),
+      price: String(target.px),
+      dollars: String(Number(((target.sz ?? heldSz) * target.px).toFixed(2))),
+    }))
+  })
+  const [touched, setTouched] = React.useState<ReadonlySet<string>>(new Set())
+  const [attempted, setAttempted] = React.useState(false)
+  const touch = (key: string) =>
+    setTouched((current) => new Set(current).add(key))
 
   const long = position.szi > 0
   const symbol = marketSymbol(position.marketKey)
-
-  const tpPx = bracketPrice({
-    entryPx: position.entryPx,
-    percent: targetPct,
-    long,
-    winning: true,
-  })
   const slPx = bracketPrice({
     entryPx: position.entryPx,
     percent: stopPct,
     long,
     winning: false,
   })
-  const badTarget = bracketTyped(targetPct, tpPx)
   const badStop = bracketTyped(stopPct, slPx)
-
-  // The coins the typed amount works out to, or null when it is everything.
-  // An empty box also sells everything — the box starts on 100 for the same
-  // reason the percent boxes start empty: the default is what always happened.
-  const typedAmount = Number(sellAmount.trim())
-  const sellAll =
-    sellAmount.trim() === "" ||
-    (sellUnit === "pct" && typedAmount >= 100) ||
-    (sellUnit === "usd" && tpPx !== null && typedAmount >= heldSz * tpPx)
-  const tpSz = sellAll
-    ? null
-    : sellUnit === "pct"
-      ? heldSz * (typedAmount / 100)
-      : tpPx !== null
-        ? typedAmount / tpPx
-        : null
-  const badSell =
-    tpPx !== null &&
-    !sellAll &&
-    (!Number.isFinite(typedAmount) ||
-      typedAmount <= 0 ||
-      tpSz === null ||
-      !(tpSz > 0))
+  const parsedTargets = targets.map((target) => {
+    const px = Number(target.price.trim())
+    const dollars = Number(target.dollars.trim())
+    const validPx =
+      Number.isFinite(px) &&
+      px > 0 &&
+      (long ? px > position.entryPx : px < position.entryPx)
+    const validDollars = Number.isFinite(dollars) && dollars > 0
+    return {
+      ...target,
+      px,
+      dollars,
+      sz: validPx && validDollars ? dollars / px : 0,
+      validPx,
+      validDollars,
+    }
+  })
+  const coveredSz = parsedTargets.reduce((sum, target) => sum + target.sz, 0)
+  const tooMuch = coveredSz > heldSz * (1 + 1e-6)
+  const badTarget = parsedTargets.some(
+    (target) => !target.validPx || !target.validDollars
+  )
 
   // Every reason this window would refuse, said above the button so nobody
   // presses Save to find out. Same order as the boxes on screen.
@@ -205,24 +185,27 @@ function BracketsForm({
   // takes the price through zero is the one thing the "down" box has to say
   // extra, because 100% below the entry is a price of nothing.
   const refusal = badTarget
-    ? long
-      ? "Take profit % has to be a number above zero. Leave it empty for no target."
-      : "Take profit % has to be above zero and under 100 — a short's target is below the entry, and 100% below is a price of nothing. Leave it empty for no target."
-    : badStop
-      ? long
-        ? "Stop loss % has to be above zero and under 100 — 100% below the entry is a price of nothing. Leave it empty for no stop."
-        : "Stop loss % has to be a number above zero. Leave it empty for no stop."
-      : badSell
-        ? sellUnit === "pct"
-          ? "How much comes off has to be a share of the position above zero. 100 sells all of it."
-          : `How much comes off has to be dollars above zero. All of it is worth ${formatUsd(heldSz * (tpPx ?? position.entryPx))} at the target.`
+    ? `Each target needs a price ${long ? "above" : "below"} the ${formatPrice(position.entryPx)} entry and a dollar size above zero.`
+    : tooMuch
+      ? `The targets add up to ${formatUsd(parsedTargets.reduce((sum, target) => sum + target.dollars, 0))} at their prices, but the position holds ${formatUsd(heldSz * position.entryPx)} bought at the entry. Lower one or more target sizes.`
+      : badStop
+        ? long
+          ? "Stop loss % has to be above zero and under 100 — 100% below the entry is a price of nothing. Leave it empty for no stop."
+          : "Stop loss % has to be a number above zero. Leave it empty for no stop."
         : null
 
   const save = async () => {
-    if (badTarget || badStop || badSell) return
+    setAttempted(true)
+    if (badTarget || badStop || tooMuch) return
+    const savedTargets = parsedTargets.map((target) => ({
+      px: target.px,
+      sz:
+        parsedTargets.length === 1 && target.sz >= heldSz * (1 - 1e-6)
+          ? null
+          : target.sz,
+    }))
     const saved = await onSave(position, {
-      tpPx,
-      tpSz: tpPx !== null ? tpSz : null,
+      targets: savedTargets,
       slPx,
     })
     if (saved) onClose()
@@ -244,124 +227,153 @@ function BracketsForm({
             <CardTitle>Where it gets out</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-              <div className="grid flex-1 gap-2">
-                <FieldLabel
-                  htmlFor="brackets-target"
-                  hint="How far the price has to move your way before the position is closed for a profit. Leave it empty for no target."
+            <div className="grid gap-4">
+              {parsedTargets.map((target, index) => (
+                <div
+                  key={target.id}
+                  className="grid gap-2 border-b pb-4 last:border-b-0 last:pb-0"
                 >
-                  Take profit %
-                </FieldLabel>
-                <Input
-                  id="brackets-target"
-                  inputMode="decimal"
-                  placeholder="None"
-                  value={targetPct}
-                  disabled={busy}
-                  onChange={(event) => setTargetPct(event.target.value)}
-                  aria-invalid={badTarget}
-                />
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  {tpPx
-                    ? `${formatPrice(tpPx)} · ${formatSignedUsd(
-                        projectedProfit(
-                          tpSz !== null && !badSell
-                            ? {
-                                szi: Math.sign(position.szi) * tpSz,
-                                entryPx: position.entryPx,
-                              }
-                            : position,
-                          tpPx
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-medium">Target {index + 1}</p>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Remove target ${index + 1}`}
+                      disabled={busy}
+                      onClick={() =>
+                        setTargets((current) =>
+                          current.filter((one) => one.id !== target.id)
                         )
-                      )}`
-                    : "No target set."}
-                </p>
-              </div>
-              <div className="grid flex-1 gap-2">
-                <FieldLabel
-                  htmlFor="brackets-stop"
-                  hint="How far the price can move against you before the position is closed to stop the loss growing. Leave it empty for no stop."
-                >
-                  Stop loss %
-                </FieldLabel>
-                <Input
-                  id="brackets-stop"
-                  inputMode="decimal"
-                  placeholder="None"
-                  value={stopPct}
-                  disabled={busy}
-                  onChange={(event) => setStopPct(event.target.value)}
-                  aria-invalid={badStop}
-                />
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  {slPx
-                    ? `${formatPrice(slPx)} · ${formatSignedUsd(projectedProfit(position, slPx))}`
-                    : "No stop set."}
-                </p>
-              </div>
-            </div>
-            {tpPx !== null ? (
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="brackets-sell"
-                  hint="How much of the position is sold when the target is reached. 100% sells all of it; anything less sells that piece and leaves the rest running with no target."
-                >
-                  How much comes off
-                </FieldLabel>
-                <div className="flex gap-2">
-                  <Input
-                    id="brackets-sell"
-                    inputMode="decimal"
-                    className="flex-1"
-                    value={sellAmount}
-                    disabled={busy}
-                    onChange={(event) => setSellAmount(event.target.value)}
-                    aria-invalid={badSell}
-                  />
-                  <Select
-                    value={sellUnit}
-                    disabled={busy}
-                    onValueChange={(next) => {
-                      const unit = next as "pct" | "usd"
-                      // The same piece, said in the other unit, so switching
-                      // never quietly changes what would be sold.
-                      const typed = Number(sellAmount.trim())
-                      if (Number.isFinite(typed) && typed > 0 && heldSz > 0) {
-                        if (unit === "usd" && sellUnit === "pct") {
-                          setSellAmount(
-                            String(
-                              Number(((heldSz * (typed / 100)) * tpPx).toFixed(2))
-                            )
-                          )
-                        } else if (unit === "pct" && sellUnit === "usd") {
-                          setSellAmount(
-                            String(
-                              Number(((typed / tpPx / heldSz) * 100).toFixed(2))
+                      }
+                    >
+                      <Trash2Icon />
+                    </Button>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor={`brackets-target-price-${target.id}`}
+                        hint={`The price where target ${index + 1} sells its slice.`}
+                      >
+                        Price
+                      </FieldLabel>
+                      <Input
+                        id={`brackets-target-price-${target.id}`}
+                        inputMode="decimal"
+                        value={target.price}
+                        disabled={busy}
+                        onBlur={() => touch(`${target.id}:price`)}
+                        onChange={(event) =>
+                          setTargets((current) =>
+                            current.map((one) =>
+                              one.id === target.id
+                                ? { ...one, price: event.target.value }
+                                : one
                             )
                           )
                         }
-                      }
-                      setSellUnit(unit)
-                    }}
-                  >
-                    <SelectTrigger className="w-32 shrink-0">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pct">% of position</SelectItem>
-                      <SelectItem value="usd">USD</SelectItem>
-                    </SelectContent>
-                  </Select>
+                        aria-invalid={
+                          !target.validPx &&
+                          (attempted || touched.has(`${target.id}:price`))
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <FieldLabel
+                        htmlFor={`brackets-target-size-${target.id}`}
+                        hint={`The dollar value target ${index + 1} sells at its target price.`}
+                      >
+                        Size at target
+                      </FieldLabel>
+                      <Input
+                        id={`brackets-target-size-${target.id}`}
+                        inputMode="decimal"
+                        value={target.dollars}
+                        disabled={busy}
+                        onBlur={() => touch(`${target.id}:dollars`)}
+                        onChange={(event) =>
+                          setTargets((current) =>
+                            current.map((one) =>
+                              one.id === target.id
+                                ? { ...one, dollars: event.target.value }
+                                : one
+                            )
+                          )
+                        }
+                        aria-invalid={
+                          !target.validDollars &&
+                          (attempted || touched.has(`${target.id}:dollars`))
+                        }
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {target.validPx && target.validDollars
+                      ? `${formatSize(target.sz)} sold · ${formatSignedUsd(
+                          projectedProfit(
+                            {
+                              szi: Math.sign(position.szi) * target.sz,
+                              entryPx: position.entryPx,
+                            },
+                            target.px
+                          )
+                        )} banked`
+                      : "Enter a valid price and dollar size."}
+                  </p>
                 </div>
-                <p className="text-xs tabular-nums text-muted-foreground">
-                  {badSell
-                    ? "That does not work out to a piece of this position."
-                    : tpSz !== null
-                      ? `Sells ${formatSize(tpSz)} of ${formatSize(heldSz)} — ${formatUsd(tpSz * tpPx)} — and the rest keeps running with no target.`
-                      : "The whole position closes at the target."}
+              ))}
+              {targets.length < 3 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-self-start"
+                  disabled={busy}
+                  onClick={() =>
+                    setTargets((current) => [
+                      ...current,
+                      { id: crypto.randomUUID(), price: "", dollars: "" },
+                    ])
+                  }
+                >
+                  <PlusIcon />
+                  Add target
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Three targets is the maximum.
                 </p>
-              </div>
-            ) : null}
+              )}
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {targets.length === 0
+                  ? "No targets set."
+                  : `${formatUsd(Math.min(coveredSz, heldSz) * position.entryPx)} of ${formatUsd(heldSz * position.entryPx)} covered at the entry price.`}
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="brackets-stop"
+                hint="How far the price can move against you before the position is closed to stop the loss growing. Leave it empty for no stop."
+              >
+                Stop loss %
+              </FieldLabel>
+              <Input
+                id="brackets-stop"
+                inputMode="decimal"
+                placeholder="None"
+                value={stopPct}
+                disabled={busy}
+                onBlur={() => touch("stop")}
+                onChange={(event) => setStopPct(event.target.value)}
+                aria-invalid={badStop && (attempted || touched.has("stop"))}
+              />
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {slPx
+                  ? `${formatPrice(slPx)} · ${formatSignedUsd(projectedProfit(position, slPx))}`
+                  : "No stop set."}
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -388,7 +400,7 @@ function BracketsForm({
           type="button"
           className="shrink-0"
           aria-describedby={refusal ? "brackets-refusal" : undefined}
-          disabled={busy || badTarget || badStop || badSell}
+          disabled={busy}
           onClick={() => void save()}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
@@ -446,8 +458,8 @@ function PositionCost({
           <p className="text-xs text-amber-600 dark:text-amber-400">
             That start is after this position opened, so the real total is
             bigger. The fills on hand do not reach back any further — KuCoin
-            only answers for a day at a time, and the panel holds the newest
-            few thousand fills rather than an account&rsquo;s whole history.
+            only answers for a day at a time, and the panel holds the newest few
+            thousand fills rather than an account&rsquo;s whole history.
           </p>
         ) : null}
       </CardContent>

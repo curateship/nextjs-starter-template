@@ -701,8 +701,7 @@ export async function setKucoinBrackets(
   params: {
     marketId: string
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
-    tpPx: number | null
-    tpSz: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
@@ -713,38 +712,14 @@ export async function setKucoinBrackets(
   if (!(size > 0)) throw new Error("LIVE_POSITION_GONE")
   const long = params.position.szi > 0
 
-  // Old legs first, so the position is never guarded twice. A leg already
-  // gone is fine — that is the state being aimed for. EVERY leg goes, not the
-  // two the read named: a spare stop the app cannot see is a stop that can
-  // never be cancelled and sells the position a second time. See
-  // `protectionOrderIds`.
   const replacing = [...new Set(params.position.protectionOrderIds)]
-  for (const orderId of replacing) {
-    await kucoinSigned(
-      network,
-      credential,
-      "DELETE",
-      `/api/v1/orders/${encodeURIComponent(orderId)}`,
-      {}
-    ).catch(() => {})
-  }
+  const targets = params.targets.map((target) => {
+    const lots = target.sz === null ? null : lotsOf(target.sz, lot)
+    if (lots !== null && !(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
+    return { ...target, lots }
+  })
 
-  // Read the untriggered book back before arming anything new. A cancel that
-  // quietly failed would otherwise leave the position with two stops, and two
-  // stops sell it twice — the one mistake here that costs real money.
-  if (replacing.length > 0) {
-    const still = orderRows(
-      await pagedItems(network, credential, "/api/v1/stopOrders", {
-        symbol: params.marketId,
-      })
-    ).filter((row) => replacing.includes(row.id))
-    if (still.length > 0) {
-      throw new Error(
-        "LIVE_EXCHANGE:The old stop or target would not cancel, so no new one was placed — the position still carries the one it had."
-      )
-    }
-  }
-
+  const landed: string[] = []
   try {
     if (params.slPx !== null) {
       await sendOrder(
@@ -759,16 +734,9 @@ export async function setKucoinBrackets(
           lots: null,
         })
       )
+      landed.push(`stop at ${params.slPx}`)
     }
-    if (params.tpPx !== null) {
-      // A target may cover part of the position; a stop never does.
-      const partial =
-        params.tpSz !== null && params.tpSz < size * (1 - 1e-6)
-          ? lotsOf(params.tpSz, lot)
-          : null
-      if (partial !== null && !(partial > 0)) {
-        throw new Error("LIVE_SIZE_TOO_SMALL")
-      }
+    for (const target of targets) {
       await sendOrder(
         network,
         credential,
@@ -776,14 +744,47 @@ export async function setKucoinBrackets(
           marketId: params.marketId,
           long,
           leg: "target",
-          triggerPx: params.tpPx,
+          triggerPx: target.px,
           tick: priceTick,
-          lots: partial,
+          lots: target.lots,
         })
       )
+      landed.push(`target at ${target.px}`)
     }
   } catch (error) {
-    throw exchangeError(error)
+    throw new Error(
+      `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The replacement was refused: ${scrubbedMessage(error)}`
+    )
+  }
+
+  // KuCoin allows far more than the eight stop orders the largest old/new
+  // overlap can use. New protection stands before the old ids are cancelled.
+  for (const orderId of replacing) {
+    try {
+      await kucoinSigned(
+        network,
+        credential,
+        "DELETE",
+        `/api/v1/orders/${encodeURIComponent(orderId)}`,
+        {}
+      )
+    } catch (error) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} an old protection order could not be cancelled: ${scrubbedMessage(error)}`
+      )
+    }
+  }
+  if (replacing.length > 0) {
+    const still = orderRows(
+      await pagedItems(network, credential, "/api/v1/stopOrders", {
+        symbol: params.marketId,
+      })
+    ).filter((row) => replacing.includes(row.id))
+    if (still.length > 0) {
+      throw new Error(
+        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} ${still.length} old protection ${still.length === 1 ? "order is" : "orders are"} still on the exchange.`
+      )
+    }
   }
 }
 
@@ -940,6 +941,7 @@ export async function fetchKucoinPortfolio(
     bySymbol.set(row.symbol, list)
   }
 
+  const protectionIds = new Set<string>()
   const positions: WalletPosition[] = []
   for (const raw of Array.isArray(rawPositions) ? rawPositions : []) {
     const row = positionSchema.safeParse(raw)
@@ -965,9 +967,30 @@ export async function fetchKucoinPortfolio(
     const legs = [...(bySymbol.get(row.data.symbol) ?? [])].sort(
       (left, right) => left.id.localeCompare(right.id)
     )
-    const stop = legs.find((one) => legOf(one.stop, long) === "stop")
-    const target = legs.find((one) => legOf(one.stop, long) === "target")
-    const targetLots = target ? num(target.size) : null
+    const protection = legs.filter((one) => legOf(one.stop, long) !== null)
+    for (const leg of protection) protectionIds.add(leg.id)
+    const stop = protection.find((one) => legOf(one.stop, long) === "stop")
+    const targets = protection
+      .filter((one) => legOf(one.stop, long) === "target")
+      .map((target) => {
+        const targetLots = num(target.size)
+        return {
+          px: num(target.stopPrice),
+          sz:
+            targetLots !== null && targetLots > 0
+              ? coinsOf(targetLots, lot)
+              : null,
+          orderId: target.id,
+        }
+      })
+      .filter(
+        (
+          target
+        ): target is { px: number; sz: number | null; orderId: string } =>
+          target.px !== null
+      )
+      .sort((left, right) => left.px - right.px)
+    const target = targets[0] ?? null
 
     positions.push({
       marketId: row.data.symbol,
@@ -976,25 +999,22 @@ export async function fetchKucoinPortfolio(
       leverage: Math.abs(num(row.data.realLeverage) ?? 1),
       marginUsed: num(row.data.posMargin) ?? num(row.data.posInit) ?? 0,
       liquidationPx: num(row.data.liquidationPrice),
-      tpPx: target ? num(target.stopPrice) : null,
-      // Null when the target covers the whole position — a `closeOrder` leg
-      // carries no size at all, which is exactly what "all of it" means.
-      tpSz:
-        target && targetLots !== null && targetLots > 0
-          ? coinsOf(targetLots, lot)
-          : null,
+      targets,
+      tpPx: target?.px ?? null,
+      tpSz: target?.sz ?? null,
       slPx: stop ? num(stop.stopPrice) : null,
-      tpOrderId: target?.id ?? null,
+      tpOrderId: target?.orderId ?? null,
       slOrderId: stop?.id ?? null,
       // Every untriggered leg on this market, not only the two picked above,
       // because `setBrackets` has to cancel all of them — see
       // `protectionOrderIds`.
-      protectionOrderIds: legs.map((one) => one.id),
+      protectionOrderIds: protection.map((one) => one.id),
     })
   }
 
   const orders: WalletOpenOrder[] = []
   for (const row of [...open, ...untriggered]) {
+    if (protectionIds.has(row.id)) continue
     const { lot } = await kucoinMarketRules(network, row.symbol).catch(() => ({
       lot: { multiplier: 0, lotSize: 1 } as KucoinLotRule,
     }))

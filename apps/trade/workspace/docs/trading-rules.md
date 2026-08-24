@@ -76,19 +76,21 @@ add up to.
   still sitting exactly where it was.
 - **A trigger's price is never rewritten into a limit.** A stop or target leg
   the exchange holds is not a resting order, and no drag may turn it into one.
-- **A take profit can be sized.** By default it sells the whole position, as
-  it always has. Given a size, it sells exactly that much at the target price
-  and is used up by firing — the rest keeps running with no target. A size is
-  never more than the position holds, and on the exchange a sized target is a
-  fixed-size reduce-only trigger, never a position-scaled leg the exchange
-  would grow back to everything.
+- **A position may hold up to three sized targets.** Each target is a fixed-size
+  reduce-only order. The sizes together can cover no more than the position.
+  A lone target may still leave its size blank to sell the whole position, as
+  it always has. When one target sells, the other targets and the stop stay on
+  the unsold part. In the chart's target window, a percentage applies to the
+  position not already assigned to an earlier target. 100% always means all of
+  what is left.
 - **A part close chases as a maker and never leaves the rest unprotected.**
   Selling some of a position rests a reduce-only post-only limit off the price
   and follows it until it fills, never taking the market. It does not give up,
   because being half out is worse than any price the rest would have got. A
-  fixed-size target bigger than what will be left is brought down to what will
-  be left before the close is placed. Closing the WHOLE position keeps its own
-  behaviour and is still a market order — see `part-close.md`.
+  target list is shortened to what will be left before the close is placed.
+  The nearest targets stay first, and the last kept target is brought down when
+  needed. Closing the WHOLE position keeps its own behaviour and is still a
+  market order. See `part-close.md`.
 - **A remainder too small to be an order is not a remainder.** An amount that
   would leave less than the exchange's smallest order sells the whole position
   instead, because a scrap under the floor can never be closed again.

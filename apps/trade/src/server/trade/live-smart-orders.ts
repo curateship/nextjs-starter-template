@@ -821,6 +821,7 @@ async function reconcileLiveLaddersOnce(
       entryPx: held.entryPx,
       leverage: held.leverage,
       maxLeverage: held.leverage,
+      targets: held.targets,
       tpPx: held.tpPx,
       tpSz: held.tpSz,
       slPx: held.slPx,
@@ -956,6 +957,7 @@ async function reconcileLiveLaddersOnce(
       entryPx: held.entryPx,
       leverage: held.leverage,
       maxLeverage: held_plan?.maxLeverage ?? held.leverage,
+      targets: held.targets,
       tpPx: held.tpPx,
       slPx: held.slPx,
       feesPaid: 0,
@@ -1461,7 +1463,10 @@ async function reconcileLiveLaddersOnce(
             await setLiveBrackets(userId, {
               walletId: wallet.id,
               marketKey: row.marketKey,
-              tpPx: position.tpPx,
+              targets:
+                position.tpPx === null
+                  ? []
+                  : [{ px: position.tpPx, sz: position.tpSz ?? null }],
               slPx: position.slPx,
             })
           } catch (error) {
@@ -1936,7 +1941,7 @@ export async function updateLiveGridStop(
         walletId: wallet.id,
         marketKey: grid.marketKey,
         // A grid never writes a target: its exits are its resting sells.
-        tpPx: null,
+        targets: [],
         slPx,
       })
       plan.aimedSlPx = slPx
@@ -2092,7 +2097,7 @@ export async function moveLiveGridExit(
         await setLiveBrackets(userId, {
           walletId: wallet.id,
           marketKey: grid.marketKey,
-          tpPx: null,
+          targets: [],
           slPx: px,
         })
         plan.aimedSlPx = px

@@ -81,7 +81,10 @@ const waitedFor = new Set<string>()
  * months of old trades nobody was looking at.
  */
 /** The same question without spending the answer — see `loadLivePortfolio`. */
-export function sweepWouldBeWaitedFor(userId: string, walletId: string): boolean {
+export function sweepWouldBeWaitedFor(
+  userId: string,
+  walletId: string
+): boolean {
   return waitedFor.has(`${userId}:${walletId}`)
 }
 
@@ -253,9 +256,7 @@ export async function recordLiveFills(
     await announceFills(
       userId,
       wallet,
-      fills.filter((fill) =>
-        inserted.some((row) => row.fillId === fill.fillId)
-      )
+      fills.filter((fill) => inserted.some((row) => row.fillId === fill.fillId))
     )
   } catch (error) {
     console.error("trade_live_fills write failed", error)
@@ -508,7 +509,13 @@ async function recordTriggers(
     })
     const legs: Array<[string | null, number | null, LiveTriggerKind]> = [
       [position.slOrderId, position.slPx, "stop"],
-      [position.tpOrderId, position.tpPx, "target"],
+      ...position.targets.map(
+        (target): [string | null, number | null, LiveTriggerKind] => [
+          target.orderId,
+          target.px,
+          "target",
+        ]
+      ),
     ]
     for (const [orderId, px, kind] of legs) {
       if (!orderId || px === null) continue

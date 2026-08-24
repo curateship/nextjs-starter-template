@@ -343,9 +343,7 @@ export type Trading = {
   setBrackets: (
     position: TradePosition,
     brackets: {
-      tpPx: number | null
-      /** Coins the target sells; leave it out to sell the whole position. */
-      tpSz?: number | null
+      targets: Array<{ px: number; sz: number | null }>
       slPx: number | null
     }
   ) => Promise<boolean>
@@ -357,9 +355,7 @@ export type Trading = {
   dragBrackets: (
     position: TradePosition,
     brackets: {
-      tpPx: number | null
-      /** Coins the target sells; leave it out to sell the whole position. */
-      tpSz?: number | null
+      targets: Array<{ px: number; sz: number | null }>
       slPx: number | null
     }
   ) => Promise<void>
@@ -657,8 +653,7 @@ export function useTrading(
     ReadonlyMap<
       string,
       {
-        tpPx: number | null
-        tpSz?: number | null
+        targets: Array<{ px: number; sz: number | null }>
         slPx: number | null
         at: number
       }
@@ -1320,8 +1315,12 @@ export function useTrading(
       return held && !holdExpired(held.at)
         ? {
             ...position,
-            tpPx: held.tpPx,
-            tpSz: held.tpPx === null ? null : (held.tpSz ?? null),
+            targets: held.targets.map((target) => ({
+              ...target,
+              orderId: null,
+            })),
+            tpPx: held.targets[0]?.px ?? null,
+            tpSz: held.targets[0]?.sz ?? null,
             slPx: held.slPx,
           }
         : position

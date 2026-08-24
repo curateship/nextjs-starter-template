@@ -49,6 +49,10 @@ function position(kind: "target" | "stop"): TradePosition {
     entryPx: 100,
     leverage: 1,
     maxLeverage: 50,
+    targets:
+      kind === "target"
+        ? [{ px: 110, sz: null, orderId: "bracket-order" }]
+        : [],
     tpPx: kind === "target" ? 110 : null,
     slPx: kind === "stop" ? 90 : null,
     feesPaid: 0,
@@ -124,7 +128,10 @@ describe("chart bracket lines", () => {
     const held = position("stop")
     const calls: Array<{
       position: TradePosition
-      brackets: { tpPx: number | null; slPx: number | null }
+      brackets: {
+        targets: Array<{ px: number; sz: number | null }>
+        slPx: number | null
+      }
     }> = []
     const host = document.createElement("div")
     const root = createRoot(host)
@@ -158,7 +165,7 @@ describe("chart bracket lines", () => {
     })
 
     expect(calls).toEqual([
-      { position: held, brackets: { tpPx: null, tpSz: null, slPx: null } },
+      { position: held, brackets: { targets: [], slPx: null } },
     ])
     await act(async () => root.unmount())
   })

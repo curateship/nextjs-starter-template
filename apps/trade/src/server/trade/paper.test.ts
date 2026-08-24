@@ -103,7 +103,11 @@ function bar(over: Partial<CandleBar>): CandleBar {
 async function lastLookedAt(msAgo: number) {
   await database
     .insert(tradePaperState)
-    .values({ userId, walletId: wallet.id, settledTo: new Date(Date.now() - msAgo) })
+    .values({
+      userId,
+      walletId: wallet.id,
+      settledTo: new Date(Date.now() - msAgo),
+    })
     .onConflictDoUpdate({
       target: [tradePaperState.userId, tradePaperState.walletId],
       set: { settledTo: new Date(Date.now() - msAgo) },
@@ -369,7 +373,11 @@ describe("settling against the price right now", () => {
 
   it("takes a profit at the target price even when price has run past it", async () => {
     await openLong()
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 120, slPx: null })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [{ px: 120, sz: null }],
+      slPx: null,
+    })
 
     marks.set("BTC", 130)
     const account = await loadPaperPortfolio(userId, [wallet])
@@ -386,8 +394,7 @@ describe("settling against the price right now", () => {
     await openLong(2)
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: 120,
-      tpSz: 0.5,
+      targets: [{ px: 120, sz: 0.5 }],
       slPx: 95,
     })
 
@@ -410,12 +417,42 @@ describe("settling against the price right now", () => {
     expect(await reasons()).toEqual(["order", "take_profit"])
   })
 
+  it("fills several targets one at a time and keeps the stop on the remainder", async () => {
+    await openLong(12)
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [
+        { px: 110, sz: 4 },
+        { px: 120, sz: 4 },
+        { px: 135, sz: 4 },
+      ],
+      slPx: 90,
+    })
+
+    marks.set("BTC", 111)
+    let account = await loadPaperPortfolio(userId, [wallet])
+    expect(account.positions[0].szi).toBeCloseTo(8, 10)
+    expect(account.positions[0].targets.map((target) => target.px)).toEqual([
+      120, 135,
+    ])
+
+    marks.set("BTC", 121)
+    account = await loadPaperPortfolio(userId, [wallet])
+    expect(account.positions[0].szi).toBeCloseTo(4, 10)
+    expect(account.positions[0].targets).toEqual([
+      { px: 135, sz: 4, orderId: null },
+    ])
+    expect(account.positions[0].slPx).toBe(90)
+    expect(
+      (await journal()).filter((row) => row.reason === "take_profit")
+    ).toHaveLength(2)
+  })
+
   it("treats a target sized at the whole position as a full close", async () => {
     await openLong(2)
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: 120,
-      tpSz: 2,
+      targets: [{ px: 120, sz: 2 }],
       slPx: null,
     })
 
@@ -433,8 +470,7 @@ describe("settling against the price right now", () => {
     // the exchange would actually take.
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: 120,
-      tpSz: 0.5009999,
+      targets: [{ px: 120, sz: 0.5009999 }],
       slPx: null,
     })
     const account = await loadPaperPortfolio(userId, [wallet])
@@ -445,8 +481,7 @@ describe("settling against the price right now", () => {
     await expect(
       setPaperBrackets(userId, wallet, {
         marketKey: BTC,
-        tpPx: 120,
-        tpSz: 0.0001,
+        targets: [{ px: 120, sz: 0.0001 }],
         slPx: null,
       })
     ).rejects.toThrow("PAPER_TAKE_PROFIT_SIZE")
@@ -457,16 +492,19 @@ describe("settling against the price right now", () => {
     await expect(
       setPaperBrackets(userId, wallet, {
         marketKey: BTC,
-        tpPx: 120,
-        tpSz: 1.5,
+        targets: [{ px: 120, sz: 1.5 }],
         slPx: null,
       })
-    ).rejects.toThrow("PAPER_TAKE_PROFIT_SIZE")
+    ).rejects.toThrow("PAPER_TAKE_PROFIT_TOTAL")
   })
 
   it("fills a stop at the market when price has gapped through it", async () => {
     await openLong()
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: null, slPx: 95 })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: 95,
+    })
 
     marks.set("BTC", 93)
     await loadPaperPortfolio(userId, [wallet])
@@ -489,7 +527,11 @@ describe("settling against the price right now", () => {
 
   it("takes the stop first when it sits inside the liquidation price", async () => {
     await openLong(1, 5)
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: null, slPx: 90 })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: 90,
+    })
 
     // Far enough down to have passed the stop at 90 and liquidation at 81.
     marks.set("BTC", 70)
@@ -501,7 +543,11 @@ describe("settling against the price right now", () => {
 
   it("changes nothing when it runs again", async () => {
     await openLong()
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 120, slPx: null })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [{ px: 120, sz: null }],
+      slPx: null,
+    })
     marks.set("BTC", 125)
 
     await loadPaperPortfolio(userId, [wallet])
@@ -551,7 +597,15 @@ describe("catching up on candles nobody was watching", () => {
       slPx: null,
     })
     // The order is stamped now, so give it a bar that opens after it.
-    candles = [bar({ openTime: Date.now() + MINUTE, open: 100, high: 101, low: 88, close: 100 })]
+    candles = [
+      bar({
+        openTime: Date.now() + MINUTE,
+        open: 100,
+        high: 101,
+        low: 88,
+        close: 100,
+      }),
+    ]
     await lastLookedAt(10 * MINUTE)
 
     const account = await loadPaperPortfolio(userId, [wallet])
@@ -563,9 +617,21 @@ describe("catching up on candles nobody was watching", () => {
 
   it("gives a candle that covered both the target and the stop to the stop", async () => {
     await openLong()
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 120, slPx: 90 })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [{ px: 120, sz: null }],
+      slPx: 90,
+    })
 
-    candles = [bar({ openTime: Date.now() + MINUTE, open: 100, high: 125, low: 85, close: 100 })]
+    candles = [
+      bar({
+        openTime: Date.now() + MINUTE,
+        open: 100,
+        high: 125,
+        low: 85,
+        close: 100,
+      }),
+    ]
     await lastLookedAt(10 * MINUTE)
     await loadPaperPortfolio(userId, [wallet])
 
@@ -585,7 +651,15 @@ describe("catching up on candles nobody was watching", () => {
       slPx: null,
     })
     // A bar that opened well before the order was placed.
-    candles = [bar({ openTime: Date.now() - 5 * MINUTE, open: 100, high: 100, low: 85, close: 100 })]
+    candles = [
+      bar({
+        openTime: Date.now() - 5 * MINUTE,
+        open: 100,
+        high: 100,
+        low: 85,
+        close: 100,
+      }),
+    ]
     await lastLookedAt(10 * MINUTE)
 
     const account = await loadPaperPortfolio(userId, [wallet])
@@ -759,10 +833,18 @@ describe("managing what is open", () => {
   it("refuses a stop on the wrong side of the trade", async () => {
     await openLong()
     await expect(
-      setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: null, slPx: 120 })
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        targets: [],
+        slPx: 120,
+      })
     ).rejects.toThrow("PAPER_STOP_SIDE")
     await expect(
-      setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 80, slPx: null })
+      setPaperBrackets(userId, wallet, {
+        marketKey: BTC,
+        targets: [{ px: 80, sz: null }],
+        slPx: null,
+      })
     ).rejects.toThrow("PAPER_TAKE_PROFIT_SIDE")
   })
 
@@ -772,7 +854,7 @@ describe("managing what is open", () => {
 
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: null,
+      targets: [],
       slPx: 110,
     })
     expect((await positions())[0].slPx).toBe(110)
@@ -780,7 +862,7 @@ describe("managing what is open", () => {
     await expect(
       setPaperBrackets(userId, wallet, {
         marketKey: BTC,
-        tpPx: null,
+        targets: [],
         slPx: 121,
       })
     ).rejects.toThrow("PAPER_STOP_SIDE")
@@ -792,7 +874,7 @@ describe("managing what is open", () => {
 
     await setPaperBrackets(userId, wallet, {
       marketKey: BTC,
-      tpPx: null,
+      targets: [],
       slPx: 90,
     })
     expect((await positions())[0].slPx).toBe(90)
@@ -800,7 +882,7 @@ describe("managing what is open", () => {
     await expect(
       setPaperBrackets(userId, wallet, {
         marketKey: BTC,
-        tpPx: null,
+        targets: [],
         slPx: 79,
       })
     ).rejects.toThrow("PAPER_STOP_SIDE")
@@ -808,8 +890,16 @@ describe("managing what is open", () => {
 
   it("clears a target and a stop again", async () => {
     await openLong()
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: 120, slPx: 90 })
-    await setPaperBrackets(userId, wallet, { marketKey: BTC, tpPx: null, slPx: null })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [{ px: 120, sz: null }],
+      slPx: 90,
+    })
+    await setPaperBrackets(userId, wallet, {
+      marketKey: BTC,
+      targets: [],
+      slPx: null,
+    })
     const [held] = await positions()
     expect(held.tpPx).toBeNull()
     expect(held.slPx).toBeNull()
@@ -900,7 +990,10 @@ describe("what the account is worth", () => {
     expect(account?.openProfit).toBeCloseTo(10, 10)
     // Up ten on the position, and being up is money the account has: free is
     // what it is worth less what is committed. 10,000 − fee − 20 margin + 10.
-    expect(account?.free).toBeCloseTo(10_000 - 100 * TAKER_FEE_RATE - 20 + 10, 8)
+    expect(account?.free).toBeCloseTo(
+      10_000 - 100 * TAKER_FEE_RATE - 20 + 10,
+      8
+    )
   })
 })
 

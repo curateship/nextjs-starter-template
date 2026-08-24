@@ -16,6 +16,7 @@ function position(
     entryPx: 100,
     leverage: 5,
     maxLeverage: 10,
+    targets: [],
     tpPx: null,
     slPx: null,
     feesPaid: 0,

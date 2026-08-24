@@ -271,9 +271,7 @@ describe("the rails around placing", () => {
         px: 77_000,
         sz: 10 / 77_000,
       })
-    ).rejects.toThrow(
-      "smallest order here is $77.00, and this order is $10.00"
-    )
+    ).rejects.toThrow("smallest order here is $77.00, and this order is $10.00")
     expect(place).not.toHaveBeenCalled()
   })
 
@@ -410,6 +408,7 @@ describe("protecting a position", () => {
           leverage: 5,
           marginUsed: 18_000,
           liquidationPx: null,
+          targets: [],
           tpPx: null,
           tpSz: null,
           slPx: null,
@@ -423,35 +422,77 @@ describe("protecting a position", () => {
     await setLiveBrackets(userId, {
       walletId,
       marketKey: MARKET,
-      tpPx: 100_000,
-      tpSz: 0.25,
+      targets: [
+        { px: 100_000, sz: 0.25 },
+        { px: 110_000, sz: 0.25 },
+        { px: 120_000, sz: 0.5 },
+      ],
       slPx: null,
     })
     expect(setBrackets).toHaveBeenCalledTimes(1)
-    expect(setBrackets.mock.calls[0][2]).toMatchObject({ tpSz: 0.25 })
-
-    // Selling the whole position is what no size already means, so it is
-    // never written down as a size — the exchange leg then scales with the
-    // position instead of being pinned to today's figure.
-    await setLiveBrackets(userId, {
-      walletId,
-      marketKey: MARKET,
-      tpPx: 100_000,
-      tpSz: 1,
-      slPx: null,
+    expect(setBrackets.mock.calls[0][2]).toMatchObject({
+      targets: [
+        { px: 100_000, sz: 0.25 },
+        { px: 110_000, sz: 0.25 },
+        { px: 120_000, sz: 0.5 },
+      ],
     })
-    expect(setBrackets.mock.calls[1][2]).toMatchObject({ tpSz: null })
 
     await expect(
       setLiveBrackets(userId, {
         walletId,
         marketKey: MARKET,
-        tpPx: 100_000,
-        tpSz: 1.5,
+        targets: [
+          { px: 100_000, sz: 0.6 },
+          { px: 110_000, sz: 0.6 },
+        ],
         slPx: null,
       })
-    ).rejects.toThrow("LIVE_TAKE_PROFIT_SIZE")
-    expect(setBrackets).toHaveBeenCalledTimes(2)
+    ).rejects.toThrow("LIVE_TAKE_PROFIT_TOTAL")
+    expect(setBrackets).toHaveBeenCalledTimes(1)
+  })
+
+  it("writes a bracket replacement refusal in plain words", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+        },
+      ],
+      orders: [],
+    })
+    setBrackets.mockRejectedValue(
+      new Error(
+        "LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on. The new stop also went on."
+      )
+    )
+
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [{ px: 110_000, sz: null }],
+        slPx: null,
+      })
+    ).rejects.toThrow("LIVE_BRACKET_REPLACE_PARTIAL")
+
+    const [row] = await journalRows(userId)
+    expect(row.note).toBe(
+      "The old protection is still on. The new stop also went on."
+    )
   })
 
   it("lets a long trail its stop above entry but not beyond the current price", async () => {
@@ -466,6 +507,7 @@ describe("protecting a position", () => {
           leverage: 5,
           marginUsed: 18_000,
           liquidationPx: null,
+          targets: [],
           tpPx: null,
           slPx: null,
           tpOrderId: null,
@@ -478,7 +520,7 @@ describe("protecting a position", () => {
     await setLiveBrackets(userId, {
       walletId,
       marketKey: MARKET,
-      tpPx: null,
+      targets: [],
       slPx: 95_000,
     })
     expect(setBrackets).toHaveBeenCalledTimes(1)
@@ -487,7 +529,7 @@ describe("protecting a position", () => {
       setLiveBrackets(userId, {
         walletId,
         marketKey: MARKET,
-        tpPx: null,
+        targets: [],
         slPx: 101_000,
       })
     ).rejects.toThrow("LIVE_STOP_SIDE")
@@ -506,6 +548,7 @@ describe("protecting a position", () => {
           leverage: 5,
           marginUsed: 22_000,
           liquidationPx: null,
+          targets: [],
           tpPx: null,
           slPx: null,
           tpOrderId: null,
@@ -518,7 +561,7 @@ describe("protecting a position", () => {
     await setLiveBrackets(userId, {
       walletId,
       marketKey: MARKET,
-      tpPx: null,
+      targets: [],
       slPx: 105_000,
     })
     expect(setBrackets).toHaveBeenCalledTimes(1)
@@ -527,7 +570,7 @@ describe("protecting a position", () => {
       setLiveBrackets(userId, {
         walletId,
         marketKey: MARKET,
-        tpPx: null,
+        targets: [],
         slPx: 99_000,
       })
     ).rejects.toThrow("LIVE_STOP_SIDE")

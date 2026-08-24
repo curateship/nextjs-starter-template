@@ -182,7 +182,7 @@ async function refuse(
     // The move codes carry a whole written sentence rather than a bare
     // reason, so stripping the code leaves the Journal reading properly.
     note: message.replace(
-      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
+      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
       ""
     ),
   })
@@ -732,9 +732,7 @@ export async function setLiveBrackets(
   input: {
     walletId: string
     marketKey: string
-    tpPx: number | null
-    /** Coins the target sells; null or the whole position sells everything. */
-    tpSz?: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }
 ): Promise<void> {
@@ -756,20 +754,31 @@ export async function setLiveBrackets(
     side = held.szi > 0 ? "buy" : "sell"
 
     const long = held.szi > 0
-    if (input.tpPx !== null) {
-      const winning = long
-        ? input.tpPx > held.entryPx
-        : input.tpPx < held.entryPx
+    const targets = [...input.targets].sort((left, right) => left.px - right.px)
+    if (targets.length > 3) throw new Error("LIVE_TAKE_PROFIT_COUNT")
+    for (const target of targets) {
+      const winning = long ? target.px > held.entryPx : target.px < held.entryPx
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
-    // A size only means something on a target that exists, and it may not be
-    // more than is held. Selling everything is what null already says.
-    let tpSz = input.tpPx === null ? null : (input.tpSz ?? null)
-    if (tpSz !== null) {
-      if (!(tpSz > 0) || tpSz > Math.abs(held.szi) * (1 + 1e-6)) {
-        throw new Error("LIVE_TAKE_PROFIT_SIZE")
-      }
-      if (tpSz >= Math.abs(held.szi) * (1 - 1e-6)) tpSz = null
+    if (targets.length > 1 && targets.some((target) => target.sz === null)) {
+      throw new Error("LIVE_TAKE_PROFIT_LIST_SIZE")
+    }
+    const heldSz = Math.abs(held.szi)
+    const coveredSz = targets.reduce(
+      (sum, target) => sum + (target.sz ?? heldSz),
+      0
+    )
+    if (targets.some((target) => target.sz !== null && !(target.sz > 0))) {
+      throw new Error("LIVE_TAKE_PROFIT_SIZE")
+    }
+    if (coveredSz > heldSz * (1 + 1e-6)) {
+      const targetsUsd = targets.reduce(
+        (sum, target) => sum + (target.sz ?? heldSz) * target.px,
+        0
+      )
+      throw new Error(
+        `LIVE_TAKE_PROFIT_TOTAL:${targetsUsd}:${heldSz * held.entryPx}`
+      )
     }
     if (input.slPx !== null) {
       const prices = await protocol.markets.prices(row.network, [ref.marketId])
@@ -782,14 +791,13 @@ export async function setLiveBrackets(
     await ordersOf(protocol).setBrackets(row.network, authFor(row), {
       marketId: ref.marketId,
       position: held,
-      tpPx: input.tpPx,
-      tpSz,
+      targets,
       slPx: input.slPx,
     })
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,
-      note: describeBrackets(input.tpPx, tpSz, input.slPx),
+      note: describeBrackets(targets, input.slPx),
     })
   } catch (error) {
     await refuse(userId, row.id, input.marketKey, side, error)
@@ -797,14 +805,18 @@ export async function setLiveBrackets(
 }
 
 function describeBrackets(
-  tpPx: number | null,
-  tpSz: number | null,
+  targets: Array<{ px: number; sz: number | null }>,
   slPx: number | null
 ): string {
   const parts = [
-    tpPx !== null
-      ? `take profit at ${tpPx}${tpSz !== null ? ` selling ${tpSz}` : ""}`
-      : "take profit removed",
+    targets.length > 0
+      ? `take profit at ${targets
+          .map(
+            (target) =>
+              `${target.px}${target.sz !== null ? ` selling ${target.sz}` : " selling the whole position"}`
+          )
+          .join(", ")}`
+      : "take profits removed",
     slPx !== null ? `stop at ${slPx}` : "stop removed",
   ]
   return `Protection set: ${parts.join(", ")}.`

@@ -14,10 +14,7 @@ import {
 } from "@/components/trade/close-position-dialog"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
-import {
-  TradeTable,
-  type ColumnSpec,
-} from "@/components/trade/trade-table"
+import { TradeTable, type ColumnSpec } from "@/components/trade/trade-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { TableRow, type TableSortDirection } from "@/components/ui/table"
@@ -97,6 +94,20 @@ function RealBadge({ marketKey }: { marketKey: string }) {
 /** Marks a row from a practice wallet, so pretend money never reads as real. */
 function PracticeBadge() {
   return <TradeBadge>Practice</TradeBadge>
+}
+
+function targetsProfit(position: TradePosition): number | null {
+  if (position.targets.length === 0) return null
+  return position.targets.reduce((sum, target) => {
+    const sz = target.sz ?? Math.abs(position.szi)
+    return (
+      sum +
+      projectedProfit(
+        { szi: Math.sign(position.szi) * sz, entryPx: position.entryPx },
+        target.px
+      )
+    )
+  }, 0)
 }
 
 /**
@@ -373,9 +384,9 @@ function PositionRow({
               these two say which colour they mean rather than asking a helper
               with a made-up figure. */}
           <span className={MADE_MONEY}>
-            {position.tpPx === null
+            {targetsProfit(position) === null
               ? "—"
-              : formatSignedUsd(projectedProfit(position, position.tpPx))}
+              : `${position.targets.length > 1 ? `${position.targets.length} · ` : ""}${formatSignedUsd(targetsProfit(position) ?? 0)}`}
           </span>
           <span className="text-muted-foreground">/</span>
           <span className={LOST_MONEY}>
@@ -585,9 +596,7 @@ export function PositionsTable({
       case "liquidation":
         return liquidationAwayOf(position, mark) ?? Number.POSITIVE_INFINITY
       case "projected":
-        return position.tpPx === null
-          ? Number.NEGATIVE_INFINITY
-          : projectedProfit(position, position.tpPx)
+        return targetsProfit(position) ?? Number.NEGATIVE_INFINITY
       case "fees":
         // The figure the row prints, so the order and the number agree. A
         // real position with nothing swept has no figure at all and sorts to

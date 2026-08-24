@@ -234,6 +234,7 @@ describe("the chart stop-loss shortcut", () => {
       entryPx: 100,
       leverage: 2,
       maxLeverage: 50,
+      targets: [{ px: 120, sz: 0.4, orderId: null }],
       tpPx: 120,
       tpSz: 0.4,
       slPx: null,
@@ -242,8 +243,7 @@ describe("the chart stop-loss shortcut", () => {
     }
 
     expect(bracketsWithStopAt(position, 90)).toEqual({
-      tpPx: 120,
-      tpSz: 0.4,
+      targets: [{ px: 120, sz: 0.4 }],
       slPx: 90,
     })
   })
@@ -265,6 +265,7 @@ describe("the chart stop-loss shortcut", () => {
       entryPx: 100,
       leverage: 2,
       maxLeverage: 50,
+      targets: [],
       tpPx: null,
       slPx: null,
       feesPaid: 0,
@@ -322,11 +323,75 @@ describe("the chart stop-loss shortcut", () => {
     await act(async () => stop?.click())
 
     expect(dragBrackets).toHaveBeenCalledWith(position, {
-      tpPx: null,
-      tpSz: null,
+      targets: [],
       slPx: 90,
     })
     expect(setBrackets).not.toHaveBeenCalled()
     expect(host.textContent).not.toContain("Stop loss")
+  })
+})
+
+describe("the chart take-profit shortcut", () => {
+  it("stays available after the position has its first target", async () => {
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    const position = {
+      id: "position-1",
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:BTC",
+      szi: -2,
+      entryPx: 100,
+      leverage: 2,
+      maxLeverage: 50,
+      targets: [{ px: 80, sz: 0.5, orderId: "target-1" }],
+      tpPx: 80,
+      tpSz: 0.5,
+      slPx: 110,
+      feesPaid: 0,
+      updatedAt: 0,
+    }
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+      positions: [position],
+      walletNames: new Map([["wallet-1", "Practice"]]),
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC" } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+
+    const plot = host.firstElementChild
+    await act(async () => {
+      plot?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+
+    expect(host.textContent).toContain("Take profit")
   })
 })

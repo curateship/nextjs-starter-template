@@ -44,8 +44,7 @@ export function ChartTakeProfit({
   position: TradePosition
   wallet: string
   onSave: (brackets: {
-    tpPx: number
-    tpSz: number | null
+    targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
   }) => void
   onClose: () => void
@@ -53,6 +52,8 @@ export function ChartTakeProfit({
   const held = Math.abs(position.szi)
   const [amount, setAmount] = React.useState("100")
   const [unit, setUnit] = React.useState<"pct" | "usd">("pct")
+  const [touched, setTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [at, setAt] = React.useState(() => ({
     x: Math.max(
       EDGE,
@@ -99,17 +100,57 @@ export function ChartTakeProfit({
     return () => document.removeEventListener("keydown", onKeyDown)
   }, [onClose])
 
+  const wholePositionTarget =
+    position.targets.length === 1 && position.targets[0]?.sz === null
+      ? position.targets[0]
+      : null
+  const covered = position.targets.reduce(
+    (sum, target) => sum + (target.sz ?? held),
+    0
+  )
+  // A lone whole-position target can be split. Fixed targets can only use the
+  // coins the existing rows have not already claimed.
+  const available = wholePositionTarget
+    ? held
+    : Math.max(0, held - covered)
   const typed = Number(amount.trim())
-  const coins = unit === "pct" ? held * (typed / 100) : typed / state.px
-  const valid = Number.isFinite(coins) && coins > 0
-  const sellsAll = valid && coins >= held * (1 - 1e-9)
-  const tpSz = sellsAll ? null : coins
+  const coins =
+    unit === "pct" ? available * (typed / 100) : typed / state.px
+  const validAmount = Number.isFinite(coins) && coins > 0
+  const valid =
+    position.targets.length < 3 &&
+    validAmount &&
+    coins <= available * (1 + 1e-9)
+  const showInvalid = !valid && (touched || attempted)
 
   const submit = () => {
-    if (!valid) return
+    if (!valid) {
+      setAttempted(true)
+      return
+    }
+    const existing = position.targets.map((target) => ({
+      px: target.px,
+      sz: target.sz,
+    }))
+    const targets = wholePositionTarget
+      ? held - coins > held * 1e-9
+        ? [
+            { px: wholePositionTarget.px, sz: held - coins },
+            { px: state.px, sz: coins },
+          ]
+        : [{ px: state.px, sz: null }]
+      : [
+          ...existing,
+          {
+            px: state.px,
+            sz:
+              existing.length === 0 && coins >= held * (1 - 1e-9)
+                ? null
+                : coins,
+          },
+        ]
     onSave({
-      tpPx: state.px,
-      tpSz,
+      targets: targets.sort((left, right) => left.px - right.px),
       slPx: position.slPx,
     })
     onClose()
@@ -158,12 +199,10 @@ export function ChartTakeProfit({
               <span className="text-emerald-600 dark:text-emerald-400">
                 {formatSignedUsd(
                   projectedProfit(
-                    tpSz === null
-                      ? position
-                      : {
-                          szi: Math.sign(position.szi) * tpSz,
-                          entryPx: position.entryPx,
-                        },
+                    {
+                      szi: Math.sign(position.szi) * coins,
+                      entryPx: position.entryPx,
+                    },
                     state.px
                   )
                 )}
@@ -181,20 +220,27 @@ export function ChartTakeProfit({
                 autoFocus
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
+                onBlur={() => setTouched(true)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") submit()
                 }}
-                aria-invalid={!valid}
+                aria-invalid={showInvalid}
+                aria-describedby="chart-target-help"
               />
               <Select
                 value={unit}
                 onValueChange={(next) => {
                   const nextUnit = next as "pct" | "usd"
-                  if (valid) {
+                  if (
+                    validAmount &&
+                    (nextUnit === "usd" || available > 0)
+                  ) {
                     setAmount(
                       nextUnit === "usd"
                         ? String(Number((coins * state.px).toFixed(2)))
-                        : String(Number(((coins / held) * 100).toFixed(2)))
+                        : String(
+                            Number(((coins / available) * 100).toFixed(2))
+                          )
                     )
                   }
                   setUnit(nextUnit)
@@ -207,7 +253,11 @@ export function ChartTakeProfit({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pct">% of position</SelectItem>
+                  <SelectItem value="pct">
+                    {position.targets.length === 0
+                      ? "% of position"
+                      : "% of remaining"}
+                  </SelectItem>
                   <SelectItem value="usd">USD</SelectItem>
                 </SelectContent>
               </Select>
@@ -229,12 +279,22 @@ export function ChartTakeProfit({
                 </Button>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground tabular-nums">
-              {valid
-                ? tpSz === null
-                  ? `The whole ${formatSize(held)} position closes.`
-                  : `${formatSize(tpSz)} comes off, worth ${formatUsd(tpSz * state.px)} at the target.`
-                : "Enter an amount greater than zero."}
+            <p
+              id="chart-target-help"
+              className="text-xs text-muted-foreground tabular-nums"
+            >
+              {position.targets.length >= 3
+                ? "Three targets is the maximum."
+                : !validAmount
+                  ? "Enter an amount greater than zero."
+                  : coins > available * (1 + 1e-9)
+                    ? `${formatSize(available)} is available for another target.`
+                    : wholePositionTarget && coins < held * (1 - 1e-9)
+                      ? `${formatSize(coins)} comes off here. The existing target keeps ${formatSize(held - coins)}.`
+                      : position.targets.length === 0 &&
+                          coins >= held * (1 - 1e-9)
+                        ? `The whole ${formatSize(held)} position closes.`
+                        : `${formatSize(coins)} comes off, worth ${formatUsd(coins * state.px)} at the target.`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -249,10 +309,9 @@ export function ChartTakeProfit({
             <Button
               type="button"
               className="flex-1"
-              disabled={!valid}
               onClick={submit}
             >
-              Set target
+              {position.targets.length === 0 ? "Set target" : "Add target"}
             </Button>
           </div>
         </div>

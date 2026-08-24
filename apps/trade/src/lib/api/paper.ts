@@ -9,6 +9,7 @@ import {
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import { formatUsd } from "@/lib/trade/format"
 import { userGet, userPost } from "@/server/guards"
 import {
   cancelPaperOrder as cancelOrderRow,
@@ -84,12 +85,15 @@ const updateSchema = z.object({
   slPx: z.number().positive().finite().nullable(),
 })
 
+const targetSchema = z.object({
+  px: z.number().positive().finite(),
+  sz: z.number().positive().finite().nullable(),
+})
+
 const bracketsSchema = z.object({
   walletId: z.string().max(36),
   marketKey: marketKeySchema,
-  tpPx: z.number().positive().finite().nullable(),
-  // Coins the target sells when it fires; null sells the whole position.
-  tpSz: z.number().positive().finite().nullable().optional(),
+  targets: z.array(targetSchema).max(3),
   slPx: z.number().positive().finite().nullable(),
 })
 
@@ -178,7 +182,10 @@ const loadPaperPortfolioFn = createServerFn({ method: "GET" })
         ...portfolio,
         smartOrders: smart.smartOrders,
         smartOrdersStamp: smart.stamp,
-        wallets: paper.map((wallet) => ({ id: wallet.id, label: wallet.label })),
+        wallets: paper.map((wallet) => ({
+          id: wallet.id,
+          label: wallet.label,
+        })),
       }
     }
   )
@@ -343,7 +350,7 @@ export function hidePaperTrade(fillIds: string[]) {
   return hidePaperTradeFn({ data: { fillIds } })
 }
 
-export const getPaperErrorMessage = createErrorMessage(
+const paperErrorMessage = createErrorMessage(
   {
     PAPER_WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
@@ -371,8 +378,25 @@ export const getPaperErrorMessage = createErrorMessage(
       "A take profit has to be where the trade wins — above the entry on a long, below it on a short.",
     PAPER_TAKE_PROFIT_SIZE:
       "The take profit has to sell at least the market's smallest step and no more than the position holds.",
+    PAPER_TAKE_PROFIT_COUNT: "A position can have no more than three targets.",
+    PAPER_TAKE_PROFIT_LIST_SIZE:
+      "Each target needs its own size when a position has more than one target.",
     PAPER_STOP_SIDE:
       "A stop must stay beyond the current price — below it on a long, above it on a short.",
   },
   "That did not go through. Try it again."
 )
+
+export function getPaperErrorMessage(error: unknown): string {
+  const message =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
+  const targetTotal = message.match(/PAPER_TAKE_PROFIT_TOTAL:([^:]+):([^:]+)/)
+  if (targetTotal) {
+    return `The targets add up to ${formatUsd(Number(targetTotal[1]))}, but the position holds ${formatUsd(Number(targetTotal[2]))}. Lower one or more target sizes.`
+  }
+  return paperErrorMessage(error)
+}

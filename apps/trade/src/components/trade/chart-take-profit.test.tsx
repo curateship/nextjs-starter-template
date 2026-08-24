@@ -18,6 +18,7 @@ const position: TradePosition = {
   entryPx: 100,
   leverage: 2,
   maxLeverage: 50,
+  targets: [],
   tpPx: null,
   slPx: 90,
   feesPaid: 0,
@@ -45,6 +46,18 @@ function button(name: string): HTMLButtonElement {
   )
   if (!found) throw new Error(`Missing ${name} button`)
   return found
+}
+
+async function setAmount(value: string) {
+  const input = host.querySelector<HTMLInputElement>("#chart-target-size")
+  if (!input) throw new Error("Missing target amount input")
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(
+      input,
+      value
+    )
+    input.dispatchEvent(new Event("input", { bubbles: true }))
+  })
 }
 
 describe("the chart take-profit window", () => {
@@ -78,8 +91,7 @@ describe("the chart take-profit window", () => {
     await act(async () => button("Set target").click())
 
     expect(onSave).toHaveBeenCalledWith({
-      tpPx: 120,
-      tpSz: null,
+      targets: [{ px: 120, sz: null }],
       slPx: 90,
     })
     expect(onClose).toHaveBeenCalledOnce()
@@ -104,9 +116,100 @@ describe("the chart take-profit window", () => {
     await act(async () => button("Set target").click())
 
     expect(onSave).toHaveBeenCalledWith({
-      tpPx: 120,
-      tpSz: 0.5,
+      targets: [{ px: 120, sz: 0.5 }],
       slPx: 90,
     })
+  })
+
+  it("treats 100% as everything left after the first target", async () => {
+    const onSave = vi.fn()
+    await act(async () =>
+      root.render(
+        <ChartTakeProfit
+          state={{ positionId: position.id, px: 130, x: 40, y: 60 }}
+          position={{
+            ...position,
+            targets: [{ px: 120, sz: 1, orderId: "target-1" }],
+            tpPx: 120,
+          }}
+          wallet="Practice"
+          onSave={onSave}
+          onClose={() => {}}
+        />
+      )
+    )
+
+    expect(host.textContent).toContain("% of remaining")
+    await act(async () => button("Add target").click())
+
+    expect(onSave).toHaveBeenCalledWith({
+      targets: [
+        { px: 120, sz: 1 },
+        { px: 130, sz: 1 },
+      ],
+      slPx: 90,
+    })
+  })
+
+  it("splits an existing whole-position target when another is added", async () => {
+    const onSave = vi.fn()
+    await act(async () =>
+      root.render(
+        <ChartTakeProfit
+          state={{ positionId: position.id, px: 130, x: 40, y: 60 }}
+          position={{
+            ...position,
+            targets: [{ px: 120, sz: null, orderId: "target-1" }],
+            tpPx: 120,
+          }}
+          wallet="Practice"
+          onSave={onSave}
+          onClose={() => {}}
+        />
+      )
+    )
+
+    await act(async () => button("25%").click())
+    await act(async () => button("Add target").click())
+
+    expect(onSave).toHaveBeenCalledWith({
+      targets: [
+        { px: 120, sz: 1.5 },
+        { px: 130, sz: 0.5 },
+      ],
+      slPx: 90,
+    })
+  })
+
+  it("keeps the action available and explains when earlier targets leave less room", async () => {
+    const onSave = vi.fn()
+    await act(async () =>
+      root.render(
+        <ChartTakeProfit
+          state={{ positionId: position.id, px: 130, x: 40, y: 60 }}
+          position={{
+            ...position,
+            targets: [{ px: 120, sz: 1.75, orderId: "target-1" }],
+            tpPx: 120,
+          }}
+          wallet="Practice"
+          onSave={onSave}
+          onClose={() => {}}
+        />
+      )
+    )
+
+    const add = button("Add target")
+    expect(add.disabled).toBe(false)
+    await setAmount("150")
+    await act(async () => add.click())
+
+    expect(onSave).not.toHaveBeenCalled()
+    expect(
+      host.querySelector("#chart-target-size")?.getAttribute("aria-invalid")
+    ).toBe("true")
+    expect(host.textContent).toContain(
+      "0.25 is available for another target."
+    )
   })
 })
