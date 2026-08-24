@@ -2,6 +2,7 @@ import * as React from "react"
 import { GripVerticalIcon } from "lucide-react"
 
 import { OrderRefusal } from "@/components/trade/order-refusal"
+import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -75,6 +76,7 @@ const SHARE_PICKS = [10, 25, 50, 100]
 
 export function ChartQuickOrder({
   quick,
+  wide = true,
   market,
   /** The wallet this order will go to — not always the one whose lines you are looking at. */
   wallet,
@@ -89,6 +91,7 @@ export function ChartQuickOrder({
   onClose,
 }: {
   quick: QuickOrderState
+  wide?: boolean
   market: MarketRow
   wallet: string
   /**
@@ -145,9 +148,7 @@ export function ChartQuickOrder({
   // rather than retyped on every right-click. Adding to a position is the one
   // exception: the size box starts empty, because how much MORE to buy has
   // nothing to do with what the last order was for.
-  const [sizeInput, setSizeInput] = React.useState(
-    addingTo ? "" : prefs.size
-  )
+  const [sizeInput, setSizeInput] = React.useState(addingTo ? "" : prefs.size)
   const [sizeUnit, setSizeUnit] = React.useState<SizeUnit>(prefs.sizeUnit)
   // Opens at 1× until somebody chooses otherwise: borrowed money is something
   // to reach for on purpose, not the setting a window hands you before you have
@@ -361,296 +362,287 @@ export function ChartQuickOrder({
   }
 
   return (
-    <>
+    <TouchOrderFrame
+      label={`${buy ? "Buy" : "Sell"} ${market.symbol} at ${formatPrice(quick.px)}`}
+      wide={wide}
+      desktopClassName="fixed z-50 w-72 rounded-xl border bg-card shadow-lg"
+      desktopStyle={{ left: at.x, top: at.y }}
+      sheetClassName="h-[min(520px,calc(100dvh-8px))]"
+      sheetScrollable
+      onClose={onClose}
+    >
       <div
-        className="fixed inset-0 z-40"
-        onPointerDown={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onClose()
+        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
+        onPointerDown={(event) => {
+          dragRef.current = {
+            dx: event.clientX - at.x,
+            dy: event.clientY - at.y,
+          }
         }}
-      />
-      <div
-        role="dialog"
-        aria-label={`${buy ? "Buy" : "Sell"} ${market.symbol} at ${formatPrice(quick.px)}`}
-        className="fixed z-50 w-72 rounded-xl border bg-card shadow-lg"
-        style={{ left: at.x, top: at.y }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.stopPropagation()}
       >
-        <div
-          className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-          onPointerDown={(event) => {
-            dragRef.current = {
-              dx: event.clientX - at.x,
-              dy: event.clientY - at.y,
-            }
-          }}
+        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            buy
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-red-600 dark:text-red-400"
+          )}
         >
-          <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span
-            className={cn(
-              "text-sm font-semibold",
-              buy
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-red-600 dark:text-red-400"
-            )}
-          >
-            {buy ? "Buy limit" : "Sell limit"}
-          </span>
-          {/* Which wallet this lands in, and what it has to spend. The market
+          {buy ? "Buy limit" : "Sell limit"}
+        </span>
+        {/* Which wallet this lands in, and what it has to spend. The market
               and the price are already on screen behind this window; the
               wallet is not, and the chart may well be showing another one's
               lines — so it is named here, where the order is actually made. */}
-          <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate font-medium text-foreground">
-              {wallet}
-            </span>
-            <span className="shrink-0 tabular-nums">· {formatUsd(free)}</span>
+        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate font-medium text-foreground">
+            {wallet}
           </span>
-        </div>
+          <span className="shrink-0 tabular-nums">· {formatUsd(free)}</span>
+        </span>
+      </div>
 
-        <div className="grid gap-4 p-3">
-          {/* What this order is joining, and what it leaves behind. Above the
+      <div className="grid gap-4 p-3">
+        {/* What this order is joining, and what it leaves behind. Above the
               size box, because it is the thing the size is being chosen
               against, and it re-reads itself as the size is typed. */}
-          {addingTo && after ? (
-            <p className="text-xs leading-5 text-muted-foreground">
-              Adding to {formatUsd(after.paid)}{" "}
-              {addingTo.szi > 0 ? "long" : "short"} in{" "}
-              <span className="font-medium text-foreground">{wallet}</span>, at{" "}
-              {addingTo.leverage}× leverage.{" "}
-              {after.total > after.paid ? (
-                <>
-                  After this order:{" "}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {formatUsd(after.total)}
-                  </span>{" "}
-                  at an average of{" "}
-                  <span className="font-medium text-foreground tabular-nums">
-                    {formatPrice(after.averagePx)}
-                  </span>
-                  .
-                </>
-              ) : (
-                <>It got in at {formatPrice(addingTo.entryPx)}.</>
-              )}
-            </p>
-          ) : null}
-          <div className="grid gap-2">
-            <div className="flex items-start gap-2">
-              <Label htmlFor="quick-size" className="sr-only">
-                Size
-              </Label>
-              {/* The dollars sit inside the box, faint, at its right edge.
+        {addingTo && after ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            Adding to {formatUsd(after.paid)}{" "}
+            {addingTo.szi > 0 ? "long" : "short"} in{" "}
+            <span className="font-medium text-foreground">{wallet}</span>, at{" "}
+            {addingTo.leverage}× leverage.{" "}
+            {after.total > after.paid ? (
+              <>
+                After this order:{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatUsd(after.total)}
+                </span>{" "}
+                at an average of{" "}
+                <span className="font-medium text-foreground tabular-nums">
+                  {formatPrice(after.averagePx)}
+                </span>
+                .
+              </>
+            ) : (
+              <>It got in at {formatPrice(addingTo.entryPx)}.</>
+            )}
+          </p>
+        ) : null}
+        <div className="grid gap-2">
+          <div className="flex items-start gap-2">
+            <Label htmlFor="quick-size" className="sr-only">
+              Size
+            </Label>
+            {/* The dollars sit inside the box, faint, at its right edge.
                   "32% of free" is not an amount of anything on its own, and
                   the answer belongs where the question is being typed rather
                   than on a line under it. Only when the box is not already in
                   dollars, and never through the typing. */}
-              <div className="relative flex-1">
-                <Input
-                  id="quick-size"
-                  inputMode="decimal"
-                  autoFocus
-                  value={sizeInput}
-                  onChange={(event) => setSizeInput(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") submit()
-                  }}
-                  // Room kept for however long the figure is, so a big
-                  // account's "$1,204,500" cannot be typed underneath.
-                  style={
-                    shownUsd
-                      ? { paddingRight: `${shownUsd.length + 2}ch` }
-                      : undefined
-                  }
-                  className="w-full"
-                  placeholder="Size"
-                  aria-describedby={shownUsd ? "quick-size-usd" : undefined}
-                  // Only once something has been typed. A box nobody has
-                  // touched yet is not a mistake, and the sentence above the
-                  // button already says what it is waiting for.
-                  aria-invalid={sizeInput.trim() !== "" && amount === 0}
-                />
-                {shownUsd ? (
-                  <span
-                    id="quick-size-usd"
-                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground tabular-nums"
-                  >
-                    {shownUsd}
-                  </span>
-                ) : null}
-              </div>
-              <Select
-                value={sizeUnit}
-                onValueChange={(next) => {
-                  setSizeUnit(next as SizeUnit)
+            <div className="relative flex-1">
+              <Input
+                id="quick-size"
+                inputMode="decimal"
+                autoFocus
+                value={sizeInput}
+                onChange={(event) => setSizeInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") submit()
+                }}
+                // Room kept for however long the figure is, so a big
+                // account's "$1,204,500" cannot be typed underneath.
+                style={
+                  shownUsd
+                    ? { paddingRight: `${shownUsd.length + 2}ch` }
+                    : undefined
+                }
+                className="w-full"
+                placeholder="Size"
+                aria-describedby={shownUsd ? "quick-size-usd" : undefined}
+                // Only once something has been typed. A box nobody has
+                // touched yet is not a mistake, and the sentence above the
+                // button already says what it is waiting for.
+                aria-invalid={sizeInput.trim() !== "" && amount === 0}
+              />
+              {shownUsd ? (
+                <span
+                  id="quick-size-usd"
+                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground tabular-nums"
+                >
+                  {shownUsd}
+                </span>
+              ) : null}
+            </div>
+            <Select
+              value={sizeUnit}
+              onValueChange={(next) => {
+                setSizeUnit(next as SizeUnit)
+              }}
+            >
+              <SelectTrigger
+                className="w-fit"
+                aria-label="How size is measured"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="usd">USD</SelectItem>
+                <SelectItem value="pct">% of free</SelectItem>
+                <SelectItem value="risk">Risk %</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-1">
+            {SHARE_PICKS.map((share) => (
+              <Button
+                key={share}
+                type="button"
+                size="sm"
+                variant="outline"
+                className="flex-1 px-0"
+                onClick={() => {
+                  setSizeUnit("pct")
+                  setSizeInput(String(share))
                 }}
               >
-                <SelectTrigger
-                  className="w-fit"
-                  aria-label="How size is measured"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="usd">USD</SelectItem>
-                  <SelectItem value="pct">% of free</SelectItem>
-                  <SelectItem value="risk">Risk %</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-1">
-              {SHARE_PICKS.map((share) => (
-                <Button
-                  key={share}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="flex-1 px-0"
-                  onClick={() => {
-                    setSizeUnit("pct")
-                    setSizeInput(String(share))
-                  }}
-                >
-                  {share}%
-                </Button>
-              ))}
-            </div>
-            {takenNow ? (
-              // The level clicked is already past the market, so this is not
-              // going to wait for anything. Better said here than discovered
-              // after the fact.
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                Fills straight away at {formatPrice(mark)}.
-              </p>
-            ) : null}
+                {share}%
+              </Button>
+            ))}
           </div>
+          {takenNow ? (
+            // The level clicked is already past the market, so this is not
+            // going to wait for anything. Better said here than discovered
+            // after the fact.
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Fills straight away at {formatPrice(mark)}.
+            </p>
+          ) : null}
+        </div>
 
-          {/* Adding to a position cannot change its leverage. The server sends
+        {/* Adding to a position cannot change its leverage. The server sends
               null for leverage and margin mode when a position exists and the
               exchange keeps what it has, so a slider here would move a number
               the order has no power over. Said as a line instead. */}
-          {addingTo ? (
-            <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Leverage</span>
-              <span className="tabular-nums">
-                {addingTo.leverage}× — the position&rsquo;s own, and adding does
-                not change it
+        {addingTo ? (
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">Leverage</span>
+            <span className="tabular-nums">
+              {addingTo.leverage}× — the position&rsquo;s own, and adding does
+              not change it
+            </span>
+          </div>
+        ) : maxLeverage > 1 ? (
+          <div className="grid gap-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="quick-leverage">Leverage</Label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {leverage}×
               </span>
             </div>
-          ) : maxLeverage > 1 ? (
-            <div className="grid gap-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <Label htmlFor="quick-leverage">Leverage</Label>
+            <Slider
+              id="quick-leverage"
+              min={1}
+              max={maxLeverage}
+              step={1}
+              value={[leverage]}
+              onValueChange={([next]) => {
+                setLeverage(next)
+              }}
+              aria-label="Leverage"
+            />
+          </div>
+        ) : null}
+
+        <div className="grid gap-2">
+          <div className="flex items-center gap-2">
+            <DisabledReason
+              disabled={byRisk}
+              reason="Risk % works out the amount from the stop, so an order sized that way always has one."
+            >
+              <Checkbox
+                id="quick-bracket"
+                checked={wantsBracket}
+                disabled={byRisk}
+                onCheckedChange={(next) => {
+                  setBracketOn(next === true)
+                }}
+              />
+            </DisabledReason>
+            <Label htmlFor="quick-bracket">Stop loss and take profit</Label>
+          </div>
+          {wantsBracket ? (
+            <div className="flex gap-2">
+              <div className="grid flex-1 gap-2">
+                <Label htmlFor="quick-stop" className="text-xs">
+                  Stop %
+                </Label>
+                <Input
+                  id="quick-stop"
+                  inputMode="decimal"
+                  value={stopPct}
+                  onChange={(event) => setStopPct(event.target.value)}
+                  aria-invalid={badStop}
+                />
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {leverage}×
+                  {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
                 </span>
               </div>
-              <Slider
-                id="quick-leverage"
-                min={1}
-                max={maxLeverage}
-                step={1}
-                value={[leverage]}
-                onValueChange={([next]) => {
-                  setLeverage(next)
-                }}
-                aria-label="Leverage"
-              />
+              <div className="grid flex-1 gap-2">
+                <Label htmlFor="quick-target" className="text-xs">
+                  Target %
+                </Label>
+                <Input
+                  id="quick-target"
+                  inputMode="decimal"
+                  value={targetPct}
+                  onChange={(event) => setTargetPct(event.target.value)}
+                  aria-invalid={badTarget}
+                />
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
+                </span>
+              </div>
             </div>
           ) : null}
+        </div>
 
-          <div className="grid gap-2">
-            <div className="flex items-center gap-2">
-              <DisabledReason
-                disabled={byRisk}
-                reason="Risk % works out the amount from the stop, so an order sized that way always has one."
-              >
-                <Checkbox
-                  id="quick-bracket"
-                  checked={wantsBracket}
-                  disabled={byRisk}
-                  onCheckedChange={(next) => {
-                    setBracketOn(next === true)
-                  }}
-                />
-              </DisabledReason>
-              <Label htmlFor="quick-bracket">Stop loss and take profit</Label>
-            </div>
-            {wantsBracket ? (
-              <div className="flex gap-2">
-                <div className="grid flex-1 gap-2">
-                  <Label htmlFor="quick-stop" className="text-xs">
-                    Stop %
-                  </Label>
-                  <Input
-                    id="quick-stop"
-                    inputMode="decimal"
-                    value={stopPct}
-                    onChange={(event) => setStopPct(event.target.value)}
-                    aria-invalid={badStop}
-                  />
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
-                  </span>
-                </div>
-                <div className="grid flex-1 gap-2">
-                  <Label htmlFor="quick-target" className="text-xs">
-                    Target %
-                  </Label>
-                  <Input
-                    id="quick-target"
-                    inputMode="decimal"
-                    value={targetPct}
-                    onChange={(event) => setTargetPct(event.target.value)}
-                    aria-invalid={badTarget}
-                  />
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
-                  </span>
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Not offered while adding to a position, because the two say
+        {/* Not offered while adding to a position, because the two say
               opposite things. This window is headed "Adding to $500 long" and
               works out what the position becomes; a reduce-only order on the
               same side buys nothing, so the sentence above would be describing
               an order the exchange was about to refuse. */}
-          {addingTo ? null : (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="quick-reduce"
-                checked={reduceOnly}
-                onCheckedChange={(next) => {
-                  setReduceOnly(next === true)
-                }}
-              />
-              <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
-            </div>
-          )}
-
-          <div className="grid gap-2">
-            <OrderRefusal id="quick-order-refusal">{refusal}</OrderRefusal>
-            <Button
-              type="button"
-              onClick={submit}
-              aria-describedby={refusal ? "quick-order-refusal" : undefined}
-              disabled={!ready}
-              className={cn(
-                "w-full text-white",
-                buy
-                  ? "bg-emerald-600 hover:bg-emerald-600/90"
-                  : "bg-red-600 hover:bg-red-600/90"
-              )}
-            >
-              {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
-            </Button>
+        {addingTo ? null : (
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="quick-reduce"
+              checked={reduceOnly}
+              onCheckedChange={(next) => {
+                setReduceOnly(next === true)
+              }}
+            />
+            <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
           </div>
+        )}
+
+        <div className="grid gap-2">
+          <OrderRefusal id="quick-order-refusal">{refusal}</OrderRefusal>
+          <Button
+            type="button"
+            onClick={submit}
+            aria-describedby={refusal ? "quick-order-refusal" : undefined}
+            disabled={!ready}
+            className={cn(
+              "w-full text-white",
+              buy
+                ? "bg-emerald-600 hover:bg-emerald-600/90"
+                : "bg-red-600 hover:bg-red-600/90"
+            )}
+          >
+            {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
+          </Button>
         </div>
       </div>
-    </>
+    </TouchOrderFrame>
   )
 }

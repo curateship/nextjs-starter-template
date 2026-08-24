@@ -9,6 +9,7 @@ import {
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
+import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -103,6 +104,7 @@ function rungsFrom(deviations: readonly number[]): Rung[] {
 
 export function SmartOrderDialog({
   state,
+  wide = true,
   market,
   wallet,
   equity,
@@ -114,6 +116,7 @@ export function SmartOrderDialog({
   onClose,
 }: {
   state: SmartOrderState
+  wide?: boolean
   market: MarketRow
   /** The wallet this ladder will live in. */
   wallet: string
@@ -410,40 +413,30 @@ export function SmartOrderDialog({
     })
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-40"
-        onPointerDown={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onClose()
-        }}
-      />
-      <div
-        role="dialog"
-        aria-label={`DCA ladder on ${market.symbol} from its base`}
-        // Three rows — bar, fields, button — and the middle one takes whatever
-        // is left. A grid rather than a stack of flexing boxes because a grid
-        // row is a real height: the scroller inside can fill it. A flexing box
-        // in a window with a largest size but no set size is not, and anything
-        // told to fill one quietly grows to fit its contents instead, which is
-        // the one thing that never scrolls.
-        className="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
-        style={{
-          left: at.x,
-          top: at.y,
-          width: PANEL_WIDTH,
-          // However far down the window sits, it ends above the screen's edge,
-          // and it never grows past its own height however many rungs are in
-          // it. Both are why the fields inside scroll.
-          maxHeight: Math.max(
-            MIN_PANEL_HEIGHT,
-            Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
-          ),
-        }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.stopPropagation()}
-      >
+    <TouchOrderFrame
+      label={`DCA ladder on ${market.symbol} from its base`}
+      wide={wide}
+      // Three rows — bar, fields, button — and the middle one takes whatever
+      // is left. A grid rather than a stack of flexing boxes because a grid
+      // row is a real height: the scroller inside can fill it. A flexing box
+      // in a window with a largest size but no set size is not, and anything
+      // told to fill one quietly grows to fit its contents instead, which is
+      // the one thing that never scrolls.
+      desktopClassName="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
+      sheetClassName="grid h-[min(680px,calc(100dvh-8px))] grid-rows-[auto_minmax(0,1fr)_auto]"
+      desktopStyle={{
+        left: at.x,
+        top: at.y,
+        width: PANEL_WIDTH,
+        // However far down the window sits, it ends above the screen's edge,
+        // and it never grows past its own height however many rungs are in it.
+        maxHeight: Math.max(
+          MIN_PANEL_HEIGHT,
+          Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
+        ),
+      }}
+      onClose={onClose}
+    >
         <div
           className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
           onPointerDown={(event) => {
@@ -787,7 +780,6 @@ export function SmartOrderDialog({
             }`}
           </Button>
         </div>
-      </div>
-    </>
+    </TouchOrderFrame>
   )
 }

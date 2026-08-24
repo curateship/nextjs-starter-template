@@ -33,6 +33,7 @@ import {
 } from "@/server/protocols/kucoin/private-feed"
 import { clearKucoinTouched } from "@/server/protocols/kucoin/touched"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
+import { kucoinRefusalError } from "@/server/protocols/kucoin/refusals"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
 /**
@@ -82,7 +83,8 @@ function exchangeError(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
   if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
-  return new Error(`LIVE_EXCHANGE:${scrubbedMessage(error)}`)
+  const reason = scrubbedMessage(error)
+  return new Error(`LIVE_EXCHANGE:${kucoinRefusalError(reason).message}`)
 }
 
 /** A refusal at the door — nothing was placed. Carries that promise as its code. */
@@ -91,7 +93,8 @@ function refusedError(error: unknown): Error {
   if (message === "EXCHANGE_BUSY") return new Error("EXCHANGE_BUSY")
   if (isKucoinCredentialRefusal(error)) return new Error("LIVE_WALLET_KEY")
   if (message.startsWith("KUCOIN_")) {
-    return new Error(`LIVE_ORDER_REFUSED:${scrubbedMessage(error)}`)
+    const reason = scrubbedMessage(error)
+    return new Error(`LIVE_ORDER_REFUSED:${kucoinRefusalError(reason).message}`)
   }
   return exchangeError(error)
 }
@@ -959,8 +962,8 @@ export async function fetchKucoinPortfolio(
     // time because the order id is the only thing here that never changes;
     // whether that puts the oldest first depends on how KuCoin builds an id,
     // and the point is that the answer holds still, not which leg wins.
-    const legs = [...(bySymbol.get(row.data.symbol) ?? [])].sort((left, right) =>
-      left.id.localeCompare(right.id)
+    const legs = [...(bySymbol.get(row.data.symbol) ?? [])].sort(
+      (left, right) => left.id.localeCompare(right.id)
     )
     const stop = legs.find((one) => legOf(one.stop, long) === "stop")
     const target = legs.find((one) => legOf(one.stop, long) === "target")

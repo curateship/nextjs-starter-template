@@ -69,6 +69,14 @@ Two files outrank the rest, and outrank the code:
   how chart tabs include their market and exchange.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   and when flows and backtests read them.
+- `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and
+  the Journal, and the safety rules its empty and failed rows keep.
+- `hyperliquid.md` — the Hyperliquid refusal phrases seen in the Journal and
+  the next step Trade gives each one.
+- `phemex.md` — Phemex refusal codes in plain words, with the action each one
+  asks for.
+- `kucoin.md` — KuCoin refusal codes seen locally and the published order
+  families Trade translates.
 
 ## Adding a doc
 

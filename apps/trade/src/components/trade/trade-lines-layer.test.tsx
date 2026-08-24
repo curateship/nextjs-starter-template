@@ -112,6 +112,13 @@ function renderLines(
 }
 
 describe("chart bracket lines", () => {
+  it("gives a movable line a finger-sized touch target", () => {
+    const html = render("target")
+
+    expect(html).toContain("stroke-width:44px")
+    expect(html).toContain("touch-action:none")
+  })
+
   it("hands the live position row to the stop remove action", async () => {
     const held = position("stop")
     const calls: Array<{

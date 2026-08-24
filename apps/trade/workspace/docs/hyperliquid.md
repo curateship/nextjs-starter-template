@@ -1,0 +1,16 @@
+# Hyperliquid refusals
+
+Hyperliquid sends refusal sentences rather than fixed codes. Trade matches the
+parts that state the reason and replaces exchange wording with a sentence that
+says what to change. The known reasons cover the $10 minimum, insufficient
+cash, a post-only order that would trade immediately, a reduce-only order that
+would add to a position, an order that is already gone and a request limit.
+
+An unknown refusal keeps Hyperliquid's own scrubbed words after a sentence that
+says Trade does not recognize the reason. The app never turns an unknown real
+money refusal into the generic retry message.
+
+The list came from refused Journal rows in the 30 days ending 24 August 2026.
+The same Journal rows showed the $10 minimum 303 times, insufficient cash 10
+times, request limits 9 times, an already-gone order twice and one post-only
+crossing.

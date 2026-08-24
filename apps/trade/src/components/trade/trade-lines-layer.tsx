@@ -506,6 +506,10 @@ export function TradeLinesLayer({
 
   const beginGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {
     if (!line.onMove) return
+    // A line owns this touch. The chart behind it must not begin a pan, and
+    // the chart panel must not begin the long press that opens an order menu.
+    event.preventDefault()
+    event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
     const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
     if (!box) return
@@ -750,11 +754,12 @@ export function TradeLinesLayer({
                 y2={y}
                 stroke={color}
                 strokeOpacity={0}
-                strokeWidth={14}
+                className="[stroke-width:44px] min-[1280px]:[stroke-width:14px]"
                 style={{
                   pointerEvents: "stroke",
                   cursor: "ns-resize",
                   outline: "none",
+                  touchAction: "none",
                 }}
                 tabIndex={0}
                 role="button"

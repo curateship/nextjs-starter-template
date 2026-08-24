@@ -14,14 +14,13 @@ import {
 } from "@/components/trade/close-position-dialog"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
+import {
+  TradeTable,
+  type ColumnSpec,
+} from "@/components/trade/trade-table"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { LoadingRow } from "@/components/ui/loading-row"
-import {
-  TableRow,
-  TableSortButton,
-  type TableSortDirection,
-} from "@/components/ui/table"
+import { TableRow, type TableSortDirection } from "@/components/ui/table"
 import {
   Tooltip,
   TooltipContent,
@@ -101,18 +100,6 @@ function PracticeBadge() {
 }
 
 /**
- * The heading row's own background, and why it is a mix rather than a tint.
- *
- * A pinned heading has rows sliding underneath it, so it has to be opaque or
- * the numbers show through the words. `bg-muted/50` is a half-transparent
- * tint: it looked right only because the panel behind it is `bg-card`. So the
- * same two tokens are mixed here instead of layered, which gives the same
- * shade in light and in dark and survives a theme change, where a hardcoded
- * grey would not.
- */
-const HEADER_BACKGROUND = "bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
-
-/**
  * The one info mark, used where a figure needs a sentence a cell has no room
  * for. Same shape as the wallet card's, so the two read as one thing.
  */
@@ -139,60 +126,6 @@ function InfoMark({
     </Tooltip>
   )
 }
-
-function HeaderCell({
-  children,
-  sort,
-  info,
-}: {
-  children: React.ReactNode
-  /** Omitted on the actions column, which is the one thing never sorted. */
-  sort?: { active: boolean; direction: TableSortDirection; onClick: () => void }
-  /**
-   * A mark beside the label, for a column whose figures need a sentence. A
-   * sibling of the sort button rather than inside it: a button inside a button
-   * is not something a browser will draw.
-   */
-  info?: React.ReactNode
-}) {
-  return (
-    <th
-      scope="col"
-      className={cn(
-        "px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
-        // Pinned to the top of the scrolling box, so eleven columns of dollars
-        // never end up under an empty strip. `z-10` because a focused row
-        // paints an outline and would otherwise draw over the headings.
-        "sticky top-0 z-10",
-        HEADER_BACKGROUND
-      )}
-    >
-      {/* A row, because the sort control is itself a flex box and an info mark
-          after it would otherwise drop onto a second line. */}
-      <span className="flex items-center gap-1">
-        {sort ? (
-          <TableSortButton
-            active={sort.active}
-            direction={sort.direction}
-            onClick={sort.onClick}
-            // The shared button stands 32px tall for a dashboard's roomy
-            // header. This header is a trading readout packed into a panel, so
-            // it keeps the row exactly as tall as its text — the same control,
-            // just not padding the row out.
-            className="h-auto text-xs sm:text-xs"
-          >
-            {children}
-          </TableSortButton>
-        ) : (
-          children
-        )}
-        {info}
-      </span>
-    </th>
-  )
-}
-
-type ColumnSpec<Key extends string> = { key: Key; label: string }
 
 type PositionColumn =
   | "market"
@@ -286,63 +219,6 @@ function Cell({
     >
       {children}
     </td>
-  )
-}
-
-/**
- * The row a table shows when it has no rows: still reading, the read failed
- * with nothing to fall back on, or there really is nothing here.
- *
- * All three sit inside the table's own frame, under the real header, so
- * nothing moves when the rows land or when the last one closes. The empty
- * words used to be a paragraph drawn instead of the table, which took the
- * heading row off screen at the exact moment a position closed.
- *
- * "Nothing here" and "I could not find out" stay different answers, and only
- * one is safe to act on. The empty wording is therefore reached only once a
- * read has really landed: still reading wins over both, and a failed read says
- * so rather than claiming the table is empty.
- */
-function TableStateRow({
-  span,
-  loading,
-  failed,
-  loadingLabel,
-  onRetry,
-  empty,
-  children,
-}: {
-  /** Every column, including the actions one, so the row spans the frame. */
-  span: number
-  loading: boolean
-  /** The first read failed and there is nothing to fall back on. */
-  failed: boolean
-  loadingLabel: string
-  onRetry: () => void
-  /** The empty wording — what would be here if there were anything. */
-  empty: React.ReactNode
-  /** The failed wording — what exactly is not known right now. */
-  children: React.ReactNode
-}) {
-  return (
-    <tr className="border-t">
-      <td colSpan={span}>
-        {loading ? (
-          <LoadingRow label={loadingLabel} className="py-6 text-xs" />
-        ) : failed ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-            {children}{" "}
-            <button type="button" className="underline" onClick={onRetry}>
-              Try again
-            </button>
-          </p>
-        ) : (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-            {empty}
-          </p>
-        )}
-      </td>
-    </tr>
   )
 }
 
@@ -693,8 +569,7 @@ export function PositionsTable({
     for (const one of positions) byId.set(one.id, positionFees(fills, one))
     return byId
   }, [positions, fills])
-  const feesOf = (position: TradePosition) =>
-    feesById.get(position.id) ?? null
+  const feesOf = (position: TradePosition) => feesById.get(position.id) ?? null
 
   const rows = sortRows(positions, direction, (position) => {
     const mark = markOf(position)
@@ -727,78 +602,46 @@ export function PositionsTable({
 
   return (
     <>
-      <table className="w-full border-collapse">
-        {/* Named as the shell's heading row so it takes the same hairline
-            under it that every other table in the app draws — and so the
-            Styling settings' divider colour reaches it. See `theme.css`. */}
-        <thead data-slot="table-header">
-          <tr>
-            {POSITION_COLUMNS.map(({ key, label }) => (
-              <HeaderCell
-                key={key}
-                sort={{
-                  active: sort === key,
-                  direction,
-                  onClick: () => toggleSort(key),
-                }}
-                // Whose number this is, said once for the whole column rather
-                // than on every row. No exchange reports "fees so far on this
-                // open position", so printing one without saying where it came
-                // from would break the rule the dash was there to protect.
-                info={
-                  key === "fees" ? (
-                    <InfoMark label="Where the fee totals come from">
-                      Added up by this app from the fills the exchange has
-                      reported, not a total the exchange states itself. A
-                      practice position&rsquo;s figure is the engine&rsquo;s
-                      own. A dash means nothing has been reported yet, which is
-                      not the same as nothing charged.
-                    </InfoMark>
-                  ) : undefined
-                }
-              >
-                {label}
-              </HeaderCell>
-            ))}
-            <HeaderCell>
-              <span className="sr-only">Actions</span>
-            </HeaderCell>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <TableStateRow
-              span={POSITION_COLUMNS.length + 1}
-              loading={!settled}
-              failed={failed}
-              loadingLabel="Reading what you are holding"
-              onRetry={onRetry}
-              empty="No open positions here. A coin a ladder or grid is running shows in the Smart orders panel instead."
-            >
-              The positions could not be read, so it is not known whether you
-              are holding anything.
-            </TableStateRow>
-          ) : (
-            rows.map((position) => (
-              <PositionRow
-                key={position.id}
-                position={position}
-                market={markets.get(position.marketKey) ?? null}
-                mark={markOf(position)}
-                fees={feesOf(position)}
-                wallet={walletName(position.walletId)}
-                busy={busy}
-                onSelectMarket={onSelectMarket}
-                onAdd={onAdd}
-                onMargin={onMargin}
-                onEdit={onEdit}
-                onFlip={onFlip}
-                onClose={setConfirming}
-              />
-            ))
-          )}
-        </tbody>
-      </table>
+      <TradeTable
+        columns={POSITION_COLUMNS}
+        rows={rows}
+        loading={!settled}
+        failed={failed}
+        loadingLabel="Reading what you are holding"
+        failedWords="The positions could not be read, so it is not known whether you are holding anything."
+        emptyWords="No open positions here. A coin a ladder or grid is running shows in the Smart orders panel instead."
+        onRetry={onRetry}
+        sort={sort}
+        direction={direction}
+        onSort={toggleSort}
+        headerInfo={(key) =>
+          key === "fees" ? (
+            <InfoMark label="Where the fee totals come from">
+              Added up by this app from the fills the exchange has reported, not
+              a total the exchange states itself. A practice position&rsquo;s
+              figure is the engine&rsquo;s own. A dash means nothing has been
+              reported yet, which is not the same as nothing charged.
+            </InfoMark>
+          ) : undefined
+        }
+        renderRow={(position) => (
+          <PositionRow
+            key={position.id}
+            position={position}
+            market={markets.get(position.marketKey) ?? null}
+            mark={markOf(position)}
+            fees={feesOf(position)}
+            wallet={walletName(position.walletId)}
+            busy={busy}
+            onSelectMarket={onSelectMarket}
+            onAdd={onAdd}
+            onMargin={onMargin}
+            onEdit={onEdit}
+            onFlip={onFlip}
+            onClose={setConfirming}
+          />
+        )}
+      />
 
       {/* Both the market and the wallet in the title, because this table
           lists several wallets and the rows only differ by one small column. */}
@@ -873,108 +716,77 @@ export function OpenOrdersTable({
   })
 
   return (
-    <table className="w-full border-collapse">
-      {/* Named as the shell's heading row so it takes the same hairline under
-          it that every other table in the app draws — and so the Styling
-          settings' divider colour reaches it. See `theme.css`. */}
-      <thead data-slot="table-header">
-        <tr>
-          {ORDER_COLUMNS.map(({ key, label }) => (
-            <HeaderCell
-              key={key}
-              sort={{
-                active: sort === key,
-                direction,
-                onClick: () => toggleSort(key),
-              }}
-            >
-              {label}
-            </HeaderCell>
-          ))}
-          <HeaderCell>
-            <span className="sr-only">Actions</span>
-          </HeaderCell>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 ? (
-          <TableStateRow
-            span={ORDER_COLUMNS.length + 1}
-            loading={!settled}
-            failed={failed}
-            loadingLabel="Reading your open orders"
-            onRetry={onRetry}
-            empty="No open orders. Orders waiting to fill show up here."
+    <TradeTable
+      columns={ORDER_COLUMNS}
+      rows={rows}
+      loading={!settled}
+      failed={failed}
+      loadingLabel="Reading your open orders"
+      failedWords="The orders could not be read, so it is not known whether anything is waiting to fill."
+      emptyWords="No open orders. Orders waiting to fill show up here."
+      onRetry={onRetry}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      renderRow={(order) => (
+        <TableRow
+          key={order.id}
+          // The whole row charts its market, same as a position's row — one
+          // action the width of the panel. Cancel keeps its own click.
+          rowAction={() => onSelectMarket(order.marketKey)}
+          className="border-t hover:bg-muted/40"
+        >
+          <MarketCell
+            marketKey={order.marketKey}
+            market={markets.get(order.marketKey) ?? null}
+            onSelect={() => onSelectMarket(order.marketKey)}
+            badge={
+              <>
+                {order.reduceOnly ? <TradeBadge>Reduce only</TradeBadge> : null}
+                {order.live ? <RealBadge marketKey={order.marketKey} /> : null}
+              </>
+            }
+          />
+          <WalletCell wallet={walletName(order.walletId)} />
+          <Cell
+            className={
+              order.side === "buy"
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400"
+            }
           >
-            The orders could not be read, so it is not known whether anything is
-            waiting to fill.
-          </TableStateRow>
-        ) : (
-          rows.map((order) => (
-            <TableRow
-              key={order.id}
-              // The whole row charts its market, same as a position's row — one
-              // action the width of the panel. Cancel keeps its own click.
-              rowAction={() => onSelectMarket(order.marketKey)}
-              className="border-t hover:bg-muted/40"
-            >
-              <MarketCell
-                marketKey={order.marketKey}
-                market={markets.get(order.marketKey) ?? null}
-                onSelect={() => onSelectMarket(order.marketKey)}
-                badge={
-                  <>
-                    {order.reduceOnly ? (
-                      <TradeBadge>Reduce only</TradeBadge>
-                    ) : null}
-                    {order.live ? (
-                      <RealBadge marketKey={order.marketKey} />
-                    ) : null}
-                  </>
-                }
-              />
-              <WalletCell wallet={walletName(order.walletId)} />
-              <Cell
-                className={
-                  order.side === "buy"
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
-                }
-              >
-                {order.side === "buy" ? "Buy" : "Sell"}
-              </Cell>
-              <Cell>{formatPrice(order.px)}</Cell>
-              <Cell>{formatSize(order.sz)}</Cell>
-              <Cell>{formatUsd(order.px * order.sz)}</Cell>
-              <Cell className="text-muted-foreground">
-                {/* A real order rides the account's leverage setting, which is
+            {order.side === "buy" ? "Buy" : "Sell"}
+          </Cell>
+          <Cell>{formatPrice(order.px)}</Cell>
+          <Cell>{formatSize(order.sz)}</Cell>
+          <Cell>{formatUsd(order.px * order.sz)}</Cell>
+          <Cell className="text-muted-foreground">
+            {/* A real order rides the account's leverage setting, which is
                   not the order's to say — a dash beats a made-up number. */}
-                {order.live ? "—" : `${order.leverage}×`}
-              </Cell>
-              {/* Named so a click on a DISABLED cancel — whose button lets the
+            {order.live ? "—" : `${order.leverage}×`}
+          </Cell>
+          {/* Named so a click on a DISABLED cancel — whose button lets the
                 click fall through — does not read as a click on the row. */}
-              <td
-                data-column="actions"
-                className="px-3 py-2 text-left whitespace-nowrap"
+          <td
+            data-column="actions"
+            className="px-3 py-2 text-left whitespace-nowrap"
+          >
+            <span className="flex items-center gap-0.5">
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
+                onClick={() => onCancel(order)}
               >
-                <span className="flex items-center gap-0.5">
-                  <Button
-                    type="button"
-                    size="icon-sm"
-                    variant="ghost"
-                    disabled={busy}
-                    aria-label={`Cancel the ${marketSymbol(order.marketKey)} order`}
-                    onClick={() => onCancel(order)}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                </span>
-              </td>
-            </TableRow>
-          ))
-        )}
-      </tbody>
-    </table>
+                <Trash2Icon className="size-4" />
+              </Button>
+            </span>
+          </td>
+        </TableRow>
+      )}
+    />
   )
 }
 
@@ -1102,156 +914,131 @@ export function TradesTable({
   const listedIds = rows.map((trade) => trade.id)
 
   return (
-    <table className="w-full border-collapse">
-      {/* Named as the shell's heading row so it takes the same hairline under
-          it that every other table in the app draws — and so the Styling
-          settings' divider colour reaches it. See `theme.css`. */}
-      <thead data-slot="table-header">
-        <tr>
-          <HeaderCell>
-            <Checkbox
-              checked={tickAllState(listedIds)}
-              onCheckedChange={() => onTickVisible(listedIds)}
-              aria-label="Select every finished trade"
-            />
-          </HeaderCell>
-          {TRADE_COLUMNS.map(({ key, label }) => (
-            <HeaderCell
-              key={key}
-              sort={{
-                active: sort === key,
-                direction,
-                onClick: () => toggleSort(key),
-              }}
-            >
-              {label}
-            </HeaderCell>
-          ))}
-          <HeaderCell>
-            <span className="sr-only">Actions</span>
-          </HeaderCell>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.length === 0 ? (
-          <TableStateRow
-            span={TRADE_COLUMNS.length + 2}
-            loading={!settled}
-            failed={failed}
-            loadingLabel="Reading your finished trades"
-            onRetry={onRetry}
-            empty="No finished trades yet. Once a position is closed it lands here, with what it made and what ended it."
-          >
-            The journal could not be read, so it is not known how past trades
-            went.
-          </TableStateRow>
-        ) : (
-        rows.map((trade) => (
-          <TableRow
-            key={trade.id}
-            rowAction={() => onSelectTrade(trade)}
-            data-state={trade.id === selectedId ? "selected" : undefined}
-            className="border-t"
-          >
-            {/* Marked as the select column so ticking a row never also fires
+    <TradeTable
+      columns={TRADE_COLUMNS}
+      rows={rows}
+      loading={!settled}
+      failed={failed}
+      loadingLabel="Reading your finished trades"
+      failedWords="The journal could not be read, so it is not known how past trades went."
+      emptyWords="No finished trades yet. Once a position is closed it lands here, with what it made and what ended it."
+      onRetry={onRetry}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      leadingHeader={
+        <Checkbox
+          checked={tickAllState(listedIds)}
+          onCheckedChange={() => onTickVisible(listedIds)}
+          aria-label="Select every finished trade"
+        />
+      }
+      renderRow={(trade) => (
+        <TableRow
+          key={trade.id}
+          rowAction={() => onSelectTrade(trade)}
+          data-state={trade.id === selectedId ? "selected" : undefined}
+          className="border-t"
+        >
+          {/* Marked as the select column so ticking a row never also fires
                 the row action and draws the trade on the chart. */}
-            <td data-column="select" className="w-8 px-3 py-2">
-              <Checkbox
-                checked={ticked.has(trade.id)}
-                onCheckedChange={() => onTickTrade(trade.id)}
-                aria-label={`Select the ${marketSymbol(trade.marketKey)} trade`}
-              />
-            </td>
-            <MarketCell
-              marketKey={trade.marketKey}
-              market={markets.get(trade.marketKey) ?? null}
-              onSelect={() => onSelectMarket(trade.marketKey)}
-              badge={
-                trade.live ? (
-                  <RealBadge marketKey={trade.marketKey} />
-                ) : (
-                  <PracticeBadge />
-                )
-              }
+          <td data-column="select" className="w-8 px-3 py-2">
+            <Checkbox
+              checked={ticked.has(trade.id)}
+              onCheckedChange={() => onTickTrade(trade.id)}
+              aria-label={`Select the ${marketSymbol(trade.marketKey)} trade`}
             />
-            <WalletCell wallet={walletName(trade.walletId)} />
-            <Cell>
-              <TradeBadge tone={trade.direction === "long" ? "made" : "lost"}>
-                {trade.direction === "long" ? "Long" : "Short"}
-              </TradeBadge>
-            </Cell>
-            <Cell className="text-muted-foreground">
-              {formatDateTime(new Date(trade.openedAt))}
-            </Cell>
-            <Cell className="text-muted-foreground">
-              {formatDuration(trade.heldMs)}
-            </Cell>
-            <Cell>{formatPrice(trade.entryPx)}</Cell>
-            <Cell>{formatPrice(trade.exitPx)}</Cell>
-            <Cell>{formatSize(trade.sz)}</Cell>
-            <Cell className={moneyTone(trade.pnl)}>
-              {formatSignedUsd(trade.pnl)}
-              {/* The dollars are the answer; the percentage is only there to
+          </td>
+          <MarketCell
+            marketKey={trade.marketKey}
+            market={markets.get(trade.marketKey) ?? null}
+            onSelect={() => onSelectMarket(trade.marketKey)}
+            badge={
+              trade.live ? (
+                <RealBadge marketKey={trade.marketKey} />
+              ) : (
+                <PracticeBadge />
+              )
+            }
+          />
+          <WalletCell wallet={walletName(trade.walletId)} />
+          <Cell>
+            <TradeBadge tone={trade.direction === "long" ? "made" : "lost"}>
+              {trade.direction === "long" ? "Long" : "Short"}
+            </TradeBadge>
+          </Cell>
+          <Cell className="text-muted-foreground">
+            {formatDateTime(new Date(trade.openedAt))}
+          </Cell>
+          <Cell className="text-muted-foreground">
+            {formatDuration(trade.heldMs)}
+          </Cell>
+          <Cell>{formatPrice(trade.entryPx)}</Cell>
+          <Cell>{formatPrice(trade.exitPx)}</Cell>
+          <Cell>{formatSize(trade.sz)}</Cell>
+          <Cell className={moneyTone(trade.pnl)}>
+            {formatSignedUsd(trade.pnl)}
+            {/* The dollars are the answer; the percentage is only there to
                   say whether they were a lot for the money that was in. */}
-              <span className="ml-1.5 text-muted-foreground">
-                {trade.returnPct >= 0 ? "+" : ""}
-                {trade.returnPct.toFixed(1)}%
-              </span>
-            </Cell>
-            <Cell>
-              <TradeBadge tone={endingTone(trade)}>
-                {tradeEndingLabel(trade)}
-                {trade.stopPx !== null ? ` at ${formatPrice(trade.stopPx)}` : ""}
-              </TradeBadge>
-            </Cell>
-            {/* Marked as the actions column so a press on the bin — or on the
+            <span className="ml-1.5 text-muted-foreground">
+              {trade.returnPct >= 0 ? "+" : ""}
+              {trade.returnPct.toFixed(1)}%
+            </span>
+          </Cell>
+          <Cell>
+            <TradeBadge tone={endingTone(trade)}>
+              {tradeEndingLabel(trade)}
+              {trade.stopPx !== null ? ` at ${formatPrice(trade.stopPx)}` : ""}
+            </TradeBadge>
+          </Cell>
+          {/* Marked as the actions column so a press on the bin — or on the
                 blank around a greyed-out one — never also fires the row and
                 draws the trade you were trying to be rid of. */}
-            <td
-              data-column="actions"
-              className="px-3 py-2 text-left whitespace-nowrap"
+          <td
+            data-column="actions"
+            className="px-3 py-2 text-left whitespace-nowrap"
+          >
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              disabled={busy}
+              aria-label={`Remove the ${marketSymbol(trade.marketKey)} trade from the Journal`}
+              onClick={() => onRemove(trade)}
             >
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                disabled={busy}
-                aria-label={`Remove the ${marketSymbol(trade.marketKey)} trade from the Journal`}
-                onClick={() => onRemove(trade)}
+              <Trash2Icon className="size-4" />
+            </Button>
+          </td>
+        </TableRow>
+      )}
+      footer={
+        settled && trades.length > 0 && onLoadOlder ? (
+          <tfoot>
+            <tr className="border-t">
+              <td
+                colSpan={TRADE_COLUMNS.length + 2}
+                className="px-5 py-3 text-center"
               >
-                <Trash2Icon className="size-4" />
-              </Button>
-            </td>
-          </TableRow>
-        ))
-        )}
-      </tbody>
-      {settled && trades.length > 0 && onLoadOlder ? (
-        <tfoot>
-          <tr className="border-t">
-            <td
-              colSpan={TRADE_COLUMNS.length + 2}
-              className="px-5 py-3 text-center"
-            >
-              {olderDone ? (
-                <span className="text-sm text-muted-foreground">
-                  That is everything
-                </span>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={olderBusy}
-                  onClick={onLoadOlder}
-                >
-                  {olderBusy ? "Reading older trades…" : "Show older"}
-                </Button>
-              )}
-            </td>
-          </tr>
-        </tfoot>
-      ) : null}
-    </table>
+                {olderDone ? (
+                  <span className="text-sm text-muted-foreground">
+                    That is everything
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={olderBusy}
+                    onClick={onLoadOlder}
+                  >
+                    {olderBusy ? "Reading older trades…" : "Show older"}
+                  </Button>
+                )}
+              </td>
+            </tr>
+          </tfoot>
+        ) : null
+      }
+    />
   )
 }

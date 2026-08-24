@@ -188,6 +188,9 @@ export function MeasureLayer({
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     // Only the left button draws one. A right-click is handled below.
     if (event.button !== 0) return
+    // The ruler owns this press. Do not let the chart panel also start its
+    // long press for an order underneath the measurement.
+    event.stopPropagation()
     // Shift-click normally extends the browser's text selection from wherever
     // it last started. This press belongs to the ruler, so keep page text out
     // of the gesture without disabling ordinary selection elsewhere.

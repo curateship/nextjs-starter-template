@@ -37,6 +37,7 @@ import {
 } from "@/components/trade/smart-order-dialog"
 import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
+import { useLongPress } from "@/components/trade/use-long-press"
 import type { Trading } from "@/components/trade/use-trading"
 import { useRememberedChartView } from "@/components/trade/use-chart-view"
 import { Button } from "@/components/ui/button"
@@ -49,6 +50,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   FIRST_PAINT_MS,
   intervalMs,
@@ -229,6 +231,7 @@ export function ChartPanel({
   /** Taken; the workspace lets go of the request so it cannot fire twice. */
   onAddOpened: () => void
 }) {
+  const wide = useWideScreen()
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
   // loading state, so it cannot drift out of step with reality.
@@ -422,20 +425,21 @@ export function ChartPanel({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [addTo, market, onAddOpened])
 
-  const openMenu = (event: React.MouseEvent) => {
+  const openMenu = (point: { clientX: number; clientY: number }) => {
     // A tool in hand is drawing, not trading; the browser's own menu is the
     // honest answer when there is nothing here to offer.
-    if (paintTool || !trading.wallet || !market) return
+    if (paintTool || !trading.wallet || !market) return false
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
-    if (!surface || !box) return
-    const price = surface.priceAt(event.clientY - box.top)
-    if (price === null || price <= 0) return
-    event.preventDefault()
+    if (!surface || !box) return false
+    const price = surface.priceAt(point.clientY - box.top)
+    if (price === null || price <= 0) return false
     setQuick(null)
     setSmart(null)
-    setMenu({ price, x: event.clientX, y: event.clientY })
+    setMenu({ price, x: point.clientX, y: point.clientY })
+    return true
   }
+  const longPress = useLongPress(openMenu)
 
   // The orders a smart order is running — a ladder's rungs and sells, a grid's
   // levels and sells — are drawn by their own layer with their own labels and
@@ -835,7 +839,10 @@ export function ChartPanel({
     <div
       ref={plotRef}
       className="relative h-full min-h-0"
-      onContextMenu={openMenu}
+      {...longPress}
+      onContextMenu={(event) => {
+        if (openMenu(event)) event.preventDefault()
+      }}
     >
       {!current ? (
         <div
@@ -1073,6 +1080,7 @@ export function ChartPanel({
       {menu ? (
         <ChartOrderMenu
           menu={menu}
+          wide={wide}
           smartOrders={trading.wallet !== null}
           onClose={() => setMenu(null)}
           onPick={(side) => {
@@ -1133,6 +1141,7 @@ export function ChartPanel({
           // that is decided once, as it mounts.
           key={`${quick.addingToId ?? "manual"}:${quick.side}:${quick.px}`}
           quick={quick}
+          wide={wide}
           market={market}
           wallet={trading.wallet?.label ?? ""}
           addingTo={addingTo}
@@ -1172,6 +1181,7 @@ export function ChartPanel({
       {smart && market ? (
         <SmartOrderDialog
           state={smart}
+          wide={wide}
           market={market}
           wallet={trading.wallet?.label ?? ""}
           equity={equity}
@@ -1188,6 +1198,7 @@ export function ChartPanel({
       {grid && market ? (
         <GridOrderDialog
           state={grid}
+          wide={wide}
           market={market}
           wallet={trading.wallet?.label ?? ""}
           equity={equity}

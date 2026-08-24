@@ -4,6 +4,7 @@ import { GripVerticalIcon, Loader2Icon } from "lucide-react"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
+import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -94,6 +95,7 @@ function parsed(value: string): number | null {
 
 export function GridOrderDialog({
   state,
+  wide = true,
   market,
   wallet,
   equity,
@@ -105,6 +107,7 @@ export function GridOrderDialog({
   onClose,
 }: {
   state: GridOrderState
+  wide?: boolean
   market: MarketRow
   /** The wallet this grid will live in. */
   wallet: string
@@ -473,34 +476,25 @@ export function GridOrderDialog({
       : null
 
   return (
-    <>
-      <div
-        className="fixed inset-0 z-40"
-        onPointerDown={onClose}
-        onContextMenu={(event) => {
-          event.preventDefault()
-          onClose()
-        }}
-      />
-      <div
-        role="dialog"
-        aria-label={`Grid on ${market.symbol}`}
-        // Three rows — bar, fields, button — with the middle one taking
-        // whatever is left, so the fields scroll rather than the window growing
-        // past the screen. Same shape as the ladder's window, deliberately.
-        className="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
-        style={{
-          left: at.x,
-          top: at.y,
-          width: PANEL_WIDTH,
-          maxHeight: Math.max(
-            MIN_PANEL_HEIGHT,
-            Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
-          ),
-        }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onContextMenu={(event) => event.stopPropagation()}
-      >
+    <TouchOrderFrame
+      label={`Grid on ${market.symbol}`}
+      wide={wide}
+      // Three rows — bar, fields, button — with the middle one taking
+      // whatever is left, so the fields scroll rather than the window growing
+      // past the screen. Same shape as the ladder's window, deliberately.
+      desktopClassName="fixed z-50 grid grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden rounded-xl border bg-card shadow-lg"
+      sheetClassName="grid h-[min(680px,calc(100dvh-8px))] grid-rows-[auto_minmax(0,1fr)_auto]"
+      desktopStyle={{
+        left: at.x,
+        top: at.y,
+        width: PANEL_WIDTH,
+        maxHeight: Math.max(
+          MIN_PANEL_HEIGHT,
+          Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
+        ),
+      }}
+      onClose={onClose}
+    >
         <div
           className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
           onPointerDown={(event) => {
@@ -971,7 +965,6 @@ export function GridOrderDialog({
             }`}
           </Button>
         </div>
-      </div>
-    </>
+    </TouchOrderFrame>
   )
 }

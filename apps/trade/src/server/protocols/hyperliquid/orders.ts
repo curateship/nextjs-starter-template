@@ -43,6 +43,7 @@ import {
 } from "@/server/protocols/hyperliquid/open-orders-feed"
 import { agentSigner } from "@/server/protocols/hyperliquid/signing"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
+import { hyperliquidRefusalError } from "@/server/protocols/hyperliquid/refusals"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
@@ -128,7 +129,9 @@ const perpDexsSchema = z.array(
 
 /** The exchange's asset-id rule, pure so the test can pin it down. */
 export function venueAssetId(venueIndex: number, assetIndex: number): number {
-  return venueIndex === 0 ? assetIndex : 100_000 + venueIndex * 10_000 + assetIndex
+  return venueIndex === 0
+    ? assetIndex
+    : 100_000 + venueIndex * 10_000 + assetIndex
 }
 
 async function exchangeAssets(network: NetworkId) {
@@ -206,10 +209,7 @@ async function resolveAsset(network: NetworkId, marketId: string) {
 export function decimalString(value: number): string {
   if (!Number.isFinite(value) || value < 0) throw new Error("LIVE_PRICE")
   if (Number.isInteger(value)) return String(value)
-  return value
-    .toFixed(12)
-    .replace(/0+$/, "")
-    .replace(/\.$/, "")
+  return value.toFixed(12).replace(/0+$/, "").replace(/\.$/, "")
 }
 
 /**
@@ -243,7 +243,8 @@ export function cappedMarketPx(
   side: "buy" | "sell",
   szDecimals: number
 ): number {
-  const capped = side === "buy" ? mark * (1 + MARKET_SLIPPAGE) : mark * (1 - MARKET_SLIPPAGE)
+  const capped =
+    side === "buy" ? mark * (1 + MARKET_SLIPPAGE) : mark * (1 - MARKET_SLIPPAGE)
   return roundOrderPx(capped, szDecimals)
 }
 
@@ -277,7 +278,8 @@ async function exchangeClient(network: NetworkId, auth: OrderAuth) {
 
 /** An exchange refusal as a thrown, scrubbed, code-prefixed error. */
 function exchangeError(error: unknown): Error {
-  return new Error(`LIVE_EXCHANGE:${scrubbedMessage(error)}`)
+  const reason = scrubbedMessage(error)
+  return new Error(`LIVE_EXCHANGE:${hyperliquidRefusalError(reason).message}`)
 }
 
 // ----- Reading what the exchange says back --------------------------------
@@ -336,8 +338,12 @@ export async function placeHyperliquidOrder(
   const sz = formatSize(params.sz, asset.szDecimals)
 
   const protectionLegs: Array<{ tpsl: "tp" | "sl"; triggerPx: number }> = [
-    ...(params.tpPx !== null ? [{ tpsl: "tp" as const, triggerPx: params.tpPx }] : []),
-    ...(params.slPx !== null ? [{ tpsl: "sl" as const, triggerPx: params.slPx }] : []),
+    ...(params.tpPx !== null
+      ? [{ tpsl: "tp" as const, triggerPx: params.tpPx }]
+      : []),
+    ...(params.slPx !== null
+      ? [{ tpsl: "sl" as const, triggerPx: params.slPx }]
+      : []),
   ]
 
   const orders = [
@@ -395,7 +401,11 @@ export async function placeHyperliquidOrder(
   // wraps transport and parse failures, where an order may well have gone
   // through — acting on those as "nothing happened" is how money gets spent
   // twice. Only this code may ever be used to undo engine state.
-  if (entryError !== null) throw new Error(`LIVE_ORDER_REFUSED:${entryError}`)
+  if (entryError !== null) {
+    throw new Error(
+      `LIVE_ORDER_REFUSED:${hyperliquidRefusalError(entryError).message}`
+    )
+  }
 
   // The entry stood. From here every outcome is reported, never thrown —
   // throwing would read as "nothing happened" over an order that exists.
@@ -430,7 +440,9 @@ export async function placeHyperliquidOrder(
     }
   }
   const oid =
-    typeof entry === "object" && "resting" in entry ? String(entry.resting.oid) : null
+    typeof entry === "object" && "resting" in entry
+      ? String(entry.resting.oid)
+      : null
   return {
     status: "resting",
     orderId: oid,
@@ -704,11 +716,15 @@ export async function setHyperliquidBrackets(
       const failed = statuses.map(statusError).find((error) => error !== null)
       // A leg that is already gone (filled or cancelled elsewhere) is fine —
       // the aim is "no old legs", and it already isn't there.
-      if (failed && !/never placed|already|filled|canceled|cancelled/i.test(failed)) {
+      if (
+        failed &&
+        !/never placed|already|filled|canceled|cancelled/i.test(failed)
+      ) {
         throw new Error(`LIVE_EXCHANGE:${failed}`)
       }
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith("LIVE_EXCHANGE:")) throw error
+      if (error instanceof Error && error.message.startsWith("LIVE_EXCHANGE:"))
+        throw error
       throw exchangeError(error)
     }
   }
@@ -830,13 +846,16 @@ export async function fetchHyperliquidOrderFills(
     user: address.toLowerCase() as `0x${string}`,
     startTime: Math.max(0, since),
   })
-  const fills = z.array(fillSchema).parse(rows).map((row) => {
-    const fill = readHyperliquidFill(row)
-    // The row parsed a moment ago, so a null here is a price or size that is
-    // not a number, and an answer with a hole in it is worse than no answer.
-    if (!fill) throw new Error("LIVE_UNREADABLE")
-    return fill
-  })
+  const fills = z
+    .array(fillSchema)
+    .parse(rows)
+    .map((row) => {
+      const fill = readHyperliquidFill(row)
+      // The row parsed a moment ago, so a null here is a price or size that is
+      // not a number, and an answer with a hole in it is worse than no answer.
+      if (!fill) throw new Error("LIVE_UNREADABLE")
+      return fill
+    })
   // Told AFTER the read succeeded, never before: a read that threw has covered
   // nothing, and a feed that believed otherwise would leave the hole unasked
   // about for good.
@@ -1086,7 +1105,10 @@ async function readHyperliquidPortfolio(
   )
 
   const positions = new Map<string, WalletPosition>()
-  const openAcrossVenues: Array<{ dex: string; order: z.infer<typeof openOrdersSchema>[number] }> = []
+  const openAcrossVenues: Array<{
+    dex: string
+    order: z.infer<typeof openOrdersSchema>[number]
+  }> = []
   const used = new Set<string>()
   for (const read of reads) {
     if (read.clearinghouse.assetPositions.length > 0 || read.open.length > 0) {
@@ -1109,7 +1131,9 @@ async function readHyperliquidPortfolio(
         entryPx,
         leverage: position.leverage.value,
         marginUsed,
-        liquidationPx: position.liquidationPx ? num(position.liquidationPx) : null,
+        liquidationPx: position.liquidationPx
+          ? num(position.liquidationPx)
+          : null,
         tpPx: null,
         tpSz: null,
         slPx: null,
@@ -1164,7 +1188,9 @@ async function readHyperliquidPortfolio(
         // sells everything, which null already says.
         const legSz = num(order.sz)
         position.tpSz =
-          legSz !== null && legSz > 0 && legSz < Math.abs(position.szi) * (1 - 1e-6)
+          legSz !== null &&
+          legSz > 0 &&
+          legSz < Math.abs(position.szi) * (1 - 1e-6)
             ? legSz
             : null
         continue

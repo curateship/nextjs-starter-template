@@ -216,6 +216,19 @@ refused come straight back onto the screen instead of staying hidden.
 
 ## Drawing on the chart
 
+### By touch
+
+A finger opens the chart's order menu by staying still for half a second. A
+finger that moves more than eight pixels pans the chart and opens nothing.
+Below the 1280-pixel wide layout, the order menu and every order window open in
+the same bottom sheet used by the workspace side panels. A tap outside closes
+the sheet and does not pass through to the chart.
+
+Order lines keep their thin drawing, but the invisible area a finger can grab
+is 44 pixels tall on a touch screen. Dragging that area moves the line and does
+not pan the chart. Placing still takes one press on the order window's Place
+button. Touch adds no second confirmation.
+
 A small rail of tools sits at the chart's top-left corner, on the candles
 rather than in the header row: the header says which market and which
 timeframe, and the rail says what the pointer is holding.
