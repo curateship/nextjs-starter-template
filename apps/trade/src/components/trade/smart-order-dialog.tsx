@@ -8,6 +8,7 @@ import {
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { OptionCard } from "@/components/trade/option-card"
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -766,14 +767,13 @@ export function SmartOrderDialog({
         {/* Below the scroll, not in it: however many rungs the ladder has, the
             refusal and the button that would ignore it stay on screen. */}
         <div className="border-t p-3">
-          {refusal ? (
-            <p className="pb-3 text-xs text-red-600 dark:text-red-400">
-              {refusal}
-            </p>
-          ) : null}
+          <OrderRefusal id="ladder-refusal" className="pb-3">
+            {refusal}
+          </OrderRefusal>
           <Button
             type="button"
             onClick={() => void submit()}
+            aria-describedby={refusal ? "ladder-refusal" : undefined}
             disabled={!ready}
             className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
           >

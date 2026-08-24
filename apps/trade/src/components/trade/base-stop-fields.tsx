@@ -1,6 +1,10 @@
 import { OptionCard } from "@/components/trade/option-card"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
+import {
+  badBaseReclaimDays,
+  badBaseUnderPct,
+} from "@/lib/trade/base-stop"
 import { BASE_STOP_INTERVAL } from "@/lib/trade/dca"
 
 /**
@@ -12,7 +16,9 @@ import { BASE_STOP_INTERVAL } from "@/lib/trade/dca"
  * are the difficult part. A rule explained two ways is a rule nobody trusts.
  *
  * It owns nothing. Both screens keep the three answers themselves, the same
- * way they keep every other field.
+ * way they keep every other field. What counts as a bad answer, and the
+ * sentence each bad answer gives back, is in `lib/trade/base-stop.ts` so the
+ * screens' refusal lines and these boxes' outlines can never disagree.
  */
 export function BaseStopFields({
   on,
@@ -51,6 +57,10 @@ export function BaseStopFields({
           inputMode="decimal"
           value={underPct}
           disabled={disabled || !on}
+          // Only while the box is being used. A switched-off base stop keeps
+          // whatever was last typed in it, and outlining a box nothing is
+          // reading points at a problem that is not there.
+          aria-invalid={on && badBaseUnderPct(underPct)}
           onChange={(event) => onUnderPct(event.target.value)}
         />
       </div>
@@ -67,6 +77,7 @@ export function BaseStopFields({
           inputMode="decimal"
           value={reclaimDays}
           disabled={disabled || !on}
+          aria-invalid={on && badBaseReclaimDays(reclaimDays)}
           onChange={(event) => onReclaimDays(event.target.value)}
         />
       </div>

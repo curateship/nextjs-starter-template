@@ -3,6 +3,7 @@ import { GripVerticalIcon, Loader2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { OptionCard } from "@/components/trade/option-card"
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
@@ -946,14 +947,13 @@ export function GridOrderDialog({
         {/* Below the scroll, not in it: however many levels the grid has, the
             refusal and the button that would ignore it stay on screen. */}
         <div className="border-t p-3">
-          {refusal ? (
-            <p className="pb-3 text-xs text-red-600 dark:text-red-400">
-              {refusal}
-            </p>
-          ) : null}
+          <OrderRefusal id="grid-refusal" className="pb-3">
+            {refusal}
+          </OrderRefusal>
           <Button
             type="button"
             onClick={() => void submit()}
+            aria-describedby={refusal ? "grid-refusal" : undefined}
             disabled={!ready}
             className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
           >

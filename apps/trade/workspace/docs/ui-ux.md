@@ -123,6 +123,38 @@ and half a window's width left the market list too narrow to read (decided
 everything, and a screen below the wide-screen line keeps its own layout —
 the chart as the page with the side panels behind the header's two buttons.
 
+### The bottom panel's two stand-everything-down buttons
+
+Both live in the bottom panel's tab row, side by side, and each is there only
+while it has something to do. **They are two decisions, not one.** Closing what
+you hold and standing your waiting orders down are different things, and a fast
+market is exactly when somebody wants one without the other.
+
+- **Close all** closes every open position, real money included. Each real one
+  goes through the same close its own row's button uses. Waiting orders are left
+  alone.
+- **Cancel smart orders** calls off every ladder and every grid you placed
+  yourself, across every wallet, through the same Stop each one has of its own.
+  **It closes nothing.** What those orders already bought stays open with its
+  stop still under it, which the confirm says out loud because the opposite is a
+  reasonable thing to assume.
+
+What Cancel smart orders deliberately leaves alone: a flow's orders, because the
+flow would place them again on its next pass and standing a flow down belongs on
+that run's dashboard; and a watched price, which is a plain order that has not
+fired yet and is cancelled from its own chart line or its Open orders row.
+
+Its confirm counts what goes before it goes — how many ladders, how many grids,
+and what they are holding in dollars at today's price. Real money puts the
+figure in the question itself, and the confirm is the second press. It also says
+that **a cancelled ladder loses its plan**: `trading-rules.md` holds that a rung
+is never written off and a ladder ends only when its rungs are used up, so the
+waiting rungs were the plan, and calling them off ends that ladder for good.
+
+A refusal is never dressed up as success. Four called off and two refused says
+which two are still running, in the exchange's own words, and the two that
+refused come straight back onto the screen instead of staying hidden.
+
 ## Drawing on the chart
 
 A small rail of tools sits at the chart's top-left corner, on the candles
@@ -400,6 +432,40 @@ does not close the position immediately.
   answer, and a toast on every click of a trading screen is noise. Refusals
   still speak up, and so does the one case that must never pass quietly — a
   real order that went on without the protection asked for.
+
+### Buying more of what a position holds
+
+Every position row carries a **+** button beside its cog, labelled "Add to the
+BTC position". One press does what used to take five: it charts that coin,
+switches the traded wallet to that row's wallet, and opens the same order window
+a right-click opens, over today's price, on that position's side. The size box
+is the only thing left to fill in, and it starts empty and focused.
+
+- **The chart and the wallet both move before the window opens.** Two wallets
+  can hold the same coin, and a window that opened before the switch landed
+  would put the order on the wallet you were looking at rather than the one you
+  pressed — which is the mistake this button exists to remove. The window also
+  names the wallet inside itself, so a wrong one is readable before the press.
+- **Adding never changes leverage.** The window shows the position's own
+  leverage as a line and offers no slider. `placeLiveOrder` sends null for
+  leverage and margin mode whenever a position already exists, and the exchange
+  keeps what it has, so a slider here would be a promise the order cannot keep.
+- **The window says what it is adding to, and what the position becomes**:
+  "Adding to $500 long in Main wallet, at 3× leverage. After this order: $750 at
+  an average of $98." Both figures are what was paid, never what it is worth
+  today, so $500 plus $250 reads as $750 and the average is a number anybody can
+  check. It re-reads itself as the size is typed.
+- **A position that closes under the window takes the window with it.** The
+  window is looking at what that position IS, resolved live, not at a copy of
+  what it was when the button was pressed.
+- **It refuses out loud rather than doing nothing.** A wallet that is switched
+  off, a live wallet with no trading key, and a market the exchange has stopped
+  listing each say so and nothing moves.
+- **Nothing about the order path changes.** It is placed exactly as the
+  right-click window places one: a watched trigger by default, resting only if
+  Settings say so, chasing as a maker when price reaches it. There is
+  deliberately no "double it" press that skips the window — the window is where
+  the size is chosen and where the real-money check happens.
 
 ## The market list
 
@@ -680,6 +746,15 @@ the finished page, so the empty page gets designed once, at the start.
 - Account — "No account connected yet."
 - Positions / Open orders / Fills — each says what would be there.
 
+**A table with nothing in it keeps its column headings.** The empty words are a
+row inside the table, spanning every column, sitting under the real heading
+row. They are never a paragraph drawn instead of the table. Closing your last
+position therefore leaves the headings where they were and the bottom panel
+does not jump, which matters because that jump used to land at the exact moment
+a position closed. Still reading and a failed read already worked this way; the
+empty state now matches them, and the three answers stay separate — a table
+never says "nothing here" before a read has really landed.
+
 **A market that is not there has one voice.** Both places say the exchange is
 not listing it, in the same words and the same tense:
 
@@ -829,6 +904,22 @@ working bar streams beside it.
   or unavailable, say so. Never quietly fall back to BTC or anything else.
 - **An unavailable action explains itself.** Never hide the reason, and never
   quietly change what the user asked for into something that is allowed.
+
+  **A greyed-out button carries its reason above it, in one sentence, before
+  anything is pressed.** A dead grey button on a trading screen reads as a
+  broken app rather than as a form with a problem in it. Every window that can
+  refuse — the ladder, the grid, the order window, the stop-and-target window,
+  the running grid's window and a live ladder's exits — draws the same red line
+  through `order-refusal.tsx`: on the floating chart windows directly above the
+  button, and in a modal to the left of its footer buttons, which is the one
+  place a body that scrolls cannot carry it out of sight.
+
+  The words name the box and what would fix it, in dollars wherever money is
+  involved. Never a code and never a field name out of the source. The box at
+  fault carries `aria-invalid`, so the eye and the screen reader are pointed at
+  the same place, and the button points at the sentence with
+  `aria-describedby`. A box nobody has typed in yet is not outlined; the
+  sentence alone explains what the button is waiting for.
 - **The exchange and network stay one glance or one hover away** wherever a
   market or an account could be read as belonging to the wrong one — the
   search box names them outright, the market header holds them behind its

@@ -92,6 +92,20 @@ export function useLiveCatchUp(onCatchUp: () => void) {
   }, [])
 }
 
+/**
+ * What one market costs right now, read once, or null before its first tick.
+ *
+ * **Not a subscription.** It is for the moment something is opened — a window
+ * that needs the price it is about to trade at — where a hook would tie the
+ * whole screen around it to a feed that ticks once a second. The chart panel is
+ * the caller that matters: holding a price in its state redrew every layer over
+ * the candles on every tick, which is exactly what `watchLiveCandle` exists to
+ * avoid.
+ */
+export function liveMarkOf(key: string): number | null {
+  return figures.get(key)?.price ?? null
+}
+
 /** The live figures for one market, or null until its first tick. */
 export function useLiveFigures(key: string | null): LiveFigures | null {
   const subscribe = React.useCallback(

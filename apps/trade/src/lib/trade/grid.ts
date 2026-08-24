@@ -148,6 +148,15 @@ export const GRID_STEP_FEE_MULTIPLE = 3
 // ----- What the window asks for -------------------------------------------
 
 /**
+ * The furthest under the range's bottom the stop may be set, in percent.
+ *
+ * Named rather than typed into the schema, because the window that asks for
+ * the number has to say the same limit back when somebody types past it — and
+ * a limit written down twice is a limit that drifts.
+ */
+export const MAX_GRID_STOP_UNDER_PCT = 50
+
+/**
  * The stop that sits under the range.
  *
  * Measured from the BOTTOM of the range and never from the average buy price.
@@ -160,7 +169,7 @@ export const GRID_STEP_FEE_MULTIPLE = 3
  */
 export const gridStopSchema = z.object({
   /** Percent below the bottom of the range. Zero rests it on the bottom itself. */
-  underPct: z.number().min(0).max(50),
+  underPct: z.number().min(0).max(MAX_GRID_STOP_UNDER_PCT),
   /**
    * Rest the stop under the confirmed 4h base instead, when one has confirmed
    * BELOW the range. The percent above stands until then, so there is always a

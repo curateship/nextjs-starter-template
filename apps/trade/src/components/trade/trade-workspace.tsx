@@ -46,12 +46,14 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,
+  marketSymbol,
   parseMarketKey,
   type CandleInterval,
   type MarketRow,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
+import type { TradePosition } from "@/lib/trade/paper"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
@@ -460,6 +462,82 @@ export function TradeWorkspace({
     [onSelectMarket, selectedKey]
   )
 
+  /**
+   * Buying more of what a position row holds.
+   *
+   * **The chart and the wallet both move first, and the order window is held
+   * back until they have.** Two wallets can hold the same coin, so a window
+   * that opened before the switch landed would put the order on the wallet you
+   * were looking at rather than the one you pressed — which is the whole
+   * mistake this button exists to remove.
+   *
+   * The request is a note saying which position was asked for; the gate on
+   * `addTo` below is what says both switches have really happened. Nothing here
+   * places anything: the window is where the size is chosen, and that is
+   * deliberate — a "double it" press with no window is how a wrong size goes
+   * through.
+   */
+  const [adding, setAdding] = React.useState<TradePosition | null>(null)
+  const switchWallet = account.switchWallet
+  const addToPosition = React.useCallback(
+    (position: TradePosition) => {
+      const symbol = marketSymbol(position.marketKey)
+      const wallet = account.wallets.find(
+        (one) => one.id === position.walletId
+      )
+      if (!wallet || wallet.status !== "active") {
+        showErrorToast(
+          `The wallet holding this ${symbol} position is not switched on, so nothing can be added to it.`
+        )
+        return
+      }
+      if (wallet.kind === "live" && !wallet.hasKey) {
+        showErrorToast(
+          `${wallet.label} has no trading key saved, so nothing can be added to its ${symbol} position.`
+        )
+        return
+      }
+      // Asked before anything moves. A market the exchange has stopped listing
+      // cannot be charted, and the window would never open — better to say so
+      // than to switch the chart to an empty panel and leave it there.
+      if (resolveSelection(catalogs, position.marketKey).kind !== "market") {
+        showErrorToast(
+          `The exchange is not listing ${symbol} right now, so nothing can be added to that position.`
+        )
+        return
+      }
+      if (position.marketKey !== selectedKey) onSelectMarket(position.marketKey)
+      if (position.walletId !== account.activeWallet?.id) {
+        switchWallet(position.walletId)
+      }
+      setAdding(position)
+    },
+    [
+      account.wallets,
+      account.activeWallet?.id,
+      catalogs,
+      onSelectMarket,
+      selectedKey,
+      switchWallet,
+    ]
+  )
+
+  // A request nothing ever picked up is dropped rather than left waiting. The
+  // two switches land within a frame or two; anything still pending after this
+  // means the page moved on, and a window opening minutes later would be a
+  // press nobody remembers making.
+  React.useEffect(() => {
+    if (!adding) return
+    const giveUp = window.setTimeout(() => setAdding(null), 5_000)
+    return () => window.clearTimeout(giveUp)
+  }, [adding])
+
+  // Stable, because the chart panel's effect lists it as a dependency. An
+  // arrow written at the call site is a new function on every render of this
+  // workspace, which would re-run that effect on every poll and every price
+  // tick for as long as a request was pending.
+  const addOpened = React.useCallback(() => setAdding(null), [])
+
   const walletNameOf = React.useCallback(
     (walletId: string) =>
       trading.walletNames.get(walletId) ??
@@ -579,6 +657,17 @@ export function TradeWorkspace({
             free={free}
             equity={equity}
             shownTrade={shownTrade}
+            // The gate: the chart is on that row's coin AND the traded wallet
+            // is that row's wallet. Until both are true this stays null and
+            // the order window does not open.
+            addTo={
+              adding &&
+              adding.marketKey === selectedKey &&
+              adding.walletId === account.activeWallet?.id
+                ? adding
+                : null
+            }
+            onAddOpened={addOpened}
           />
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
@@ -744,7 +833,9 @@ export function TradeWorkspace({
               <ActivityPanel
                 trading={trading}
                 catalogs={catalogs}
+                wallets={account.wallets}
                 onSelectMarket={onSelectMarket}
+                onAddToPosition={addToPosition}
                 shownTrade={shownTrade}
                 onShowTrade={showTrade}
                 fit={activityFit}

@@ -27,6 +27,7 @@ import {
   updatePaperOrder,
 } from "@/lib/api/paper"
 import {
+  cancelAllSmartOrders as cancelAllSmartOrdersApi,
   cancelGridLevel as cancelGridLevelApi,
   cancelGridRest,
   cancelLadderRest,
@@ -46,6 +47,7 @@ import {
   editWatch,
 } from "@/lib/api/smart-orders"
 import {
+  marketSymbol,
   parseMarketKey,
   type CandleInterval,
   type ProtocolId,
@@ -60,7 +62,12 @@ import type { DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridParams } from "@/lib/trade/grid"
-import type { SmartGrid, SmartLadder, SmartOrder } from "@/lib/trade/smart-plan"
+import {
+  laddersAndGridsYouPlaced,
+  type SmartGrid,
+  type SmartLadder,
+  type SmartOrder,
+} from "@/lib/trade/smart-plan"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition, TradeSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -446,6 +453,17 @@ export type Trading = {
     gridId: string,
     follow: boolean
   ) => Promise<boolean>
+  /**
+   * The other emergency button: every ladder and every grid you placed, stood
+   * down at once, across every wallet holding one.
+   *
+   * Beside `closeAll` rather than inside it. What you are holding and what is
+   * still waiting to buy are two different decisions, and a fast market is
+   * exactly when somebody wants one without the other. This one buys nothing
+   * more and sells nothing at all: the positions those orders opened stay open,
+   * with their stops still under them.
+   */
+  cancelAllSmartOrders: () => Promise<void>
 }
 
 type PaperAnswer = {
@@ -1812,6 +1830,111 @@ export function useTrading(
     }
   }, [refresh, positions])
 
+  /**
+   * Every ladder and grid you placed, stood down in one press.
+   *
+   * **Each wallet is asked once, and the wallets are asked together.** The
+   * server walks one wallet's orders at a time; two wallets have nothing to do
+   * with each other, and this is the button somebody presses because the market
+   * is moving, so a real wallet must never queue behind a practice one.
+   *
+   * Every row leaves the screen on the press, the way one Stop does, and a
+   * refused one comes straight back and says why. Refusals are what this
+   * reports: "four cancelled and two refused" is not a success, and the two
+   * still running have to be visible to whoever pressed it.
+   */
+  const cancelAllSmartOrders: Trading["cancelAllSmartOrders"] =
+    React.useCallback(async () => {
+      const working = laddersAndGridsYouPlaced(smartOrders)
+      if (working.length === 0) return
+      const walletIds = [...new Set(working.map((one) => one.walletId))]
+      const pressedAt = Date.now()
+
+      setPending((count) => count + 1)
+      setCancelling((held) => {
+        const next = new Map(held)
+        for (const order of working) next.set(order.id, pressedAt)
+        return next
+      })
+      try {
+        const answers = await Promise.allSettled(
+          walletIds.map((walletId) => cancelAllSmartOrdersApi({ walletId }))
+        )
+
+        let stood = 0
+        // **Carried by id, never by market.** Two wallets can hold a ladder on
+        // the same coin, and matching a refusal back to a row by its coin alone
+        // would put the OTHER wallet's row back on screen after that one really
+        // was called off. The same reason the drag holds are keyed by wallet
+        // and market rather than by market.
+        const refused: {
+          id: string
+          walletId: string
+          marketKey: string
+          reason: string
+        }[] = []
+        answers.forEach((answer, at) => {
+          if (answer.status === "rejected") {
+            // The whole wallet refused — finding the wallet, or a key that is
+            // gone. Every order on it is still running, so every one of them
+            // goes back on screen.
+            const reason = getTradingSmartOrderError(answer.reason)
+            for (const order of working) {
+              if (order.walletId === walletIds[at]) {
+                refused.push({
+                  id: order.id,
+                  walletId: order.walletId,
+                  marketKey: order.marketKey,
+                  reason,
+                })
+              }
+            }
+            return
+          }
+          stood += answer.value.stood.length
+          for (const one of answer.value.refused) {
+            refused.push({
+              id: one.id,
+              walletId: walletIds[at],
+              marketKey: one.marketKey,
+              reason: one.reason,
+            })
+          }
+        })
+
+        // A refused order was never called off, so its hold is let go at once
+        // and its row comes back rather than sitting hidden for thirty seconds.
+        if (refused.length > 0) {
+          setCancelling((held) => {
+            const next = new Map(held)
+            for (const one of refused) next.delete(one.id)
+            return next
+          })
+          // Named with its wallet, because this panel lists several and the
+          // coin on its own does not say which one is still running.
+          const named = (one: (typeof refused)[number]) =>
+            `${marketSymbol(one.marketKey)} in ${nameOf(one.walletId)}`
+          showErrorToast(
+            refused.length === 1
+              ? `${named(refused[0])} is still running: ${refused[0].reason}`
+              : `${refused.length} are still running — ${refused
+                  .map(named)
+                  .join(", ")}. The first said: ${refused[0].reason}`
+          )
+        }
+        if (stood > 0) {
+          toast.success(
+            stood === 1
+              ? "1 smart order stopped — what it bought stays."
+              : `${stood} smart orders stopped — what they bought stays.`
+          )
+        }
+      } finally {
+        setPending((count) => count - 1)
+        void refresh()
+      }
+    }, [smartOrders, refresh, nameOf])
+
   return {
     wallet: tradable ? wallet : null,
     walletNames,
@@ -1865,5 +1988,6 @@ export function useTrading(
     reshapeGrid,
     setGridStop,
     setGridFollow,
+    cancelAllSmartOrders,
   }
 }

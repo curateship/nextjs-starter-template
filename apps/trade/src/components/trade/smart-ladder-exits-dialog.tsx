@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,6 +26,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { marketSymbol } from "@/lib/protocols/contracts"
+import {
+  BASE_STOP_DAYS_REFUSAL,
+  BASE_STOP_UNDER_REFUSAL,
+  badBaseReclaimDays,
+  badBaseUnderPct,
+} from "@/lib/trade/base-stop"
 import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
@@ -158,17 +165,23 @@ function ExitsForm({
     slOn && !(Number.isFinite(parsedSl) && parsedSl > 0 && parsedSl <= 100)
   const parsedUnder = Number(baseUnderPct)
   const parsedDays = Number(baseReclaimDays)
-  const badBase =
-    slOn &&
-    baseOn &&
-    !(
-      Number.isFinite(parsedUnder) &&
-      parsedUnder >= 0 &&
-      parsedUnder <= 50 &&
-      Number.isFinite(parsedDays) &&
-      parsedDays >= 0 &&
-      parsedDays <= 90
-    )
+  // The same two rules the base fields themselves outline, asked one box at a
+  // time so the refusal below can name which of them is the problem.
+  const badBaseUnder = slOn && baseOn && badBaseUnderPct(baseUnderPct)
+  const badBaseDays = slOn && baseOn && badBaseReclaimDays(baseReclaimDays)
+  const badBase = badBaseUnder || badBaseDays
+
+  // Every reason this window would refuse, said above the button so nobody
+  // presses Save to find out. Same order as the cards on screen.
+  const refusal = badTp
+    ? "Target % has to be a number above zero. It is measured up from the ladder's average buy price."
+    : badSl
+      ? "Stop % has to be a number above zero and no more than 100. It is measured down from the ladder's average buy price."
+      : badBaseUnder
+        ? BASE_STOP_UNDER_REFUSAL
+        : badBaseDays
+          ? BASE_STOP_DAYS_REFUSAL
+          : null
 
   const save = async () => {
     if (badTp || badSl || badBase) return
@@ -314,12 +327,32 @@ function ExitsForm({
       </DialogBody>
 
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+        {/* Left of the buttons rather than under the fields: the body scrolls,
+            and a refusal that scrolls away is one the button can be pressed
+            without ever seeing. */}
+        <OrderRefusal
+          id="ladder-exits-refusal"
+          className="mr-auto min-w-0 flex-1"
+        >
+          {refusal}
+        </OrderRefusal>
+        <Button
+          type="button"
+          variant="outline"
+          className="shrink-0"
+          disabled={busy}
+          onClick={onClose}
+        >
           Cancel
         </Button>
         <Button
           type="button"
-          disabled={busy || badTp || badSl}
+          className="shrink-0"
+          aria-describedby={refusal ? "ladder-exits-refusal" : undefined}
+          // The base stop's two boxes join the other two here. `save` already
+          // turned back on a bad one, so a live button did nothing at all and
+          // said nothing about why.
+          disabled={busy || badTp || badSl || badBase}
           onClick={() => void save()}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}

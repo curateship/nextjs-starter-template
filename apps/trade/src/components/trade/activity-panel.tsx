@@ -45,6 +45,12 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import type { PanelFit } from "@/lib/trade/panel-fit"
 import type { LiveTrade } from "@/lib/trade/live-trades"
 import {
+  laddersAndGridsYouPlaced,
+  type SmartGrid,
+  type SmartLadder,
+} from "@/lib/trade/smart-plan"
+import type { TradeWallet } from "@/lib/trade/wallets"
+import {
   positionProfit,
   positionValue,
   type TradePosition,
@@ -92,14 +98,24 @@ function dropStrayHighlightAfter(): void {
 export function ActivityPanel({
   trading,
   catalogs,
+  wallets,
   onSelectMarket,
+  onAddToPosition,
   shownTrade,
   onShowTrade,
   fit,
 }: {
   trading: Trading
   catalogs: MarketCatalog[]
+  /** Every wallet on this exchange, for telling real money from practice. */
+  wallets: readonly TradeWallet[]
   onSelectMarket: (marketKey: string) => void
+  /**
+   * Buy more of a position: the workspace charts that coin, switches to that
+   * wallet, and opens the order window over today's price. It owns both
+   * switches, which is why the row's button reaches all the way up here.
+   */
+  onAddToPosition: (position: TradePosition) => void
   /** The trade drawn on the chart right now, owned by the workspace. */
   shownTrade: LiveTrade | null
   onShowTrade: (trade: LiveTrade | null) => void
@@ -115,6 +131,7 @@ export function ActivityPanel({
   const [editing, setEditing] = React.useState<TradePosition | null>(null)
   const [flipping, setFlipping] = React.useState<TradePosition | null>(null)
   const [closingAll, setClosingAll] = React.useState(false)
+  const [standingDown, setStandingDown] = React.useState(false)
   // The bin on a row and the Remove button over ticked rows both ask first.
   // Nothing here can be put back from the screen, and the two lists sit under
   // a chart people click around on all day. One row or many, it is the same
@@ -175,6 +192,20 @@ export function ActivityPanel({
   const visible = shown === "manual" ? byHand : trading.positions
   // How many of the open positions are real money — the confirm says it.
   const realCount = trading.positions.filter((one) => one.live).length
+
+  // The ladders and grids one press would stand down. The same list the
+  // confirm counts and the action works through, so the two cannot disagree.
+  const standing = React.useMemo(
+    () => laddersAndGridsYouPlaced(trading.smartOrders),
+    [trading.smartOrders]
+  )
+  const realWallets = React.useMemo(
+    () =>
+      new Set(
+        wallets.filter((one) => one.kind === "live").map((one) => one.id)
+      ),
+    [wallets]
+  )
 
   // Resolved against the live list every render, so a position closed by its
   // own stop while its window is open closes the window instead of editing
@@ -298,6 +329,20 @@ export function ActivityPanel({
                 Remove ({tickedTrades.length})
               </Button>
             ) : null}
+            {/* Beside Close all, never inside it. Closing what you hold and
+                standing your waiting orders down are two different decisions,
+                and a fast market is exactly when somebody wants one without
+                the other. */}
+            {standing.length > 0 ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={trading.busy}
+                onClick={() => setStandingDown(true)}
+              >
+                Cancel smart orders
+              </Button>
+            ) : null}
             {/* The emergency button: one press, one confirm, and every open
                 position goes — real money included, each real one through the
                 same close its own row uses. */}
@@ -350,6 +395,7 @@ export function ActivityPanel({
             failed={trading.failed}
             onRetry={trading.retry}
             onSelectMarket={onSelectMarket}
+            onAdd={onAddToPosition}
             onEdit={setEditing}
             onFlip={setFlipping}
             onClose={(position) =>
@@ -465,6 +511,19 @@ export function ActivityPanel({
         }}
       />
 
+      <StandDownConfirm
+        open={standingDown}
+        onOpenChange={setStandingDown}
+        orders={standing}
+        positions={trading.positions}
+        markets={markets}
+        realWallets={realWallets}
+        onConfirm={() => {
+          void trading.cancelAllSmartOrders()
+          setStandingDown(false)
+        }}
+      />
+
       <ConfirmDialog
         open={closingAll}
         onOpenChange={setClosingAll}
@@ -487,6 +546,118 @@ export function ActivityPanel({
         }}
       />
     </Tabs>
+  )
+}
+
+/** "3 ladders and 2 grids", "1 ladder" — however many of each there are. */
+function countedWords(ladders: number, grids: number): string {
+  const said: string[] = []
+  if (ladders > 0) said.push(`${ladders} ladder${ladders === 1 ? "" : "s"}`)
+  if (grids > 0) said.push(`${grids} grid${grids === 1 ? "" : "s"}`)
+  return said.join(" and ")
+}
+
+/**
+ * The question asked before every ladder and grid is stood down.
+ *
+ * **It counts what goes before it goes**, the way the drawing bin names how
+ * many lines it will take: how many ladders, how many grids, what they are
+ * holding in dollars right now, and how much of that is real money. Real money
+ * has the figure in the question itself, and the question is the second press —
+ * the button opens it and this button answers it.
+ *
+ * **Two things it has to say out loud**, because both are reasonable to assume
+ * the other way round. Nothing is sold: what those orders already bought stays
+ * open with its stop still under it. And a ladder's waiting rungs WERE its
+ * plan — `trading-rules.md` says a rung is never written off and a ladder ends
+ * only when its rungs are used up — so calling them off throws the plan away.
+ *
+ * Its own component so the live prices behind the dollars are subscribed to
+ * only while the question is on screen. Watched from the panel itself, a tick a
+ * second would redraw every row of every table behind a dialog nobody has
+ * opened.
+ */
+export function StandDownConfirm({
+  open,
+  onOpenChange,
+  orders,
+  positions,
+  markets,
+  realWallets,
+  onConfirm,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** Exactly what the press will stand down — see `laddersAndGridsYouPlaced`. */
+  orders: readonly (SmartLadder | SmartGrid)[]
+  positions: readonly TradePosition[]
+  markets: ReadonlyMap<string, MarketRow>
+  /**
+   * The wallets that spend real money. Read off the wallet rather than off a
+   * position, because a ladder that has not bought anything yet still has real
+   * rungs resting on an exchange.
+   */
+  realWallets: ReadonlySet<string>
+  onConfirm: () => void
+}) {
+  const marks = useLiveMarks(open ? orders.map((one) => one.marketKey) : [])
+
+  const ladders = orders.filter((one) => one.kind === "dca").length
+  const grids = orders.length - ladders
+  const counted = countedWords(ladders, grids)
+
+  // What those orders are holding, at today's price. One smart order per coin
+  // per wallet, so a position on that pair belongs to that order.
+  const held = new Map(
+    positions.map((one) => [`${one.walletId}:${one.marketKey}`, one])
+  )
+  let holding = 0
+  let realHolding = 0
+  let real = 0
+  for (const order of orders) {
+    const onRealMoney = realWallets.has(order.walletId)
+    if (onRealMoney) real += 1
+    const position = held.get(`${order.walletId}:${order.marketKey}`)
+    if (!position) continue
+    const mark =
+      marks.get(order.marketKey) ??
+      markets.get(order.marketKey)?.price ??
+      position.entryPx
+    const worth = positionValue(position, mark)
+    holding += worth
+    if (onRealMoney) realHolding += worth
+  }
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        real === 0
+          ? `Stop ${counted}?`
+          : realHolding > 0
+            ? `Stop ${counted}, holding ${formatUsd(realHolding)} of real money?`
+            : `Stop ${counted} — ${real === 1 ? "one is" : `${real} are`} on real money?`
+      }
+      description={
+        <>
+          {holding > 0
+            ? `Between them they are holding ${formatUsd(holding)} of coins right now, and every bit of it stays exactly where it is — with its stop still under it. `
+            : "They are holding nothing right now. "}
+          Every rung and every level still waiting is called off, so nothing more
+          is bought and no position is closed.{" "}
+          {ladders > 0
+            ? "A ladder's waiting rungs were its plan, and calling them off ends that ladder for good — another one means setting it up from scratch. "
+            : ""}
+          {real > 0
+            ? `${real === 1 ? "One of them is" : `${real} of them are`} on real money, each called off on the exchange exactly as its own Stop would. `
+            : ""}
+          This cannot be undone.
+        </>
+      }
+      confirmLabel={orders.length === 1 ? "Stop it" : "Stop all of them"}
+      onConfirm={onConfirm}
+    />
   )
 }
 

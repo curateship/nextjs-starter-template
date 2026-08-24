@@ -48,10 +48,12 @@ import {
   saveSmartDca,
   saveSmartGrid,
 } from "@/server/trade/prefs"
+import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
 import {
   cancelLadderRest as cancelRestRows,
   cancelWatchOrder as cancelWatchRow,
   editWatchOrder as editWatchRow,
+  listActiveSmartOrders,
   moveWatchOrder as moveWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
@@ -199,6 +201,84 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
       : await cancelRestRows(context.user.id, wallet, data)
   })
 
+/** One ladder or grid, named the way a message about it would name it. */
+export type StoodDownSmartOrder = {
+  id: string
+  marketKey: string
+  kind: "dca" | "grid"
+}
+
+/** One that would not come off, and the exchange's reason in plain words. */
+export type RefusedSmartOrder = StoodDownSmartOrder & { reason: string }
+
+const cancelAllSmartOrdersSchema = z.object({
+  walletId: z.string().max(36),
+})
+
+/**
+ * Every ladder and grid on one wallet, stood down in one call.
+ *
+ * **It reuses the cancels that already exist**, one per order, rather than
+ * writing a second path into the exchange. Each of those is the same door the
+ * order's own Stop button uses, so an emergency press can never call an order
+ * off differently from a hand on each one.
+ *
+ * **One at a time, in order.** A live wallet's cancels already queue behind
+ * each other on a lock, so firing them together would only pile up requests at
+ * an exchange that is probably already busy — this is a button pressed when a
+ * market is moving. What is bought stays bought either way.
+ *
+ * **A refusal stops nothing else.** Four off and two refused is a real answer
+ * and the caller is told which two and why, so the two that are still running
+ * can stay on screen where somebody can see them.
+ */
+const cancelAllSmartOrdersFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(cancelAllSmartOrdersSchema)
+  .handler(
+    async ({
+      data,
+      context,
+    }): Promise<{
+      stood: StoodDownSmartOrder[]
+      refused: RefusedSmartOrder[]
+    }> => {
+      const userId = context.user.id
+      const wallet = await tradingWallet(userId, data.walletId)
+      const live = wallet.kind === "live"
+      const working = laddersAndGridsYouPlaced(
+        await listActiveSmartOrders(userId, [wallet.id])
+      )
+
+      const stood: StoodDownSmartOrder[] = []
+      const refused: RefusedSmartOrder[] = []
+      for (const order of working) {
+        const named = {
+          id: order.id,
+          marketKey: order.marketKey,
+          kind: order.kind,
+        }
+        try {
+          if (order.kind === "dca") {
+            const input = { ladderId: order.id }
+            if (live) await cancelLiveLadderRest(userId, wallet, input)
+            else await cancelRestRows(userId, wallet, input)
+          } else {
+            const input = { gridId: order.id }
+            if (live) await cancelLiveGridRest(userId, wallet, input)
+            else await cancelGridRestRows(userId, wallet, input)
+          }
+          stood.push(named)
+        } catch (error) {
+          // Turned into words here rather than thrown on, so nothing the
+          // exchange or the database said to us reaches the browser raw.
+          refused.push({ ...named, reason: getSmartOrderErrorMessage(error) })
+        }
+      }
+      return { stood, refused }
+    }
+  )
+
 /**
  * Calls off a watched price. One door for both kinds of wallet: nothing is on
  * an exchange until the level is touched, and after that it is the engine that
@@ -334,6 +414,12 @@ export function moveWatch(input: {
 
 export function cancelLadderRest(input: z.infer<typeof ladderSchema>) {
   return cancelLadderRestFn({ data: input })
+}
+
+export function cancelAllSmartOrders(
+  input: z.infer<typeof cancelAllSmartOrdersSchema>
+) {
+  return cancelAllSmartOrdersFn({ data: input })
 }
 
 export function updateLadderExits(input: z.infer<typeof exitsSchema>) {

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { GripVerticalIcon } from "lucide-react"
 
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
@@ -19,7 +20,11 @@ import { bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
-import { isMarketable, type TradeSide } from "@/lib/trade/paper"
+import {
+  isMarketable,
+  type TradePosition,
+  type TradeSide,
+} from "@/lib/trade/paper"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { cn } from "@/lib/utils"
 
@@ -39,6 +44,16 @@ export type QuickOrderState = {
   px: number
   x: number
   y: number
+  /**
+   * The position this window was opened to add to, by id, when it came from
+   * that position's row rather than from a right-click.
+   *
+   * An id and not the position itself: the row is a live readout, and the
+   * window has to be looking at what that position IS while it is open, not at
+   * a copy of what it was when the button was pressed. A position that closes
+   * under it takes the window with it.
+   */
+  addingToId?: string
 }
 
 const PANEL_WIDTH = 288
@@ -63,6 +78,7 @@ export function ChartQuickOrder({
   market,
   /** The wallet this order will go to — not always the one whose lines you are looking at. */
   wallet,
+  addingTo,
   /** Cash free to put behind a trade, from the account panel's own figures. */
   free,
   /** Everything the wallet is worth — cash and open positions together. */
@@ -75,6 +91,19 @@ export function ChartQuickOrder({
   quick: QuickOrderState
   market: MarketRow
   wallet: string
+  /**
+   * The position this order is adding to, when it was opened from that
+   * position's row. Null for the ordinary right-click order.
+   *
+   * Three things change while it is set. The size box starts empty rather than
+   * on the remembered one, because "how much more" has nothing to do with the
+   * last order's size. Leverage is the position's and cannot be moved —
+   * `placeLiveOrder` sends null for leverage and margin mode when a position
+   * exists, and the exchange keeps what it already has, so a slider here would
+   * be a promise the order cannot keep. And the window says what it is adding
+   * to, and what the position becomes.
+   */
+  addingTo: TradePosition | null
   free: number
   equity: number
   /** How the window was set up the last time it placed an order. */
@@ -113,8 +142,12 @@ export function ChartQuickOrder({
 
   // How this window was left the last time it placed something. Every field
   // below opens on that answer, so a way of sizing trades is chosen once
-  // rather than retyped on every right-click.
-  const [sizeInput, setSizeInput] = React.useState(prefs.size)
+  // rather than retyped on every right-click. Adding to a position is the one
+  // exception: the size box starts empty, because how much MORE to buy has
+  // nothing to do with what the last order was for.
+  const [sizeInput, setSizeInput] = React.useState(
+    addingTo ? "" : prefs.size
+  )
   const [sizeUnit, setSizeUnit] = React.useState<SizeUnit>(prefs.sizeUnit)
   // Opens at 1× until somebody chooses otherwise: borrowed money is something
   // to reach for on purpose, not the setting a window hands you before you have
@@ -122,14 +155,14 @@ export function ChartQuickOrder({
   // of the way there does it. A remembered leverage is still capped by what
   // this market allows, which is not the same on every coin.
   const [leverage, setLeverage] = React.useState(
-    Math.max(1, Math.min(prefs.leverage, maxLeverage))
+    addingTo
+      ? addingTo.leverage
+      : Math.max(1, Math.min(prefs.leverage, maxLeverage))
   )
   const [bracketOn, setBracketOn] = React.useState(prefs.bracketOn)
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
   const [reduceOnly, setReduceOnly] = React.useState(false)
-  // Real money only: the first press turns the button into the question, the
-  // second press answers it. Any edit takes the question back.
 
   const buy = quick.side === "buy"
 
@@ -239,7 +272,65 @@ export function ChartQuickOrder({
   const shownUsd =
     sizeUnit !== "usd" && orderUsd > 0 ? formatUsdRounded(orderUsd) : null
 
+  /**
+   * What the position is now and what it becomes, when this order is adding to
+   * one.
+   *
+   * **Both figures are what was paid, never what it is worth today.** Adding
+   * $250 to $500 has to read as $750 or the sentence is arithmetic nobody can
+   * check, and the average is the only number that answers "what did I end up
+   * paying" — which is the whole reason for buying a dip.
+   */
+  const after = React.useMemo(() => {
+    if (!addingTo) return null
+    const heldCoin = Math.abs(addingTo.szi)
+    const paid = heldCoin * addingTo.entryPx
+    if (sizeCoin <= 0) return { paid, total: paid, averagePx: addingTo.entryPx }
+    const total = paid + sizeCoin * entryPx
+    return { paid, total, averagePx: total / (heldCoin + sizeCoin) }
+  }, [addingTo, sizeCoin, entryPx])
+
   const ready = sizeCoin > 0 && !bracketBad
+
+  /**
+   * Every reason this window would refuse, said above the button so nobody
+   * presses Buy to find out. An empty size box alone used to be enough to grey
+   * it out with nothing on screen explaining it.
+   *
+   * The order matters. What was typed in the size box is judged first, because
+   * a stop is what turns "1% of the wallet" into an amount of coin and a
+   * missing stop must not read as a size problem. The stop and the target come
+   * next, in the order they sit on screen. What the typed size actually works
+   * out to comes last: by then the boxes are all good and the answer is about
+   * the wallet rather than the typing.
+   *
+   * Which way a percentage may not go depends on the side: a buy's stop is
+   * below the price and its target above, and on a sell they swap. 100% below
+   * a price is a price of nothing, which is the one thing the downward box has
+   * to say extra.
+   */
+  const refusal =
+    amount === 0
+      ? sizeUnit === "usd"
+        ? "Size has to be a number of dollars above zero."
+        : sizeUnit === "pct"
+          ? `Size has to be a share of your free cash above zero. There is ${formatUsd(free)} free in ${wallet}.`
+          : `Size has to be the share of the wallet this trade may lose, above zero. ${wallet} is worth ${formatUsd(equity)}.`
+      : badStop
+        ? buy
+          ? "Stop % has to be above zero and under 100 — 100% below the price is a price of nothing."
+          : "Stop % has to be a number above zero. On a sell the stop sits above the price."
+        : badTarget
+          ? buy
+            ? "Target % has to be a number above zero. On a buy the target sits above the price."
+            : "Target % has to be above zero and under 100 — 100% below the price is a price of nothing."
+          : sizeCoin <= 0
+            ? byRisk
+              ? `There is nothing in ${wallet} to risk a share of — it is worth ${formatUsd(equity)}.`
+              : sizeUnit === "pct"
+                ? `There is no free cash in ${wallet} to take a share of.`
+                : `That size does not work out to any ${market.symbol}.`
+            : null
 
   const submit = () => {
     if (!ready) return
@@ -320,6 +411,32 @@ export function ChartQuickOrder({
         </div>
 
         <div className="grid gap-4 p-3">
+          {/* What this order is joining, and what it leaves behind. Above the
+              size box, because it is the thing the size is being chosen
+              against, and it re-reads itself as the size is typed. */}
+          {addingTo && after ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              Adding to {formatUsd(after.paid)}{" "}
+              {addingTo.szi > 0 ? "long" : "short"} in{" "}
+              <span className="font-medium text-foreground">{wallet}</span>, at{" "}
+              {addingTo.leverage}× leverage.{" "}
+              {after.total > after.paid ? (
+                <>
+                  After this order:{" "}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {formatUsd(after.total)}
+                  </span>{" "}
+                  at an average of{" "}
+                  <span className="font-medium text-foreground tabular-nums">
+                    {formatPrice(after.averagePx)}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>It got in at {formatPrice(addingTo.entryPx)}.</>
+              )}
+            </p>
+          ) : null}
           <div className="grid gap-2">
             <div className="flex items-start gap-2">
               <Label htmlFor="quick-size" className="sr-only">
@@ -350,6 +467,10 @@ export function ChartQuickOrder({
                   className="w-full"
                   placeholder="Size"
                   aria-describedby={shownUsd ? "quick-size-usd" : undefined}
+                  // Only once something has been typed. A box nobody has
+                  // touched yet is not a mistake, and the sentence above the
+                  // button already says what it is waiting for.
+                  aria-invalid={sizeInput.trim() !== "" && amount === 0}
                 />
                 {shownUsd ? (
                   <span
@@ -406,7 +527,19 @@ export function ChartQuickOrder({
             ) : null}
           </div>
 
-          {maxLeverage > 1 ? (
+          {/* Adding to a position cannot change its leverage. The server sends
+              null for leverage and margin mode when a position exists and the
+              exchange keeps what it has, so a slider here would move a number
+              the order has no power over. Said as a line instead. */}
+          {addingTo ? (
+            <div className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Leverage</span>
+              <span className="tabular-nums">
+                {addingTo.leverage}× — the position&rsquo;s own, and adding does
+                not change it
+              </span>
+            </div>
+          ) : maxLeverage > 1 ? (
             <div className="grid gap-2">
               <div className="flex items-baseline justify-between gap-2">
                 <Label htmlFor="quick-leverage">Leverage</Label>
@@ -481,30 +614,41 @@ export function ChartQuickOrder({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="quick-reduce"
-              checked={reduceOnly}
-              onCheckedChange={(next) => {
-                setReduceOnly(next === true)
-              }}
-            />
-            <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
-          </div>
+          {/* Not offered while adding to a position, because the two say
+              opposite things. This window is headed "Adding to $500 long" and
+              works out what the position becomes; a reduce-only order on the
+              same side buys nothing, so the sentence above would be describing
+              an order the exchange was about to refuse. */}
+          {addingTo ? null : (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="quick-reduce"
+                checked={reduceOnly}
+                onCheckedChange={(next) => {
+                  setReduceOnly(next === true)
+                }}
+              />
+              <Label htmlFor="quick-reduce">Only reduce what I hold</Label>
+            </div>
+          )}
 
-          <Button
-            type="button"
-            onClick={submit}
-            disabled={!ready}
-            className={cn(
-              "w-full text-white",
-              buy
-                ? "bg-emerald-600 hover:bg-emerald-600/90"
-                : "bg-red-600 hover:bg-red-600/90"
-            )}
-          >
-            {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
-          </Button>
+          <div className="grid gap-2">
+            <OrderRefusal id="quick-order-refusal">{refusal}</OrderRefusal>
+            <Button
+              type="button"
+              onClick={submit}
+              aria-describedby={refusal ? "quick-order-refusal" : undefined}
+              disabled={!ready}
+              className={cn(
+                "w-full text-white",
+                buy
+                  ? "bg-emerald-600 hover:bg-emerald-600/90"
+                  : "bg-red-600 hover:bg-red-600/90"
+              )}
+            >
+              {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
+            </Button>
+          </div>
         </div>
       </div>
     </>

@@ -1,5 +1,10 @@
 import * as React from "react"
-import { ArrowLeftRightIcon, SettingsIcon, Trash2Icon } from "lucide-react"
+import {
+  ArrowLeftRightIcon,
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+} from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge, type TradeBadgeTone } from "@/components/trade/trade-badge"
@@ -209,35 +214,38 @@ function Cell({
   )
 }
 
-function EmptyTable({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-      {children}
-    </p>
-  )
-}
-
 /**
- * The row a table shows before it can show rows: still reading, or the read
- * failed with nothing to fall back on.
+ * The row a table shows when it has no rows: still reading, the read failed
+ * with nothing to fall back on, or there really is nothing here.
  *
- * Inside the table's own frame, under the real header, so nothing moves when
- * the rows land — and never the empty state's words. "Nothing here" and "I
- * could not find out" are different answers, and only one is safe to act on.
- * The empty state stays for the one case that has actually been checked.
+ * All three sit inside the table's own frame, under the real header, so
+ * nothing moves when the rows land or when the last one closes. The empty
+ * words used to be a paragraph drawn instead of the table, which took the
+ * heading row off screen at the exact moment a position closed.
+ *
+ * "Nothing here" and "I could not find out" stay different answers, and only
+ * one is safe to act on. The empty wording is therefore reached only once a
+ * read has really landed: still reading wins over both, and a failed read says
+ * so rather than claiming the table is empty.
  */
 function TableStateRow({
   span,
   loading,
+  failed,
   loadingLabel,
   onRetry,
+  empty,
   children,
 }: {
   /** Every column, including the actions one, so the row spans the frame. */
   span: number
   loading: boolean
+  /** The first read failed and there is nothing to fall back on. */
+  failed: boolean
   loadingLabel: string
   onRetry: () => void
+  /** The empty wording — what would be here if there were anything. */
+  empty: React.ReactNode
   /** The failed wording — what exactly is not known right now. */
   children: React.ReactNode
 }) {
@@ -246,12 +254,16 @@ function TableStateRow({
       <td colSpan={span}>
         {loading ? (
           <LoadingRow label={loadingLabel} className="py-6 text-xs" />
-        ) : (
+        ) : failed ? (
           <p className="px-3 py-6 text-center text-xs text-muted-foreground">
             {children}{" "}
             <button type="button" className="underline" onClick={onRetry}>
               Try again
             </button>
+          </p>
+        ) : (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {empty}
           </p>
         )}
       </td>
@@ -332,6 +344,7 @@ function PositionRow({
   wallet,
   busy,
   onSelectMarket,
+  onAdd,
   onEdit,
   onFlip,
   onClose,
@@ -344,6 +357,7 @@ function PositionRow({
   /** The smart order working this position, or null for an ordinary one. */
   busy: boolean
   onSelectMarket: (marketKey: string) => void
+  onAdd: (position: TradePosition) => void
   onEdit: (position: TradePosition) => void
   onFlip: (position: TradePosition) => void
   onClose: (position: TradePosition) => void
@@ -450,6 +464,20 @@ function PositionRow({
               <ArrowLeftRightIcon className="size-4" />
             </Button>
           )}
+          {/* Buying more of what this row holds. It charts the coin, switches
+              to the row's wallet and opens the order window at today's price —
+              the five steps that used to stand between a dip and $250 more, and
+              the wallet step is where the mistake went to another wallet. */}
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            disabled={busy}
+            aria-label={`Add to the ${marketSymbol(position.marketKey)} position`}
+            onClick={() => onAdd(position)}
+          >
+            <PlusIcon className="size-4" />
+          </Button>
           <Button
             type="button"
             size="icon-sm"
@@ -484,6 +512,7 @@ export function PositionsTable({
   failed,
   onRetry,
   onSelectMarket,
+  onAdd,
   onEdit,
   onFlip,
   onClose,
@@ -504,6 +533,8 @@ export function PositionsTable({
   failed: boolean
   onRetry: () => void
   onSelectMarket: (marketKey: string) => void
+  /** Buy more of this one: charts it, switches wallet, opens the order window. */
+  onAdd: (position: TradePosition) => void
   onEdit: (position: TradePosition) => void
   onFlip: (position: TradePosition) => void
   onClose: (position: TradePosition) => void
@@ -547,16 +578,6 @@ export function PositionsTable({
     }
   })
 
-  // Empty is only claimed once a read has landed; before that the frame shows
-  // it is still reading, and a failed first read says so instead.
-  if (positions.length === 0 && settled && !failed) {
-    return (
-      <EmptyTable>
-        No open positions. Anything you are holding shows up here.
-      </EmptyTable>
-    )
-  }
-
   return (
     <>
       <table className="w-full border-collapse">
@@ -584,8 +605,10 @@ export function PositionsTable({
             <TableStateRow
               span={POSITION_COLUMNS.length + 1}
               loading={!settled}
+              failed={failed}
               loadingLabel="Reading what you are holding"
               onRetry={onRetry}
+              empty="No open positions. Anything you are holding shows up here."
             >
               The positions could not be read, so it is not known whether you
               are holding anything.
@@ -600,6 +623,7 @@ export function PositionsTable({
                 wallet={walletName(position.walletId)}
                 busy={busy}
                 onSelectMarket={onSelectMarket}
+                onAdd={onAdd}
                 onEdit={onEdit}
                 onFlip={onFlip}
                 onClose={setConfirming}
@@ -689,14 +713,6 @@ export function OpenOrdersTable({
     }
   })
 
-  if (orders.length === 0 && settled && !failed) {
-    return (
-      <EmptyTable>
-        No open orders. Orders waiting to fill show up here.
-      </EmptyTable>
-    )
-  }
-
   return (
     <table className="w-full border-collapse">
       <thead>
@@ -723,8 +739,10 @@ export function OpenOrdersTable({
           <TableStateRow
             span={ORDER_COLUMNS.length + 1}
             loading={!settled}
+            failed={failed}
             loadingLabel="Reading your open orders"
             onRetry={onRetry}
+            empty="No open orders. Orders waiting to fill show up here."
           >
             The orders could not be read, so it is not known whether anything is
             waiting to fill.
@@ -919,15 +937,6 @@ export function TradesTable({
     [trades, direction, sort, walletName]
   )
 
-  if (trades.length === 0 && settled && !failed) {
-    return (
-      <EmptyTable>
-        No finished trades yet. Once a position is closed it lands here, with
-        what it made and what ended it.
-      </EmptyTable>
-    )
-  }
-
   const listedIds = rows.map((trade) => trade.id)
 
   return (
@@ -963,8 +972,10 @@ export function TradesTable({
           <TableStateRow
             span={TRADE_COLUMNS.length + 2}
             loading={!settled}
+            failed={failed}
             loadingLabel="Reading your finished trades"
             onRetry={onRetry}
+            empty="No finished trades yet. Once a position is closed it lands here, with what it made and what ended it."
           >
             The journal could not be read, so it is not known how past trades
             went.

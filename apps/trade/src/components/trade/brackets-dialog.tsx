@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -186,6 +187,27 @@ function BracketsForm({
       tpSz === null ||
       !(tpSz > 0))
 
+  // Every reason this window would refuse, said above the button so nobody
+  // presses Save to find out. Same order as the boxes on screen.
+  //
+  // Which way a box may not go depends on the trade: a long's target is above
+  // the entry and its stop below, and on a short they swap. A percentage that
+  // takes the price through zero is the one thing the "down" box has to say
+  // extra, because 100% below the entry is a price of nothing.
+  const refusal = badTarget
+    ? long
+      ? "Take profit % has to be a number above zero. Leave it empty for no target."
+      : "Take profit % has to be above zero and under 100 — a short's target is below the entry, and 100% below is a price of nothing. Leave it empty for no target."
+    : badStop
+      ? long
+        ? "Stop loss % has to be above zero and under 100 — 100% below the entry is a price of nothing. Leave it empty for no stop."
+        : "Stop loss % has to be a number above zero. Leave it empty for no stop."
+      : badSell
+        ? sellUnit === "pct"
+          ? "How much comes off has to be a share of the position above zero. 100 sells all of it."
+          : `How much comes off has to be dollars above zero. All of it is worth ${formatUsd(heldSz * (tpPx ?? position.entryPx))} at the target.`
+        : null
+
   const save = async () => {
     if (badTarget || badStop || badSell) return
     const saved = await onSave(position, {
@@ -331,9 +353,16 @@ function BracketsForm({
       </DialogBody>
 
       <DialogFooter>
+        {/* Left of the buttons rather than under the fields: the body scrolls,
+            and a refusal that scrolls away is one the button can be pressed
+            without ever seeing. */}
+        <OrderRefusal id="brackets-refusal" className="mr-auto min-w-0 flex-1">
+          {refusal}
+        </OrderRefusal>
         <Button
           type="button"
           variant="outline"
+          className="shrink-0"
           disabled={busy}
           onClick={onClose}
         >
@@ -341,6 +370,8 @@ function BracketsForm({
         </Button>
         <Button
           type="button"
+          className="shrink-0"
+          aria-describedby={refusal ? "brackets-refusal" : undefined}
           disabled={busy || badTarget || badStop || badSell}
           onClick={() => void save()}
         >

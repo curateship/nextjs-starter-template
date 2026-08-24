@@ -2,6 +2,7 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -19,6 +20,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import {
+  BASE_STOP_DAYS_REFUSAL,
+  BASE_STOP_UNDER_REFUSAL,
+  badBaseReclaimDays,
+  badBaseUnderPct,
+} from "@/lib/trade/base-stop"
+import {
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
@@ -27,6 +34,7 @@ import {
   DEFAULT_GRID_STOP_UNDER_PCT,
   gridStopUnder,
   MAX_GRID_LEVELS,
+  MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
   type GridParams,
 } from "@/lib/trade/grid"
@@ -144,25 +152,38 @@ function StopForm({
   const followChanged = followOn !== plan.follow
   const parsedUnder = Number(underPct)
   const badUnder =
-    slOn && !(Number.isFinite(parsedUnder) && parsedUnder >= 0 && parsedUnder <= 50)
+    slOn &&
+    !(
+      Number.isFinite(parsedUnder) &&
+      parsedUnder >= 0 &&
+      parsedUnder <= MAX_GRID_STOP_UNDER_PCT
+    )
   const parsedBaseUnder = Number(baseUnderPct)
   const parsedDays = Number(baseReclaimDays)
-  const badBase =
-    slOn &&
-    baseOn &&
-    !(
-      Number.isFinite(parsedBaseUnder) &&
-      parsedBaseUnder >= 0 &&
-      parsedBaseUnder <= 50 &&
-      Number.isFinite(parsedDays) &&
-      parsedDays >= 0 &&
-      parsedDays <= 90
-    )
+  // The same two rules the base fields themselves outline, asked one box at a
+  // time so the refusal below can name which of them is the problem.
+  const badBaseUnder = slOn && baseOn && badBaseUnderPct(baseUnderPct)
+  const badBaseDays = slOn && baseOn && badBaseReclaimDays(baseReclaimDays)
+  const badBase = badBaseUnder || badBaseDays
 
   // Where it would rest, shown as a price. A percent below a percent is a
   // number nobody can check; the price it lands on is one anybody can.
   const restsAt =
     slOn && !badUnder ? gridStopUnder(plan.bottomPx, parsedUnder) : null
+
+  // Every reason this window would refuse, said above the button so nobody
+  // presses Save to find out. Same order as the cards on screen.
+  const refusal = badLevels
+    ? `Levels has to be a whole number between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS}.`
+    : badPot
+      ? "Share of account % has to be a number above zero and no more than 100."
+      : badUnder
+        ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
+        : badBaseUnder
+          ? BASE_STOP_UNDER_REFUSAL
+          : badBaseDays
+            ? BASE_STOP_DAYS_REFUSAL
+            : null
 
   const save = async () => {
     if (badUnder || badBase || badLevels || badPot) return
@@ -350,11 +371,25 @@ function StopForm({
       </DialogBody>
 
       <DialogFooter>
-        <Button type="button" variant="outline" disabled={busy} onClick={onClose}>
+        {/* Left of the buttons rather than under the fields: the body scrolls,
+            and a refusal that scrolls away is one the button can be pressed
+            without ever seeing. */}
+        <OrderRefusal id="grid-stop-refusal" className="mr-auto min-w-0 flex-1">
+          {refusal}
+        </OrderRefusal>
+        <Button
+          type="button"
+          variant="outline"
+          className="shrink-0"
+          disabled={busy}
+          onClick={onClose}
+        >
           Cancel
         </Button>
         <Button
           type="button"
+          className="shrink-0"
+          aria-describedby={refusal ? "grid-stop-refusal" : undefined}
           disabled={busy || badUnder || badBase || badLevels || badPot}
           onClick={() => void save()}
         >

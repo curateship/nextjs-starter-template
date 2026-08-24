@@ -85,7 +85,11 @@ import {
   indicatorPaint,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
-import { watchLiveCandle, useLiveCatchUp } from "@/lib/trade/live-market"
+import {
+  liveMarkOf,
+  useLiveCatchUp,
+  watchLiveCandle,
+} from "@/lib/trade/live-market"
 
 const CANDLE_LOAD_SETTLE_MS = 250
 const ORB_SOURCE_INTERVAL: CandleInterval = "15m"
@@ -176,6 +180,8 @@ export function ChartPanel({
   free,
   equity,
   shownTrade,
+  addTo,
+  onAddOpened,
 }: {
   selectedKey: string | null
   interval: CandleInterval
@@ -211,6 +217,17 @@ export function ChartPanel({
    * whenever nothing is picked, and ignored when it belongs to another market.
    */
   shownTrade: LiveTrade | null
+  /**
+   * A position whose row asked to buy more of it.
+   *
+   * The workspace holds it back until the chart and the traded wallet are both
+   * that row's, so by the time it arrives here there is nothing left to check:
+   * the order window opens over today's price, on this market, for this
+   * wallet. Null the rest of the time.
+   */
+  addTo: TradePosition | null
+  /** Taken; the workspace lets go of the request so it cannot fire twice. */
+  onAddOpened: () => void
 }) {
   // Only ever written from the fetch's callbacks. "Loading" is not stored:
   // an answer whose key does not match what is wanted right now IS the
@@ -348,6 +365,62 @@ export function ChartPanel({
     setCancelFor(null)
     setEditing(null)
   }
+
+  /**
+   * The position the open order window is adding to, resolved against the live
+   * list on every render rather than held as a copy.
+   *
+   * A position that closes while its window is open — its own stop firing, say
+   * — takes the window with it. Leaving it up would mean a window headed
+   * "Adding to $500 long" over nothing, whose leverage line and whose whole
+   * reason for being open had stopped being true.
+   */
+  const addingTo =
+    quick?.addingToId === undefined
+      ? null
+      : (trading.positions.find((one) => one.id === quick.addingToId) ?? null)
+  // The position it was adding to has closed under it — see `addingTo`.
+  // Adjusted during the render that fact arrives in, the way the market switch
+  // above drops a stale window, so no frame shows a window headed "Adding to
+  // $500 long" over a position that is gone.
+  if (quick?.addingToId !== undefined && addingTo === null) {
+    setQuick(null)
+  }
+
+  /**
+   * Opening the order window from a position's row.
+   *
+   * Which market and which wallet was all settled before `addTo` arrived, so
+   * the only thing left is where today's price sits on screen. `yOf` is the
+   * exact inverse of the `priceAt` a right-click uses, measured off the same
+   * box, so the window lands on the price line rather than near it. A chart
+   * whose scale is not drawn yet puts it in the middle rather than refusing to
+   * open at all.
+   *
+   * **An effect, not a render-time adjustment**, and the two lines that read
+   * the chart's laid-out box are why: a box and a price scale can only be
+   * measured after the browser has laid the chart out, which is the one thing a
+   * render is not allowed to look at. Everything else about this window is
+   * decided during the render, right above.
+   */
+  React.useEffect(() => {
+    if (!addTo || !market) return
+    onAddOpened()
+    const px = liveMarkOf(market.key) ?? market.price
+    const box = plotRef.current?.getBoundingClientRect()
+    const y = surfaceRef.current?.yOf(px) ?? null
+    /* eslint-disable react-hooks/set-state-in-effect -- the window's place on
+       screen is measured off the laid-out chart, which a render may not read. */
+    setMenu(null)
+    setQuick({
+      side: addTo.szi > 0 ? "buy" : "sell",
+      px,
+      x: box ? box.left + box.width / 2 : window.innerWidth / 2,
+      y: (box?.top ?? 0) + (y ?? (box?.height ?? window.innerHeight) / 2),
+      addingToId: addTo.id,
+    })
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [addTo, market, onAddOpened])
 
   const openMenu = (event: React.MouseEvent) => {
     // A tool in hand is drawing, not trading; the browser's own menu is the
@@ -1055,11 +1128,14 @@ export function ChartPanel({
       ) : null}
       {quick && market ? (
         <ChartQuickOrder
+          // A fresh window per opening. The size box starts empty when it is
+          // adding to a position and on the remembered size when it is not, and
+          // that is decided once, as it mounts.
+          key={`${quick.addingToId ?? "manual"}:${quick.side}:${quick.px}`}
           quick={quick}
           market={market}
           wallet={trading.wallet?.label ?? ""}
-          // Real money asks first — the window adds a confirm step that says
-          // the order back in dollars before anything is sent.
+          addingTo={addingTo}
           free={free}
           equity={equity}
           prefs={quickPrefs}

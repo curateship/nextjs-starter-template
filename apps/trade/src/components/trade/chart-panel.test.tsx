@@ -182,6 +182,10 @@ function chart(key: string) {
         free={0}
         equity={0}
         shownTrade={null}
+
+        addTo={null}
+
+        onAddOpened={() => {}}
       />
     </React.StrictMode>
   )
@@ -281,6 +285,10 @@ describe("the chart stop-loss shortcut", () => {
           free={1000}
           equity={1000}
           shownTrade={null}
+
+          addTo={null}
+
+          onAddOpened={() => {}}
         />
       )
     )

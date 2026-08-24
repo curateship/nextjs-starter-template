@@ -66,6 +66,31 @@ export type SmartWatch = SmartOrderShared & { kind: "watch"; plan: WatchPlan }
 
 export type SmartOrder = SmartLadder | SmartGrid | SmartSignal | SmartWatch
 
+/**
+ * The ladders and grids somebody placed themselves — what one press stands
+ * down, and what the confirm before it counts.
+ *
+ * **A flow's orders are left alone.** A switched-on flow places them again on
+ * its next pass, so cancelling them here would be a press that undid itself
+ * with real money in the middle. Standing a flow down is done on that run's
+ * own dashboard, where the whole strategy is in front of you.
+ *
+ * **A watched price is left alone too.** It is a plain order that has not
+ * fired yet, it already has its own line on the chart and its own row under
+ * Open orders, and it is cancelled from either of those.
+ *
+ * One list, used by the button that does it and the confirm that counts it,
+ * so the two can never disagree about what is about to happen.
+ */
+export function laddersAndGridsYouPlaced(
+  orders: readonly SmartOrder[]
+): (SmartLadder | SmartGrid)[] {
+  return orders.filter(
+    (order): order is SmartLadder | SmartGrid =>
+      order.flowRunId === null && (order.kind === "dca" || order.kind === "grid")
+  )
+}
+
 /** The kind a stored row claims to be, or null when it is not one we know. */
 export function readSmartOrderKind(value: unknown): SmartOrderKind | null {
   return SMART_ORDER_KINDS.includes(value as SmartOrderKind)

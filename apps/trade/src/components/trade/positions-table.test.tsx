@@ -86,6 +86,7 @@ function drawPositions(state: { settled: boolean; failed: boolean }): string {
       {...shared}
       {...state}
       positions={[]}
+      onAdd={() => {}}
       onEdit={() => {}}
       onFlip={() => {}}
       onClose={() => {}}
@@ -277,6 +278,7 @@ describe("the bottom panel's tables say what they know", () => {
         ]}
         settled={true}
         failed={false}
+        onAdd={() => {}}
         onEdit={() => {}}
         onFlip={() => {}}
         onClose={() => {}}
@@ -291,16 +293,21 @@ describe("the bottom panel's tables say what they know", () => {
     )
   })
 
-  it("claims empty only after a read has landed", () => {
-    expect(drawPositions({ settled: true, failed: false })).toContain(
-      "No open positions"
-    )
-    expect(drawOrders({ settled: true, failed: false })).toContain(
-      "No open orders"
-    )
-    expect(drawTrades({ settled: true, failed: false })).toContain(
-      "No finished trades yet"
-    )
+  it("claims empty only after a read has landed, and keeps its headings", () => {
+    for (const [draw, words] of [
+      [drawPositions, "No open positions"],
+      [drawOrders, "No open orders"],
+      [drawTrades, "No finished trades yet"],
+    ] as const) {
+      const html = draw({ settled: true, failed: false })
+      expect(html).toContain(words)
+      // The heading row stays put, so closing the last position does not take
+      // the columns off screen and jog the whole panel.
+      expect(html).toContain("<thead>")
+      expect(html).toContain("Market")
+      // Inside the table's frame, under the headings — not instead of them.
+      expect(html.indexOf("<thead>")).toBeLessThan(html.indexOf(words))
+    }
   })
 
   it("says it is still reading until BOTH halves are in, inside the table frame", () => {
@@ -323,6 +330,7 @@ describe("the bottom panel's tables say what they know", () => {
       const html = draw({ settled: true, failed: true })
       expect(html).toContain("could not be read")
       expect(html).toContain("Try again")
+      expect(html).toContain("<thead>")
       expect(html).not.toContain("No open")
       expect(html).not.toContain("No finished")
     }

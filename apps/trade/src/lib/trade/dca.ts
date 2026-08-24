@@ -113,11 +113,23 @@ export const DEFAULT_BASE_STOP_UNDER_PCT = 0
 /** Days price must close back above the level before the rung goes back on. */
 export const DEFAULT_BASE_STOP_RECLAIM_DAYS = 1
 
+/**
+ * The furthest under the base a stop may be set, in percent.
+ *
+ * Named rather than typed into the schema, because the windows that ask for the
+ * number have to say the same limit back when somebody types past it — and a
+ * limit written down twice is a limit that drifts.
+ */
+export const MAX_BASE_STOP_UNDER_PCT = 50
+
+/** The longest buy-back wait, in days. Same reason it is named. */
+export const MAX_BASE_STOP_RECLAIM_DAYS = 90
+
 /** What the window asks for: how far under the base, and the buy-back wait. */
 export const dcaBaseStopSchema = z.object({
-  underPct: z.number().min(0).max(50),
+  underPct: z.number().min(0).max(MAX_BASE_STOP_UNDER_PCT),
   /** 0 turns the buy-back off, which is how a ladder behaved before it existed. */
-  reclaimDays: z.number().min(0).max(90),
+  reclaimDays: z.number().min(0).max(MAX_BASE_STOP_RECLAIM_DAYS),
 })
 
 export type DcaBaseStop = z.infer<typeof dcaBaseStopSchema>
