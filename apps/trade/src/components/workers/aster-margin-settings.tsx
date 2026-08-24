@@ -1,16 +1,9 @@
 import * as React from "react"
-import { Loader2Icon, WalletCardsIcon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { FieldLabel } from "@/components/ui/field-label"
+import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -30,12 +23,16 @@ import type {
 } from "@/lib/trade/aster-margin-mode"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
-export function AsterMarginSettings() {
+export function AsterMarginSettings({
+  initialWallets,
+}: {
+  initialWallets?: AsterMarginModeSetting[] | null
+}) {
   const mounted = React.useRef(false)
   const [wallets, setWallets] = React.useState<AsterMarginModeSetting[] | null>(
-    null
+    initialWallets ?? null
   )
-  const [loadFailed, setLoadFailed] = React.useState(false)
+  const [loadFailed, setLoadFailed] = React.useState(initialWallets === null)
   const [busyWalletIds, setBusyWalletIds] = React.useState<Set<string>>(
     () => new Set()
   )
@@ -105,70 +102,55 @@ export function AsterMarginSettings() {
 
   if (wallets === null) {
     return (
-      <Card>
-        <CardContent className="flex items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">
-            {loadFailed ? (
-              "Aster's margin setting could not be loaded."
-            ) : (
-              <span className="flex items-center gap-2">
-                <Loader2Icon
-                  className="size-4 animate-spin"
-                  aria-hidden="true"
-                />
-                Loading Aster margin…
-              </span>
-            )}
-          </p>
+      <div className="flex items-center justify-between gap-3 p-4">
+        <p className="text-sm text-muted-foreground">
           {loadFailed ? (
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setLoadFailed(false)
-                load()
-              }}
-            >
-              Try again
-            </Button>
-          ) : null}
-        </CardContent>
-      </Card>
+            "Aster's margin setting could not be loaded."
+          ) : (
+            <span className="flex items-center gap-2">
+              <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+              Loading Aster margin…
+            </span>
+          )}
+        </p>
+        {loadFailed ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              setLoadFailed(false)
+              load()
+            }}
+          >
+            Try again
+          </Button>
+        ) : null}
+      </div>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <WalletCardsIcon className="size-4" />
-          Aster margin
-        </CardTitle>
-        <CardDescription>
+    <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div>
+        <h3 className="font-medium">Aster margin</h3>
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           Isolated uses USDT only. Cross can use USDC and Aster's other
           supported collateral. Every fresh position follows the wallet's
           choice.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4">
-        {wallets.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Connect and switch on an Aster mainnet wallet to choose its margin
-            mode.
-          </p>
-        ) : (
-          wallets.map((wallet) => (
-            <div className="grid gap-2" key={wallet.walletId}>
-              <FieldLabel
-                htmlFor={`aster-margin-${wallet.walletId}`}
-                hint={
-                  wallet.mode === "isolated"
-                    ? "Aster uses Single-Asset Mode for isolated margin."
-                    : "Aster uses Multi-Assets Mode for cross margin."
-                }
-              >
+        </p>
+      </div>
+      {wallets.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Connect and switch on an Aster mainnet wallet to choose its margin
+          mode.
+        </p>
+      ) : (
+        <div className="grid gap-3">
+          {wallets.map((wallet) => (
+            <div className="grid gap-1" key={wallet.walletId}>
+              <Label htmlFor={`aster-margin-${wallet.walletId}`}>
                 {wallet.label}
-              </FieldLabel>
+              </Label>
               <Select
                 value={wallet.mode}
                 disabled={busyWalletIds.has(wallet.walletId)}
@@ -178,7 +160,6 @@ export function AsterMarginSettings() {
               >
                 <SelectTrigger
                   id={`aster-margin-${wallet.walletId}`}
-                  className="w-fit"
                   aria-label={`Margin mode for ${wallet.label}`}
                 >
                   <SelectValue />
@@ -189,9 +170,9 @@ export function AsterMarginSettings() {
                 </SelectContent>
               </Select>
             </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

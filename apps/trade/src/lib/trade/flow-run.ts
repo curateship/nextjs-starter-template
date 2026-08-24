@@ -14,7 +14,7 @@ import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
  * database or the exchange.
  */
 
-export type TradeFlowRunStatus = "running" | "stopped"
+export type TradeFlowRunStatus = "running" | "stopping" | "stopped"
 
 /**
  * Everything a switched-on flow works from, frozen the moment it started.
@@ -85,34 +85,22 @@ export type TradeFlowRunRow = {
 /**
  * What stopping a flow did, said the way it will be read.
  *
- * **Two numbers, never one.** Waiting rungs are called off; coins already held
- * are left exactly as they are, stops and targets untouched. Rolling those into
- * a single "stopped" would hide the half that matters — somebody switching a
- * flow off needs to know money is still in the market.
+ * Stop returns after saving the work for the engine. The answer says how much
+ * remains and how many coins are already held, whose protection stays intact.
  */
 export type FlowStopOutcome = {
-  /** Coins called off before they bought anything. */
-  cancelled: number
   /** Coins still held, whose stops and targets were left alone. */
   held: number
+  /** Waiting ladders the engine is still calling off. */
+  remaining: number
 }
 
 export function describeFlowStop(outcome: FlowStopOutcome): string {
-  const parts: string[] = []
-  if (outcome.cancelled > 0) {
-    // "Coin" rather than "ladder", because a flow's strategy is now either a
-    // ladder or a signal trade and the sentence has to be true of both. What
-    // was called off is the same thing in each case: a coin that had asked for
-    // a price and not got one.
-    parts.push(
-      `${outcome.cancelled} ${outcome.cancelled === 1 ? "coin" : "coins"} called off before buying anything`
-    )
+  if (outcome.remaining > 0) {
+    return `Stopping: ${outcome.remaining} ${outcome.remaining === 1 ? "ladder" : "ladders"} left to call off.`
   }
   if (outcome.held > 0) {
-    parts.push(
-      `${outcome.held} ${outcome.held === 1 ? "coin" : "coins"} still held — their stops and targets are untouched`
-    )
+    return `Stopped: ${outcome.held} ${outcome.held === 1 ? "coin is" : "coins are"} still held — their stops and targets are untouched.`
   }
-  if (parts.length === 0) return "Stopped. Nothing was in the market."
-  return `Stopped: ${parts.join(", ")}.`
+  return "Stopped. Nothing was in the market."
 }

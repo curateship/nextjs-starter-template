@@ -1,5 +1,4 @@
 import * as React from "react"
-import { BanknoteIcon, ClockIcon, CpuIcon } from "lucide-react"
 
 import { toast } from "sonner"
 
@@ -10,7 +9,7 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardDescription,
+  CardFooter,
   CardGroup,
   CardHeader,
   CardTitle,
@@ -36,7 +35,7 @@ import {
   loadRememberedOrderStyle,
   saveRememberedOrderStyle,
 } from "@/lib/api/quick-order"
-import type { OrderStyle } from "@/lib/trade/order-style"
+import { DEFAULT_ORDER_STYLE, type OrderStyle } from "@/lib/trade/order-style"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   WORKER_STATE_LABELS,
@@ -47,6 +46,7 @@ import {
 import { cn } from "@/lib/utils"
 import { LiquidationWarningSettings } from "@/components/workers/liquidation-warning-settings"
 import { AsterMarginSettings } from "@/components/workers/aster-margin-settings"
+import { useTradingEngineSettingsBootstrap } from "@/components/workers/trading-engine-settings-context"
 
 /**
  * Is the trading engine running, the two switches for it, and the real-money
@@ -59,42 +59,60 @@ import { AsterMarginSettings } from "@/components/workers/aster-margin-settings"
  * notice that a trade did not happen.
  *
  * A Settings tab rather than a page of its own, because that is where somebody
- * goes to change how the app behaves — and pausing the engine is exactly that.
- * It fetches its own answer instead of taking one from a loader: the tab is
- * only drawn when it is opened, and the answer changes without anybody
- * clicking.
+ * goes to change how the app behaves. The route provides the first answer and
+ * the browser refreshes it while the page stays open.
  */
 
 /** Often enough that a stopped engine is noticed, rarely enough to be cheap. */
 const REFRESH_MS = 5_000
 
 const STATE_TONE: Record<WorkerState, string> = {
-  running: "text-emerald-600 dark:text-emerald-400",
+  running:
+    "border-emerald-600/20 bg-emerald-600/5 text-emerald-700 dark:text-emerald-400",
   idle: "text-muted-foreground",
-  paused: "text-amber-600 dark:text-amber-400",
+  paused:
+    "border-amber-500/20 bg-amber-500/5 text-amber-700 dark:text-amber-400",
   off: "text-muted-foreground",
-  offline: "text-destructive",
+  offline: "border-destructive/20 bg-destructive/5 text-destructive",
+}
+
+const STATE_DOT: Record<WorkerState, string> = {
+  running: "bg-emerald-600 dark:bg-emerald-400",
+  idle: "bg-muted-foreground",
+  paused: "bg-amber-500",
+  off: "bg-muted-foreground",
+  offline: "bg-destructive",
 }
 
 export default function WorkersSettings() {
-  const [data, setData] = React.useState<WorkersDashboard | null>(null)
+  const bootstrap = useTradingEngineSettingsBootstrap()
+  const [data, setData] = React.useState<WorkersDashboard | null>(
+    bootstrap?.workers ?? null
+  )
   const [busy, setBusy] = React.useState(false)
-  const [orderStyle, setOrderStyle] = React.useState<OrderStyle>("rest")
+  const [orderStyle, setOrderStyle] = React.useState<OrderStyle>(
+    bootstrap?.orderStyle ?? DEFAULT_ORDER_STYLE
+  )
   const [styleBusy, setStyleBusy] = React.useState(false)
+  const [dismissedError, setDismissedError] = React.useState<string | null>(
+    null
+  )
 
   React.useEffect(() => {
+    if (bootstrap) return
     let stopped = false
     void loadRememberedOrderStyle()
       .then((answer) => {
         if (!stopped) setOrderStyle(answer.orderStyle)
       })
-      // Falls back to resting, which is what it has always been. A setting
-      // that failed to load must not silently change how orders are placed.
+      // Keep the default already on screen if the fallback route cannot read
+      // the saved choice. A failed read must not move the control underneath
+      // somebody.
       .catch(() => {})
     return () => {
       stopped = true
     }
-  }, [])
+  }, [bootstrap])
 
   const changeStyle = async (next: OrderStyle) => {
     const was = orderStyle
@@ -121,13 +139,13 @@ export default function WorkersSettings() {
         // is five seconds away, and the card says when it was last read.
         .catch(() => {})
 
-    read()
+    if (!bootstrap) read()
     const timer = window.setInterval(read, REFRESH_MS)
     return () => {
       stopped = true
       window.clearInterval(timer)
     }
-  }, [])
+  }, [bootstrap])
 
   const flip = async (
     worker: WorkerStatus,
@@ -180,75 +198,101 @@ export default function WorkersSettings() {
   }
 
   if (!data) {
-    return <p className="text-sm text-muted-foreground">Asking the server…</p>
+    return null
   }
 
   return (
     <CardGroup>
-      {data.workers.map((worker) => (
-        <Card key={worker.kind}>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CpuIcon className="size-4" />
-              {worker.label}
-            </CardTitle>
-            <CardDescription>{worker.description}</CardDescription>
-            <CardAction>
-              <Badge variant="outline" className={STATE_TONE[worker.state]}>
-                {WORKER_STATE_LABELS[worker.state]}
-              </Badge>
-            </CardAction>
-          </CardHeader>
+      {data.workers.map((worker) => {
+        const figures = Object.fromEntries(
+          worker.figures.map((figure) => [figure.label, figure.value])
+        )
+        const showError =
+          worker.latestError && worker.latestError !== dismissedError
 
-          <CardContent className="grid gap-4">
-            {/* Said on the card, not as a toast. This is a STATE, not something
-                that just went wrong: it stays true until somebody starts the
-                engine, and a toast reappearing every five seconds as the
-                wording ticks over would be unusable. */}
-            {worker.state === "offline" && worker.enabled ? (
-              <Notice>
-                {worker.lastSeenAt
-                  ? `Nothing has run since ${formatRelativeTime(worker.lastSeenAt)}. Ladders are not being worked — no rung will buy and no stop will fire until it is started again.`
-                  : "This has never run. Ladders are not being worked — no rung will buy and no stop will fire until it is started."}
-              </Notice>
-            ) : null}
+        return (
+          <Card key={worker.kind} className="gap-0 py-0">
+            <CardHeader className="border-b px-4 pt-3 [.border-b]:pb-3">
+              <CardTitle>{worker.label}</CardTitle>
+              <CardAction className="row-span-1">
+                <Badge variant="outline" className={STATE_TONE[worker.state]}>
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full",
+                      STATE_DOT[worker.state]
+                    )}
+                    aria-hidden="true"
+                  />
+                  {WORKER_STATE_LABELS[worker.state]}
+                </Badge>
+              </CardAction>
+            </CardHeader>
 
-            {worker.latestError ? (
-              <Notice>Last error: {worker.latestError}</Notice>
-            ) : null}
+            <CardContent className="grid gap-5 p-4 pt-3">
+              {worker.state === "offline" && worker.enabled ? (
+                <Notice>
+                  {worker.lastSeenAt
+                    ? `Nothing has run since ${formatRelativeTime(worker.lastSeenAt)}. Ladders are not being worked. No rung will buy and no stop will fire until the engine starts again.`
+                    : "The engine has never run. Ladders are not being worked. No rung will buy and no stop will fire until the engine starts."}
+                </Notice>
+              ) : null}
 
-            <dl className="grid gap-1 text-sm sm:grid-cols-2">
-              <Line
-                label="Doing now"
-                value={
-                  worker.restartRequested ? "Restart requested" : worker.activity
-                }
-              />
-              <Line
-                label="Last heard from"
-                value={
-                  worker.lastSeenAt
-                    ? formatRelativeTime(worker.lastSeenAt)
-                    : "Never"
-                }
-              />
-              <Line
-                label="Running since"
-                value={
-                  worker.startedAt ? formatRelativeTime(worker.startedAt) : "—"
-                }
-              />
-              <Line label="Where" value={worker.host ?? "—"} />
-              {worker.figures.map((figure) => (
+              {showError ? (
+                <Notice
+                  action={
+                    <button
+                      type="button"
+                      className="shrink-0 underline underline-offset-2"
+                      onClick={() => setDismissedError(worker.latestError)}
+                    >
+                      Dismiss
+                    </button>
+                  }
+                >
+                  Last error · {worker.latestError}
+                </Notice>
+              ) : null}
+
+              <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 xl:grid-cols-3">
                 <Line
-                  key={figure.label}
-                  label={figure.label}
-                  value={figure.value}
+                  label="Doing now"
+                  value={
+                    worker.restartRequested
+                      ? "Restart requested"
+                      : worker.activity
+                  }
                 />
-              ))}
-            </dl>
+                <Line
+                  label="Running since"
+                  value={
+                    worker.startedAt
+                      ? formatRelativeTime(worker.startedAt)
+                      : "—"
+                  }
+                />
+                <Line
+                  label="Ladders working"
+                  value={figures["Ladders working"] ?? "—"}
+                />
+                <Line
+                  label="Last heard from"
+                  value={
+                    worker.lastSeenAt
+                      ? formatRelativeTime(worker.lastSeenAt)
+                      : "Never"
+                  }
+                />
+                <Line label="Where" value={worker.host ?? "—"} />
+                <Line
+                  label="Copies alive"
+                  value={figures["Copies alive"] ?? "—"}
+                />
+              </dl>
 
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t pt-4">
+              <PriceFeeds value={figures.Prices ?? "Not reported"} />
+            </CardContent>
+
+            <CardFooter className="flex flex-wrap gap-x-8 gap-y-3 p-4">
               <SwitchRow
                 id={`${worker.kind}-enabled`}
                 label="Engine"
@@ -266,112 +310,100 @@ export default function WorkersSettings() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
                 className="ml-auto"
                 disabled={busy}
                 onClick={() => setRestartAsking(worker)}
               >
                 Restart
               </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardFooter>
+          </Card>
+        )
+      })}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BanknoteIcon className="size-4" />
-            Real-money trading
-          </CardTitle>
-          <CardDescription>
-            Off refuses every real order. Practice and testnet always work.
-          </CardDescription>
-          <CardAction>
-            <Badge
-              variant="outline"
-              className={cn(
-                data.realMoney.masterAllowed && data.realMoney.enabled
-                  ? "text-emerald-600 dark:text-emerald-400"
-                  : "text-muted-foreground"
-              )}
-            >
-              {!data.realMoney.masterAllowed
-                ? "Locked off"
-                : data.realMoney.enabled
-                  ? "On"
-                  : "Off"}
-            </Badge>
-          </CardAction>
+      <Card className="gap-0 py-0">
+        <CardHeader className="border-b p-4">
+          <CardTitle>Safety</CardTitle>
         </CardHeader>
 
-        <CardContent>
+        <CardContent className="px-0">
+          <div className="p-4">
+            <h3 className="font-medium">Real money</h3>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Off refuses every real order. Practice and testnet always work.
+              Only ever on in one place at a time.
+            </p>
+          </div>
+          <LiquidationWarningSettings
+            initialValue={bootstrap?.liquidationWarning}
+          />
+        </CardContent>
+
+        <CardFooter className="justify-between p-4">
           {data.realMoney.masterAllowed ? (
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
-              <SwitchRow
-                id="real-money"
-                label="Real money"
-                checked={data.realMoney.enabled}
-                disabled={busy}
-                onChange={(on) => void flipRealMoney(on)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Only ever on in one place at a time.
-              </p>
-            </div>
+            <SwitchRow
+              id="real-money"
+              label="Real money"
+              checked={data.realMoney.enabled}
+              disabled={busy}
+              onChange={(on) => void flipRealMoney(on)}
+            />
           ) : (
             <p className="text-sm text-muted-foreground">
-              Locked off by the server — only a deploy can allow real money
-              here.
+              The server has locked real money off.
             </p>
           )}
-        </CardContent>
-      </Card>
-
-      <LiquidationWarningSettings />
-
-      <AsterMarginSettings />
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ClockIcon className="size-4" />
-            How a plain order waits
-          </CardTitle>
-          <CardDescription>
-            A right-clicked buy or sell either sits on the exchange until it
-            fills, or waits here until the price is reached. Ladders and grids
-            are unaffected — they have always been watched.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3">
-          <Select
-            value={orderStyle}
-            disabled={styleBusy}
-            onValueChange={(next) => void changeStyle(next as OrderStyle)}
+          <span
+            className={cn(
+              "text-sm font-medium",
+              data.realMoney.masterAllowed && data.realMoney.enabled
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-muted-foreground"
+            )}
           >
-            <SelectTrigger
-              className="w-fit"
-              aria-label="How a plain order waits"
+            {!data.realMoney.masterAllowed
+              ? "Locked off"
+              : data.realMoney.enabled
+                ? "On"
+                : "Off"}
+          </span>
+        </CardFooter>
+      </Card>
+
+      <Card className="gap-0 py-0">
+        <CardHeader className="border-b p-4">
+          <CardTitle>Orders</CardTitle>
+        </CardHeader>
+
+        <CardContent className="px-0">
+          <AsterMarginSettings initialWallets={bootstrap?.asterMargins} />
+
+          <div className="grid gap-4 border-t p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+            <div>
+              <h3 className="font-medium">How a plain order waits</h3>
+              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                A right-clicked buy or sell either sits on the exchange until it
+                fills, or waits here until the price is reached. Ladders and
+                grids are unaffected. They have always been watched.
+              </p>
+            </div>
+            <Select
+              value={orderStyle}
+              disabled={styleBusy}
+              onValueChange={(next) => void changeStyle(next as OrderStyle)}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="rest">Rests on the exchange</SelectItem>
-              <SelectItem value="watch">Watched by the engine</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {orderStyle === "rest"
-              ? "It fills whether or not this app is running, and the money behind it is committed while it waits."
-              : "Nothing reaches the exchange until the price is touched, so the money stays free and the level is nobody else's business — but it only fills while the engine above is running."}
-          </p>
+              <SelectTrigger aria-label="How a plain order waits">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="rest">Rests on the exchange</SelectItem>
+                <SelectItem value="watch">Watched by the engine</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Read {formatRelativeTime(data.checkedAt)}.
-      </p>
       <ConfirmDialog
         open={restartAsking !== null}
         onOpenChange={(open) => {
@@ -415,19 +447,69 @@ function SwitchRow({
 }
 
 /** A state worth reading on the card itself, rather than a passing toast. */
-function Notice({ children }: { children: React.ReactNode }) {
+function Notice({
+  children,
+  action,
+}: {
+  children: React.ReactNode
+  action?: React.ReactNode
+}) {
   return (
-    <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      {children}
-    </p>
+    <div className="flex items-center justify-between gap-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+      <p>{children}</p>
+      {action}
+    </div>
   )
 }
 
 function Line({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 sm:justify-start sm:gap-2">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="font-medium tabular-nums">{value}</dd>
+    <div className="min-w-0">
+      <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="mt-1 font-medium tabular-nums" title={value}>
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+function PriceFeeds({ value }: { value: string }) {
+  const feeds = value.split(" · ").map((feed) => {
+    const [name, ...rest] = feed.split(": ")
+    return { name, detail: rest.join(": ") || "Not reported" }
+  })
+
+  return (
+    <div>
+      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Prices
+      </p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {feeds.map((feed) => {
+          const live = feed.detail.startsWith("live")
+          return (
+            <Badge
+              key={`${feed.name}-${feed.detail}`}
+              variant="outline"
+              className="h-7 gap-2 px-3 text-sm"
+            >
+              <span
+                className={cn(
+                  "size-1.5 rounded-full",
+                  live ? "bg-emerald-600" : "bg-amber-500"
+                )}
+                aria-hidden="true"
+              />
+              <span>{feed.name}</span>
+              <span className="font-normal text-muted-foreground">
+                {feed.detail}
+              </span>
+            </Badge>
+          )
+        })}
+      </div>
     </div>
   )
 }

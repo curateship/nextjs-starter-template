@@ -44,8 +44,14 @@ export function flowStartProblem(code: string, walletLabel: string): string {
   if (code.includes("FLOW_ALREADY_RUNNING")) {
     return "This flow is already switched on. Stop it first if you want to start it again with different settings."
   }
+  if (code.includes("FLOW_ALREADY_STOPPING")) {
+    return "This flow is still calling off its waiting ladders. Start it again after it says Stopped."
+  }
   if (code.includes("FLOW_WALLET_BUSY")) {
     return `Another flow is already trading ${walletLabel}. Two flows on one wallet would double every position, so stop that one first.`
+  }
+  if (code.includes("FLOW_WALLET_STOPPING")) {
+    return `The last flow on ${walletLabel} is still calling off its waiting ladders. Start this flow after that one says Stopped.`
   }
   // Thrown by the signing path rather than by the checks above, which is why it
   // is matched on the engine's own code rather than a FLOW_ one.

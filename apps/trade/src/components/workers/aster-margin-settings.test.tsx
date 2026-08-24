@@ -79,6 +79,25 @@ afterEach(async () => {
 })
 
 describe("Aster margin settings", () => {
+  it("draws the remembered mode while Aster is checked", async () => {
+    vi.mocked(loadAsterMarginModes).mockReturnValue(new Promise(() => {}))
+
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <AsterMarginSettings
+            initialWallets={[
+              { walletId: "wallet-1", label: "Aster live", mode: "cross" },
+            ]}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    expect(host.textContent).not.toContain("Loading Aster margin")
+    expect(host.querySelector<HTMLSelectElement>("select")?.value).toBe("cross")
+  })
+
   it("shows the exchange mode and saves a new choice", async () => {
     vi.mocked(loadAsterMarginModes).mockResolvedValue([
       { walletId: "wallet-1", label: "Aster live", mode: "cross" },

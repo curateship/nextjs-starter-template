@@ -9,6 +9,8 @@ import {
 } from "@/lib/automations/nodes/trade-markets"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
 import { describeFlowStop, type TradeFlowRunSpec } from "@/lib/trade/flow-run"
+import type { LadderPlan } from "@/lib/trade/dca"
+import { readSmartPlan } from "@/lib/trade/smart-plan"
 import {
   describeFlowWait,
   flowHeadline,
@@ -22,6 +24,7 @@ import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
 import { flowNodesOf } from "@/server/trade/flow-start"
 import {
+  flowStopCounts,
   pauseFlowRun,
   retryFlowRunNow,
   startFlowRun,
@@ -69,6 +72,8 @@ export type FlowTrading =
       problem: string | null
       /** True while this flow is switched on and watching its coins. */
       running: boolean
+      /** True while the engine is calling off its waiting ladders. */
+      stopping: boolean
       /**
        * The run this flow is on, when it is switched on — the way through to
        * its dashboard.
@@ -185,11 +190,15 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
     // What is running is described by the copy it is running, not by the
     // drawing beside it — including its wallet and its coin count.
     if (live) {
-      const working = await countWorkingLadders(
-        context.user.id,
-        live.walletId,
-        live.spec.marketKeys
-      )
+      const working =
+        live.status === "stopping"
+          ? (await flowStopCounts(context.user.id, live.automationId, db))
+              .remaining
+          : await countWorkingLadders(
+              context.user.id,
+              live.id,
+              live.spec.marketKeys
+            )
       // Coins the flow no longer watches are dropped rather than shown: the
       // spec is frozen, so an entry outside its list could only be left over
       // from a bug, and a coin nobody chose is a confusing thing to report.
@@ -240,15 +249,21 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
         capUsd: live.spec.capUsd,
         coins: live.spec.marketKeys.length,
         problem: null,
-        running: true,
+        running: live.status === "running",
+        stopping: live.status === "stopping",
         runId: live.id,
         startedAt: live.startedAt.getTime(),
         working,
-        waiting,
-        headline: head?.words ?? null,
-        needsAttention: (head?.problem ?? false) || live.hold !== null,
-        holding,
-        paused: live.pausedAt !== null,
+        waiting: live.status === "stopping" ? [] : waiting,
+        headline:
+          live.status === "stopping"
+            ? `${working} ${working === 1 ? "ladder" : "ladders"} left to call off.`
+            : (head?.words ?? null),
+        needsAttention:
+          live.status === "running" &&
+          ((head?.problem ?? false) || live.hold !== null),
+        holding: live.status === "running" && holding,
+        paused: live.status === "running" && live.pausedAt !== null,
         drawingChanged: drawingMovedOn(
           live.spec,
           live.walletId,
@@ -320,6 +335,7 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       coins,
       problem,
       running: false,
+      stopping: false,
       runId: null,
       startedAt: null,
       working: 0,
@@ -340,6 +356,8 @@ async function runningFlow(userId: string, automationId: string) {
   const [row] = await db
     .select({
       id: tradeFlowRuns.id,
+      automationId: tradeFlowRuns.automationId,
+      status: tradeFlowRuns.status,
       startedAt: tradeFlowRuns.startedAt,
       walletId: tradeFlowRuns.walletId,
       spec: tradeFlowRuns.spec,
@@ -352,7 +370,7 @@ async function runningFlow(userId: string, automationId: string) {
       and(
         eq(tradeFlowRuns.userId, userId),
         eq(tradeFlowRuns.automationId, automationId),
-        eq(tradeFlowRuns.status, "running")
+        inArray(tradeFlowRuns.status, ["running", "stopping"])
       )
     )
     .limit(1)
@@ -389,22 +407,30 @@ function drawingMovedOn(
 /** How many of a flow's coins have a smart order on them right now. */
 async function countWorkingLadders(
   userId: string,
-  walletId: string,
+  runId: string,
   marketKeys: string[]
 ): Promise<number> {
   if (marketKeys.length === 0) return 0
   const rows = await db
-    .select({ marketKey: tradeSmartLadders.marketKey })
+    .select({
+      kind: tradeSmartLadders.kind,
+      plan: tradeSmartLadders.plan,
+    })
     .from(tradeSmartLadders)
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.flowRunId, runId),
         eq(tradeSmartLadders.status, "active"),
         inArray(tradeSmartLadders.marketKey, marketKeys)
       )
     )
-  return rows.length
+  return rows.filter((row) => {
+    if (row.kind === "signal") return true
+    if (row.kind !== "dca") return false
+    const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
+    return plan?.rungs.some((rung) => rung.status === "waiting") ?? false
+  }).length
 }
 
 /** The saved drawing's three trade steps, for switching on. */

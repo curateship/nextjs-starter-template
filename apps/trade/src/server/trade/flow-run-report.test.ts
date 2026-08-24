@@ -259,13 +259,16 @@ describe("readFlowRun", () => {
     expect(report!.notMine).toBe(1)
   })
 
-  it("counts a coin as working off the wallet, not off the stamp", async () => {
-    // The ladder here has no stamp — placed before the stamp existed. The run
-    // is still working that coin, and a dashboard reading "0 working" beside a
-    // ladder plainly at work is the version that gets believed and is wrong.
+  it("counts only this run's ladders with waiting rungs", async () => {
     await db
       .update(tradeSmartLadders)
-      .set({ status: "active" })
+      .set({ status: "active", plan: LADDER_PLAN })
+      .where(eq(tradeSmartLadders.id, "ladder-1"))
+    // An active hand ladder on the same wallet and coin is not work this run
+    // can claim. Counting it is how "Rungs placed" appeared over a blank chart.
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "active", plan: LADDER_PLAN, marketKey: ETH })
       .where(eq(tradeSmartLadders.id, "ladder-2"))
     await db
       .update(tradeFlowRuns)
@@ -276,6 +279,66 @@ describe("readFlowRun", () => {
     expect(report!.head.working).toBe(1)
     expect(report!.coins.find((coin) => coin.marketKey === BTC)?.working).toBe(
       true
+    )
+    expect(report!.coins.find((coin) => coin.marketKey === ETH)?.working).toBe(
+      false
+    )
+  })
+
+  it("counts older ladders that the current stop still has to call off", async () => {
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "stopping", stoppedAt: null })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+    await db.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-older",
+      walletId: "w1",
+      automationId: "flow-1",
+      status: "stopped",
+      spec: spec(),
+      placed: [ETH],
+      waiting: {},
+      startedAt: new Date(NOW - 60_000),
+      stoppedAt: new Date(NOW - 30_000),
+      updatedAt: new Date(NOW - 30_000),
+    })
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      id: "older-ladder",
+      walletId: "w1",
+      marketKey: ETH,
+      kind: "dca",
+      status: "active",
+      plan: LADDER_PLAN,
+      flowRunId: "run-older",
+      createdAt: new Date(NOW - 60_000),
+      updatedAt: new Date(NOW - 30_000),
+    })
+
+    const report = await readFlowRun(userId, "run-1", NOW + 7_200_000)
+    const rows = await listFlowRuns(userId, NOW + 7_200_000)
+
+    expect(report!.head.working).toBe(1)
+    expect(rows.find((row) => row.id === "run-1")?.working).toBe(1)
+  })
+
+  it("does not call stopped-run coins working", async () => {
+    // The last cancel can leave an active ladder row behind, and another order
+    // can be working on the same coin by hand. Neither means a stopped flow is
+    // still placing rungs.
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "active" })
+      .where(eq(tradeSmartLadders.id, "ladder-2"))
+
+    const report = await readFlowRun(userId, "run-1", NOW + 7_200_000)
+    expect(report!.head.working).toBe(0)
+    expect(report!.coins.find((coin) => coin.marketKey === BTC)?.working).toBe(
+      false
+    )
+    expect(report!.coins.find((coin) => coin.marketKey === BTC)?.words).toBe(
+      "Stopped"
     )
   })
 
@@ -293,17 +356,24 @@ describe("readFlowRun", () => {
 })
 
 describe("readFlowRunCoin", () => {
-  it("draws the rungs working on a coin this run watches", async () => {
-    // Read off the wallet and the coin list, not off the stamp — the same rule
-    // the canvas chip uses for "what is this flow working on". A ladder placed
-    // before the stamp existed still draws, which is the whole point.
+  it("draws the rungs this run placed", async () => {
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "active", plan: LADDER_PLAN })
+      .where(eq(tradeSmartLadders.id, "ladder-1"))
+
+    const coin = await readFlowRunCoin(userId, "run-1", BTC)
+    expect(coin!.ladders.map((one) => one.id)).toEqual(["ladder-1"])
+  })
+
+  it("does not draw a hand ladder on the same coin", async () => {
     await db
       .update(tradeSmartLadders)
       .set({ status: "active", plan: LADDER_PLAN })
       .where(eq(tradeSmartLadders.id, "ladder-2"))
 
     const coin = await readFlowRunCoin(userId, "run-1", BTC)
-    expect(coin!.ladders.map((one) => one.id)).toEqual(["ladder-2"])
+    expect(coin!.ladders).toHaveLength(0)
   })
 
   it("draws nothing for a coin outside the run's list", async () => {
@@ -365,6 +435,24 @@ describe("deleting a run", () => {
 })
 
 describe("listFlowRuns", () => {
+  it("counts only the running run's own waiting ladders", async () => {
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "running", stoppedAt: null })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "active", plan: LADDER_PLAN })
+      .where(eq(tradeSmartLadders.id, "ladder-1"))
+    await db
+      .update(tradeSmartLadders)
+      .set({ status: "active", plan: LADDER_PLAN })
+      .where(eq(tradeSmartLadders.id, "ladder-2"))
+
+    const rows = await listFlowRuns(userId, NOW + 7_200_000)
+    expect(rows[0].working).toBe(1)
+  })
+
   it("adds up only what each run banked", async () => {
     await roundTrip({
       marketKey: BTC,

@@ -27,14 +27,23 @@ import { db } from "@/server/db"
 import { customShellAutomations } from "@/server/schema"
 import { loadLiveHistory } from "@/server/trade/live-fills"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
-import { loadPaperHistory, loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
+import { flowStopCounts } from "@/server/trade/flow-run"
+import {
+  loadPaperHistory,
+  loadPaperPortfolio,
+  marksForKeys,
+} from "@/server/trade/paper"
 import {
   tradeFlowRunOrders,
   tradeFlowRuns,
   tradeSmartLadders,
 } from "@/server/trade/schema"
-import { listActiveSmartOrders } from "@/server/trade/smart-orders"
-import type { SmartOrder } from "@/lib/trade/smart-plan"
+import type { LadderPlan } from "@/lib/trade/dca"
+import {
+  readSmartPlan,
+  type SmartLadder,
+  type SmartOrder,
+} from "@/lib/trade/smart-plan"
 import { listWallets } from "@/server/trade/wallets"
 
 /**
@@ -191,38 +200,79 @@ async function orderOwners(
   return new Map(rows.map((row) => [row.orderId, row.flowRunId]))
 }
 
-/**
- * Which of a run's coins have a smart order working on them right now.
- *
- * **Asked of the wallet and the coin list, not of the run's stamp.** This is
- * the same question `countWorkingLadders` answers for the canvas chip and the
- * Automation panel on the trading screen answers for its list, and it has to
- * be answered the same way in all three or the same flow reads as busy on one
- * screen and idle on another.
- *
- * The stamp is for money — whose trade was that, months later, when the order
- * behind it is long gone. What is working right now needs no stamp: there is
- * one smart order per coin per wallet, and a coin on this run's list with one
- * on it is this run's coin being worked.
- */
-async function workingMarkets(
+function isWorkingFlowOrder(kind: string, value: unknown): boolean {
+  if (kind === "signal") return true
+  if (kind !== "dca") return false
+  const plan = readSmartPlan("dca", value) as LadderPlan | null
+  return plan?.rungs.some((rung) => rung.status === "waiting") ?? false
+}
+
+/** The exact ladders this run still has waiting, ready for the chart. */
+async function waitingRunLadders(
   userId: string,
-  walletId: string,
+  runId: string,
   marketKeys: readonly string[]
-): Promise<Set<string>> {
-  if (marketKeys.length === 0) return new Set()
+): Promise<SmartLadder[]> {
+  if (marketKeys.length === 0) return []
   const rows = await db
-    .select({ marketKey: tradeSmartLadders.marketKey })
+    .select()
     .from(tradeSmartLadders)
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.flowRunId, runId),
+        eq(tradeSmartLadders.kind, "dca"),
         eq(tradeSmartLadders.status, "active"),
         inArray(tradeSmartLadders.marketKey, [...marketKeys])
       )
     )
-  return new Set(rows.map((row) => row.marketKey))
+
+  return rows.flatMap((row) => {
+    const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
+    if (!plan?.rungs.some((rung) => rung.status === "waiting")) return []
+    return [
+      {
+        id: row.id,
+        walletId: row.walletId,
+        marketKey: row.marketKey,
+        kind: "dca" as const,
+        status: "active" as const,
+        flowRunId: row.flowRunId,
+        plan,
+        createdAt: row.createdAt.getTime(),
+        updatedAt: row.updatedAt.getTime(),
+      },
+    ]
+  })
+}
+
+/** Which coins have waiting rungs that this run itself placed. */
+async function workingMarkets(
+  userId: string,
+  runId: string,
+  marketKeys: readonly string[]
+): Promise<Set<string>> {
+  if (marketKeys.length === 0) return new Set()
+  const rows = await db
+    .select({
+      marketKey: tradeSmartLadders.marketKey,
+      kind: tradeSmartLadders.kind,
+      plan: tradeSmartLadders.plan,
+    })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.flowRunId, runId),
+        eq(tradeSmartLadders.status, "active"),
+        inArray(tradeSmartLadders.marketKey, [...marketKeys])
+      )
+    )
+  return new Set(
+    rows
+      .filter((row) => isWorkingFlowOrder(row.kind, row.plan))
+      .map((row) => row.marketKey)
+  )
 }
 
 /** The coin out of a market key — `ETH` out of `hyperliquid:mainnet:ETH`. */
@@ -315,13 +365,15 @@ export async function listFlowRuns(
           rows.map((row) => row.automationId)
         )
       ),
-    // Every smart order working on any of these wallets right now. Which run
-    // each one belongs to is decided below, by the coin list — the same rule
-    // the canvas chip uses.
+    // Every active row on these wallets is read once. Ownership and whether a
+    // visible rung remains are checked below for each run.
     db
       .select({
         walletId: tradeSmartLadders.walletId,
         marketKey: tradeSmartLadders.marketKey,
+        flowRunId: tradeSmartLadders.flowRunId,
+        kind: tradeSmartLadders.kind,
+        plan: tradeSmartLadders.plan,
       })
       .from(tradeSmartLadders)
       .where(
@@ -340,13 +392,25 @@ export async function listFlowRuns(
   // left there is either somebody else's or a position it deliberately left
   // holding, and neither is this run looking for coins.
   const workingCount = (run: (typeof rows)[number]) =>
-    run.status !== "running"
+    run.status === "stopped"
       ? 0
       : ladders.filter(
           (one) =>
-            one.walletId === run.walletId &&
-            run.spec.marketKeys.includes(one.marketKey)
+            one.flowRunId === run.id &&
+            run.spec.marketKeys.includes(one.marketKey) &&
+            isWorkingFlowOrder(one.kind, one.plan)
         ).length
+
+  const stoppingCounts = new Map(
+    await Promise.all(
+      rows
+        .filter((row) => row.status === "stopping")
+        .map(async (row) => [
+          row.id,
+          (await flowStopCounts(userId, row.automationId, db)).remaining,
+        ] as const)
+    )
+  )
 
   // One pass over the wallet's trades for every run on the page, rather than
   // one pass per run: this reads every five seconds while anything is running,
@@ -369,7 +433,7 @@ export async function listFlowRuns(
         row,
         wallet,
         nameOf.get(row.automationId) ?? row.spec.walletLabel,
-        workingCount(row),
+        stoppingCounts.get(row.id) ?? workingCount(row),
         now
       ),
       netUsd: mine.reduce((sum, trade) => sum + trade.pnl, 0),
@@ -401,11 +465,17 @@ export async function readFlowRun(
     .where(eq(customShellAutomations.id, row.automationId))
     .limit(1)
 
-  const workingCoins = await workingMarkets(
-    userId,
-    row.walletId,
-    row.spec.marketKeys
-  )
+  // A stopped flow cannot still be placing rungs. Active rows left behind by
+  // its final cancel, or orders placed by hand on the same wallet and coin,
+  // belong to the wallet's current state rather than this finished run.
+  const workingCoins =
+    row.status !== "stopped"
+      ? await workingMarkets(userId, row.id, row.spec.marketKeys)
+      : new Set<string>()
+  const stoppingCount =
+    row.status === "stopping"
+      ? (await flowStopCounts(userId, row.automationId, db)).remaining
+      : null
 
   const owners = await orderOwners(userId, [row.walletId])
 
@@ -429,7 +499,7 @@ export async function readFlowRun(
   )
   let positionRows: TradePosition[] = []
   let unreachable = false
-  if (wallet && (row.status === "running" || stillHolding)) {
+  if (wallet && (row.status !== "stopped" || stillHolding)) {
     if (wallet.kind === "live") {
       const portfolio = await loadLivePortfolio(userId, [wallet])
       positionRows = portfolio.positions
@@ -469,7 +539,11 @@ export async function readFlowRun(
           : (markPx - position.entryPx) * position.szi - position.feesPaid,
       stopPx: position.slPx,
       targetPx: position.tpPx,
-      openedAt: openedAtOf(history.fills, position.marketKey, row.startedAt.getTime()),
+      openedAt: openedAtOf(
+        history.fills,
+        position.marketKey,
+        row.startedAt.getTime()
+      ),
     }
   })
 
@@ -527,7 +601,9 @@ export async function readFlowRun(
       marketKey,
       coin: coinOf(marketKey),
       working,
-      words: working ? null : (wait?.words ?? null),
+      words: working
+        ? null
+        : (wait?.words ?? (row.status === "stopped" ? "Stopped" : null)),
       problem: !working && (wait?.problem ?? false),
       netUsd: money.net,
       trades: money.trades,
@@ -540,7 +616,7 @@ export async function readFlowRun(
       row,
       wallet,
       named?.name ?? "This flow has been deleted",
-      workingCoins.size,
+      stoppingCount ?? workingCoins.size,
       now
     ),
     spec: row.spec,
@@ -595,20 +671,11 @@ export async function readFlowRunCoin(
   const [owners, history, working] = await Promise.all([
     orderOwners(userId, [row.walletId]),
     historyOf(userId, [wallet]),
-    // The rungs still waiting to buy, drawn on the chart the same way the
-    // trading screen draws them.
-    //
-    // Read off the wallet and this run's coin list — the rule every other
-    // screen already uses for "what is this flow working on" — rather than off
-    // the stamp. There is one smart order per coin per wallet, so a coin on
-    // this run's list with a ladder on it is this run's coin being worked, and
-    // demanding a stamp would leave the chart blank for every ladder placed
-    // before the stamp existed.
-    listActiveSmartOrders(userId, [row.walletId]),
+    row.spec.marketKeys.includes(marketKey)
+      ? waitingRunLadders(userId, runId, [marketKey])
+      : Promise.resolve([]),
   ])
-  const ladders = row.spec.marketKeys.includes(marketKey)
-    ? working.filter((one) => one.marketKey === marketKey)
-    : []
+  const ladders = working
 
   const { mine } = splitRunTrades(history.trades, runId, owners)
   const marks = mine

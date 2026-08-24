@@ -14,6 +14,16 @@ job is to confirm it, not to unlock it.
 
 ## What follows from the rule
 
+- **Trading engine Settings arrives with its values.** The route reads the
+  engine, liquidation warning, saved Aster margin, and plain-order style before
+  drawing the page. The browser does not mount an empty panel and ask four
+  separate questions. Aster's saved margin draws first because asking the
+  exchange can be slow. The row checks Aster in the background and corrects the
+  choice if the account changed elsewhere.
+- **Widgets and Markets Settings arrive with their values.** Each route reads
+  its saved answer before drawing the panel. Widgets does not mount an empty
+  editor and Markets does not replace its card with loading copy while the
+  browser asks for a value the server already knows.
 - **A window opens working, on the settings you last used.** The saved DCA
   and grid settings ride the page's own bootstrap call, the same one that
   carries the quick-order window's setup, and seed a browser-side copy at

@@ -16,9 +16,8 @@ vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ navigate: () => {} }),
 }))
 
-const { FlowRunsListPage } = await import(
-  "@/components/flow-run/flow-runs-list-page"
-)
+const { FlowRunsListPage } =
+  await import("@/components/flow-run/flow-runs-list-page")
 
 function row(over: Partial<FlowRunListRow>): FlowRunListRow {
   return {
@@ -47,9 +46,7 @@ function row(over: Partial<FlowRunListRow>): FlowRunListRow {
 
 describe("the live-runs table's actions", () => {
   it("offers Pause and Stop on a running row, and refuses Delete", () => {
-    const html = renderToStaticMarkup(
-      <FlowRunsListPage initial={[row({})]} />
-    )
+    const html = renderToStaticMarkup(<FlowRunsListPage initial={[row({})]} />)
     expect(html).toContain('aria-label="Pause DCA - Phemex"')
     expect(html).toContain('aria-label="Stop DCA - Phemex"')
     // Delete is drawn but refused — a switched-on run is stopped, never
@@ -78,5 +75,18 @@ describe("the live-runs table's actions", () => {
     expect(html).not.toContain('aria-label="Pause DCA - Phemex"')
     expect(html).not.toContain('aria-label="Stop DCA - Phemex"')
     expect(html).toContain('aria-label="Delete the run of DCA - Phemex"')
+  })
+
+  it("shows stopping progress and offers no second action", () => {
+    const html = renderToStaticMarkup(
+      <FlowRunsListPage initial={[row({ status: "stopping", working: 7 })]} />
+    )
+    expect(html).toContain("Stopping")
+    expect(html).toContain("7 ladders left to call off")
+    expect(html).not.toContain('aria-label="Pause DCA - Phemex"')
+    expect(html).not.toContain('aria-label="Stop DCA - Phemex"')
+    expect(html).toMatch(
+      /aria-label="Delete the run of DCA - Phemex"[^>]*disabled|disabled[^>]*aria-label="Delete the run of DCA - Phemex"/
+    )
   })
 })

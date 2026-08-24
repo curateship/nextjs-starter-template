@@ -167,14 +167,13 @@ async function journal(
   }
 }
 
-/** The rails' own refusals, journalled like the exchange's. */
-async function refuse(
+async function recordRefusal(
   userId: string,
   walletId: string,
   marketKey: string,
   side: TradeSide | null,
   error: unknown
-): Promise<never> {
+): Promise<void> {
   const message = error instanceof Error ? error.message : String(error)
   await journal(userId, walletId, marketKey, {
     action: "refused",
@@ -186,6 +185,17 @@ async function refuse(
       ""
     ),
   })
+}
+
+/** The rails' own refusals, journalled like the exchange's. */
+async function refuse(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  side: TradeSide | null,
+  error: unknown
+): Promise<never> {
+  await recordRefusal(userId, walletId, marketKey, side, error)
   throw error
 }
 
@@ -388,6 +398,17 @@ export async function cancelLiveOrder(
       marketId: ref.marketId,
       orderId: input.orderId,
     })
+  } catch (error) {
+    await recordRefusal(
+      userId,
+      row.id,
+      input.marketKey,
+      input.side ?? null,
+      error
+    )
+    throw error
+  }
+  try {
     await journal(userId, row.id, input.marketKey, {
       action: "cancelled",
       side: input.side ?? null,
@@ -395,7 +416,7 @@ export async function cancelLiveOrder(
       sz: input.sz,
     })
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, input.side ?? null, error)
+    console.error("live cancel journal failed", error)
   }
 }
 
@@ -513,7 +534,9 @@ export async function liveHeldPosition(
     row.address ?? "",
     () => credentialFor(row)
   )
-  return portfolio.positions.find((one) => one.marketId === ref.marketId) ?? null
+  return (
+    portfolio.positions.find((one) => one.marketId === ref.marketId) ?? null
+  )
 }
 
 /**

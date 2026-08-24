@@ -314,7 +314,8 @@ time, so this matters most when trading against a dev machine.
   while the account read catches up. Its cancel still goes through the watched
   order path, and a successful cancel removes that held copy at once. It never
   falls through to the practice-order path merely because the full read has not
-  returned yet.
+  returned yet. Calling off every watched price in one press follows the same
+  rule for each held copy.
 
 - **A refusal stays with the order that received it.** Reusing the same coin
   in a new watched order does not carry the previous order's refusal onto the

@@ -8,9 +8,18 @@ import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import { customShellAutomations } from "@/server/schema"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
-import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeFlowRuns,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 /**
  * What the pass makes of the arrows: which coin it looks at, when it acts, and
@@ -179,6 +188,17 @@ beforeEach(async () => {
   candles = barsWithABase()
 
   userId = (await insertUser(database)).id
+  const workspace = await insertWorkspace(database)
+  await database.insert(customShellAutomations).values({
+    id: "flow-1",
+    userId,
+    workspaceId: workspace.id,
+    name: "Signals",
+    graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+    compiledConfig: null,
+    createdAt: new Date(now),
+    updatedAt: new Date(now),
+  })
   await database.insert(tradeWallets).values({
     userId,
     id: "w1",
@@ -188,6 +208,16 @@ beforeEach(async () => {
     protocol: "hyperliquid",
     network: "mainnet",
     startingBalance: 10_000,
+  })
+  await database.insert(tradeFlowRuns).values({
+    userId,
+    id: runId,
+    walletId: "w1",
+    automationId: "flow-1",
+    status: "running",
+    spec: spec(),
+    startedAt: new Date(now),
+    updatedAt: new Date(now),
   })
   wallet = {
     id: "w1",
@@ -208,6 +238,16 @@ afterEach(async () => {
 })
 
 describe("acting on an arrow", () => {
+  it("does not open a signal after Stop has claimed the run", async () => {
+    await database
+      .update(tradeFlowRuns)
+      .set({ status: "stopping", pausedAt: new Date(now) })
+      .where(eq(tradeFlowRuns.id, runId))
+
+    await expect(pass()).rejects.toThrow("FLOW_NOT_ACCEPTING_PLACEMENTS")
+    expect(await signalRows()).toHaveLength(0)
+  })
+
   it("opens a trade on a buy arrow, and places nothing itself", async () => {
     const outcome = await pass()
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, asc, eq, inArray } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
@@ -34,12 +34,24 @@ import {
   assertRealOrdersAllowed,
 } from "@/server/protocols/real-money"
 import { scrubSecrets } from "@/server/protocols/scrub"
-import { placeLiveDcaLadder } from "@/server/trade/live-smart-orders"
-import { cancelLadderRest, placeDcaLadder } from "@/server/trade/smart-orders"
+import {
+  cancelLiveFlowLadderRest,
+  cancelLiveSignalRest,
+  placeLiveDcaLadder,
+} from "@/server/trade/live-smart-orders"
+import {
+  cancelFlowLadderRest,
+  cancelSignalRest,
+  placeDcaLadder,
+} from "@/server/trade/smart-orders"
 import { customShellAutomations } from "@/server/schema"
 import { flowRunNoticeHref } from "@/lib/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
-import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
+import {
+  tradeFlowRuns,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 import { findWallet } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
 
@@ -91,7 +103,9 @@ export type FlowStartRefusal =
   | "FLOW_NO_CAP"
   | "FLOW_WRONG_EXCHANGE"
   | "FLOW_ALREADY_RUNNING"
+  | "FLOW_ALREADY_STOPPING"
   | "FLOW_WALLET_BUSY"
+  | "FLOW_WALLET_STOPPING"
   | "FLOW_MAINNET_OFF"
   | "FLOW_NO_INDICATORS"
   | "FLOW_STRATEGY_UNREADABLE"
@@ -257,24 +271,40 @@ export async function startFlowRun(
 ): Promise<{ id: string; spec: TradeFlowRunSpec }> {
   const { spec, wallet } = await flowRunSpec(userId, input.nodes)
 
-  const running = await database
+  const activeRuns = await database
     .select({
       id: tradeFlowRuns.id,
       automationId: tradeFlowRuns.automationId,
       walletId: tradeFlowRuns.walletId,
+      status: tradeFlowRuns.status,
     })
     .from(tradeFlowRuns)
     .where(
-      and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.status, "running"))
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        inArray(tradeFlowRuns.status, ["running", "stopping"])
+      )
     )
 
-  if (running.some((one) => one.automationId === input.automationId)) {
-    throw new Error("FLOW_ALREADY_RUNNING")
+  const sameFlow = activeRuns.find(
+    (one) => one.automationId === input.automationId
+  )
+  if (sameFlow) {
+    throw new Error(
+      sameFlow.status === "stopping"
+        ? "FLOW_ALREADY_STOPPING"
+        : "FLOW_ALREADY_RUNNING"
+    )
   }
   // A second flow on one wallet would place a second ladder on every shared
   // coin and double the position with nothing on screen to say so.
-  if (running.some((one) => one.walletId === wallet.id)) {
-    throw new Error("FLOW_WALLET_BUSY")
+  const sameWallet = activeRuns.find((one) => one.walletId === wallet.id)
+  if (sameWallet) {
+    throw new Error(
+      sameWallet.status === "stopping"
+        ? "FLOW_WALLET_STOPPING"
+        : "FLOW_WALLET_BUSY"
+    )
   }
 
   const id = randomUUID()
@@ -323,7 +353,11 @@ export async function flowName(
  */
 async function tellFlowOwner(
   userId: string,
-  words: { title: string; body: string; level: "info" | "warning" | "critical" },
+  words: {
+    title: string
+    body: string
+    level: "info" | "warning" | "critical"
+  },
   database: CustomShellDb,
   /** The run this is about, so clicking the notice opens its own page. */
   runId: string
@@ -355,128 +389,321 @@ export async function stopFlowRun(
   },
   database: CustomShellDb = db
 ): Promise<FlowStopOutcome | null> {
-  const [row] = await database
+  const runs = await database
     .select()
     .from(tradeFlowRuns)
     .where(
       and(
         eq(tradeFlowRuns.userId, userId),
-        eq(tradeFlowRuns.automationId, input.automationId),
-        eq(tradeFlowRuns.status, "running")
+        eq(tradeFlowRuns.automationId, input.automationId)
       )
     )
-    .limit(1)
+  const row =
+    runs.find((run) => run.status === "running") ??
+    runs.find((run) => run.status === "stopping")
   if (!row) return null
+  const wasRunning = row.status === "running"
+  const stoppedReason = input.byHand
+    ? (input.reason ?? "Switched off by hand.")
+    : (input.reason ?? null)
 
-  const wallet = await findWallet(userId, row.walletId)
-  const ladders = await database
+  // Placement and Stop take this lock in the same order. A placement already
+  // inside the lock finishes first and is included below. A later placement
+  // sees the pause while it still holds the lock and sends nothing.
+  if (wasRunning) {
+    const claimed = await database.transaction(async (tx) => {
+      await tx
+        .select({ id: tradeWallets.id })
+        .from(tradeWallets)
+        .where(
+          and(
+            eq(tradeWallets.userId, userId),
+            eq(tradeWallets.id, row.walletId)
+          )
+        )
+        .for("update")
+      return await tx
+        .update(tradeFlowRuns)
+        .set({
+          status: "stopping",
+          pausedAt: new Date(input.now),
+          stoppedReason,
+          updatedAt: new Date(input.now),
+        })
+        .where(
+          and(
+            eq(tradeFlowRuns.userId, userId),
+            eq(tradeFlowRuns.id, row.id),
+            eq(tradeFlowRuns.status, "running")
+          )
+        )
+        .returning({ id: tradeFlowRuns.id })
+    })
+    if (claimed.length === 0) return null
+  }
+
+  const counts = await flowStopCounts(userId, input.automationId, database)
+  if (counts.remaining === 0) {
+    await finishStoppingFlow(
+      {
+        ...row,
+        status: "stopping",
+        stoppedReason: wasRunning ? stoppedReason : row.stoppedReason,
+      },
+      input.now,
+      database
+    )
+  }
+  return counts
+}
+
+type FlowRunRow = typeof tradeFlowRuns.$inferSelect
+type StopRow = Pick<
+  typeof tradeSmartLadders.$inferSelect,
+  "id" | "walletId" | "marketKey" | "kind" | "plan" | "updatedAt"
+>
+
+function stopRowKind(row: StopRow): "cancel" | "signal" | "held" {
+  const plan = row.plan
+  if (row.kind === "signal" && "phase" in plan) {
+    return plan.phase === "buying" || plan.phase === "stopping"
+      ? "signal"
+      : "held"
+  }
+  if (!("rungs" in plan)) return "held"
+  if (plan.rungs.some((rung) => rung.status === "filled")) return "held"
+  // An active, unfilled row still goes through its cancel path even when an
+  // older broken Stop already cleared every order id from the plan. The live
+  // cancel can recover those exchange orders from the permanent order record.
+  return "cancel"
+}
+
+async function flowStopRows(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb
+): Promise<StopRow[]> {
+  const runs = await database
+    .select({ id: tradeFlowRuns.id })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.automationId, automationId)
+      )
+    )
+  if (runs.length === 0) return []
+  return await database
     .select({
       id: tradeSmartLadders.id,
+      walletId: tradeSmartLadders.walletId,
       marketKey: tradeSmartLadders.marketKey,
-      plan: tradeSmartLadders.plan,
       kind: tradeSmartLadders.kind,
+      plan: tradeSmartLadders.plan,
+      updatedAt: tradeSmartLadders.updatedAt,
     })
     .from(tradeSmartLadders)
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.walletId, row.walletId),
+        inArray(
+          tradeSmartLadders.flowRunId,
+          runs.map((run) => run.id)
+        ),
         eq(tradeSmartLadders.status, "active")
       )
     )
+    .orderBy(asc(tradeSmartLadders.updatedAt))
+}
 
-  // What this flow actually placed, not every ladder sitting on one of its
-  // coins. A ladder placed by hand on a coin the flow also watches belongs to
-  // whoever placed it, and cancelling it because a flow was switched off would
-  // be taking away an order they never gave the flow.
-  const placed = new Set(row.placed)
-  const mine = ladders.filter((one) => placed.has(one.marketKey))
+export async function flowStopCounts(
+  userId: string,
+  automationId: string,
+  database: CustomShellDb
+): Promise<{ remaining: number; held: number }> {
+  const rows = await flowStopRows(userId, automationId, database)
+  return rows.reduce(
+    (counts, row) => {
+      const kind = stopRowKind(row)
+      if (kind === "cancel" || kind === "signal") counts.remaining += 1
+      if (kind === "held") counts.held += 1
+      return counts
+    },
+    { remaining: 0, held: 0 }
+  )
+}
 
-  let cancelled = 0
-  let held = 0
-  for (const ladder of mine) {
-    // "Has it bought anything yet" is the whole question. A ladder that has is
-    // holding a position with protection on it, and that is left alone.
-    //
-    // A grid on one of this flow's coins is not this flow's to cancel — it was
-    // placed by hand — so it counts as held and is left exactly where it is.
-    const plan = ladder.plan
-    if (ladder.kind === "signal" && "phase" in plan) {
-      // A signal trade IS this flow's, and one still chasing a price must be
-      // called off — otherwise a flow somebody switched off carries on and
-      // buys. The cancelling itself is the engine's next pass; see `stopping`.
-      if (plan.phase === "buying") {
-        await database
-          .update(tradeSmartLadders)
-          .set({
-            plan: { ...plan, phase: "stopping" },
-            updatedAt: new Date(input.now),
-          })
-          .where(
-            and(
-              eq(tradeSmartLadders.userId, userId),
-              eq(tradeSmartLadders.id, ladder.id)
-            )
-          )
-        cancelled += 1
-      } else {
-        held += 1
-      }
-      continue
-    }
-    if (!("rungs" in plan)) {
-      held += 1
-      continue
-    }
-    const bought = plan.rungs.some((rung) => rung.status === "filled")
-    if (bought) {
-      held += 1
-      continue
-    }
-    if (!wallet) {
-      // Nothing can be cancelled without the wallet to cancel it through, and
-      // reporting that as "nothing was in the market" would be a lie about
-      // money. Counted as held, which is the honest and the safer reading.
-      held += 1
-      continue
-    }
-    try {
-      await cancelLadderRest(userId, wallet, { ladderId: ladder.id })
-      cancelled += 1
-    } catch {
-      // One ladder that would not cancel — a hiccup at the exchange — must not
-      // leave the flow switched on. It is reported as still held, which is the
-      // honest and the safer of the two readings.
-      held += 1
-    }
-  }
-
-  await database
+async function finishStoppingFlow(
+  run: FlowRunRow,
+  now: number,
+  database: CustomShellDb
+): Promise<void> {
+  const stopped = await database
     .update(tradeFlowRuns)
     .set({
       status: "stopped",
-      stoppedAt: new Date(input.now),
-      stoppedReason: input.reason ?? null,
-      updatedAt: new Date(input.now),
+      stoppedAt: new Date(now),
+      updatedAt: new Date(now),
     })
-    .where(and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.id, row.id)))
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, run.userId),
+        eq(tradeFlowRuns.id, run.id),
+        eq(tradeFlowRuns.status, "stopping")
+      )
+    )
+    .returning({ id: tradeFlowRuns.id })
+  if (stopped.length === 0 || run.stoppedReason === "Switched off by hand.")
+    return
+  await tellFlowOwner(
+    run.userId,
+    {
+      title: `Flow ${await flowName(run.automationId, database)} stopped`,
+      body:
+        run.stoppedReason ?? "The flow stopped without a reason being given.",
+      level: "warning",
+    },
+    database,
+    run.id
+  )
+}
 
-  if (!input.byHand) {
+/** Cancels at most three waiting ladders, then gives the engine back its turn. */
+async function advanceStoppingFlow(
+  run: FlowRunRow,
+  now: number,
+  database: CustomShellDb
+): Promise<void> {
+  const rows = await flowStopRows(run.userId, run.automationId, database)
+  const wallets = new Map<string, TradeWallet | null>()
+  const waiting = { ...run.waiting }
+  const newlyFailed: string[] = []
+  let waitingChanged = false
+  let attempted = 0
+
+  const markFailure = async (row: StopRow) => {
+    // Move a refused ladder behind the others. The next engine pass retries
+    // it, but one stubborn exchange answer cannot block every later cancel.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(now) })
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, run.userId),
+          eq(tradeSmartLadders.id, row.id)
+        )
+      )
+    if (waiting[row.marketKey]?.code !== "FLOW_CANCEL_FAILED") {
+      waiting[row.marketKey] = { code: "FLOW_CANCEL_FAILED", at: now }
+      newlyFailed.push(row.marketKey)
+      waitingChanged = true
+    }
+  }
+
+  for (const row of rows) {
+    const kind = stopRowKind(row)
+    if (kind === "held" || attempted >= 3) continue
+
+    if (!wallets.has(row.walletId)) {
+      wallets.set(row.walletId, await findWallet(run.userId, row.walletId))
+    }
+    const wallet = wallets.get(row.walletId) ?? null
+    attempted += 1
+    if (!wallet) {
+      await markFailure(row)
+      continue
+    }
+    try {
+      let complete = true
+      let done = true
+      if (kind === "signal") {
+        const outcome =
+          wallet.kind === "live"
+            ? await cancelLiveSignalRest(run.userId, wallet, {
+                signalId: row.id,
+                now,
+              })
+            : await cancelSignalRest(run.userId, wallet, { signalId: row.id })
+        complete = outcome.complete
+        done = outcome.done
+      } else if (wallet.kind === "live") {
+        const outcome = await cancelLiveFlowLadderRest(run.userId, wallet, {
+          ladderId: row.id,
+        })
+        complete = outcome.complete
+        done = outcome.done
+      } else {
+        const outcome = await cancelFlowLadderRest(run.userId, wallet, {
+          ladderId: row.id,
+        })
+        complete = outcome.complete
+        done = outcome.done
+      }
+      if (!complete) continue
+      if (done) {
+        await database
+          .update(tradeSmartLadders)
+          .set({ status: "done", updatedAt: new Date(now) })
+          .where(
+            and(
+              eq(tradeSmartLadders.userId, run.userId),
+              eq(tradeSmartLadders.id, row.id),
+              eq(tradeSmartLadders.status, "active")
+            )
+          )
+      }
+      if (waiting[row.marketKey]) {
+        delete waiting[row.marketKey]
+        waitingChanged = true
+      }
+    } catch {
+      await markFailure(row)
+    }
+  }
+
+  if (waitingChanged) {
+    await database
+      .update(tradeFlowRuns)
+      .set({ waiting, updatedAt: new Date(now) })
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, run.userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "stopping")
+        )
+      )
+  }
+  if (newlyFailed.length > 0) {
+    const names = newlyFailed.map((key) => parseMarketKey(key)?.marketId ?? key)
     await tellFlowOwner(
-      userId,
+      run.userId,
       {
-        title: `Flow ${await flowName(input.automationId, database)} stopped`,
-        // The same sentence that went into the run's row, so the bell and the
-        // history can never tell two stories about one stop.
-        body: input.reason ?? "The flow stopped without a reason being given.",
-        level: "warning",
+        title: `Flow ${await flowName(run.automationId, database)} could not call off every ladder`,
+        body: `Stop could not call off ${names.join(", ")}. It will keep trying. Check those open orders before trading again.`,
+        level: "critical",
       },
       database,
-      row.id
+      run.id
     )
   }
 
-  return { cancelled, held }
+  const counts = await flowStopCounts(run.userId, run.automationId, database)
+  if (counts.remaining === 0) await finishStoppingFlow(run, now, database)
+}
+
+/** One short pass over every flow whose waiting ladders are being called off. */
+export async function advanceStoppingFlows(
+  now: number = Date.now(),
+  database: CustomShellDb = db
+): Promise<void> {
+  const runs = await database
+    .select()
+    .from(tradeFlowRuns)
+    .where(eq(tradeFlowRuns.status, "stopping"))
+
+  for (const run of runs) {
+    await advanceStoppingFlow(run, now, database)
+  }
 }
 
 /**
@@ -487,7 +714,7 @@ export async function stopFlowRun(
  * skipped, and the placement path re-checks that under a lock — so two copies
  * of this running at once cannot both place on the same coin.
  */
-export async function advanceFlowRuns(
+export async function advanceRunningFlows(
   now: number = Date.now(),
   database: CustomShellDb = db
 ): Promise<void> {
@@ -647,6 +874,19 @@ export async function advanceFlowRuns(
         and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
       )
   }
+}
+
+/**
+ * Advances both halves for callers that do not schedule them separately.
+ * The ladder worker uses the two focused functions so Stop runs every second
+ * without making the expensive coin hunt run every second too.
+ */
+export async function advanceFlowRuns(
+  now: number = Date.now(),
+  database: CustomShellDb = db
+): Promise<void> {
+  await advanceStoppingFlows(now, database)
+  await advanceRunningFlows(now, database)
 }
 
 /**

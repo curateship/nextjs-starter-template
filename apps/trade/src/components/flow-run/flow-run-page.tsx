@@ -116,7 +116,7 @@ export function FlowRunPage({
   // and a page quietly asking after a dead run all afternoon spends the
   // exchange's allowance on an answer nobody is waiting for.
   React.useEffect(() => {
-    if (report.head.status !== "running") return
+    if (report.head.status === "stopped") return
     let live = true
     let timer: ReturnType<typeof setTimeout> | null = null
     const tick = () => {
@@ -189,6 +189,7 @@ export function FlowRunPage({
   // rather than drawn under the wrong name.
   const [chart, setChart] = React.useState<{
     key: string
+    working: boolean
     bars: CandleBar[]
     marks: LiveFillMark[]
     ladders: SmartLadder[]
@@ -198,6 +199,12 @@ export function FlowRunPage({
 
   const interval = report.spec.strategy.interval
   const runId = report.head.id
+  // The run summary and one coin's chart are separate reads. A coin can be
+  // opened while it is still waiting, then gain a ladder on the next run
+  // refresh. Reload on that exact transition so "Rungs placed" and the chart
+  // cannot disagree until somebody changes coins.
+  const activeCoinWorking =
+    report.coins.find((coin) => coin.marketKey === activeCoin)?.working ?? false
 
   const load = React.useCallback(() => {
     if (!activeCoin) return Promise.resolve()
@@ -210,6 +217,7 @@ export function FlowRunPage({
         if (ticket !== request.current) return
         setChart({
           key: activeCoin,
+          working: activeCoinWorking,
           bars: candles.candles,
           marks: coin.marks,
           // Only the ladders, drawn as rungs. A signal trade has no levels to
@@ -226,7 +234,7 @@ export function FlowRunPage({
         setChart(null)
         setChartError(getCandlesErrorMessage(error))
       })
-  }, [activeCoin, interval, runId])
+  }, [activeCoin, interval, runId, activeCoinWorking])
 
   React.useEffect(() => {
     void load()
@@ -242,8 +250,11 @@ export function FlowRunPage({
     })
   }, [activeCoin, navigate, openCoin, runId])
 
-  const shown = chart?.key === activeCoin ? chart : null
-  const running = report.head.status === "running"
+  const shown =
+    chart?.key === activeCoin && chart.working === activeCoinWorking
+      ? chart
+      : null
+  const running = report.head.status !== "stopped"
 
   const openCoinInChart = (marketKey: string) => {
     setActiveCoin(marketKey)

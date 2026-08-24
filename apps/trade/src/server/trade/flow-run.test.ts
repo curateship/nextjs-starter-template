@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { defaultSignalIndicators } from "@/lib/automations/nodes/trade-signals"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultDcaParams } from "@/lib/trade/dca"
+import { describeFlowStop } from "@/lib/trade/flow-run"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import {
@@ -46,6 +47,13 @@ let userId: string
 /** The wallet the store would return. Replaced per test. */
 let walletRow: TradeWallet | null = null
 
+const liveCancel = vi.hoisted(() =>
+  vi.fn(async () => ({ complete: true, done: true }))
+)
+const liveSignalCancel = vi.hoisted(() =>
+  vi.fn(async () => ({ complete: true, done: true }))
+)
+
 vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
 }))
@@ -58,11 +66,18 @@ vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
 // The real-money Settings toggle reads the app database, which these tests
 // replace with their own. The gate's own behaviour is pinned down in
 // `workers.test.ts`; here it only has to not stand in the way.
-vi.mock("@/server/trade/workers", () => ({
+vi.mock("@/server/protocols/real-money", () => ({
   assertRealMoneySwitchOn: async () => {},
+  assertRealOrdersAllowed: () => {},
 }))
 
-const { flowRunSpec, startFlowRun, stopFlowRun } =
+vi.mock("@/server/trade/live-smart-orders", () => ({
+  placeLiveDcaLadder: async () => {},
+  cancelLiveFlowLadderRest: liveCancel,
+  cancelLiveSignalRest: liveSignalCancel,
+}))
+
+const { advanceStoppingFlows, flowRunSpec, startFlowRun, stopFlowRun } =
   await import("@/server/trade/flow-run")
 type FlowNodes = Parameters<typeof flowRunSpec>[1]
 
@@ -121,6 +136,10 @@ beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   userId = (await insertUser(db)).id
   walletRow = wallet()
+  liveCancel.mockReset()
+  liveCancel.mockResolvedValue({ complete: true, done: true })
+  liveSignalCancel.mockReset()
+  liveSignalCancel.mockResolvedValue({ complete: true, done: true })
 
   // Two real flows to hang the runs off. The table points at `automations` so
   // that deleting a flow stops it looking for coins, which means a test needs
@@ -421,7 +440,7 @@ describe("switching one off", () => {
       db
     )
 
-    expect(outcome).toEqual({ cancelled: 0, held: 0 })
+    expect(outcome).toEqual({ held: 0, remaining: 0 })
     const [still] = await db
       .select({ status: tradeSmartLadders.status })
       .from(tradeSmartLadders)
@@ -447,7 +466,7 @@ describe("switching one off", () => {
       db
     )
 
-    expect(outcome).toEqual({ cancelled: 0, held: 0 })
+    expect(outcome).toEqual({ held: 0, remaining: 0 })
     const [row] = await db.select().from(tradeFlowRuns)
     expect(row.status).toBe("stopped")
     expect(row.stoppedReason).toBe("Switched off by hand.")
@@ -469,6 +488,442 @@ describe("switching one off", () => {
       )
     ).resolves.toBeTruthy()
   })
+
+  it("can finish a stop that was interrupted after pausing the run", async () => {
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await db
+      .update(tradeFlowRuns)
+      .set({ pausedAt: new Date(NOW + 1) })
+      .where(eq(tradeFlowRuns.automationId, "flow-1"))
+
+    await expect(
+      stopFlowRun(
+        userId,
+        { automationId: "flow-1", now: NOW + 2, byHand: true },
+        db
+      )
+    ).resolves.toEqual({ held: 0, remaining: 0 })
+    const [run] = await db.select().from(tradeFlowRuns)
+    expect(run.status).toBe("stopped")
+  })
+
+  it("uses the live cancel path for a ladder owned by the run row", async () => {
+    walletRow = wallet({
+      label: "Live",
+      kind: "live",
+      address: "0x1",
+      hasKey: true,
+    })
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletLabel: "Live",
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "live-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    const outcome = await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, byHand: true },
+      db
+    )
+
+    expect(outcome).toEqual({ held: 0, remaining: 1 })
+    expect(liveCancel).not.toHaveBeenCalled()
+    const [stopping] = await db.select().from(tradeFlowRuns)
+    expect(stopping.status).toBe("stopping")
+
+    await advanceStoppingFlows(NOW + 2, db)
+    expect(liveCancel).toHaveBeenCalledOnce()
+    expect(liveCancel).toHaveBeenCalledWith(userId, walletRow, {
+      ladderId: "live-ladder",
+    })
+    const [stopped] = await db.select().from(tradeFlowRuns)
+    expect(stopped.status).toBe("stopped")
+  })
+
+  it("finishes a live signal stop without relying on normal wallet work", async () => {
+    walletRow = wallet({
+      label: "Live",
+      kind: "live",
+      address: "0x1",
+      hasKey: true,
+    })
+    const signalNodes = nodes({
+      wallet: {
+        walletLabel: "Live",
+        walletKind: "live",
+        walletAddress: "0x1",
+        walletHasKey: true,
+      },
+    })
+    signalNodes.strategy = {
+      kind: "signals",
+      settings: {
+        indicators: defaultSignalIndicators(),
+        interval: "4h",
+        stakePct: 20,
+        chaseGiveUpPct: 2,
+      },
+    }
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: signalNodes, now: NOW },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "live-signal",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "signal",
+      status: "active",
+      flowRunId: started.id,
+      plan: { phase: "buying" } as never,
+    })
+
+    expect(
+      await stopFlowRun(
+        userId,
+        { automationId: "flow-1", now: NOW + 1, byHand: true },
+        db
+      )
+    ).toEqual({ held: 0, remaining: 1 })
+    await advanceStoppingFlows(NOW + 2, db)
+
+    expect(liveSignalCancel).toHaveBeenCalledWith(userId, walletRow, {
+      signalId: "live-signal",
+      now: NOW + 2,
+    })
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
+  })
+
+  it("cancels three ladders per engine pass and then stops", async () => {
+    walletRow = wallet({
+      label: "Live",
+      kind: "live",
+      address: "0x1",
+      hasKey: true,
+    })
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletLabel: "Live",
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values(
+      Array.from({ length: 9 }, (_, index) => ({
+        userId,
+        walletId: "w1",
+        id: `live-ladder-${index}`,
+        marketKey: `hyperliquid:mainnet:COIN${index}`,
+        kind: "dca" as const,
+        status: "active" as const,
+        flowRunId: started.id,
+        plan: { rungs: [{ status: "waiting" }] } as never,
+      }))
+    )
+
+    const outcome = await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, byHand: true },
+      db
+    )
+    expect(outcome?.remaining).toBe(9)
+    expect(liveCancel).not.toHaveBeenCalled()
+    await expect(
+      startFlowRun(
+        userId,
+        {
+          automationId: "flow-1",
+          nodes: nodes({
+            wallet: {
+              walletLabel: "Live",
+              walletKind: "live",
+              walletAddress: "0x1",
+              walletHasKey: true,
+            },
+          }),
+          now: NOW + 2,
+        },
+        db
+      )
+    ).rejects.toThrow("FLOW_ALREADY_STOPPING")
+    await expect(
+      startFlowRun(
+        userId,
+        {
+          automationId: "flow-2",
+          nodes: nodes({
+            wallet: {
+              walletLabel: "Live",
+              walletKind: "live",
+              walletAddress: "0x1",
+              walletHasKey: true,
+            },
+          }),
+          now: NOW + 2,
+        },
+        db
+      )
+    ).rejects.toThrow("FLOW_WALLET_STOPPING")
+
+    await advanceStoppingFlows(NOW + 2, db)
+    expect(liveCancel).toHaveBeenCalledTimes(3)
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopping")
+    await advanceStoppingFlows(NOW + 3, db)
+    expect(liveCancel).toHaveBeenCalledTimes(6)
+    await advanceStoppingFlows(NOW + 4, db)
+    expect(liveCancel).toHaveBeenCalledTimes(9)
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
+  })
+
+  it("leaves a ladder that bought something held", async () => {
+    walletRow = wallet({ kind: "live", address: "0x1", hasKey: true })
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "held-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "filled" }] } as never,
+    })
+
+    const outcome = await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, byHand: true },
+      db
+    )
+    expect(outcome).toEqual({ held: 1, remaining: 0 })
+    expect(liveCancel).not.toHaveBeenCalled()
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
+  })
+
+  it("cancels a ladder left behind by an older run of the same flow", async () => {
+    walletRow = wallet({
+      label: "Live",
+      kind: "live",
+      address: "0x1",
+      hasKey: true,
+    })
+    const liveNodes = nodes({
+      wallet: {
+        walletLabel: "Live",
+        walletKind: "live",
+        walletAddress: "0x1",
+        walletHasKey: true,
+      },
+    })
+    const older = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: liveNodes, now: NOW },
+      db
+    )
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "stopped", stoppedAt: new Date(NOW + 1) })
+      .where(eq(tradeFlowRuns.id, older.id))
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "older-live-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: older.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: liveNodes, now: NOW + 2 },
+      db
+    )
+
+    const outcome = await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 3, byHand: true },
+      db
+    )
+
+    expect(outcome).toEqual({ held: 0, remaining: 1 })
+    expect(liveCancel).not.toHaveBeenCalled()
+    await advanceStoppingFlows(NOW + 4, db)
+    expect(liveCancel).toHaveBeenCalledWith(userId, walletRow, {
+      ladderId: "older-live-ladder",
+    })
+  })
+
+  it("sends an active ladder through live recovery after old Stop cleared its ids", async () => {
+    walletRow = wallet({ kind: "live", address: "0x1", hasKey: true })
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "damaged-live-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "cancelled", orderId: null }] } as never,
+    })
+
+    expect(
+      await stopFlowRun(
+        userId,
+        { automationId: "flow-1", now: NOW + 1, byHand: true },
+        db
+      )
+    ).toEqual({ held: 0, remaining: 1 })
+
+    await advanceStoppingFlows(NOW + 2, db)
+
+    expect(liveCancel).toHaveBeenCalledWith(userId, walletRow, {
+      ladderId: "damaged-live-ladder",
+    })
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
+  })
+
+  it("retries a refused live cancel on the next engine pass", async () => {
+    walletRow = wallet({
+      label: "Live",
+      kind: "live",
+      address: "0x1",
+      hasKey: true,
+    })
+    liveCancel.mockRejectedValue(new Error("exchange busy"))
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletLabel: "Live",
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "live-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    // A placement error left on this coin must not suppress the stop failure's
+    // notice. Stop has its own saved reason so only the repeat is silent.
+    await db
+      .update(tradeFlowRuns)
+      .set({
+        waiting: {
+          "hyperliquid:mainnet:BTC": { code: "FLOW_UNKNOWN", at: NOW },
+        },
+      })
+      .where(eq(tradeFlowRuns.id, started.id))
+
+    const outcome = await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, byHand: true },
+      db
+    )
+
+    expect(outcome).toEqual({ held: 0, remaining: 1 })
+    expect(describeFlowStop(outcome!)).toContain("1 ladder left")
+    expect(liveCancel).not.toHaveBeenCalled()
+    await advanceStoppingFlows(NOW + 2, db)
+    await advanceStoppingFlows(NOW + 3, db)
+    expect(liveCancel).toHaveBeenCalledTimes(2)
+    const [run] = await db.select().from(tradeFlowRuns)
+    expect(run.status).toBe("stopping")
+    const announcements = await db.select().from(customShellAnnouncements)
+    expect(announcements).toHaveLength(1)
+    expect(announcements[0].body).toContain(
+      "Stop could not call off BTC. It will keep trying."
+    )
+  })
+
+  it("reports a ladder whose wallet can no longer be loaded", async () => {
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "orphaned-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    await stopFlowRun(
+      userId,
+      { automationId: "flow-1", now: NOW + 1, byHand: true },
+      db
+    )
+    walletRow = null
+
+    await advanceStoppingFlows(NOW + 2, db)
+
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopping")
+    const announcements = await db.select().from(customShellAnnouncements)
+    expect(announcements).toHaveLength(1)
+    expect(announcements[0].body).toContain(
+      "Stop could not call off BTC. It will keep trying."
+    )
+  })
 })
 
 describe("who is told about a stop", () => {
@@ -480,7 +935,11 @@ describe("who is told about a stop", () => {
     )
     await stopFlowRun(
       userId,
-      { automationId: "flow-1", now: NOW + 1, reason: "Practice was switched off." },
+      {
+        automationId: "flow-1",
+        now: NOW + 1,
+        reason: "Practice was switched off.",
+      },
       db
     )
 

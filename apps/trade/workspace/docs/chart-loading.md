@@ -15,6 +15,12 @@ development. The timer lets the discarded check cancel before it sends a
 duplicate request, while taking the old 250 millisecond wait off the real first
 load.
 
+The live-run page reads its coin list and its open coin chart separately. If a
+coin is open while the automation is still looking, the chart may first answer
+with no rungs. When the next run refresh changes that coin to `Rungs placed`,
+the chart asks for the coin again and draws the new ladder. The status and chart
+therefore change together without requiring a second click.
+
 Before this change, the first request used the same 250 millisecond constant as
 every switch. The chart panel test now measures a 0 millisecond cold-load timer.
 The same test changes market six times during the later 250 millisecond pause

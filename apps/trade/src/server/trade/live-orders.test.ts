@@ -393,6 +393,24 @@ describe("cancelling", () => {
       sz: 0.25,
     })
   })
+
+  it("reports the refusal and rejects when the exchange refuses the cancel", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    cancel.mockRejectedValue(new Error("exchange busy"))
+
+    await expect(
+      cancelLiveOrder(userId, {
+        walletId,
+        marketKey: MARKET,
+        orderId: "88",
+      })
+    ).rejects.toThrow("exchange busy")
+
+    const rows = await journalRows(userId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].action).toBe("refused")
+  })
 })
 
 describe("protecting a position", () => {

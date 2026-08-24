@@ -122,6 +122,11 @@ add up to.
 
 ## Ladders
 
+- **Stopping a flow calls off every waiting ladder that flow placed.** A ladder
+  that already bought stays in place with its stop and target. A hand-placed
+  ladder on the same coin is never the flow's to cancel. A real exchange order
+  gets two cancel attempts. If both fail, the coin is named in the result and
+  in a critical bell notice.
 - **Rungs buy deeper as price falls, sizes ramping, and each sold rung exits
   by the chosen mode** — at the rung above, at the nearest rung, or a percent
   above the average. The percent means nothing outside the average mode and

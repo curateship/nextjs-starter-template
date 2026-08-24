@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
+import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
 import {
@@ -23,6 +24,8 @@ import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
 import {
   cancelLadderRest,
   cancelLadderRung,
+  cancelFlowLadderRest,
+  cancelSignalRest,
   cancelWatchOrder,
   listActiveSmartOrders,
   listActiveSmartOrdersIfChanged,
@@ -182,6 +185,35 @@ async function place(over: Partial<DcaParams> = {}, clickPx = 110) {
     clickPx,
     interval: "1m",
     params: params(over),
+  })
+}
+
+async function insertRunningFlow(id = "run-1"): Promise<void> {
+  await database.insert(customShellAutomations).values({
+    id: `flow-${id}`,
+    userId,
+    workspaceId: workspace.id,
+    name: "A running flow",
+    graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+    compiledConfig: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  })
+  await database.insert(tradeFlowRuns).values({
+    userId,
+    id,
+    walletId: wallet.id,
+    automationId: `flow-${id}`,
+    status: "running",
+    spec: {
+      protocol: wallet.protocol,
+      network: wallet.network,
+      marketKeys: [BTC],
+      strategy: { kind: "dca", params: params(), interval: "1m" },
+      capUsd: 500,
+      walletLabel: wallet.label,
+      real: false,
+    },
   })
 }
 
@@ -553,9 +585,28 @@ describe("who placed a smart order", () => {
 })
 
 describe("placing a ladder", () => {
+  it("refuses a flow placement after Stop has paused the run", async () => {
+    await insertRunningFlow()
+    await database
+      .update(tradeFlowRuns)
+      .set({ pausedAt: new Date() })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+
+    await expect(
+      placeDcaLadder(userId, wallet, {
+        marketKey: BTC,
+        clickPx: 110,
+        interval: "1m",
+        params: params(),
+        flowRunId: "run-1",
+      })
+    ).rejects.toThrow("FLOW_NOT_ACCEPTING_PLACEMENTS")
+    expect(await ladderRows()).toHaveLength(0)
+  })
+
   it("rests nothing — every rung waits as a watched price, sized by the ramp", async () => {
     const placed = await place()
-    expect(placed).toEqual({ placed: 2, passed: 0 })
+    expect(placed).toMatchObject({ placed: 2, passed: 0 })
 
     // Nothing on the book. A resting rung ties up the money for a buy that
     // may never happen, eats the order cap, and draws its level twice.
@@ -576,6 +627,7 @@ describe("placing a ladder", () => {
     // The whole of how a run's dashboard tells its own trades from the ones
     // somebody put on the same wallet themselves. Without the stamp there is
     // nothing to tell them apart by afterwards.
+    await insertRunningFlow()
     await placeDcaLadder(userId, wallet, {
       marketKey: BTC,
       clickPx: 110,
@@ -601,7 +653,8 @@ describe("placing a ladder", () => {
       return await place({ leverage: 3 })
     })()
 
-    expect(asked).toEqual(cash)
+    expect(asked).toMatchObject({ placed: cash.placed, passed: cash.passed })
+    expect(asked.ladder.plan.rungs).toEqual(cash.ladder.plan.rungs)
     const ladder = await onlyLadder()
     expect(ladder.plan.leverage).toBe(1)
     expect(ladder.plan.rungs[0].sz).toBeCloseTo(7.017, 9)
@@ -631,7 +684,7 @@ describe("placing a ladder", () => {
     // The tape's base is 100, so rung 1 is a full step below it at 95 and each
     // rung after steps down from the one above. Nothing about where the chart
     // was clicked reaches this.
-    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
 
     const ladder = await onlyLadder()
     expect(ladder.plan.rungs[0].px).toBe(95)
@@ -652,7 +705,7 @@ describe("placing a ladder", () => {
     // Refusing this threw away coins for no gain: it was the base being a few
     // percent above, not the ladder being in a bad place.
     marks.set("BTC", 99)
-    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
     expect(await ladderRows()).toHaveLength(1)
   })
 
@@ -669,7 +722,10 @@ describe("placing a ladder", () => {
 
   it("still places a two-green ladder while price is above its rungs", async () => {
     marks.set("BTC", 99)
-    expect(await place({ twoGreen: true })).toEqual({ placed: 2, passed: 0 })
+    expect(await place({ twoGreen: true })).toMatchObject({
+      placed: 2,
+      passed: 0,
+    })
   })
 
   it("refuses when the fall has taken price under every rung", async () => {
@@ -772,7 +828,7 @@ describe("placing a ladder", () => {
     )
     // A resting ladder was refused here. A watching one adds no orders, so a
     // full book is not its problem.
-    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
     expect(await ladderRows()).toHaveLength(1)
   })
 })
@@ -811,6 +867,7 @@ describe("the ladder at work", () => {
     // The sell a bought rung rests is as much the flow's as the buy was, and
     // its id is written down the moment it is placed — the plan lets go of it
     // as soon as it fills, and a practice fill arrives carrying nothing else.
+    await insertRunningFlow()
     await placeDcaLadder(userId, wallet, {
       marketKey: BTC,
       clickPx: 110,
@@ -1010,6 +1067,78 @@ describe("the ladder at work", () => {
     after = await onlyLadder()
     expect(after.status).toBe("done")
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("calls off a flow ladder without settling its watched rungs", async () => {
+    marks.set("BTC", 100)
+    const placed = await place()
+    marks.set("BTC", 80)
+
+    await expect(
+      cancelFlowLadderRest(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(await positions()).toHaveLength(0)
+    const finished = await onlyLadder()
+    expect(finished.status).toBe("done")
+    expect(
+      finished.plan.rungs.every((rung) => rung.status === "cancelled")
+    ).toBe(true)
+  })
+
+  it("calls off a flow signal without waiting for the normal engine", async () => {
+    const plan: SignalPlan = {
+      signalPx: 100,
+      signalAt: Date.now(),
+      chaseGiveUp: 0.02,
+      stakeUsd: 100,
+      sizeDecimals: 3,
+      priceTick: null,
+      maxLeverage: 50,
+      phase: "buying",
+      orderId: "signal-order",
+      orderPx: 99,
+      missingSince: 0,
+      heldWhenPlaced: 0,
+      chasedAt: 0,
+      chases: 0,
+      startedAt: Date.now(),
+    }
+    await database.insert(tradePaperOrders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-order",
+      marketKey: BTC,
+      side: "buy",
+      px: 99,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: false,
+    })
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-1",
+      marketKey: BTC,
+      kind: "signal",
+      status: "active",
+      plan,
+    })
+
+    await expect(
+      cancelSignalRest(userId, wallet, { signalId: "signal-1" })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(await orders()).toHaveLength(0)
+    const [finished] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "signal-1"))
+    expect(finished.status).toBe("done")
+    expect((finished.plan as SignalPlan).orderId).toBeNull()
   })
 
   it("rewrites the brackets and the sells when the exits change mid-flight", async () => {
@@ -1232,7 +1361,7 @@ describe("measuring the rungs from the click instead", () => {
   it("hangs the ladder from the clicked price when asked to", async () => {
     // The tape's base is 100 and the click is 80, so choosing the click has
     // to change where every rung lands: 76 rather than 95.
-    expect(await place({ anchor: "click" }, 80)).toEqual({
+    expect(await place({ anchor: "click" }, 80)).toMatchObject({
       placed: 2,
       passed: 0,
     })
@@ -1246,7 +1375,7 @@ describe("measuring the rungs from the click instead", () => {
     // The same tape that refuses a base-anchored ladder places this one.
     candles = []
     await expect(place()).rejects.toThrow("SMART_LADDER_NO_BASE")
-    expect(await place({ anchor: "click" }, 80)).toEqual({
+    expect(await place({ anchor: "click" }, 80)).toMatchObject({
       placed: 2,
       passed: 0,
     })
@@ -1257,14 +1386,14 @@ describe("measuring the rungs from the click instead", () => {
     // tape's base of 100.
     marks.set("BTC", 99)
     const ladder = await place({ anchor: "click" }, 90)
-    expect(ladder).toEqual({ placed: 2, passed: 0 })
+    expect(ladder).toMatchObject({ placed: 2, passed: 0 })
     expect((await onlyLadder()).plan.anchorPx).toBe(90)
   })
 
   it("still skips a rung price has already fallen past", async () => {
     // Clicked at 110 with the market at 100: rung 1 lands at 104.50, which
     // price is already below, so it never gets to wait for a drop.
-    expect(await place({ anchor: "click" }, 110)).toEqual({
+    expect(await place({ anchor: "click" }, 110)).toMatchObject({
       placed: 1,
       passed: 1,
     })
@@ -1321,10 +1450,12 @@ describe("two-green mode and rungs above the market", () => {
     // Clicked at 110 with the market at 100, so rung 1 lands at 104.50. A
     // resting ladder would have missed it; this mode is watching for exactly
     // that and buys it on the next confirmation.
-    expect(await place({ anchor: "click", twoGreen: true }, 110)).toEqual({
-      placed: 2,
-      passed: 0,
-    })
+    expect(await place({ anchor: "click", twoGreen: true }, 110)).toMatchObject(
+      {
+        placed: 2,
+        passed: 0,
+      }
+    )
     const ladder = await onlyLadder()
     expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
       "waiting",
@@ -1352,7 +1483,7 @@ describe("a ladder that waits does not tie up the money for every rung", () => {
       slPx: null,
     })
 
-    expect(await place()).toEqual({ placed: 2, passed: 0 })
+    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
   })
 
   it("still refuses when even one rung is out of reach", async () => {

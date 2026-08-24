@@ -29,11 +29,7 @@ import {
   removeFlowRuns,
   type FlowRunListRow,
 } from "@/lib/api/flow-runs"
-import {
-  flowActionProblem,
-  pauseFlow,
-  stopFlow,
-} from "@/lib/api/flow-trading"
+import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/flow-trading"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
@@ -104,7 +100,7 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
   // A switched-on flow moves on its own, so the list follows it — and stops
   // the moment nothing is running. A page quietly asking after a table of
   // finished runs all afternoon is cost with no answer at the end of it.
-  const anyRunning = runs.some((run) => run.status === "running")
+  const anyRunning = runs.some((run) => run.status !== "stopped")
   React.useEffect(() => {
     if (!anyRunning) return
     const timer = setInterval(() => void refresh(), REFRESH_MS)
@@ -113,13 +109,16 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
 
   /** Only runs that are over. A switched-on one is stopped, never deleted. */
   const deletable = React.useMemo(
-    () => runs.filter((run) => run.status !== "running").map((run) => run.id),
+    () => runs.filter((run) => run.status === "stopped").map((run) => run.id),
     [runs]
   )
   const chosen = [...selected].filter((id) => deletable.includes(id))
 
   /** Pause, resume and stop share one shape: do it, say so, redraw at once. */
-  const act = async (row: FlowRunListRow, what: () => Promise<{ summary: string }>) => {
+  const act = async (
+    row: FlowRunListRow,
+    what: () => Promise<{ summary: string }>
+  ) => {
     setActingId(row.id)
     try {
       const answer = await what()
@@ -162,8 +161,10 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
       // A run that is still switched on always sits above the finished ones,
       // whichever column is sorted: it is the only kind of row on this page
       // that somebody may need to act on.
-      const running = (row: FlowRunListRow) => (row.status === "running" ? 0 : 1)
-      if (running(left) !== running(right)) return running(left) - running(right)
+      const running = (row: FlowRunListRow) =>
+        row.status === "stopped" ? 1 : 0
+      if (running(left) !== running(right))
+        return running(left) - running(right)
       switch (sort) {
         case "flow":
           return way * left.automationName.localeCompare(right.automationName)
@@ -194,181 +195,197 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
   return (
     <>
       <DashboardTable
-      title="Live runs"
-      icon={<ActivityIcon />}
-      count={sorted.length}
-      busy={busy}
-      error={error ? { message: error, onRetry: () => void refresh() } : null}
-      selectedCount={chosen.length}
-      onClearSelection={clear}
-      controls={
-        chosen.length ? (
-          <DashboardToolbarButton
-            type="button"
-            variant="destructive"
-            onClick={() => setDeleting(chosen)}
+        title="Live runs"
+        icon={<ActivityIcon />}
+        count={sorted.length}
+        busy={busy}
+        error={error ? { message: error, onRetry: () => void refresh() } : null}
+        selectedCount={chosen.length}
+        onClearSelection={clear}
+        controls={
+          chosen.length ? (
+            <DashboardToolbarButton
+              type="button"
+              variant="destructive"
+              onClick={() => setDeleting(chosen)}
+            >
+              <Trash2Icon className="size-4" />
+              Delete ({chosen.length})
+            </DashboardToolbarButton>
+          ) : null
+        }
+        header={
+          <TableHeader>
+            <TableRow>
+              <TableHead column="select">
+                <Checkbox
+                  checked={selectAllState(deletable)}
+                  onCheckedChange={() => toggleVisible(deletable)}
+                  aria-label="Select every finished run"
+                />
+              </TableHead>
+              <TableHead column="main">
+                <TableSortButton
+                  active={sort === "flow"}
+                  direction={direction}
+                  onClick={() => toggleSort("flow")}
+                >
+                  Canvas
+                </TableSortButton>
+              </TableHead>
+              {head("Wallet", "wallet")}
+              {head("Working", "working")}
+              {head("Made or lost", "net")}
+              {head("Started", "started")}
+              <TableHead column="meta">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+        }
+        isEmpty={sorted.length === 0}
+        emptyText="No flow has been switched on yet. Draw a wallet, the coins to trade and a strategy on an automation canvas, then switch it on above the canvas."
+        emptyColSpan={7}
+        footer={{ type: "summary", count: sorted.length, label: "run" }}
+      >
+        {sorted.map((row) => (
+          <TableRow
+            key={row.id}
+            rowAction={() =>
+              void router.navigate({
+                to: "/flow-runs/$runId",
+                params: { runId: row.id },
+              })
+            }
           >
-            <Trash2Icon className="size-4" />
-            Delete ({chosen.length})
-          </DashboardToolbarButton>
-        ) : null
-      }
-      header={
-        <TableHeader>
-          <TableRow>
-            <TableHead column="select">
+            <TableCell column="select">
               <Checkbox
-                checked={selectAllState(deletable)}
-                onCheckedChange={() => toggleVisible(deletable)}
-                aria-label="Select every finished run"
+                checked={selected.has(row.id)}
+                disabled={row.status !== "stopped"}
+                onCheckedChange={() => toggle(row.id)}
+                aria-label={`Select ${row.automationName}`}
               />
-            </TableHead>
-            <TableHead column="main">
-              <TableSortButton
-                active={sort === "flow"}
-                direction={direction}
-                onClick={() => toggleSort("flow")}
-              >
-                Canvas
-              </TableSortButton>
-            </TableHead>
-            {head("Wallet", "wallet")}
-            {head("Working", "working")}
-            {head("Made or lost", "net")}
-            {head("Started", "started")}
-            <TableHead column="meta">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-      }
-      isEmpty={sorted.length === 0}
-      emptyText="No flow has been switched on yet. Draw a wallet, the coins to trade and a strategy on an automation canvas, then switch it on above the canvas."
-      emptyColSpan={7}
-      footer={{ type: "summary", count: sorted.length, label: "run" }}
-    >
-      {sorted.map((row) => (
-        <TableRow
-          key={row.id}
-          rowAction={() =>
-            void router.navigate({
-              to: "/flow-runs/$runId",
-              params: { runId: row.id },
-            })
-          }
-        >
-          <TableCell column="select">
-            <Checkbox
-              checked={selected.has(row.id)}
-              disabled={row.status === "running"}
-              onCheckedChange={() => toggle(row.id)}
-              aria-label={`Select ${row.automationName}`}
-            />
-          </TableCell>
-          <TableCell column="main">
-            <div className="flex min-w-0 items-center gap-2">
-              <Link
-                to="/flow-runs/$runId"
-                params={{ runId: row.id }}
-                className="min-w-0 truncate font-medium hover:underline"
-              >
-                {row.automationName}
-              </Link>
-              {/* Real money is said in words, never in colour alone. */}
-              {row.real ? <Badge variant="destructive">Real money</Badge> : null}
-              {row.status === "running" ? (
-                <Badge variant="default">
-                  {row.paused ? "Paused" : row.holding ? "Waiting" : "Running"}
-                </Badge>
-              ) : null}
-            </div>
-            <p className="truncate text-xs text-muted-foreground">
-              {row.status === "running"
-                ? `${row.coins} ${plural(row.coins, "coin", "coins")} · up to ${usd(row.capUsd)}`
-                : (row.stoppedReason ?? "Stopped.")}
-            </p>
-          </TableCell>
-          <TableCell column="meta">
-            {row.walletLabel}
-            <span className="block text-xs text-muted-foreground">
-              {row.venue}
-            </span>
-          </TableCell>
-          <TableCell column="meta" className="tabular-nums">
-            {row.status === "running" ? `${row.working} of ${row.coins}` : "—"}
-            {row.holdingCoins > 0 ? (
+            </TableCell>
+            <TableCell column="main">
+              <div className="flex min-w-0 items-center gap-2">
+                <Link
+                  to="/flow-runs/$runId"
+                  params={{ runId: row.id }}
+                  className="min-w-0 truncate font-medium hover:underline"
+                >
+                  {row.automationName}
+                </Link>
+                {/* Real money is said in words, never in colour alone. */}
+                {row.real ? (
+                  <Badge variant="destructive">Real money</Badge>
+                ) : null}
+                {row.status !== "stopped" ? (
+                  <Badge variant="default">
+                    {row.status === "stopping"
+                      ? "Stopping"
+                      : row.paused
+                        ? "Paused"
+                        : row.holding
+                          ? "Waiting"
+                          : "Running"}
+                  </Badge>
+                ) : null}
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {row.status === "running"
+                  ? `${row.coins} ${plural(row.coins, "coin", "coins")} · up to ${usd(row.capUsd)}`
+                  : row.status === "stopping"
+                    ? `${row.working} ${plural(row.working, "ladder", "ladders")} left to call off`
+                    : (row.stoppedReason ?? "Stopped.")}
+              </p>
+            </TableCell>
+            <TableCell column="meta">
+              {row.walletLabel}
               <span className="block text-xs text-muted-foreground">
-                holding {row.holdingCoins}
+                {row.venue}
               </span>
-            ) : null}
-          </TableCell>
-          <TableCell
-            column="meta"
-            className={cn("tabular-nums", toneClass(row.netUsd))}
-          >
-            {row.tradesClosed === 0 ? "—" : signedUsd(row.netUsd)}
-            <span className="block text-xs text-muted-foreground">
-              {row.tradesClosed} {plural(row.tradesClosed, "trade", "trades")}
-            </span>
-          </TableCell>
-          <TableCell
-            column="meta"
-            title={formatDateTime(new Date(row.startedAt))}
-          >
-            {formatRelativeTime(new Date(row.startedAt), formatDateTime)}
-          </TableCell>
-          <TableCell column="actions">
-            <div className="flex justify-end gap-1">
-              {row.status === "running" ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={actingId === row.id}
-                    aria-label={
-                      row.paused
-                        ? `Resume ${row.automationName}`
-                        : `Pause ${row.automationName}`
-                    }
-                    onClick={() =>
-                      void act(row, () => pauseFlow(row.automationId, !row.paused))
-                    }
-                  >
-                    {row.paused ? (
-                      <PlayIcon className="size-3.5" />
-                    ) : (
-                      <PauseIcon className="size-3.5" />
-                    )}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={actingId === row.id}
-                    aria-label={`Stop ${row.automationName}`}
-                    onClick={() => setStopping(row)}
-                  >
-                    <SquareIcon className="size-3.5" />
-                  </Button>
-                </>
+            </TableCell>
+            <TableCell column="meta" className="tabular-nums">
+              {row.status === "running"
+                ? `${row.working} of ${row.coins}`
+                : row.status === "stopping"
+                  ? `${row.working} left`
+                  : "—"}
+              {row.holdingCoins > 0 ? (
+                <span className="block text-xs text-muted-foreground">
+                  holding {row.holdingCoins}
+                </span>
               ) : null}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                // A switched-on run is not something to delete on the way
-                // past: its row is what holds the wallet and what says on the
-                // canvas that a flow is trading. Switch it off first.
-                disabled={row.status === "running"}
-                aria-label={`Delete the run of ${row.automationName}`}
-                onClick={() => setDeleting([row.id])}
-              >
-                <Trash2Icon className="size-3.5" />
-              </Button>
-            </div>
-          </TableCell>
-        </TableRow>
-      ))}
-    </DashboardTable>
+            </TableCell>
+            <TableCell
+              column="meta"
+              className={cn("tabular-nums", toneClass(row.netUsd))}
+            >
+              {row.tradesClosed === 0 ? "—" : signedUsd(row.netUsd)}
+              <span className="block text-xs text-muted-foreground">
+                {row.tradesClosed} {plural(row.tradesClosed, "trade", "trades")}
+              </span>
+            </TableCell>
+            <TableCell
+              column="meta"
+              title={formatDateTime(new Date(row.startedAt))}
+            >
+              {formatRelativeTime(new Date(row.startedAt), formatDateTime)}
+            </TableCell>
+            <TableCell column="actions">
+              <div className="flex justify-end gap-1">
+                {row.status === "running" ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={actingId === row.id}
+                      aria-label={
+                        row.paused
+                          ? `Resume ${row.automationName}`
+                          : `Pause ${row.automationName}`
+                      }
+                      onClick={() =>
+                        void act(row, () =>
+                          pauseFlow(row.automationId, !row.paused)
+                        )
+                      }
+                    >
+                      {row.paused ? (
+                        <PlayIcon className="size-3.5" />
+                      ) : (
+                        <PauseIcon className="size-3.5" />
+                      )}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={actingId === row.id}
+                      aria-label={`Stop ${row.automationName}`}
+                      onClick={() => setStopping(row)}
+                    >
+                      <SquareIcon className="size-3.5" />
+                    </Button>
+                  </>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  // A switched-on run is not something to delete on the way
+                  // past: its row is what holds the wallet and what says on the
+                  // canvas that a flow is trading. Switch it off first.
+                  disabled={row.status !== "stopped"}
+                  aria-label={`Delete the run of ${row.automationName}`}
+                  onClick={() => setDeleting([row.id])}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </DashboardTable>
 
       <ConfirmDialog
         open={stopping !== null}
@@ -379,16 +396,17 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
         description={
           <>
             It stops looking for coins and calls off the{" "}
-            {plural(stopping?.working ?? 0, "ladder", "ladders")} it placed
-            that have not bought anything. A coin already held keeps its
-            position, its stop and its target. To leave everything exactly as
-            it is, use <strong>Pause</strong> instead.
+            {plural(stopping?.working ?? 0, "ladder", "ladders")} it placed that
+            have not bought anything. A coin already held keeps its position,
+            its stop and its target. To leave everything exactly as it is, use{" "}
+            <strong>Pause</strong> instead.
           </>
         }
         confirmLabel="Stop it"
         loading={stopping !== null && actingId === stopping.id}
         onConfirm={() => {
-          if (stopping) void act(stopping, () => stopFlow(stopping.automationId))
+          if (stopping)
+            void act(stopping, () => stopFlow(stopping.automationId))
         }}
       />
 

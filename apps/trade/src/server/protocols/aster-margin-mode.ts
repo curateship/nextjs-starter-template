@@ -83,6 +83,37 @@ export async function loadAsterMarginModeSettings(
   )
 }
 
+/**
+ * The last Aster mode the app confirmed, for first paint.
+ *
+ * Reading the exchange can take long enough to hold the whole Settings page
+ * open. The saved value draws the row immediately, then
+ * `loadAsterMarginModeSettings` checks Aster in the background and corrects it
+ * if the account changed somewhere else.
+ */
+export async function loadRememberedAsterMarginModeSettings(
+  userId: string
+): Promise<AsterMarginModeSetting[]> {
+  const rows = await db
+    .select({
+      walletId: tradeWallets.id,
+      label: tradeWallets.label,
+      mode: tradeWallets.asterMarginMode,
+    })
+    .from(tradeWallets)
+    .where(
+      and(
+        eq(tradeWallets.userId, userId),
+        eq(tradeWallets.kind, "live"),
+        eq(tradeWallets.status, "active"),
+        eq(tradeWallets.protocol, "aster"),
+        eq(tradeWallets.network, "mainnet")
+      )
+    )
+
+  return rows
+}
+
 export async function saveAsterMarginModeSetting(
   userId: string,
   walletId: string,

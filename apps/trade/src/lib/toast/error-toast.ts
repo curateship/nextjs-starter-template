@@ -21,7 +21,7 @@ let currentErrorToastId: string | number | null = null
 export function showErrorToast(
   message: React.ReactNode,
   action?: { label: string; onClick: () => void }
-) {
+): string | number {
   if (currentErrorToastId !== null) {
     toast.dismiss(currentErrorToastId)
   }
@@ -37,10 +37,12 @@ export function showErrorToast(
         }
       : undefined,
   })
+  return currentErrorToastId
 }
 
 /** Call when a new attempt starts so a stale failure never outlives its retry. */
-export function dismissErrorToast() {
+export function dismissErrorToast(expectedId?: string | number) {
+  if (expectedId !== undefined && currentErrorToastId !== expectedId) return
   if (currentErrorToastId !== null) {
     toast.dismiss(currentErrorToastId)
     currentErrorToastId = null

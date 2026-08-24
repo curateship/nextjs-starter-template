@@ -984,6 +984,11 @@ written by an older build still uses the reading state below.
 - **A count nobody knows yet shows nothing**, never a zero. The Smart orders
   header says "none working" only once the read has landed; before that its
   count is blank, because a zero is an answer the panel does not have.
+- **A flow's trading button keeps its place while its first status is read.**
+  The button says "Reading trading status" with the shared spinner until the
+  answer lands. A failed read keeps the button on screen and says what failed
+  in the error toast; later reads keep the last complete status rather than
+  opening a gap in the header.
 - **Both halves have to land.** The trading read comes back in two pieces,
   practice and real, and either may be first. A person whose ladders are all on
   real wallets holds an empty practice half for a second or two, and that half
@@ -1256,6 +1261,34 @@ trading Widgets tab sits in the "This app" card and saves its top, left, right,
 and hidden lists per account in `trade_prefs`. The platform Widgets tab sits in
 the "Platform" card and saves the platform Overview arrangement in the shell
 settings. Moving or resetting a card in one tab never changes the other.
+The trading Widgets route arrives with its saved arrangement, and the Markets
+route arrives with its saved daily-volume cutoff. Neither app settings panel
+shows loading copy while a browser request catches up after mounting.
+
+## Trading engine settings
+
+Settings → Trading engine uses three full-width cards. Trading engine comes
+first, followed by Safety and Orders.
+
+The route arrives with the engine, liquidation warning, Aster margin, and plain
+order style already read. The page never replaces itself with "Asking the
+server" or draws empty setting rows while four browser requests finish. Aster
+checks its saved margin against the exchange after the page is visible.
+
+The Trading engine card puts its six figures in two rows of three. Price feeds
+sit beneath them as one chip per exchange. An error appears above the figures
+and can be dismissed. Engine, Trading, and Restart stay together in the card's
+footer. The title row has no subheader and a divider separates it from the
+status below. The title row uses the compact spacing left after the subheader
+was removed. The page does not print a separate "Read just now" line because
+Last heard from already gives the useful time.
+
+The Safety card holds Real money, the liquidation warning, and the real-money
+switch in separate horizontal rows. The Orders card holds Aster margin and the
+choice between resting and watched plain orders in the same row style. Each row
+puts its control on the right when there is room and beneath the words on a
+narrow screen. The wallet, dollar-distance, and out-of-100 controls keep their
+own visible labels in both layouts.
 
 ## Engine health notices
 

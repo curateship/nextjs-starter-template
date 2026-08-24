@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm"
+import { and, eq, isNull } from "drizzle-orm"
 
 import { db, type CustomShellDb } from "@/server/db"
-import { tradeFlowRunOrders } from "@/server/trade/schema"
+import { tradeFlowRunOrders, tradeFlowRuns } from "@/server/trade/schema"
 
 /**
  * Writing down which run sent which order, and reading it back.
@@ -85,4 +85,46 @@ export async function flowRunOrderIds(
       )
     )
   return new Set(rows.map((row) => row.orderId))
+}
+
+/** Every order id recorded for one ladder, including ids its plan has forgotten. */
+export async function flowLadderOrderIds(
+  userId: string,
+  walletId: string,
+  ladderId: string,
+  database: CustomShellDb = db
+): Promise<Set<string>> {
+  const rows = await database
+    .select({ orderId: tradeFlowRunOrders.orderId })
+    .from(tradeFlowRunOrders)
+    .where(
+      and(
+        eq(tradeFlowRunOrders.userId, userId),
+        eq(tradeFlowRunOrders.walletId, walletId),
+        eq(tradeFlowRunOrders.ladderId, ladderId)
+      )
+    )
+  return new Set(rows.map((row) => row.orderId))
+}
+
+/** Refuses a flow placement after Stop has claimed its wallet lock. */
+export async function assertFlowRunAcceptingPlacements(
+  database: CustomShellDb,
+  userId: string,
+  flowRunId: string | null | undefined
+): Promise<void> {
+  if (!flowRunId) return
+  const [row] = await database
+    .select({ id: tradeFlowRuns.id })
+    .from(tradeFlowRuns)
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        eq(tradeFlowRuns.id, flowRunId),
+        eq(tradeFlowRuns.status, "running"),
+        isNull(tradeFlowRuns.pausedAt)
+      )
+    )
+    .limit(1)
+  if (!row) throw new Error("FLOW_NOT_ACCEPTING_PLACEMENTS")
 }

@@ -71,6 +71,9 @@ import { Route as AuthenticatedAdminAutomationsAutomationIdRouteImport } from '.
 import { Route as AuthenticatedAdminAutomationsTemplatesRouteImport } from './routes/_authenticated/admin/automations_.templates'
 import { Route as AuthenticatedAdminNewsletterBroadcastIdRouteImport } from './routes/_authenticated/admin/newsletter_.$broadcastId'
 import { Route as AuthenticatedAdminSettingsTabRouteImport } from './routes/_authenticated/admin/settings/$tab'
+import { Route as AuthenticatedAdminSettingsMarketsRouteImport } from './routes/_authenticated/admin/settings_.markets'
+import { Route as AuthenticatedAdminSettingsTradingEngineRouteImport } from './routes/_authenticated/admin/settings_.trading-engine'
+import { Route as AuthenticatedAdminSettingsTradingWidgetsRouteImport } from './routes/_authenticated/admin/settings_.trading-widgets'
 import { Route as AuthenticatedAdminSystemEmailsKindRouteImport } from './routes/_authenticated/admin/system-emails_.$kind'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google_.callback'
 import { Route as ApiV1NotificationsStreamRouteImport } from './routes/api/v1/notifications/stream'
@@ -413,6 +416,24 @@ const AuthenticatedAdminSettingsTabRoute =
     path: '/$tab',
     getParentRoute: () => AuthenticatedAdminSettingsRoute,
   } as any)
+const AuthenticatedAdminSettingsMarketsRoute =
+  AuthenticatedAdminSettingsMarketsRouteImport.update({
+    id: '/settings_/markets',
+    path: '/settings/markets',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSettingsTradingEngineRoute =
+  AuthenticatedAdminSettingsTradingEngineRouteImport.update({
+    id: '/settings_/trading-engine',
+    path: '/settings/trading-engine',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
+const AuthenticatedAdminSettingsTradingWidgetsRoute =
+  AuthenticatedAdminSettingsTradingWidgetsRouteImport.update({
+    id: '/settings_/trading-widgets',
+    path: '/settings/trading-widgets',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminSystemEmailsKindRoute =
   AuthenticatedAdminSystemEmailsKindRouteImport.update({
     id: '/system-emails_/$kind',
@@ -509,6 +530,9 @@ export interface FileRoutesByFullPath {
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
+  '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -576,6 +600,9 @@ export interface FileRoutesByTo {
   '/admin/automations/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/admin/newsletter/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/admin/settings/markets': typeof AuthenticatedAdminSettingsMarketsRoute
+  '/admin/settings/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/admin/settings/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/admin/system-emails/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -647,6 +674,9 @@ export interface FileRoutesById {
   '/_authenticated/admin/automations_/templates': typeof AuthenticatedAdminAutomationsTemplatesRoute
   '/_authenticated/admin/newsletter_/$broadcastId': typeof AuthenticatedAdminNewsletterBroadcastIdRoute
   '/_authenticated/admin/settings/$tab': typeof AuthenticatedAdminSettingsTabRoute
+  '/_authenticated/admin/settings_/markets': typeof AuthenticatedAdminSettingsMarketsRoute
+  '/_authenticated/admin/settings_/trading-engine': typeof AuthenticatedAdminSettingsTradingEngineRoute
+  '/_authenticated/admin/settings_/trading-widgets': typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   '/_authenticated/admin/system-emails_/$kind': typeof AuthenticatedAdminSystemEmailsKindRoute
   '/api/auth/google_/callback': typeof ApiAuthGoogleCallbackRoute
   '/api/v1/notifications/stream': typeof ApiV1NotificationsStreamRoute
@@ -718,6 +748,9 @@ export interface FileRouteTypes {
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
+    | '/admin/settings/markets'
+    | '/admin/settings/trading-engine'
+    | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
     | '/api/v1/notifications/stream'
@@ -785,6 +818,9 @@ export interface FileRouteTypes {
     | '/admin/automations/templates'
     | '/admin/newsletter/$broadcastId'
     | '/admin/settings/$tab'
+    | '/admin/settings/markets'
+    | '/admin/settings/trading-engine'
+    | '/admin/settings/trading-widgets'
     | '/admin/system-emails/$kind'
     | '/api/auth/google/callback'
     | '/api/v1/notifications/stream'
@@ -855,6 +891,9 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/automations_/templates'
     | '/_authenticated/admin/newsletter_/$broadcastId'
     | '/_authenticated/admin/settings/$tab'
+    | '/_authenticated/admin/settings_/markets'
+    | '/_authenticated/admin/settings_/trading-engine'
+    | '/_authenticated/admin/settings_/trading-widgets'
     | '/_authenticated/admin/system-emails_/$kind'
     | '/api/auth/google_/callback'
     | '/api/v1/notifications/stream'
@@ -1327,6 +1366,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminSettingsTabRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRoute
     }
+    '/_authenticated/admin/settings_/markets': {
+      id: '/_authenticated/admin/settings_/markets'
+      path: '/settings/markets'
+      fullPath: '/admin/settings/markets'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsMarketsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/settings_/trading-engine': {
+      id: '/_authenticated/admin/settings_/trading-engine'
+      path: '/settings/trading-engine'
+      fullPath: '/admin/settings/trading-engine'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTradingEngineRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
+    '/_authenticated/admin/settings_/trading-widgets': {
+      id: '/_authenticated/admin/settings_/trading-widgets'
+      path: '/settings/trading-widgets'
+      fullPath: '/admin/settings/trading-widgets'
+      preLoaderRoute: typeof AuthenticatedAdminSettingsTradingWidgetsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/system-emails_/$kind': {
       id: '/_authenticated/admin/system-emails_/$kind'
       path: '/system-emails/$kind'
@@ -1426,6 +1486,9 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAutomationsAutomationIdRoute: typeof AuthenticatedAdminAutomationsAutomationIdRoute
   AuthenticatedAdminAutomationsTemplatesRoute: typeof AuthenticatedAdminAutomationsTemplatesRoute
   AuthenticatedAdminNewsletterBroadcastIdRoute: typeof AuthenticatedAdminNewsletterBroadcastIdRoute
+  AuthenticatedAdminSettingsMarketsRoute: typeof AuthenticatedAdminSettingsMarketsRoute
+  AuthenticatedAdminSettingsTradingEngineRoute: typeof AuthenticatedAdminSettingsTradingEngineRoute
+  AuthenticatedAdminSettingsTradingWidgetsRoute: typeof AuthenticatedAdminSettingsTradingWidgetsRoute
   AuthenticatedAdminSystemEmailsKindRoute: typeof AuthenticatedAdminSystemEmailsKindRoute
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute: typeof AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute
 }
@@ -1462,6 +1525,12 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
     AuthenticatedAdminAutomationsTemplatesRoute,
   AuthenticatedAdminNewsletterBroadcastIdRoute:
     AuthenticatedAdminNewsletterBroadcastIdRoute,
+  AuthenticatedAdminSettingsMarketsRoute:
+    AuthenticatedAdminSettingsMarketsRoute,
+  AuthenticatedAdminSettingsTradingEngineRoute:
+    AuthenticatedAdminSettingsTradingEngineRoute,
+  AuthenticatedAdminSettingsTradingWidgetsRoute:
+    AuthenticatedAdminSettingsTradingWidgetsRoute,
   AuthenticatedAdminSystemEmailsKindRoute:
     AuthenticatedAdminSystemEmailsKindRoute,
   AuthenticatedAdminAutomationsTemplatesTemplateKeyRoute:

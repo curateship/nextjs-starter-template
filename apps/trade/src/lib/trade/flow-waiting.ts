@@ -167,6 +167,8 @@ const NEEDS_A_PERSON: Record<string, string> = {
     "A rung did not rest on the exchange, so the ladder was rolled back",
   LIVE_SMART_ROLLBACK_FAILED:
     "The exchange took part of a ladder and would not cancel the rest — check the open orders now",
+  FLOW_CANCEL_FAILED:
+    "The exchange would not call this ladder off — check the open orders now",
   // The exchange's own "insufficient margin". Since Hyperliquid unified its
   // account this genuinely means the money is short, not parked elsewhere.
   EXCHANGE_NO_MARGIN:

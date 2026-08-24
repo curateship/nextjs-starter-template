@@ -191,7 +191,9 @@ function samePrice(a: number | null, b: number | null): boolean {
 /** One trade's fill ids can repeat inside it; the server wants each once. */
 function tradeFillIds(trades: readonly LiveTrade[]): string[] {
   return [
-    ...new Set(trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))),
+    ...new Set(
+      trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))
+    ),
   ]
 }
 
@@ -2166,7 +2168,9 @@ export function useTrading(
         // answer while the full account read catches up — see `cancel`.
         if (gone.length > 0) {
           const off = new Set(gone)
-          setPlacedSmart((held) => held.filter((one) => !off.has(one.id)))
+          setPlacedSmart((held) =>
+            held.filter((one) => !off.has(one.order.id))
+          )
         }
 
         // A refused watch was never called off, so its hold is let go at once
@@ -2203,24 +2207,23 @@ export function useTrading(
       }
     }, [watchOrders, refresh, nameOf])
 
-  const setPositionLeverage: Trading["setPositionLeverage"] =
-    React.useCallback(
-      async (position, leverage) => {
-        const { walletId, marketKey } = position
-        if (position.live === undefined) {
-          showErrorToast(
-            "A practice position's leverage decided how big it was when it was placed — there is nothing behind it to move now. Close it and open again at the leverage you want."
-          )
-          return
-        }
-        await runWith(
-          getLiveErrorMessage,
-          () => changeLiveLeverage({ walletId, marketKey, leverage }),
-          `${marketSymbol(marketKey)} asked to change to ${leverage}× in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+  const setPositionLeverage: Trading["setPositionLeverage"] = React.useCallback(
+    async (position, leverage) => {
+      const { walletId, marketKey } = position
+      if (position.live === undefined) {
+        showErrorToast(
+          "A practice position's leverage decided how big it was when it was placed — there is nothing behind it to move now. Close it and open again at the leverage you want."
         )
-      },
-      [runWith, nameOf]
-    )
+        return
+      }
+      await runWith(
+        getLiveErrorMessage,
+        () => changeLiveLeverage({ walletId, marketKey, leverage }),
+        `${marketSymbol(marketKey)} asked to change to ${leverage}× in ${nameOf(walletId)}. The row shows what the exchange settled on.`
+      )
+    },
+    [runWith, nameOf]
+  )
 
   const adjustPositionMargin: Trading["adjustPositionMargin"] =
     React.useCallback(

@@ -242,6 +242,7 @@ export const lastPass = {
  */
 const busyWallets = new Set<string>()
 let flowScanning = false
+let stoppingFlows = false
 let flowScanStartedAt = 0
 let lastFlowScanAt = 0
 
@@ -259,6 +260,7 @@ const FLOW_SCAN_STUCK_MS = 2 * 60_000
 export function resetLadderPassState(): void {
   busyWallets.clear()
   flowScanning = false
+  stoppingFlows = false
   flowScanStartedAt = 0
   lastFlowScanAt = 0
 }
@@ -376,7 +378,7 @@ export async function advanceWorkingLadders(): Promise<void> {
   // await here hands control back to the loop, which fires again and finds the
   // flag still false. Everything that can wait belongs inside the try.
   working = true
-  /** What this pass set going. Awaited after the guard is let go, never inside it. */
+  /** What this pass set going. Normal work is awaited after the guard is let go. */
   const started: Promise<unknown>[] = []
   try {
     if (await yieldLockIfDue()) return
@@ -404,8 +406,29 @@ export async function advanceWorkingLadders(): Promise<void> {
       }
       return
     }
+
+    // Explicit Stop cleanup must keep running even when normal ladder work is
+    // paused or switched off. Stop only removes waiting orders, so blocking it
+    // behind either switch would leave real orders resting after the user had
+    // asked to call them off.
+    const { advanceStoppingFlows } = await import("@/server/trade/flow-run")
+    if (!stoppingFlows) {
+      stoppingFlows = true
+      started.push(
+        advanceStoppingFlows()
+          .catch((error) => {
+            console.error("Flow stop pass failed", error)
+            lastPass.error =
+              error instanceof Error ? error.message : String(error)
+          })
+          .finally(() => {
+            stoppingFlows = false
+          })
+      )
+    }
     if (!control.enabled || control.paused) {
       lastPass.activity = control.enabled ? "Paused" : "Switched off"
+      await Promise.all(started)
       return
     }
     // Asked for on every pass rather than imported at the top of this file.
@@ -416,7 +439,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       { settleWallet, exposedMarketKeys },
       { reconcileLiveLadders },
       { pushedMarks },
-      { advanceFlowRuns },
+      { advanceRunningFlows },
       { checkLiquidationWarnings },
     ] =
       await Promise.all([
@@ -456,7 +479,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       flowScanStartedAt = Date.now()
       lastFlowScanAt = Date.now()
       started.push(
-        advanceFlowRuns()
+        advanceRunningFlows()
           .catch((error) => {
             console.error("Flow pass failed", error)
             lastPass.error =

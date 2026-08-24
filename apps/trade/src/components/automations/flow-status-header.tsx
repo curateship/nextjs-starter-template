@@ -22,6 +22,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import {
   flowActionProblem,
+  getFlowTradingErrorMessage,
   loadFlowTrading,
   pauseFlow,
   retryFlowNow,
@@ -32,7 +33,7 @@ import {
 import type { AutomationCanvasStatusProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
-import { showErrorToast } from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 
@@ -58,9 +59,9 @@ import { cn } from "@/lib/utils"
  * vanishing on its own, sitting next to a Backtest that means something else
  * entirely.
  *
- * Nothing at all until the first answer lands. The word on a button IS the
- * answer, so guessing one and correcting it a moment later reads as buttons
- * appearing and vanishing — which it did.
+ * The button keeps its place while the first answer is on the way, but it does
+ * not guess at that answer. It says "Reading trading status" until the server
+ * can say whether this flow is trading, paused, stopping or ready to switch on.
  */
 
 /** How often it re-asks. Fast enough that switching on shows up at once. */
@@ -81,6 +82,8 @@ export default function FlowStatusHeader({
   const [flow, setFlow] = React.useState<FlowTrading | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [open, setOpen] = React.useState(false)
+  const readFailed = React.useRef(false)
+  const readErrorToastId = React.useRef<string | number | null>(null)
   /** Which irreversible thing is being confirmed, if any. */
   const [asking, setAsking] = React.useState<"start" | "stop" | null>(null)
   /** Bumped by an action so the strip changes at once, not at the next tick. */
@@ -93,10 +96,26 @@ export default function FlowStatusHeader({
     const tick = async () => {
       try {
         const answer = await loadFlowTrading(automationId)
-        if (!stopped) setFlow(answer)
-      } catch {
+        if (!stopped) {
+          if (readFailed.current) {
+            readFailed.current = false
+            if (readErrorToastId.current !== null) {
+              dismissErrorToast(readErrorToastId.current)
+              readErrorToastId.current = null
+            }
+          }
+          setFlow(answer)
+        }
+      } catch (error) {
         // A read that failed is not "nothing is trading". Whatever the chip
-        // last said stays, and the next pass is three seconds away.
+        // last said stays, the failure is shown once, and the next pass is
+        // three seconds away.
+        if (!stopped && !readFailed.current) {
+          readFailed.current = true
+          readErrorToastId.current = showErrorToast(
+            getFlowTradingErrorMessage(error)
+          )
+        }
       }
       if (stopped) return
       timer = window.setTimeout(() => void tick(), EVERY_MS)
@@ -109,17 +128,29 @@ export default function FlowStatusHeader({
     }
   }, [automationId, refreshKey])
 
-  // Nothing until the first answer lands, and nothing at all on a flow this
-  // app has no opinion about.
-  if (!flow || flow.mode !== "trades") return null
+  // The slot never disappears while the first read is on its way. A spinner
+  // says what is missing without inventing whether this flow is trading.
+  if (!flow) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        disabled
+        aria-label="Reading trading status"
+      >
+        <Loader2Icon className="size-4 animate-spin" />
+        Reading trading status
+      </Button>
+    )
+  }
+
+  // Nothing at all on a flow this app has no opinion about.
+  if (flow.mode !== "trades") return null
   const trades = flow
-  const live = trades.running ? trades : null
+  const live = trades.running || trades.stopping ? trades : null
 
   /** Every action is the same shape: do it, say so, redraw at once. */
-  const act = (
-    what: () => Promise<{ summary: string }>,
-    then?: () => void
-  ) => {
+  const act = (what: () => Promise<{ summary: string }>, then?: () => void) => {
     setBusy(true)
     void what()
       .then((answer) => {
@@ -130,6 +161,31 @@ export default function FlowStatusHeader({
         setRefreshKey((n) => n + 1)
       })
       .catch((error: unknown) => {
+        showErrorToast(flowActionProblem(error, trades.walletLabel))
+      })
+      .finally(() => setBusy(false))
+  }
+
+  /** Stop gets out of the way before the server starts calling orders off. */
+  const stopNow = () => {
+    const before = trades
+    setAsking(null)
+    setOpen(false)
+    setBusy(true)
+    setFlow({
+      ...trades,
+      running: false,
+      stopping: true,
+      paused: false,
+      headline: `${trades.working} ${plural(trades.working, "ladder", "ladders")} left to call off.`,
+    })
+    void stopFlow(automationId)
+      .then((answer) => {
+        toast.success(answer.summary)
+        setRefreshKey((n) => n + 1)
+      })
+      .catch((error: unknown) => {
+        setFlow(before)
         showErrorToast(flowActionProblem(error, trades.walletLabel))
       })
       .finally(() => setBusy(false))
@@ -173,16 +229,16 @@ export default function FlowStatusHeader({
           <>
             It will trade <strong>{trades.walletLabel}</strong> with{" "}
             {trades.real ? "real money" : "practice money"} across{" "}
-            {trades.coins} {plural(trades.coins, "coin", "coins")} — spending
-            at most{" "}
+            {trades.coins} {plural(trades.coins, "coin", "coins")} — spending at
+            most{" "}
             <strong>
               {trades.capUsd === null
                 ? "the cap you set"
                 : formatUsd(trades.capUsd)}
             </strong>
-            , and never more than the wallet actually holds. It
-            places a ladder on each coin as that coin finds a base, and keeps
-            going whether or not this page is open.
+            , and never more than the wallet actually holds. It places a ladder
+            on each coin as that coin finds a base, and keeps going whether or
+            not this page is open.
           </>
         }
         confirmLabel={trades.real ? "Yes, trade real money" : "Switch it on"}
@@ -204,7 +260,7 @@ export default function FlowStatusHeader({
           </>
         }
         confirmLabel="Stop it"
-        onConfirm={() => act(() => stopFlow(automationId))}
+        onConfirm={stopNow}
       />
     </>
   )
@@ -222,212 +278,217 @@ export default function FlowStatusHeader({
 
   return (
     <div className="flex items-center gap-2">
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          // Colour AND words. Amber alone would say nothing to somebody who
-          // cannot tell it from the button beside it.
-          className={cn(
-            live.real &&
-              "border-amber-500/40 text-amber-700 dark:text-amber-400"
-          )}
-        >
-          {/* The same dot the account panel puts on the wallet in use, and the
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            // Colour AND words. Amber alone would say nothing to somebody who
+            // cannot tell it from the button beside it.
+            className={cn(
+              live.real &&
+                "border-amber-500/40 text-amber-700 dark:text-amber-400"
+            )}
+          >
+            {/* The same dot the account panel puts on the wallet in use, and the
               same size — one idea, drawn one way. It is an addition and never
               the signal on its own: the word beside it says what it means, so
               nothing is lost to somebody who cannot pick the colour out. */}
-          <span
-            className={cn(
-              "size-1.5 shrink-0 rounded-full",
-              // Amber the moment a coin needs a person. The flow is still on,
-              // so it is not red — but "nothing is happening" now has two
-              // meanings and the dot is the first place somebody looks.
-              live.paused
-                ? "bg-muted-foreground"
-                : live.needsAttention
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
-            )}
-            aria-hidden
-          />
-          {/* The wallet, then the exchange it is on. Real money is carried by
+            <span
+              className={cn(
+                "size-1.5 shrink-0 rounded-full",
+                // Amber the moment a coin needs a person. The flow is still on,
+                // so it is not red — but "nothing is happening" now has two
+                // meanings and the dot is the first place somebody looks.
+                live.stopping || live.paused
+                  ? "bg-muted-foreground"
+                  : live.needsAttention
+                    ? "bg-amber-500"
+                    : "bg-emerald-500"
+              )}
+              aria-hidden
+            />
+            {/* The wallet, then the exchange it is on. Real money is carried by
               the amber and by the dropdown, which says it in words. */}
-          {live.paused ? "Paused" : "Trading"} — {live.walletLabel}
-          <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-            {live.venue}
-          </span>
-          <span className="text-muted-foreground tabular-nums">
-            {live.working}/{live.coins}
-          </span>
-        </Button>
-      </PopoverTrigger>
+            {live.stopping ? "Stopping" : live.paused ? "Paused" : "Trading"} —{" "}
+            {live.walletLabel}
+            <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+              {live.venue}
+            </span>
+            <span className="text-muted-foreground tabular-nums">
+              {live.stopping
+                ? `${live.working} left`
+                : `${live.working}/${live.coins}`}
+            </span>
+          </Button>
+        </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-80">
-        <PopoverHeader>
-          <PopoverTitle>{live.walletLabel}</PopoverTitle>
-        </PopoverHeader>
+        <PopoverContent align="end" className="w-80">
+          <PopoverHeader>
+            <PopoverTitle>{live.walletLabel}</PopoverTitle>
+          </PopoverHeader>
 
-        <div className="grid gap-1.5 text-xs">
-          <Row
-            label="Money"
-            value={live.real ? "Real money" : "Practice money"}
-          />
-          {/* A ceiling, not a balance: the flow spends the smaller of this
+          <div className="grid gap-1.5 text-xs">
+            <Row
+              label="Money"
+              value={live.real ? "Real money" : "Practice money"}
+            />
+            {/* A ceiling, not a balance: the flow spends the smaller of this
               and what the wallet holds. Labelled as the cap so a $10,000
               ceiling on a $900 wallet cannot read as $10,000 to spend. */}
-          <Row
-            label="Spending cap"
-            value={live.capUsd === null ? "Not set" : formatUsd(live.capUsd)}
-          />
-          <Row
-            label="Coins working"
-            value={`${live.working} of ${live.coins}`}
-          />
-          {live.startedAt === null ? null : (
             <Row
-              label="Switched on"
-              value={formatRelativeTime(new Date(live.startedAt))}
+              label="Spending cap"
+              value={live.capUsd === null ? "Not set" : formatUsd(live.capUsd)}
             />
-          )}
-        </div>
+            <Row
+              label="Coins working"
+              value={`${live.working} of ${live.coins}`}
+            />
+            {live.startedAt === null ? null : (
+              <Row
+                label="Switched on"
+                value={formatRelativeTime(new Date(live.startedAt))}
+              />
+            )}
+          </div>
 
-        {/* Why nothing is happening, which is the question this whole panel
+          {/* Why nothing is happening, which is the question this whole panel
             exists to answer. A flow refusing every coin for want of money and
             a flow waiting for the right price both show zero ladders, and
             without this there is no way to tell them apart. */}
-        {/* It has stopped asking. Said first and said plainly, because a flow
+          {/* It has stopped asking. Said first and said plainly, because a flow
             that has stopped looks exactly like one with nothing to do, and it
             will stay that way until somebody changes something. */}
-        {/* The one line worth reading, and the button that answers it.
+          {/* The one line worth reading, and the button that answers it.
             This used to be three blocks saying the same thing. */}
-        {/* In a card of its own, because it is the one line worth reading and
+          {/* In a card of its own, because it is the one line worth reading and
             it was getting lost between the figures above it and the coin list
             below. Grey, not amber, unless something actually needs a person —
             an exchange asking us to slow down is not a warning. */}
-        {live.headline === null ? null : (
-          <p
-            className={cn(
-              "rounded-md bg-muted px-2.5 py-2 text-xs leading-4",
-              live.needsAttention
-                ? "text-amber-700 dark:text-amber-400"
-                : "text-muted-foreground"
-            )}
-          >
-            {live.headline}
-          </p>
-        )}
+          {live.headline === null ? null : (
+            <p
+              className={cn(
+                "rounded-md bg-muted px-2.5 py-2 text-xs leading-4",
+                live.needsAttention
+                  ? "text-amber-700 dark:text-amber-400"
+                  : "text-muted-foreground"
+              )}
+            >
+              {live.headline}
+            </p>
+          )}
 
-        {live.waiting.length === 0 ? null : (
-          <div className="grid gap-1">
+          {live.waiting.length === 0 ? null : (
             <div className="grid gap-1">
-              {live.waiting.slice(0, SHOW_AT_MOST).map((one) => (
-                <div
-                  key={one.marketKey}
-                  className="flex items-baseline justify-between gap-3 text-[11px]"
-                >
-                  <span className="font-medium">{one.coin}</span>
-                  <span
-                    className={cn(
-                      "text-right",
-                      one.problem
-                        ? "text-amber-700 dark:text-amber-400"
-                        : "text-muted-foreground"
-                    )}
+              <div className="grid gap-1">
+                {live.waiting.slice(0, SHOW_AT_MOST).map((one) => (
+                  <div
+                    key={one.marketKey}
+                    className="flex items-baseline justify-between gap-3 text-[11px]"
                   >
-                    {one.words}
-                  </span>
-                </div>
-              ))}
-              {live.waiting.length > SHOW_AT_MOST ? (
-                <p className="text-[11px] text-muted-foreground">
-                  and {live.waiting.length - SHOW_AT_MOST} more.
-                </p>
-              ) : null}
+                    <span className="font-medium">{one.coin}</span>
+                    <span
+                      className={cn(
+                        "text-right",
+                        one.problem
+                          ? "text-amber-700 dark:text-amber-400"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {one.words}
+                    </span>
+                  </div>
+                ))}
+                {live.waiting.length > SHOW_AT_MOST ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    and {live.waiting.length - SHOW_AT_MOST} more.
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* An edit to a live flow is worth a warning, because the edit is not
+          {/* An edit to a live flow is worth a warning, because the edit is not
             trading. A canvas set back to pretend money is not worth one — it is
             a backtest being drawn beside a flow that happens to still be on,
             and the Backtest button beside this says that already. */}
-        {live.drawingChanged ? (
-          <p className="text-xs text-destructive">
-            You have changed this flow since switching it on, and those changes
-            are not trading. It is still using the coins and settings it started
-            with. Stop it and start it again to use the new ones.
-          </p>
-        ) : null}
+          {live.drawingChanged ? (
+            <p className="text-xs text-destructive">
+              You have changed this flow since switching it on, and those
+              changes are not trading. It is still using the coins and settings
+              it started with. Stop it and start it again to use the new ones.
+            </p>
+          ) : null}
 
-        {/* The way through to everything this run has actually done: its
+          {/* The way through to everything this run has actually done: its
             trades, what it is holding, and what its money has done since it
             was switched on. The chip answers "is it working"; that page
             answers "is it working WELL", and there is no room for the second
             question in a popover. */}
-        {live.runId === null ? null : (
-          <Button asChild type="button" variant="outline" className="w-full">
-            <Link to="/flow-runs/$runId" params={{ runId: live.runId }}>
-              <ActivityIcon className="size-4" />
-              Open the dashboard
-            </Link>
-          </Button>
-        )}
+          {live.runId === null ? null : (
+            <Button asChild type="button" variant="outline" className="w-full">
+              <Link to="/flow-runs/$runId" params={{ runId: live.runId }}>
+                <ActivityIcon className="size-4" />
+                Open the dashboard
+              </Link>
+            </Button>
+          )}
 
-        {/* The three things you can do to a running flow, together, at the
+          {/* The three things you can do to a running flow, together, at the
             bottom of the thing that says what it is doing.
 
             Out in the header they were three buttons whose words changed with
             the flow's state — one of them appearing and vanishing on its own —
             beside a Backtest button that means something else entirely. In here
             they read as what they are: the actions belonging to this flow. */}
-        <div className="flex gap-2">
-          {live.holding ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => act(() => retryFlowNow(automationId))}
-            >
-              {busy ? (
-                <Loader2Icon className="size-4 animate-spin" />
-              ) : (
-                <RotateCwIcon className="size-4" />
-              )}
-              Try again
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            disabled={busy}
-            onClick={() => act(() => pauseFlow(automationId, !live.paused))}
-          >
-            {live.paused ? (
-              <PlayIcon className="size-4" />
-            ) : (
-              <PauseIcon className="size-4" />
-            )}
-            {live.paused ? "Resume" : "Pause"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1"
-            disabled={busy}
-            onClick={() => setAsking("stop")}
-          >
-            <SquareIcon className="size-4" />
-            Stop
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-    {buttons}
-    {confirms}
+          {live.stopping ? null : (
+            <div className="flex gap-2">
+              {live.holding ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => act(() => retryFlowNow(automationId))}
+                >
+                  {busy ? (
+                    <Loader2Icon className="size-4 animate-spin" />
+                  ) : (
+                    <RotateCwIcon className="size-4" />
+                  )}
+                  Try again
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => act(() => pauseFlow(automationId, !live.paused))}
+              >
+                {live.paused ? (
+                  <PlayIcon className="size-4" />
+                ) : (
+                  <PauseIcon className="size-4" />
+                )}
+                {live.paused ? "Resume" : "Pause"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => setAsking("stop")}
+              >
+                <SquareIcon className="size-4" />
+                Stop
+              </Button>
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+      {buttons}
+      {confirms}
     </div>
   )
 }

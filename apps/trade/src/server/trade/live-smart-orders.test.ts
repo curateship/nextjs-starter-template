@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
+import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { encryptSecret } from "@/server/auth/encryption"
 import { type CustomShellDb } from "@/server/db"
@@ -12,6 +13,9 @@ import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
   moveLiveGridExit,
   nothingStood,
+  cancelLiveFlowLadderRest,
+  cancelLiveLadderRest,
+  cancelLiveSignalRest,
   placeLiveDcaLadder,
   reconcileLiveLadders,
   resetRefusalHolds,
@@ -20,6 +24,7 @@ import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import {
   tradeLiveJournal,
+  tradeFlowRunOrders,
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -94,7 +99,12 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     rungs: [{ deviation: 5 }, { deviation: 8 }],
     cascade: null,
     entryLimit: null,
-    baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
+    baseDetection: {
+      searchBars: 36,
+      holdBars: 8,
+      withTrendOnly: true,
+      minBarsApart: 20,
+    },
     maxPositionPct: 20,
     sizeMultiplier: 2,
     compound: true,
@@ -110,7 +120,6 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     ...over,
   }
 }
-
 
 /**
  * A live watch on a level the price has already gone past, so the next pass
@@ -209,8 +218,8 @@ async function chasingWatch(): Promise<void> {
         px: 100,
         sz: 1,
         reduceOnly: false,
-    maker: false,
-    heldAtStart: 0,
+        maker: false,
+        heldAtStart: 0,
       },
     ],
   })
@@ -309,7 +318,11 @@ describe("live Smart orders", () => {
       params: params(),
     })
 
-    expect(result).toEqual({ placed: 2, passed: 0 })
+    expect(result).toMatchObject({
+      placed: 2,
+      passed: 0,
+      ladder: { kind: "dca", marketKey: MARKET, status: "active" },
+    })
     // Not one order. A resting rung ties up real margin for a buy that may
     // never happen; the engine sends the order when price reaches the rung.
     expect(place).not.toHaveBeenCalled()
@@ -319,6 +332,221 @@ describe("live Smart orders", () => {
       "waiting",
     ])
     expect(plan.rungs.map((rung) => rung.orderId)).toEqual([null, null])
+  })
+
+  it("cancels a recorded open rung whose id was wiped from the plan", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    await database.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: wallet.id,
+      orderId: "old-resting-rung",
+      flowRunId: "old-run",
+      ladderId: placed.ladder.id,
+      marketKey: MARKET,
+    })
+    portfolio.mockResolvedValue({
+      positions: [],
+      orders: [
+        {
+          orderId: "old-resting-rung",
+          marketId: "BTC",
+          side: "buy",
+          px: 95,
+          sz: 1,
+          reduceOnly: false,
+          trigger: false,
+        },
+      ],
+    })
+
+    await cancelLiveLadderRest(userId, wallet, { ladderId: placed.ladder.id })
+
+    expect(cancel).toHaveBeenCalledWith(wallet.network, expect.anything(), {
+      marketId: "BTC",
+      orderId: "old-resting-rung",
+    })
+    const [finished] = await database
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    expect(finished.status).toBe("done")
+  })
+
+  it("calls off a flow ladder without advancing its watched rungs", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    prices.mockReset()
+    account.mockReset()
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+
+    await expect(
+      cancelLiveFlowLadderRest(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(prices).not.toHaveBeenCalled()
+    expect(account).not.toHaveBeenCalled()
+    const [finished] = await database
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    expect(finished.status).toBe("done")
+  })
+
+  it("reports a recorded open rung when the exchange will not cancel it", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    await database.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: wallet.id,
+      orderId: "stuck-resting-rung",
+      flowRunId: "old-run",
+      ladderId: placed.ladder.id,
+      marketKey: MARKET,
+    })
+    portfolio.mockResolvedValue({
+      positions: [],
+      orders: [
+        {
+          orderId: "stuck-resting-rung",
+          marketId: "BTC",
+          side: "buy",
+          px: 95,
+          sz: 1,
+          reduceOnly: false,
+          trigger: false,
+        },
+      ],
+    })
+    cancel.mockRejectedValue(new Error("exchange busy"))
+
+    await expect(
+      cancelLiveLadderRest(userId, wallet, { ladderId: placed.ladder.id })
+    ).rejects.toThrow("exchange busy")
+  })
+
+  it("calls off a flow signal directly while normal wallet work is paused", async () => {
+    const plan: SignalPlan = {
+      signalPx: 100,
+      signalAt: 1_000,
+      chaseGiveUp: 0.02,
+      stakeUsd: 100,
+      sizeDecimals: 3,
+      priceTick: null,
+      maxLeverage: 50,
+      phase: "buying",
+      orderId: "signal-order",
+      orderPx: 99,
+      missingSince: 0,
+      heldWhenPlaced: 0,
+      chasedAt: 0,
+      chases: 0,
+      startedAt: 1_000,
+    }
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-1",
+      marketKey: MARKET,
+      kind: "signal",
+      status: "active",
+      plan,
+    })
+    portfolio.mockResolvedValue({
+      positions: [],
+      orders: [
+        {
+          orderId: "signal-order",
+          marketId: "BTC",
+          side: "buy",
+          px: 99,
+          sz: 1,
+          reduceOnly: false,
+          trigger: false,
+        },
+      ],
+    })
+
+    await expect(
+      cancelLiveSignalRest(userId, wallet, {
+        signalId: "signal-1",
+        now: 2_000,
+      })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(cancel).toHaveBeenCalledWith(wallet.network, expect.anything(), {
+      marketId: "BTC",
+      orderId: "signal-order",
+    })
+    const [finished] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "signal-1"))
+    expect(finished.status).toBe("done")
+  })
+
+  it("waits out one missing exchange read before finishing a signal stop", async () => {
+    const plan: SignalPlan = {
+      signalPx: 100,
+      signalAt: 1_000,
+      chaseGiveUp: 0.02,
+      stakeUsd: 100,
+      sizeDecimals: 3,
+      priceTick: null,
+      maxLeverage: 50,
+      phase: "buying",
+      orderId: "signal-order",
+      orderPx: 99,
+      missingSince: 0,
+      heldWhenPlaced: 0,
+      chasedAt: 0,
+      chases: 0,
+      startedAt: 1_000,
+    }
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      walletId: wallet.id,
+      id: "signal-1",
+      marketKey: MARKET,
+      kind: "signal",
+      status: "active",
+      plan,
+    })
+    portfolio.mockResolvedValue({ positions: [], orders: [] })
+
+    await expect(
+      cancelLiveSignalRest(userId, wallet, {
+        signalId: "signal-1",
+        now: 2_000,
+      })
+    ).resolves.toEqual({ complete: false, done: false })
+    await expect(
+      cancelLiveSignalRest(userId, wallet, {
+        signalId: "signal-1",
+        now: 17_000,
+      })
+    ).resolves.toEqual({ complete: true, done: true })
+
+    expect(cancel).not.toHaveBeenCalled()
+    const [finished] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "signal-1"))
+    expect(finished.status).toBe("done")
   })
 
   it("ignores the borrowing setting — real money only ever spends cash", async () => {
@@ -410,9 +638,7 @@ describe("live Smart orders", () => {
     // half that made this cost an afternoon.
     const noted = await database.select().from(tradeLiveJournal)
     expect(
-      noted.some(
-        (row) => row.marketKey === MARKET && row.action === "refused"
-      )
+      noted.some((row) => row.marketKey === MARKET && row.action === "refused")
     ).toBe(true)
   })
 
@@ -423,7 +649,9 @@ describe("live Smart orders", () => {
     // twice. A failed cancel must void the replacement and leave the watch
     // waiting for the position that fill is about to become.
     await chasingWatch()
-    cancel.mockRejectedValue(new Error("KUCOIN_100004:order cannot be cancelled"))
+    cancel.mockRejectedValue(
+      new Error("KUCOIN_100004:order cannot be cancelled")
+    )
 
     await reconcileLiveLadders(userId, wallet)
 
@@ -509,7 +737,9 @@ describe("live Smart orders", () => {
     // processes the order and refuses it outright — nothing stood.
     prices.mockResolvedValue(new Map([["BTC", 94]]))
     place.mockRejectedValue(
-      new Error("LIVE_ORDER_REFUSED:order 0: Insufficient margin to place order.")
+      new Error(
+        "LIVE_ORDER_REFUSED:order 0: Insufficient margin to place order."
+      )
     )
     await database
       .update(tradeSmartLadders)
@@ -567,7 +797,9 @@ describe("live Smart orders", () => {
   it("puts a watched level back when Aster returns a named refusal", async () => {
     await watchThroughTheLevel()
     place.mockRejectedValue(
-      new Error("ASTER_PRICE_STEP:Aster refused a price between its legal steps.")
+      new Error(
+        "ASTER_PRICE_STEP:Aster refused a price between its legal steps."
+      )
     )
 
     await reconcileLiveLadders(userId, wallet)
@@ -695,6 +927,7 @@ describe("dragging a live grid's stop", () => {
       seenFillsTo: 0,
       cycles: 0,
       follow: false,
+      entered: false,
       shifts: 0,
       closedReason: null,
     }
@@ -728,13 +961,15 @@ describe("dragging a live grid's stop", () => {
     await restingGrid()
     portfolio.mockResolvedValue({ positions: [], orders: [] })
 
-    await expect(
-      moveLiveGridExit(userId, wallet, {
-        gridId: "grid-1",
-        which: "stopLoss",
-        px: 70,
-      })
-    ).resolves.toEqual({ moved: true })
+    const moved = await moveLiveGridExit(userId, wallet, {
+      gridId: "grid-1",
+      which: "stopLoss",
+      px: 70,
+    })
+    expect(moved).toMatchObject({
+      moved: true,
+      grid: { id: "grid-1", status: "active" },
+    })
 
     const plan = await gridPlan()
     expect(plan.stopLoss).toMatchObject({ mode: "fixed", px: 70 })

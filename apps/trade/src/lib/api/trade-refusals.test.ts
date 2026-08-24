@@ -70,14 +70,14 @@ describe("a refusal that carries its own figures", () => {
   })
 
   it("keeps the fixed sentences for the codes that carry no figures", () => {
-    expect(getLiveErrorMessage(new Error("LIVE_LEVERAGE_UNSUPPORTED"))).toContain(
-      "cannot change leverage"
-    )
+    expect(
+      getLiveErrorMessage(new Error("LIVE_LEVERAGE_UNSUPPORTED"))
+    ).toContain("cannot change leverage")
     expect(getLiveErrorMessage(new Error("LIVE_MARGIN_UNSUPPORTED"))).toContain(
       "cannot add or take back"
     )
-    expect(getSmartOrderErrorMessage(new Error("PART_CLOSE_POSITION_GONE"))).toContain(
-      "not there any more"
-    )
+    expect(
+      getSmartOrderErrorMessage(new Error("PART_CLOSE_POSITION_GONE"))
+    ).toContain("not there any more")
   })
 })

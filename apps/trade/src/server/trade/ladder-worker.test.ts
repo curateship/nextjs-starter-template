@@ -5,7 +5,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
  * turns of the shell's loop can never run at the same time.
  */
 
-const walletRows = vi.hoisted(() => ({ value: [] as Array<{ userId: string; walletId: string }> }))
+const walletRows = vi.hoisted(() => ({
+  value: [] as Array<{ userId: string; walletId: string }>,
+}))
 const settled = vi.hoisted(() => ({
   count: 0,
   /** Wallets whose turn throws, so a failing wallet can be staged. */
@@ -23,6 +25,7 @@ const control = vi.hoisted(() => ({
   },
   cleared: 0,
 }))
+const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0 }))
 
 vi.mock("@/server/db", () => ({
   db: {
@@ -86,12 +89,16 @@ vi.mock("@/server/trade/live-smart-orders", () => ({
 // suite it took longer than the test's own timeout, and the wallet left mid-flight
 // stayed marked busy, so every test after it settled nothing.
 vi.mock("@/server/trade/flow-run", () => ({
-  advanceFlowRuns: async () => {},
+  advanceRunningFlows: async () => {
+    flowWork.scans += 1
+  },
+  advanceStoppingFlows: async () => {
+    flowWork.stops += 1
+  },
 }))
 
-const { advanceWorkingLadders, lastPass, resetLadderPassState } = await import(
-  "@/server/trade/ladder-worker"
-)
+const { advanceWorkingLadders, lastPass, resetLadderPassState } =
+  await import("@/server/trade/ladder-worker")
 
 describe("the server's ladder job", () => {
   beforeEach(() => {
@@ -100,6 +107,8 @@ describe("the server's ladder job", () => {
     settled.done = []
     settled.delays = new Map()
     settled.fail = new Set()
+    flowWork.scans = 0
+    flowWork.stops = 0
     control.value = { enabled: true, paused: false }
     walletRows.value = [{ userId: "u1", walletId: "w1" }]
   })
@@ -114,6 +123,14 @@ describe("the server's ladder job", () => {
     ]
     await advanceWorkingLadders()
     expect(settled.count).toBe(2)
+  })
+
+  it("works stops every pass without speeding up the coin hunt", async () => {
+    await advanceWorkingLadders()
+    await advanceWorkingLadders()
+
+    expect(flowWork.stops).toBe(2)
+    expect(flowWork.scans).toBe(1)
   })
 
   it("leaves a wallet with nothing running alone", async () => {
@@ -132,7 +149,7 @@ describe("the server's ladder job", () => {
     expect(settled.count).toBe(1)
   })
 
-  it("does nothing at all while it is paused", async () => {
+  it("leaves wallets alone while paused but still finishes explicit stops", async () => {
     control.value = { enabled: true, paused: false }
     await advanceWorkingLadders()
     expect(settled.count).toBe(1)
@@ -142,6 +159,8 @@ describe("the server's ladder job", () => {
     control.value = { enabled: true, paused: true }
     await advanceWorkingLadders()
     expect(settled.count).toBe(1)
+    expect(flowWork.stops).toBe(2)
+    expect(flowWork.scans).toBe(1)
   })
 
   it("honours a restart request between passes, and clears it", async () => {
@@ -184,10 +203,12 @@ describe("the server's ladder job", () => {
     expect(settled.count).toBe(1)
   })
 
-  it("does nothing at all while it is switched off", async () => {
+  it("leaves wallets alone while switched off but still finishes explicit stops", async () => {
     control.value = { enabled: false, paused: false }
     await advanceWorkingLadders()
     expect(settled.count).toBe(0)
+    expect(flowWork.stops).toBe(1)
+    expect(flowWork.scans).toBe(0)
   })
 })
 

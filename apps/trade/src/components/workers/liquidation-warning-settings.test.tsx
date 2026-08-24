@@ -52,6 +52,22 @@ afterEach(async () => {
 })
 
 describe("liquidation warning settings", () => {
+  it("draws route data without another loading request", async () => {
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <LiquidationWarningSettings initialValue={{ usd: 12, pct: null }} />
+        </TooltipProvider>
+      )
+    })
+
+    expect(host.textContent).not.toContain("Loading liquidation warning")
+    expect(
+      host.querySelector<HTMLInputElement>("#liquidation-warning-usd")?.value
+    ).toBe("12")
+    expect(loadLiquidationWarningSettings).not.toHaveBeenCalled()
+  })
+
   it("draws blank as off and saves either distance", async () => {
     vi.mocked(loadLiquidationWarningSettings).mockResolvedValue({
       usd: null,
@@ -100,7 +116,9 @@ describe("liquidation warning settings", () => {
         </TooltipProvider>
       )
     })
-    const pct = host.querySelector<HTMLInputElement>("#liquidation-warning-pct")!
+    const pct = host.querySelector<HTMLInputElement>(
+      "#liquidation-warning-pct"
+    )!
     await act(async () => {
       enter(pct, "101")
       host.querySelector("form")!.requestSubmit()

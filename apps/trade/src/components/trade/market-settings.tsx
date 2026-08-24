@@ -3,6 +3,7 @@ import { useRouter } from "@tanstack/react-router"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { useTradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
 import {
   Card,
   CardContent,
@@ -19,16 +20,17 @@ import {
   saveMarketSettings,
 } from "@/lib/api/market-settings"
 import { MAXIMUM_MARKET_VOLUME_USD } from "@/lib/trade/market-volume"
-import {
-  dismissErrorToast,
-  showErrorToast,
-} from "@/lib/toast/error-toast"
+import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 
 const FIELD_ID = "minimum-market-volume"
 
 export default function MarketSettings() {
-  const [value, setValue] = React.useState("")
-  const [loaded, setLoaded] = React.useState(false)
+  const bootstrap = useTradeSettingsBootstrap()
+  const initialValue = bootstrap?.minimumMarketVolumeUsd
+  const [value, setValue] = React.useState(
+    initialValue === undefined ? "" : String(initialValue)
+  )
+  const [loaded, setLoaded] = React.useState(initialValue !== undefined)
   const [loadFailed, setLoadFailed] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [invalid, setInvalid] = React.useState(false)
@@ -45,7 +47,9 @@ export default function MarketSettings() {
       })
   }, [])
 
-  React.useEffect(load, [load])
+  React.useEffect(() => {
+    if (initialValue === undefined) load()
+  }, [initialValue, load])
 
   const parsedValue = () => {
     const number = value.trim() === "" ? 0 : Number(value)

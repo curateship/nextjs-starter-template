@@ -8,8 +8,9 @@ import { PositionMarginDialog } from "@/components/trade/position-margin-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { TradePosition } from "@/lib/trade/paper"
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
 
 /**
  * The window that changes how much borrowed money a position runs on.
@@ -194,7 +195,15 @@ describe("changing leverage and margin on an open position", () => {
     // 1× already: the cash behind it is the whole position, so more of it buys
     // no more room. Leverage cannot go under 1× on any of these venues.
     const window = await open(
-      live({ leverage: 1, live: { marginUsed: 1_000, liquidationPx: 1, tpOrderId: null, slOrderId: null } })
+      live({
+        leverage: 1,
+        live: {
+          marginUsed: 1_000,
+          liquidationPx: 1,
+          tpOrderId: null,
+          slOrderId: null,
+        },
+      })
     )
     await window.type("#margin-dollars", "50")
     expect(window.refusal("margin-dollars-refusal")).toContain(

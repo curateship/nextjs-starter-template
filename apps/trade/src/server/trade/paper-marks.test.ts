@@ -62,7 +62,11 @@ function rungs(market: string): TradeOrder[] {
     [90, 55],
     [70, 71],
     [50, 100],
-  ].map(([px, sz]) => ({ ...order(px, sz), id: `o-${market}-${px}`, marketKey: market }))
+  ].map(([px, sz]) => ({
+    ...order(px, sz),
+    id: `o-${market}-${px}`,
+    marketKey: market,
+  }))
 }
 
 function bookWith(orders: TradeOrder[]): WalletBook {
@@ -92,7 +96,14 @@ describe("what a book is worth while a bar is walked", () => {
     const book = bookWith([order(90, 66), order(80, 66)])
     settleMarket(book, BTC, {
       bars: [
-        { openTime: MINUTE, open: 100, high: 200, low: 78, close: 200, volume: 1 },
+        {
+          openTime: MINUTE,
+          open: 100,
+          high: 200,
+          low: 78,
+          close: 200,
+          volume: 1,
+        },
       ],
       barMs: MINUTE,
       // A replay never has a price "right now" — only what the bar said.
@@ -116,10 +127,7 @@ describe("what a book is worth while a bar is walked", () => {
     // wallet holding $10,151, 208 fills across 67 coins in a single bar.
     //
     // Before this rule the same case bought $29,840 on a $10,000 wallet at 1×.
-    const book = bookWith([
-      ...rungs(BTC),
-      ...rungs(ETH),
-    ])
+    const book = bookWith([...rungs(BTC), ...rungs(ETH)])
     book.marks.set(ETH, 100)
     const bar = {
       openTime: MINUTE,
@@ -130,7 +138,12 @@ describe("what a book is worth while a bar is walked", () => {
       volume: 1,
     }
     for (const market of [BTC, ETH]) {
-      settleMarket(book, market, { bars: [bar], barMs: MINUTE, mark: null, now: 2 * MINUTE })
+      settleMarket(book, market, {
+        bars: [bar],
+        barMs: MINUTE,
+        mark: null,
+        now: 2 * MINUTE,
+      })
     }
 
     const spend = (market: string) => {
@@ -158,7 +171,14 @@ describe("what a book is worth while a bar is walked", () => {
     ])
     settleMarket(book, BTC, {
       bars: [
-        { openTime: MINUTE, open: 100, high: 101, low: 14, close: 100, volume: 1 },
+        {
+          openTime: MINUTE,
+          open: 100,
+          high: 101,
+          low: 14,
+          close: 100,
+          volume: 1,
+        },
       ],
       barMs: MINUTE,
       mark: null,
@@ -177,8 +197,20 @@ describe("what a book is worth while a bar is walked", () => {
     // hours. `closeBar` is what ends the bar, and the replay calls it after
     // the loop.
     const book = bookWith([])
-    const bar = { openTime: MINUTE, open: 100, high: 200, low: 78, close: 200, volume: 1 }
-    settleMarket(book, BTC, { bars: [bar], barMs: MINUTE, mark: null, now: 2 * MINUTE })
+    const bar = {
+      openTime: MINUTE,
+      open: 100,
+      high: 200,
+      low: 78,
+      close: 200,
+      volume: 1,
+    }
+    settleMarket(book, BTC, {
+      bars: [bar],
+      barMs: MINUTE,
+      mark: null,
+      now: 2 * MINUTE,
+    })
     expect(book.marks.get(BTC)).toBe(100)
 
     closeBar(book, new Map([[BTC, bar.close]]))

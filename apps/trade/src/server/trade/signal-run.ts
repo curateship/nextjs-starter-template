@@ -11,7 +11,8 @@ import type { SignalRow } from "@/server/trade/smart-signals"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
-import { tradeSmartLadders } from "@/server/trade/schema"
+import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders"
+import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
 import { marketRules } from "@/server/trade/market-rules"
 
 /**
@@ -266,19 +267,35 @@ async function openSignalTrade(
     startedAt: now,
   }
 
-  await database.insert(tradeSmartLadders).values({
-    userId: input.userId,
-    id: randomUUID(),
-    walletId: input.wallet.id,
-    marketKey,
-    kind: "signal",
-    status: "active",
-    plan,
-    // No order has been sent yet — the engine's next pass asks for a price —
-    // so this row is the only thing that can say whose trade it is.
-    flowRunId: input.flowRunId,
-    createdAt: new Date(now),
-    updatedAt: new Date(now),
+  await database.transaction(async (tx) => {
+    // Stop takes this same wallet lock before it changes the run to Stopping.
+    // Whichever arrives first finishes first: an earlier signal is included in
+    // Stop's count, and a later one sees the changed run and writes nothing.
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, input.userId),
+          eq(tradeWallets.id, input.wallet.id)
+        )
+      )
+      .for("update")
+    await assertFlowRunAcceptingPlacements(tx, input.userId, input.flowRunId)
+    await tx.insert(tradeSmartLadders).values({
+      userId: input.userId,
+      id: randomUUID(),
+      walletId: input.wallet.id,
+      marketKey,
+      kind: "signal",
+      status: "active",
+      plan,
+      // No order has been sent yet — the engine's next pass asks for a price —
+      // so this row is the only thing that can say whose trade it is.
+      flowRunId: input.flowRunId,
+      createdAt: new Date(now),
+      updatedAt: new Date(now),
+    })
   })
 }
 

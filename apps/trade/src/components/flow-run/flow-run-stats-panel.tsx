@@ -109,15 +109,17 @@ export function FlowRunStatsPanel({
             <BacktestKpi
               label="Running for"
               value={
-                head.status === "running"
+                head.status !== "stopped"
                   ? formatDuration(Math.max(0, now - head.startedAt))
                   : "Stopped"
               }
               sub={
-                head.status === "running"
-                  ? head.paused
-                    ? "paused — looking at nothing"
-                    : `since ${formatDate(new Date(head.startedAt))}`
+                head.status !== "stopped"
+                  ? head.status === "stopping"
+                    ? `${head.working} ${head.working === 1 ? "ladder" : "ladders"} left to call off`
+                    : head.paused
+                      ? "paused — looking at nothing"
+                      : `since ${formatDate(new Date(head.startedAt))}`
                   : (head.stoppedReason ??
                     `stopped ${formatDate(new Date(head.stoppedAt ?? head.startedAt))}`)
               }
@@ -213,7 +215,11 @@ export function FlowRunStatsPanel({
             />
             <BacktestKpi
               label="Expectancy"
-              value={stats?.expectancy === null || !stats ? "—" : usd(stats.expectancy)}
+              value={
+                stats?.expectancy === null || !stats
+                  ? "—"
+                  : usd(stats.expectancy)
+              }
               sub="the average trade"
               tone={stats?.expectancy ?? undefined}
             />
@@ -256,9 +262,7 @@ export function FlowRunStatsPanel({
             <Line label="Candles">{spec.strategy.interval}</Line>
             {spec.strategy.kind === "dca" ? (
               <>
-                <Line label="Rungs">
-                  {spec.strategy.params.rungs.length}
-                </Line>
+                <Line label="Rungs">{spec.strategy.params.rungs.length}</Line>
                 <Line label="Most of the pot per coin">
                   {roundedPct(spec.strategy.params.maxPositionPct)}
                 </Line>

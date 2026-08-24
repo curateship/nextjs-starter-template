@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { useTradeSettingsBootstrap } from "@/components/trade/trade-settings-context"
 import {
   getTradingOverviewLayoutErrorMessage,
   getTradingOverviewLayoutLoadErrorMessage,
@@ -68,10 +69,15 @@ function containerFromDropId(id: string): WidgetContainer | null {
 }
 
 export default function TradingDashboardWidgetSettings() {
+  const bootstrap = useTradeSettingsBootstrap()
   const [layout, setLayout] =
-    React.useState<TradingDashboardWidgetLayout | null>(null)
+    React.useState<TradingDashboardWidgetLayout | null>(
+      bootstrap?.tradingWidgets ?? null
+    )
   const [loadFailed, setLoadFailed] = React.useState(false)
-  const saved = React.useRef<TradingDashboardWidgetLayout | null>(null)
+  const saved = React.useRef<TradingDashboardWidgetLayout | null>(
+    bootstrap?.tradingWidgets ?? null
+  )
   const pending = React.useRef<TradingDashboardWidgetLayout | null>(null)
   const saving = React.useRef(false)
   const mounted = React.useRef(true)
@@ -92,11 +98,11 @@ export default function TradingDashboardWidgetSettings() {
 
   React.useEffect(() => {
     mounted.current = true
-    loadLayout()
+    if (!bootstrap?.tradingWidgets) loadLayout()
     return () => {
       mounted.current = false
     }
-  }, [loadLayout])
+  }, [bootstrap?.tradingWidgets, loadLayout])
 
   const persistLatest = React.useCallback(async () => {
     if (saving.current) return
@@ -330,7 +336,7 @@ function WidgetSlot({
         <div
           ref={setNodeRef}
           className={cn(
-            "grid self-start content-start gap-2 rounded-lg border border-dashed bg-muted p-2 transition-colors",
+            "grid content-start gap-2 self-start rounded-lg border border-dashed bg-muted p-2 transition-colors",
             ids.length === 0 && "min-h-24 content-center",
             isOver && "bg-primary/5"
           )}

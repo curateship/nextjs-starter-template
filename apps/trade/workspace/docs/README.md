@@ -22,14 +22,17 @@ Two files outrank the rest, and outrank the code:
   open position has cost in fees.
 - `chart-timezone.md` — the one clock the chart is on, where it is set, and why
   it is stored as a place rather than as an offset.
-- `chart-loading.md` — when the first candle request leaves, and why later
-  market choices still wait briefly.
+- `chart-loading.md` — when the first candle request leaves, why later market
+  choices wait briefly, and how a live run refreshes rungs that just landed.
 - `opening-range-indicator.md` — what the opening range is, its settings, and
   the rules it follows about breaks, gaps and the session in progress.
 - `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.
 - `smart-orders-never-rest.md` — why a smart order sends nothing until the price
   is reached, what watching costs when a market moves fast, how often the engine
   looks, and what a backtest does differently.
+- `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
+  real exchange orders, blocks a coin hunt already in flight, and reports a
+  coin the exchange would not cancel.
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is
   split between levels, what a sell is worth, and what following price up does.
 - `watched-orders.md` — how a plain order works now, and what dragging does.

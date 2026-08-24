@@ -16,7 +16,7 @@ import {
 import type { GridPlan } from "@/lib/trade/grid"
 import type { TradeSide } from "@/lib/trade/paper"
 import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
-import type { SignalPlan } from "@/lib/trade/signal-order"
+import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
   readSmartPlan,
@@ -35,7 +35,11 @@ import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
-import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
+import {
+  assertFlowRunAcceptingPlacements,
+  flowLadderOrderIds,
+  recordFlowRunOrders,
+} from "@/server/trade/flow-run-orders"
 import {
   exposedMarketKeys,
   freeCash,
@@ -467,6 +471,8 @@ export async function placeDcaLadder(
       )
       .for("update")
 
+    await assertFlowRunAcceptingPlacements(tx, userId, input.flowRunId)
+
     // Re-checked under the lock: two tabs placing at once must not both win,
     // and neither may a ladder and a grid.
     const race = await activeSmartOrderId(
@@ -726,6 +732,167 @@ export async function cancelLadderRest(
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
   await settleWallet(userId, wallet)
   return { cancelled }
+}
+
+/** Calls off a flow's unbought ladder without giving its watched rungs a turn. */
+export async function cancelFlowLadderRest(
+  userId: string,
+  wallet: TradeWallet,
+  input: { ladderId: string }
+): Promise<{ complete: boolean; done: boolean }> {
+  let done = true
+  await db.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
+      .for("update")
+
+    const [row] = await tx
+      .select({ plan: tradeSmartLadders.plan })
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.walletId, wallet.id),
+          eq(tradeSmartLadders.id, input.ladderId),
+          eq(tradeSmartLadders.kind, "dca"),
+          eq(tradeSmartLadders.status, "active")
+        )
+      )
+      .limit(1)
+    const plan = row
+      ? (readSmartPlan("dca", row.plan) as LadderPlan | null)
+      : null
+    if (!plan) throw new Error("SMART_LADDER_NOT_FOUND")
+
+    // A settle that won the lock may have bought a rung after Stop counted
+    // this row. The position and every remaining rung are then left alone.
+    if (plan.rungs.some((rung) => rung.status === "filled")) {
+      done = false
+      return
+    }
+
+    const recorded = await flowLadderOrderIds(
+      userId,
+      wallet.id,
+      input.ladderId,
+      tx
+    )
+    for (const rung of plan.rungs) {
+      if (rung.status !== "waiting") continue
+      if (rung.orderId) recorded.add(rung.orderId)
+      rung.status = "cancelled"
+      rung.orderId = null
+    }
+    if (recorded.size > 0) {
+      await tx
+        .delete(tradePaperOrders)
+        .where(
+          and(
+            eq(tradePaperOrders.userId, userId),
+            eq(tradePaperOrders.walletId, wallet.id),
+            inArray(tradePaperOrders.id, [...recorded])
+          )
+        )
+    }
+    await tx
+      .update(tradeSmartLadders)
+      .set({ status: "done", plan, updatedAt: new Date() })
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.id, input.ladderId),
+          eq(tradeSmartLadders.status, "active")
+        )
+      )
+  })
+  return { complete: true, done }
+}
+
+/** Calls off one flow-owned signal buy without advancing the rest of its wallet. */
+export async function cancelSignalRest(
+  userId: string,
+  wallet: TradeWallet,
+  input: { signalId: string }
+): Promise<{ complete: boolean; done: boolean }> {
+  let done = true
+  await db.transaction(async (tx) => {
+    // The normal practice settle takes this same lock. Whichever arrives
+    // first finishes before the other reads the order, so Stop can never race
+    // a fill and then leave the row active with no order behind it.
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+      )
+      .for("update")
+
+    const [row] = await tx
+      .select({ plan: tradeSmartLadders.plan })
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.walletId, wallet.id),
+          eq(tradeSmartLadders.id, input.signalId),
+          eq(tradeSmartLadders.kind, "signal"),
+          eq(tradeSmartLadders.status, "active")
+        )
+      )
+      .limit(1)
+    const plan = row ? readSignalPlan(row.plan) : null
+    if (!plan) throw new Error("SMART_SIGNAL_NOT_FOUND")
+    // The engine may have bought between Stop's first count and this lock.
+    // Holding or selling belongs to the position now, so Stop leaves it alone.
+    if (plan.phase !== "buying" && plan.phase !== "stopping") {
+      done = false
+      return
+    }
+
+    const recorded = await flowLadderOrderIds(
+      userId,
+      wallet.id,
+      input.signalId,
+      tx
+    )
+    if (plan.orderId) recorded.add(plan.orderId)
+    if (recorded.size > 0) {
+      await tx
+        .delete(tradePaperOrders)
+        .where(
+          and(
+            eq(tradePaperOrders.userId, userId),
+            eq(tradePaperOrders.walletId, wallet.id),
+            inArray(tradePaperOrders.id, [...recorded])
+          )
+        )
+    }
+    await tx
+      .update(tradeSmartLadders)
+      .set({
+        status: "done",
+        plan: {
+          ...plan,
+          phase: "stopping",
+          orderId: null,
+          orderPx: null,
+          missingSince: 0,
+        },
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.id, input.signalId),
+          eq(tradeSmartLadders.status, "active")
+        )
+      )
+  })
+  return { complete: true, done }
 }
 
 /**

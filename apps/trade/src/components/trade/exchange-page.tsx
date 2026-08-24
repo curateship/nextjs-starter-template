@@ -84,9 +84,7 @@ function exchangeLoader(protocol: ProtocolId) {
   }
 }
 
-type ExchangeLoaderData = Awaited<
-  ReturnType<ReturnType<typeof exchangeLoader>>
->
+type ExchangeLoaderData = Awaited<ReturnType<ReturnType<typeof exchangeLoader>>>
 
 /**
  * Everything the routes share regardless of network handling: the one-minute

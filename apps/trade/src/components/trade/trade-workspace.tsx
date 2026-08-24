@@ -504,9 +504,7 @@ export function TradeWorkspace({
   const addToPosition = React.useCallback(
     (position: TradePosition) => {
       const symbol = marketSymbol(position.marketKey)
-      const wallet = account.wallets.find(
-        (one) => one.id === position.walletId
-      )
+      const wallet = account.wallets.find((one) => one.id === position.walletId)
       if (!wallet || wallet.status !== "active") {
         showErrorToast(
           `The wallet holding this ${symbol} position is not switched on, so nothing can be added to it.`
@@ -842,10 +840,10 @@ export function TradeWorkspace({
                 wallets={account.wallets}
                 onSelectMarket={onSelectMarket}
                 onAddToPosition={addToPosition}
-      canChangeLeverage={allowed(abilities?.changeLeverage)}
-      leverageRefusal={refusalOf(abilities?.changeLeverage)}
-      canAdjustMargin={allowed(abilities?.adjustMargin)}
-      marginRefusal={refusalOf(abilities?.adjustMargin)}
+                canChangeLeverage={allowed(abilities?.changeLeverage)}
+                leverageRefusal={refusalOf(abilities?.changeLeverage)}
+                canAdjustMargin={allowed(abilities?.adjustMargin)}
+                marginRefusal={refusalOf(abilities?.adjustMargin)}
                 shownTrade={shownTrade}
                 onShowTrade={showTrade}
                 fit={activityFit}

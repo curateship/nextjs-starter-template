@@ -62,6 +62,7 @@ vi.mock("@/server/trade/live-smart-orders", () => ({
     _wallet: TradeWallet,
     input: { marketKey: string }
   ) => place(input.marketKey),
+  cancelLiveLadderRest: async () => ({ cancelled: 0 }),
 }))
 
 const { advanceFlowRuns } = await import("@/server/trade/flow-run")
