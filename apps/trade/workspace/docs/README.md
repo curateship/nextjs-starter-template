@@ -13,6 +13,9 @@ Two files outrank the rest, and outrank the code:
 
 ## The rest
 
+- `instant-first.md` — the rule that everything answers on screen instantly
+  from what the app already knows, with the server catching up behind it. It
+  binds all current and future work in this app.
 - `architecture-overview.md` — how Trade is put together on top of the shell.
 - `reading-the-figures.md` — the one green for money made, the one spelling for
   every number, the text scale, the small badge every table shares, and what an

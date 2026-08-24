@@ -40,6 +40,7 @@ import {
   placeGridOrder as placeGridRows,
   setGridFollow as setGridFollowRows,
   updateGridStop as updateGridStopRows,
+  type MovedGrid,
   type PlacedGrid,
 } from "@/server/trade/grid-orders"
 import {
@@ -554,7 +555,7 @@ const moveGridRangeSchema = z.object({
 const moveGridRangeFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(moveGridRangeSchema)
-  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+  .handler(async ({ data, context }): Promise<MovedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
     return wallet.kind === "live"
       ? await moveLiveGridRange(context.user.id, wallet, data)
@@ -571,7 +572,7 @@ const reshapeGridSchema = z.object({
 const reshapeGridFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(reshapeGridSchema)
-  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+  .handler(async ({ data, context }): Promise<MovedGrid> => {
     // A re-shape can buy, so it needs a wallet that may receive orders.
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
     return wallet.kind === "live"
@@ -589,7 +590,7 @@ const moveGridExitSchema = z.object({
 const moveGridExitFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(moveGridExitSchema)
-  .handler(async ({ data, context }): Promise<{ moved: true }> => {
+  .handler(async ({ data, context }): Promise<MovedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
     return wallet.kind === "live"
       ? await moveLiveGridExit(context.user.id, wallet, data)

@@ -71,7 +71,7 @@ type ChartFillMark = {
   mark: LiveFillMark
 }
 
-export function JournalMarksLayer({
+export const JournalMarksLayer = React.memo(function JournalMarksLayer({
   surface,
   trades,
   fills,
@@ -281,7 +281,7 @@ export function JournalMarksLayer({
       ) : null}
     </>
   )
-}
+})
 
 function clamp(value: number, low: number, high: number): number {
   return Math.min(high, Math.max(low, value))

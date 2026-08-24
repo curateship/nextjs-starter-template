@@ -65,12 +65,15 @@ import {
   type MarketRow,
 } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
+import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
   DEFAULT_MARGIN_BOTTOM,
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
 import { gridStopLegPrices, isGridStopLeg } from "@/lib/trade/grid"
+import { prefetchLadderBase } from "@/lib/trade/ladder-base-cache"
+import { prefetchSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import {
   forEachPlanOrderId,
   type SmartGrid,
@@ -434,6 +437,11 @@ export function ChartPanel({
     if (!surface || !box) return false
     const price = surface.priceAt(point.clientY - box.top)
     if (price === null || price <= 0) return false
+    // Asked for the moment the menu opens, so by the time a preset is picked
+    // the base the ladder hangs from and both windows' saved settings are
+    // usually already in hand.
+    prefetchLadderBase(market.key)
+    prefetchSmartPrefs()
     setQuick(null)
     setSmart(null)
     setMenu({ price, x: point.clientX, y: point.clientY })
@@ -570,35 +578,161 @@ export function ChartPanel({
    * the override rule — but it has to be said out loud that the line stopped
    * following the ladder, or the stillness would look like a bug.
    */
-  const dragBrackets = (
-    position: TradePosition,
-    brackets: { tpPx: number | null; tpSz?: number | null; slPx: number | null }
-  ) => {
-    const { walletId, marketKey } = position
-    const ladder = trading.ladders.find(
-      (one) => one.walletId === walletId && one.marketKey === marketKey
-    )
-    if (ladder) {
-      const same = (a: number | null, b: number | null) =>
-        a === null || b === null
-          ? a === b
-          : Math.abs(a - b) <= Math.abs(a) * 1e-9
-      const tpFollowed =
-        ladder.plan.takeProfit !== null &&
-        ladder.plan.takeProfit.mode !== "fixed" &&
-        ladder.plan.takeProfit.mode !== "prevRung"
-      const slFollowed = ladder.plan.stopLoss?.mode === "percent"
-      if (
-        (tpFollowed && !same(brackets.tpPx, ladder.plan.aimedTpPx)) ||
-        (slFollowed && !same(brackets.slPx, ladder.plan.aimedSlPx))
-      ) {
-        toast.info(
-          "That line is yours now — it no longer follows the ladder's rule."
-        )
+  // Every handler the overlay layers receive is pinned with `useCallback`,
+  // because the layers are memoized: a keystroke in an order window re-renders
+  // this panel, and handlers minted fresh each render would drag all seven
+  // layers through a re-render for a change none of them can see.
+  const tradingDragBrackets = trading.dragBrackets
+  const tradingLadders = trading.ladders
+  const dragBrackets = React.useCallback(
+    (
+      position: TradePosition,
+      brackets: {
+        tpPx: number | null
+        tpSz?: number | null
+        slPx: number | null
       }
-    }
-    void trading.dragBrackets(position, brackets)
-  }
+    ) => {
+      const { walletId, marketKey } = position
+      const ladder = tradingLadders.find(
+        (one) => one.walletId === walletId && one.marketKey === marketKey
+      )
+      if (ladder) {
+        const same = (a: number | null, b: number | null) =>
+          a === null || b === null
+            ? a === b
+            : Math.abs(a - b) <= Math.abs(a) * 1e-9
+        const tpFollowed =
+          ladder.plan.takeProfit !== null &&
+          ladder.plan.takeProfit.mode !== "fixed" &&
+          ladder.plan.takeProfit.mode !== "prevRung"
+        const slFollowed = ladder.plan.stopLoss?.mode === "percent"
+        if (
+          (tpFollowed && !same(brackets.tpPx, ladder.plan.aimedTpPx)) ||
+          (slFollowed && !same(brackets.slPx, ladder.plan.aimedSlPx))
+        ) {
+          toast.info(
+            "That line is yours now — it no longer follows the ladder's rule."
+          )
+        }
+      }
+      void tradingDragBrackets(position, brackets)
+    },
+    [tradingLadders, tradingDragBrackets]
+  )
+
+  const walletNameOf = React.useCallback(
+    (walletId: string) => trading.walletNames.get(walletId) ?? "Another wallet",
+    [trading.walletNames]
+  )
+  const tradingMove = trading.move
+  const onMoveOrder = React.useCallback(
+    (walletId: string, orderId: string, price: number) =>
+      void tradingMove(walletId, orderId, price),
+    [tradingMove]
+  )
+  const tradingCancel = trading.cancel
+  const onCancelOrder = React.useCallback(
+    (order: TradeOrder) => void tradingCancel(order),
+    [tradingCancel]
+  )
+  const tradingEditOrder = trading.editOrder
+  const tradingOrders = trading.orders
+  const tradingWatchOrders = trading.watchOrders
+  const onMoveOrderTarget = React.useCallback(
+    (walletId: string, orderId: string, price: number) => {
+      const order =
+        tradingOrders.find((one) => one.id === orderId) ??
+        tradingWatchOrders.find((one) => one.id === orderId)
+      if (!order) return
+      void tradingEditOrder(walletId, orderId, {
+        sz: order.sz,
+        tpPx: price,
+        slPx: order.slPx,
+      })
+    },
+    [tradingOrders, tradingWatchOrders, tradingEditOrder]
+  )
+  const sizeDecimals = market?.sizeDecimals ?? null
+  const onMoveOrderStop = React.useCallback(
+    (walletId: string, orderId: string, price: number) => {
+      const order =
+        tradingOrders.find((one) => one.id === orderId) ??
+        tradingWatchOrders.find((one) => one.id === orderId)
+      if (!order || order.slPx === null) return
+      void tradingEditOrder(walletId, orderId, {
+        // Floored to the market's own step, never rounded up: rounding up
+        // buys more than the risk asked for.
+        sz: floorSize(
+          resizeForStop({
+            entryPx: order.px,
+            fromStopPx: order.slPx,
+            toStopPx: price,
+            sz: order.sz,
+          }),
+          sizeDecimals
+        ),
+        tpPx: order.tpPx,
+        slPx: price,
+      })
+    },
+    [tradingOrders, tradingWatchOrders, tradingEditOrder, sizeDecimals]
+  )
+  const onEditOrder = React.useCallback(
+    (orderId: string) =>
+      setEditing(tradingOrders.find((one) => one.id === orderId) ?? null),
+    [tradingOrders]
+  )
+  const entryBadgeOf = React.useCallback(
+    (position: TradePosition) => {
+      const ladder = tradingLadders.find(
+        (one) =>
+          one.walletId === position.walletId &&
+          one.marketKey === position.marketKey &&
+          one.plan.rungs.some(
+            (rung) => rung.status === "filled" || rung.status === "sold"
+          )
+      )
+      if (!ladder) return null
+      const waiting = ladder.plan.rungs.filter(
+        (rung) => rung.status === "waiting"
+      ).length
+      return {
+        // Just the count in the bar; the words live on hover.
+        text: `${waiting}`,
+        hint: `DCA ladder — ${waiting} ${
+          waiting === 1 ? "rung" : "rungs"
+        } still waiting to buy. The gear changes its exits; the × stops it buying deeper.`,
+        onSettings: () => setExitsFor(ladder),
+        onRemove: waiting > 0 ? () => setCancelFor(ladder) : null,
+      }
+    },
+    [tradingLadders]
+  )
+  const tradingCancelRung = trading.cancelRung
+  const onCancelRung = React.useCallback(
+    (walletId: string, ladderId: string, rungIndex: number) =>
+      void tradingCancelRung(walletId, ladderId, rungIndex),
+    [tradingCancelRung]
+  )
+  const tradingCancelGridLevel = trading.cancelGridLevel
+  const onCancelGridLevel = React.useCallback(
+    (walletId: string, gridId: string, levelIndex: number) =>
+      void tradingCancelGridLevel(walletId, gridId, levelIndex),
+    [tradingCancelGridLevel]
+  )
+  const tradingMoveGridRange = trading.moveGridRange
+  const onMoveGridRange = React.useCallback(
+    (one: SmartGrid, range: { topPx: number; bottomPx: number }) =>
+      tradingMoveGridRange(one.walletId, one.id, range),
+    [tradingMoveGridRange]
+  )
+  const tradingMoveGridExit = trading.moveGridExit
+  const onMoveGridExit = React.useCallback(
+    (one: SmartGrid, which: "takeProfit" | "stopLoss", px: number) =>
+      tradingMoveGridExit(one.walletId, one.id, which, px),
+    [tradingMoveGridExit]
+  )
 
   // The candles on screen right now: an answer whose tag does not match what
   // is wanted belongs to a market that was switched away from, and is not one.
@@ -753,45 +887,48 @@ export function ChartPanel({
       setAnswer({ key: wanted, candles, error: null })
     }
 
-    const timeout = setTimeout(() => {
-      hasStartedCandleLoad.current = true
-      // On a timeframe that loads its whole history, the last two years are
-      // drawn first and the rest replaces them a moment later. The whole
-      // history takes a second or two to gather, and a chart showing nothing
-      // for two seconds reads as a chart that is broken; two years arrives in
-      // well under one. Nothing flickers on the swap — the newer bars are the
-      // same bars, and the chart keeps its own zoom.
-      const staged = wantsFullHistory(interval)
-      const first = staged
-        ? loadCandles(selectedKey, interval, Date.now() - FIRST_PAINT_MS)
-        : loadCandles(selectedKey, interval)
+    const timeout = setTimeout(
+      () => {
+        hasStartedCandleLoad.current = true
+        // On a timeframe that loads its whole history, the last two years are
+        // drawn first and the rest replaces them a moment later. The whole
+        // history takes a second or two to gather, and a chart showing nothing
+        // for two seconds reads as a chart that is broken; two years arrives in
+        // well under one. Nothing flickers on the swap — the newer bars are the
+        // same bars, and the chart keeps its own zoom.
+        const staged = wantsFullHistory(interval)
+        const first = staged
+          ? loadCandles(selectedKey, interval, Date.now() - FIRST_PAINT_MS)
+          : loadCandles(selectedKey, interval)
 
-      first
-        .then(({ candles }) => {
-          draw(candles)
-          if (!staged || stale) return
-          // The deeper read is a bonus, not the answer: it is already drawn
-          // without it, so a refusal here changes nothing on screen and must
-          // not put an error card over bars that are perfectly good.
-          return loadCandles(selectedKey, interval)
-            .then(({ candles: deeper }) => {
-              if (deeper.length > candles.length) draw(deeper)
-            })
-            .catch(() => {})
-        })
-        .catch((error: unknown) => {
-          if (stale) return
-          // Bars already on screen beat an error card about fetching newer
-          // ones — the failure is a refresh that missed, not a chart that
-          // could not load.
-          if (drawnCharts.has(wanted)) return
-          setAnswer({
-            key: wanted,
-            candles: [],
-            error: getCandlesErrorMessage(error),
+        first
+          .then(({ candles }) => {
+            draw(candles)
+            if (!staged || stale) return
+            // The deeper read is a bonus, not the answer: it is already drawn
+            // without it, so a refusal here changes nothing on screen and must
+            // not put an error card over bars that are perfectly good.
+            return loadCandles(selectedKey, interval)
+              .then(({ candles: deeper }) => {
+                if (deeper.length > candles.length) draw(deeper)
+              })
+              .catch(() => {})
           })
-        })
-    }, hasStartedCandleLoad.current ? CANDLE_LOAD_SETTLE_MS : 0)
+          .catch((error: unknown) => {
+            if (stale) return
+            // Bars already on screen beat an error card about fetching newer
+            // ones — the failure is a refresh that missed, not a chart that
+            // could not load.
+            if (drawnCharts.has(wanted)) return
+            setAnswer({
+              key: wanted,
+              candles: [],
+              error: getCandlesErrorMessage(error),
+            })
+          })
+      },
+      hasStartedCandleLoad.current ? CANDLE_LOAD_SETTLE_MS : 0
+    )
     return () => {
       stale = true
       clearTimeout(timeout)
@@ -823,6 +960,148 @@ export function ChartPanel({
     arm()
     return () => window.clearTimeout(timer)
   }, [wanted, interval, attempt])
+
+  /**
+   * What is drawn over the candles, pinned with `useCallback` so the chart is
+   * not handed a new function every render. The layers under it are memoized,
+   * so a keystroke in an order window — which re-renders this panel through
+   * its preview state — reaches only the layer whose preview changed, instead
+   * of re-rendering all seven on every letter.
+   */
+  const currentKey = current?.key ?? ""
+  const gridsShown = trading.grids
+  const overlay = React.useCallback(
+    (surface: ChartSurface, colors: ChartColors) => (
+      <>
+        {/* First, so everything else sits over it. An indicator is the
+            chart's own reading of the candles — a drawn line, an order or a
+            stop is something somebody put there, and that should never end
+            up behind a dash. */}
+        <IndicatorLayer surface={surface} paint={indicatorPainted} />
+        {options.drawings ? (
+          <PaintLayer
+            surface={surface}
+            drawings={paint.drawings}
+            tool={paintTool}
+            selectedId={paint.selectedId}
+            onSelect={paint.setSelectedId}
+            onCreate={paint.create}
+            onMove={paint.move}
+            onDelete={paint.remove}
+          />
+        ) : null}
+        <TradeLinesLayer
+          surface={surface}
+          colors={colors}
+          marketKey={selectedKey}
+          // This layer paints over the paint tools, so it has to know when
+          // one is in hand and keep its hands off the pointer — otherwise
+          // starting a line near a stop drags the stop.
+          tool={paintTool}
+          // Every wallet's, not just the active one's: a row in the table
+          // below is a link to its own market, and it would be a dead end if
+          // the chart then showed nothing.
+          positions={linePositions}
+          onClosePosition={setClosingPosition}
+          orders={looseOrders}
+          walletName={walletNameOf}
+          onMoveOrder={onMoveOrder}
+          onCancelOrder={onCancelOrder}
+          // Dragging a waiting order's stop resizes the order so it still
+          // risks the same money. Worked out from the order in front of you
+          // rather than from a remembered setting, so it holds whether the
+          // order was sized by risk or typed by hand.
+          onMoveOrderTarget={onMoveOrderTarget}
+          onMoveOrderStop={onMoveOrderStop}
+          onEditOrder={onEditOrder}
+          entryBadge={entryBadgeOf}
+          onSetBrackets={dragBrackets}
+          onSurface={readSurface}
+        />
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey={selectedKey}
+          ladders={tradingLadders}
+          preview={preview}
+          tool={paintTool}
+          walletName={walletNameOf}
+          onCancelRung={onCancelRung}
+          onCancelLadder={setCancelFor}
+          onEditExits={setExitsFor}
+        />
+        <GridLayer
+          surface={surface}
+          colors={colors}
+          marketKey={selectedKey}
+          grids={gridsShown}
+          preview={gridPreview}
+          tool={paintTool}
+          walletName={walletNameOf}
+          onCancelLevel={onCancelGridLevel}
+          onCancelGrid={setCancelGridFor}
+          onEditStop={setStopFor}
+          onMoveRange={onMoveGridRange}
+          onMoveExit={onMoveGridExit}
+        />
+        {/* Over the orders and under the ruler: a finished trade is history,
+            so it must never hide a stop that is live right now, and
+            Shift-dragging across it still measures. */}
+        <JournalMarksLayer
+          surface={surface}
+          trades={marketTrades}
+          fills={marketFills}
+          focusedTrade={focusTrade}
+          showArrows={options.orderArrows}
+          tradeLimit={options.orderArrowTrades}
+        />
+        {/* Last, so while Shift is held its sheet is over everything else
+            and a drag across a stop line measures rather than moving the
+            stop. Keyed on the market and timeframe: a reading belongs to the
+            candles it was taken on, so opening another one puts the ruler
+            away rather than carrying a box onto a chart it means nothing
+            on. */}
+        <MeasureLayer key={currentKey} surface={surface} tool={paintTool} />
+      </>
+    ),
+    [
+      indicatorPainted,
+      options.drawings,
+      options.orderArrows,
+      options.orderArrowTrades,
+      paint.drawings,
+      paint.selectedId,
+      paint.setSelectedId,
+      paint.create,
+      paint.move,
+      paint.remove,
+      paintTool,
+      selectedKey,
+      linePositions,
+      looseOrders,
+      walletNameOf,
+      onMoveOrder,
+      onCancelOrder,
+      onMoveOrderTarget,
+      onMoveOrderStop,
+      onEditOrder,
+      entryBadgeOf,
+      dragBrackets,
+      readSurface,
+      tradingLadders,
+      preview,
+      onCancelRung,
+      gridsShown,
+      gridPreview,
+      onCancelGridLevel,
+      onMoveGridRange,
+      onMoveGridExit,
+      marketTrades,
+      marketFills,
+      focusTrade,
+      currentKey,
+    ]
+  )
 
   if (!selectedKey) {
     return (
@@ -892,180 +1171,9 @@ export function ChartPanel({
             onViewChange={chartView.onViewChange}
             liveBars={liveBars}
             // The chart is handed a function and a surface, never a drawing or
-            // a position. Both layers below draw in the same coordinates and
-            // neither is anything the chart itself knows about.
-            overlay={(surface, colors) => (
-              <>
-                {/* First, so everything else sits over it. An indicator is
-                    the chart's own reading of the candles — a drawn line, an
-                    order or a stop is something somebody put there, and that
-                    should never end up behind a dash. */}
-                <IndicatorLayer surface={surface} paint={indicatorPainted} />
-                {options.drawings ? (
-                  <PaintLayer
-                    surface={surface}
-                    drawings={paint.drawings}
-                    tool={paintTool}
-                    selectedId={paint.selectedId}
-                    onSelect={paint.setSelectedId}
-                    onCreate={paint.create}
-                    onMove={paint.move}
-                    onDelete={paint.remove}
-                  />
-                ) : null}
-                <TradeLinesLayer
-                  surface={surface}
-                  colors={colors}
-                  marketKey={selectedKey}
-                  // This layer paints over the paint tools, so it has to know
-                  // when one is in hand and keep its hands off the pointer —
-                  // otherwise starting a line near a stop drags the stop.
-                  tool={paintTool}
-                  // Every wallet's, not just the active one's: a row in the
-                  // table below is a link to its own market, and it would be a
-                  // dead end if the chart then showed nothing.
-                  positions={linePositions}
-                  onClosePosition={setClosingPosition}
-                  orders={looseOrders}
-                  walletName={(walletId) =>
-                    trading.walletNames.get(walletId) ?? "Another wallet"
-                  }
-                  onMoveOrder={(walletId, orderId, price) =>
-                    void trading.move(walletId, orderId, price)
-                  }
-                  onCancelOrder={(order) =>
-                    void trading.cancel(order)
-                  }
-                  // Dragging a waiting order's stop resizes the order so it
-                  // still risks the same money. Worked out from the order in
-                  // front of you rather than from a remembered setting, so it
-                  // holds whether the order was sized by risk or typed by hand.
-                  onMoveOrderTarget={(walletId, orderId, price) => {
-                    const order =
-                      trading.orders.find((one) => one.id === orderId) ??
-                      trading.watchOrders.find((one) => one.id === orderId)
-                    if (!order) return
-                    void trading.editOrder(walletId, orderId, {
-                      sz: order.sz,
-                      tpPx: price,
-                      slPx: order.slPx,
-                    })
-                  }}
-                  onMoveOrderStop={(walletId, orderId, price) => {
-                    const order =
-                      trading.orders.find((one) => one.id === orderId) ??
-                      trading.watchOrders.find((one) => one.id === orderId)
-                    if (!order || order.slPx === null) return
-                    void trading.editOrder(walletId, orderId, {
-                      // Floored to the market's own step, never rounded up:
-                      // rounding up buys more than the risk asked for.
-                      sz: floorSize(
-                        resizeForStop({
-                          entryPx: order.px,
-                          fromStopPx: order.slPx,
-                          toStopPx: price,
-                          sz: order.sz,
-                        }),
-                        market?.sizeDecimals ?? null
-                      ),
-                      tpPx: order.tpPx,
-                      slPx: price,
-                    })
-                  }}
-                  onEditOrder={(orderId) =>
-                    setEditing(
-                      trading.orders.find((one) => one.id === orderId) ?? null
-                    )
-                  }
-                  entryBadge={(position) => {
-                    const ladder = trading.ladders.find(
-                      (one) =>
-                        one.walletId === position.walletId &&
-                        one.marketKey === position.marketKey &&
-                        one.plan.rungs.some(
-                          (rung) =>
-                            rung.status === "filled" || rung.status === "sold"
-                        )
-                    )
-                    if (!ladder) return null
-                    const waiting = ladder.plan.rungs.filter(
-                      (rung) => rung.status === "waiting"
-                    ).length
-                    return {
-                      // Just the count in the bar; the words live on hover.
-                      text: `${waiting}`,
-                      hint: `DCA ladder — ${waiting} ${
-                        waiting === 1 ? "rung" : "rungs"
-                      } still waiting to buy. The gear changes its exits; the × stops it buying deeper.`,
-                      onSettings: () => setExitsFor(ladder),
-                      onRemove: waiting > 0 ? () => setCancelFor(ladder) : null,
-                    }
-                  }}
-                  onSetBrackets={dragBrackets}
-                  onSurface={readSurface}
-                />
-                <SmartLadderLayer
-                  surface={surface}
-                  colors={colors}
-                  marketKey={selectedKey}
-                  ladders={trading.ladders}
-                  preview={preview}
-                  tool={paintTool}
-                  walletName={(walletId) =>
-                    trading.walletNames.get(walletId) ?? "Another wallet"
-                  }
-                  onCancelRung={(walletId, ladderId, rungIndex) =>
-                    void trading.cancelRung(walletId, ladderId, rungIndex)
-                  }
-                  onCancelLadder={setCancelFor}
-                  onEditExits={setExitsFor}
-                />
-                <GridLayer
-                  surface={surface}
-                  colors={colors}
-                  marketKey={selectedKey}
-                  grids={trading.grids}
-                  preview={gridPreview}
-                  tool={paintTool}
-                  walletName={(walletId) =>
-                    trading.walletNames.get(walletId) ?? "Another wallet"
-                  }
-                  onCancelLevel={(walletId, gridId, levelIndex) =>
-                    void trading.cancelGridLevel(walletId, gridId, levelIndex)
-                  }
-                  onCancelGrid={setCancelGridFor}
-                  onEditStop={setStopFor}
-                  onMoveRange={(one, range) =>
-                    trading.moveGridRange(one.walletId, one.id, range)
-                  }
-                  onMoveExit={(one, which, px) =>
-                    trading.moveGridExit(one.walletId, one.id, which, px)
-                  }
-                />
-                {/* Last, so while Shift is held its sheet is over everything
-                    else and a drag across a stop line measures rather than
-                    moving the stop. Keyed on the market and timeframe: a
-                    reading belongs to the candles it was taken on, so opening
-                    another one puts the ruler away rather than carrying a box
-                    onto a chart it means nothing on. */}
-                {/* Over the orders and under the ruler: a finished trade is
-                    history, so it must never hide a stop that is live right
-                    now, and Shift-dragging across it still measures. */}
-                <JournalMarksLayer
-                  surface={surface}
-                  trades={marketTrades}
-                  fills={marketFills}
-                  focusedTrade={focusTrade}
-                  showArrows={options.orderArrows}
-                  tradeLimit={options.orderArrowTrades}
-                />
-                <MeasureLayer
-                  key={current.key}
-                  surface={surface}
-                  tool={paintTool}
-                />
-              </>
-            )}
+            // a position. Every layer inside draws in the same coordinates and
+            // none is anything the chart itself knows about.
+            overlay={overlay}
           />
           <PaintToolbar
             tool={paintTool}
@@ -1170,10 +1278,7 @@ export function ChartPanel({
             "Another wallet"
           }
           onSave={(brackets) =>
-            void trading.dragBrackets(
-              takeProfitPosition,
-              brackets
-            )
+            void trading.dragBrackets(takeProfitPosition, brackets)
           }
           onClose={() => setTakeProfit(null)}
         />

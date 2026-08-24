@@ -407,9 +407,13 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   where you clicked** with that price on it. Where levels sit above the price,
   the card says so and says plainly that placing still buys nothing. Both modes still show the range as
   two prices, the step between levels, and what the whole grid costs.
-  The range controls wait for the saved grid setup to arrive before they can be
-  changed, so a late saved answer never replaces a choice just made in the
-  window or moves its preview.
+  Every control works the moment the window opens, on the settings last used —
+  the saved grid setup arrives with the page itself, in the same bootstrap
+  call that carries the quick-order window's setup, so even the first
+  right-click after a reload opens on it rather than on defaults that snap a
+  second later. A late-arriving answer never replaces a choice just made in
+  the window or moves its preview. The DCA window follows the same rule, and
+  the full rule lives in `instant-first.md`.
 - **Money** keeps Share of account % and gains **Split between levels**: "The
   same at every level" or "Double at every level down". When it is set to
   doubling, the readout under Range stops saying "Each buy spends" and says

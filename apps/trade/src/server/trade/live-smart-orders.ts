@@ -81,7 +81,9 @@ import {
 import {
   draftGridOrder,
   gridById,
+  movedGrid,
   saveGridPlan,
+  type MovedGrid,
   type PlaceGridInput,
   type PlacedGrid,
 } from "./grid-orders"
@@ -320,6 +322,7 @@ async function placeLiveDcaLadderOnce(
   // there are no orders to place here, no order-cap to count against, and no
   // rollback to carry. Nothing about the account changes until a rung fires.
   const now = new Date()
+  const ladderId = randomUUID()
   const plan = ladderPlan(
     input,
     rules.sizeDecimals,
@@ -345,7 +348,7 @@ async function placeLiveDcaLadderOnce(
     if (race) throw new Error("SMART_LADDER_EXISTS")
     await tx.insert(tradeSmartLadders).values({
       userId,
-      id: randomUUID(),
+      id: ladderId,
       walletId: wallet.id,
       marketKey: input.marketKey,
       kind: "dca",
@@ -363,6 +366,19 @@ async function placeLiveDcaLadderOnce(
   return {
     placed: rungs.filter((rung) => rung.status === "waiting").length,
     passed: rungs.filter((rung) => rung.status === "skipped").length,
+    // The row as written, so the chart draws the ladder in the same frame the
+    // window closes — see `PlacedLadder`.
+    ladder: {
+      id: ladderId,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "dca",
+      status: "active",
+      flowRunId: input.flowRunId ?? null,
+      createdAt: now.getTime(),
+      updatedAt: now.getTime(),
+      plan,
+    },
   }
 }
 
@@ -1844,7 +1860,11 @@ export async function setLiveGridFollow(
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
     grid.plan.follow = input.follow
-    if (input.follow) grid.plan.takeProfitPx = null
+    if (input.follow) {
+      grid.plan.takeProfitPx = null
+      // A hand's own switch counts the range as in play — see `setGridFollow`.
+      grid.plan.entered = true
+    }
     await saveGridPlan(userId, grid.id, grid.plan, "active")
   })
 }
@@ -1941,7 +1961,7 @@ export async function reshapeLiveGrid(
     levels?: number
     potPct?: number
   }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
@@ -2021,26 +2041,23 @@ export async function reshapeLiveGrid(
     // No orders to cancel, none to place, and no position to settle: every
     // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
     // refused this while anything was held.
-    await saveGridPlan(
-      userId,
-      grid.id,
-      {
-        ...draft.plan,
-        stopLoss: plan.stopLoss,
-        takeProfitPx:
-          plan.takeProfitPx === null
-            ? null
-            : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
-        baseWatch: plan.baseWatch,
-        aimedSlPx: plan.aimedSlPx,
-        seenFillsTo: plan.seenFillsTo,
-        // A move re-prices the levels; it does not reset the grid's history.
-        cycles: plan.cycles,
-        shifts: plan.shifts,
-      },
-      "active"
-    )
-    return { moved: true as const }
+    const next = {
+      ...draft.plan,
+      stopLoss: plan.stopLoss,
+      takeProfitPx:
+        plan.takeProfitPx === null
+          ? null
+          : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
+      baseWatch: plan.baseWatch,
+      aimedSlPx: plan.aimedSlPx,
+      seenFillsTo: plan.seenFillsTo,
+      // A move re-prices the levels; it does not reset the grid's history.
+      cycles: plan.cycles,
+      shifts: plan.shifts,
+    }
+    const at = Date.now()
+    await saveGridPlan(userId, grid.id, next, "active", at)
+    return movedGrid(wallet.id, grid, next, at)
   })
 }
 
@@ -2049,7 +2066,7 @@ export async function moveLiveGridExit(
   userId: string,
   wallet: TradeWallet,
   input: { gridId: string; which: "takeProfit" | "stopLoss"; px: number }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
@@ -2084,8 +2101,9 @@ export async function moveLiveGridExit(
       }
     }
 
-    await saveGridPlan(userId, grid.id, plan, "active")
-    return { moved: true as const }
+    const at = Date.now()
+    await saveGridPlan(userId, grid.id, plan, "active", at)
+    return movedGrid(wallet.id, grid, plan, at)
   })
 }
 
@@ -2094,6 +2112,6 @@ export function moveLiveGridRange(
   userId: string,
   wallet: TradeWallet,
   input: { gridId: string; topPx: number; bottomPx: number }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   return reshapeLiveGrid(userId, wallet, input)
 }

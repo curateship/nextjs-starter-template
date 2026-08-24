@@ -1,3 +1,4 @@
+import * as React from "react"
 import { SettingsIcon, XIcon } from "lucide-react"
 
 import type { ChartSurface } from "@/components/trade/price-chart"
@@ -42,7 +43,7 @@ import { cn } from "@/lib/utils"
 const TAG_CLASS =
   "absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded-lg border bg-card/90 px-1.5 py-0.5 text-xs font-semibold"
 
-export function SmartLadderLayer({
+export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   surface,
   colors,
   marketKey,
@@ -123,7 +124,7 @@ export function SmartLadderLayer({
       ))}
     </div>
   )
-}
+})
 
 function LadderLines({
   ladder,

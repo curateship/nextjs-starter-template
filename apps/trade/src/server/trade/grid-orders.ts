@@ -248,6 +248,10 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     seenFillsTo: 0,
     cycles: 0,
     follow: params.follow,
+    // Whether the range is in play from the start. A straddling grid is; one
+    // hung entirely below the price is waiting for a fall, and follow must
+    // not touch it until price actually comes down to it — see the schema.
+    entered: mark <= topPx,
     shifts: 0,
     closedReason: null,
   }
@@ -379,6 +383,21 @@ export type GridRowRecord = {
   marketKey: string
   status: "active" | "done"
   plan: GridPlan
+  /** Carried so a move can hand the whole row back — see `MovedGrid`. */
+  flowRunId: string | null
+  createdAt: number
+}
+
+/**
+ * A move or re-shape's answer: the grid exactly as it was just saved.
+ *
+ * Handing the row back is what lets the chart show the saved grid the moment
+ * the drag ends, without re-reading the whole portfolio — the browser holds
+ * this copy on screen until the next ordinary poll carries the same thing.
+ */
+export type MovedGrid = {
+  moved: true
+  grid: SmartGrid
 }
 
 export async function gridById(
@@ -403,18 +422,55 @@ export async function gridById(
       ? (readSmartPlan("grid", row.plan) as GridPlan | null)
       : null
   if (!row || !plan) throw new Error("SMART_GRID_NOT_FOUND")
-  return { id: row.id, marketKey: row.marketKey, status: row.status, plan }
+  return {
+    id: row.id,
+    marketKey: row.marketKey,
+    status: row.status,
+    plan,
+    flowRunId: row.flowRunId ?? null,
+    createdAt: row.createdAt.getTime(),
+  }
+}
+
+/** The moved grid as one row the chart can draw — see `MovedGrid`. */
+export function movedGrid(
+  walletId: string,
+  grid: GridRowRecord,
+  plan: GridPlan,
+  updatedAt: number
+): MovedGrid {
+  return {
+    moved: true,
+    grid: {
+      id: grid.id,
+      walletId,
+      marketKey: grid.marketKey,
+      kind: "grid",
+      status: "active",
+      flowRunId: grid.flowRunId,
+      createdAt: grid.createdAt,
+      updatedAt,
+      plan,
+    },
+  }
 }
 
 export async function saveGridPlan(
   userId: string,
   gridId: string,
   plan: GridPlan,
-  status: "active" | "done"
+  status: "active" | "done",
+  /**
+   * The save's moment, when the caller also hands the row back to the
+   * browser. The row in the database and the copy the browser holds must
+   * carry the SAME stamp, or the browser reads the poll's copy as older than
+   * its own and keeps the hold long after the two agree.
+   */
+  at?: number
 ): Promise<void> {
   await db
     .update(tradeSmartLadders)
-    .set({ plan, status, updatedAt: new Date() })
+    .set({ plan, status, updatedAt: at === undefined ? new Date() : new Date(at) })
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
@@ -546,7 +602,14 @@ export async function setGridFollow(
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   grid.plan.follow = input.follow
-  if (input.follow) grid.plan.takeProfitPx = null
+  if (input.follow) {
+    grid.plan.takeProfitPx = null
+    // Switching following on BY HAND is a direct instruction, so the range
+    // counts as in play from this moment — a range already past its top
+    // catches up straight away. Only a follow choice remembered onto a NEW
+    // grid placed below the price waits for price to reach it first.
+    grid.plan.entered = true
+  }
   await saveGridPlan(userId, grid.id, grid.plan, "active")
   // And again on the way out, so a range already past its top starts following
   // now rather than on the next poll.
@@ -586,7 +649,7 @@ export async function reshapeGrid(
     levels?: number
     potPct?: number
   }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
@@ -689,7 +752,7 @@ export async function reshapeGrid(
   // and takes the wallet lock. The worker settles every second anyway, so the
   // only thing a settle here would buy is one second, at the cost of making
   // every drag feel slow.
-  return { moved: true }
+  return movedGrid(wallet.id, grid, next, now)
 }
 
 /**
@@ -704,7 +767,7 @@ export async function moveGridExit(
   userId: string,
   wallet: TradeWallet,
   input: { gridId: string; which: "takeProfit" | "stopLoss"; px: number }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
@@ -746,9 +809,10 @@ export async function moveGridExit(
     }
   }
 
-  await saveGridPlan(userId, grid.id, plan, "active")
+  const at = Date.now()
+  await saveGridPlan(userId, grid.id, plan, "active", at)
   // No settle: see `moveGridRange`. The next pass, a second away, picks it up.
-  return { moved: true }
+  return movedGrid(wallet.id, grid, plan, at)
 }
 
 /** Dragging an end of the range — one shape of `reshapeGrid`. */
@@ -756,6 +820,6 @@ export function moveGridRange(
   userId: string,
   wallet: TradeWallet,
   input: { gridId: string; topPx: number; bottomPx: number }
-): Promise<{ moved: true }> {
+): Promise<MovedGrid> {
   return reshapeGrid(userId, wallet, input)
 }

@@ -20,6 +20,7 @@ import type { SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
   readSmartPlan,
+  type SmartLadder,
   type SmartOrder,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
@@ -95,6 +96,13 @@ export type PlacedLadder = {
   placed: number
   /** Rungs price had already passed, so they never got a chance to wait. */
   passed: number
+  /**
+   * The ladder exactly as it was written down, so the chart can draw it in
+   * the same frame the window closes — the same reason `PlacedGrid` carries
+   * its grid. Without it the preview lines die with the window and the real
+   * rungs only arrive on the next read, seconds later.
+   */
+  ladder: SmartLadder
 }
 
 /**
@@ -447,6 +455,7 @@ export async function placeDcaLadder(
 
   const now = Date.now()
   const maxLeverage = plan.maxLeverage
+  const ladderId = randomUUID()
 
   await db.transaction(async (tx) => {
     // The same lock every settle takes, so a poll mid-placement waits its turn.
@@ -492,7 +501,6 @@ export async function placeDcaLadder(
       )
     }
 
-    const ladderId = randomUUID()
     await tx.insert(tradeSmartLadders).values({
       userId,
       id: ladderId,
@@ -527,6 +535,17 @@ export async function placeDcaLadder(
     // Rungs price had already passed. Reported rather than hidden: a ladder
     // that placed four of seven buys should say so on the spot.
     passed: rungs.filter((rung) => rung.status === "skipped").length,
+    ladder: {
+      id: ladderId,
+      walletId: wallet.id,
+      marketKey: input.marketKey,
+      kind: "dca",
+      status: "active",
+      flowRunId: input.flowRunId ?? null,
+      createdAt: now,
+      updatedAt: now,
+      plan,
+    },
   }
 }
 

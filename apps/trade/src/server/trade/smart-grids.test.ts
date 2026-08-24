@@ -914,6 +914,26 @@ describe("following price up", () => {
     expect(gridStopPx(grid.plan)).toBeCloseTo(85.5, 9)
   })
 
+  it("leaves a grid placed below the price alone until price reaches it", async () => {
+    // Placed with the price far above the whole range — the click-anchored
+    // shape: a grid hung under a level, waiting for a fall. The remembered
+    // follow setting rode along, and follow used to fire on the first pass
+    // and drag the range straight up to the market, which threw away the
+    // placement. The range has never been in play, so it must not move.
+    await priceTo(200)
+    await place({ follow: true })
+    await settle()
+
+    const parked = await onlyGrid()
+    expect(parked.plan.shifts).toBe(0)
+    expect(parked.plan.topPx).toBeCloseTo(120, 9)
+
+    // Price falls into the range: from here it is a working grid, and follow
+    // behaves exactly as it does for one placed straddling the price.
+    await priceTo(119)
+    expect((await onlyGrid()).plan.entered).toBe(true)
+  })
+
   it("stays where it is when following is off", async () => {
     await priceTo(100)
     await place()

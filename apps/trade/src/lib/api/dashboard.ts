@@ -14,6 +14,8 @@ import {
   filterMarketsByVolume,
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
+import type { DcaParams } from "@/lib/trade/dca"
+import type { GridParams } from "@/lib/trade/grid"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type {
   MarketFolder,
@@ -51,6 +53,12 @@ export type DashboardBootstrap = {
   indicators: IndicatorSettings
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
+  /**
+   * The smart-order windows' saved settings, carried with the page so the
+   * first right-click after a load opens on them with nothing to fetch.
+   */
+  smartDca: DcaParams | null
+  smartGrid: GridParams | null
 }
 
 const bootstrapSchema = z.object({
@@ -104,6 +112,8 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
       indicators: prefs.indicators,
       cardFolds: prefs.cardFolds,
       quickOrder: prefs.quickOrder,
+      smartDca: prefs.smartDca,
+      smartGrid: prefs.smartGrid,
     }
   })
 

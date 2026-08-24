@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils"
  * a ladder's rungs are, and the label says so on hover.
  */
 
-export function GridLayer({
+export const GridLayer = React.memo(function GridLayer({
   surface,
   colors,
   marketKey,
@@ -159,15 +159,19 @@ export function GridLayer({
           onEditStop={onEditStop}
           onMoveRange={onMoveRange}
           onMoveExit={onMoveExit}
-          priceAt={(clientY) => {
-            const top = layerRef.current?.getBoundingClientRect().top
-            return top === undefined ? null : surface.priceAt(clientY - top)
-          }}
+          // Split in two so a drag measures the layer's box ONCE, when it
+          // starts, instead of asking the browser to lay out on every pixel
+          // of movement. The box cannot move mid-drag — nothing scrolls or
+          // resizes while a pointer is held on a chart line.
+          measureTop={() =>
+            layerRef.current?.getBoundingClientRect().top ?? null
+          }
+          priceFrom={(clientY, top) => surface.priceAt(clientY - top)}
         />
       ))}
     </div>
   )
-}
+})
 
 /**
  * What rests at one price, and which level it belongs to.
@@ -263,7 +267,8 @@ function GridLines({
   onEditStop,
   onMoveRange,
   onMoveExit,
-  priceAt,
+  measureTop,
+  priceFrom,
 }: {
   grid: SmartGrid
   colors: ChartColors
@@ -285,8 +290,10 @@ function GridLines({
     which: "takeProfit" | "stopLoss",
     px: number
   ) => Promise<boolean>
-  /** The price under a pointer, from its clientY. */
-  priceAt: (clientY: number) => number | null
+  /** Where the layer's box starts on screen, measured once per drag. */
+  measureTop: () => number | null
+  /** The price under a pointer, from its clientY and the measured top. */
+  priceFrom: (clientY: number, top: number) => number | null
 }) {
   const plan = grid.plan
   const waiting = plan.levels.filter(
@@ -334,14 +341,30 @@ function GridLines({
     (which: DragEnd, from: number) => (event: React.PointerEvent) => {
       event.preventDefault()
       event.stopPropagation()
+      // Measured once, here. The box cannot move mid-drag, and asking the
+      // browser for it on every pixel forced a layout per mouse move.
+      const top = measureTop()
+      if (top === null) return
+      // Pointer moves arrive faster than the screen repaints, so they are
+      // coalesced onto one animation frame — the same rule the chart's own
+      // surface uses. The line still lands on every frame; it just stops
+      // being asked to land between them.
+      let frame = 0
+      let lastY = event.clientY
       const onMove = (move: PointerEvent) => {
-        const px = priceAt(move.clientY)
-        if (px !== null && px > 0) setDragging({ end: which, px })
+        lastY = move.clientY
+        if (frame) return
+        frame = requestAnimationFrame(() => {
+          frame = 0
+          const px = priceFrom(lastY, top)
+          if (px !== null && px > 0) setDragging({ end: which, px })
+        })
       }
       const onUp = (up: PointerEvent) => {
         window.removeEventListener("pointermove", onMove)
         window.removeEventListener("pointerup", onUp)
-        const px = priceAt(up.clientY)
+        if (frame) cancelAnimationFrame(frame)
+        const px = priceFrom(up.clientY, top)
         setDragging(null)
         if (px === null || !(px > 0)) return
         // A drag that ends where it started is a click, not a move.

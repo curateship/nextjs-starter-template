@@ -15,6 +15,7 @@ import { loadDashboardBootstrap } from "@/lib/api/dashboard"
 import { saveLastMarket } from "@/lib/api/markets"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
+import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
 import {
@@ -70,6 +71,8 @@ function exchangeLoader(protocol: ProtocolId) {
         indicators: defaultIndicatorSettings(),
         cardFolds: {},
         quickOrder: DEFAULT_QUICK_ORDER,
+        smartDca: null,
+        smartGrid: null,
       })
     )
     return { ...boot, network: deps.network }
@@ -157,7 +160,14 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
     indicators,
     cardFolds,
     quickOrder,
+    smartDca,
+    smartGrid,
   } = useLoaderData({ strict: false }) as ExchangeLoaderData
+  // The smart-order windows' saved settings arrived with the page; hand them
+  // to the browser-side copy so the first right-click opens on them with
+  // nothing left to fetch. Fills empty slots only — a placement made since
+  // the loader's answer was cached must not be overwritten by it.
+  seedSmartPrefs(smartDca, smartGrid)
   const { market } = useSearch({ strict: false }) as TradeSearch
   const navigate = useNavigate()
   // A retry fetches the market list alone — never the whole loader. Stable

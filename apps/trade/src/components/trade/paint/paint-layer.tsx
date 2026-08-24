@@ -158,7 +158,7 @@ function RemoveButton({
   )
 }
 
-export function PaintLayer({
+export const PaintLayer = React.memo(function PaintLayer({
   surface,
   drawings,
   tool,
@@ -435,4 +435,4 @@ export function PaintLayer({
       ) : null}
     </svg>
   )
-}
+})

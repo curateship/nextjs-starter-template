@@ -267,6 +267,7 @@ describe("reading a stored grid back", () => {
     seenFillsTo: 0,
     cycles: 0,
     follow: false,
+    entered: true,
     shifts: 0,
     closedReason: null,
   }

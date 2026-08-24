@@ -63,6 +63,12 @@ type Grab = {
   fromY: number
   price: number
   moved: boolean
+  /**
+   * Where the layer's box started on screen, measured once as the line was
+   * taken hold of. The box cannot move mid-drag, and measuring it on every
+   * pixel of movement forced the browser to lay the page out per mouse move.
+   */
+  top: number
 }
 
 type LineKind =
@@ -171,7 +177,7 @@ function Grip({ x, y, color }: { x: number; y: number; color: string }) {
   return <g opacity={0.75}>{dots}</g>
 }
 
-export function TradeLinesLayer({
+export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   surface,
   colors,
   marketKey,
@@ -398,7 +404,9 @@ export function TradeLinesLayer({
     )
     if (!position) return null
     const winning =
-      position.szi > 0 ? order.px > position.entryPx : order.px < position.entryPx
+      position.szi > 0
+        ? order.px > position.entryPx
+        : order.px < position.entryPx
     return winning ? "take_profit" : "stop_loss"
   }
 
@@ -452,9 +460,7 @@ export function TradeLinesLayer({
         settled && !order.trigger
           ? (price) => onMoveOrder(order.walletId, order.id, price)
           : undefined,
-      onRemove: settled
-        ? () => onCancelOrder(order)
-        : undefined,
+      onRemove: settled ? () => onCancelOrder(order) : undefined,
       onSettings: edit,
       hint: edit
         ? "Change how much this order is for, and where it gets out once it fills."
@@ -504,6 +510,13 @@ export function TradeLinesLayer({
     }
   }
 
+  // Pointer moves arrive faster than the screen repaints, so a drag's moves
+  // are coalesced onto one animation frame — the same rule the chart's own
+  // surface uses. The pending frame and the newest pointer height live in
+  // refs, because a render has no business knowing about either.
+  const frameRef = React.useRef(0)
+  const lastYRef = React.useRef(0)
+
   const beginGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {
     if (!line.onMove) return
     // A line owns this touch. The chart behind it must not begin a pan, and
@@ -511,6 +524,7 @@ export function TradeLinesLayer({
     event.preventDefault()
     event.stopPropagation()
     event.currentTarget.setPointerCapture(event.pointerId)
+    // Measured once, here — see `Grab.top`.
     const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
     if (!box) return
     setGrab({
@@ -518,18 +532,25 @@ export function TradeLinesLayer({
       fromY: event.clientY - box.top,
       price: line.price,
       moved: false,
+      top: box.top,
     })
   }
 
   const continueGrab = (event: React.PointerEvent<SVGElement>) => {
     if (!grab) return
-    const box = event.currentTarget.ownerSVGElement?.getBoundingClientRect()
-    if (!box) return
-    const y = event.clientY - box.top
-    if (!grab.moved && Math.abs(y - grab.fromY) <= DRAG_SLOP) return
-    const price = surface.priceAt(y)
-    if (price === null || price <= 0) return
-    setGrab({ ...grab, price, moved: true })
+    lastYRef.current = event.clientY
+    if (frameRef.current) return
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0
+      setGrab((held) => {
+        if (!held) return held
+        const y = lastYRef.current - held.top
+        if (!held.moved && Math.abs(y - held.fromY) <= DRAG_SLOP) return held
+        const price = surface.priceAt(y)
+        if (price === null || price <= 0) return held
+        return { ...held, price, moved: true }
+      })
+    })
   }
 
   const endGrab = (event: React.PointerEvent<SVGElement>, line: Line) => {
@@ -537,9 +558,18 @@ export function TradeLinesLayer({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current)
+      frameRef.current = 0
+    }
+    // The drop lands exactly where the pointer let go, whether or not the
+    // last coalesced move had painted yet.
+    const y = event.clientY - grab.top
+    const moved = grab.moved || Math.abs(y - grab.fromY) > DRAG_SLOP
+    const price = surface.priceAt(y)
     // A press that never travelled was a press, not a move, and saving a price
     // that did not change would be a write for nothing.
-    if (grab.moved) line.onMove?.(grab.price)
+    if (moved && price !== null && price > 0) line.onMove?.(price)
     setGrab(null)
   }
 
@@ -673,196 +703,205 @@ export function TradeLinesLayer({
           badgeY,
           showBadge,
         }) => {
-        // Not `held`: that name belongs to the positions above, and this
-        // callback now sits under a helper that reads them.
-        const dragging = grab?.id === line.id
-        const color = colorOf(line.kind, colors)
+          // Not `held`: that name belongs to the positions above, and this
+          // callback now sits under a helper that reads them.
+          const dragging = grab?.id === line.id
+          const color = colorOf(line.kind, colors)
 
-        return (
-          <g key={line.id}>
-            {/* Stops at the pill rather than running under it, so the words
+          return (
+            <g key={line.id}>
+              {/* Stops at the pill rather than running under it, so the words
                 are read against the chart and not against their own line. */}
-            <line
-              x1={0}
-              y1={y}
-              x2={Math.max(0, pillX - 2)}
-              y2={y}
-              stroke={color}
-              strokeWidth={dragging ? 2 : 1.5}
-              strokeDasharray={DASHED[line.kind]}
-            />
-
-            <g style={{ pointerEvents: "none" }}>
-              <rect
-                x={pillX}
-                y={top}
-                width={pillWidth}
-                height={PILL_HEIGHT}
-                rx={PILL_RADIUS}
-                fill="var(--card)"
-                fillOpacity={0.92}
-                stroke={color}
-                strokeWidth={dragging ? 1.75 : 1.25}
-              />
-              {line.onMove ? (
-                <Grip x={pillX + 9} y={y - 4} color={color} />
-              ) : null}
-              <text
-                x={pillX + 10 + grip}
-                y={y + 4}
-                fill={color}
-                style={{
-                  fontSize: 11,
-                  fontWeight: 600,
-                  letterSpacing: 0.3,
-                }}
-              >
-                {label}
-              </text>
-              {/* The price in the line's colour, over the axis, where every
-                  other price on the chart is read. Dropped when a badge for
-                  this same price is already there — see the layout above. */}
-              {showBadge ? (
-                <>
-                  <rect
-                    x={surface.width + BADGE_GAP}
-                    y={badgeY - PILL_HEIGHT / 2}
-                    width={badgeWidth}
-                    height={PILL_HEIGHT}
-                    rx={PILL_RADIUS}
-                    fill={color}
-                  />
-                  <text
-                    x={surface.width + BADGE_GAP + 6}
-                    y={badgeY + 4}
-                    fill={colors.badgeText}
-                    style={{ fontSize: 11, fontWeight: 600 }}
-                  >
-                    {priceText.replace("$", "")}
-                  </text>
-                </>
-              ) : null}
-            </g>
-
-            {line.onMove && !tool ? (
-              // A fat invisible line over the thin visible one, because a
-              // 1.5px target is not one.
               <line
                 x1={0}
                 y1={y}
-                x2={surface.width}
+                x2={Math.max(0, pillX - 2)}
                 y2={y}
                 stroke={color}
-                strokeOpacity={0}
-                className="[stroke-width:44px] min-[1280px]:[stroke-width:14px]"
-                style={{
-                  pointerEvents: "stroke",
-                  cursor: "ns-resize",
-                  outline: "none",
-                  touchAction: "none",
-                }}
-                tabIndex={0}
-                role="button"
-                aria-label={`${label} at ${priceText}`}
-                onPointerDown={(event) => beginGrab(event, line)}
-                onPointerMove={continueGrab}
-                onPointerUp={(event) => endGrab(event, line)}
-                onPointerCancel={(event) => endGrab(event, line)}
-                onKeyDown={(event) => {
-                  if (event.key === "Delete" || event.key === "Backspace") {
-                    event.preventDefault()
-                    line.onRemove?.()
-                  }
-                }}
+                strokeWidth={dragging ? 2 : 1.5}
+                strokeDasharray={DASHED[line.kind]}
               />
-            ) : null}
 
-            {line.onSettings && !tool ? (
-              // The whole pill is the press target, not just the little gear —
-              // the gear stays as the visual cue, the × on top still wins.
-              //
-              // **It opens on the release, and only if the pointer stayed
-              // put.** The pill sits on the line, so a press on it that then
-              // moves is somebody dragging the order to a new price; opening
-              // on the press meant the window jumped up the moment they took
-              // hold of it, and the drag never happened. A press that travels
-              // drags, a press that does not opens the window.
-              <g
-                role="button"
-                tabIndex={0}
-                aria-label={line.hint ?? `Settings for ${label.toLowerCase()}`}
-                style={{
-                  pointerEvents: "all",
-                  cursor: line.onMove ? "ns-resize" : "pointer",
-                  outline: "none",
-                }}
-                onPointerDown={(event) => {
-                  event.stopPropagation()
-                  if (line.onMove) beginGrab(event, line)
-                }}
-                onPointerMove={continueGrab}
-                onPointerUp={(event) => {
-                  const dragged = grab?.id === line.id && grab.moved
-                  endGrab(event, line)
-                  if (!dragged) line.onSettings?.()
-                }}
-                onPointerCancel={(event) => endGrab(event, line)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault()
-                    line.onSettings?.()
-                  }
-                }}
-              >
-                {line.hint ? <title>{line.hint}</title> : null}
+              <g style={{ pointerEvents: "none" }}>
                 <rect
                   x={pillX}
                   y={top}
                   width={pillWidth}
                   height={PILL_HEIGHT}
                   rx={PILL_RADIUS}
-                  fill="transparent"
+                  fill="var(--card)"
+                  fillOpacity={0.92}
+                  stroke={color}
+                  strokeWidth={dragging ? 1.75 : 1.25}
                 />
+                {line.onMove ? (
+                  <Grip x={pillX + 9} y={y - 4} color={color} />
+                ) : null}
+                <text
+                  x={pillX + 10 + grip}
+                  y={y + 4}
+                  fill={color}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {label}
+                </text>
+                {/* The price in the line's colour, over the axis, where every
+                  other price on the chart is read. Dropped when a badge for
+                  this same price is already there — see the layout above. */}
+                {showBadge ? (
+                  <>
+                    <rect
+                      x={surface.width + BADGE_GAP}
+                      y={badgeY - PILL_HEIGHT / 2}
+                      width={badgeWidth}
+                      height={PILL_HEIGHT}
+                      rx={PILL_RADIUS}
+                      fill={color}
+                    />
+                    <text
+                      x={surface.width + BADGE_GAP + 6}
+                      y={badgeY + 4}
+                      fill={colors.badgeText}
+                      style={{ fontSize: 11, fontWeight: 600 }}
+                    >
+                      {priceText.replace("$", "")}
+                    </text>
+                  </>
+                ) : null}
               </g>
-            ) : null}
 
-            {line.onSettings ? (
-              // Just the glyph — the whole pill above is the press target, so
-              // a second button here would only fight it for the pointer.
-              <text
-                x={
-                  pillX +
-                  pillWidth -
-                  (line.onRemove ? CLOSE_WIDTH : 0) -
-                  CLOSE_WIDTH / 2 -
-                  6
-                }
-                y={y + 5}
-                textAnchor="middle"
-                fill={color}
-                fillOpacity={0.9}
-                style={{ fontSize: 15, pointerEvents: "none" }}
-              >
-                ⚙
-              </text>
-            ) : null}
+              {line.onMove && !tool ? (
+                // A fat invisible line over the thin visible one, because a
+                // 1.5px target is not one.
+                <line
+                  x1={0}
+                  y1={y}
+                  x2={surface.width}
+                  y2={y}
+                  stroke={color}
+                  strokeOpacity={0}
+                  className="[stroke-width:44px] min-[1280px]:[stroke-width:14px]"
+                  style={{
+                    pointerEvents: "stroke",
+                    cursor: "ns-resize",
+                    outline: "none",
+                    touchAction: "none",
+                  }}
+                  tabIndex={0}
+                  role="button"
+                  aria-label={`${label} at ${priceText}`}
+                  onPointerDown={(event) => beginGrab(event, line)}
+                  onPointerMove={continueGrab}
+                  onPointerUp={(event) => endGrab(event, line)}
+                  onPointerCancel={(event) => endGrab(event, line)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Delete" || event.key === "Backspace") {
+                      event.preventDefault()
+                      line.onRemove?.()
+                    }
+                  }}
+                />
+              ) : null}
 
-            {line.onRemove && !tool ? (
-              <RemoveButton
-                x={pillX + pillWidth - CLOSE_WIDTH / 2 - 6}
-                y={y}
-                color={color}
-                label={`Remove ${label.toLowerCase()}`}
-                onRemove={line.onRemove}
-              />
-            ) : null}
-          </g>
+              {line.onSettings && !tool ? (
+                // The whole pill is the press target, not just the little gear —
+                // the gear stays as the visual cue, the × on top still wins.
+                //
+                // **It opens on the release, and only if the pointer stayed
+                // put.** The pill sits on the line, so a press on it that then
+                // moves is somebody dragging the order to a new price; opening
+                // on the press meant the window jumped up the moment they took
+                // hold of it, and the drag never happened. A press that travels
+                // drags, a press that does not opens the window.
+                <g
+                  role="button"
+                  tabIndex={0}
+                  aria-label={
+                    line.hint ?? `Settings for ${label.toLowerCase()}`
+                  }
+                  style={{
+                    pointerEvents: "all",
+                    cursor: line.onMove ? "ns-resize" : "pointer",
+                    outline: "none",
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation()
+                    if (line.onMove) beginGrab(event, line)
+                  }}
+                  onPointerMove={continueGrab}
+                  onPointerUp={(event) => {
+                    // Judged from where the pointer really is, not from the
+                    // last painted frame — a fast flick could let go before its
+                    // coalesced move ever painted.
+                    const dragged =
+                      grab?.id === line.id &&
+                      (grab.moved ||
+                        Math.abs(event.clientY - grab.top - grab.fromY) >
+                          DRAG_SLOP)
+                    endGrab(event, line)
+                    if (!dragged) line.onSettings?.()
+                  }}
+                  onPointerCancel={(event) => endGrab(event, line)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault()
+                      line.onSettings?.()
+                    }
+                  }}
+                >
+                  {line.hint ? <title>{line.hint}</title> : null}
+                  <rect
+                    x={pillX}
+                    y={top}
+                    width={pillWidth}
+                    height={PILL_HEIGHT}
+                    rx={PILL_RADIUS}
+                    fill="transparent"
+                  />
+                </g>
+              ) : null}
+
+              {line.onSettings ? (
+                // Just the glyph — the whole pill above is the press target, so
+                // a second button here would only fight it for the pointer.
+                <text
+                  x={
+                    pillX +
+                    pillWidth -
+                    (line.onRemove ? CLOSE_WIDTH : 0) -
+                    CLOSE_WIDTH / 2 -
+                    6
+                  }
+                  y={y + 5}
+                  textAnchor="middle"
+                  fill={color}
+                  fillOpacity={0.9}
+                  style={{ fontSize: 15, pointerEvents: "none" }}
+                >
+                  ⚙
+                </text>
+              ) : null}
+
+              {line.onRemove && !tool ? (
+                <RemoveButton
+                  x={pillX + pillWidth - CLOSE_WIDTH / 2 - 6}
+                  y={y}
+                  color={color}
+                  label={`Remove ${label.toLowerCase()}`}
+                  onRemove={line.onRemove}
+                />
+              ) : null}
+            </g>
           )
         }
       )}
     </svg>
   )
-}
+})
 
 /** The × inside a label pill, in the line's own colour. */
 function RemoveButton({

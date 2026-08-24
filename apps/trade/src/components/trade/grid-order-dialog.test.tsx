@@ -8,6 +8,12 @@ vi.mock("@/lib/api/smart-orders", () => ({
   loadSmartGridParams: vi.fn(),
 }))
 
+// The isomorphic cookie read inside this hook throws under the test runner,
+// which has neither a server request nor a real browser cookie jar.
+vi.mock("@/lib/layout/wide-screen", () => ({
+  useWideScreen: () => true,
+}))
+
 import { GridOrderDialog } from "@/components/trade/grid-order-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadSmartGridParams } from "@/lib/api/smart-orders"
@@ -53,14 +59,7 @@ afterEach(async () => {
 })
 
 describe("the grid window's saved settings", () => {
-  it("keeps the range choice locked until the saved choice has arrived", async () => {
-    let finishRead: (value: { params: GridParams | null }) => void = () =>
-      undefined
-    const read = new Promise<{ params: GridParams | null }>((resolve) => {
-      finishRead = resolve
-    })
-    vi.mocked(loadSmartGridParams).mockReturnValue(read)
-
+  const renderDialog = async () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
@@ -79,15 +78,60 @@ describe("the grid window's saved settings", () => {
         </TooltipProvider>
       )
     })
+  }
 
+  it("starts with every field typable, and merges the saved settings when they land", async () => {
+    let finishRead: (value: { params: GridParams | null }) => void = () =>
+      undefined
+    const read = new Promise<{ params: GridParams | null }>((resolve) => {
+      finishRead = resolve
+    })
+    vi.mocked(loadSmartGridParams).mockReturnValue(read)
+
+    await renderDialog()
+
+    // Nothing waits for the server: the range choice works at once.
     const rangeChoice = host.querySelector<HTMLButtonElement>("#grid-anchor")
-    expect(rangeChoice?.disabled).toBe(true)
+    expect(rangeChoice?.disabled).toBe(false)
 
     await act(async () => {
-      finishRead({ params: { ...defaultGridParams(), anchor: "price" } })
+      finishRead({ params: { ...defaultGridParams(), levels: 17 } })
       await read
     })
 
-    expect(rangeChoice?.disabled).toBe(false)
+    // Untouched, so the remembered settings replace the defaults.
+    const levels = host.querySelector<HTMLInputElement>("#grid-levels")
+    expect(levels?.value).toBe("17")
+  })
+
+  it("never overwrites a field somebody has already typed into", async () => {
+    let finishRead: (value: { params: GridParams | null }) => void = () =>
+      undefined
+    const read = new Promise<{ params: GridParams | null }>((resolve) => {
+      finishRead = resolve
+    })
+    vi.mocked(loadSmartGridParams).mockReturnValue(read)
+
+    await renderDialog()
+
+    // A hand gets there before the saved settings do.
+    const levels = host.querySelector<HTMLInputElement>("#grid-levels")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      set?.call(levels, "9")
+      levels?.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    expect(levels?.value).toBe("9")
+
+    await act(async () => {
+      finishRead({ params: { ...defaultGridParams(), levels: 17 } })
+      await read
+    })
+
+    // The late-arriving save loses: the typed value stays.
+    expect(levels?.value).toBe("9")
   })
 })

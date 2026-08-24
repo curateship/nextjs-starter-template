@@ -168,6 +168,14 @@ Switched on, the range slides up behind price. When price climbs past the top,
 the whole range moves up in whole steps until the top sits just above price, and
 the grid carries on.
 
+**It only follows a range price has actually been in.** A grid placed below
+the price — hung under a clicked level, waiting for a fall — stays exactly
+where it was put, even with following on, until price first comes down to the
+top of its range. Without that rule the remembered follow setting dragged a
+freshly placed below-the-click grid straight up to the market, which threw the
+placement away. Switching following on by hand on an existing grid is a direct
+instruction and still catches the range up at once.
+
 It costs nothing. By the time price is above the top the grid has already sold
 every level and holds nothing, so there is no position to settle and not one
 order is placed. The move puts price back inside the top step, above every

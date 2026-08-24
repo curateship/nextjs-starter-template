@@ -17,7 +17,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { loadSmartGridParams } from "@/lib/api/smart-orders"
+import {
+  freshGridPrefs,
+  knownGridPrefs,
+  rememberGridPrefs,
+} from "@/lib/trade/smart-prefs-cache"
 import { type MarketRow } from "@/lib/protocols/contracts"
 import {
   baseStopDetection,
@@ -129,14 +133,43 @@ export function GridOrderDialog({
 }) {
   // ----- The settings, remembered server-side ----------------------------
 
-  const [loaded, setLoaded] = React.useState(false)
-  const [levels, setLevels] = React.useState(String(defaultGridParams().levels))
-  const [potPct, setPotPct] = React.useState(String(defaultGridParams().potPct))
-  const [maxOrderVolPct, setMaxOrderVolPct] = React.useState("0")
-  const [spacing, setSpacing] = React.useState<GridSpacing>("even")
-  const [sizing, setSizing] = React.useState<GridSizing>("even")
-  const [anchor, setAnchor] = React.useState<GridAnchor>("price")
-  const [follow, setFollow] = React.useState(false)
+  // The window opens ON the last-known settings — the copy the browser kept
+  // from the last read or placement — and falls back to the defaults only
+  // before either has ever happened. A fresh read still runs behind it, but
+  // because it almost always answers with the same values the fields were
+  // seeded with, nothing on screen moves. Opening on defaults and swapping
+  // when the read landed made the range choice visibly snap a second in.
+  const seeded = React.useRef(knownGridPrefs()).current
+  // A hand that has already touched a field beats the read either way,
+  // because a form must never change under somebody typing into it.
+  const edited = React.useRef(false)
+  const touched = React.useCallback(
+    <A extends unknown[]>(set: (...args: A) => void) =>
+      (...args: A) => {
+        edited.current = true
+        set(...args)
+      },
+    []
+  )
+  const [levels, setLevels] = React.useState(
+    String(seeded?.levels ?? defaultGridParams().levels)
+  )
+  const [potPct, setPotPct] = React.useState(
+    String(seeded?.potPct ?? defaultGridParams().potPct)
+  )
+  const [maxOrderVolPct, setMaxOrderVolPct] = React.useState(
+    seeded ? String(seeded.maxOrderVolPct) : "0"
+  )
+  const [spacing, setSpacing] = React.useState<GridSpacing>(
+    seeded?.spacing ?? "even"
+  )
+  const [sizing, setSizing] = React.useState<GridSizing>(
+    seeded?.sizing ?? "even"
+  )
+  const [anchor, setAnchor] = React.useState<GridAnchor>(
+    seeded?.anchor ?? "price"
+  )
+  const [follow, setFollow] = React.useState(seeded?.follow ?? false)
   // The range STRADDLES the price: levels above it are sells of what the grid
   // holds, levels below are buys waiting for a dip, and the grid earns from
   // price crossing back and forth between them.
@@ -145,57 +178,72 @@ export function GridOrderDialog({
   // same thing on the next coin you open — "8% either side" is a grid you can
   // picture — while a price is only meaningful on the coin it came from, and
   // was remembered onto charts where it was nonsense.
-  const [abovePct, setAbovePct] = React.useState(String(DEFAULT_GRID_ABOVE_PCT))
-  const [belowPct, setBelowPct] = React.useState(String(DEFAULT_GRID_BELOW_PCT))
-  const [tpOn, setTpOn] = React.useState(true)
+  const [abovePct, setAbovePct] = React.useState(
+    String(seeded?.abovePct ?? DEFAULT_GRID_ABOVE_PCT)
+  )
+  const [belowPct, setBelowPct] = React.useState(
+    String(seeded?.rangePct ?? DEFAULT_GRID_BELOW_PCT)
+  )
+  // A following grid has no finish line, so a remembered one stays off.
+  const [tpOn, setTpOn] = React.useState(
+    seeded ? !seeded.follow && seeded.takeProfitPct !== null : true
+  )
   const [tpPct, setTpPct] = React.useState(
-    String(defaultGridParams().takeProfitPct ?? DEFAULT_GRID_TAKE_PROFIT_PCT)
+    String(
+      seeded?.takeProfitPct ??
+        defaultGridParams().takeProfitPct ??
+        DEFAULT_GRID_TAKE_PROFIT_PCT
+    )
   )
-  const [slOn, setSlOn] = React.useState(true)
+  const [slOn, setSlOn] = React.useState(
+    seeded ? seeded.stopLoss !== null : true
+  )
   const [slUnderPct, setSlUnderPct] = React.useState(
-    String(defaultGridParams().stopLoss?.underPct ?? 5)
+    String(
+      seeded?.stopLoss?.underPct ?? defaultGridParams().stopLoss?.underPct ?? 5
+    )
   )
-  const [baseOn, setBaseOn] = React.useState(false)
+  const [baseOn, setBaseOn] = React.useState(
+    seeded ? seeded.stopLoss?.base != null : false
+  )
   const [baseUnderPct, setBaseUnderPct] = React.useState(
-    String(DEFAULT_BASE_STOP_UNDER_PCT)
+    String(seeded?.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
   )
   const [baseReclaimDays, setBaseReclaimDays] = React.useState(
-    String(DEFAULT_BASE_STOP_RECLAIM_DAYS)
+    String(
+      seeded?.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS
+    )
   )
 
   React.useEffect(() => {
     let stale = false
-    loadSmartGridParams()
-      .then(({ params }) => {
-        if (stale || !params) return
-        setLevels(String(params.levels))
-        setPotPct(String(params.potPct))
-        setMaxOrderVolPct(String(params.maxOrderVolPct))
-        setSpacing(params.spacing)
-        setSizing(params.sizing)
-        setAnchor(params.anchor)
-        setFollow(params.follow)
-        setAbovePct(String(params.abovePct))
-        setBelowPct(String(params.rangePct))
-        // A following grid has no finish line, so a remembered one stays off.
-        setTpOn(!params.follow && params.takeProfitPct !== null)
-        if (params.takeProfitPct !== null)
-          setTpPct(String(params.takeProfitPct))
-        setSlOn(params.stopLoss !== null)
-        if (params.stopLoss) {
-          setSlUnderPct(String(params.stopLoss.underPct))
-          setBaseOn(params.stopLoss.base !== null)
-          if (params.stopLoss.base) {
-            setBaseUnderPct(String(params.stopLoss.base.underPct))
-            setBaseReclaimDays(String(params.stopLoss.base.reclaimDays))
-          }
+    void freshGridPrefs().then((params) => {
+      // A field already typed into is never overwritten — the remembered
+      // settings lost the race and the hand wins. Values equal to what the
+      // fields were seeded with change nothing on screen.
+      if (stale || !params || edited.current) return
+      setLevels(String(params.levels))
+      setPotPct(String(params.potPct))
+      setMaxOrderVolPct(String(params.maxOrderVolPct))
+      setSpacing(params.spacing)
+      setSizing(params.sizing)
+      setAnchor(params.anchor)
+      setFollow(params.follow)
+      setAbovePct(String(params.abovePct))
+      setBelowPct(String(params.rangePct))
+      // A following grid has no finish line, so a remembered one stays off.
+      setTpOn(!params.follow && params.takeProfitPct !== null)
+      if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
+      setSlOn(params.stopLoss !== null)
+      if (params.stopLoss) {
+        setSlUnderPct(String(params.stopLoss.underPct))
+        setBaseOn(params.stopLoss.base !== null)
+        if (params.stopLoss.base) {
+          setBaseUnderPct(String(params.stopLoss.base.underPct))
+          setBaseReclaimDays(String(params.stopLoss.base.reclaimDays))
         }
-      })
-      // A failed load just means defaults — the window still works.
-      .catch(() => undefined)
-      .finally(() => {
-        if (!stale) setLoaded(true)
-      })
+      }
+    })
     return () => {
       stale = true
     }
@@ -459,11 +507,14 @@ export function GridOrderDialog({
                 ? `The grid costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
                 : null
 
-  const ready = loaded && !busy && refusal === null && plan !== null
+  const ready = !busy && refusal === null && plan !== null
 
   const submit = async () => {
     if (!ready || !params || top === null || bottom === null) return
     const placed = await onPlace({ topPx: top, bottomPx: bottom, params })
+    // The server remembers these on placing; the browser's copy keeps the
+    // next window from opening on anything older.
+    if (placed) rememberGridPrefs(params)
     if (placed) onClose()
   }
 
@@ -495,476 +546,488 @@ export function GridOrderDialog({
       }}
       onClose={onClose}
     >
-        <div
-          className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-          onPointerDown={(event) => {
-            dragRef.current = {
-              dx: event.clientX - at.x,
-              dy: event.clientY - at.y,
-            }
-          }}
-        >
-          <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-            Grid
+      <div
+        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
+        onPointerDown={(event) => {
+          dragRef.current = {
+            dx: event.clientX - at.x,
+            dy: event.clientY - at.y,
+          }
+        }}
+      >
+        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+          Grid
+        </span>
+        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate font-medium text-foreground">
+            {wallet}
           </span>
-          <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate font-medium text-foreground">
-              {wallet}
-            </span>
-            <span className="shrink-0 tabular-nums">
-              · {formatUsd(free)} free
-            </span>
+          <span className="shrink-0 tabular-nums">
+            · {formatUsd(free)} free
           </span>
-        </div>
+        </span>
+      </div>
 
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
-          <div className="grid gap-4 p-3">
-            {/* Where the price is right now, said out loud. The whole range has
+      <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <div className="grid gap-4 p-3">
+          {/* Where the price is right now, said out loud. The whole range has
                 to sit under it, and a window that only told you afterwards
                 would be a window you had to guess at. */}
-            <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">Price now</span>
-              <span className="font-medium tabular-nums">
-                {formatPrice(market.price)}
-              </span>
-            </div>
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">Price now</span>
+            <span className="font-medium tabular-nums">
+              {formatPrice(market.price)}
+            </span>
+          </div>
 
-            <OptionCard
-              id="grid-range"
-              title="Range"
-              hint="Where the grid works, and how many buys it is split into. Each buy sells one step above itself."
-              summary={
-                anchor === "click"
-                  ? below === null
-                    ? "—"
-                    : `−${belowPct}%`
-                  : above === null || below === null
-                    ? "—"
-                    : above === below
-                      ? `±${belowPct}%`
-                      : `+${abovePct}% / −${belowPct}%`
-              }
-            >
+          <OptionCard
+            id="grid-range"
+            title="Range"
+            hint="Where the grid works, and how many buys it is split into. Each buy sells one step above itself."
+            summary={
+              anchor === "click"
+                ? below === null
+                  ? "—"
+                  : `−${belowPct}%`
+                : above === null || below === null
+                  ? "—"
+                  : above === below
+                    ? `±${belowPct}%`
+                    : `+${abovePct}% / −${belowPct}%`
+            }
+          >
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-anchor"
+                hint={GRID_ANCHOR_HINTS[anchor]}
+              >
+                Where the range sits
+              </FieldLabel>
+              <Select
+                value={anchor}
+                disabled={busy}
+                onValueChange={touched((next: string) =>
+                  setAnchor(next as GridAnchor)
+                )}
+              >
+                <SelectTrigger
+                  id="grid-anchor"
+                  className="w-full bg-background"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRID_ANCHORS.map((one) => (
+                    <SelectItem key={one} value={one}>
+                      {GRID_ANCHOR_LABELS[one]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {anchor === "click" ? (
+              /* One depth, not two. The top is solved for so the clicked
+                   price gets its own buy, so there is nothing to type above. */
               <div className="grid gap-2">
                 <FieldLabel
-                  htmlFor="grid-anchor"
-                  hint={GRID_ANCHOR_HINTS[anchor]}
+                  htmlFor="grid-bottom"
+                  hint="How far under the price you clicked the deepest buy sits."
                 >
-                  Where the range sits
+                  How far below %
                 </FieldLabel>
-                <Select
-                  value={anchor}
-                  disabled={busy || !loaded}
-                  onValueChange={(next) => setAnchor(next as GridAnchor)}
-                >
-                  <SelectTrigger
-                    id="grid-anchor"
-                    className="w-full bg-background"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GRID_ANCHORS.map((one) => (
-                      <SelectItem key={one} value={one}>
-                        {GRID_ANCHOR_LABELS[one]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="grid-bottom"
+                  inputMode="decimal"
+                  value={belowPct}
+                  disabled={busy}
+                  aria-invalid={below === null}
+                  onChange={(event) => touched(setBelowPct)(event.target.value)}
+                  className="bg-background"
+                />
               </div>
-              {anchor === "click" ? (
-                /* One depth, not two. The top is solved for so the clicked
-                   price gets its own buy, so there is nothing to type above. */
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="grid-bottom"
-                    hint="How far under the price you clicked the deepest buy sits."
-                  >
-                    How far below %
-                  </FieldLabel>
+            ) : (
+              <div className="flex items-end gap-2">
+                <div className="grid flex-1 gap-2">
+                  <Label htmlFor="grid-top" className="text-xs">
+                    Above %
+                  </Label>
+                  <Input
+                    id="grid-top"
+                    inputMode="decimal"
+                    value={abovePct}
+                    disabled={busy}
+                    aria-invalid={above === null}
+                    onChange={(event) =>
+                      touched(setAbovePct)(event.target.value)
+                    }
+                    className="bg-background"
+                  />
+                </div>
+                <div className="grid flex-1 gap-2">
+                  <Label htmlFor="grid-bottom" className="text-xs">
+                    Below %
+                  </Label>
                   <Input
                     id="grid-bottom"
                     inputMode="decimal"
                     value={belowPct}
-                    disabled={busy || !loaded}
+                    disabled={busy}
                     aria-invalid={below === null}
-                    onChange={(event) => setBelowPct(event.target.value)}
+                    onChange={(event) =>
+                      touched(setBelowPct)(event.target.value)
+                    }
                     className="bg-background"
                   />
                 </div>
-              ) : (
-                <div className="flex items-end gap-2">
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor="grid-top" className="text-xs">
-                      Above %
-                    </Label>
-                    <Input
-                      id="grid-top"
-                      inputMode="decimal"
-                      value={abovePct}
-                      disabled={busy || !loaded}
-                      aria-invalid={above === null}
-                      onChange={(event) => setAbovePct(event.target.value)}
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="grid flex-1 gap-2">
-                    <Label htmlFor="grid-bottom" className="text-xs">
-                      Below %
-                    </Label>
-                    <Input
-                      id="grid-bottom"
-                      inputMode="decimal"
-                      value={belowPct}
-                      disabled={busy || !loaded}
-                      aria-invalid={below === null}
-                      onChange={(event) => setBelowPct(event.target.value)}
-                      className="bg-background"
-                    />
-                  </div>
-                </div>
-              )}
-              {/* Where those percentages actually land, so the range can be
-                  checked against the chart without doing the sums. */}
-              <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                <span>Range</span>
-                <span className="tabular-nums">
-                  {bottom === null || top === null
-                    ? "—"
-                    : `${formatPrice(bottom)} – ${formatPrice(top)}`}
-                </span>
               </div>
-              {anchor === "click" ? (
-                /* The one number this mode promises. The top of the range is a
+            )}
+            {/* Where those percentages actually land, so the range can be
+                  checked against the chart without doing the sums. */}
+            <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+              <span>Range</span>
+              <span className="tabular-nums">
+                {bottom === null || top === null
+                  ? "—"
+                  : `${formatPrice(bottom)} – ${formatPrice(top)}`}
+              </span>
+            </div>
+            {anchor === "click" ? (
+              /* The one number this mode promises. The top of the range is a
                    step above it and is not a buy, which is worth saying out
                    loud on the window rather than only in the code. */
-                <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Top buy, where you clicked</span>
-                  <span className="tabular-nums">{formatPrice(state.px)}</span>
-                </div>
-              ) : null}
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-levels"
-                  hint={`How many buys the range is split into. Each one rests its own order, so ${MAX_GRID_LEVELS} is the most.`}
-                >
-                  Levels
-                </FieldLabel>
-                <Input
-                  id="grid-levels"
-                  inputMode="numeric"
-                  value={levels}
-                  disabled={busy || !loaded}
-                  aria-invalid={parsed(levels) === null}
-                  onChange={(event) => setLevels(event.target.value)}
-                  className="bg-background"
-                />
+              <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                <span>Top buy, where you clicked</span>
+                <span className="tabular-nums">{formatPrice(state.px)}</span>
               </div>
-              {/* What the straddle means in plain numbers: how much it buys
+            ) : null}
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-levels"
+                hint={`How many buys the range is split into. Each one rests its own order, so ${MAX_GRID_LEVELS} is the most.`}
+              >
+                Levels
+              </FieldLabel>
+              <Input
+                id="grid-levels"
+                inputMode="numeric"
+                value={levels}
+                disabled={busy}
+                aria-invalid={parsed(levels) === null}
+                onChange={(event) => touched(setLevels)(event.target.value)}
+                className="bg-background"
+              />
+            </div>
+            {/* What the straddle means in plain numbers: how much it buys
                   the moment you press Place, and how much waits below. */}
-              {waitingAbove > 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  {waitingAbove} level{waitingAbove === 1 ? "" : "s"} sit above
-                  the price. Placing this buys nothing: each level waits for
-                  price to reach it and then buys at its own price.
-                </p>
-              ) : null}
-              {/* The two numbers that decide whether this is worth running:
+            {waitingAbove > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {waitingAbove} level{waitingAbove === 1 ? "" : "s"} sit above
+                the price. Placing this buys nothing: each level waits for price
+                to reach it and then buys at its own price.
+              </p>
+            ) : null}
+            {/* The two numbers that decide whether this is worth running:
                   what one round trip is worth, and what each buy spends. */}
-              <div className="grid gap-1 text-xs text-muted-foreground">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span>Step between levels</span>
-                  <span className="tabular-nums">
-                    {stepUsd === null ? "—" : formatPrice(stepUsd)}
-                  </span>
-                </div>
-                {sizing === "double" ? (
-                  <>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span>Top buy spends</span>
-                      <span className="tabular-nums">
-                        {topBuy === null ? "—" : formatUsd(topBuy)}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span>Bottom buy spends</span>
-                      <span className="tabular-nums">
-                        {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
-                      </span>
-                    </div>
-                  </>
-                ) : (
+            <div className="grid gap-1 text-xs text-muted-foreground">
+              <div className="flex items-baseline justify-between gap-2">
+                <span>Step between levels</span>
+                <span className="tabular-nums">
+                  {stepUsd === null ? "—" : formatPrice(stepUsd)}
+                </span>
+              </div>
+              {sizing === "double" ? (
+                <>
                   <div className="flex items-baseline justify-between gap-2">
-                    <span>Each buy spends</span>
+                    <span>Top buy spends</span>
+                    <span className="tabular-nums">
+                      {topBuy === null ? "—" : formatUsd(topBuy)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span>Bottom buy spends</span>
                     <span className="tabular-nums">
                       {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
                     </span>
                   </div>
-                )}
+                </>
+              ) : (
                 <div className="flex items-baseline justify-between gap-2">
-                  <span>Whole grid</span>
+                  <span>Each buy spends</span>
                   <span className="tabular-nums">
-                    {plan === null ? "—" : formatUsd(plan.totalCost)}
+                    {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
                   </span>
                 </div>
+              )}
+              <div className="flex items-baseline justify-between gap-2">
+                <span>Whole grid</span>
+                <span className="tabular-nums">
+                  {plan === null ? "—" : formatUsd(plan.totalCost)}
+                </span>
               </div>
-            </OptionCard>
+            </div>
+          </OptionCard>
 
-            <OptionCard
-              id="grid-money"
-              title="Money"
-              hint="The share of the account the whole grid may spend, and how that share is split between the levels. Whatever a level is given, it spends the same amount cycle after cycle."
-              summary={plan === null ? "—" : formatUsd(plan.totalCost)}
-            >
-              <div className="grid gap-2">
-                <Label htmlFor="grid-pot" className="text-xs">
-                  Share of account %
-                </Label>
-                <Input
-                  id="grid-pot"
-                  inputMode="decimal"
-                  value={potPct}
-                  disabled={busy || !loaded}
-                  aria-invalid={parsed(potPct) === null}
-                  onChange={(event) => setPotPct(event.target.value)}
-                  className="bg-background"
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-sizing"
-                  hint={GRID_SIZING_HINTS[sizing]}
+          <OptionCard
+            id="grid-money"
+            title="Money"
+            hint="The share of the account the whole grid may spend, and how that share is split between the levels. Whatever a level is given, it spends the same amount cycle after cycle."
+            summary={plan === null ? "—" : formatUsd(plan.totalCost)}
+          >
+            <div className="grid gap-2">
+              <Label htmlFor="grid-pot" className="text-xs">
+                Share of account %
+              </Label>
+              <Input
+                id="grid-pot"
+                inputMode="decimal"
+                value={potPct}
+                disabled={busy}
+                aria-invalid={parsed(potPct) === null}
+                onChange={(event) => touched(setPotPct)(event.target.value)}
+                className="bg-background"
+              />
+            </div>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-sizing"
+                hint={GRID_SIZING_HINTS[sizing]}
+              >
+                Split between levels
+              </FieldLabel>
+              <Select
+                value={sizing}
+                disabled={busy}
+                onValueChange={touched((next: string) =>
+                  setSizing(next as GridSizing)
+                )}
+              >
+                <SelectTrigger
+                  id="grid-sizing"
+                  className="w-full bg-background"
                 >
-                  Split between levels
-                </FieldLabel>
-                <Select
-                  value={sizing}
-                  disabled={busy}
-                  onValueChange={(next) => setSizing(next as GridSizing)}
-                >
-                  <SelectTrigger
-                    id="grid-sizing"
-                    className="w-full bg-background"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GRID_SIZINGS.map((one) => (
-                      <SelectItem key={one} value={one}>
-                        {GRID_SIZING_LABELS[one]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </OptionCard>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRID_SIZINGS.map((one) => (
+                    <SelectItem key={one} value={one}>
+                      {GRID_SIZING_LABELS[one]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </OptionCard>
 
-            <OptionCard
-              id="grid-follow"
-              title="Follow price up"
-              hint="When price climbs past the top, the range slides up behind it and the grid carries on. It costs nothing, because by then every level has already sold. The stop slides up too, so it keeps what it has made, and it never finishes on its own: it runs until you switch this off or the stop is hit. Levels the same dollars apart thin as the range climbs, so following stops once a round trip no longer clears the fee. The same percent apart has no such limit."
-              toggle={{
-                checked: follow,
-                disabled: busy || !loaded,
-                onChange: (next) => {
-                  setFollow(next)
-                  // A range that slides up ahead of price can never reach a
-                  // line above it, so the finish line goes with it rather than
-                  // sitting there looking like an exit.
-                  if (next) setTpOn(false)
-                },
-              }}
-            >
-              {/* Nothing to fold open. Following has no numbers of its own, and
+          <OptionCard
+            id="grid-follow"
+            title="Follow price up"
+            hint="When price climbs past the top, the range slides up behind it and the grid carries on. It costs nothing, because by then every level has already sold. The stop slides up too, so it keeps what it has made, and it never finishes on its own: it runs until you switch this off or the stop is hit. Levels the same dollars apart thin as the range climbs, so following stops once a round trip no longer clears the fee. The same percent apart has no such limit."
+            toggle={{
+              checked: follow,
+              disabled: busy,
+              onChange: touched((next: boolean) => {
+                setFollow(next)
+                // A range that slides up ahead of price can never reach a
+                // line above it, so the finish line goes with it rather than
+                // sitting there looking like an exit.
+                if (next) setTpOn(false)
+              }),
+            }}
+          >
+            {/* Nothing to fold open. Following has no numbers of its own, and
                   everything there is to say about it is on the tooltip beside
                   the title, where it does not take up the window. */}
-              {null}
-            </OptionCard>
+            {null}
+          </OptionCard>
 
-            {/* Hidden entirely while the grid follows price. A line above a
+          {/* Hidden entirely while the grid follows price. A line above a
                 range that slides up ahead of price can never be reached, and a
                 setting that quietly does nothing is worse than no setting. */}
-            {follow ? null : (
-              <OptionCard
-                id="grid-tp-on"
-                title="Finish the grid"
-                summary={
-                  tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
-                }
-                hint="How far above the range price has to get before the grid closes itself. It rarely sells anything: by the time price is up there every level has already sold, so what this really does is stop the grid watching. Without it the grid waits above its range for price to come back down."
-                toggle={{
-                  checked: tpOn,
-                  disabled: busy || !loaded,
-                  onChange: setTpOn,
-                }}
-              >
-                {tpOn ? (
-                  <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="grid-tp-pct" className="text-xs">
-                        Above the top %
-                      </Label>
-                      <Input
-                        id="grid-tp-pct"
-                        inputMode="decimal"
-                        value={tpPct}
-                        disabled={busy || !loaded}
-                        aria-invalid={parsed(tpPct) === null}
-                        onChange={(event) => setTpPct(event.target.value)}
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                      <span>Grid finishes at</span>
-                      <span className="tabular-nums">
-                        {takeProfitPx === null
-                          ? "—"
-                          : formatPrice(takeProfitPx)}
-                      </span>
-                    </div>
-                  </>
-                ) : null}
-              </OptionCard>
-            )}
-
+          {follow ? null : (
             <OptionCard
-              id="grid-sl-on"
-              title="Stop loss"
+              id="grid-tp-on"
+              title="Finish the grid"
               summary={
-                slOn
-                  ? parsed(slUnderPct) === null
-                    ? "—"
-                    : `−${slUnderPct}%`
-                  : null
+                tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
               }
-              hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
+              hint="How far above the range price has to get before the grid closes itself. It rarely sells anything: by the time price is up there every level has already sold, so what this really does is stop the grid watching. Without it the grid waits above its range for price to come back down."
               toggle={{
-                checked: slOn,
-                disabled: busy || !loaded,
-                onChange: setSlOn,
+                checked: tpOn,
+                disabled: busy,
+                onChange: touched(setTpOn),
               }}
             >
-              {slOn ? (
+              {tpOn ? (
                 <>
                   <div className="grid gap-2">
-                    <FieldLabel
-                      htmlFor="grid-sl-pct"
-                      hint="How far under the bottom of the range the stop rests. Zero sits it on the bottom itself."
-                    >
-                      Below the bottom %
-                    </FieldLabel>
+                    <Label htmlFor="grid-tp-pct" className="text-xs">
+                      Above the top %
+                    </Label>
                     <Input
-                      id="grid-sl-pct"
+                      id="grid-tp-pct"
                       inputMode="decimal"
-                      value={slUnderPct}
-                      disabled={busy || !loaded}
-                      aria-invalid={parsed(slUnderPct) === null}
-                      onChange={(event) => setSlUnderPct(event.target.value)}
+                      value={tpPct}
+                      disabled={busy}
+                      aria-invalid={parsed(tpPct) === null}
+                      onChange={(event) =>
+                        touched(setTpPct)(event.target.value)
+                      }
                       className="bg-background"
                     />
                   </div>
                   <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                    <span>Stop sits at</span>
+                    <span>Grid finishes at</span>
                     <span className="tabular-nums">
-                      {stopPx === null ? "—" : formatPrice(stopPx)}
+                      {takeProfitPx === null ? "—" : formatPrice(takeProfitPx)}
                     </span>
                   </div>
-                  <BaseStopFields
-                    on={baseOn}
-                    underPct={baseUnderPct}
-                    reclaimDays={baseReclaimDays}
-                    disabled={busy || !loaded}
-                    onOn={setBaseOn}
-                    onUnderPct={setBaseUnderPct}
-                    onReclaimDays={setBaseReclaimDays}
-                  />
                 </>
               ) : null}
             </OptionCard>
+          )}
 
-            <OptionCard
-              id="grid-advanced"
-              title="Advanced settings"
-              defaultOpen={false}
-              footer={
-                plan?.volumeCapped ? (
-                  <p className="text-xs text-muted-foreground">
-                    The liquidity guard is shrinking some buys — the amounts
-                    above show it.
-                  </p>
-                ) : null
-              }
-            >
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-spacing"
-                  hint={GRID_SPACING_HINTS[spacing]}
-                >
-                  Levels spread
-                </FieldLabel>
-                <Select
-                  value={spacing}
-                  disabled={busy}
-                  onValueChange={(next) => setSpacing(next as GridSpacing)}
-                >
-                  <SelectTrigger
-                    id="grid-spacing"
-                    className="w-full bg-background"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GRID_SPACINGS.map((one) => (
-                      <SelectItem key={one} value={one}>
-                        {GRID_SPACING_LABELS[one]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="grid-vol-pct"
-                  hint="No single buy bigger than this share of the coin's last-24-hours volume, so thin coins get small orders. 0 turns it off."
-                >
-                  Liquidity guard %
-                </FieldLabel>
-                <Input
-                  id="grid-vol-pct"
-                  inputMode="decimal"
-                  value={maxOrderVolPct}
-                  disabled={busy || !loaded}
-                  aria-invalid={parsed(maxOrderVolPct) === null}
-                  onChange={(event) => setMaxOrderVolPct(event.target.value)}
-                  className="bg-background"
-                />
-              </div>
-            </OptionCard>
-          </div>
-        </ScrollArea>
-
-        {/* Below the scroll, not in it: however many levels the grid has, the
-            refusal and the button that would ignore it stay on screen. */}
-        <div className="border-t p-3">
-          <OrderRefusal id="grid-refusal" className="pb-3">
-            {refusal}
-          </OrderRefusal>
-          <Button
-            type="button"
-            onClick={() => void submit()}
-            aria-describedby={refusal ? "grid-refusal" : undefined}
-            disabled={!ready}
-            className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+          <OptionCard
+            id="grid-sl-on"
+            title="Stop loss"
+            summary={
+              slOn
+                ? parsed(slUnderPct) === null
+                  ? "—"
+                  : `−${slUnderPct}%`
+                : null
+            }
+            hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
+            toggle={{
+              checked: slOn,
+              disabled: busy,
+              onChange: touched(setSlOn),
+            }}
           >
-            {busy || !loaded ? (
-              <Loader2Icon className="size-4 animate-spin" />
+            {slOn ? (
+              <>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="grid-sl-pct"
+                    hint="How far under the bottom of the range the stop rests. Zero sits it on the bottom itself."
+                  >
+                    Below the bottom %
+                  </FieldLabel>
+                  <Input
+                    id="grid-sl-pct"
+                    inputMode="decimal"
+                    value={slUnderPct}
+                    disabled={busy}
+                    aria-invalid={parsed(slUnderPct) === null}
+                    onChange={(event) =>
+                      touched(setSlUnderPct)(event.target.value)
+                    }
+                    className="bg-background"
+                  />
+                </div>
+                <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Stop sits at</span>
+                  <span className="tabular-nums">
+                    {stopPx === null ? "—" : formatPrice(stopPx)}
+                  </span>
+                </div>
+                <BaseStopFields
+                  on={baseOn}
+                  underPct={baseUnderPct}
+                  reclaimDays={baseReclaimDays}
+                  disabled={busy}
+                  onOn={touched(setBaseOn)}
+                  onUnderPct={touched(setBaseUnderPct)}
+                  onReclaimDays={touched(setBaseReclaimDays)}
+                />
+              </>
             ) : null}
-            {`Place${plan ? ` ${plan.levels.length}` : ""} buy${
-              plan && plan.levels.length === 1 ? "" : "s"
-            }`}
-          </Button>
+          </OptionCard>
+
+          <OptionCard
+            id="grid-advanced"
+            title="Advanced settings"
+            defaultOpen={false}
+            footer={
+              plan?.volumeCapped ? (
+                <p className="text-xs text-muted-foreground">
+                  The liquidity guard is shrinking some buys — the amounts above
+                  show it.
+                </p>
+              ) : null
+            }
+          >
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-spacing"
+                hint={GRID_SPACING_HINTS[spacing]}
+              >
+                Levels spread
+              </FieldLabel>
+              <Select
+                value={spacing}
+                disabled={busy}
+                onValueChange={touched((next: string) =>
+                  setSpacing(next as GridSpacing)
+                )}
+              >
+                <SelectTrigger
+                  id="grid-spacing"
+                  className="w-full bg-background"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRID_SPACINGS.map((one) => (
+                    <SelectItem key={one} value={one}>
+                      {GRID_SPACING_LABELS[one]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-vol-pct"
+                hint="No single buy bigger than this share of the coin's last-24-hours volume, so thin coins get small orders. 0 turns it off."
+              >
+                Liquidity guard %
+              </FieldLabel>
+              <Input
+                id="grid-vol-pct"
+                inputMode="decimal"
+                value={maxOrderVolPct}
+                disabled={busy}
+                aria-invalid={parsed(maxOrderVolPct) === null}
+                onChange={(event) =>
+                  touched(setMaxOrderVolPct)(event.target.value)
+                }
+                className="bg-background"
+              />
+            </div>
+          </OptionCard>
         </div>
+      </ScrollArea>
+
+      {/* Below the scroll, not in it: however many levels the grid has, the
+            refusal and the button that would ignore it stay on screen. */}
+      <div className="border-t p-3">
+        <OrderRefusal id="grid-refusal" className="pb-3">
+          {refusal}
+        </OrderRefusal>
+        <Button
+          type="button"
+          onClick={() => void submit()}
+          aria-describedby={refusal ? "grid-refusal" : undefined}
+          disabled={!ready}
+          className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+        >
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
+          {`Place${plan ? ` ${plan.levels.length}` : ""} buy${
+            plan && plan.levels.length === 1 ? "" : "s"
+          }`}
+        </Button>
+      </div>
     </TouchOrderFrame>
   )
 }

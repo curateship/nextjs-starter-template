@@ -25,6 +25,14 @@ vi.mock("@/lib/trade/live-market", () => ({
   useLiveCatchUp: vi.fn(),
 }))
 
+// The isomorphic cookie read inside this shell hook throws under the test
+// runner, which has neither a server request nor a real browser cookie jar.
+// Mocked here rather than guarded in the hook, because the hook is a shell
+// file and an edited shell file forks on every future merge.
+vi.mock("@/lib/layout/wide-screen", () => ({
+  useWideScreen: () => true,
+}))
+
 vi.mock("@/components/trade/paint/use-drawings", () => ({
   useChartDrawings: () => ({
     drawings: [],

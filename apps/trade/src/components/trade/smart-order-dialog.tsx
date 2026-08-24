@@ -23,7 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { loadLadderBase, loadSmartDcaParams } from "@/lib/api/smart-orders"
+import { ladderBase } from "@/lib/trade/ladder-base-cache"
+import {
+  freshDcaPrefs,
+  knownDcaPrefs,
+  rememberDcaPrefs,
+} from "@/lib/trade/smart-prefs-cache"
 import { type CandleInterval, type MarketRow } from "@/lib/protocols/contracts"
 import {
   DCA_ANCHOR_HINTS,
@@ -138,42 +143,79 @@ export function SmartOrderDialog({
 }) {
   // ----- The settings, remembered server-side ----------------------------
 
-  // Defaults are drawn at once; the remembered settings replace them when
-  // they land. Until then the fields are disabled rather than half-true.
-  const [loaded, setLoaded] = React.useState(false)
+  // The window opens ON the last-known settings — the copy the browser kept
+  // from the last read or placement — and falls back to the defaults only
+  // before either has ever happened. A fresh read still runs behind it, but
+  // it almost always answers with the same values the fields were seeded
+  // with, so nothing on screen moves. Opening on defaults and swapping when
+  // the read landed made the fields visibly snap a second in.
+  const seeded = React.useRef(knownDcaPrefs()).current
+  // A hand that has already touched a field beats the read either way,
+  // because a form must never change under somebody typing into it.
+  const edited = React.useRef(false)
+  const touched = React.useCallback(
+    <A extends unknown[]>(set: (...args: A) => void) =>
+      (...args: A) => {
+        edited.current = true
+        set(...args)
+      },
+    []
+  )
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
-    rungsFrom(defaultDcaParams().rungs.map((rung) => rung.deviation))
+    rungsFrom(
+      (seeded ?? defaultDcaParams()).rungs.map((rung) => rung.deviation)
+    )
   )
   const [maxPositionPct, setMaxPositionPct] = React.useState(
-    String(defaultDcaParams().maxPositionPct)
+    String(seeded?.maxPositionPct ?? defaultDcaParams().maxPositionPct)
   )
   const [sizeMultiplier, setSizeMultiplier] = React.useState(
-    String(defaultDcaParams().sizeMultiplier)
+    String(seeded?.sizeMultiplier ?? defaultDcaParams().sizeMultiplier)
   )
-  const [maxOrderVolPct, setMaxOrderVolPct] = React.useState("0")
-  const [twoGreen, setTwoGreen] = React.useState(false)
-  const [anchor, setAnchor] = React.useState<DcaAnchor>("base")
-  const [tpOn, setTpOn] = React.useState(true)
-  const [tpMode, setTpMode] = React.useState<DcaTpMode>("average")
-  const [tpPct, setTpPct] = React.useState("2")
-  const [slOn, setSlOn] = React.useState(false)
-  const [slPct, setSlPct] = React.useState("1")
-  const [baseOn, setBaseOn] = React.useState(false)
+  const [maxOrderVolPct, setMaxOrderVolPct] = React.useState(
+    seeded ? String(seeded.maxOrderVolPct) : "0"
+  )
+  const [twoGreen, setTwoGreen] = React.useState(seeded?.twoGreen ?? false)
+  const [anchor, setAnchor] = React.useState<DcaAnchor>(
+    seeded?.anchor ?? "base"
+  )
+  const [tpOn, setTpOn] = React.useState(
+    seeded ? seeded.takeProfit !== null : true
+  )
+  const [tpMode, setTpMode] = React.useState<DcaTpMode>(
+    seeded?.takeProfit?.mode ?? "average"
+  )
+  const [tpPct, setTpPct] = React.useState(
+    seeded?.takeProfit ? String(seeded.takeProfit.pct) : "2"
+  )
+  const [slOn, setSlOn] = React.useState(
+    seeded ? seeded.stopLoss !== null : false
+  )
+  const [slPct, setSlPct] = React.useState(
+    seeded?.stopLoss ? String(seeded.stopLoss.pct) : "1"
+  )
+  const [baseOn, setBaseOn] = React.useState(
+    seeded ? seeded.stopLoss?.base != null : false
+  )
   const [baseUnderPct, setBaseUnderPct] = React.useState(
-    String(DEFAULT_BASE_STOP_UNDER_PCT)
+    String(seeded?.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
   )
   const [baseReclaimDays, setBaseReclaimDays] = React.useState(
-    String(DEFAULT_BASE_STOP_RECLAIM_DAYS)
+    String(
+      seeded?.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS
+    )
   )
-  // The level the ladder hangs from — the confirmed base, not the click. Read
-  // before anything is drawn, because every rung is stepped down from it and a
-  // preview measured from somewhere else would not be what gets placed.
+  // The level the ladder hangs from — the confirmed base. Asked for in the
+  // background (and usually prefetched as the menu opened); until it lands the
+  // preview hangs from the click so something honest is on screen at once, and
+  // it re-anchors the moment the base arrives. Placing still waits for this
+  // read, because what is shown has to be what is placed.
   const [basePx, setBasePx] = React.useState<number | null>(null)
   const [baseRead, setBaseRead] = React.useState(false)
 
   React.useEffect(() => {
     let stale = false
-    loadLadderBase(market.key)
+    ladderBase(market.key)
       .catch(() => ({ basePx: null }))
       .then(({ basePx: found }) => {
         if (stale) return
@@ -187,35 +229,32 @@ export function SmartOrderDialog({
 
   React.useEffect(() => {
     let stale = false
-    loadSmartDcaParams()
-      .then(({ params }) => {
-        if (stale || !params) return
-        setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
-        setMaxPositionPct(String(params.maxPositionPct))
-        setSizeMultiplier(String(params.sizeMultiplier))
-        setMaxOrderVolPct(String(params.maxOrderVolPct))
-        setTwoGreen(params.twoGreen)
-        setAnchor(params.anchor)
-        setTpOn(params.takeProfit !== null)
-        if (params.takeProfit) {
-          setTpMode(params.takeProfit.mode)
-          setTpPct(String(params.takeProfit.pct))
+    void freshDcaPrefs().then((params) => {
+      // A field already typed into is never overwritten — the remembered
+      // settings lost the race and the hand wins. Values equal to what the
+      // fields were seeded with change nothing on screen.
+      if (stale || !params || edited.current) return
+      setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
+      setMaxPositionPct(String(params.maxPositionPct))
+      setSizeMultiplier(String(params.sizeMultiplier))
+      setMaxOrderVolPct(String(params.maxOrderVolPct))
+      setTwoGreen(params.twoGreen)
+      setAnchor(params.anchor)
+      setTpOn(params.takeProfit !== null)
+      if (params.takeProfit) {
+        setTpMode(params.takeProfit.mode)
+        setTpPct(String(params.takeProfit.pct))
+      }
+      setSlOn(params.stopLoss !== null)
+      if (params.stopLoss) {
+        setSlPct(String(params.stopLoss.pct))
+        setBaseOn(params.stopLoss.base !== null)
+        if (params.stopLoss.base) {
+          setBaseUnderPct(String(params.stopLoss.base.underPct))
+          setBaseReclaimDays(String(params.stopLoss.base.reclaimDays))
         }
-        setSlOn(params.stopLoss !== null)
-        if (params.stopLoss) {
-          setSlPct(String(params.stopLoss.pct))
-          setBaseOn(params.stopLoss.base !== null)
-          if (params.stopLoss.base) {
-            setBaseUnderPct(String(params.stopLoss.base.underPct))
-            setBaseReclaimDays(String(params.stopLoss.base.reclaimDays))
-          }
-        }
-      })
-      // A failed load just means defaults — the window still works.
-      .catch(() => undefined)
-      .finally(() => {
-        if (!stale) setLoaded(true)
-      })
+      }
+    })
     return () => {
       stale = true
     }
@@ -224,7 +263,10 @@ export function SmartOrderDialog({
   // ----- Where the window sits, and moving it ----------------------------
 
   const [at, setAt] = React.useState(() => ({
-    x: Math.max(EDGE, Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)),
+    x: Math.max(
+      EDGE,
+      Math.min(state.x, window.innerWidth - PANEL_WIDTH - EDGE)
+    ),
     y: Math.max(EDGE, Math.min(state.y, window.innerHeight - PANEL_HEIGHT)),
   }))
   const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
@@ -236,7 +278,10 @@ export function SmartOrderDialog({
       setAt({
         x: Math.max(
           EDGE,
-          Math.min(event.clientX - grab.dx, window.innerWidth - PANEL_WIDTH - EDGE)
+          Math.min(
+            event.clientX - grab.dx,
+            window.innerWidth - PANEL_WIDTH - EDGE
+          )
         ),
         // Never dragged so low that the Place button falls off the bottom:
         // the window shrinks as it goes down, and this is where it stops
@@ -275,7 +320,9 @@ export function SmartOrderDialog({
     const deviations = rungs.map((rung) => parsed(rung.value))
     if (deviations.some((one) => one === null)) return null
     const candidate: DcaParams = {
-      rungs: deviations.map((deviation) => ({ deviation: deviation as number })),
+      rungs: deviations.map((deviation) => ({
+        deviation: deviation as number,
+      })),
       // A ladder placed by hand from the chart. The crash rule needs to watch
       // a whole list of coins at once, which only a flow has, so there is
       // nothing sensible to offer here. Same for the entry limit: it counts
@@ -334,7 +381,10 @@ export function SmartOrderDialog({
     baseReclaimDays,
   ])
 
-  const hangsFrom = anchor === "click" ? state.px : basePx
+  // The click stands in for the base until the base read lands, so the rungs
+  // draw in the same frame the window opens. Placing still waits for the real
+  // base — see `ready` — so nothing measured from the stand-in can be placed.
+  const hangsFrom = anchor === "click" ? state.px : baseRead ? basePx : state.px
 
   const plan = React.useMemo(
     () =>
@@ -385,7 +435,6 @@ export function SmartOrderDialog({
             : null
 
   const ready =
-    loaded &&
     (anchor === "click" || baseRead) &&
     !busy &&
     refusal === null &&
@@ -393,6 +442,9 @@ export function SmartOrderDialog({
   const submit = async () => {
     if (!ready || !params) return
     const placed = await onPlace({ clickPx: state.px, interval, params })
+    // The server remembers these on placing; the browser's copy keeps the
+    // next window from opening on anything older.
+    if (placed) rememberDcaPrefs(params)
     if (placed) onClose()
   }
 
@@ -429,7 +481,8 @@ export function SmartOrderDialog({
         top: at.y,
         width: PANEL_WIDTH,
         // However far down the window sits, it ends above the screen's edge,
-        // and it never grows past its own height however many rungs are in it.
+        // and it never grows past its own height however many rungs are in
+        // it. Both are why the fields inside scroll.
         maxHeight: Math.max(
           MIN_PANEL_HEIGHT,
           Math.min(PANEL_HEIGHT, window.innerHeight - at.y - EDGE)
@@ -437,349 +490,372 @@ export function SmartOrderDialog({
       }}
       onClose={onClose}
     >
-        <div
-          className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
-          onPointerDown={(event) => {
-            dragRef.current = {
-              dx: event.clientX - at.x,
-              dy: event.clientY - at.y,
-            }
-          }}
-        >
-          <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-            DCA ladder
+      <div
+        className="flex cursor-grab items-center gap-2 border-b px-3 py-2 active:cursor-grabbing"
+        onPointerDown={(event) => {
+          dragRef.current = {
+            dx: event.clientX - at.x,
+            dy: event.clientY - at.y,
+          }
+        }}
+      >
+        <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
+        <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+          DCA ladder
+        </span>
+        <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate font-medium text-foreground">
+            {wallet}
           </span>
-          <span className="ml-auto flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            <span className="min-w-0 truncate font-medium text-foreground">
-              {wallet}
-            </span>
-            <span className="shrink-0 tabular-nums">· {formatUsd(free)} free</span>
+          <span className="shrink-0 tabular-nums">
+            · {formatUsd(free)} free
           </span>
-        </div>
+        </span>
+      </div>
 
-        <ScrollArea
-          className="h-full"
-        >
-          <div className="grid gap-4 p-3">
-            {/* What the whole ladder hangs from. Said out loud rather than
+      <ScrollArea className="h-full">
+        <div className="grid gap-4 p-3">
+          {/* What the whole ladder hangs from. Said out loud rather than
                 implied: every rung below is a step down from this number, and
                 a ladder measured from somewhere you cannot see is a ladder you
                 cannot check. */}
-            <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="text-muted-foreground">
-                {anchor === "click" ? "Hangs from your click" : "Hangs from the base"}
-              </span>
-              <span className="font-medium tabular-nums">
-                {hangsFrom === null
-                  ? baseRead
-                    ? "none yet"
-                    : "…"
-                  : formatPrice(hangsFrom)}
-              </span>
-            </div>
-            <OptionCard
-              id="smart-ladder"
-              title="Ladder"
-              hint="Each step is measured below the buy above it, so the drops compound. The first is below the price you clicked."
+          <div className="flex items-baseline justify-between gap-2 text-xs">
+            <span className="text-muted-foreground">
+              {anchor === "click"
+                ? "Hangs from your click"
+                : baseRead
+                  ? "Hangs from the base"
+                  : "Hangs from your click while the base loads"}
+            </span>
+            <span className="font-medium tabular-nums">
+              {hangsFrom === null ? "none yet" : formatPrice(hangsFrom)}
+            </span>
+          </div>
+          <OptionCard
+            id="smart-ladder"
+            title="Ladder"
+            hint="Each step is measured below the buy above it, so the drops compound. The first is below the price you clicked."
+          >
+            {rungs.map((rung, index) => {
+              const planned = plan?.rungs[index]
+              return (
+                <div key={rung.id} className="flex items-center gap-2">
+                  <span className="w-4 text-right text-xs text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <Input
+                    id={`smart-rung-${index + 1}`}
+                    inputMode="decimal"
+                    value={rung.value}
+                    disabled={busy}
+                    aria-label={`Rung ${index + 1}, percent below the buy above`}
+                    aria-invalid={parsed(rung.value) === null}
+                    onChange={(event) =>
+                      touched(setRung)(rung.id, event.target.value)
+                    }
+                    className="w-16 bg-background"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
+                    {planned
+                      ? `${formatPrice(planned.px)} · ${formatUsd(planned.dollars)}`
+                      : "—"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    disabled={busy || rungs.length <= 1}
+                    aria-label={`Remove rung ${index + 1}`}
+                    onClick={() => touched(removeRung)(rung.id)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </div>
+              )
+            })}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="justify-start"
+              disabled={busy || rungs.length >= 20}
+              onClick={touched(addRung)}
             >
-              {rungs.map((rung, index) => {
-                const planned = plan?.rungs[index]
-                return (
-                  <div key={rung.id} className="flex items-center gap-2">
-                    <span className="w-4 text-right text-xs text-muted-foreground">
-                      {index + 1}
-                    </span>
-                    <Input
-                      id={`smart-rung-${index + 1}`}
-                      inputMode="decimal"
-                      value={rung.value}
-                      disabled={busy || !loaded}
-                      aria-label={`Rung ${index + 1}, percent below the buy above`}
-                      aria-invalid={parsed(rung.value) === null}
-                      onChange={(event) => setRung(rung.id, event.target.value)}
-                      className="w-16 bg-background"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-xs tabular-nums text-muted-foreground">
-                      {planned
-                        ? `${formatPrice(planned.px)} · ${formatUsd(planned.dollars)}`
-                        : "—"}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 text-muted-foreground"
-                      disabled={busy || !loaded || rungs.length <= 1}
-                      aria-label={`Remove rung ${index + 1}`}
-                      onClick={() => removeRung(rung.id)}
-                    >
-                      <Trash2Icon className="size-4" />
-                    </Button>
-                  </div>
-                )
-              })}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="justify-start"
-                disabled={busy || !loaded || rungs.length >= 20}
-                onClick={addRung}
-              >
-                <PlusIcon className="size-4" />
-                Add rung
-              </Button>
-            </OptionCard>
+              <PlusIcon className="size-4" />
+              Add rung
+            </Button>
+          </OptionCard>
 
-            <OptionCard
-              id="smart-position"
-              title="Position"
-              hint="How much of the account this ladder may put to work, and how that money is spread across the buys."
-            >
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="smart-pot"
-                    hint="The most of the account the whole ladder can spend, split across the buys by the size ramp."
-                  >
-                    Max position %
-                  </FieldLabel>
-                  <Input
-                    id="smart-pot"
-                    inputMode="decimal"
-                    value={maxPositionPct}
-                    disabled={busy || !loaded}
-                    aria-invalid={params === null && parsed(maxPositionPct) === null}
-                    onChange={(event) => setMaxPositionPct(event.target.value)}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="smart-ramp"
-                    hint="How much bigger each buy is than the one above it. 1 = all equal; 2 = each buy doubles the last."
-                  >
-                    Size ramp ×
-                  </FieldLabel>
-                  <Input
-                    id="smart-ramp"
-                    inputMode="decimal"
-                    value={sizeMultiplier}
-                    disabled={busy || !loaded}
-                    onChange={(event) => setSizeMultiplier(event.target.value)}
-                    className="bg-background"
-                  />
-                </div>
+          <OptionCard
+            id="smart-position"
+            title="Position"
+            hint="How much of the account this ladder may put to work, and how that money is spread across the buys."
+          >
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="smart-pot"
+                  hint="The most of the account the whole ladder can spend, split across the buys by the size ramp."
+                >
+                  Max position %
+                </FieldLabel>
+                <Input
+                  id="smart-pot"
+                  inputMode="decimal"
+                  value={maxPositionPct}
+                  disabled={busy}
+                  aria-invalid={
+                    params === null && parsed(maxPositionPct) === null
+                  }
+                  onChange={(event) =>
+                    touched(setMaxPositionPct)(event.target.value)
+                  }
+                  className="bg-background"
+                />
               </div>
-            </OptionCard>
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="smart-ramp"
+                  hint="How much bigger each buy is than the one above it. 1 = all equal; 2 = each buy doubles the last."
+                >
+                  Size ramp ×
+                </FieldLabel>
+                <Input
+                  id="smart-ramp"
+                  inputMode="decimal"
+                  value={sizeMultiplier}
+                  disabled={busy}
+                  onChange={(event) =>
+                    touched(setSizeMultiplier)(event.target.value)
+                  }
+                  className="bg-background"
+                />
+              </div>
+            </div>
+          </OptionCard>
 
-            <OptionCard
-              id="smart-tp-on"
-              title="Take profit"
-              hint={DCA_TP_MODE_HINTS[tpMode]}
-              toggle={{
-                checked: tpOn,
-                disabled: busy || !loaded,
-                onChange: setTpOn,
-              }}
-            >
-              {tpOn ? (
-                <div className="flex items-end gap-2">
-                  <div className="grid min-w-0 flex-1 gap-2">
-                    <Label htmlFor="smart-tp-mode" className="text-xs">
-                      Exit
-                    </Label>
-                    <Select
-                      value={tpMode}
-                      disabled={busy}
-                      onValueChange={(next) => setTpMode(next as DcaTpMode)}
-                    >
-                      <SelectTrigger id="smart-tp-mode" className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {DCA_TP_MODES.map((mode) => (
-                          <SelectItem key={mode} value={mode}>
-                            {DCA_TP_MODE_LABELS[mode]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {tpMode === "average" ? (
-                    <div className="grid w-16 shrink-0 gap-2">
-                      <Label htmlFor="smart-tp-pct" className="text-xs">
-                        Target %
-                      </Label>
-                      <Input
-                        id="smart-tp-pct"
-                        inputMode="decimal"
-                        value={tpPct}
-                        disabled={busy || !loaded}
-                        aria-invalid={tpOn && parsed(tpPct) === null}
-                        onChange={(event) => setTpPct(event.target.value)}
-                        className="bg-background"
-                      />
-                    </div>
-                  ) : null}
+          <OptionCard
+            id="smart-tp-on"
+            title="Take profit"
+            hint={DCA_TP_MODE_HINTS[tpMode]}
+            toggle={{
+              checked: tpOn,
+              disabled: busy,
+              onChange: touched(setTpOn),
+            }}
+          >
+            {tpOn ? (
+              <div className="flex items-end gap-2">
+                <div className="grid min-w-0 flex-1 gap-2">
+                  <Label htmlFor="smart-tp-mode" className="text-xs">
+                    Exit
+                  </Label>
+                  <Select
+                    value={tpMode}
+                    disabled={busy}
+                    onValueChange={touched((next: string) =>
+                      setTpMode(next as DcaTpMode)
+                    )}
+                  >
+                    <SelectTrigger id="smart-tp-mode" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DCA_TP_MODES.map((mode) => (
+                        <SelectItem key={mode} value={mode}>
+                          {DCA_TP_MODE_LABELS[mode]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : null}
-            </OptionCard>
-
-            <OptionCard
-              id="smart-sl-on"
-              title="Stop loss"
-              hint="Percent below the average buy, following it as it moves. If the stop hits, everything sells and the waiting rungs are cancelled — unless the base rule below is on, which steps the ladder down to its next rung instead."
-              toggle={{
-                checked: slOn,
-                disabled: busy || !loaded,
-                onChange: (on) => {
-                  setSlOn(on)
-                  // Switched on, it starts below the deepest rung rather than
-                  // wherever it was last — a stop above rungs disarms them.
-                  if (on) setSlPct(String(suggestedSlPct))
-                },
-              }}
-            >
-              {slOn ? (
-                <>
-                  <div className="grid gap-2">
-                    <FieldLabel
-                      htmlFor="smart-sl-pct"
-                      hint="Where the stop rests until a base takes over. 100 means price would have to reach zero, which is how you say no stop before then."
-                    >
-                      Stop %
-                    </FieldLabel>
+                {tpMode === "average" ? (
+                  <div className="grid w-16 shrink-0 gap-2">
+                    <Label htmlFor="smart-tp-pct" className="text-xs">
+                      Target %
+                    </Label>
                     <Input
-                      id="smart-sl-pct"
+                      id="smart-tp-pct"
                       inputMode="decimal"
-                      value={slPct}
-                      disabled={busy || !loaded}
-                      aria-invalid={slOn && parsed(slPct) === null}
-                      onChange={(event) => setSlPct(event.target.value)}
+                      value={tpPct}
+                      disabled={busy}
+                      aria-invalid={tpOn && parsed(tpPct) === null}
+                      onChange={(event) =>
+                        touched(setTpPct)(event.target.value)
+                      }
                       className="bg-background"
                     />
                   </div>
-                  <BaseStopFields
-                    on={baseOn}
-                    underPct={baseUnderPct}
-                    reclaimDays={baseReclaimDays}
-                    disabled={busy || !loaded}
-                    onOn={setBaseOn}
-                    onUnderPct={setBaseUnderPct}
-                    onReclaimDays={setBaseReclaimDays}
-                  />
-                </>
-              ) : null}
-            </OptionCard>
+                ) : null}
+              </div>
+            ) : null}
+          </OptionCard>
 
-            {/* The two settings a ladder rarely needs, out of the way of the
+          <OptionCard
+            id="smart-sl-on"
+            title="Stop loss"
+            hint="Percent below the average buy, following it as it moves. If the stop hits, everything sells and the waiting rungs are cancelled — unless the base rule below is on, which steps the ladder down to its next rung instead."
+            toggle={{
+              checked: slOn,
+              disabled: busy,
+              onChange: touched((on: boolean) => {
+                setSlOn(on)
+                // Switched on, it starts below the deepest rung rather than
+                // wherever it was last — a stop above rungs disarms them.
+                if (on) setSlPct(String(suggestedSlPct))
+              }),
+            }}
+          >
+            {slOn ? (
+              <>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="smart-sl-pct"
+                    hint="Where the stop rests until a base takes over. 100 means price would have to reach zero, which is how you say no stop before then."
+                  >
+                    Stop %
+                  </FieldLabel>
+                  <Input
+                    id="smart-sl-pct"
+                    inputMode="decimal"
+                    value={slPct}
+                    disabled={busy}
+                    aria-invalid={slOn && parsed(slPct) === null}
+                    onChange={(event) => touched(setSlPct)(event.target.value)}
+                    className="bg-background"
+                  />
+                </div>
+                <BaseStopFields
+                  on={baseOn}
+                  underPct={baseUnderPct}
+                  reclaimDays={baseReclaimDays}
+                  disabled={busy}
+                  onOn={touched(setBaseOn)}
+                  onUnderPct={touched(setBaseUnderPct)}
+                  onReclaimDays={touched(setBaseReclaimDays)}
+                />
+              </>
+            ) : null}
+          </OptionCard>
+
+          {/* The two settings a ladder rarely needs, out of the way of the
                 ones it always does. Its own card, in a grey light enough to
                 separate it from the fields above without reading as a
                 different part of the app. Both settings are off unless
                 somebody opens this and turns them on, so a shut card is never
                 hiding something at work — except the liquidity guard, which
                 says so on the face of the card whether it is open or not. */}
-            <OptionCard
-              id="smart-advanced"
-              title="Advanced settings"
-              defaultOpen={false}
-              footer={
-                // Outside the fold on purpose: the guard shrinking buys
-                // explains amounts printed above it, and a note nobody can see
-                // explains nothing.
-                plan?.volumeCapped ? (
-                  <p className="text-xs text-muted-foreground">
-                    The liquidity guard is shrinking some buys — the amounts
-                    above show it.
-                  </p>
-                ) : null
-              }
-            >
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="smart-anchor"
-                    hint={DCA_ANCHOR_HINTS[anchor]}
-                  >
-                    Rungs measured from
-                  </FieldLabel>
-                  <Select
-                    value={anchor}
-                    disabled={busy}
-                    onValueChange={(next) => setAnchor(next as DcaAnchor)}
-                  >
-                    <SelectTrigger id="smart-anchor" className="w-full bg-background">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DCA_ANCHORS.map((one) => (
-                        <SelectItem key={one} value={one}>
-                          {DCA_ANCHOR_LABELS[one]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="smart-vol-guard"
-                    hint="Liquidity guard: no single buy bigger than this share of the coin's last-24-hours trading volume, so thin coins get small orders. 0 = off."
-                  >
-                    Max order, % of day's volume
-                  </FieldLabel>
-                  <Input
-                    id="smart-vol-guard"
-                    inputMode="decimal"
-                    value={maxOrderVolPct}
-                    disabled={busy || !loaded}
-                    // The shared field is see-through, which on a grey card
-                    // means a box you type into looks like one you cannot.
-                    className="bg-background"
-                    onChange={(event) => setMaxOrderVolPct(event.target.value)}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="smart-two-green"
-                    checked={twoGreen}
-                    disabled={busy || !loaded}
-                    onCheckedChange={(next) => setTwoGreen(next === true)}
-                  />
-                  <FieldLabel
-                    htmlFor="smart-two-green"
-                    hint={`Nothing rests on the book: the ladder watches the ${interval} candles and buys at market once two green closes confirm the turn — so fills can sit a little off the lines.`}
-                  >
-                    Only buy after 2 green {interval} candles
-                  </FieldLabel>
-                </div>
-            </OptionCard>
-          </div>
-        </ScrollArea>
-
-        {/* Below the scroll, not in it: however many rungs the ladder has, the
-            refusal and the button that would ignore it stay on screen. */}
-        <div className="border-t p-3">
-          <OrderRefusal id="ladder-refusal" className="pb-3">
-            {refusal}
-          </OrderRefusal>
-          <Button
-            type="button"
-            onClick={() => void submit()}
-            aria-describedby={refusal ? "ladder-refusal" : undefined}
-            disabled={!ready}
-            className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+          <OptionCard
+            id="smart-advanced"
+            title="Advanced settings"
+            defaultOpen={false}
+            footer={
+              // Outside the fold on purpose: the guard shrinking buys
+              // explains amounts printed above it, and a note nobody can see
+              // explains nothing.
+              plan?.volumeCapped ? (
+                <p className="text-xs text-muted-foreground">
+                  The liquidity guard is shrinking some buys — the amounts above
+                  show it.
+                </p>
+              ) : null
+            }
           >
-            {busy || !loaded ? (
-              <Loader2Icon className="size-4 animate-spin" />
-            ) : null}
-            {`Place${plan ? ` ${plan.rungs.length}` : ""} buy${
-              plan && plan.rungs.length === 1 ? "" : "s"
-            }`}
-          </Button>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="smart-anchor"
+                hint={DCA_ANCHOR_HINTS[anchor]}
+              >
+                Rungs measured from
+              </FieldLabel>
+              <Select
+                value={anchor}
+                disabled={busy}
+                onValueChange={touched((next: string) =>
+                  setAnchor(next as DcaAnchor)
+                )}
+              >
+                <SelectTrigger
+                  id="smart-anchor"
+                  className="w-full bg-background"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DCA_ANCHORS.map((one) => (
+                    <SelectItem key={one} value={one}>
+                      {DCA_ANCHOR_LABELS[one]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="smart-vol-guard"
+                hint="Liquidity guard: no single buy bigger than this share of the coin's last-24-hours trading volume, so thin coins get small orders. 0 = off."
+              >
+                Max order, % of day's volume
+              </FieldLabel>
+              <Input
+                id="smart-vol-guard"
+                inputMode="decimal"
+                value={maxOrderVolPct}
+                disabled={busy}
+                // The shared field is see-through, which on a grey card
+                // means a box you type into looks like one you cannot.
+                className="bg-background"
+                onChange={(event) =>
+                  touched(setMaxOrderVolPct)(event.target.value)
+                }
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="smart-two-green"
+                checked={twoGreen}
+                disabled={busy}
+                onCheckedChange={touched((next: boolean | "indeterminate") =>
+                  setTwoGreen(next === true)
+                )}
+              />
+              <FieldLabel
+                htmlFor="smart-two-green"
+                hint={`Nothing rests on the book: the ladder watches the ${interval} candles and buys at market once two green closes confirm the turn — so fills can sit a little off the lines.`}
+              >
+                Only buy after 2 green {interval} candles
+              </FieldLabel>
+            </div>
+          </OptionCard>
         </div>
+      </ScrollArea>
+
+      {/* Below the scroll, not in it: however many rungs the ladder has, the
+            refusal and the button that would ignore it stay on screen. */}
+      <div className="border-t p-3">
+        <OrderRefusal id="ladder-refusal" className="pb-3">
+          {refusal}
+        </OrderRefusal>
+        <Button
+          type="button"
+          onClick={() => void submit()}
+          aria-describedby={refusal ? "ladder-refusal" : undefined}
+          disabled={!ready}
+          className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+        >
+          {/* Spins while placing, and in the moment before the base read
+                lands — the one thing Place still waits for. */}
+          {busy || (anchor === "base" && !baseRead) ? (
+            <Loader2Icon className="size-4 animate-spin" />
+          ) : null}
+          {`Place${plan ? ` ${plan.rungs.length}` : ""} buy${
+            plan && plan.rungs.length === 1 ? "" : "s"
+          }`}
+        </Button>
+      </div>
     </TouchOrderFrame>
   )
 }

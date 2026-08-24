@@ -638,12 +638,15 @@ export function useTrading(
   >(new Map())
   // Orders asked for whose answer is still on its way.
   const [placing, setPlacing] = React.useState<TradeOrder[]>([])
-  // A smart order the server has confirmed, standing in until the next read
-  // carries it. The window that placed it clears its preview lines as it
-  // closes, and the read that would replace them waits on an exchange round
-  // trip — so without this the grid vanished off the chart and came back a
-  // second later.
-  const [placedSmart, setPlacedSmart] = React.useState<SmartOrder[]>([])
+  // A smart order the server has confirmed — just placed, or just moved —
+  // standing in until an ordinary read carries the same thing. The window
+  // that placed it clears its preview lines as it closes, and a drag's drop
+  // has nothing else to show, so without this the grid vanished off the
+  // chart and came back a second later. `at` is when the hold was taken,
+  // which for a moved grid is now rather than when it was first placed.
+  const [placedSmart, setPlacedSmart] = React.useState<
+    { order: SmartOrder; at: number }[]
+  >([])
   // Orders whose × has been pressed, still being told to the exchange.
   const [cancelling, setCancelling] = React.useState<
     ReadonlyMap<string, number>
@@ -677,6 +680,21 @@ export function useTrading(
       at !== undefined && readAt - at > HOLD_GIVE_UP_MS,
     [readAt]
   )
+
+  /**
+   * Holds a smart order the server just wrote — placed or moved — on screen,
+   * replacing any older hold on the same row and sweeping out any that have
+   * had their turn. Released when a read carries a copy at least as new.
+   */
+  const holdSmart = React.useCallback((order: SmartOrder) => {
+    const at = Date.now()
+    setPlacedSmart((held) => [
+      ...held.filter(
+        (one) => one.order.id !== order.id && at - one.at <= HOLD_GIVE_UP_MS
+      ),
+      { order, at },
+    ])
+  }, [])
 
   /** A dragged price still worth showing, or nothing if it has had its turn. */
   const heldPx = React.useCallback(
@@ -984,12 +1002,31 @@ export function useTrading(
    */
   const withJustPlaced = React.useMemo(() => {
     if (placedSmart.length === 0) return allSmartOrders
-    const fresh = placedSmart.filter(
-      (one) =>
-        !holdExpired(one.createdAt) &&
-        !allSmartOrders.some((real) => real.id === one.id)
+    const held = placedSmart.filter((one) => !holdExpired(one.at))
+    if (held.length === 0) return allSmartOrders
+    // A held row the server already knows about REPLACES the server's copy
+    // while ours is newer — a poll that left before a drag was saved would
+    // otherwise put the old prices back for a frame. One the server has not
+    // returned yet is appended, so a placement shows before the next read.
+    const overriding = held.filter((one) =>
+      allSmartOrders.some(
+        (real) =>
+          real.id === one.order.id && one.order.updatedAt > real.updatedAt
+      )
     )
-    return fresh.length === 0 ? allSmartOrders : [...allSmartOrders, ...fresh]
+    const appending = held.filter(
+      (one) => !allSmartOrders.some((real) => real.id === one.order.id)
+    )
+    if (overriding.length === 0 && appending.length === 0) {
+      return allSmartOrders
+    }
+    return [
+      ...allSmartOrders.map(
+        (real) =>
+          overriding.find((one) => one.order.id === real.id)?.order ?? real
+      ),
+      ...appending.map((one) => one.order),
+    ]
   }, [allSmartOrders, placedSmart, holdExpired])
 
   const smartOrders = React.useMemo(() => {
@@ -1488,7 +1525,9 @@ export function useTrading(
             const result = await cancelWatch({ walletId, ladderId: orderId })
             // A watch placed seconds ago may still be standing in from the
             // placement answer while the full account read catches up.
-            setPlacedSmart((held) => held.filter((one) => one.id !== orderId))
+            setPlacedSmart((held) =>
+              held.filter((one) => one.order.id !== orderId)
+            )
             return result
           }
           if (kind === "live") {
@@ -1653,10 +1692,12 @@ export function useTrading(
       if (!walletId || !wallet) return false
       setPending((count) => count + 1)
       try {
-        const { placed, passed } = await placeDcaLadder({
+        const { placed, passed, ladder } = await placeDcaLadder({
           walletId,
           ...input,
         })
+        // On screen now, not after the next read — same as a placed grid.
+        holdSmart(ladder)
         // Counted honestly: rungs above the price never get a chance to wait,
         // and a ladder quietly placing four buys instead of seven is worse
         // than one that says so.
@@ -1674,7 +1715,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh]
+    [walletId, wallet, nameOf, refresh, holdSmart]
   )
 
   const cancelRung: Trading["cancelRung"] = React.useCallback(
@@ -1722,10 +1763,7 @@ export function useTrading(
           ...input,
         })
         // On screen now, not after the next read.
-        setPlacedSmart((held) => [
-          ...held.filter((one) => !holdExpired(one.createdAt)),
-          grid,
-        ])
+        holdSmart(grid)
         toast.success(
           `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} in total.`
         )
@@ -1738,7 +1776,7 @@ export function useTrading(
         void refresh()
       }
     },
-    [walletId, wallet, nameOf, refresh, holdExpired]
+    [walletId, wallet, nameOf, refresh, holdSmart]
   )
 
   const cancelGridLevel: Trading["cancelGridLevel"] = React.useCallback(
@@ -1770,31 +1808,52 @@ export function useTrading(
       // No toast. Dragging a line is a direct thing — the line moves and you
       // can see it — and a message for every nudge is noise. Errors still say
       // so, because a refused drag looks exactly like one that worked.
-      return await runWith(getTradingSmartOrderError, () =>
-        moveGridRangeApi({ walletId, gridId, ...range })
-      )
+      //
+      // Not `runWith`, on purpose. The drag already shows its answer — the
+      // layer holds the dropped price — so dimming the whole workspace while
+      // it saves said "wait" about something that was not waiting. And the
+      // server hands the saved grid back, so there is nothing to re-read:
+      // one write, no refresh, and the poll agrees a few seconds later.
+      try {
+        const { grid } = await moveGridRangeApi({ walletId, gridId, ...range })
+        holdSmart(grid)
+        return true
+      } catch (error) {
+        showErrorToast(getTradingSmartOrderError(error))
+        return false
+      }
     },
-    [runWith]
+    [holdSmart]
   )
 
   const reshapeGrid: Trading["reshapeGrid"] = React.useCallback(
     async (walletId, gridId, shape) => {
       return await runWith(
         getTradingSmartOrderError,
-        () => reshapeGridApi({ walletId, gridId, ...shape }),
+        async () => {
+          const { grid } = await reshapeGridApi({ walletId, gridId, ...shape })
+          // The redrawn levels are on the chart before the re-read lands.
+          holdSmart(grid)
+        },
         "Grid re-sliced."
       )
     },
-    [runWith]
+    [runWith, holdSmart]
   )
 
   const moveGridExit: Trading["moveGridExit"] = React.useCallback(
     async (walletId, gridId, which, px) => {
-      return await runWith(getTradingSmartOrderError, () =>
-        moveGridExitApi({ walletId, gridId, which, px })
-      )
+      // Same shape as `moveGridRange`, for the same reasons.
+      try {
+        const { grid } = await moveGridExitApi({ walletId, gridId, which, px })
+        holdSmart(grid)
+        return true
+      } catch (error) {
+        showErrorToast(getTradingSmartOrderError(error))
+        return false
+      }
     },
-    [runWith]
+    [holdSmart]
   )
 
   const setGridStop: Trading["setGridStop"] = React.useCallback(

@@ -63,7 +63,7 @@ function typing(target: EventTarget | null): boolean {
   )
 }
 
-export function MeasureLayer({
+export const MeasureLayer = React.memo(function MeasureLayer({
   surface,
   tool,
 }: {
@@ -250,7 +250,11 @@ export function MeasureLayer({
       // selection cannot begin in an element that is not selectable, which
       // covers the ways a drag can start that never reach the handler.
       className="absolute inset-y-0 left-0 cursor-crosshair overflow-hidden select-none"
-      style={{ width: surface.width, pointerEvents: "all", touchAction: "none" }}
+      style={{
+        width: surface.width,
+        pointerEvents: "all",
+        touchAction: "none",
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -322,7 +326,7 @@ export function MeasureLayer({
       ) : null}
     </div>
   )
-}
+})
 
 /**
  * The box on screen and the three lines that go in the label.
@@ -341,7 +345,9 @@ function read(measure: Measure, surface: ChartSurface) {
   const toX = surface.xOf(measure.to.time)
   const delta = measure.to.price - measure.from.price
   const bars = Math.abs(
-    Math.round(surface.barAt(measure.to.time) - surface.barAt(measure.from.time))
+    Math.round(
+      surface.barAt(measure.to.time) - surface.barAt(measure.from.time)
+    )
   )
 
   return {

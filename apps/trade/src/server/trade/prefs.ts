@@ -55,6 +55,12 @@ export type DashboardPrefs = {
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
   marketPanelRows: MarketPanelRows
+  /**
+   * The two smart-order windows' saved settings ride along too, so the first
+   * right-click after a page load opens on them with nothing left to fetch.
+   */
+  smartDca: DcaParams | null
+  smartGrid: GridParams | null
 }
 
 /** One exchange and network — the scope a panel layout belongs to. */
@@ -87,6 +93,8 @@ export async function loadDashboardPrefs(
       cardFolds: tradePrefs.cardFolds,
       quickOrder: tradePrefs.quickOrder,
       marketPanelRows: tradePrefs.marketPanelRows,
+      smartDca: tradePrefs.smartDca,
+      smartGrid: tradePrefs.smartGrid,
     })
     .from(tradePrefs)
     .where(eq(tradePrefs.userId, userId))
@@ -105,7 +113,18 @@ export async function loadDashboardPrefs(
     indicators: readIndicatorSettings(found?.indicators ?? null),
     cardFolds: readCardFolds(found?.cardFolds ?? null),
     quickOrder: readQuickOrderPrefs(found?.quickOrder ?? null),
+    smartDca: readSmartParams(dcaParamsSchema, found?.smartDca),
+    smartGrid: readSmartParams(gridParamsSchema, found?.smartGrid),
   }
+}
+
+/** A stored value through its own schema; junk reads as "nothing saved". */
+function readSmartParams<T>(
+  schema: { safeParse: (value: unknown) => { success: boolean; data?: T } },
+  value: unknown
+): T | null {
+  const parsed = schema.safeParse(value ?? null)
+  return parsed.success ? (parsed.data as T) : null
 }
 
 function lastMarketKeyFor(

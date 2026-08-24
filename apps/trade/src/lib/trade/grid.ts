@@ -697,6 +697,16 @@ export const gridPlanSchema = z.object({
    * see `advanceGrid` for the conditions and why each one is there.
    */
   follow: z.boolean().default(false),
+  /**
+   * Whether price has ever been at or under the top of the range — whether
+   * the range has actually been in play. Follow may only slide a range price
+   * has genuinely climbed out of; without this it fired the moment a grid was
+   * placed below the price, and dragged a range somebody had deliberately
+   * hung under a level straight up to the market. Placement writes it
+   * honestly; the engine flips it the first time price reaches the range.
+   * Defaults true so grids from before the field keep their behaviour.
+   */
+  entered: z.boolean().default(true),
   /** How many times the range has moved up. For the record, beside `cycles`. */
   shifts: z.number().int().min(0).default(0),
   /** Why it finished, once it has. Null while it is still working. */

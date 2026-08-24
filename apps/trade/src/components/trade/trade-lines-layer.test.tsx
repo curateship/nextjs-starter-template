@@ -10,8 +10,9 @@ import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 
-;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
 
 const MARKET = "hyperliquid:mainnet:BTC"
 const colors: ChartColors = {
@@ -234,7 +235,8 @@ describe("chart bracket lines", () => {
         const sameBand =
           box.top < other.top + other.height && other.top < box.top + box.height
         const sameColumn =
-          box.left < other.left + other.width && other.left < box.left + box.width
+          box.left < other.left + other.width &&
+          other.left < box.left + box.width
         expect(sameBand && sameColumn).toBe(false)
       }
     }

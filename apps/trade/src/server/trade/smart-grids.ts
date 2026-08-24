@@ -198,7 +198,17 @@ export async function advanceGrid(
   //   position to settle means not one order is placed. It is also the ordinary
   //   state up here, because a grid above its top has already sold every level.
 
-  if (plan.follow && mark !== null) {
+  // The range comes into play the first time price is at or under its top.
+  // Recorded here, on the plan, because follow below reads it: a range that
+  // has never been in play is one somebody hung below the price to catch a
+  // fall, and follow dragging it up to the market on the first pass — which
+  // it did — is the opposite of what was placed.
+  if (!plan.entered && mark !== null && mark <= plan.topPx) {
+    plan.entered = true
+    changed = true
+  }
+
+  if (plan.follow && plan.entered && mark !== null) {
     const stillHeld = book.positions.get(row.marketKey) ?? null
     const anyHeldLevel = plan.levels.some((level) => level.status === "holding")
     if (!anyHeldLevel && (!stillHeld || stillHeld.szi <= 0)) {
