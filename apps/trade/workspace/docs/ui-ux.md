@@ -114,6 +114,15 @@ rows arrive or change. Two wallets therefore leave the rest of the column to
 Smart orders instead of keeping an empty half-card. The divider can still be
 dragged, and Smart orders always keeps at least its own minimum height.
 
+**A smaller window shrinks the chart, never the panels.** The Folders panel,
+the account column and the bottom Positions panel keep the pixel size they
+were dragged to when the window changes size; the chart absorbs the whole
+difference, both across and down. Before this every panel gave up its share,
+and half a window's width left the market list too narrow to read (decided
+23 Aug 2026). The panels' own minimums still hold on a screen too small for
+everything, and a screen below the wide-screen line keeps its own layout —
+the chart as the page with the side panels behind the header's two buttons.
+
 ## Drawing on the chart
 
 A small rail of tools sits at the chart's top-left corner, on the candles

@@ -618,6 +618,10 @@ export function TradeWorkspace({
         defaultSize="20%"
         minSize="12%"
         maxSize="30%"
+        // A smaller window shrinks the chart, never this list. Without it every
+        // panel gave up its share of the lost width, and the market list came
+        // out of a half-width window too narrow to read.
+        groupResizeBehavior="preserve-pixel-size"
         onResize={(size) => setMarketsCollapsed(size.asPercentage < 0.5)}
       >
         <div className="flex h-full min-h-0">{marketColumn}</div>
@@ -635,6 +639,8 @@ export function TradeWorkspace({
         defaultSize="22%"
         minSize="16%"
         maxSize="36%"
+        // Same rule as the market list: the chart absorbs a window shrink.
+        groupResizeBehavior="preserve-pixel-size"
         onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
       >
         {/* Two panels in this column, not one card inside another.
@@ -727,6 +733,8 @@ export function TradeWorkspace({
             defaultSize="28%"
             minSize="12%"
             maxSize="60%"
+            // A shorter window shrinks the chart above, not this panel's rows.
+            groupResizeBehavior="preserve-pixel-size"
             // Down to its own header rather than to nothing, so its tabs and
             // their counts never disappear.
             collapsible
