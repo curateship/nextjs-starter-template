@@ -652,10 +652,7 @@ export function AccountPanel({
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="active" className="min-h-0 flex-1">
-        {/* The viewport's own wrapper is `display: table`, which sizes to its
-            content and lets the dollar column run off the panel's right edge.
-            Block makes it fill the panel instead. */}
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (
@@ -677,7 +674,7 @@ export function AccountPanel({
       </TabsContent>
 
       <TabsContent value="inactive" className="min-h-0 flex-1">
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (
@@ -702,10 +699,7 @@ export function AccountPanel({
       </TabsContent>
 
       <TabsContent value="all" className="min-h-0 flex-1">
-        {/* The viewport's own wrapper is `display: table`, which sizes to its
-            content and lets the dollar column run off the panel's right edge.
-            Block makes it fill the panel instead. */}
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (

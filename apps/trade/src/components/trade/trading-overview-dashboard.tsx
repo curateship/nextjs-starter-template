@@ -361,7 +361,7 @@ function WalletsCard({
       />
       <ScrollArea
         className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24 [&>div]:block!"
+        viewportClassName="h-full min-h-24"
       >
         <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted/50">
           <TableHeader>
@@ -812,7 +812,7 @@ function TradesTable({
       />
       <ScrollArea
         className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24 [&>div]:block!"
+        viewportClassName="h-full min-h-24"
       >
         <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted">
           <TableHeader>

@@ -212,14 +212,8 @@ export function SmartOrdersPanel({
           place one — a flow&rsquo;s orders live on its own dashboard.
         </p>
       ) : (
-        // `[&>div]:block!` because Radix wraps what it is given in a
-        // `display: table` box, which sizes itself to its widest row instead
-        // of to the panel — a long wallet name or a grid's price range then
-        // pushed the row's dollars off the right edge instead of being
-        // truncated. Every other panel on this screen already passes it.
         <ScrollArea
           className="min-h-0 flex-1"
-          viewportClassName="[&>div]:block!"
         >
           <div className="flex flex-col">
             {rows.map((order) => {

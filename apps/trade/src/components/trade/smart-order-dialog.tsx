@@ -466,9 +466,6 @@ export function SmartOrderDialog({
 
         <ScrollArea
           className="h-full"
-          // The viewport's inner box lays itself out as a table, which would
-          // shrink the fields to their content instead of the window's width.
-          viewportClassName="[&>div]:block!"
         >
           <div className="grid gap-4 p-3">
             {/* What the whole ladder hangs from. Said out loud rather than

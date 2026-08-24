@@ -340,7 +340,7 @@ export function ActivityPanel({
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="positions" className="min-h-0 flex-1">
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           <PositionsTable
             positions={visible}
             markets={markets}
@@ -360,7 +360,7 @@ export function ActivityPanel({
       </TabsContent>
 
       <TabsContent value="orders" className="min-h-0 flex-1">
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           <OpenOrdersTable
             // Real, practice and watched in one list — a watched price IS an
             // open order to the person who placed it, wherever it happens to
@@ -379,7 +379,7 @@ export function ActivityPanel({
       </TabsContent>
 
       <TabsContent value="journal" className="min-h-0 flex-1">
-        <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <ScrollArea className="h-full">
           <TradesTable
             trades={trading.trades}
             markets={markets}

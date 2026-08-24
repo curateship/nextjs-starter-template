@@ -287,11 +287,8 @@ function TableRows({
       // The height goes on the viewport, never the frame — see `ScrollArea`.
       // `min-h-24` is where it stops giving height back: squeezed under about
       // two rows this is a heading and a total with a sliver between them, and
-      // the page is better off scrolling. Radix wraps the viewport's contents
-      // in a `display: table` box, which neither resolves a height nor lets a
-      // heading stick, so it is put back to a plain block — and that has to
-      // beat an inline style, hence the `!`.
-      viewportClassName={cn(fill && "h-full min-h-24 [&>div]:block!")}
+      // the page is better off scrolling.
+      viewportClassName={cn(fill && "h-full min-h-24")}
     >
       {children}
       <ScrollBar orientation="horizontal" />

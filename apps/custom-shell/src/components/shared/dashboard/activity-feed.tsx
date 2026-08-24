@@ -407,11 +407,6 @@ export function ActivityFeed({
     <>
       <ScrollArea
         className="min-h-0 flex-1"
-        // `[&>div]:block!` because Radix wraps what it is given in a
-        // `display: table` box, which sizes to its widest line rather than to
-        // the card. One long detail then stretches every row and pushes the
-        // buttons out past the card's edge, where they are clipped.
-        viewportClassName="[&>div]:block!"
       >
         {groups.length ? (
           <div className="flex flex-col divide-y">
