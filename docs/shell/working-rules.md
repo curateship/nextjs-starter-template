@@ -16,6 +16,12 @@ How to make a change here and how to prove it works.
 
 - `npm run test` runs the whole suite. Run the files your change touches first,
   and the whole suite only when the change is wide.
+- When the app has an `npm run test:app` script, that is the suite for audits
+  and pre-commit checks. It skips the shell's own test files and starts each
+  test's database from a saved copy, so it is several times faster and deletes
+  nothing. Run the full `npm run test` only after a shell merge or when the
+  change touches a shell file on purpose. The app documents the details in its
+  own `workspace/docs/`.
 - `npx tsc --noEmit -p tsconfig.app.json` is the real type check. The plain
   `typecheck` script checks nothing, because the root tsconfig is `"files": []`.
   There are errors that were already there, so compare the list of files against

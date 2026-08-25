@@ -78,6 +78,9 @@ Two files outrank the rest, and outrank the code:
   changed.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
+- `running-tests-fast.md` — `npm run test:app`, the everyday test command: what
+  it skips, how the saved database copy works, and when the full suite still
+  runs.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   and when flows and backtests read them.
 - `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and
