@@ -1,3 +1,16 @@
+import {
+  KNOWN_PROTOCOLS,
+  parseMarketKey,
+  protocolLabel,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
+import { venueLabel } from "@/lib/trade/wallets"
+
+function isProtocolId(value: string): value is ProtocolId {
+  return KNOWN_PROTOCOLS.some((protocol) => protocol === value)
+}
+
 /**
  * Every reason a flow will not switch on, said the way it will be read.
  *
@@ -59,4 +72,35 @@ export function flowStartProblem(code: string, walletLabel: string): string {
     return "Real trading on the main network is switched off on this server, so this flow cannot start. It has to be turned on where the app runs."
   }
   return "This flow could not be switched on. Check the Wallet and Markets steps."
+}
+
+/** Names both venues when the Markets step and wallet cannot trade together. */
+export function flowVenueMismatchProblem(input: {
+  marketProtocol: string
+  marketKeys: readonly string[]
+  walletLabel: string
+  walletProtocol: ProtocolId
+  walletNetwork: NetworkId
+}): string | null {
+  const markets = input.marketKeys.map(parseMarketKey)
+  const mismatchedMarket = markets.find(
+    (market) =>
+      !market ||
+      market.protocol !== input.walletProtocol ||
+      market.network !== input.walletNetwork
+  )
+  if (
+    input.marketProtocol === input.walletProtocol &&
+    mismatchedMarket === undefined
+  ) {
+    return null
+  }
+
+  const marketVenue = mismatchedMarket
+    ? venueLabel(mismatchedMarket.protocol, mismatchedMarket.network)
+    : isProtocolId(input.marketProtocol)
+      ? protocolLabel(input.marketProtocol)
+      : input.marketProtocol
+  const walletVenue = venueLabel(input.walletProtocol, input.walletNetwork)
+  return `The Markets step names ${marketVenue}, but ${input.walletLabel} trades ${walletVenue}. Choose ${walletVenue} markets for this wallet.`
 }

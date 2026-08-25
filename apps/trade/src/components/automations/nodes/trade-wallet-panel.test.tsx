@@ -1,7 +1,13 @@
+// @vitest-environment jsdom
+
+import { act, type ReactNode } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
+import { createRoot } from "react-dom/client"
 import { describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
+import type { AutomationGraph } from "@/lib/automations/graph"
+import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
 import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AutomationNode } from "@/lib/automations/graph"
 
@@ -16,17 +22,49 @@ import type { AutomationNode } from "@/lib/automations/graph"
  * This is the server render — the first thing the app does anyway. It proves
  * the words and the figures. The wallet list arrives in an effect, which a
  * static render never runs, so everything here is the state before that
- * lands; the list itself is a browser check.
+ * lands. The last test mounts the real component and exercises that list.
  */
 
+const { loadWalletAccounts, successToast } = vi.hoisted(() => ({
+  loadWalletAccounts: vi.fn(() => new Promise(() => {})),
+  successToast: vi.fn(),
+}))
+
+vi.mock("sonner", () => ({ toast: { success: successToast } }))
+
 vi.mock("@/lib/api/wallets", () => ({
-  loadWalletAccounts: () => new Promise(() => {}),
+  loadWalletAccounts,
   getWalletErrorMessage: () => "Could not read your wallets.",
 }))
 
-const { default: TradeWalletFields } = await import(
-  "@/components/automations/nodes/trade-wallet-panel"
-)
+vi.mock("@/components/ui/select", () => ({
+  Select: ({
+    value,
+    onValueChange,
+    children,
+  }: {
+    value: string
+    onValueChange: (value: string) => void
+    children: ReactNode
+  }) => (
+    <select
+      aria-label="Money"
+      value={value}
+      onChange={(event) => onValueChange(event.target.value)}
+    >
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: ReactNode }) => children,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: ReactNode }) => children,
+  SelectItem: ({ value, children }: { value: string; children: ReactNode }) => (
+    <option value={value}>{children}</option>
+  ),
+}))
+
+const { default: TradeWalletFields } =
+  await import("@/components/automations/nodes/trade-wallet-panel")
 
 function walletNode(patch: Record<string, unknown> = {}): AutomationNode {
   return {
@@ -138,5 +176,100 @@ describe("a step with a number on it that will not parse", () => {
     expect(html).toContain("Money this flow may use")
     expect(html).toContain("Account #1")
     expect(html).not.toContain("What trading costs")
+  })
+})
+
+describe("picking an Aster wallet", () => {
+  it("moves the Markets step to Aster and clears the old coins", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    loadWalletAccounts.mockResolvedValueOnce({
+      wallets: [
+        {
+          id: "aster-wallet",
+          label: "Aster main",
+          kind: "live",
+          status: "active",
+          protocol: "aster",
+          network: "mainnet",
+          startingBalance: 100,
+          address: "0x1234",
+          hasKey: true,
+          keyValidUntil: null,
+        },
+      ],
+      summaries: [],
+    })
+    const wallet = walletNode()
+    const markets: AutomationNode = {
+      id: "markets-1",
+      kind: tradeMarketsNode.kind,
+      x: 100,
+      y: 0,
+      settings: {
+        ...tradeMarketsNode.createSettings(),
+        protocol: "binance",
+        marketKeys: ["binance:mainnet:BTC"],
+      },
+    }
+    const graph: AutomationGraph = {
+      nodes: [wallet, markets],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+    }
+    const onChange = vi.fn()
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <TradeWalletFields node={wallet} graph={graph} onChange={onChange} />
+        </TooltipProvider>
+      )
+    })
+    const select = host.querySelector<HTMLSelectElement>("select")!
+    expect(select.textContent).toContain("Aster main")
+
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(
+        HTMLSelectElement.prototype,
+        "value"
+      )?.set
+      setValue?.call(select, "aster-wallet")
+      select.dispatchEvent(new Event("change", { bubbles: true }))
+    })
+
+    expect(onChange).toHaveBeenCalledWith({
+      ...markets,
+      settings: {
+        ...markets.settings,
+        protocol: "aster",
+        folderId: null,
+        folderName: null,
+        folderCount: null,
+        marketKeys: [],
+      },
+    })
+    expect(onChange).toHaveBeenCalledWith({
+      ...wallet,
+      settings: {
+        ...wallet.settings,
+        walletId: "aster-wallet",
+        walletLabel: "Aster main",
+        walletKind: "live",
+        walletProtocol: "aster",
+        walletNetwork: "mainnet",
+        spendCapUsd: 10_000,
+      },
+    })
+    expect(successToast).toHaveBeenCalledWith(
+      "Markets moved to Aster to match Aster main. Its 1 coin was cleared — pick them again."
+    )
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 })

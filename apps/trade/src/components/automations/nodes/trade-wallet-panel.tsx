@@ -18,10 +18,8 @@ import {
 import { getWalletErrorMessage, loadWalletAccounts } from "@/lib/api/wallets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
-import {
-  DEFAULT_BACKTEST_PROTOCOL,
-  tradeMarketsNode,
-} from "@/lib/automations/nodes/trade-markets"
+import { DEFAULT_BACKTEST_PROTOCOL } from "@/lib/automations/nodes/trade-markets"
+import { marketsStepFollowingWallet } from "@/lib/automations/trade-wallet-markets"
 import {
   chosenWallet,
   MAX_POT_USD,
@@ -270,37 +268,24 @@ export default function TradeWalletFields({
     network: NetworkId,
     because: string
   ) {
-    const markets = graph?.nodes.find(
-      (one) => one.kind === tradeMarketsNode.kind
-    )
-    if (!markets) return
-    const was = markets.settings.protocol
-    if (was === protocol) return
-
-    const hadCoins =
-      typeof markets.settings.folderCount === "number"
-        ? markets.settings.folderCount
-        : Array.isArray(markets.settings.marketKeys)
-          ? markets.settings.marketKeys.length
-          : 0
-    onChange({
-      ...markets,
-      settings: {
-        ...markets.settings,
-        protocol,
-        folderId: null,
-        folderName: null,
-        folderCount: null,
-        marketKeys: [],
-      },
+    const moved = marketsStepFollowingWallet({
+      graph,
+      protocol,
+      network,
+      previousWallet: named
+        ? { protocol: named.protocol, network: named.network }
+        : null,
     })
+    if (!moved) return
+
+    onChange(moved.node)
     // The exchange's proper name, the way every other screen writes it. The
     // raw id is what is stored; "hyperliquid" in a sentence beside a dropdown
     // reading "Hyperliquid" reads as two different things.
     const name = venueLabel(protocol, network)
     toast.success(
-      hadCoins > 0
-        ? `Markets moved to ${name} ${because}. Its ${hadCoins} ${plural(hadCoins, "coin was", "coins were")} cleared — pick them again.`
+      moved.cleared > 0
+        ? `Markets moved to ${name} ${because}. Its ${moved.cleared} ${plural(moved.cleared, "coin was", "coins were")} cleared — pick them again.`
         : `Markets moved to ${name} ${because}.`
     )
   }

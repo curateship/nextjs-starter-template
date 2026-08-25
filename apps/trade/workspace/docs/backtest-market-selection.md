@@ -10,12 +10,11 @@ How the Markets step decides which exchange and coins a backtest uses.
   is not filtered through another exchange or by available candle history.
 - One Markets step belongs to one exchange. Switching exchanges clears the
   chosen coins, preventing one run from mixing exchanges.
-- Binance and Aster supply prices, funding and backtests but do not place
-  orders yet. Aster history comes from Aster, in pages of up to 1,500 candles.
-  The candle store hands over up to six pages at once, and the shared request
-  queue keeps those reads inside one bounded batch.
-  Hyperliquid, Phemex and KuCoin markets can also be traded when the flow and
-  wallet allow it.
+- Binance supplies prices, funding and backtests but does not place orders.
+  Hyperliquid, Phemex, KuCoin and Aster markets can also be traded when the flow
+  and wallet allow it. Aster history comes from Aster, in pages of up to 1,500
+  candles. The candle store hands over up to six pages at once, and the shared
+  request queue keeps those reads inside one bounded batch.
 
 ## Choosing coins
 

@@ -275,8 +275,11 @@ the app assumes will stay fixed.
 
 - Aster now carries the same order adapter and pushed mark-price feed the live
   flow engine requires. Choosing an Aster wallet moves the Markets step to
-  Aster and clears coins from the old venue. A testnet wallet is named Aster
-  Testnet, and the existing market-key checks keep it away from mainnet.
+  Aster and clears coins from the old venue. Moving between an Aster testnet
+  wallet and a mainnet wallet clears the saved coins or folder too. Both say
+  Aster in storage, so the network inside each saved market is checked before
+  anything is kept. A mismatch answer names both venues, including Aster
+  Testnet when that is the wrong side.
 - The worker opens price feeds from the registry, so Aster joins Hyperliquid,
   Phemex and KuCoin without a special engine branch. Its heartbeat is named
   separately. Blocking one feed is isolated by the existing per-venue error

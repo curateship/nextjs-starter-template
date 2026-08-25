@@ -2,7 +2,6 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { automationGraphSchema } from "@/lib/automations/graph"
-import { parseMarketKey } from "@/lib/protocols/contracts"
 import {
   tradeMarketsNode,
   tradeMarketsSettingsSchema,
@@ -18,7 +17,10 @@ import {
   STRIKES_BEFORE_HOLD,
   type FlowWaiting,
 } from "@/lib/trade/flow-waiting"
-import { flowStartProblem } from "@/lib/trade/flow-words"
+import {
+  flowStartProblem,
+  flowVenueMismatchProblem,
+} from "@/lib/trade/flow-words"
 import { venueLabel } from "@/lib/trade/wallets"
 import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
@@ -300,23 +302,15 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       if (coins === 0) {
         return "No coins are chosen on the Markets step yet."
       }
-      const marketRefs = drawnKeys.map(parseMarketKey)
-      if (
-        markets?.success &&
-        (markets.data.protocol !== wallet.protocol ||
-          marketRefs.some(
-            (ref) =>
-              !ref ||
-              ref.protocol !== wallet.protocol ||
-              ref.network !== wallet.network
-          ))
-      ) {
-        const marketRef = marketRefs.find((ref) => ref !== null) ?? null
-        const marketVenue = marketRef
-          ? venueLabel(marketRef.protocol, marketRef.network)
-          : markets.data.protocol
-        const walletVenue = venueLabel(wallet.protocol, wallet.network)
-        return `The Markets step names ${marketVenue}, but ${wallet.label} trades ${walletVenue}. Choose ${walletVenue} markets for this wallet.`
+      if (markets?.success) {
+        const mismatch = flowVenueMismatchProblem({
+          marketProtocol: markets.data.protocol,
+          marketKeys: drawnKeys,
+          walletLabel: wallet.label,
+          walletProtocol: wallet.protocol,
+          walletNetwork: wallet.network,
+        })
+        if (mismatch) return mismatch
       }
       if (named.capUsd === null) {
         return "Say how much of the wallet this flow may use, on the Wallet step."
