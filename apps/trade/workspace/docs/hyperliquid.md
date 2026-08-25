@@ -14,3 +14,10 @@ The list came from refused Journal rows in the 30 days ending 24 August 2026.
 The same Journal rows showed the $10 minimum 303 times, insufficient cash 10
 times, request limits 9 times, an already-gone order twice and one post-only
 crossing.
+
+Trade carries Hyperliquid's venue-wide $10 minimum in every market row even
+though Hyperliquid's market metadata does not repeat it. Plain and watched
+orders can therefore refuse an undersized order before signing or saving it.
+The check uses the coin size after rounding. If a $10 request becomes five
+whole coins worth $8.75, Trade reports $8.75 and says how much the first valid
+whole-coin order costs.

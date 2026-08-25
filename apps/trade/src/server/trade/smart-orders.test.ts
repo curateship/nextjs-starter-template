@@ -52,6 +52,7 @@ const marks = new Map<string, number>([["BTC", 100]])
 let candles: CandleBar[] = []
 let minOrderValueUsd: number | null = null
 let minOrderSize: number | null = null
+let sizeDecimals = 3
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -60,6 +61,7 @@ let minOrderSize: number | null = null
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    label: "Hyperliquid",
     markets: {
       fetch: async () => ({
         protocol: "hyperliquid",
@@ -73,7 +75,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             symbol: "BTC",
             subExchange: null,
             category: "crypto",
-            sizeDecimals: 3,
+            sizeDecimals,
             priceTick: null,
             minOrderValueUsd,
             minOrderSize,
@@ -310,6 +312,7 @@ beforeEach(async () => {
   marks.set("BTC", 100)
   minOrderValueUsd = null
   minOrderSize = null
+  sizeDecimals = 3
   dipSlot = 9
   // A ladder hangs from the confirmed base, so every test needs one. 100 is
   // the base throughout unless a test swaps the tape, which keeps the rungs
@@ -347,6 +350,68 @@ afterEach(async () => {
 })
 
 describe("a watched order's market minimum", () => {
+  it("uses the current price when a buy level is already through the market", async () => {
+    sizeDecimals = 0
+    minOrderValueUsd = 10
+    marks.set("BTC", 0.1489)
+    const realWallet: TradeWallet = {
+      ...wallet,
+      label: "Grid only",
+      kind: "live",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await expect(
+      placeWatchOrder(userId, realWallet, {
+        marketKey: BTC,
+        side: "buy",
+        // 67 coins clear $10 at the clicked level but are only worth $9.98
+        // at the price where this marketable order will execute.
+        px: 0.15053287920550548,
+        sz: 67,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow(
+      "Hyperliquid's smallest order here is $10.13, and this order is $9.98"
+    )
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("uses the protocol's dollar floor after rounding the coin size", async () => {
+    sizeDecimals = 0
+    minOrderValueUsd = 10
+    const realWallet: TradeWallet = {
+      ...wallet,
+      label: "Duong",
+      kind: "live",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await expect(
+      placeWatchOrder(userId, realWallet, {
+        marketKey: BTC,
+        side: "buy",
+        px: 1.75,
+        // A $10 request becomes five whole coins, worth $8.75.
+        sz: 10 / 1.75,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow(
+      "Hyperliquid's smallest order here is $10.50, and this order is $8.75"
+    )
+
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
   it("refuses a size below one exchange step before saving the watch", async () => {
     minOrderValueUsd = 5
     minOrderSize = 0.001
@@ -367,9 +432,31 @@ describe("a watched order's market minimum", () => {
     expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
   })
 
+  it("does not invent a dollar minimum when the protocol states none", async () => {
+    sizeDecimals = 0
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      px: 1.75,
+      sz: 6,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.sz).toBe(6)
+    expect(watch.plan.minOrderValueUsd).toBeNull()
+  })
+
   it("freezes the accepted size and both exchange floors in the watch", async () => {
     minOrderValueUsd = 5
     minOrderSize = 0.001
+    marks.set("BTC", 80_000)
 
     await placeWatchOrder(userId, wallet, {
       marketKey: BTC,

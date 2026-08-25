@@ -74,6 +74,48 @@ export function refusalForWatchedOrder(
 }
 
 /**
+ * New background refusals that belong to a watched order on this page.
+ *
+ * A direct press already reports its own refusal. This selects only active
+ * watches and only refusals made after the page opened, so polling can turn a
+ * background refusal into one toast without replaying six hours of history.
+ */
+export function refusalAlertsForActiveWatches(
+  refusals: readonly LiveRefusal[],
+  orders: readonly {
+    id: string
+    kind: string
+    walletId: string
+    marketKey: string
+    createdAt: number
+  }[],
+  pageOpenedAt: number
+): { key: string; refusal: LiveRefusal }[] {
+  const watches = new Map<string, { id: string; createdAt: number }[]>()
+  for (const order of orders) {
+    if (order.kind !== "watch") continue
+    const key = liveRefusalKey(order.walletId, order.marketKey)
+    const created = watches.get(key) ?? []
+    created.push({ id: order.id, createdAt: order.createdAt })
+    watches.set(key, created)
+  }
+  const alerts: { key: string; refusal: LiveRefusal }[] = []
+  for (const refusal of refusals) {
+    if (refusal.at < pageOpenedAt) continue
+    const watch = watches
+      .get(liveRefusalKey(refusal.walletId, refusal.marketKey))
+      ?.filter((one) => refusal.at >= one.createdAt)
+      .sort((left, right) => right.createdAt - left.createdAt)[0]
+    if (!watch) continue
+    alerts.push({
+      key: `${watch.id}:${refusal.note}`,
+      refusal,
+    })
+  }
+  return alerts
+}
+
+/**
  * One live wallet's exchange answer as the rows the screens draw. Ids are
  * deliberately stable per (wallet, market) and per exchange order id, so
  * React keys and optimistic drags hold across polls.

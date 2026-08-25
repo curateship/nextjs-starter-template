@@ -5,6 +5,7 @@ import {
   keepUnreachableRows,
   keyExpiryNotice,
   livePortfolioRows,
+  refusalAlertsForActiveWatches,
 } from "@/lib/trade/live"
 
 const WALLET = {
@@ -160,5 +161,55 @@ describe("a wallet the exchange would not answer for", () => {
   it("has nothing to carry on the very first read", () => {
     const first = answer({ unreachable: ["w1"] })
     expect(keepUnreachableRows(null, first)).toBe(first)
+  })
+})
+
+describe("new refusals for watched orders", () => {
+  const refusal = {
+    walletId: "w1",
+    marketKey: "hyperliquid:mainnet:ENA",
+    note: "The order is below Hyperliquid's minimum.",
+    at: 2_000,
+  }
+
+  it("returns a refusal made for an active watched order while this page is open", () => {
+    expect(
+      refusalAlertsForActiveWatches(
+        [refusal],
+        [
+          {
+            id: "watch-1",
+            kind: "watch",
+            walletId: "w1",
+            marketKey: "hyperliquid:mainnet:ENA",
+            createdAt: 1_000,
+          },
+        ],
+        1_500
+      )
+    ).toEqual([
+      {
+        key: "watch-1:The order is below Hyperliquid's minimum.",
+        refusal,
+      },
+    ])
+  })
+
+  it("does not turn an old refusal or another wallet's refusal into a toast", () => {
+    expect(
+      refusalAlertsForActiveWatches(
+        [refusal],
+        [
+          {
+            id: "watch-2",
+            kind: "watch",
+            walletId: "w2",
+            marketKey: "hyperliquid:mainnet:ENA",
+            createdAt: 1_000,
+          },
+        ],
+        2_001
+      )
+    ).toEqual([])
   })
 })

@@ -1,4 +1,4 @@
-import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { floorSize } from "@/lib/trade/dca"
 import { minimumOrderUsd } from "@/lib/trade/market-info"
 import { judgeOrder } from "@/lib/trade/order-presence"
 import { liveOrderIds } from "@/server/trade/paper"
@@ -222,16 +222,19 @@ export async function advanceWatch(
     const floor =
       minimumOrderUsd(
         {
-          minOrderValueUsd: plan.minOrderValueUsd ?? MIN_ORDER_USD,
+          minOrderValueUsd: plan.minOrderValueUsd,
           minOrderSize: smallestSize,
         },
         mark
-      ) ?? MIN_ORDER_USD
-    if (
+      ) ?? 0
+    const tooSmall =
       takeSz <= 0 ||
       (smallestSize !== null && takeSz + 1e-12 < smallestSize) ||
       mark * takeSz + 1e-9 < floor
-    ) {
+    // Live orders go through `placeLiveOrder`, which checks the current
+    // protocol rules and records the refusal for the browser. Ending the watch
+    // here bypassed that shared path and made the order disappear silently.
+    if (tooSmall && book.wallet.kind !== "live") {
       await deps.saveLadder(row, "done", now)
       return
     }
@@ -288,8 +291,7 @@ export async function advanceWatch(
    * over rather than resting an order against something that is not there.
    */
   const stillToDo = plan.maker
-    ? plan.sz -
-      Math.max(0, plan.heldAtStart - Math.abs(position?.szi ?? 0))
+    ? plan.sz - Math.max(0, plan.heldAtStart - Math.abs(position?.szi ?? 0))
     : plan.sz
   if (plan.maker && (position === null || stillToDo <= 0)) {
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
@@ -314,16 +316,16 @@ export async function advanceWatch(
   const floor =
     minimumOrderUsd(
       {
-        minOrderValueUsd: plan.minOrderValueUsd ?? MIN_ORDER_USD,
+        minOrderValueUsd: plan.minOrderValueUsd,
         minOrderSize: smallestSize,
       },
       wanted
-    ) ?? MIN_ORDER_USD
-  if (
+    ) ?? 0
+  const tooSmall =
     sz <= 0 ||
     (smallestSize !== null && sz + 1e-12 < smallestSize) ||
     wanted * sz + 1e-9 < floor
-  ) {
+  if (tooSmall && book.wallet.kind !== "live") {
     await deps.saveLadder(row, "done", now)
     return
   }

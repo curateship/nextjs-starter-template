@@ -118,7 +118,15 @@ add up to.
 - **Dragging is instant on screen.** The line stays where the hand let go; the
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is
-  on the chart to drag or cancel the moment it lands.
+  on the chart to drag or cancel the moment it lands. While the exchange is
+  answering, the price line says "sending". A refusal removes that line as
+  soon as the reason comes back. A successful line stays until the real order
+  replaces it, with no blank moment between them.
+- **An order that does not fit the exchange's rules always says why.** The
+  check uses that protocol's current price, coin-size step and dollar minimum.
+  No coin has its own exception. A refusal from a press appears as a toast. A
+  watched order refused later stays visible with the reason under it, and the
+  same reason appears as a toast while Trade is open.
 - **A confirmed fill changes Positions from that action.** The regular
   four-second repaint is a safety net for trades made somewhere else and for
   reconnect recovery. An order Trade sent does not wait for that repaint to

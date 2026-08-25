@@ -17,7 +17,7 @@ import {
   type LiveTriggerKind,
   type LiveTriggerRecord,
 } from "@/lib/trade/live-trades"
-import type { LiveRefusal } from "@/lib/trade/live"
+import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
 import type { TradeSide } from "@/lib/trade/paper"
 import {
   fillNoticeWords,
@@ -560,13 +560,13 @@ const REFUSAL_SHOWN_FOR_MS = 6 * 60 * 60_000
 const MAX_REFUSAL_ROWS = 200
 
 /**
- * The last refusal on each market, newest first.
+ * The last refusal in each wallet and market, newest first.
  *
- * **One per market, not all of them.** A full market refuses every retry, so
- * the honest reading of twenty identical rows is one fact — "this market is
- * refusing" — and twenty lines on screen would bury the other markets. The
- * newest carries the reason, and the count of how often is not something a
- * person can act on.
+ * **One per wallet and market, not all of them.** A full market refuses every
+ * retry, so the honest reading of twenty identical rows is one fact — "this
+ * market is refusing" — and twenty lines on screen would bury the other
+ * markets. The newest carries the reason, and the count of how often is not
+ * something a person can act on.
  *
  * Latest-per-market is done in memory rather than in SQL on purpose: it is a
  * handful of rows either way, and `distinct on` here would be a raw fragment
@@ -601,13 +601,14 @@ export async function loadLiveRefusals(
 
   const newest = new Map<string, LiveRefusal>()
   for (const row of rows) {
-    // Rows arrive newest first, so the first one seen for a market is the one
-    // to keep.
-    if (newest.has(row.marketKey)) continue
+    // Rows arrive newest first, so the first one seen for a wallet and market
+    // is the one to keep.
+    const key = liveRefusalKey(row.walletId, row.marketKey)
+    if (newest.has(key)) continue
     // A refusal with nothing written on it explains nothing, and an empty
     // line under a level reads as a fault of its own.
     if (!row.note) continue
-    newest.set(row.marketKey, {
+    newest.set(key, {
       walletId: row.walletId,
       marketKey: row.marketKey,
       // **Scrubbed again on the way out.** Everything written here has been

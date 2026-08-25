@@ -24,15 +24,10 @@ import {
   type TradeSide,
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { floorSize } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
 import { reattributePairedStops } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
-import {
-  minimumOrderDollars,
-  minimumOrderUsd,
-  orderDollars,
-} from "@/lib/trade/market-info"
+import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
@@ -186,7 +181,7 @@ async function recordRefusal(
     // The move codes carry a whole written sentence rather than a bare
     // reason, so stripping the code leaves the Journal reading properly.
     note: message.replace(
-      /^LIVE_(EXCHANGE|ORDER_REFUSED|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
+      /^LIVE_(EXCHANGE|ORDER_REFUSED|ORDER_TOO_SMALL|MOVE_REFUSED|MOVE_DOUBLED|BRACKET_REPLACE_PARTIAL|BRACKET_REPLACE_DOUBLED|LEVERAGE_TOO_HIGH|MARGIN_TOO_MUCH|MARGIN_PAST_STOP):/,
       ""
     ),
   })
@@ -238,25 +233,22 @@ export async function placeLiveOrder(
     }
     const entryPx = marketable ? mark : input.px
     const rules = await marketRules(row.protocol, row.network, ref.marketId)
-    const orderSize = rules ? floorSize(input.sz, rules.sizeDecimals) : input.sz
-    const floor = rules
-      ? minimumOrderUsd(
+    const minimum = rules ? checkOrderMinimum(rules, entryPx, input.sz) : null
+    const orderSize = minimum?.size ?? input.sz
+    if (minimum?.tooSmall || orderSize <= 0) {
+      const refusal =
+        minimum ??
+        checkOrderMinimum(
           {
-            minOrderValueUsd: rules.minOrderValueUsd ?? null,
-            minOrderSize: rules.minOrderSize ?? null,
+            sizeDecimals: null,
+            minOrderValueUsd: null,
+            minOrderSize: null,
           },
-          entryPx
+          entryPx,
+          input.sz
         )
-      : null
-    const asked = entryPx * orderSize
-    if (
-      orderSize <= 0 ||
-      (rules?.minOrderSize != null && orderSize + 1e-12 < rules.minOrderSize) ||
-      (floor !== null && asked + 1e-9 < floor)
-    ) {
-      const smallest = floor ?? entryPx * 10 ** -(rules?.sizeDecimals ?? 0)
       throw new Error(
-        `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${minimumOrderDollars(smallest)}, and this order is $${orderDollars(entryPx * input.sz)}.`
+        `LIVE_ORDER_TOO_SMALL:${orderMinimumRefusal(protocol.label, refusal)}`
       )
     }
 
@@ -307,7 +299,7 @@ export async function placeLiveOrder(
       action: outcome.status === "filled" ? "fill" : "placed",
       side: input.side,
       px: outcome.avgPx ?? entryPx,
-      sz: outcome.filledSz ?? input.sz,
+      sz: outcome.filledSz ?? orderSize,
       note:
         outcome.status === "filled"
           ? "Filled straight away."
@@ -1086,7 +1078,11 @@ export async function loadLivePortfolio(
               throw new Error(`PROTOCOL_NO_PORTFOLIO:${protocol.id}`)
             }
             const portfolio = reattributePairedStops(
-              await readPortfolio(wallet.network, wallet.address ?? "", credential),
+              await readPortfolio(
+                wallet.network,
+                wallet.address ?? "",
+                credential
+              ),
               pairedStops.get(wallet.id) ?? new Map()
             )
             const rows = livePortfolioRows(wallet, portfolio, now)

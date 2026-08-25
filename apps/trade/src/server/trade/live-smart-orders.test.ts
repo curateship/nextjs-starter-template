@@ -41,6 +41,7 @@ const fills = vi.fn()
 const place = vi.fn()
 const cancel = vi.fn()
 const setBrackets = vi.fn()
+let marketFloor: number | null = null
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -49,6 +50,7 @@ const setBrackets = vi.fn()
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    label: "Hyperliquid",
     markets: {
       fetch: async () => ({
         protocol: "hyperliquid",
@@ -63,6 +65,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             subExchange: null,
             category: "crypto",
             sizeDecimals: 3,
+            minOrderValueUsd: marketFloor,
             maxLeverage: 50,
             isolatedOnly: false,
             iconUrl: null,
@@ -130,7 +133,9 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
  * A live watch on a level the price has already gone past, so the next pass
  * takes the market rather than resting anything.
  */
-async function watchThroughTheLevel(): Promise<void> {
+async function watchThroughTheLevel(
+  over: Partial<WatchPlan> = {}
+): Promise<void> {
   const plan: WatchPlan = {
     triggerPx: 100,
     side: "buy",
@@ -156,6 +161,7 @@ async function watchThroughTheLevel(): Promise<void> {
     chasedAt: 0,
     chases: 0,
     startedAt: Date.now() - 10_000,
+    ...over,
   }
   await database.insert(tradeSmartLadders).values({
     userId,
@@ -259,6 +265,7 @@ beforeEach(async () => {
   // Held per wallet and market in module state, so one test's refused buy
   // silently skipped the next test's.
   resetRefusalHolds()
+  marketFloor = null
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
   for (const mock of [
     prices,
@@ -760,6 +767,32 @@ describe("live Smart orders", () => {
     expect(place).toHaveBeenCalled()
     const rows = await database.select().from(tradeSmartLadders)
     expect(rows[0].status).toBe("active")
+  })
+
+  it("keeps a watched order visible and records the protocol minimum when price makes it too small", async () => {
+    marketFloor = 10
+    clearMarketRulesCache()
+    await watchThroughTheLevel({
+      sz: 0.1,
+      minOrderValueUsd: 10,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).not.toHaveBeenCalled()
+    const [watch] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    expect(watch.status).toBe("active")
+    expect(watch.plan).toMatchObject({ phase: "waiting", sent: false })
+    const refusals = await database
+      .select()
+      .from(tradeLiveJournal)
+      .where(eq(tradeLiveJournal.action, "refused"))
+    expect(refusals.at(-1)?.note).toBe(
+      "Hyperliquid's smallest order here is $10.06, and this order is $9.40."
+    )
   })
 
   it("pauses one strategy after five refusals and writes one notice", async () => {

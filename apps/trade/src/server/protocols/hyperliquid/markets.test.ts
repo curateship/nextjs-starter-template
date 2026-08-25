@@ -89,6 +89,7 @@ describe("turning Hyperliquid's answer into market rows", () => {
   it("carries the market's ground rules, and honestly says when one is missing", () => {
     const [btc, sol] = toMarketRows(RESPONSE, "mainnet")
     expect(btc.sizeDecimals).toBe(5)
+    expect(btc.minOrderValueUsd).toBe(10)
     expect(btc.maxLeverage).toBe(40)
     expect(btc.isolatedOnly).toBe(false)
     expect(sol.isolatedOnly).toBe(true)
@@ -153,10 +154,7 @@ describe("sub-exchange markets", () => {
   const subRows = toMarketRows(SUB_RESPONSE, "mainnet", XYZ)
 
   it("keeps ids unique across venues — namespaced even when the wire sends a bare name", () => {
-    expect(subRows.map((row) => row.marketId)).toEqual([
-      "xyz:AAPL",
-      "xyz:BARE",
-    ])
+    expect(subRows.map((row) => row.marketId)).toEqual(["xyz:AAPL", "xyz:BARE"])
     // The already-namespaced asset is not double-prefixed.
     expect(subRows[0].key).toBe("hyperliquid:mainnet:xyz:AAPL")
   })

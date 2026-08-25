@@ -62,6 +62,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   keepUnreachableRows,
   liveRefusalKey,
+  refusalAlertsForActiveWatches,
   type LiveRefusal,
 } from "@/lib/trade/live"
 import type { DcaParams } from "@/lib/trade/dca"
@@ -626,6 +627,18 @@ export function useTrading(
   const [pending, setPending] = React.useState(0)
   /** When the last read landed. The clock every hold is measured against. */
   const [readAt, setReadAt] = React.useState(() => Date.now())
+  const refusalToastsRef = React.useRef<{
+    protocol: ProtocolId
+    pageOpenedAt: number
+    shown: Set<string>
+  } | null>(null)
+  React.useEffect(() => {
+    refusalToastsRef.current = {
+      protocol,
+      pageOpenedAt: Date.now(),
+      shown: new Set<string>(),
+    }
+  }, [protocol])
 
   // Only the newest request may write state: an older answer landing after a
   // newer one would put stale trades over fresh ones.
@@ -1099,6 +1112,21 @@ export function useTrading(
     return byWalletMarket
   }, [liveAnswer])
 
+  React.useEffect(() => {
+    if (!liveAnswer) return
+    const state = refusalToastsRef.current
+    if (!state || state.protocol !== protocol) return
+    for (const alert of refusalAlertsForActiveWatches(
+      liveAnswer.refusals,
+      liveAnswer.smartOrders,
+      state.pageOpenedAt
+    )) {
+      if (state.shown.has(alert.key)) continue
+      state.shown.add(alert.key)
+      showErrorToast(alert.refusal.note)
+    }
+  }, [liveAnswer, protocol])
+
   const trades = React.useMemo((): LiveTrade[] => {
     const paper = paperAnswer?.trades ?? EMPTY_TRADES
     const live = liveAnswer?.trades ?? EMPTY_TRADES
@@ -1388,17 +1416,21 @@ export function useTrading(
             }
           }
         } catch (error) {
+          // A refusal means there is no order for this line to stand in for.
+          // Drop it before showing the reason, so the chart never says the
+          // rejected order is still being sent beside its refusal toast.
+          setPlacing((held) => held.filter((order) => order.id !== ghost.id))
           showErrorToast(
             kind === "paper"
               ? getPaperErrorMessage(error)
               : getLiveErrorMessage(error)
           )
         } finally {
-          // The ghost is NOT removed here. It stays until the real order is
-          // actually on screen — see the reconciling effects below. Removing
-          // it when the answer came back left a gap where the row vanished
-          // and then reappeared as the watch a moment later, which reads as
-          // the order having failed and then un-failed.
+          // A successful ghost stays until the real order is actually on
+          // screen. Removing it when the answer came back left a gap where
+          // the row vanished and then reappeared as the watch a moment later.
+          // A refused ghost was removed in the catch above because no real
+          // row is coming to replace it.
           void refresh()
         }
       })()

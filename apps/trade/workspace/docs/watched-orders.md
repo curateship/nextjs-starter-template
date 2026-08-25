@@ -38,11 +38,24 @@ engine before a website backup or an older copy can race in. This matters
 during a deploy: the new engine takes over as soon as the previous holder lets
 go, while every other copy remains unable to trade.
 
-The exchange's coin-size step is checked before the watch is saved. Aster may
-state a $5 dollar minimum while its smallest coin step costs more. BTC, for
-example, moves in 0.001 BTC order steps. A $10 BTC watch cannot become an Aster
-order while BTC is near $77,000, so Trade refuses it at placement instead of
-leaving it stuck after the price is reached.
+The same check handles every market on every protocol. It reads the protocol's
+current price, dollar minimum and coin-size step, then checks the rounded coin
+size that would actually be sent. No coin has a separate branch. A request can
+still become smaller when a market only trades whole coins. At $1.75, for
+example, a $10 request becomes five coins worth $8.75. Trade refuses the watch
+and reports the first legal size.
+
+The check uses today's market price when the clicked level is already through
+the market. A buy above today's price fills at today's lower price, so the
+clicked price can make an order look large enough even though the order sent at
+the current price is too small. The same protocol check refuses it before the
+watch is saved.
+
+A press draws a temporary price line marked "sending" while the app waits for
+the answer. A refusal removes that line as soon as the reason returns because
+no saved watch or exchange order will replace it, and the toast shows the same
+reason. A successful line remains until the saved watch or resting order takes
+its place, so success never flashes an empty chart between the two.
 
 ## What happens when the price hits the level
 
@@ -143,15 +156,17 @@ The reason now sits under the level, on the Watched tab row.
   always been written to `trade_live_journal`. Nothing read it, on the
   reasoning that a person could go digging when an order had gone wrong —
   and digging needs a database client, so the answer may as well not have
-  existed. `loadLiveRefusals` reads it now, one row per market, six hours
-  back.
-- **One line per market, not one per attempt.** A full market refuses every
-  retry, so twenty identical rows are one fact. The newest carries the reason
-  and the rest are noise that would bury every other market.
-- **A press gets a toast; the engine gets this.** A refusal that comes back
-  from a press throws to the hand that pressed. A refusal during a background
-  pass has nowhere to go — there is no channel from the engine to the browser
-  at all — so the browser's own poll carries it instead.
+  existed. `loadLiveRefusals` reads it now, one row per wallet and market, six
+  hours back.
+- **One line per wallet and market, not one per attempt.** A full market
+  refuses every retry, so twenty identical rows are one fact. The newest
+  carries the reason and the rest are noise that would bury every other
+  market. Two wallets watching the same coin keep separate answers.
+- **A refusal is a toast and a row.** A refusal that comes back from a press
+  appears as a toast at once. The browser's regular read carries a refusal from
+  the background engine. Trade shows the first new reason as a toast while the
+  page is open and keeps the reason under the watched level, so closing the
+  browser cannot erase the explanation.
 - **The triangle says it as much as the colour does**, per the UI standard's
   rule against saying anything in colour alone. The panel is about 300px wide,
   so the sentence is clamped to two lines with the whole of it on the row's
@@ -304,6 +319,12 @@ time, so this matters most when trading against a dev machine.
   the price sat a dollar under the level it was told to buy at. Re-drawn at
   18:57, it was rate-limited on its first attempt and froze again in four
   seconds.
+
+  The same rule covers a size that no longer meets the protocol's minimum when
+  price reaches the level. The watch stays active, the protocol's order path
+  records the reason, and nothing is sent. The old path marked the watch done
+  before the protocol could answer, which removed both the level and its
+  explanation.
 
 - **Calling a watch off wins over an engine pass already in progress.** The
   engine may have read the watch just before the press. A later save from that

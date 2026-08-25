@@ -258,7 +258,7 @@ describe("the rails around placing", () => {
 
     await expect(
       placeLiveOrder(userId, { ...orderInput(walletId), px: 9, sz: 1 })
-    ).rejects.toThrow("smallest order here is $10.00, and this order is $9.00")
+    ).rejects.toThrow("smallest order here is $10.01, and this order is $9.00")
     expect(place).not.toHaveBeenCalled()
   })
 
@@ -277,7 +277,7 @@ describe("the rails around placing", () => {
         px: 77_000,
         sz: 10 / 77_000,
       })
-    ).rejects.toThrow("smallest order here is $77.00, and this order is $10.00")
+    ).rejects.toThrow("smallest order here is $77.00, and this order is $0.00")
     expect(place).not.toHaveBeenCalled()
   })
 
@@ -910,6 +910,22 @@ describe("reading refusals back", () => {
     expect(
       rows.find((one) => one.marketKey === "hyperliquid:mainnet:ETH")?.note
     ).toBe("a different market")
+  })
+
+  it("keeps the same market separate in two wallets", async () => {
+    const userId = await person()
+    const firstWallet = await liveWallet(userId)
+    const secondWallet = await liveWallet(userId)
+    const now = new Date()
+    await refusal(userId, firstWallet, MARKET, "first wallet", now)
+    await refusal(userId, secondWallet, MARKET, "second wallet", now)
+
+    const rows = await loadLiveRefusals(userId, [firstWallet, secondWallet])
+
+    expect(rows).toHaveLength(2)
+    expect(rows.map((row) => row.walletId).sort()).toEqual(
+      [firstWallet, secondWallet].sort()
+    )
   })
 
   it("forgets a refusal older than the window", async () => {

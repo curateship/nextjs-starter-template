@@ -25,11 +25,7 @@ import {
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
-import {
-  minimumOrderDollars,
-  minimumOrderUsd,
-  orderDollars,
-} from "@/lib/trade/market-info"
+import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
@@ -1207,26 +1203,34 @@ export async function placeWatchOrder(
   ) {
     throw new Error("PAPER_MARKET")
   }
-  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
-  if (!rules) throw new Error("PAPER_MARKET")
   const protocol = getProtocol(wallet.protocol)
-  const sz = floorSize(input.sz, rules.sizeDecimals)
-  const floor = minimumOrderUsd(
+  const [rules, prices] = await Promise.all([
+    marketRules(wallet.protocol, wallet.network, ref.marketId),
+    protocol.markets.prices(wallet.network, [ref.marketId]),
+  ])
+  if (!rules) throw new Error("PAPER_MARKET")
+  const mark = prices.get(ref.marketId)
+  if (mark === undefined) {
+    throw new Error(wallet.kind === "paper" ? "PAPER_PRICE" : "LIVE_NO_PRICE")
+  }
+  // A buy above today's market or a sell below it executes at today's price,
+  // not at the clicked level. The minimum check must use the same price or an
+  // order can be accepted here and silently die as too small in the engine.
+  const executionPx = isMarketable(input.side, input.px, mark) ? mark : input.px
+  const minimum = checkOrderMinimum(
     {
+      sizeDecimals: rules.sizeDecimals,
       minOrderValueUsd: rules.minOrderValueUsd ?? null,
       minOrderSize: rules.minOrderSize ?? null,
     },
-    input.px
+    executionPx,
+    input.sz
   )
-  const tooSmall =
-    sz <= 0 ||
-    (rules.minOrderSize != null && sz + 1e-12 < rules.minOrderSize) ||
-    (floor !== null && input.px * sz + 1e-9 < floor)
-  if (tooSmall) {
+  const sz = minimum.size
+  if (minimum.tooSmall) {
     if (wallet.kind === "paper") throw new Error("PAPER_SIZE")
-    const smallest = floor ?? input.px * 10 ** -(rules.sizeDecimals ?? 0)
     throw new Error(
-      `LIVE_ORDER_TOO_SMALL:${protocol.label}'s smallest order here is $${minimumOrderDollars(smallest)}, and this order is $${orderDollars(input.px * input.sz)}.`
+      `LIVE_ORDER_TOO_SMALL:${orderMinimumRefusal(protocol.label, minimum)}`
     )
   }
 

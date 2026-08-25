@@ -126,7 +126,10 @@ export function toMarketRows(
       // Hyperliquid states no tick — its rule is five significant figures,
       // applied in `roundOrderPx`, so there is no per-market number to carry.
       priceTick: null,
-      minOrderValueUsd: null,
+      // Hyperliquid applies this venue-wide even though the market metadata
+      // does not repeat it. Carrying it in every row lets every placement path
+      // refuse an undersized order before signing or saving it.
+      minOrderValueUsd: 10,
       maxLeverage: asset.maxLeverage ?? null,
       isolatedOnly: asset.onlyIsolated ?? false,
       // Sub-exchange art keeps its venue namespace. Asking for the bare stock
