@@ -45,6 +45,11 @@ the largest loss. A market whose exchange did not report a 24-hour change sits
 after every known move. All markets opens in the same order, though its column
 headings can still switch to volume or reverse the change order.
 
+The market open on the chart keeps its gray row fill and has a border on its
+right edge. The border follows the theme's text color, so it is black in the
+light theme and white in the dark theme. The same marker appears in Watched,
+saved folders and All markets.
+
 ## The cog window
 
 The Order card lists every row the panel can draw: Watched, Fav, each named

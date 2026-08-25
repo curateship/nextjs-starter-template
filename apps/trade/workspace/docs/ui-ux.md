@@ -718,7 +718,9 @@ line in the body, share the panel's one 12px gutter.
   the star control.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
-  when a second exchange exists.
+  when a second exchange exists. The selected row keeps its gray fill and adds
+  a right border in the theme's text color in Watched, saved folders and All
+  markets.
 
 ### The Watched row
 

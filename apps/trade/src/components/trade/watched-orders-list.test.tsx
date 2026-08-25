@@ -55,6 +55,7 @@ function draw(state: {
   settled: boolean
   failed: boolean
   refusals?: ReadonlyMap<string, LiveRefusal>
+  selectedKey?: string | null
 }): string {
   return renderToStaticMarkup(
     <WatchedOrdersList
@@ -100,6 +101,17 @@ describe("the Watched tab", () => {
     expect(rows).not.toContain(EMPTY)
     expect(rows).toContain("XMR")
     expect(rows).not.toContain("<img")
+  })
+
+  it("marks every selected market with a theme-sensitive right border", () => {
+    const rows = draw({
+      orders: [waitingLevel],
+      settled: true,
+      failed: false,
+      selectedKey: waitingLevel.marketKey,
+    })
+    expect(rows).toContain("border-r-2")
+    expect(rows).toContain("border-r-foreground")
   })
 
   it("draws the levels the landed half brought, without waiting for the other", () => {

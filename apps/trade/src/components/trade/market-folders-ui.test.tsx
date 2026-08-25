@@ -214,6 +214,7 @@ describe("the market folder controls", () => {
           {...shared}
           folders={[savedFav, namedFolder]}
           catalogs={catalogs}
+          selectedMarketKey={btc.key}
         />
       )
     })
@@ -287,6 +288,8 @@ describe("the market folder controls", () => {
     expect(expandedMarket.className).not.toContain("rounded")
     expect(expandedMarket.className).not.toContain("border-b")
     expect(expandedMarket.className).toContain("px-3")
+    expect(expandedMarket.className).toContain("border-r-2")
+    expect(expandedMarket.className).toContain("border-r-foreground")
     const testToggle = Array.from(
       folderPanel.querySelectorAll('button[aria-expanded="false"]')
     ).find((button) => button.textContent?.includes("Test"))!

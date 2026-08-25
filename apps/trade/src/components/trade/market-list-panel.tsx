@@ -241,9 +241,11 @@ export function MarketRowLine({
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "flex h-9 min-w-0 items-center text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "flex h-9 min-w-0 items-center border-r-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         ROW_COLUMNS,
-        selected ? "bg-muted" : "hover:bg-muted/50",
+        selected
+          ? "border-r-foreground bg-muted"
+          : "border-r-transparent hover:bg-muted/50",
         className
       )}
     >

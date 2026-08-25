@@ -295,8 +295,10 @@ function WatchedRow({
       aria-current={selected ? "true" : undefined}
       title={`${symbol} · ${level.side === "buy" ? "Buy" : "Sell"} ${line.at}${wallet ? ` · ${wallet}` : ""}`}
       className={cn(
-        "flex min-w-0 flex-col justify-center px-3 py-1.5 text-left",
-        selected ? "bg-muted" : "hover:bg-muted/50",
+        "flex min-w-0 flex-col justify-center border-r-2 px-3 py-1.5 text-left",
+        selected
+          ? "border-r-foreground bg-muted"
+          : "border-r-transparent hover:bg-muted/50",
         focusRing
       )}
     >
