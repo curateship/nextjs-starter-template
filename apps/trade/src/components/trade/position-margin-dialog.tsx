@@ -19,6 +19,7 @@ import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
 import { marginOf } from "@/lib/trade/margin-health"
 import { liquidationPx, type TradePosition } from "@/lib/trade/paper"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * How much borrowed money a position runs on, and how much of your own cash is
@@ -136,6 +137,11 @@ function MarginForm({
 
   const [leverage, setLeverage] = React.useState(() => String(leverageNow))
   const [margin, setMargin] = React.useState("")
+  const [showLeverageValidation, setShowLeverageValidation] =
+    React.useState(false)
+  const [showMarginValidation, setShowMarginValidation] = React.useState(false)
+  const [leverageSubmitted, setLeverageSubmitted] = React.useState(false)
+  const [marginSubmitted, setMarginSubmitted] = React.useState(false)
 
   const typedLeverage = Number(leverage.trim())
   // An empty box means "leave it as it is", the same way an empty percent box
@@ -227,6 +233,28 @@ function MarginForm({
         : pastStop
           ? `Taking that out moves the liquidation price to about ${formatPrice(afterMargin ?? 0)}, which the market reaches before the stop at ${formatPrice(position.slPx ?? 0)}. The exchange would take the trade before the stop could. Take out less, or move the stop first.`
           : null
+  const leverageActionRefusal =
+    leverageBad ??
+    (leverageBlank
+      ? "Enter the leverage you want."
+      : !leverageChanged
+        ? `This position is already at ${leverageNow}× leverage.`
+        : null)
+  const marginActionRefusal =
+    marginBad ??
+    (margin.trim() === ""
+      ? "Enter how much cash to put behind the position, or a minus to take cash back."
+      : null)
+  const shownLeverageRefusal = showLeverageValidation
+    ? leverageSubmitted
+      ? leverageActionRefusal
+      : leverageBad
+    : null
+  const shownMarginRefusal = showMarginValidation
+    ? marginSubmitted
+      ? marginActionRefusal
+      : marginBad
+    : null
 
   return (
     <>
@@ -281,14 +309,26 @@ function MarginForm({
                       inputMode="numeric"
                       value={leverage}
                       disabled={busy}
-                      onChange={(event) => setLeverage(event.target.value)}
-                      aria-invalid={leverageBad !== null}
+                      onChange={(event) => {
+                        setShowLeverageValidation(false)
+                        setLeverageSubmitted(false)
+                        setLeverage(event.target.value)
+                      }}
+                      onBlur={() => {
+                        setLeverageSubmitted(false)
+                        setShowLeverageValidation(true)
+                      }}
+                      aria-invalid={
+                        showLeverageValidation && leverageBad !== null
+                      }
                       aria-describedby={
-                        leverageBad ? "margin-leverage-refusal" : undefined
+                        shownLeverageRefusal
+                          ? "margin-leverage-refusal"
+                          : undefined
                       }
                     />
                     <OrderRefusal id="margin-leverage-refusal">
-                      {leverageBad}
+                      {shownLeverageRefusal}
                     </OrderRefusal>
                     <p className="text-xs text-muted-foreground tabular-nums">
                       {!leverageChanged
@@ -303,10 +343,16 @@ function MarginForm({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={
-                          busy || !leverageChanged || leverageBad !== null
-                        }
-                        onClick={() => onSetLeverage(position, typedLeverage)}
+                        disabled={busy}
+                        onClick={() => {
+                          if (leverageActionRefusal) {
+                            setLeverageSubmitted(true)
+                            setShowLeverageValidation(true)
+                            showErrorToast(leverageActionRefusal)
+                            return
+                          }
+                          onSetLeverage(position, typedLeverage)
+                        }}
                       >
                         {busy ? (
                           <Loader2Icon className="size-4 animate-spin" />
@@ -342,14 +388,24 @@ function MarginForm({
                       placeholder="200, or -100 to take it back"
                       value={margin}
                       disabled={busy}
-                      onChange={(event) => setMargin(event.target.value)}
-                      aria-invalid={marginBad !== null}
+                      onChange={(event) => {
+                        setShowMarginValidation(false)
+                        setMarginSubmitted(false)
+                        setMargin(event.target.value)
+                      }}
+                      onBlur={() => {
+                        setMarginSubmitted(false)
+                        setShowMarginValidation(true)
+                      }}
+                      aria-invalid={showMarginValidation && marginBad !== null}
                       aria-describedby={
-                        marginBad ? "margin-dollars-refusal" : undefined
+                        shownMarginRefusal
+                          ? "margin-dollars-refusal"
+                          : undefined
                       }
                     />
                     <OrderRefusal id="margin-dollars-refusal">
-                      {marginBad}
+                      {shownMarginRefusal}
                     </OrderRefusal>
                     <p className="text-xs text-muted-foreground tabular-nums">
                       {!marginOk || marginBad !== null
@@ -366,8 +422,16 @@ function MarginForm({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={busy || !marginOk || marginBad !== null}
-                        onClick={() => onAdjustMargin(position, typedMargin)}
+                        disabled={busy}
+                        onClick={() => {
+                          if (marginActionRefusal) {
+                            setMarginSubmitted(true)
+                            setShowMarginValidation(true)
+                            showErrorToast(marginActionRefusal)
+                            return
+                          }
+                          onAdjustMargin(position, typedMargin)
+                        }}
                       >
                         {busy ? (
                           <Loader2Icon className="size-4 animate-spin" />

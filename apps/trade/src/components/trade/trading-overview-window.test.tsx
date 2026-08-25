@@ -240,4 +240,57 @@ describe("what the widgets say about when they started", () => {
     expect(shown).toContain("0 wallets")
     expect(shown).toContain("No real trades have been recorded yet.")
   })
+
+  it("uses the shared trade badges for buys and sells", () => {
+    vi.setSystemTime(new Date("2026-08-24T16:00:00.000Z"))
+    const fills: TradingOverview["fills"] = [
+      {
+        fillId: "buy-1",
+        walletId: "main",
+        walletLabel: "Main",
+        venue: "Hyperliquid",
+        market: "BTC",
+        side: "buy",
+        px: 65_000,
+        sz: 0.01,
+        at: new Date("2026-08-24T15:00:00.000Z").getTime(),
+        fee: 0.1,
+        money: -0.1,
+      },
+      {
+        fillId: "sell-1",
+        walletId: "main",
+        walletLabel: "Main",
+        venue: "Hyperliquid",
+        market: "ETH",
+        side: "sell",
+        px: 3_000,
+        sz: 0.1,
+        at: new Date("2026-08-24T14:00:00.000Z").getTime(),
+        fee: 0.1,
+        money: 12,
+      },
+    ]
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <TradingOverviewDashboard
+            overview={{ ...overview, fills }}
+            layout={{ top: ["trades"], left: [], right: [] }}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const buy = [...host.querySelectorAll("span")].find(
+      (node) => node.textContent === "BUY"
+    )
+    const sell = [...host.querySelectorAll("span")].find(
+      (node) => node.textContent === "SELL"
+    )
+    expect(buy?.className).toContain("bg-emerald-500/10")
+    expect(buy?.className).toContain("rounded-md")
+    expect(sell?.className).toContain("bg-destructive/10")
+    expect(sell?.className).toContain("rounded-md")
+  })
 })

@@ -111,35 +111,45 @@ async function open(position: TradePosition, maxLeverage: number | null = 20) {
 }
 
 describe("changing leverage and margin on an open position", () => {
-  it("opens on the position's own leverage with nothing to press", async () => {
+  it("keeps unchanged actions pressable so they can explain themselves", async () => {
     const window = await open(live())
     expect(
       document.querySelector<HTMLInputElement>("#margin-leverage")?.value
     ).toBe("5")
-    expect(window.button("Change to 5×")?.disabled).toBe(true)
-    expect(window.button("Move margin")?.disabled).toBe(true)
+    const leverage = window.button("Change to 5×")
+    const margin = window.button("Move margin")
+    expect(leverage?.disabled).toBe(false)
+    expect(margin?.disabled).toBe(false)
+    await act(async () => leverage?.click())
+    expect(window.refusal("margin-leverage-refusal")).toContain("already at 5×")
     await window.close()
   })
 
   it("refuses leverage past what the market allows, and says the cap", async () => {
     const window = await open(live(), 20)
     await window.type("#margin-leverage", "50")
+    expect(window.refusal("margin-leverage-refusal")).toBeNull()
+    expect(window.invalid("#margin-leverage")).toBe(false)
+    await act(async () => window.button("Change to")?.click())
     expect(window.refusal("margin-leverage-refusal")).toContain(
       "between 1 and 20"
     )
     expect(window.invalid("#margin-leverage")).toBe(true)
-    expect(window.button("Change to")?.disabled).toBe(true)
+    expect(window.button("Change to")?.disabled).toBe(false)
     await window.close()
   })
 
   it("treats an empty leverage box as leaving it alone, not as a mistake", async () => {
     const window = await open(live())
     await window.type("#margin-leverage", "")
-    // No refusal: an empty box means "as it is", the same as the stop-and-target
-    // window's empty percent boxes. The button simply has nothing to do.
+    // Typing does not mark the field. Pressing the action explains what it needs.
     expect(window.refusal("margin-leverage-refusal")).toBeNull()
     expect(window.invalid("#margin-leverage")).toBe(false)
-    expect(window.button("Change to")?.disabled).toBe(true)
+    expect(window.button("Change to")?.disabled).toBe(false)
+    await act(async () => window.button("Change to")?.click())
+    expect(window.refusal("margin-leverage-refusal")).toContain(
+      "Enter the leverage"
+    )
     await window.close()
   })
 
@@ -156,10 +166,12 @@ describe("changing leverage and margin on an open position", () => {
   it("refuses taking out more margin than is behind the position", async () => {
     const window = await open(live())
     await window.type("#margin-dollars", "-500")
+    expect(window.refusal("margin-dollars-refusal")).toBeNull()
+    await act(async () => window.button("Take back")?.click())
     expect(window.refusal("margin-dollars-refusal")).toContain(
       "would leave nothing behind it"
     )
-    expect(window.button("Take back")?.disabled).toBe(true)
+    expect(window.button("Take back")?.disabled).toBe(false)
     await window.close()
   })
 
@@ -172,11 +184,12 @@ describe("changing leverage and margin on an open position", () => {
   it("refuses margin out that would put liquidation inside the stop", async () => {
     const window = await open(live({ slPx: 95 }), 20)
     await window.type("#margin-dollars", "-150")
+    await act(async () => window.button("Take back")?.click())
     const said = window.refusal("margin-dollars-refusal") ?? ""
     expect(said).toContain("liquidation price")
     expect(said).toContain("before the stop")
     expect(said).toContain("95")
-    expect(window.button("Take back")?.disabled).toBe(true)
+    expect(window.button("Take back")?.disabled).toBe(false)
     await window.close()
   })
 
@@ -206,10 +219,11 @@ describe("changing leverage and margin on an open position", () => {
       })
     )
     await window.type("#margin-dollars", "50")
+    await act(async () => window.button("Put ")?.click())
     expect(window.refusal("margin-dollars-refusal")).toContain(
       "buys no more room"
     )
-    expect(window.button("Put ")?.disabled).toBe(true)
+    expect(window.button("Put ")?.disabled).toBe(false)
     await window.close()
   })
 

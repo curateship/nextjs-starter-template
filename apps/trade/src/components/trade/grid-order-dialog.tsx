@@ -29,6 +29,9 @@ import {
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { BUY_BUTTON } from "@/lib/trade/money-tone"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
@@ -139,6 +142,7 @@ export function GridOrderDialog({
   // seeded with, nothing on screen moves. Opening on defaults and swapping
   // when the read landed made the range choice visibly snap a second in.
   const seeded = React.useRef(knownGridPrefs()).current
+  const [showValidation, setShowValidation] = React.useState(false)
   // A hand that has already touched a field beats the read either way,
   // because a form must never change under somebody typing into it.
   const edited = React.useRef(false)
@@ -146,6 +150,7 @@ export function GridOrderDialog({
     <A extends unknown[]>(set: (...args: A) => void) =>
       (...args: A) => {
         edited.current = true
+        setShowValidation(false)
         set(...args)
       },
     []
@@ -432,8 +437,8 @@ export function GridOrderDialog({
     market.volume24hUsd,
   ])
 
-  // Every refusal the server would give, said here first so nobody presses
-  // Place to find out. Same order and same wording as the server's.
+  // Every refusal the server would give, in the same order and wording as the
+  // server. It appears after a bad field loses focus or Place is pressed.
   const refusal =
     top === null || bottom === null || !(top > 0) || !(bottom > 0)
       ? anchor === "click"
@@ -458,7 +463,12 @@ export function GridOrderDialog({
   const ready = !busy && refusal === null && plan !== null
 
   const submit = async () => {
-    if (!ready || !params || top === null || bottom === null) return
+    if (busy) return
+    if (!ready || !params || top === null || bottom === null) {
+      setShowValidation(true)
+      if (refusal) showErrorToast(refusal)
+      return
+    }
     const placed = await onPlace({ topPx: top, bottomPx: bottom, params })
     // The server remembers these on placing; the browser's copy keeps the
     // next window from opening on anything older.
@@ -559,8 +569,9 @@ export function GridOrderDialog({
                   inputMode="decimal"
                   value={belowPct}
                   disabled={busy}
-                  aria-invalid={below === null}
+                  aria-invalid={showValidation && below === null}
                   onChange={(event) => touched(setBelowPct)(event.target.value)}
+                  onBlur={() => setShowValidation(true)}
                   className="bg-background"
                 />
               </div>
@@ -575,10 +586,11 @@ export function GridOrderDialog({
                     inputMode="decimal"
                     value={abovePct}
                     disabled={busy}
-                    aria-invalid={above === null}
+                    aria-invalid={showValidation && above === null}
                     onChange={(event) =>
                       touched(setAbovePct)(event.target.value)
                     }
+                    onBlur={() => setShowValidation(true)}
                     className="bg-background"
                   />
                 </div>
@@ -591,10 +603,11 @@ export function GridOrderDialog({
                     inputMode="decimal"
                     value={belowPct}
                     disabled={busy}
-                    aria-invalid={below === null}
+                    aria-invalid={showValidation && below === null}
                     onChange={(event) =>
                       touched(setBelowPct)(event.target.value)
                     }
+                    onBlur={() => setShowValidation(true)}
                     className="bg-background"
                   />
                 </div>
@@ -631,8 +644,9 @@ export function GridOrderDialog({
                 inputMode="numeric"
                 value={levels}
                 disabled={busy}
-                aria-invalid={parsed(levels) === null}
+                aria-invalid={showValidation && parsed(levels) === null}
                 onChange={(event) => touched(setLevels)(event.target.value)}
+                onBlur={() => setShowValidation(true)}
                 className="bg-background"
               />
             </div>
@@ -701,8 +715,9 @@ export function GridOrderDialog({
                 inputMode="decimal"
                 value={potPct}
                 disabled={busy}
-                aria-invalid={parsed(potPct) === null}
+                aria-invalid={showValidation && parsed(potPct) === null}
                 onChange={(event) => touched(setPotPct)(event.target.value)}
+                onBlur={() => setShowValidation(true)}
                 className="bg-background"
               />
             </div>
@@ -787,10 +802,11 @@ export function GridOrderDialog({
                       inputMode="decimal"
                       value={tpPct}
                       disabled={busy}
-                      aria-invalid={parsed(tpPct) === null}
+                      aria-invalid={showValidation && parsed(tpPct) === null}
                       onChange={(event) =>
                         touched(setTpPct)(event.target.value)
                       }
+                      onBlur={() => setShowValidation(true)}
                       className="bg-background"
                     />
                   </div>
@@ -836,10 +852,11 @@ export function GridOrderDialog({
                     inputMode="decimal"
                     value={slUnderPct}
                     disabled={busy}
-                    aria-invalid={parsed(slUnderPct) === null}
+                    aria-invalid={showValidation && parsed(slUnderPct) === null}
                     onChange={(event) =>
                       touched(setSlUnderPct)(event.target.value)
                     }
+                    onBlur={() => setShowValidation(true)}
                     className="bg-background"
                   />
                 </div>
@@ -854,9 +871,11 @@ export function GridOrderDialog({
                   underPct={baseUnderPct}
                   reclaimDays={baseReclaimDays}
                   disabled={busy}
+                  showErrors={showValidation}
                   onOn={touched(setBaseOn)}
                   onUnderPct={touched(setBaseUnderPct)}
                   onReclaimDays={touched(setBaseReclaimDays)}
+                  onBlur={() => setShowValidation(true)}
                 />
               </>
             ) : null}
@@ -916,10 +935,13 @@ export function GridOrderDialog({
                 inputMode="decimal"
                 value={maxOrderVolPct}
                 disabled={busy}
-                aria-invalid={parsed(maxOrderVolPct) === null}
+                aria-invalid={
+                  showValidation && parsed(maxOrderVolPct) === null
+                }
                 onChange={(event) =>
                   touched(setMaxOrderVolPct)(event.target.value)
                 }
+                onBlur={() => setShowValidation(true)}
                 className="bg-background"
               />
             </div>
@@ -928,17 +950,19 @@ export function GridOrderDialog({
       </ScrollArea>
 
       {/* Below the scroll, not in it: however many levels the grid has, the
-            refusal and the button that would ignore it stay on screen. */}
+            refusal and the button that explains it stay on screen. */}
       <div className="border-t p-3">
         <OrderRefusal id="grid-refusal" className="pb-3">
-          {refusal}
+          {showValidation ? refusal : null}
         </OrderRefusal>
         <Button
           type="button"
           onClick={() => void submit()}
-          aria-describedby={refusal ? "grid-refusal" : undefined}
-          disabled={!ready}
-          className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+          aria-describedby={
+            showValidation && refusal ? "grid-refusal" : undefined
+          }
+          disabled={busy}
+          className={cn("w-full", BUY_BUTTON)}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
           {`Place${plan ? ` ${plan.levels.length}` : ""} buy${

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { moneyTone } from "@/lib/trade/money-tone"
 
 /**
  * One headline figure: a label, the number, and the quiet line under it saying
@@ -52,10 +53,7 @@ export function BacktestKpi({
 
 /** Green above zero, red below, plain at zero or when there is no number. */
 export function toneClass(tone: number | undefined): string | undefined {
-  if (tone === undefined || tone === 0) return undefined
-  return tone > 0
-    ? "text-teal-600 dark:text-teal-400"
-    : "text-red-600 dark:text-red-400"
+  return tone === undefined ? undefined : moneyTone(tone)
 }
 
 /** "63%" from a share between 0 and 1. */

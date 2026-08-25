@@ -225,7 +225,6 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
         void navigate({
           to: ".",
           search: (current) => ({ ...current, market: key }),
-          replace: true,
         })
       }
       onRetryMarkets={onRetryMarkets}

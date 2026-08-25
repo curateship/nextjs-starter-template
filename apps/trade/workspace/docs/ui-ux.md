@@ -41,14 +41,16 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the name would never be on screen. The star has its own outlined button. The
   market logo, name, top leverage, arrow and info button sit in one outlined
   group. The leverage is secondary 12px text beside the larger market name.
-  Every control in that row is 28px high. Pressing the market name
+  Every control in that row is 32px high. Pressing the market name
   opens the full market picker: search; segmented tabs; sortable figures; and
   a star on every row. Favorites, All and Trending are always there. Phemex and
   KuCoin stop there because every market is crypto. Hyperliquid also has Crypto,
   TradFi and HIP-3. Aster adds Crypto and TradFi only while its current list
   contains something outside crypto. An exchange omits funding or open
   interest when it cannot fill that column. Moving to an exchange that lacks
-  the current sort returns the list to daily volume. Below,
+  the current sort returns the list to daily volume. Picking a market adds it
+  to browser history, so Back returns to the market that was on screen before
+  the pick. Below,
   the real candle chart fills everything, volume tucked into its bottom
   fifth. Candle green and red are the same colours as the list's pills, read
   off the page rather than hard-coded. Grid levels, ladder rungs and order
@@ -110,14 +112,14 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the panel is the same order as making the decision.
 - **Bottom — what you are holding.** Positions, open orders and fills, as tabs.
 
-**Every tab row and header icon on the workspace uses one pill style**, the
-muted-gray-inside-a-border of the middle header's timeframe button. The
-selected tab of any panel is that pill, 28px high; the tabs not selected are
-plain gray text with no line under them. The old style — a black underline
-under the selected tab — is gone. Icon buttons that sit in a panel header (the
-account panel's add-wallet +, the Folders panel's + and cog, the narrow-screen
-markets and account buttons) carry the same pill background instead of being
-bare icons. The pill itself lives on the shared `WorkspacePanelTab` in
+**Every tab row and header icon on the workspace uses the shared 32px style.**
+The tab strip immediately behind the buttons uses the same light gray as the
+market control in the middle panel. The buttons, header and panel keep their
+existing backgrounds. The selected tab uses a small shadow, so it reads as the
+raised shared button shape instead of using a black underline. Icon buttons in
+a panel header, including the account panel's add-wallet +, the Folders panel's +
+and cog, and the narrow-screen markets and account buttons, use the same height.
+The tab itself lives on the shared `WorkspacePanelTab` in
 `src/components/shared/workspace-panel-header.tsx`, a shell file changed in
 Custom Shell first and carried here unchanged.
 
@@ -1003,6 +1005,12 @@ written by an older build still uses the reading state below.
   answer lands. A failed read keeps the button on screen and says what failed
   in the error toast; later reads keep the last complete status rather than
   opening a gap in the header.
+- **The flow status popover leads to the run.** When the flow has a run id, its
+  name and figures at the top of the popover form one keyboard-reachable link
+  to that run's dashboard. Pause, Stop, Try again and Open the dashboard keep
+  their own jobs. A status without a run id shows the same summary without a
+  link. The run chart does not repeat the old notice that more orders may
+  appear while the run is switched on.
 - **Both halves have to land.** The trading read comes back in two pieces,
   practice and real, and either may be first. A person whose ladders are all on
   real wallets holds an empty practice half for a second or two, and that half
@@ -1052,6 +1060,9 @@ working bar streams beside it.
   to the open total in Results.
 - Runs saved without the trade figures needed for the split say that open P&L
   is unavailable. The app never treats an unknown amount as zero.
+- If the selected market's candle read fails, the Trades panel shows the same
+  error and Try again action as the chart. A failed read never leaves the panel
+  saying that trades are still loading.
 
 ## Backtest candle history
 
@@ -1115,21 +1126,22 @@ working bar streams beside it.
 - **An unavailable action explains itself.** Never hide the reason, and never
   quietly change what the user asked for into something that is allowed.
 
-  **A greyed-out button carries its reason above it, in one sentence, before
-  anything is pressed.** A dead grey button on a trading screen reads as a
-  broken app rather than as a form with a problem in it. Every window that can
-  refuse — the ladder, the grid, the order window, the stop-and-target window,
-  the running grid's window and a live ladder's exits — draws the same red line
-  through `order-refusal.tsx`: on the floating chart windows directly above the
-  button, and in a modal to the left of its footer buttons, which is the one
-  place a body that scrolls cannot carry it out of sight.
+  **An incomplete form keeps its main action pressable.** The action becomes
+  unavailable only while the app is saving. Leaving a bad box or pressing the
+  action shows the reason in one red sentence. Pressing also shows the same
+  reason in a toast, so the button always answers. Every window that can refuse,
+  including the ladder, the grid, the order window, the stop-and-target window,
+  the running grid's window and a live ladder's exits, draws the sentence
+  through `order-refusal.tsx`. Floating chart windows place it directly above
+  the button. A modal places it beside the footer buttons, where a scrolling
+  body cannot carry it out of sight.
 
   The words name the box and what would fix it, in dollars wherever money is
   involved. Never a code and never a field name out of the source. The box at
-  fault carries `aria-invalid`, so the eye and the screen reader are pointed at
-  the same place, and the button points at the sentence with
-  `aria-describedby`. A box nobody has typed in yet is not outlined; the
-  sentence alone explains what the button is waiting for.
+  fault carries `aria-invalid` after the person leaves it or tries the action,
+  so the eye and the screen reader are pointed at the same place. The button
+  points at the sentence with `aria-describedby`. Typing an unfinished number,
+  such as `0.`, does not mark the box as wrong before either of those moments.
 
 - **The exchange and network stay one glance or one hover away** wherever a
   market or an account could be read as belonging to the wrong one — the

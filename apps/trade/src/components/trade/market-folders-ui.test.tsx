@@ -210,12 +210,14 @@ describe("the market folder controls", () => {
     }
     await act(async () => {
       root.render(
-        <MarketFoldersPanel
-          {...shared}
-          folders={[savedFav, namedFolder]}
-          catalogs={catalogs}
-          selectedMarketKey={btc.key}
-        />
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[savedFav, namedFolder]}
+            catalogs={catalogs}
+            selectedMarketKey={btc.key}
+          />
+        </TooltipProvider>
       )
     })
 
@@ -235,7 +237,7 @@ describe("the market folder controls", () => {
     )!
     await act(async () => click(addFolder))
     expect(
-      folderPanel.querySelector('input[aria-label="Folder name"]')
+      folderPanel.querySelector("#new-market-folder-name")
     ).not.toBeNull()
     const manageFolders = folderPanel.querySelector(
       'button[aria-label="Manage folders"]'
@@ -243,7 +245,7 @@ describe("the market folder controls", () => {
     await act(async () => click(manageFolders))
     expect(document.body.textContent).toContain("Manage folders")
     expect(
-      document.body.querySelector('input[aria-label="New folder name"]')
+      document.body.querySelector("#manage-market-folder-name")
     ).not.toBeNull()
     expect(document.body.textContent).toContain("New folder")
     expect(document.body.textContent).toContain("Create")
@@ -330,11 +332,13 @@ describe("the market folder controls", () => {
 
     await act(async () => {
       root.render(
-        <MarketFoldersPanel
-          {...shared}
-          folders={[folder]}
-          catalogs={sortedCatalogs}
-        />
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[folder]}
+            catalogs={sortedCatalogs}
+          />
+        </TooltipProvider>
       )
     })
 
@@ -366,16 +370,18 @@ describe("the market folder controls", () => {
     }
     await act(async () => {
       root.render(
-        <MarketFoldersPanel
-          {...shared}
-          folders={[fav, named]}
-          catalogs={catalogs}
-          // All markets dragged above everything, Watched switched off.
-          panelRows={{
-            all: { position: -2, hidden: false },
-            watched: { position: -1, hidden: true },
-          }}
-        />
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[fav, named]}
+            catalogs={catalogs}
+            // All markets dragged above everything, Watched switched off.
+            panelRows={{
+              all: { position: -2, hidden: false },
+              watched: { position: -1, hidden: true },
+            }}
+          />
+        </TooltipProvider>
       )
     })
 
@@ -412,11 +418,13 @@ describe("the market folder controls", () => {
     }
     await act(async () => {
       root.render(
-        <MarketFoldersPanel
-          {...shared}
-          folders={[fav, named]}
-          catalogs={catalogs}
-        />
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[fav, named]}
+            catalogs={catalogs}
+          />
+        </TooltipProvider>
       )
     })
 
@@ -438,7 +446,9 @@ describe("the market folder controls", () => {
   it("lets Fav be renamed from the cog window", async () => {
     await act(async () => {
       root.render(
-        <MarketFoldersPanel {...shared} folders={[fav]} catalogs={catalogs} />
+        <TooltipProvider>
+          <MarketFoldersPanel {...shared} folders={[fav]} catalogs={catalogs} />
+        </TooltipProvider>
       )
     })
 
@@ -459,13 +469,15 @@ describe("the market folder controls", () => {
   it("does not call a volume-hidden folder empty", async () => {
     await act(async () => {
       root.render(
-        <MarketFoldersPanel
-          {...shared}
-          folders={[{ ...fav, marketKeys: [btc.key] }]}
-          catalogs={[
-            { ...catalogs[0], rows: [], hiddenByVolumeKeys: [btc.key] },
-          ]}
-        />
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[{ ...fav, marketKeys: [btc.key] }]}
+            catalogs={[
+              { ...catalogs[0], rows: [], hiddenByVolumeKeys: [btc.key] },
+            ]}
+          />
+        </TooltipProvider>
       )
     })
 

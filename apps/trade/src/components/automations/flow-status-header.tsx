@@ -32,6 +32,7 @@ import {
 } from "@/lib/api/flow-trading"
 import type { AutomationCanvasStatusProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
+import { focusRing } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatUsd } from "@/lib/trade/format"
@@ -278,6 +279,8 @@ export default function FlowStatusHeader({
     )
   }
 
+  const dashboardSummary = <RunDashboardSummary live={live} />
+
   return (
     <div className="flex items-center gap-2">
       <Popover open={open} onOpenChange={setOpen}>
@@ -326,33 +329,21 @@ export default function FlowStatusHeader({
         </PopoverTrigger>
 
         <PopoverContent align="end" className="w-80">
-          <PopoverHeader>
-            <PopoverTitle>{live.walletLabel}</PopoverTitle>
-          </PopoverHeader>
-
-          <div className="grid gap-1.5 text-xs">
-            <Row
-              label="Money"
-              value={live.real ? "Real money" : "Practice money"}
-            />
-            {/* A ceiling, not a balance: the flow spends the smaller of this
-              and what the wallet holds. Labelled as the cap so a $10,000
-              ceiling on a $900 wallet cannot read as $10,000 to spend. */}
-            <Row
-              label="Spending cap"
-              value={live.capUsd === null ? "Not set" : formatUsd(live.capUsd)}
-            />
-            <Row
-              label="Coins working"
-              value={`${live.working} of ${live.coins}`}
-            />
-            {live.startedAt === null ? null : (
-              <Row
-                label="Switched on"
-                value={formatRelativeTime(new Date(live.startedAt))}
-              />
-            )}
-          </div>
+          {live.runId === null ? (
+            dashboardSummary
+          ) : (
+            <Link
+              to="/flow-runs/$runId"
+              params={{ runId: live.runId }}
+              aria-label={`Open ${live.walletLabel} run dashboard`}
+              className={cn(
+                "-m-1 grid gap-1.5 rounded-md p-1 transition-colors hover:bg-muted/60",
+                focusRing
+              )}
+            >
+              {dashboardSummary}
+            </Link>
+          )}
 
           {/* Why nothing is happening, which is the question this whole panel
             exists to answer. A flow refusing every coin for want of money and
@@ -492,6 +483,37 @@ export default function FlowStatusHeader({
       {buttons}
       {confirms}
     </div>
+  )
+}
+
+function RunDashboardSummary({
+  live,
+}: {
+  live: Extract<FlowTrading, { mode: "trades" }>
+}) {
+  return (
+    <>
+      <PopoverHeader>
+        <PopoverTitle>{live.walletLabel}</PopoverTitle>
+      </PopoverHeader>
+      <div className="grid gap-1.5 text-xs">
+        <Row
+          label="Money"
+          value={live.real ? "Real money" : "Practice money"}
+        />
+        <Row
+          label="Spending cap"
+          value={live.capUsd === null ? "Not set" : formatUsd(live.capUsd)}
+        />
+        <Row label="Coins working" value={`${live.working} of ${live.coins}`} />
+        {live.startedAt === null ? null : (
+          <Row
+            label="Switched on"
+            value={formatRelativeTime(new Date(live.startedAt))}
+          />
+        )}
+      </div>
+    </>
   )
 }
 

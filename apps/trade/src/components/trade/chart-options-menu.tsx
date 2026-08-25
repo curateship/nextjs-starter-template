@@ -119,7 +119,7 @@ export function ChartOptionsMenu({
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="View options"
             className="bg-muted/60 dark:bg-muted/60"
             onClick={() => openDialog(true)}

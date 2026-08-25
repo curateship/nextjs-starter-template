@@ -82,30 +82,38 @@ export function MarketHeader({
     onOpenMarkets || onOpenAccount ? (
       <>
         {onOpenMarkets ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Show markets"
-            title="Show markets"
-            className="bg-muted/60 dark:bg-muted/60"
-            onClick={onOpenMarkets}
-          >
-            <ListIcon className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Show markets"
+                className="bg-muted/60 dark:bg-muted/60"
+                onClick={onOpenMarkets}
+              >
+                <ListIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Show markets</TooltipContent>
+          </Tooltip>
         ) : null}
         {onOpenAccount ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            aria-label="Show account"
-            title="Show account"
-            className="bg-muted/60 dark:bg-muted/60"
-            onClick={onOpenAccount}
-          >
-            <WalletIcon className="size-4" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Show account"
+                className="bg-muted/60 dark:bg-muted/60"
+                onClick={onOpenAccount}
+              >
+                <WalletIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Show account</TooltipContent>
+          </Tooltip>
         ) : null}
       </>
     ) : null
@@ -154,10 +162,6 @@ export function MarketHeader({
   return (
     <div
       data-slot="workspace-panel-header"
-      // px-3, not the px-4/px-5 the title headers use: every control in this
-      // row is a 28px pill in a 50.4px row, ~11px of air above it, and Tyler
-      // asked for the side gaps to read even with that (23 Aug 2026). 12px is
-      // also what the tab headers keep beside their first pill.
       className={cn(
         "flex shrink-0 items-center gap-2 border-b px-3",
         workspacePanelHeaderHeightClassName
@@ -174,7 +178,7 @@ export function MarketHeader({
         }
         onCreate={(name) => folderActions.create(selection.row.key, name)}
       />
-      <div className="flex h-7 min-w-0 items-center rounded-lg border bg-muted/60">
+      <div className="flex h-8 min-w-0 items-center rounded-lg border bg-muted/60">
         <MarketPicker
           key={parseMarketKey(selection.row.key)?.protocol}
           rows={markets}

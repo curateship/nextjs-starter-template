@@ -48,7 +48,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   createFolder,
   deleteFolder,
@@ -349,64 +355,73 @@ export function MarketFoldersPanel({
       <WorkspacePanelHeader
         icon={<FolderIcon />}
         title="Folders"
-        // 12px sides, matching the ~11px above the 28px buttons — the same
-        // evening-up Tyler asked for on the market header (23 Aug 2026).
         className="px-3 sm:px-3"
         action={
           // gap-2, the same 8px the middle header keeps between its
           // controls — the two headers sit side by side.
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Add folder"
-              title="Add folder"
-              className="bg-muted/60 dark:bg-muted/60"
-              onClick={() => setCreating((shown) => !shown)}
-            >
-              <PlusIcon className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              aria-label="Manage folders"
-              title="Manage folders"
-              className="bg-muted/60 dark:bg-muted/60"
-              onClick={() => {
-                setCreating(false)
-                setManaging(true)
-              }}
-            >
-              <SettingsIcon className="size-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Add folder"
+                  className="bg-muted/60 dark:bg-muted/60"
+                  onClick={() => setCreating((shown) => !shown)}
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Add folder</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Manage folders"
+                  className="bg-muted/60 dark:bg-muted/60"
+                  onClick={() => {
+                    setCreating(false)
+                    setManaging(true)
+                  }}
+                >
+                  <SettingsIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Manage folders</TooltipContent>
+            </Tooltip>
           </div>
         }
       />
       {creating ? (
         <form
-          className="flex shrink-0 items-center gap-2 border-b p-2"
+          className="grid shrink-0 gap-2 border-b p-2"
           onSubmit={submitNewFolder}
         >
-          <Input
-            autoFocus
-            aria-label="Folder name"
-            placeholder="Folder name"
-            value={newName}
-            maxLength={80}
-            disabled={busy}
-            onChange={(event) => setNewName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                setCreating(false)
-                setNewName("")
-              }
-            }}
-          />
-          <Button type="submit" size="sm" disabled={busy || !newName.trim()}>
-            Add
-          </Button>
+          <Label htmlFor="new-market-folder-name">Folder name</Label>
+          <div className="flex gap-2">
+            <Input
+              id="new-market-folder-name"
+              autoFocus
+              placeholder="Folder name"
+              value={newName}
+              maxLength={80}
+              disabled={busy}
+              onChange={(event) => setNewName(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  setCreating(false)
+                  setNewName("")
+                }
+              }}
+            />
+            <Button type="submit" disabled={busy || !newName.trim()}>
+              Add
+            </Button>
+          </div>
         </form>
       ) : null}
       <ScrollArea className="min-h-0 flex-1">
@@ -478,19 +493,21 @@ export function MarketFoldersPanel({
                 <CardHeader>
                   <CardTitle>New folder</CardTitle>
                 </CardHeader>
-                <CardContent className="flex items-center gap-2">
-                  <Input
-                    id="manage-market-folder-name"
-                    aria-label="New folder name"
-                    placeholder="Folder name"
-                    value={newName}
-                    maxLength={80}
-                    disabled={busy}
-                    onChange={(event) => setNewName(event.target.value)}
-                  />
-                  <Button type="submit" disabled={busy || !newName.trim()}>
-                    Create
-                  </Button>
+                <CardContent className="grid gap-2">
+                  <Label htmlFor="manage-market-folder-name">Folder name</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="manage-market-folder-name"
+                      placeholder="Folder name"
+                      value={newName}
+                      maxLength={80}
+                      disabled={busy}
+                      onChange={(event) => setNewName(event.target.value)}
+                    />
+                    <Button type="submit" disabled={busy || !newName.trim()}>
+                      Create
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </form>
@@ -666,36 +683,46 @@ function PanelRowManager({
           <RowName name={row.name} count={row.count} hidden={row.hidden} />
         </div>
       )}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
-        title={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
-        aria-pressed={row.hidden}
-        disabled={disabled}
-        onPointerDown={(event) => event.preventDefault()}
-        onClick={onToggleHidden}
-      >
-        {row.hidden ? (
-          <EyeOffIcon className="size-4" />
-        ) : (
-          <EyeIcon className="size-4" />
-        )}
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
+            aria-pressed={row.hidden}
+            disabled={disabled}
+            onPointerDown={(event) => event.preventDefault()}
+            onClick={onToggleHidden}
+          >
+            {row.hidden ? (
+              <EyeOffIcon className="size-4" />
+            ) : (
+              <EyeIcon className="size-4" />
+            )}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>
+          {row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
+        </TooltipContent>
+      </Tooltip>
       {deletable ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={`Delete ${row.name}`}
-          title={`Delete ${row.name}`}
-          disabled={disabled}
-          onPointerDown={(event) => event.preventDefault()}
-          onClick={onDelete}
-        >
-          <Trash2Icon className="size-4" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${row.name}`}
+              disabled={disabled}
+              onPointerDown={(event) => event.preventDefault()}
+              onClick={onDelete}
+            >
+              <Trash2Icon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{`Delete ${row.name}`}</TooltipContent>
+        </Tooltip>
       ) : null}
     </div>
   )

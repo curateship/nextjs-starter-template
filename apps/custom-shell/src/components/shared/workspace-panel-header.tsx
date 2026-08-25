@@ -160,7 +160,7 @@ export function WorkspacePanelTabsHeader({
         workspacePanelHeaderHeightClassName
       )}
     >
-      <TabsList className="h-full min-w-0 justify-start gap-2 rounded-none bg-transparent p-0">
+      <TabsList className="min-w-0 justify-start">
         {children}
       </TabsList>
       {action ? (
@@ -183,11 +183,8 @@ export function WorkspacePanelTab({
 }) {
   return (
     <TabsTrigger
-      // The selected tab is the same light grey pill as the chart toolbar's
-      // buttons — `h-7`, a real border, `bg-muted/60` — so tabs and header
-      // controls read as one family. Unselected tabs are plain text.
       className={cn(
-        "group/panel-tab h-7 flex-none rounded-[min(var(--radius-md),12px)] border border-transparent px-2.5 text-muted-foreground hover:text-foreground data-[state=active]:border-border data-[state=active]:bg-muted/60 data-[state=active]:text-foreground data-[state=active]:shadow-none",
+        "group/panel-tab flex-none",
         workspacePanelTabClassName,
         className
       )}

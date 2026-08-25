@@ -1,5 +1,11 @@
 import type { ReactNode } from "react"
 
+import {
+  ALARM_SURFACE,
+  LOST_MONEY_SURFACE,
+  MADE_MONEY_SURFACE,
+  WARNING_SURFACE,
+} from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,11 +35,11 @@ export type TradeBadgeTone =
 
 const TONES: Record<TradeBadgeTone, string> = {
   neutral: "bg-muted text-muted-foreground",
-  made: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-  lost: "bg-red-500/10 text-red-700 dark:text-red-400",
-  real: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  made: MADE_MONEY_SURFACE,
+  lost: LOST_MONEY_SURFACE,
+  real: WARNING_SURFACE,
   testnet: "bg-sky-500/10 text-sky-700 dark:text-sky-400",
-  alarm: "bg-red-500/20 text-red-700 dark:text-red-300",
+  alarm: ALARM_SURFACE,
 }
 
 export function TradeBadge({

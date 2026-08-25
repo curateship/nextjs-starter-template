@@ -17,6 +17,7 @@ import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { DCA_TP_MODE_LABELS } from "@/lib/trade/dca"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
+import { moneyToneSurface } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 /**
@@ -82,9 +83,7 @@ export function FlowRunStatsPanel({
               <span
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-xl font-semibold tracking-tight tabular-nums",
-                  (stats ? stats.net : banked) >= 0
-                    ? "bg-teal-600/10 text-teal-600 dark:bg-teal-400/10 dark:text-teal-400"
-                    : "bg-red-600/10 text-red-600 dark:bg-red-400/10 dark:text-red-400"
+                  moneyToneSurface(stats ? stats.net : banked)
                 )}
               >
                 {signedPct(stats ? stats.netPct : 0)}

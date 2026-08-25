@@ -558,8 +558,12 @@ export function BacktestRunPage({
                 null
               }
               trades={shown?.trades ?? []}
-              loading={activeCoin !== null && shown === null}
+              loading={
+                activeCoin !== null && shown === null && shownError === null
+              }
+              error={shownError}
               selected={selectedTrade}
+              onRetry={retryChart}
               onSelect={selectTrade}
             />
           </WorkspacePanel>

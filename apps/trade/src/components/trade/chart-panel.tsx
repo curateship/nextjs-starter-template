@@ -140,7 +140,6 @@ export function IntervalPicker({
         <Button
           type="button"
           variant="outline"
-          size="sm"
           aria-label="Candle interval"
           className="min-w-12 bg-muted/60 px-2 dark:bg-muted/60"
         >

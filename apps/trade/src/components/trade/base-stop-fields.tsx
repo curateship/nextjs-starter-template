@@ -25,17 +25,21 @@ export function BaseStopFields({
   underPct,
   reclaimDays,
   disabled,
+  showErrors = true,
   onOn,
   onUnderPct,
   onReclaimDays,
+  onBlur,
 }: {
   on: boolean
   underPct: string
   reclaimDays: string
   disabled: boolean
+  showErrors?: boolean
   onOn: (next: boolean) => void
   onUnderPct: (next: string) => void
   onReclaimDays: (next: string) => void
+  onBlur?: () => void
 }) {
   return (
     <OptionCard
@@ -60,8 +64,9 @@ export function BaseStopFields({
           // Only while the box is being used. A switched-off base stop keeps
           // whatever was last typed in it, and outlining a box nothing is
           // reading points at a problem that is not there.
-          aria-invalid={on && badBaseUnderPct(underPct)}
+          aria-invalid={showErrors && on && badBaseUnderPct(underPct)}
           onChange={(event) => onUnderPct(event.target.value)}
+          onBlur={onBlur}
         />
       </div>
 
@@ -77,8 +82,9 @@ export function BaseStopFields({
           inputMode="decimal"
           value={reclaimDays}
           disabled={disabled || !on}
-          aria-invalid={on && badBaseReclaimDays(reclaimDays)}
+          aria-invalid={showErrors && on && badBaseReclaimDays(reclaimDays)}
           onChange={(event) => onReclaimDays(event.target.value)}
+          onBlur={onBlur}
         />
       </div>
     </OptionCard>

@@ -3,6 +3,7 @@ import { GripVerticalIcon } from "lucide-react"
 
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { formatUsd } from "@/lib/trade/format"
+import { MADE_MONEY } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 const EDGE = 8
@@ -137,7 +138,8 @@ export function FloatingOrderWindow({
         <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
         <span
           className={cn(
-            "text-sm font-semibold text-emerald-600 dark:text-emerald-400",
+            "text-sm font-semibold",
+            MADE_MONEY,
             titleClassName
           )}
         >

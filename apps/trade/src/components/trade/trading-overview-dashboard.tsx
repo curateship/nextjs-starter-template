@@ -15,6 +15,7 @@ import {
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
+import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -337,16 +338,9 @@ function TradeRow({ fill }: { fill: TradingOverviewFill }) {
       <TableCell column="main" className="py-3">
         <div className="flex items-center gap-2">
           <span className="font-medium">{fill.market}</span>
-          <Badge
-            variant={fill.side === "sell" ? "destructive" : "secondary"}
-            className={
-              fill.side === "buy"
-                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                : undefined
-            }
-          >
+          <TradeBadge tone={fill.side === "buy" ? "made" : "lost"}>
             {fill.side.toUpperCase()}
-          </Badge>
+          </TradeBadge>
         </div>
         <p
           className="mt-0.5 text-xs text-muted-foreground"

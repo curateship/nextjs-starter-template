@@ -254,7 +254,6 @@ export function FlowRunPage({
     chart?.key === activeCoin && chart.working === activeCoinWorking
       ? chart
       : null
-  const running = report.head.status !== "stopped"
 
   const openCoinInChart = (marketKey: string) => {
     setActiveCoin(marketKey)
@@ -297,7 +296,6 @@ export function FlowRunPage({
       onViewChange={chartView.onViewChange}
       loading={activeCoin !== null && shown === null && chartError === null}
       error={chartError}
-      live={running}
       walletLabel={report.head.walletLabel}
       automationId={report.head.automationId}
       onRetry={() => void load()}

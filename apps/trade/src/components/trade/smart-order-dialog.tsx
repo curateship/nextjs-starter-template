@@ -45,6 +45,9 @@ import {
   baseStopDetection,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { BUY_BUTTON } from "@/lib/trade/money-tone"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * The DCA window the Smart order menu opens, floating at the level clicked.
@@ -144,6 +147,7 @@ export function SmartOrderDialog({
   // with, so nothing on screen moves. Opening on defaults and swapping when
   // the read landed made the fields visibly snap a second in.
   const seeded = React.useRef(knownDcaPrefs()).current
+  const [showValidation, setShowValidation] = React.useState(false)
   // A hand that has already touched a field beats the read either way,
   // because a form must never change under somebody typing into it.
   const edited = React.useRef(false)
@@ -151,6 +155,7 @@ export function SmartOrderDialog({
     <A extends unknown[]>(set: (...args: A) => void) =>
       (...args: A) => {
         edited.current = true
+        setShowValidation(false)
         set(...args)
       },
     []
@@ -379,8 +384,18 @@ export function SmartOrderDialog({
     !busy &&
     refusal === null &&
     plan !== null
+  const blockedReason =
+    refusal ??
+    (anchor === "base" && !baseRead
+      ? "Still reading the confirmed base for this market."
+      : "Finish the ladder settings before placing it.")
   const submit = async () => {
-    if (!ready || !params) return
+    if (busy) return
+    if (!ready || !params) {
+      setShowValidation(true)
+      showErrorToast(blockedReason)
+      return
+    }
     const placed = await onPlace({ clickPx: state.px, interval, params })
     // The server remembers these on placing; the browser's copy keeps the
     // next window from opening on anything older.
@@ -453,10 +468,13 @@ export function SmartOrderDialog({
                     value={rung.value}
                     disabled={busy}
                     aria-label={`Rung ${index + 1}, percent below the buy above`}
-                    aria-invalid={parsed(rung.value) === null}
+                    aria-invalid={
+                      showValidation && parsed(rung.value) === null
+                    }
                     onChange={(event) =>
                       touched(setRung)(rung.id, event.target.value)
                     }
+                    onBlur={() => setShowValidation(true)}
                     className="w-16 bg-background"
                   />
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
@@ -510,11 +528,14 @@ export function SmartOrderDialog({
                   value={maxPositionPct}
                   disabled={busy}
                   aria-invalid={
-                    params === null && parsed(maxPositionPct) === null
+                    showValidation &&
+                    params === null &&
+                    parsed(maxPositionPct) === null
                   }
                   onChange={(event) =>
                     touched(setMaxPositionPct)(event.target.value)
                   }
+                  onBlur={() => setShowValidation(true)}
                   className="bg-background"
                 />
               </div>
@@ -533,6 +554,7 @@ export function SmartOrderDialog({
                   onChange={(event) =>
                     touched(setSizeMultiplier)(event.target.value)
                   }
+                  onBlur={() => setShowValidation(true)}
                   className="bg-background"
                 />
               </div>
@@ -584,10 +606,13 @@ export function SmartOrderDialog({
                       inputMode="decimal"
                       value={tpPct}
                       disabled={busy}
-                      aria-invalid={tpOn && parsed(tpPct) === null}
+                      aria-invalid={
+                        showValidation && tpOn && parsed(tpPct) === null
+                      }
                       onChange={(event) =>
                         touched(setTpPct)(event.target.value)
                       }
+                      onBlur={() => setShowValidation(true)}
                       className="bg-background"
                     />
                   </div>
@@ -625,8 +650,11 @@ export function SmartOrderDialog({
                     inputMode="decimal"
                     value={slPct}
                     disabled={busy}
-                    aria-invalid={slOn && parsed(slPct) === null}
+                    aria-invalid={
+                      showValidation && slOn && parsed(slPct) === null
+                    }
                     onChange={(event) => touched(setSlPct)(event.target.value)}
+                    onBlur={() => setShowValidation(true)}
                     className="bg-background"
                   />
                 </div>
@@ -635,9 +663,11 @@ export function SmartOrderDialog({
                   underPct={baseUnderPct}
                   reclaimDays={baseReclaimDays}
                   disabled={busy}
+                  showErrors={showValidation}
                   onOn={touched(setBaseOn)}
                   onUnderPct={touched(setBaseUnderPct)}
                   onReclaimDays={touched(setBaseReclaimDays)}
+                  onBlur={() => setShowValidation(true)}
                 />
               </>
             ) : null}
@@ -714,6 +744,7 @@ export function SmartOrderDialog({
                 onChange={(event) =>
                   touched(setMaxOrderVolPct)(event.target.value)
                 }
+                onBlur={() => setShowValidation(true)}
               />
             </div>
 
@@ -738,23 +769,19 @@ export function SmartOrderDialog({
       </ScrollArea>
 
       {/* Below the scroll, not in it: however many rungs the ladder has, the
-            refusal and the button that would ignore it stay on screen. */}
+            refusal and the button that explains it stay on screen. */}
       <div className="border-t p-3">
         <OrderRefusal id="ladder-refusal" className="pb-3">
-          {refusal}
+          {showValidation ? blockedReason : null}
         </OrderRefusal>
         <Button
           type="button"
           onClick={() => void submit()}
-          aria-describedby={refusal ? "ladder-refusal" : undefined}
-          disabled={!ready}
-          className="w-full bg-emerald-600 text-white hover:bg-emerald-600/90"
+          aria-describedby={showValidation ? "ladder-refusal" : undefined}
+          disabled={busy}
+          className={cn("w-full", BUY_BUTTON)}
         >
-          {/* Spins while placing, and in the moment before the base read
-                lands — the one thing Place still waits for. */}
-          {busy || (anchor === "base" && !baseRead) ? (
-            <Loader2Icon className="size-4 animate-spin" />
-          ) : null}
+          {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
           {`Place${plan ? ` ${plan.rungs.length}` : ""} buy${
             plan && plan.rungs.length === 1 ? "" : "s"
           }`}

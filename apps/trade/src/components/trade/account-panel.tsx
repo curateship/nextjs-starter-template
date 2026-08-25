@@ -45,7 +45,11 @@ import {
   walletMarginHealth,
   type WalletMarginHealth,
 } from "@/lib/trade/margin-health"
-import { moneyTone } from "@/lib/trade/money-tone"
+import {
+  ALARM_SURFACE,
+  WARNING_SURFACE,
+  moneyTone,
+} from "@/lib/trade/money-tone"
 import type { TradePosition } from "@/lib/trade/paper"
 import {
   type TradeWallet,
@@ -128,10 +132,8 @@ function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
       className={cn(
         "rounded-md px-2.5 py-1.5 text-xs",
         notice.tone === "quiet" && "bg-muted text-muted-foreground",
-        notice.tone === "warning" &&
-          "bg-amber-500/10 text-amber-700 dark:text-amber-400",
-        notice.tone === "expired" &&
-          "bg-red-500/10 text-red-700 dark:text-red-400"
+        notice.tone === "warning" && WARNING_SURFACE,
+        notice.tone === "expired" && ALARM_SURFACE
       )}
     >
       {notice.message}

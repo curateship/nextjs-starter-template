@@ -39,6 +39,7 @@ import {
   type GridParams,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Changing a running grid: how it is sliced, and where it gets out.
@@ -129,6 +130,7 @@ function StopForm({
   const [baseReclaimDays, setBaseReclaimDays] = React.useState(
     String(plan.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS)
   )
+  const [showValidation, setShowValidation] = React.useState(false)
 
   const parsedLevels = Number(levels)
   const badLevels = !(
@@ -186,7 +188,12 @@ function StopForm({
             : null
 
   const save = async () => {
-    if (badUnder || badBase || badLevels || badPot) return
+    if (busy) return
+    if (badUnder || badBase || badLevels || badPot) {
+      setShowValidation(true)
+      if (refusal) showErrorToast(refusal)
+      return
+    }
     // Re-slice first: it redraws every level, and the stop is written against
     // the range those levels sit in.
     if (resliced) {
@@ -244,9 +251,13 @@ function StopForm({
                 id="grid-edit-levels"
                 inputMode="numeric"
                 value={levels}
-                aria-invalid={badLevels}
+                aria-invalid={showValidation && badLevels}
                 disabled={busy}
-                onChange={(event) => setLevels(event.target.value)}
+                onChange={(event) => {
+                  setShowValidation(false)
+                  setLevels(event.target.value)
+                }}
+                onBlur={() => setShowValidation(true)}
               />
               {step !== null ? (
                 <p className="text-xs text-muted-foreground">
@@ -266,9 +277,13 @@ function StopForm({
                 id="grid-edit-pot"
                 inputMode="decimal"
                 value={potPct}
-                aria-invalid={badPot}
+                aria-invalid={showValidation && badPot}
                 disabled={busy}
-                onChange={(event) => setPotPct(event.target.value)}
+                onChange={(event) => {
+                  setShowValidation(false)
+                  setPotPct(event.target.value)
+                }}
+                onBlur={() => setShowValidation(true)}
               />
             </div>
             {resliced ? (
@@ -291,7 +306,10 @@ function StopForm({
                 id="grid-follow-on"
                 checked={followOn}
                 disabled={busy}
-                onCheckedChange={(next) => setFollowOn(next === true)}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setFollowOn(next === true)
+                }}
               />
               <FieldLabel
                 htmlFor="grid-follow-on"
@@ -326,7 +344,10 @@ function StopForm({
                 id="grid-stop-on"
                 checked={slOn}
                 disabled={busy}
-                onCheckedChange={(next) => setSlOn(next === true)}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setSlOn(next === true)
+                }}
               />
               <FieldLabel
                 htmlFor="grid-stop-on"
@@ -343,9 +364,13 @@ function StopForm({
                     id="grid-stop-pct"
                     inputMode="decimal"
                     value={underPct}
-                    aria-invalid={badUnder}
+                    aria-invalid={showValidation && badUnder}
                     disabled={busy}
-                    onChange={(event) => setUnderPct(event.target.value)}
+                    onChange={(event) => {
+                      setShowValidation(false)
+                      setUnderPct(event.target.value)
+                    }}
+                    onBlur={() => setShowValidation(true)}
                   />
                   <p className="text-xs text-muted-foreground">
                     {restsAt === null
@@ -360,9 +385,20 @@ function StopForm({
                   underPct={baseUnderPct}
                   reclaimDays={baseReclaimDays}
                   disabled={busy}
-                  onOn={setBaseOn}
-                  onUnderPct={setBaseUnderPct}
-                  onReclaimDays={setBaseReclaimDays}
+                  showErrors={showValidation}
+                  onOn={(next) => {
+                    setShowValidation(false)
+                    setBaseOn(next)
+                  }}
+                  onUnderPct={(next) => {
+                    setShowValidation(false)
+                    setBaseUnderPct(next)
+                  }}
+                  onReclaimDays={(next) => {
+                    setShowValidation(false)
+                    setBaseReclaimDays(next)
+                  }}
+                  onBlur={() => setShowValidation(true)}
                 />
               </div>
             ) : null}
@@ -375,7 +411,7 @@ function StopForm({
             and a refusal that scrolls away is one the button can be pressed
             without ever seeing. */}
         <OrderRefusal id="grid-stop-refusal" className="mr-auto min-w-0 flex-1">
-          {refusal}
+          {showValidation ? refusal : null}
         </OrderRefusal>
         <Button
           type="button"
@@ -389,8 +425,10 @@ function StopForm({
         <Button
           type="button"
           className="shrink-0"
-          aria-describedby={refusal ? "grid-stop-refusal" : undefined}
-          disabled={busy || badUnder || badBase || badLevels || badPot}
+          aria-describedby={
+            showValidation && refusal ? "grid-stop-refusal" : undefined
+          }
+          disabled={busy}
           onClick={() => void save()}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}

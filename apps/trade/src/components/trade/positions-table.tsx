@@ -45,7 +45,12 @@ import {
 } from "@/lib/trade/live-trades"
 import { liquidationAwayOf, marginOf } from "@/lib/trade/margin-health"
 import { positionFees, type PositionFees } from "@/lib/trade/position-fees"
-import { LOST_MONEY, MADE_MONEY, moneyTone } from "@/lib/trade/money-tone"
+import {
+  LOST_MONEY,
+  MADE_MONEY,
+  WARNING,
+  moneyTone,
+} from "@/lib/trade/money-tone"
 import {
   positionProfit,
   positionValue,
@@ -368,9 +373,9 @@ function PositionRow({
           <span
             className={cn(
               away <= 0.1
-                ? "text-red-600 dark:text-red-400"
+                ? LOST_MONEY
                 : away <= 0.25
-                  ? "text-amber-600 dark:text-amber-400"
+                  ? WARNING
                   : "text-muted-foreground"
             )}
           >
@@ -759,9 +764,7 @@ export function OpenOrdersTable({
           <WalletCell wallet={walletName(order.walletId)} />
           <Cell
             className={
-              order.side === "buy"
-                ? "text-emerald-600 dark:text-emerald-400"
-                : "text-red-600 dark:text-red-400"
+              order.side === "buy" ? MADE_MONEY : LOST_MONEY
             }
           >
             {order.side === "buy" ? "Buy" : "Sell"}

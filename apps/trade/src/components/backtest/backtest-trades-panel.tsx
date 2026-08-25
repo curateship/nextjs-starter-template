@@ -9,6 +9,7 @@ import {
 } from "@/components/backtest/backtest-kpi"
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { Badge } from "@/components/ui/badge"
+import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -60,7 +61,9 @@ export function BacktestTradesPanel({
   summary,
   trades,
   loading,
+  error,
   selected,
+  onRetry,
   onSelect,
 }: {
   /** The coin on the chart, or null when none is picked. */
@@ -68,7 +71,9 @@ export function BacktestTradesPanel({
   summary: BacktestCoinSummary | null
   trades: readonly BacktestTrade[]
   loading: boolean
+  error: string | null
   selected: number | null
+  onRetry: () => void
   onSelect: (n: number | null) => void
 }) {
   const { sort, direction, toggleSort } = useTableSort<Column>("n", "asc")
@@ -153,6 +158,10 @@ export function BacktestTradesPanel({
           <p className="p-6 text-center text-sm text-muted-foreground">
             Pick a market in Results to see its trades.
           </p>
+        ) : error ? (
+          <div className="p-4 sm:p-5">
+            <ErrorBanner message={error} onRetry={onRetry} />
+          </div>
         ) : loading ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
             Loading…

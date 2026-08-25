@@ -68,7 +68,6 @@ export function FlowRunChartPanel({
   onViewChange,
   loading,
   error,
-  live,
   walletLabel,
   automationId,
   onRetry,
@@ -99,8 +98,6 @@ export function FlowRunChartPanel({
   onViewChange: (next: ChartView) => void
   loading: boolean
   error: string | null
-  /** The run is still switched on, so more marks may appear. */
-  live: boolean
   /** The wallet's name, for the ladder tag's tooltip. */
   walletLabel: string
   automationId: string
@@ -185,13 +182,6 @@ export function FlowRunChartPanel({
           </div>
         }
       />
-
-      {live && !showGraph ? (
-        <div className="shrink-0 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 sm:px-5 dark:text-amber-400">
-          This run is still switched on, so more orders may appear on this
-          chart.
-        </div>
-      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col">
         {showGraph && graphSeries ? (

@@ -16,7 +16,22 @@ const { dismissErrorToast, loadFlowTrading, showErrorToast, stopFlow } =
   }))
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children }: { children: ReactNode }) => <a>{children}</a>,
+  Link: ({
+    children,
+    to,
+    params,
+    ...props
+  }: {
+    children: ReactNode
+    to: string
+    params?: { runId?: string }
+    "aria-label"?: string
+    className?: string
+  }) => (
+    <a data-to={to} data-run-id={params?.runId} {...props}>
+      {children}
+    </a>
+  ),
 }))
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
@@ -157,6 +172,32 @@ describe("stopping a flow", () => {
 })
 
 describe("reading a flow", () => {
+  it("links the run name and figures to the run dashboard", async () => {
+    await act(async () => {
+      root.render(<FlowStatusHeader automationId="flow-1" />)
+    })
+
+    const summary = host.querySelector(
+      'a[aria-label="Open Live run dashboard"]'
+    )
+    expect(summary?.getAttribute("data-to")).toBe("/flow-runs/$runId")
+    expect(summary?.getAttribute("data-run-id")).toBe("run-1")
+    expect(summary?.textContent).toContain("Live")
+    expect(summary?.textContent).toContain("Spending cap")
+  })
+
+  it("keeps the summary plain when the flow has no run", async () => {
+    loadFlowTrading.mockResolvedValueOnce({ ...flow(false), runId: null })
+
+    await act(async () => {
+      root.render(<FlowStatusHeader automationId="flow-1" />)
+    })
+
+    expect(host.querySelector('a[data-to="/flow-runs/$runId"]')).toBeNull()
+    expect(host.textContent).toContain("Live")
+    expect(host.textContent).toContain("Spending cap")
+  })
+
   it("keeps a status button in the header before the first answer lands", async () => {
     loadFlowTrading.mockImplementationOnce(() => new Promise(() => {}))
 

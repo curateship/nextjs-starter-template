@@ -77,7 +77,7 @@ export function MarketFolderStar({
     <Button
       type="button"
       variant="outline"
-      size="icon-sm"
+      size="icon"
       aria-label={
         filled ? `Choose folders for ${symbol}` : `Add ${symbol} to Fav`
       }

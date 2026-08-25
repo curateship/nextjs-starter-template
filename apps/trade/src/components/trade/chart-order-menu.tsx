@@ -9,7 +9,9 @@ import {
 } from "lucide-react"
 
 import type { TradeSide } from "@/lib/trade/paper"
+import { LOST_MONEY, MADE_MONEY } from "@/lib/trade/money-tone"
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
+import { cn } from "@/lib/utils"
 
 /**
  * The little menu a right-click on the chart puts under the pointer.
@@ -113,7 +115,7 @@ export function ChartOrderMenu({
         <IconRow
           label="Take profit"
           icon={
-            <TargetIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
+            <TargetIcon className={cn("size-4", MADE_MONEY)} />
           }
           onPick={onPickTakeProfit}
         />
@@ -122,7 +124,7 @@ export function ChartOrderMenu({
         <IconRow
           label="Stop loss"
           icon={
-            <ShieldAlertIcon className="size-4 text-red-600 dark:text-red-400" />
+            <ShieldAlertIcon className={cn("size-4", LOST_MONEY)} />
           }
           onPick={onPickStopLoss}
         />
@@ -147,14 +149,14 @@ export function ChartOrderMenu({
             <IconRow
               label="DCA ladder"
               icon={
-                <LayersIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <LayersIcon className={cn("size-4", MADE_MONEY)} />
               }
               onPick={() => onPickSmart("dca")}
             />
             <IconRow
               label="Grid"
               icon={
-                <Grid2x2Icon className="size-4 text-emerald-600 dark:text-emerald-400" />
+                <Grid2x2Icon className={cn("size-4", MADE_MONEY)} />
               }
               onPick={() => onPickSmart("grid")}
             />
@@ -198,9 +200,9 @@ function MenuRow({ side, onPick }: { side: TradeSide; onPick: () => void }) {
       className="flex min-h-11 w-full items-center gap-2 px-2 py-1.5 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none min-[1280px]:min-h-0"
     >
       {buy ? (
-        <TrendingUpIcon className="size-4 text-emerald-600 dark:text-emerald-400" />
+        <TrendingUpIcon className={cn("size-4", MADE_MONEY)} />
       ) : (
-        <TrendingDownIcon className="size-4 text-red-600 dark:text-red-400" />
+        <TrendingDownIcon className={cn("size-4", LOST_MONEY)} />
       )}
       <span className="font-medium">{buy ? "Buy limit" : "Sell limit"}</span>
     </button>

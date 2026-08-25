@@ -337,7 +337,7 @@ export function IndicatorsMenu({
               <Button
                 type="button"
                 variant="outline"
-                size="icon-sm"
+                size="icon"
                 aria-label={on ? `Indicators, ${on} on` : "Indicators"}
                 className="relative bg-muted/60 dark:bg-muted/60"
               >

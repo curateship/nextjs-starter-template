@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { LOST_MONEY } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
 /**
@@ -31,7 +32,7 @@ export function OrderRefusal({
   return (
     <p
       id={id}
-      className={cn("text-xs text-red-600 dark:text-red-400", className)}
+      className={cn("text-xs", LOST_MONEY, className)}
     >
       {children}
     </p>

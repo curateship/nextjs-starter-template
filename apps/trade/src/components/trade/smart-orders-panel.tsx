@@ -49,7 +49,7 @@ import {
   type LiveTrade,
 } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
-import { moneyTone } from "@/lib/trade/money-tone"
+import { LOST_MONEY, moneyTone } from "@/lib/trade/money-tone"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   smartOrdersYouPlaced,
@@ -625,7 +625,7 @@ function SmartOrdersView({
                           </span>
                         </div>
                         {keyExpired ? (
-                          <p className="truncate text-xs leading-4 text-red-700 dark:text-red-400">
+                          <p className={cn("truncate text-xs leading-4", LOST_MONEY)}>
                             Trading key expired. This{" "}
                             {order.kind === "grid" ? "grid" : "ladder"} will not
                             act.

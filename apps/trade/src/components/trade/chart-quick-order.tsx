@@ -21,6 +21,13 @@ import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import {
+  BUY_BUTTON,
+  LOST_MONEY,
+  SELL_BUTTON,
+  WARNING,
+} from "@/lib/trade/money-tone"
+import { showErrorToast } from "@/lib/toast/error-toast"
+import {
   isMarketable,
   type TradePosition,
   type TradeSide,
@@ -162,6 +169,7 @@ export function ChartQuickOrder({
   const [stopPct, setStopPct] = React.useState(prefs.stopPct)
   const [targetPct, setTargetPct] = React.useState(prefs.targetPct)
   const [reduceOnly, setReduceOnly] = React.useState(false)
+  const [showValidation, setShowValidation] = React.useState(false)
 
   const buy = quick.side === "buy"
 
@@ -244,9 +252,9 @@ export function ChartQuickOrder({
   const ready = sizeCoin > 0 && !bracketBad
 
   /**
-   * Every reason this window would refuse, said above the button so nobody
-   * presses Buy to find out. An empty size box alone used to be enough to grey
-   * it out with nothing on screen explaining it.
+   * Every reason this window can refuse. Leaving a bad box shows the reason
+   * above the button. Pressing the still-active button shows the same answer
+   * there and in the shared error toast.
    *
    * The order matters. What was typed in the size box is judged first, because
    * a stop is what turns "1% of the wallet" into an amount of coin and a
@@ -284,7 +292,11 @@ export function ChartQuickOrder({
             : null
 
   const submit = () => {
-    if (!ready) return
+    if (!ready) {
+      setShowValidation(true)
+      if (refusal) showErrorToast(refusal)
+      return
+    }
     // Sent and let go of. The window shuts on the press rather than sitting
     // there spinning through a round trip to the exchange — the order is
     // already on the chart, and a refusal arrives as a toast if one comes.
@@ -319,7 +331,7 @@ export function ChartQuickOrder({
       width={PANEL_WIDTH}
       height={PANEL_HEIGHT}
       title={buy ? "Buy limit" : "Sell limit"}
-      titleClassName={buy ? undefined : "text-red-600 dark:text-red-400"}
+      titleClassName={buy ? undefined : LOST_MONEY}
       wallet={wallet}
       free={free}
       onClose={onClose}
@@ -352,10 +364,8 @@ export function ChartQuickOrder({
           </p>
         ) : null}
         <div className="grid gap-2">
+          <Label htmlFor="quick-size">Size</Label>
           <div className="flex items-start gap-2">
-            <Label htmlFor="quick-size" className="sr-only">
-              Size
-            </Label>
             {/* The dollars sit inside the box, faint, at its right edge.
                   "32% of free" is not an amount of anything on its own, and
                   the answer belongs where the question is being typed rather
@@ -367,7 +377,11 @@ export function ChartQuickOrder({
                 inputMode="decimal"
                 autoFocus
                 value={sizeInput}
-                onChange={(event) => setSizeInput(event.target.value)}
+                onChange={(event) => {
+                  setShowValidation(false)
+                  setSizeInput(event.target.value)
+                }}
+                onBlur={() => setShowValidation(true)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") submit()
                 }}
@@ -384,7 +398,9 @@ export function ChartQuickOrder({
                 // Only once something has been typed. A box nobody has
                 // touched yet is not a mistake, and the sentence above the
                 // button already says what it is waiting for.
-                aria-invalid={sizeInput.trim() !== "" && amount === 0}
+                aria-invalid={
+                  showValidation && sizeInput.trim() !== "" && amount === 0
+                }
               />
               {shownUsd ? (
                 <span
@@ -435,7 +451,7 @@ export function ChartQuickOrder({
             // The level clicked is already past the market, so this is not
             // going to wait for anything. Better said here than discovered
             // after the fact.
-            <p className="text-xs text-amber-600 dark:text-amber-400">
+            <p className={cn("text-xs", WARNING)}>
               Fills straight away at {formatPrice(mark)}.
             </p>
           ) : null}
@@ -502,8 +518,12 @@ export function ChartQuickOrder({
                   id="quick-stop"
                   inputMode="decimal"
                   value={stopPct}
-                  onChange={(event) => setStopPct(event.target.value)}
-                  aria-invalid={badStop}
+                  onChange={(event) => {
+                    setShowValidation(false)
+                    setStopPct(event.target.value)
+                  }}
+                  onBlur={() => setShowValidation(true)}
+                  aria-invalid={showValidation && badStop}
                 />
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {stopPx && stopPx > 0 ? formatPrice(stopPx) : "—"}
@@ -517,8 +537,12 @@ export function ChartQuickOrder({
                   id="quick-target"
                   inputMode="decimal"
                   value={targetPct}
-                  onChange={(event) => setTargetPct(event.target.value)}
-                  aria-invalid={badTarget}
+                  onChange={(event) => {
+                    setShowValidation(false)
+                    setTargetPct(event.target.value)
+                  }}
+                  onBlur={() => setShowValidation(true)}
+                  aria-invalid={showValidation && badTarget}
                 />
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {targetPx && targetPx > 0 ? formatPrice(targetPx) : "—"}
@@ -547,18 +571,16 @@ export function ChartQuickOrder({
         )}
 
         <div className="grid gap-2">
-          <OrderRefusal id="quick-order-refusal">{refusal}</OrderRefusal>
+          <OrderRefusal id="quick-order-refusal">
+            {showValidation ? refusal : null}
+          </OrderRefusal>
           <Button
             type="button"
             onClick={submit}
-            aria-describedby={refusal ? "quick-order-refusal" : undefined}
-            disabled={!ready}
-            className={cn(
-              "w-full text-white",
-              buy
-                ? "bg-emerald-600 hover:bg-emerald-600/90"
-                : "bg-red-600 hover:bg-red-600/90"
-            )}
+            aria-describedby={
+              showValidation && refusal ? "quick-order-refusal" : undefined
+            }
+            className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
           >
             {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
           </Button>

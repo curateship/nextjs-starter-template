@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import { formatPrice, formatSize, formatUsd } from "@/lib/trade/format"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TradePosition } from "@/lib/trade/paper"
 
 /**
@@ -119,6 +120,7 @@ function CloseForm({
   // Starts on all of it: that is what this button did before it could do
   // anything else, and the old behaviour is never something to fill in.
   const [amount, setAmount] = React.useState(() => String(round(heldUsd, 2)))
+  const [showValidation, setShowValidation] = React.useState(false)
 
   const typed = Number(amount.trim())
   const ok = amount.trim() !== "" && Number.isFinite(typed) && typed > 0
@@ -154,7 +156,11 @@ function CloseForm({
   }
 
   const confirm = () => {
-    if (refusal) return
+    if (refusal) {
+      setShowValidation(true)
+      showErrorToast(refusal)
+      return
+    }
     if (all) onCloseAll(position)
     else onClosePart(position, { unit, amount: typed })
     onDismiss()
@@ -192,9 +198,15 @@ function CloseForm({
                   className="flex-1"
                   value={amount}
                   disabled={busy}
-                  onChange={(event) => setAmount(event.target.value)}
-                  aria-invalid={refusal !== null}
-                  aria-describedby={refusal ? "close-refusal" : undefined}
+                  onChange={(event) => {
+                    setShowValidation(false)
+                    setAmount(event.target.value)
+                  }}
+                  onBlur={() => setShowValidation(true)}
+                  aria-invalid={showValidation && refusal !== null}
+                  aria-describedby={
+                    showValidation && refusal ? "close-refusal" : undefined
+                  }
                 />
                 <Select
                   value={unit}
@@ -252,7 +264,7 @@ function CloseForm({
         {/* Left of the buttons: the body scrolls, and a refusal that scrolls
             away is one the button can be pressed without ever seeing. */}
         <OrderRefusal id="close-refusal" className="mr-auto min-w-0 flex-1">
-          {refusal}
+          {showValidation ? refusal : null}
         </OrderRefusal>
         <Button
           type="button"
@@ -267,8 +279,10 @@ function CloseForm({
           type="button"
           variant="destructive"
           className="shrink-0"
-          aria-describedby={refusal ? "close-refusal" : undefined}
-          disabled={busy || refusal !== null}
+          aria-describedby={
+            showValidation && refusal ? "close-refusal" : undefined
+          }
+          disabled={busy}
           onClick={confirm}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}

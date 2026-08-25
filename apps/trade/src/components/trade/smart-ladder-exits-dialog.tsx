@@ -45,6 +45,7 @@ import {
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { TradePosition } from "@/lib/trade/paper"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /** A bracket price back to its distance from the entry, for filling a box in. */
 function pctFromEntry(entryPx: number | undefined, px: number | null): number | null {
@@ -156,6 +157,7 @@ function ExitsForm({
   const [baseReclaimDays, setBaseReclaimDays] = React.useState(
     String(plan.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS)
   )
+  const [showValidation, setShowValidation] = React.useState(false)
 
   const parsedTp = Number(tpPct)
   const badTp =
@@ -184,7 +186,12 @@ function ExitsForm({
           : null
 
   const save = async () => {
-    if (badTp || badSl || badBase) return
+    if (busy) return
+    if (badTp || badSl || badBase) {
+      setShowValidation(true)
+      if (refusal) showErrorToast(refusal)
+      return
+    }
     const saved = await onSave(ladder, {
       takeProfit: tpOn
         ? {
@@ -231,7 +238,10 @@ function ExitsForm({
                 id="ladder-tp-on"
                 checked={tpOn}
                 disabled={busy}
-                onCheckedChange={(next) => setTpOn(next === true)}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setTpOn(next === true)
+                }}
               />
               <FieldLabel htmlFor="ladder-tp-on" hint={DCA_TP_MODE_HINTS[tpMode]}>
                 Take profit on
@@ -242,7 +252,10 @@ function ExitsForm({
                 <Select
                   value={tpMode}
                   disabled={busy}
-                  onValueChange={(next) => setTpMode(next as DcaTpMode)}
+                  onValueChange={(next) => {
+                    setShowValidation(false)
+                    setTpMode(next as DcaTpMode)
+                  }}
                 >
                   <SelectTrigger
                     id="ladder-tp-mode"
@@ -270,9 +283,13 @@ function ExitsForm({
                       id="ladder-tp-pct"
                       inputMode="decimal"
                       value={tpPct}
-                      aria-invalid={badTp}
+                      aria-invalid={showValidation && badTp}
                       disabled={busy}
-                      onChange={(event) => setTpPct(event.target.value)}
+                      onChange={(event) => {
+                        setShowValidation(false)
+                        setTpPct(event.target.value)
+                      }}
+                      onBlur={() => setShowValidation(true)}
                     />
                   </div>
                 ) : null}
@@ -297,7 +314,10 @@ function ExitsForm({
                 id="ladder-sl-on"
                 checked={slOn}
                 disabled={busy}
-                onCheckedChange={(next) => setSlOn(next === true)}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setSlOn(next === true)
+                }}
               />
               <FieldLabel
                 htmlFor="ladder-sl-on"
@@ -314,9 +334,13 @@ function ExitsForm({
                     id="ladder-sl-pct"
                     inputMode="decimal"
                     value={slPct}
-                    aria-invalid={badSl}
+                    aria-invalid={showValidation && badSl}
                     disabled={busy}
-                    onChange={(event) => setSlPct(event.target.value)}
+                    onChange={(event) => {
+                      setShowValidation(false)
+                      setSlPct(event.target.value)
+                    }}
+                    onBlur={() => setShowValidation(true)}
                   />
                 </div>
                 <BaseStopFields
@@ -324,9 +348,20 @@ function ExitsForm({
                   underPct={baseUnderPct}
                   reclaimDays={baseReclaimDays}
                   disabled={busy}
-                  onOn={setBaseOn}
-                  onUnderPct={setBaseUnderPct}
-                  onReclaimDays={setBaseReclaimDays}
+                  showErrors={showValidation}
+                  onOn={(next) => {
+                    setShowValidation(false)
+                    setBaseOn(next)
+                  }}
+                  onUnderPct={(next) => {
+                    setShowValidation(false)
+                    setBaseUnderPct(next)
+                  }}
+                  onReclaimDays={(next) => {
+                    setShowValidation(false)
+                    setBaseReclaimDays(next)
+                  }}
+                  onBlur={() => setShowValidation(true)}
                 />
               </div>
             ) : null}
@@ -342,7 +377,7 @@ function ExitsForm({
           id="ladder-exits-refusal"
           className="mr-auto min-w-0 flex-1"
         >
-          {refusal}
+          {showValidation ? refusal : null}
         </OrderRefusal>
         <Button
           type="button"
@@ -356,11 +391,10 @@ function ExitsForm({
         <Button
           type="button"
           className="shrink-0"
-          aria-describedby={refusal ? "ladder-exits-refusal" : undefined}
-          // The base stop's two boxes join the other two here. `save` already
-          // turned back on a bad one, so a live button did nothing at all and
-          // said nothing about why.
-          disabled={busy || badTp || badSl || badBase}
+          aria-describedby={
+            showValidation && refusal ? "ladder-exits-refusal" : undefined
+          }
+          disabled={busy}
           onClick={() => void save()}
         >
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
