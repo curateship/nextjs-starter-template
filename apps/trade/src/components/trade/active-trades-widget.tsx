@@ -96,6 +96,7 @@ export function ActiveTradesWidget({
       return direction === "asc" ? compared : -compared
     })
   }, [direction, filtered, sort])
+  const summary = React.useMemo(() => summarizeActiveTrades(trades), [trades])
   const heading = (column: ActiveTradeColumn, label: string) => (
     <TableSortButton
       active={sort === column}
@@ -147,17 +148,6 @@ export function ActiveTradesWidget({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {overview.activeTradesUnavailable.length ? (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="bg-amber-500/5 py-2 text-sm text-amber-700 dark:text-amber-400"
-                >
-                  Could not read {overview.activeTradesUnavailable.join(", ")}.
-                  Their active trades may be missing.
-                </TableCell>
-              </TableRow>
-            ) : null}
             {trades.length === 0 ? (
               <TableRow>
                 <TableCell
@@ -184,10 +174,79 @@ export function ActiveTradesWidget({
               ))
             )}
           </TableBody>
+          {trades.length ? <ActiveTradesFooter summary={summary} /> : null}
         </Table>
         <ScrollBar orientation="horizontal" />
       </ScrollArea>
     </TableSurface>
+  )
+}
+
+type ActiveTradesSummary = {
+  totalValue: number | null
+  totalProfit: number | null
+}
+
+/** The complete totals for the rows currently shown. */
+function summarizeActiveTrades(
+  trades: readonly TradingOverviewActiveTrade[]
+): ActiveTradesSummary {
+  return {
+    totalValue: completeTotal(trades.map((trade) => trade.value)),
+    totalProfit: completeTotal(trades.map((trade) => trade.profit)),
+  }
+}
+
+function completeTotal(values: readonly (number | null)[]) {
+  if (values.length === 0) return null
+  let total = 0
+  for (const value of values) {
+    if (value === null) return null
+    total += value
+  }
+  return total
+}
+
+function ActiveTradesFooter({ summary }: { summary: ActiveTradesSummary }) {
+  return (
+    <tfoot className="sticky bottom-0 z-10 bg-muted">
+      <TableRow className="border-t">
+        <TableCell
+          column="meta"
+          className="py-2.5 text-xs font-medium text-muted-foreground"
+        >
+          Total
+        </TableCell>
+        <TableCell column="meta" aria-hidden />
+        <TableCell column="meta" aria-hidden />
+        <TableCell
+          column="meta"
+          className="py-2.5 text-left font-mono text-xs font-semibold tabular-nums"
+        >
+          <SummaryMoney value={summary.totalValue} />
+        </TableCell>
+        <TableCell column="meta" className="py-2.5 text-left text-xs">
+          <SummaryProfit value={summary.totalProfit} />
+        </TableCell>
+      </TableRow>
+    </tfoot>
+  )
+}
+
+function SummaryMoney({ value }: { value: number | null }) {
+  return value === null ? (
+    <span className="text-muted-foreground">—</span>
+  ) : (
+    <span>{formatUsd(value)}</span>
+  )
+}
+
+function SummaryProfit({ value }: { value: number | null }) {
+  if (value === null) return <span className="text-muted-foreground">—</span>
+  return (
+    <span className={cn("font-medium tabular-nums", moneyTone(value))}>
+      {formatSignedUsd(value)}
+    </span>
   )
 }
 

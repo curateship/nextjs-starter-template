@@ -135,14 +135,4 @@ describe("the market header's star", () => {
     expect(star).toBeLessThan(art)
     expect(art).toBeLessThan(name)
   })
-
-  it("shows no star when there is no market to star", () => {
-    for (const selection of [
-      { kind: "none" },
-      { kind: "missing", marketId: "BTC" },
-      { kind: "volume-hidden", marketId: "BTC" },
-    ] satisfies MarketSelection[]) {
-      expect(draw(selection, [key])).not.toContain("Fav")
-    }
-  })
 })

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { WatchedOrdersList } from "@/components/trade/watched-orders-list"
 import { liveRefusalKey, type LiveRefusal } from "@/lib/trade/live"
+import type { MarketRow } from "@/lib/protocols/contracts"
 import type { TradeOrder } from "@/lib/trade/paper"
 
 /**
@@ -52,6 +53,7 @@ const waitingLevel: TradeOrder = {
 
 function draw(state: {
   orders: readonly TradeOrder[]
+  markets?: readonly MarketRow[]
   settled: boolean
   failed: boolean
   refusals?: ReadonlyMap<string, LiveRefusal>
@@ -101,6 +103,47 @@ describe("the Watched tab", () => {
     expect(rows).not.toContain(EMPTY)
     expect(rows).toContain("XMR")
     expect(rows).not.toContain("<img")
+  })
+
+  it("shows only the nearest order when one market has several", () => {
+    const farther = { ...waitingLevel, id: "farther", px: 80, sz: 1 }
+    const nearest = {
+      ...waitingLevel,
+      id: "nearest",
+      px: 99,
+      sz: 2,
+      createdAt: 0,
+    }
+    const market = {
+      key: waitingLevel.marketKey,
+      marketId: "XMR",
+      symbol: "XMR",
+      quoteAsset: "USDC",
+      subExchange: null,
+      category: "crypto",
+      sizeDecimals: 3,
+      priceTick: null,
+      minOrderValueUsd: null,
+      maxLeverage: 20,
+      isolatedOnly: false,
+      iconUrl: null,
+      price: 100,
+      change24h: 0,
+      volume24hUsd: 1_000_000,
+      fundingHourly: null,
+      openInterestUsd: null,
+    } satisfies MarketRow
+
+    const rows = draw({
+      orders: [farther, nearest],
+      markets: [market],
+      settled: true,
+      failed: false,
+    })
+
+    expect(rows.match(/>XMR</g)).toHaveLength(1)
+    expect(rows).toContain("$198")
+    expect(rows).not.toContain("$80")
   })
 
   it("marks every selected market with a theme-sensitive right border", () => {

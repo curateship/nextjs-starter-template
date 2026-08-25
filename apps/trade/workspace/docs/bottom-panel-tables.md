@@ -13,3 +13,6 @@ The rows still belong to their tabs. Positions keep their Real or Testnet mark
 and their close actions. Open orders keep the cancel action for the exact order
 shown. The Journal alone keeps selection and removal because finished trades do
 not disappear while a person is choosing them.
+
+The heading draws the single one-pixel line above the rows. The first row does
+not add a second edge beneath it, while every later row keeps its normal divider.

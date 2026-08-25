@@ -131,7 +131,7 @@ export default function MarketSettings() {
           <div className="grid gap-2">
             <FieldLabel
               htmlFor={FIELD_ID}
-              hint="Markets below this daily dollar volume disappear everywhere, including Favorites and a market already open. Zero keeps only markets with reported volume."
+              hint="Markets below this daily dollar volume disappear from market lists, Favorites and search. A market already open, linked or used by a position still opens normally. Zero keeps only markets with reported volume."
             >
               Minimum daily volume, USD
             </FieldLabel>

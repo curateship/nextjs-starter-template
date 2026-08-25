@@ -12,6 +12,7 @@ import {
   DEFAULT_MARKET_PANEL_ROWS,
   type MarketFolder,
 } from "@/lib/trade/market-folders"
+import type { TradeOrder } from "@/lib/trade/paper"
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 
@@ -297,6 +298,51 @@ describe("the market folder controls", () => {
     ).find((button) => button.textContent?.includes("Test"))!
     expect(testToggle.className).toContain("hover:bg-muted")
     expect(testToggle.parentElement?.className).toContain("border-t")
+  })
+
+  it("counts and draws one watched row per market", async () => {
+    const watched: TradeOrder = {
+      id: "farther",
+      walletId: "wallet-1",
+      marketKey: btc.key,
+      side: "buy",
+      px: 80,
+      sz: 1,
+      leverage: 5,
+      maxLeverage: 40,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      createdAt: 2,
+      updatedAt: 2,
+      watched: true,
+    }
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[fav]}
+            catalogs={catalogs}
+            watchedOrders={{
+              ...shared.watchedOrders,
+              rows: [
+                watched,
+                { ...watched, id: "nearest", px: 99, sz: 2, createdAt: 1 },
+              ],
+            }}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const watchedToggle = Array.from(
+      host.querySelectorAll("button[aria-expanded]")
+    ).find((button) => button.textContent?.includes("Watched"))!
+    expect(watchedToggle.textContent).toContain("1 waiting")
+    expect(host.textContent?.match(/BTC/g)).toHaveLength(1)
+    expect(host.textContent).toContain("$198")
+    expect(host.textContent).not.toContain("$80")
   })
 
   it("orders saved folders and All markets from 24h gain to loss", async () => {

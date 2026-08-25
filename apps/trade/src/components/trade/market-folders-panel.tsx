@@ -182,7 +182,7 @@ export function MarketFoldersPanel({
       // claiming an answer the panel does not have.
       count:
         watchedOrders.settled && !watchedOrders.failed
-          ? `${watchedOrders.rows.length} waiting`
+          ? `${new Set(watchedOrders.rows.map((order) => order.marketKey)).size} waiting`
           : "",
       position: panelRows.watched.position,
       hidden: panelRows.watched.hidden,

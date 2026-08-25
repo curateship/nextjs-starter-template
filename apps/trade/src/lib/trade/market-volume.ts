@@ -1,9 +1,17 @@
 import { z } from "zod"
 
-import type { MarketCatalog } from "@/lib/protocols/contracts"
+import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
 
 export type FilteredMarketCatalog = MarketCatalog & {
   hiddenByVolumeKeys: string[]
+  /**
+   * Full rows for markets omitted from the lists.
+   *
+   * The cutoff is only a list filter. A link, remembered market, position or
+   * order can still open one of these markets, so the chart keeps the market's
+   * rules and can trade it normally.
+   */
+  hiddenByVolumeRows: MarketRow[]
 }
 
 /** A deliberately generous ceiling that still refuses accidental infinities. */
@@ -32,25 +40,33 @@ export function filterMarketsByVolume(
   catalog: MarketCatalog,
   minimumVolumeUsd: number
 ): FilteredMarketCatalog {
+  const hiddenByVolumeRows = catalog.rows.filter(
+    (row) => !marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)
+  )
   return {
     ...catalog,
-    hiddenByVolumeKeys: catalog.rows
-      .filter(
-        (row) =>
-          !marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)
-      )
-      .map((row) => row.key),
+    hiddenByVolumeKeys: hiddenByVolumeRows.map((row) => row.key),
+    hiddenByVolumeRows,
     rows: catalog.rows.filter((row) =>
       marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)
     ),
   }
 }
 
-export function marketWasHiddenByVolume(
-  catalogs: FilteredMarketCatalog[],
+/** Find a market whether or not the volume cutoff omitted it from the lists. */
+export function catalogMarketRow(
+  catalog: FilteredMarketCatalog,
   marketKey: string
-): boolean {
-  return catalogs.some((catalog) =>
-    catalog.hiddenByVolumeKeys.includes(marketKey)
+): MarketRow | undefined {
+  return (
+    catalog.rows.find((row) => row.key === marketKey) ??
+    catalog.hiddenByVolumeRows.find((row) => row.key === marketKey)
   )
+}
+
+/** Every market for chart, position and order data. Lists keep using `rows`. */
+export function allCatalogMarketRows(
+  catalog: FilteredMarketCatalog
+): MarketRow[] {
+  return [...catalog.rows, ...catalog.hiddenByVolumeRows]
 }

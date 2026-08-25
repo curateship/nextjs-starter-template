@@ -747,9 +747,13 @@ the level and sends nothing until the market comes to it, which
 `watched-orders.md` explains — and those levels were only ever visible one coin
 at a time on the chart, or mixed in with everything else under Open orders.
 
-- **A row per order, not per coin.** Two levels on the same coin are two rows.
-  That is the one way this row differs from the folders, which are slices of
-  the catalogue. Watched rows show the coin name without its favicon.
+- **One row per market.** When several orders wait on the same market, the row
+  shows the order nearest today's price. The market keeps the place given to
+  its newest order, so a changing price can change the order shown without
+  moving the row under the pointer. With no market price, or an equal distance,
+  the newest order wins. The count beside Watched is also the number of markets,
+  so the count and the rows agree. Watched rows show the coin name without its
+  favicon.
 - **One line per row, shaped like a market row.** The coin with what the
   order will spend beside it in the quiet grey the volume figure uses, and on
   the right a green pill saying how far today's price is from the level:
@@ -766,11 +770,9 @@ at a time on the chart, or mixed in with everything else under Open orders.
 - **Pressing a row charts that coin**, the same press the market rows answer
   to. Calling an order off stays where it already is, the × in Open orders and
   the line on the chart, rather than becoming a second place to cancel.
-- **The charted coin's rows carry the same gray fill the All tab uses.** Every
-  level on that coin is filled, because they all belong to the chart on
-  screen — two levels on the charted coin are two filled rows. On both tabs
-  the fill runs edge to edge and the first row sits flush under the header
-  line, the way the Folders panel already draws its rows.
+- **The charted coin's row carries the same gray fill the All tab uses.** On
+  both lists the fill runs edge to edge and the first row sits flush under the
+  header line, the way the Folders panel already draws its rows.
 - **The sort headers belong to All markets, not to Watched.** There is no
   volume and no day's move to sort a waiting price by.
 - **"Reached" is the engine's own rule**, so the list and the engine can never
@@ -1238,13 +1240,18 @@ ticker cluster needs, so resizing the widget keeps every column visible. Trade
 rows use 10px of vertical padding, 2px more than the bottom Positions panel, to
 give the list a little more air without changing its type size. The table opens
 with the largest P/L first. Every heading sorts, and Filter narrows the rows by
-protocol, wallet, or both. A
-wallet that could not be read stays named above the rows rather than being
-mistaken for a wallet with no open trades. A market whose current price could
-not be read shows a dash for both value and profit, never a made-up zero. A plain divider sits
+protocol, wallet, or both. A wallet that could not be read does not add an
+orange warning row above the trades that did answer. When no trades answer, the
+empty wording still avoids claiming that every wallet was empty. A market whose
+current price could not be read shows a dash for both value and profit, never a
+made-up zero. A plain divider sits
 between every pair of trade rows, including the final two. The sticky table
 header uses the lighter muted gray rather than the full muted background. Every
 Active Trades column is left-aligned, including Value and P/L.
+The footer stays at the bottom of the widget while the trades scroll. Total
+adds the value and current profit for the rows shown. Filters update the total.
+If any shown trade lacks a figure, the affected total uses a dash instead of
+presenting a partial answer as complete. The footer does not show averages.
 The PnL Graph and Trades cards use the same card, text, divider, and muted
 background rules as the rest of the dashboard. Money values use the dashboard's
 semibold tabular monospace treatment.

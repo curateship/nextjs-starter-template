@@ -136,7 +136,9 @@ built in `use-trading.ts`, so they can never disagree.
   orders, because a watched price IS an open order to the person who placed it.
 - **Under the Watched tab**, the first tab of the market list on the left. That
   is the only one of the three that answers "what am I waiting on across all my
-  coins" without changing market. `ui-ux.md` has its rules.
+  coins" without changing market. Each market appears once. When several
+  orders wait on the same market, the row shows the order nearest today's
+  price. `ui-ux.md` has the rest of its rules.
 
 It is deliberately NOT in the Smart orders panel beside the wallets. That panel
 is for strategies being worked — a ladder, a grid — and a plain order waiting

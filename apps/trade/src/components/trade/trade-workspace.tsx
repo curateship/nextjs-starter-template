@@ -89,7 +89,8 @@ import {
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
 import {
-  marketWasHiddenByVolume,
+  allCatalogMarketRows,
+  catalogMarketRow,
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import { useWideScreen } from "@/lib/layout/wide-screen"
@@ -115,21 +116,26 @@ type SideSheet = {
   open: boolean
 }
 
+type WorkspaceMarketSelection =
+  | MarketSelection
+  | { kind: "none" }
+  | { kind: "missing"; marketId: string }
+
 /**
  * What the picked key means against the full exchange answer and the visible
- * rows: a real market, nothing picked, one hidden by the volume setting, or a
- * well-formed key the exchange did not list. The last two stay distinct so an
- * account setting is never blamed on the exchange.
+ * rows: a real market, nothing picked, or a well-formed key the exchange did
+ * not list. The daily-volume setting filters lists only, so a market omitted
+ * there still resolves here with its full chart and order controls.
  */
 function resolveSelection(
   catalogs: FilteredMarketCatalog[],
   selectedKey: string | null
-): MarketSelection {
+): WorkspaceMarketSelection {
   if (!selectedKey) return { kind: "none" }
   const ref = parseMarketKey(selectedKey)
   if (!ref) return { kind: "none" }
   for (const catalog of catalogs) {
-    const row = catalog.rows.find((candidate) => candidate.key === selectedKey)
+    const row = catalogMarketRow(catalog, selectedKey)
     if (row) {
       return {
         kind: "market",
@@ -139,9 +145,6 @@ function resolveSelection(
         picker: catalog.picker,
       }
     }
-  }
-  if (marketWasHiddenByVolume(catalogs, selectedKey)) {
-    return { kind: "volume-hidden", marketId: ref.marketId }
   }
   return { kind: "missing", marketId: ref.marketId }
 }
@@ -211,12 +214,29 @@ export function TradeWorkspace({
   // rebuilding itself a beat later.
   const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
+  // Memoised: the workspace re-renders on every poll and every price tick,
+  // and a fresh answer each time made every panel below re-do its own work.
+  const selection = React.useMemo(
+    () => resolveSelection(catalogs, selectedKey),
+    [catalogs, selectedKey]
+  )
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
   const [smartOrdersCollapsed, setSmartOrdersCollapsed] = React.useState(false)
   const [sideSheet, setSideSheet] = React.useState<SideSheet>({
     side: "markets",
-    open: false,
+    // With no substitute middle header, a narrow screen has no Markets
+    // button. Open the sheet so a new account or stale link can choose one.
+    open: !desktop && selection.kind !== "market",
   })
+  const [sheetSelectionKind, setSheetSelectionKind] = React.useState(
+    selection.kind
+  )
+  if (sheetSelectionKind !== selection.kind) {
+    setSheetSelectionKind(selection.kind)
+    if (!desktop && selection.kind !== "market" && !sideSheet.open) {
+      setSideSheet({ side: "markets", open: true })
+    }
+  }
 
   // ----- Market folders: one exchange, optimistic item changes -------------
   const [folders, setFolders] = React.useState(initialFolders)
@@ -296,13 +316,6 @@ export function TradeWorkspace({
     create: createFolderWithMarket,
   }
 
-  // Memoised: the workspace re-renders on every poll and every price tick,
-  // and a fresh answer each time made every panel below re-do its own work.
-  const selection = React.useMemo(
-    () => resolveSelection(catalogs, selectedKey),
-    [catalogs, selectedKey]
-  )
-
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
   const dashboardCacheScope = `${user.id}:${protocol}`
   const account = useTradeAccount(protocol, dashboardCacheScope)
@@ -341,7 +354,9 @@ export function TradeWorkspace({
     () =>
       new Map(
         catalogs.flatMap((catalog) =>
-          catalog.rows.map((market) => [market.key, market.price] as const)
+          allCatalogMarketRows(catalog).map(
+            (market) => [market.key, market.price] as const
+          )
         )
       ),
     [catalogs]
@@ -618,7 +633,7 @@ export function TradeWorkspace({
   const marketsByKey = React.useMemo(() => {
     const byKey = new Map<string, MarketRow>()
     for (const catalog of catalogs) {
-      for (const row of catalog.rows) byKey.set(row.key, row)
+      for (const row of allCatalogMarketRows(catalog)) byKey.set(row.key, row)
     }
     return byKey
   }, [catalogs])
@@ -662,44 +677,42 @@ export function TradeWorkspace({
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
     <WorkspacePanel className="flex min-w-0 flex-1 flex-col">
-      <MarketHeader
-        selection={selection}
-        markets={marketRows}
-        folders={folders}
-        folderActions={folderActions}
-        onSelectMarket={onSelectMarket}
-        // The chart's own controls live in the header row; they only make
-        // sense once there is a market to chart. Indicators sit to the right
-        // of the timeframe: which candles first, then what to draw on them.
-        toolbar={
-          <>
-            {selection.kind === "market" ? (
-              <>
-                <IntervalPicker value={interval} onChange={setInterval} />
-                <IndicatorsMenu
-                  indicators={indicators}
-                  context={{ zone: chartOptions.options.zone, interval }}
-                />
-                <ChartOptionsMenu control={chartOptions} />
-                <span className="h-5 border-l" aria-hidden />
-              </>
-            ) : null}
-            {walletManagement}
-          </>
-        }
-        // On a wide screen both panels are already on screen, so the buttons
-        // would only be a second way to do what the dividers already do.
-        onOpenMarkets={
-          desktop
-            ? undefined
-            : () => setSideSheet({ side: "markets", open: true })
-        }
-        onOpenSmartOrders={
-          desktop
-            ? undefined
-            : () => setSideSheet({ side: "smart-orders", open: true })
-        }
-      />
+      {selection.kind === "market" ? (
+        <MarketHeader
+          selection={selection}
+          markets={marketRows}
+          folders={folders}
+          folderActions={folderActions}
+          onSelectMarket={onSelectMarket}
+          // The chart's own controls live in the header row. Indicators sit
+          // to the right of the timeframe: which candles first, then what to
+          // draw on them.
+          toolbar={
+            <>
+              <IntervalPicker value={interval} onChange={setInterval} />
+              <IndicatorsMenu
+                indicators={indicators}
+                context={{ zone: chartOptions.options.zone, interval }}
+              />
+              <ChartOptionsMenu control={chartOptions} />
+              <span className="h-5 border-l" aria-hidden />
+              {walletManagement}
+            </>
+          }
+          // On a wide screen both panels are already on screen, so the buttons
+          // would only be a second way to do what the dividers already do.
+          onOpenMarkets={
+            desktop
+              ? undefined
+              : () => setSideSheet({ side: "markets", open: true })
+          }
+          onOpenSmartOrders={
+            desktop
+              ? undefined
+              : () => setSideSheet({ side: "smart-orders", open: true })
+          }
+        />
+      ) : null}
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
           <ChartPanel

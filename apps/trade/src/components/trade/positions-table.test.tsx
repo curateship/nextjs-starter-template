@@ -355,6 +355,14 @@ describe("the bottom panel's tables say what they know", () => {
     }
   })
 
+  it("uses the heading's one hairline instead of stacking the first row's border", () => {
+    for (const draw of [drawPositions, drawOrders, drawTrades]) {
+      const html = draw({ settled: true, failed: false })
+      const body = html.slice(html.indexOf("<tbody"), html.indexOf("</tbody>"))
+      expect(body).toContain("[&amp;&gt;tr:first-child]:border-t-0")
+    }
+  })
+
   it("says it is still reading until BOTH halves are in, inside the table frame", () => {
     for (const [draw, label] of [
       [drawPositions, "Reading what you are holding"],

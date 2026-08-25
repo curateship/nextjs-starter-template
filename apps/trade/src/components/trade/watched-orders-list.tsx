@@ -151,11 +151,21 @@ export function WatchedOrdersList({
     return out
   }, [markets, live])
 
+  // One market gets one row. Several watched prices can belong to the same
+  // market, but the list is for choosing a chart rather than managing orders.
+  // The row therefore shows whichever waiting price is closest to today's
+  // mark. The market's place in the list still comes from its newest order, so
+  // a moving price can change the row's details without moving the row itself.
+  const shownRows = React.useMemo(
+    () => nearestWatchedLevels(rows, marks),
+    [marks, rows]
+  )
+
   // The wallet is named on a row only when the list spans more than one.
   // The panel is a couple of hundred pixels wide, and with every level in the
   // same wallet its name is the same word on every row — it pushes the level
   // and the distance into an ellipsis to say nothing.
-  const severalWallets = new Set(rows.map((row) => row.walletId)).size > 1
+  const severalWallets = new Set(shownRows.map((row) => row.walletId)).size > 1
 
   return (
     // No scroll surface of its own: the list is one section of the folders
@@ -188,7 +198,7 @@ export function WatchedOrdersList({
           {standingIn && failed ? (
             <StaleAfterFailureNote onRetry={onRetry} />
           ) : null}
-          {rows.length === 0 ? (
+          {shownRows.length === 0 ? (
             // The panel opens on this tab, so an empty one is the first thing
             // on screen most days. It has to point at the markets, which are
             // now the click behind it, rather than leave the panel looking
@@ -201,7 +211,7 @@ export function WatchedOrdersList({
             </p>
           ) : (
             <div className="flex flex-col">
-              {rows.map((row) => (
+              {shownRows.map((row) => (
                 <WatchedRow
                   key={row.id}
                   level={row}
@@ -218,6 +228,44 @@ export function WatchedOrdersList({
       )}
     </div>
   )
+}
+
+/**
+ * Keeps one waiting price per market and chooses the one nearest its mark.
+ *
+ * Input order decides where each market sits and breaks ties. Both fresh and
+ * cached levels arrive newest first, so a missing mark keeps the newest order
+ * and equal distances do the same.
+ */
+function nearestWatchedLevels(
+  levels: readonly WatchedLevel[],
+  marks: ReadonlyMap<string, number>
+): WatchedLevel[] {
+  const shown: WatchedLevel[] = []
+  const indexByMarket = new Map<string, number>()
+
+  for (const level of levels) {
+    const existingIndex = indexByMarket.get(level.marketKey)
+    if (existingIndex === undefined) {
+      indexByMarket.set(level.marketKey, shown.length)
+      shown.push(level)
+      continue
+    }
+
+    const mark = marks.get(level.marketKey)
+    if (mark === undefined) continue
+    const existing = shown[existingIndex]
+    if (distanceFromMark(level, mark) < distanceFromMark(existing, mark)) {
+      shown[existingIndex] = level
+    }
+  }
+
+  return shown
+}
+
+function distanceFromMark(level: WatchedLevel, mark: number): number {
+  if (watchReached({ side: level.side, triggerPx: level.px }, mark)) return 0
+  return level.px > 0 ? Math.abs(mark - level.px) / level.px : Infinity
 }
 
 /**

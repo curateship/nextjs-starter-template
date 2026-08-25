@@ -178,7 +178,10 @@ export function TradeTable<Row, Key extends string>({
           </HeaderCell>
         </tr>
       </thead>
-      <tbody>
+      {/* The heading owns the hairline above the rows. Removing the first
+          row's top edge keeps that divider at one pixel; later rows retain
+          their own borders so the list still has separators. */}
+      <tbody className="[&>tr:first-child]:border-t-0">
         {rows.length === 0 ? (
           <TableStateRow
             span={columns.length + (leadingHeader === undefined ? 1 : 2)}
