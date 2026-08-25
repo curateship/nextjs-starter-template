@@ -517,6 +517,13 @@ that banked. The vertical three-dot button at the row's right edge opens a small
 popover without blocking the chart. The whole row turns light gray under the
 pointer, including the three-dot area. Pressing the smart order opens its market
 on the chart and keeps the whole row light gray while that market is selected.
+The market favicon starts each row. The coin, order kind and wallet stay on one
+line beside it. Open profit and banked money sit together at the right, with
+open profit carrying the made-or-lost colour and banked money kept gray. A
+piggy-bank icon labels the banked amount instead of the word. Banked money stays
+visible at $0.00 before the first sale, so the amount does not appear and
+disappear as the order works. The existing favicon and type sizes do not change
+for this layout.
 A grid's waiting and completed counts live inside that popover, such as "3
 waiting · 7 completed", followed by how many dollars it still holds to sell.
 The old price-range line repeated what the chart already shows and did not say
@@ -664,9 +671,12 @@ line in the body, share the panel's one 12px gutter.
 
 - **Every row wears a folder's shape**: the name, a count on the right, and a
   chevron; pressing the row opens its contents in place, one row open at a
-  time. The open row and its contents use the lighter gray fill. A closed row
-  turns gray under the pointer, so which section is open never depends on the
-  chevron alone. **Watched is the first row** and the one the panel opens on, because
+  time. The open row uses the darker gray, while its list uses a very light gray
+  so the two cannot blur together. The open row has a border above and below.
+  Those are plain theme borders, so the shell's Borders setting controls them.
+  A closed row turns gray under the pointer, so which section is open never
+  depends on the chevron alone. **Watched is the first row** and the one the
+  panel opens on, because
   a price you have money committed to beats a market you might look at — it
   is not a folder, it lists orders, but it dresses as one so the column is
   one panel. **All markets is the last row**: the whole catalogue under its

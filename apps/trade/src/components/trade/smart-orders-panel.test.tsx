@@ -404,6 +404,12 @@ describe("the Smart orders panel", () => {
       host.querySelector('[data-slot="workspace-panel-header"]')?.className
     ).toContain("h-[3.15rem]")
     expect(details?.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
+    expect(details?.previousElementSibling?.textContent).toContain(
+      "$0.00 banked"
+    )
+    expect(
+      details?.previousElementSibling?.querySelector(".lucide-piggy-bank")
+    ).not.toBeNull()
     expect(details?.parentElement?.className).toContain("hover:bg-muted/40")
     await act(async () => root.unmount())
     host.remove()

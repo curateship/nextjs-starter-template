@@ -435,6 +435,7 @@ export function MarketFoldersPanel({
                 <div
                   className={cn(
                     "flex h-9 items-center border-b",
+                    expanded && "border-t",
                     followsExpandedSection && "border-t"
                   )}
                 >
@@ -446,7 +447,7 @@ export function MarketFoldersPanel({
                     // the chevron alone.
                     className={cn(
                       "flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm font-medium",
-                      expanded ? "bg-muted/60" : "hover:bg-muted"
+                      expanded ? "bg-muted" : "hover:bg-muted"
                     )}
                     onClick={() => setExpandedId(expanded ? null : row.id)}
                   >
@@ -463,7 +464,7 @@ export function MarketFoldersPanel({
                   </button>
                 </div>
                 {expanded ? (
-                  <div className="bg-muted/60">{row.body}</div>
+                  <div className="bg-muted/30">{row.body}</div>
                 ) : null}
               </div>
             )

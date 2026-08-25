@@ -6,6 +6,7 @@ import {
   EllipsisVerticalIcon,
   Grid2x2Icon,
   PauseIcon,
+  PiggyBankIcon,
   PlayIcon,
   SquareIcon,
 } from "lucide-react"
@@ -605,7 +606,7 @@ function SmartOrdersView({
                         // offers as its smallest size, hidden overflow or not,
                         // so the row grew to fit the longest sentence in the
                         // list and pushed its dollars off the panel's edge.
-                        "flex min-h-10 min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-3 text-left",
+                        "flex min-h-10 min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-2 text-left",
                         focusRing
                       )}
                     >
@@ -615,7 +616,7 @@ function SmartOrdersView({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline gap-1.5">
-                          <span className="truncate text-sm font-medium">
+                          <span className="truncate text-sm font-semibold">
                             {marketSymbol(order.marketKey)}
                           </span>
                           <span className="truncate text-xs text-muted-foreground">
@@ -646,27 +647,20 @@ function SmartOrdersView({
                           </p>
                         ) : null}
                       </div>
-                      <div className="w-[3.75rem] shrink-0 text-right">
+                      <div className="flex shrink-0 items-baseline gap-2 text-right font-mono text-xs whitespace-nowrap tabular-nums">
                         {open === null ? null : (
-                          <span
-                            className={cn(
-                              "block font-mono text-xs tabular-nums",
-                              moneyTone(open)
-                            )}
-                          >
+                          <span className={cn("font-medium", moneyTone(open))}>
                             {formatSignedUsd(open)}
                           </span>
                         )}
-                        {banked.total === 0 ? null : (
-                          <span
-                            className={cn(
-                              "block font-mono text-xs tabular-nums",
-                              moneyTone(banked.total)
-                            )}
-                          >
-                            {formatSignedUsd(banked.total)} banked
-                          </span>
-                        )}
+                        <span className="inline-flex items-center gap-1 text-muted-foreground">
+                          {banked.sells.length > 0 &&
+                          banked.unpriced === banked.sells.length
+                            ? "—"
+                            : formatSignedUsd(banked.total)}
+                          <PiggyBankIcon className="size-3.5" aria-hidden />
+                          <span className="sr-only"> banked</span>
+                        </span>
                       </div>
                     </button>
                     <SmartOrderDetailsPopover
@@ -731,7 +725,7 @@ function SmartOrderDetailsPopover({
           type="button"
           size="icon-sm"
           variant="ghost"
-          className="mr-3 self-center"
+          className="mr-1 self-center"
           aria-label={`Open ${marketSymbol(order.marketKey)} smart order details`}
         >
           <EllipsisVerticalIcon className="size-4" />

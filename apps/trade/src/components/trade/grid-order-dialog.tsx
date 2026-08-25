@@ -141,7 +141,7 @@ export function GridOrderDialog({
   // because it almost always answers with the same values the fields were
   // seeded with, nothing on screen moves. Opening on defaults and swapping
   // when the read landed made the range choice visibly snap a second in.
-  const seeded = React.useRef(knownGridPrefs()).current
+  const [seeded] = React.useState(knownGridPrefs)
   const [showValidation, setShowValidation] = React.useState(false)
   // A hand that has already touched a field beats the read either way,
   // because a form must never change under somebody typing into it.
