@@ -65,6 +65,7 @@ import {
   type MarketPanelRows,
 } from "@/lib/trade/market-folders"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
+import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -196,10 +197,12 @@ export function MarketFoldersPanel({
       ),
     },
     ...folders.map((folder) => {
-      const folderMarkets = folder.marketKeys.flatMap((key) => {
-        const market = markets.get(key)
-        return market ? [market] : []
-      })
+      const folderMarkets = folder.marketKeys
+        .flatMap((key) => {
+          const market = markets.get(key)
+          return market ? [market] : []
+        })
+        .sort(compareMarketChange24h)
       return {
         id: folder.id,
         name: folder.name,

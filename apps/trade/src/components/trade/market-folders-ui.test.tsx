@@ -294,6 +294,64 @@ describe("the market folder controls", () => {
     expect(testToggle.parentElement?.className).toContain("border-t")
   })
 
+  it("orders saved folders and All markets from 24h gain to loss", async () => {
+    const loser: MarketRow = {
+      ...btc,
+      key: "hyperliquid:mainnet:BTC" as MarketKey,
+      marketId: "BTC",
+      symbol: "BTC",
+      change24h: -0.04,
+      volume24hUsd: 3_000_000,
+    }
+    const winner: MarketRow = {
+      ...btc,
+      key: "hyperliquid:mainnet:ETH" as MarketKey,
+      marketId: "ETH",
+      symbol: "ETH",
+      change24h: 0.12,
+      volume24hUsd: 1_000_000,
+    }
+    const unknown: MarketRow = {
+      ...btc,
+      key: "hyperliquid:mainnet:SOL" as MarketKey,
+      marketId: "SOL",
+      symbol: "SOL",
+      change24h: null,
+      volume24hUsd: 2_000_000,
+    }
+    const folder = {
+      ...fav,
+      marketKeys: [loser.key, unknown.key, winner.key],
+    }
+    const sortedCatalogs = [{ ...catalogs[0], rows: [loser, unknown, winner] }]
+
+    await act(async () => {
+      root.render(
+        <MarketFoldersPanel
+          {...shared}
+          folders={[folder]}
+          catalogs={sortedCatalogs}
+        />
+      )
+    })
+
+    const marketNames = () =>
+      Array.from(host.querySelectorAll<HTMLElement>("button span[title]")).map(
+        (element) => element.title
+      )
+    const folderToggle = Array.from(
+      host.querySelectorAll("button[aria-expanded]")
+    ).find((button) => button.textContent?.includes("Fav"))!
+    await act(async () => click(folderToggle))
+    expect(marketNames()).toEqual(["ETH", "BTC", "SOL"])
+
+    const allToggle = Array.from(
+      host.querySelectorAll("button[aria-expanded]")
+    ).find((button) => button.textContent?.includes("All markets"))!
+    await act(async () => click(allToggle))
+    expect(marketNames()).toEqual(["ETH", "BTC", "SOL"])
+  })
+
   it("follows the saved order and leaves a switched-off row out", async () => {
     const named: MarketFolder = {
       id: "00000000-0000-4000-8000-000000000002",

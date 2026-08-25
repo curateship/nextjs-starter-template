@@ -8,6 +8,7 @@ import { TableSortButton } from "@/components/ui/table"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
 import type { MarketRow } from "@/lib/protocols/contracts"
+import { compareMarketChange24h } from "@/lib/trade/market-sort"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 import { cn } from "@/lib/utils"
 
@@ -72,7 +73,7 @@ export function AllMarketsList({
   onRetry: () => void
 }) {
   const [sort, setSort] = React.useState<{ key: SortKey; desc: boolean }>({
-    key: "vol",
+    key: "change",
     desc: true,
   })
   // Clicking the sorted column flips it; clicking another column takes over at
@@ -95,11 +96,10 @@ export function AllMarketsList({
   const visible = React.useMemo(() => {
     const direction = sort.desc ? -1 : 1
     return [...rows].sort((a, b) => {
-      const [va, vb] =
-        sort.key === "vol"
-          ? [a.volume24hUsd, b.volume24hUsd]
-          : [a.change24h ?? 0, b.change24h ?? 0]
-      return (va - vb) * direction
+      if (sort.key === "change") {
+        return compareMarketChange24h(a, b, sort.desc)
+      }
+      return (a.volume24hUsd - b.volume24hUsd) * direction
     })
   }, [rows, sort])
 
@@ -249,8 +249,8 @@ export function MarketRowLine({
     >
       {/* The name gives way first, and carries its full self in a title —
           a long sub-exchange symbol must not push the day's move off the
-          panel. The day's volume sits beside it, quiet, because it is what
-          the list is sorted by: the order stops being a mystery. */}
+          panel. The day's volume sits beside it, quiet, under the volume sort
+          heading. */}
       <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
         <span
           title={row.symbol}

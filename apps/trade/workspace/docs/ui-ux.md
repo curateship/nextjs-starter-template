@@ -697,7 +697,9 @@ line in the body, share the panel's one 12px gutter.
 - **Sort is drawn as column headers** — "24h Vol" left, "24h Change" right, the
   shared `TableSortButton` — and clicking the sorted one flips the direction.
   Both headings lead with the time window, and so does the market picker's "24h
-  change", so the three read the same way round.
+  change", so the three read the same way round. All markets opens with 24h
+  Change sorted from the largest gain to the largest loss. Every saved folder
+  uses that same order. A market with no reported change comes last.
 - **Stars are put on in the market header**, at the head of the row, before the
   logo of the market on screen. Every row of the market picker has the same
   star. An empty star adds the coin to Fav in one press. A filled star opens

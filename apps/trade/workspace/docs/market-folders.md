@@ -40,6 +40,11 @@ management controls. The cog window holds create, rename, drag-to-reorder,
 hide and delete instead. Its New folder card holds the folder-name input and
 Create button.
 
+Markets inside an open folder run from the largest reported 24-hour gain to
+the largest loss. A market whose exchange did not report a 24-hour change sits
+after every known move. All markets opens in the same order, though its column
+headings can still switch to volume or reverse the change order.
+
 ## The cog window
 
 The Order card lists every row the panel can draw: Watched, Fav, each named
