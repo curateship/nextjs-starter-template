@@ -429,8 +429,8 @@ export function ChartPanel({
   }, [addTo, market, onAddOpened])
 
   const openMenu = (point: { clientX: number; clientY: number }) => {
-    // A tool in hand is drawing, not trading; the browser's own menu is the
-    // honest answer when there is nothing here to offer.
+    // A tool in hand is drawing, not trading. Right-click puts it down in the
+    // handler below, and a touch long-press has no order menu to offer.
     if (paintTool || !trading.wallet || !market) return false
     const surface = surfaceRef.current
     const box = plotRef.current?.getBoundingClientRect()
@@ -1120,6 +1120,11 @@ export function ChartPanel({
       className="relative h-full min-h-0"
       {...longPress}
       onContextMenu={(event) => {
+        if (paintTool) {
+          event.preventDefault()
+          paint.setTool(null)
+          return
+        }
         if (openMenu(event)) event.preventDefault()
       }}
     >

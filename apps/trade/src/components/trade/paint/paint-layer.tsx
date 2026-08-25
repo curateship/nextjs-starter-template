@@ -250,6 +250,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   // ----- Drawing a new one ----------------------------------------------
 
   const sheetDown = (event: React.PointerEvent<SVGElement>) => {
+    if (event.button !== 0) return
     if (tool !== "trendline") return
     const point = marketPoint(event)
     if (!point) return
@@ -269,6 +270,7 @@ export const PaintLayer = React.memo(function PaintLayer({
   }
 
   const sheetUp = (event: React.PointerEvent<SVGElement>) => {
+    if (event.button !== 0) return
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId)
     }

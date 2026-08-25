@@ -33,14 +33,20 @@ vi.mock("@/lib/layout/wide-screen", () => ({
   useWideScreen: () => true,
 }))
 
+const paint = vi.hoisted(() => ({
+  tool: null as "level" | "trendline" | null,
+  setTool: vi.fn(),
+  create: vi.fn(),
+}))
+
 vi.mock("@/components/trade/paint/use-drawings", () => ({
   useChartDrawings: () => ({
     drawings: [],
-    tool: null,
+    tool: paint.tool,
     selectedId: null,
-    setTool: vi.fn(),
+    setTool: paint.setTool,
     setSelectedId: vi.fn(),
-    create: vi.fn(),
+    create: paint.create,
     move: vi.fn(),
     remove: vi.fn(),
     clearAll: vi.fn(),
@@ -114,6 +120,7 @@ beforeEach(() => {
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
+  paint.tool = null
 })
 
 afterEach(async () => {
@@ -221,6 +228,85 @@ describe("the chart candle request", () => {
     await act(async () => vi.advanceTimersByTime(1))
     expect(loadCandles).toHaveBeenCalledTimes(2)
     expect(loadCandles).toHaveBeenLastCalledWith("hyperliquid:AVAX", "15m")
+  })
+})
+
+describe("the chart paint tools", () => {
+  it("puts the held tool down on right-click without opening a menu", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockResolvedValue({
+      candles: [
+        { openTime: 0, open: 100, high: 101, low: 89, close: 90, volume: 1 },
+      ],
+    })
+    paint.tool = "level"
+    const oneTrading = {
+      ...trading,
+      wallet: { id: "wallet-1" },
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey="hyperliquid:BTC"
+          interval="15m"
+          initialChartView={null}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: "hyperliquid:BTC" } as never}
+          trading={oneTrading}
+          free={1000}
+          equity={1000}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+    await act(async () => vi.advanceTimersByTimeAsync(0))
+
+    const sheet = host.querySelector<SVGRectElement>(
+      "[data-chart-paint] > rect"
+    )
+    if (!sheet) throw new Error("The active paint sheet was not drawn")
+    Object.assign(sheet, {
+      hasPointerCapture: () => false,
+      releasePointerCapture: vi.fn(),
+      setPointerCapture: vi.fn(),
+    })
+    await act(async () => {
+      sheet.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+      sheet.dispatchEvent(
+        new MouseEvent("pointerup", {
+          bubbles: true,
+          button: 2,
+          clientX: 40,
+          clientY: 100,
+        })
+      )
+    })
+    const contextMenu = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 40,
+      clientY: 100,
+    })
+    await act(async () => {
+      sheet.dispatchEvent(contextMenu)
+    })
+
+    expect(paint.create).not.toHaveBeenCalled()
+    expect(paint.setTool).toHaveBeenCalledWith(null)
+    expect(contextMenu.defaultPrevented).toBe(true)
+    expect(host.querySelector('[role="menu"]')).toBeNull()
   })
 })
 

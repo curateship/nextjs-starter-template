@@ -264,7 +264,8 @@ timeframe, and the rail says what the pointer is holding.
 - **Two tools: a level and a trendline.** Press a tool, draw one thing, and
   the tool puts itself down — staying armed would turn a stray click into
   another line. Pressing the tool that is already held puts it down too, and
-  so does Escape.
+  so does Escape. A right-click puts the held tool down without opening the
+  browser menu or the order menu.
 - **A level is one click**; a **trendline is a drag from one end to the
   other**, or a tap at each end, which is the only way there is on a
   touchscreen. Either way a dashed preview shows where the line will land
