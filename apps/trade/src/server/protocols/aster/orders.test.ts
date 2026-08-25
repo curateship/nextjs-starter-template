@@ -7,6 +7,7 @@ import {
   packAsterCredential,
 } from "@/server/protocols/aster/client"
 import {
+  adjustAsterMargin,
   changeAsterAccountMarginMode,
   clearAsterOrderState,
   closeAsterPosition,
@@ -15,6 +16,7 @@ import {
   placeAsterOrder,
   readAsterAccountMarginMode,
   setAsterBrackets,
+  setAsterLeverage,
 } from "@/server/protocols/aster/orders"
 import {
   markAsterSnapshotConnected,
@@ -98,6 +100,49 @@ afterEach(() => {
 })
 
 describe("Aster orders", () => {
+  it("changes leverage and isolated margin through their account calls", async () => {
+    const sent: Sent[] = []
+    stub((method, url) => {
+      if (method === "POST" && url.pathname.endsWith("/leverage")) {
+        return { leverage: 4 }
+      }
+      if (method === "POST" && url.pathname.endsWith("/positionMargin")) {
+        return { code: 200 }
+      }
+      return {}
+    }, sent)
+
+    await setAsterLeverage("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      leverage: 4,
+    })
+    await adjustAsterMargin("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      szi: 1,
+      dollars: 25,
+    })
+    await adjustAsterMargin("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      szi: 1,
+      dollars: -10,
+    })
+
+    const leverage = sent.find((one) => one.url.pathname.endsWith("/leverage"))
+    expect(leverage?.url.searchParams.get("leverage")).toBe("4")
+    const margin = sent.filter((one) =>
+      one.url.pathname.endsWith("/positionMargin")
+    )
+    expect(
+      margin.map((one) => ({
+        amount: one.url.searchParams.get("amount"),
+        type: one.url.searchParams.get("type"),
+      }))
+    ).toEqual([
+      { amount: "25", type: "1" },
+      { amount: "10", type: "2" },
+    ])
+  })
+
   it("checks Aster again when Settings explicitly saves a mode", async () => {
     const sent: Sent[] = []
     let multiAssets = false

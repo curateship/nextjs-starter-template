@@ -791,6 +791,7 @@ export function TradeWorkspace({
               settled={trading.settled}
               failed={trading.failed}
               onRetry={trading.retry}
+              onResumeSmartOrder={trading.resumeSmartOrder}
               onSelectMarket={onSelectMarket}
             />
           </WorkspacePanel>

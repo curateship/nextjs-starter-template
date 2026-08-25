@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
+
 import { entryLimitSchema } from "./entry-limit"
 
 import type { CandleInterval } from "@/lib/protocols/contracts"
@@ -61,7 +63,8 @@ export function nextDcaRung(rungs: readonly DcaRung[]): DcaRung {
   const last = rungs.at(-1)
   if (!last) return { deviation: 5 }
   const before = rungs.at(-2)
-  const ratio = before && before.deviation > 0 ? last.deviation / before.deviation : 1.6
+  const ratio =
+    before && before.deviation > 0 ? last.deviation / before.deviation : 1.6
   const grown = Math.round(last.deviation * (ratio > 1 ? ratio : 1.6))
   return { deviation: Math.min(99, Math.max(last.deviation + 1, grown)) }
 }
@@ -206,7 +209,8 @@ export const DCA_ANCHOR_LABELS: Record<DcaAnchor, string> = {
 
 export const DCA_ANCHOR_HINTS: Record<DcaAnchor, string> = {
   base: "The ladder hangs off the confirmed base, and rung 1 is a full step below it. It will not place without one, or once price has already fallen under it.",
-  click: "The ladder hangs off the price you right-clicked. Any rung price has already fallen past is skipped, since it can no longer wait for a drop.",
+  click:
+    "The ladder hangs off the price you right-clicked. Any rung price has already fallen past is skipped, since it can no longer wait for a drop.",
 }
 
 /**
@@ -495,11 +499,18 @@ export function sizeOneOrder(input: {
   sizeDecimals: number | null
 }): { dollars: number; sz: number; capped: boolean; tooSmall: boolean } {
   const wanted = input.wantedUsd
-  const dollars = input.capUsd !== null ? Math.min(wanted, input.capUsd) : wanted
+  const dollars =
+    input.capUsd !== null ? Math.min(wanted, input.capUsd) : wanted
   const capped = input.capUsd !== null && dollars < wanted
-  const sz = input.px > 0 ? floorSize(dollars / input.px, input.sizeDecimals) : 0
+  const sz =
+    input.px > 0 ? floorSize(dollars / input.px, input.sizeDecimals) : 0
   const spent = sz * input.px
-  return { dollars: spent, sz, capped, tooSmall: sz <= 0 || spent < MIN_ORDER_USD }
+  return {
+    dollars: spent,
+    sz,
+    capped,
+    tooSmall: sz <= 0 || spent < MIN_ORDER_USD,
+  }
 }
 
 export type DcaLadderPlan = {
@@ -661,6 +672,7 @@ const ladderStopLossSchema = z.object({
  * rule reads them as they stand.
  */
 export const ladderPlanSchema = z.object({
+  ...smartOrderPauseFields,
   anchorPx: z.number().positive(),
   /**
    * What `anchorPx` is: the confirmed base, or the price that was clicked.
@@ -836,7 +848,9 @@ export type LadderStatus = (typeof LADDER_STATUSES)[number]
  * The price levels a ladder exits at, one per rung: the rung above each rung,
  * and the click itself above the first. Both rung exit modes read this.
  */
-export function ladderExitLevels(plan: Pick<LadderPlan, "anchorPx" | "rungs">): number[] {
+export function ladderExitLevels(
+  plan: Pick<LadderPlan, "anchorPx" | "rungs">
+): number[] {
   return plan.rungs.map((_rung, index) =>
     index === 0 ? plan.anchorPx : plan.rungs[index - 1].px
   )
@@ -915,6 +929,8 @@ export function ladderBaseStopOf(
  * what it currently holds when it does not — which is the same number on every
  * ladder that has never bought a rung back.
  */
-export function rungBudget(rung: Pick<LadderRungState, "px" | "sz" | "budget">): number {
+export function rungBudget(
+  rung: Pick<LadderRungState, "px" | "sz" | "budget">
+): number {
   return rung.budget > 0 ? rung.budget : rung.px * rung.sz
 }

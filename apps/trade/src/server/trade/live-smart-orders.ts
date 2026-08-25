@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto"
 import { and, eq } from "drizzle-orm"
 
 import {
+  marketChartHref,
   marketKey as toMarketKey,
+  marketSymbol,
   parseMarketKey,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
@@ -22,6 +24,7 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   gridRangeMovable,
   gridStopPx,
+  gridStopUnder,
   type GridParams,
 } from "@/lib/trade/grid"
 import {
@@ -44,6 +47,14 @@ import {
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
+import { writeTradeNotice } from "@/server/trade/notices"
+import {
+  copySmartOrderPauseState,
+  isSmartOrderRefusal,
+  recordSmartOrderRefusal,
+  recordSmartOrderSendSuccess,
+  smartOrderRefusalReason,
+} from "@/server/trade/smart-order-pause"
 import {
   assertFlowRunAcceptingPlacements,
   flowLadderOrderIds,
@@ -809,6 +820,7 @@ export function nothingStood(error: unknown): boolean {
     return true
   }
   return (
+    isSmartOrderRefusal(error) ||
     message.startsWith("LIVE_ORDER_REFUSED") ||
     message.startsWith("LIVE_ORDER_SETTINGS") ||
     message.startsWith("LIVE_MARGIN_MODE") ||
@@ -1345,6 +1357,36 @@ async function reconcileLiveLaddersOnce(
     ) => Promise<void>
   ): Promise<void> => {
     const originalPlan = structuredClone(entry.plan)
+    let pauseNoticeReason: string | null = null
+    const rememberRefusal = (error: unknown): void => {
+      const reason = smartOrderRefusalReason(error)
+      if (!reason) return
+      if (recordSmartOrderRefusal(entry.plan, reason).pausedNow) {
+        pauseNoticeReason = reason
+      }
+    }
+    const announcePause = async (): Promise<void> => {
+      if (!pauseNoticeReason) return
+      const reason = pauseNoticeReason
+      pauseNoticeReason = null
+      const label =
+        entry.kind === "dca"
+          ? "ladder"
+          : entry.kind === "watch"
+            ? "watched order"
+            : entry.kind
+      try {
+        await writeTradeNotice({
+          userId,
+          title: `${marketSymbol(raw.marketKey)} ${label} paused`,
+          body: `${reason} The ${label} will send nothing else until you resume it.`,
+          level: "warning",
+          href: marketChartHref(raw.marketKey),
+        })
+      } catch (error) {
+        console.error("trade engine: could not write pause notice", error)
+      }
+    }
     const originalOrders = new Map(
       book.orders
         .filter((order) => order.marketKey === raw.marketKey)
@@ -1431,6 +1473,7 @@ async function reconcileLiveLaddersOnce(
                 slPx: null,
                 restingOnly: true,
               })
+              recordSmartOrderSendSuccess(entry.plan)
               // A resting-only order that the venue reports FILLED anyway is
               // not a failure to unwind — the money moved, and unwinding the
               // plan is how the next pass buys it a second time. The watch is
@@ -1483,6 +1526,11 @@ async function reconcileLiveLaddersOnce(
               })
             }
             for (const input of pendingFills) {
+              if (entry.plan.paused) {
+                input.undo?.()
+                book.touchedMarkets.delete(input.marketKey)
+                continue
+              }
               // Still inside a refusal hold: skip the exchange entirely and put
               // the rung back to waiting, exactly as a refusal would have.
               const holdKey = `${wallet.id}:${input.marketKey}`
@@ -1506,6 +1554,7 @@ async function reconcileLiveLaddersOnce(
                   tpPx: null,
                   slPx: null,
                 })
+                recordSmartOrderSendSuccess(entry.plan)
                 refusalHolds.delete(holdKey)
                 // A rung bought at market. Its fill reaches the record through
                 // the exchange like any other, so its order id is written down
@@ -1533,6 +1582,7 @@ async function reconcileLiveLaddersOnce(
                 if (!nothingStood(error)) throw error
                 const message =
                   error instanceof Error ? error.message : String(error)
+                rememberRefusal(error)
                 // The minute's hold is for a refusal, which will be refused
                 // again for the same reason a second later. A rate limit is
                 // already held off inside the exchange client, per key rather
@@ -1553,6 +1603,7 @@ async function reconcileLiveLaddersOnce(
             // action. A failed save enters the same recovery path as a failed
             // placement so resting orders never drift away from their record.
             await saveLadderPlan(userId, row.id, row.plan, status)
+            await announcePause()
           } catch (error) {
             // A market fill cannot be undone. Save the conservative advanced
             // state so a retry cannot buy it twice; the next exchange read
@@ -1592,7 +1643,10 @@ async function reconcileLiveLaddersOnce(
             ) {
               ;(originalPlan as WatchPlan).sent = true
             }
+            rememberRefusal(error)
+            copySmartOrderPauseState(originalPlan, entry.plan)
             await saveLadderPlan(userId, row.id, originalPlan, "active")
+            await announcePause()
             if (recoveryFailed) throw new Error("LIVE_SMART_ROLLBACK_FAILED")
             throw error
           }
@@ -1689,6 +1743,7 @@ async function reconcileLiveLaddersOnce(
         continue
       const entry = parsed.get(raw.id)
       if (!entry) continue
+      if (entry.plan.paused) continue
 
       if (entry.kind === "grid") {
         // A grid has no orders on the exchange to match fills against: its
@@ -2030,12 +2085,21 @@ export async function cancelLiveGridRest(
 export async function setLiveGridFollow(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; follow: boolean }
+  input: { gridId: string; follow: boolean; followDown?: boolean }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
+    const turnDownOn = input.followDown === true && !grid.plan.followDown
+    if (turnDownOn && grid.plan.stopLoss?.mode === "percent") {
+      grid.plan.stopLoss = {
+        ...grid.plan.stopLoss,
+        mode: "fixed",
+        px: gridStopPx(grid.plan),
+      }
+    }
     grid.plan.follow = input.follow
+    if (input.followDown !== undefined) grid.plan.followDown = input.followDown
     if (input.follow) {
       grid.plan.takeProfitPx = null
       // A hand's own switch counts the range as in play — see `setGridFollow`.
@@ -2092,9 +2156,11 @@ export async function updateLiveGridStop(
 
     plan.stopLoss = input.stopLoss
       ? {
-          mode: "percent",
+          mode: plan.followDown ? "fixed" : "percent",
           underPct: input.stopLoss.underPct,
-          px: null,
+          px: plan.followDown
+            ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+            : null,
           base: input.stopLoss.base,
         }
       : null
@@ -2195,6 +2261,7 @@ export async function reshapeLiveGrid(
         spacing: plan.spacing,
         sizing: plan.sizing,
         follow: plan.follow,
+        followDown: plan.followDown,
         // Only read when the window pre-fills; a re-shape has its own prices.
         anchor: "price",
         abovePct: DEFAULT_GRID_ABOVE_PCT,
@@ -2235,6 +2302,8 @@ export async function reshapeLiveGrid(
       // A move re-prices the levels; it does not reset the grid's history.
       cycles: plan.cycles,
       shifts: plan.shifts,
+      downShifts: plan.downShifts,
+      carriedLevels: plan.carriedLevels,
     }
     const at = Date.now()
     await saveGridPlan(userId, grid.id, next, "active", at)

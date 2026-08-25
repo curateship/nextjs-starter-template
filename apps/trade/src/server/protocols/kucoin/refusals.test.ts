@@ -16,6 +16,8 @@ describe("KuCoin refusals", () => {
     ["KUCOIN_429000:Too Many Requests", "KUCOIN_BUSY"],
     ["KUCOIN_300012:Order price cannot be lower", "KUCOIN_PRICE_RANGE"],
     ["KUCOIN_300005:Maximum risk limit", "KUCOIN_RISK_LIMIT"],
+    ["KUCOIN_ISOLATED_LEVERAGE", "KUCOIN_ISOLATED_LEVERAGE"],
+    ["KUCOIN_MARGIN_CROSS", "KUCOIN_MARGIN_CROSS"],
   ])("maps %s", (reason, code) => {
     expect(kucoinRefusalCode(reason)).toBe(code)
     expect(kucoinRefusalError(reason).message).toContain("KuCoin")

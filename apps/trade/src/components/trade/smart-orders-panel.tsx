@@ -36,10 +36,7 @@ import {
   type MarketRow,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import {
-  formatDateTime,
-  formatRelativeTime,
-} from "@/lib/format/format-time"
+import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -49,7 +46,7 @@ import {
   type LiveTrade,
 } from "@/lib/trade/live-trades"
 import type { TradePosition } from "@/lib/trade/paper"
-import { LOST_MONEY, moneyTone } from "@/lib/trade/money-tone"
+import { LOST_MONEY, moneyTone, WARNING } from "@/lib/trade/money-tone"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
   smartOrdersYouPlaced,
@@ -114,6 +111,7 @@ type SmartOrdersViewProps = {
   /** The first read failed and there is nothing to fall back on. */
   failed: boolean
   onRetry: () => void
+  onResumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   onSelectMarket: (marketKey: string) => void
 }
 
@@ -486,6 +484,7 @@ function SmartOrdersView({
   settled,
   failed,
   onRetry,
+  onResumeSmartOrder,
   onSelectMarket,
 }: SmartOrdersViewProps) {
   const [cached, setCached] = React.useState<readonly SmartOrder[] | null>(null)
@@ -624,8 +623,23 @@ function SmartOrdersView({
                             {walletName(order.walletId)}
                           </span>
                         </div>
-                        {keyExpired ? (
-                          <p className={cn("truncate text-xs leading-4", LOST_MONEY)}>
+                        {order.plan.paused ? (
+                          <p
+                            className={cn(
+                              "truncate text-xs leading-4",
+                              WARNING
+                            )}
+                          >
+                            Paused.{" "}
+                            {order.plan.pauseReason ?? "Check the refusal."}
+                          </p>
+                        ) : keyExpired ? (
+                          <p
+                            className={cn(
+                              "truncate text-xs leading-4",
+                              LOST_MONEY
+                            )}
+                          >
                             Trading key expired. This{" "}
                             {order.kind === "grid" ? "grid" : "ladder"} will not
                             act.
@@ -662,6 +676,7 @@ function SmartOrdersView({
                       banked={banked}
                       keyExpired={keyExpired}
                       walletName={walletName(order.walletId)}
+                      onResume={() => onResumeSmartOrder(order)}
                     />
                   </div>
                 </div>
@@ -696,6 +711,7 @@ function SmartOrderDetailsPopover({
   banked,
   keyExpired,
   walletName,
+  onResume,
 }: {
   order: SmartOrder
   position: TradePosition | null
@@ -703,7 +719,11 @@ function SmartOrderDetailsPopover({
   banked: ReturnType<typeof bankedBy>
   keyExpired: boolean
   walletName: string
+  onResume: () => Promise<boolean>
 }) {
+  const [resuming, setResuming] = React.useState(false)
+  const pausedReason =
+    order.plan.pauseReason ?? "The exchange refused this smart order."
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -729,9 +749,11 @@ function SmartOrderDetailsPopover({
         <div className="grid gap-2 p-3">
           <p className="text-xs font-medium">Progress</p>
           <DetailRow label="Status">
-            {keyExpired
-              ? `Trading key expired. This ${order.kind === "grid" ? "grid" : "ladder"} will not act.`
-              : whereItHasGot(order, position)}
+            {order.plan.paused
+              ? `Paused. ${pausedReason}`
+              : keyExpired
+                ? `Trading key expired. This ${order.kind === "grid" ? "grid" : "ladder"} will not act.`
+                : whereItHasGot(order, position)}
           </DetailRow>
           {order.kind === "grid" ? (
             <DetailRow label="Held to sell">
@@ -808,6 +830,22 @@ function SmartOrderDetailsPopover({
             </>
           )}
         </div>
+        {order.plan.paused ? (
+          <div className="border-t p-3">
+            <Button
+              type="button"
+              className="w-full"
+              disabled={resuming}
+              onClick={() => {
+                setResuming(true)
+                void onResume().finally(() => setResuming(false))
+              }}
+            >
+              <PlayIcon className="size-4" />
+              {resuming ? "Resuming" : "Resume"}
+            </Button>
+          </div>
+        ) : null}
       </PopoverContent>
     </Popover>
   )
@@ -842,9 +880,9 @@ function whereItHasGot(
     const waiting = order.plan.levels.filter(
       (level) => level.status === "waiting"
     ).length
-    const completed = order.plan.levels.filter(
-      (level) => level.status === "holding"
-    ).length
+    const completed =
+      order.plan.levels.filter((level) => level.status === "holding").length +
+      order.plan.carriedLevels.length
     return `${waiting} waiting · ${completed} completed`
   }
   if (order.kind === "watch") {
@@ -866,7 +904,7 @@ function whereItHasGot(
 
 /** Dollars paid for the coins a grid has not sold yet. */
 function gridHeldToSell(order: Extract<SmartOrder, { kind: "grid" }>): number {
-  return order.plan.levels.reduce(
+  return [...order.plan.levels, ...order.plan.carriedLevels].reduce(
     (total, level) => total + level.heldSz * level.buyPx,
     0
   )

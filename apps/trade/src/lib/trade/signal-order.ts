@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
+
 /**
  * One coin being traded on an indicator's say-so.
  *
@@ -40,9 +42,15 @@ import { z } from "zod"
  * pass do the cancelling reuses the same path a give-up already takes, rather
  * than writing a second copy of it somewhere that would have to be kept in step.
  */
-export const SIGNAL_PHASES = ["buying", "holding", "selling", "stopping"] as const
+export const SIGNAL_PHASES = [
+  "buying",
+  "holding",
+  "selling",
+  "stopping",
+] as const
 
 export const signalPlanSchema = z.object({
+  ...smartOrderPauseFields,
   /**
    * The price when the arrow fired, which is what the chase is measured from.
    *
@@ -187,7 +195,9 @@ export function restingChasePx(
 ): number | null {
   if (!(mark > 0)) return null
   for (let offset = CHASE_OFFSET; offset <= CHASE_MAX_OFFSET; offset *= 2) {
-    const px = roundPx(side === "buy" ? mark * (1 - offset) : mark * (1 + offset))
+    const px = roundPx(
+      side === "buy" ? mark * (1 - offset) : mark * (1 + offset)
+    )
     if (!(px > 0)) continue
     // The exchange's own test, in the app's own words: a buy at or above the
     // market and a sell at or below it are both takeable right now.

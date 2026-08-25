@@ -10,6 +10,7 @@ import {
   gridOrderPlan,
   gridRangeMovable,
   gridStopPx,
+  gridStopUnder,
   GRID_STEP_FEE_MULTIPLE,
   type GridLevelState,
   type GridParams,
@@ -231,13 +232,19 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     startedAt: input.startedAt ?? 0,
     sizeDecimals: rules.sizeDecimals,
     priceTick: rules.priceTick,
+    minOrderValueUsd: orderFloor,
     maxLeverage,
     levels,
+    carriedLevels: [],
     stopLoss: params.stopLoss
       ? {
-          mode: "percent",
+          // A downward-following grid must not lower its loss limit as the
+          // range moves. Freeze the stop where placement put it.
+          mode: params.followDown ? "fixed" : "percent",
           underPct: params.stopLoss.underPct,
-          px: null,
+          px: params.followDown
+            ? gridStopUnder(bottomPx, params.stopLoss.underPct)
+            : null,
           base: params.stopLoss.base,
         }
       : null,
@@ -248,11 +255,13 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     seenFillsTo: 0,
     cycles: 0,
     follow: params.follow,
+    followDown: params.followDown,
     // Whether the range is in play from the start. A straddling grid is; one
     // hung entirely below the price is waiting for a fall, and follow must
     // not touch it until price actually comes down to it — see the schema.
     entered: mark <= topPx,
     shifts: 0,
+    downShifts: 0,
     closedReason: null,
   }
 
@@ -470,7 +479,11 @@ export async function saveGridPlan(
 ): Promise<void> {
   await db
     .update(tradeSmartLadders)
-    .set({ plan, status, updatedAt: at === undefined ? new Date() : new Date(at) })
+    .set({
+      plan,
+      status,
+      updatedAt: at === undefined ? new Date() : new Date(at),
+    })
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
@@ -543,9 +556,11 @@ export async function updateGridStop(
 
   plan.stopLoss = input.stopLoss
     ? {
-        mode: "percent",
+        mode: plan.followDown ? "fixed" : "percent",
         underPct: input.stopLoss.underPct,
-        px: null,
+        px: plan.followDown
+          ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+          : null,
         base: input.stopLoss.base,
       }
     : null
@@ -593,7 +608,7 @@ export async function updateGridStop(
 export async function setGridFollow(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; follow: boolean }
+  input: { gridId: string; follow: boolean; followDown?: boolean }
 ): Promise<void> {
   // Settled first, like every other action here. A pass already running holds
   // the wallet lock and writes the whole plan when it finishes, so reading
@@ -601,7 +616,16 @@ export async function setGridFollow(
   // replaced — and the switch silently springs back.
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
+  const turnDownOn = input.followDown === true && !grid.plan.followDown
+  if (turnDownOn && grid.plan.stopLoss?.mode === "percent") {
+    grid.plan.stopLoss = {
+      ...grid.plan.stopLoss,
+      mode: "fixed",
+      px: gridStopPx(grid.plan),
+    }
+  }
   grid.plan.follow = input.follow
+  if (input.followDown !== undefined) grid.plan.followDown = input.followDown
   if (input.follow) {
     grid.plan.takeProfitPx = null
     // Switching following on BY HAND is a direct instruction, so the range
@@ -682,6 +706,7 @@ export async function reshapeGrid(
       spacing: plan.spacing,
       sizing: plan.sizing,
       follow: plan.follow,
+      followDown: plan.followDown,
       // Only read when the window pre-fills; a re-shape has its own prices.
       anchor: "price",
       abovePct: DEFAULT_GRID_ABOVE_PCT,
@@ -720,6 +745,8 @@ export async function reshapeGrid(
     // A move re-prices the levels; it does not reset the grid's history.
     cycles: plan.cycles,
     shifts: plan.shifts,
+    downShifts: plan.downShifts,
+    carriedLevels: plan.carriedLevels,
   }
 
   // No orders to cancel, none to place, and no position to settle. Every

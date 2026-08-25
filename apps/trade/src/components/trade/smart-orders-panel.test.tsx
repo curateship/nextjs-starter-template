@@ -84,6 +84,7 @@ const shared = {
   walletName: () => "Main",
   selectedMarketKey: null,
   onRetry: () => {},
+  onResumeSmartOrder: vi.fn(async () => true),
   onSelectMarket: () => {},
 }
 
@@ -147,6 +148,7 @@ const grid = {
   id: "grid",
   kind: "grid",
   plan: {
+    carriedLevels: [],
     levels: [
       { status: "waiting", heldSz: 0, buyPx: 10 },
       { status: "waiting", heldSz: 0, buyPx: 20 },
@@ -476,6 +478,56 @@ describe("the Smart orders panel", () => {
 
     expect(document.body.textContent).toContain("3 waiting · 7 completed")
     expect(document.body.textContent).toContain("Held to sell$70.00")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("shows why a strategy paused and lets its owner resume it", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const paused: SmartOrder = {
+      ...ladder,
+      plan: {
+        ...ladder.plan,
+        paused: true,
+        pauseReason: "The order is below the market minimum.",
+        refusalStreak: 5,
+      },
+    }
+    const onResumeSmartOrder = vi.fn(async () => true)
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[paused]}
+          onResumeSmartOrder={onResumeSmartOrder}
+          settled
+          failed={false}
+        />
+      )
+    })
+    expect(host.textContent).toContain(
+      "Paused. The order is below the market minimum."
+    )
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Open XMR smart order details"]'
+        )
+        ?.click()
+    })
+    const resume = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "Resume"
+    )
+    await act(async () => resume?.click())
+    expect(onResumeSmartOrder).toHaveBeenCalledWith(paused)
+
     await act(async () => root.unmount())
     host.remove()
   })

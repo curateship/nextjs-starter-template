@@ -17,7 +17,7 @@ together.
 
 ## The liquidation figure on the window is an estimate, and says so
 
-The exchange will not say where liquidation *would* move to until the money has
+The exchange will not say where liquidation _would_ move to until the money has
 actually moved. So the window works it out with this app's own formula and
 writes "about" in front of it, followed by "This app's estimate. The row shows
 the exchange's own figure once it answers."
@@ -65,24 +65,46 @@ the venue's own reason for the half it cannot do. That table lives beside each
 exchange's module in `src/server/protocols/registry.ts`, never in a screen —
 a screen comparing exchange names is what the protocol fence forbids.
 
-| Exchange | Change leverage | Add or take back margin |
-| --- | --- | --- |
-| Hyperliquid | Yes | Yes |
-| Aster | Yes, but it will not LOWER isolated leverage while a position is open | Not built |
-| Phemex | Not built | Not built |
-| KuCoin | Not built | Not built |
+| Exchange    | Change leverage                                                       | Add or take back margin                         |
+| ----------- | --------------------------------------------------------------------- | ----------------------------------------------- |
+| Hyperliquid | Yes                                                                   | Yes                                             |
+| Aster       | Yes, but it will not lower isolated leverage while a position is open | Add or take back margin on an isolated position |
+| Phemex      | Yes, on the matching long or short side                               | Add or take back margin on an isolated position |
+| KuCoin      | Cross margin only                                                     | Add or take back margin on an isolated position |
 
 **Aster's refusal is the venue's, not this app's.** It answers with its own
 code, which `refusals.ts` already turns into "Aster will not lower isolated
 leverage while this position is open. Close the position or keep its current
 leverage." Raising it is allowed.
 
-**Phemex and KuCoin still need reading.** Phemex sets leverage as part of an
-order and a hedged account keeps a separate figure for each side; KuCoin keeps
-leverage per market for cross margin only, and an isolated position carries
-whatever its own order asked for. Neither has been read back from the venue on
-an open position, so neither is offered. When one is, its row here changes and
-the button appears on its own.
+**Phemex keeps the current margin mode.** The sign of Phemex's leverage number
+also says whether the position uses cross or isolated margin. A leverage change
+keeps that sign. On a hedged account it changes only the long or short that the
+position row represents and sends the other side back unchanged, because
+Phemex requires both figures together. Trade reads both figures again before
+the change, so a recent change made on Phemex is not overwritten. If Phemex
+does not state the current leverage, Trade refuses instead of guessing whether
+the position uses cross or isolated margin. Margin changes use the current
+isolated margin plus or minus the dollars asked for. Phemex refuses a
+position-level margin change on cross margin.
+
+**KuCoin's limit comes from its Futures API.** Cross leverage is an account
+setting for that market, so Trade changes that setting before it reports the
+ask complete. An isolated position keeps the leverage it opened with, and the
+API has no command to change it while it is open. The API has separate calls to
+add cash to an isolated position and take cash back out. KuCoin checks whether
+the position can spare the requested amount and sends its refusal back in plain
+words when it cannot.
+
+**Aster changes isolated margin directly.** A positive amount adds cash and a
+negative amount takes cash back. Aster refuses the change on a cross position,
+when there is not enough free cash, or when taking cash back would leave too
+little behind the position. Its named refusal is the text the window shows.
+
+After every accepted change, Trade clears any held account answer and reads the
+position again. The row always shows the exchange's leverage, margin and
+liquidation price. It never fills those figures from the number that was asked
+for.
 
 ## Hyperliquid asks for isolated every time
 

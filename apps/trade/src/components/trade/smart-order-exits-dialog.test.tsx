@@ -2,7 +2,7 @@
 
 import { act, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
 import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
@@ -37,10 +37,16 @@ const grid = {
   id: "grid",
   kind: "grid",
   plan: {
-    levels: [{ status: "waiting", heldSz: 0, buyPx: 90 }],
+    levels: [
+      { status: "waiting", heldSz: 0, buyPx: 90 },
+      { status: "waiting", heldSz: 0, buyPx: 95 },
+    ],
     potPct: 10,
     follow: true,
+    followDown: false,
     shifts: 0,
+    downShifts: 0,
+    carriedLevels: [],
     bottomPx: 90,
     topPx: 100,
     takeProfitPx: null,
@@ -49,14 +55,15 @@ const grid = {
       base: { underPct: 1, reclaimDays: 2 },
     },
   },
-} as SmartGrid
+} as unknown as SmartGrid
 
 let host: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
-  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean })
-    .IS_REACT_ACT_ENVIRONMENT = true
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
   host = document.createElement("div")
   document.body.appendChild(host)
   root = createRoot(host)
@@ -69,7 +76,9 @@ afterEach(async () => {
 
 function control(id: string): HTMLButtonElement | HTMLInputElement {
   const found = document.getElementById(id)
-  if (!(found instanceof HTMLButtonElement || found instanceof HTMLInputElement)) {
+  if (!(
+    found instanceof HTMLButtonElement || found instanceof HTMLInputElement
+  )) {
     throw new Error(`No form control with id ${id}`)
   }
   return found
@@ -157,12 +166,12 @@ describe.each([
     for (const id of controlIds) expect(control(id).disabled).toBe(true)
     expect((control(changedId) as HTMLInputElement).value).toBe(changedValue)
 
-    const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent?.includes("Save changes")
-    )
-    const cancel = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent?.trim() === "Cancel"
-    )
+    const save = [
+      ...document.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.includes("Save changes"))
+    const cancel = [
+      ...document.querySelectorAll<HTMLButtonElement>("button"),
+    ].find((button) => button.textContent?.trim() === "Cancel")
     expect(save?.disabled).toBe(true)
     expect(save?.querySelector(".animate-spin")).not.toBeNull()
     expect(cancel?.disabled).toBe(true)
@@ -171,6 +180,51 @@ describe.each([
     for (const id of controlIds) expect(control(id).disabled).toBe(false)
     expect((control(changedId) as HTMLInputElement).value).toBe(changedValue)
   })
+})
+
+it("does not reset a fixed stop when only following changes", async () => {
+  const fixed = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      followDown: true,
+      downShifts: 2,
+      stopLoss: {
+        mode: "fixed" as const,
+        underPct: 2,
+        px: 88,
+        base: { underPct: 1, reclaimDays: 2 },
+      },
+    },
+  } as SmartGrid
+  const saveStop = vi.fn(async () => true)
+  const saveFollowing = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridStopDialog
+          grid={fixed}
+          busy={false}
+          onSave={saveStop}
+          onReshape={async () => true}
+          onSetFollow={saveFollowing}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+  await act(async () => control("grid-follow-on").click())
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(saveFollowing).toHaveBeenCalledWith(fixed, {
+    up: false,
+    down: true,
+  })
+  expect(saveStop).not.toHaveBeenCalled()
 })
 
 it("keeps the ladder draft when a save is refused", async () => {

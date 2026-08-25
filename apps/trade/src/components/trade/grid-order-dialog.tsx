@@ -29,7 +29,7 @@ import {
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
-import { BUY_BUTTON } from "@/lib/trade/money-tone"
+import { BUY_BUTTON, WARNING } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -174,6 +174,9 @@ export function GridOrderDialog({
     seeded?.anchor ?? "price"
   )
   const [follow, setFollow] = React.useState(seeded?.follow ?? false)
+  const [followDown, setFollowDown] = React.useState(
+    seeded?.followDown ?? false
+  )
   // The range STRADDLES the price: levels above it are sells of what the grid
   // holds, levels below are buys waiting for a dip, and the grid earns from
   // price crossing back and forth between them.
@@ -233,6 +236,7 @@ export function GridOrderDialog({
       setSizing(params.sizing)
       setAnchor(params.anchor)
       setFollow(params.follow)
+      setFollowDown(params.followDown)
       setAbovePct(String(params.abovePct))
       setBelowPct(String(params.rangePct))
       // A following grid has no finish line, so a remembered one stays off.
@@ -298,6 +302,7 @@ export function GridOrderDialog({
       sizing,
       anchor,
       follow,
+      followDown,
       // Remembered as depths, so the next grid on another coin opens at the
       // same shape rather than at this coin's prices.
       //
@@ -333,6 +338,7 @@ export function GridOrderDialog({
     sizing,
     anchor,
     follow,
+    followDown,
     above,
     below,
     tpOn,
@@ -774,6 +780,24 @@ export function GridOrderDialog({
             {null}
           </OptionCard>
 
+          <OptionCard
+            id="grid-follow-down"
+            title="Follow price down"
+            hint="When price falls through the bottom, the range adds one new lower buy per pass and keeps working there. Filled levels above the moved range keep their original sell prices. The stop stays at the price where it was set."
+            toggle={{
+              checked: followDown,
+              disabled: busy,
+              onChange: touched(setFollowDown),
+            }}
+          >
+            {followDown ? (
+              <p className={cn("text-xs", WARNING)}>
+                This keeps buying as price falls. Your stop stays where it was
+                set, even when the range moves through it.
+              </p>
+            ) : null}
+          </OptionCard>
+
           {/* Hidden entirely while the grid follows price. A line above a
                 range that slides up ahead of price can never be reached, and a
                 setting that quietly does nothing is worse than no setting. */}
@@ -935,9 +959,7 @@ export function GridOrderDialog({
                 inputMode="decimal"
                 value={maxOrderVolPct}
                 disabled={busy}
-                aria-invalid={
-                  showValidation && parsed(maxOrderVolPct) === null
-                }
+                aria-invalid={showValidation && parsed(maxOrderVolPct) === null}
                 onChange={(event) =>
                   touched(setMaxOrderVolPct)(event.target.value)
                 }

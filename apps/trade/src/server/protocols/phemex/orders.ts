@@ -14,7 +14,10 @@ import type {
   WalletPosition,
 } from "@/lib/protocols/contracts"
 import { num, roundPhemexPx } from "@/lib/protocols/phemex/translate"
-import { phemexAccountPositions } from "@/server/protocols/phemex/account"
+import {
+  clearPhemexAccountCache,
+  phemexAccountPositions,
+} from "@/server/protocols/phemex/account"
 import {
   parsePhemexCredential,
   phemexPublic,
@@ -193,6 +196,7 @@ const POS_MODE_GOOD_FOR_MS = 5 * 60_000
  */
 type SymbolState = {
   mode: PosMode
+  mergedRr: string | null
   longRr: string | null
   shortRr: string | null
 }
@@ -228,6 +232,7 @@ async function symbolStateOf(
       if (row.posMode !== "Hedged" && row.posMode !== "OneWay") continue
       const found = bySymbol.get(row.symbol) ?? {
         mode: row.posMode,
+        mergedRr: null,
         longRr: null,
         shortRr: null,
       }
@@ -240,6 +245,9 @@ async function symbolStateOf(
           : null
       if (rr !== null && row.posSide === "Long") found.longRr = rr
       if (rr !== null && row.posSide === "Short") found.shortRr = rr
+      if (rr !== null && row.posSide !== "Long" && row.posSide !== "Short") {
+        found.mergedRr = rr
+      }
       bySymbol.set(row.symbol, found)
     }
     posModes.set(key, { at: Date.now(), bySymbol })
@@ -250,6 +258,7 @@ async function symbolStateOf(
   return (
     posModes.get(key)?.bySymbol.get(symbol) ?? {
       mode: "Hedged",
+      mergedRr: null,
       longRr: null,
       shortRr: null,
     }
@@ -710,6 +719,132 @@ export async function closePhemexPosition(
     slPx: null,
   })
   return { avgPx: outcome.avgPx, filledSz: outcome.filledSz }
+}
+
+// ----- Leverage and margin on an open position ----------------------------
+
+export async function setPhemexLeverage(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; leverage: number; szi: number }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  if (params.szi === 0) throw new Error("LIVE_POSITION_GONE")
+  // Phemex requires both hedged sides in one request. Read them again here so
+  // a recent change made on Phemex is never overwritten by a held answer.
+  clearPhemexAccountCache()
+  posModes.clear()
+  const state = await symbolStateOf(
+    network,
+    "",
+    orderAuth.agentKey,
+    params.marketId
+  )
+  const asked = Math.max(1, Math.round(params.leverage))
+  const current =
+    state.mode === "OneWay"
+      ? state.mergedRr
+      : params.szi > 0
+        ? state.longRr
+        : state.shortRr
+  if (current === null) {
+    throw new Error(
+      "LIVE_LEVERAGE:Phemex did not state this position's current leverage, so Trade cannot keep its margin mode unchanged. Refresh the account and try again."
+    )
+  }
+  const cross = current.startsWith("-")
+  const leverageRr = decimalString(cross ? -asked : asked)
+  const forSide = params.szi > 0 ? "Long" : "Short"
+
+  try {
+    await phemexSigned(
+      network,
+      auth(orderAuth),
+      "PUT",
+      "/g-positions/leverage",
+      {
+        symbol: params.marketId,
+        ...(state.mode === "OneWay"
+          ? { leverageRr }
+          : {
+              longLeverageRr:
+                forSide === "Long" ? leverageRr : (state.longRr ?? leverageRr),
+              shortLeverageRr:
+                forSide === "Short"
+                  ? leverageRr
+                  : (state.shortRr ?? leverageRr),
+            }),
+      }
+    )
+  } catch (error) {
+    throw exchangeError(error)
+  }
+  clearPhemexAccountCache()
+  posModes.clear()
+}
+
+export async function adjustPhemexMargin(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; szi: number; dollars: number }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  if (params.szi === 0) throw new Error("LIVE_POSITION_GONE")
+  if (!Number.isFinite(params.dollars) || params.dollars === 0) {
+    throw new Error("LIVE_MARGIN_NOTHING")
+  }
+
+  clearPhemexAccountCache()
+  const { positions } = await phemexAccountPositions(
+    network,
+    "",
+    () => orderAuth.agentKey
+  )
+  const wantedSide = params.szi > 0 ? "Long" : "Short"
+  const raw = positions.find((value) => {
+    const row = value as {
+      symbol?: unknown
+      posMode?: unknown
+      posSide?: unknown
+      side?: unknown
+      sizeRq?: unknown
+    }
+    const size = num(row.sizeRq)
+    const sideMatches =
+      row.posMode !== "OneWay" ||
+      (params.szi > 0
+        ? sideOf(row.side as string) === "buy"
+        : sideOf(row.side as string) === "sell")
+    return (
+      row.symbol === params.marketId &&
+      size !== null &&
+      size > 0 &&
+      sideMatches &&
+      (row.posMode === "OneWay" || row.posSide === wantedSide)
+    )
+  }) as { positionMarginRv?: unknown; posMode?: unknown } | undefined
+  const current = num(raw?.positionMarginRv)
+  if (current === null) throw new Error("LIVE_POSITION_GONE")
+  const target = current + params.dollars
+  if (!(target > 0)) throw new Error("LIVE_MARGIN_TOO_MUCH")
+
+  try {
+    await phemexSigned(
+      network,
+      auth(orderAuth),
+      "POST",
+      "/g-positions/assign",
+      {
+        symbol: params.marketId,
+        posSide: raw?.posMode === "OneWay" ? "Merged" : wantedSide,
+        posBalanceRv: decimalString(target),
+      }
+    )
+  } catch (error) {
+    throw exchangeError(error)
+  }
+  clearPhemexAccountCache()
+  posModes.clear()
 }
 
 // ----- Brackets -------------------------------------------------------------

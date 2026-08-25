@@ -1,8 +1,10 @@
-import { MIN_ORDER_USD, floorSize } from "@/lib/trade/dca"
+import { floorSize } from "@/lib/trade/dca"
 import {
+  gridFollowDownShift,
   gridFollowShift,
   gridLevels,
   gridLevelSize,
+  gridShares,
   gridStepPct,
   gridStopPx,
   gridTakeProfitPx,
@@ -61,8 +63,13 @@ export async function advanceGrid(
 ): Promise<void> {
   const { book, now } = input
   const plan = row.plan
+  if (plan.paused) return
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+    getProtocol(book.wallet.protocol).markets.roundPx(
+      px,
+      plan.sizeDecimals,
+      plan.priceTick
+    )
   const mark = input.marks.get(row.marketKey) ?? null
   let changed = false
 
@@ -101,7 +108,9 @@ export async function advanceGrid(
   // ----- 3. Is the grid over? ---------------------------------------------
 
   const position = book.positions.get(row.marketKey) ?? null
-  const anyHolding = plan.levels.some((level) => level.status === "holding")
+  const anyHolding = [...plan.levels, ...plan.carriedLevels].some(
+    (level) => level.status === "holding"
+  )
   const anyWaiting = plan.levels.some((level) => level.status === "waiting")
 
   const over =
@@ -138,7 +147,12 @@ export async function advanceGrid(
   // round, a grid that crossed several levels at once would run out of money
   // holding coins it was about to sell.
 
-  for (const level of plan.levels) {
+  const soldCarried = new Set<GridPlan["carriedLevels"][number]>()
+  const sellLevels = [
+    ...plan.levels.map((level) => ({ level, carried: false })),
+    ...plan.carriedLevels.map((level) => ({ level, carried: true })),
+  ]
+  for (const { level, carried } of sellLevels) {
     if (level.status !== "holding" || level.heldSz <= 0) continue
     if (mark === null || mark < level.sellPx) continue
     // Price has reached this level's sell. Sell exactly what it holds — never
@@ -148,9 +162,10 @@ export async function advanceGrid(
       position ? floorSize(position.szi, plan.sizeDecimals) : 0
     )
     if (sz <= 0) {
-      level.status = "waiting"
+      level.status = carried ? "cancelled" : "waiting"
       level.heldSz = 0
       changed = true
+      if (carried) soldCarried.add(level)
       continue
     }
     deps.fill(book, {
@@ -171,14 +186,20 @@ export async function advanceGrid(
     // Back to watching, holding nothing. Step 6 buys again the moment price
     // comes back down to this level. There is no queue and no re-arm flag: the
     // loop is this one status change.
-    level.status = "waiting"
+    level.status = carried ? "cancelled" : "waiting"
     level.heldSz = 0
     // Still armed, and by definition: price just climbed to this level's sell,
     // which is above its buy. It can buy again the moment price comes back.
-    level.armed = true
+    level.armed = !carried
     level.cycles += 1
     plan.cycles += 1
     changed = true
+    if (carried) soldCarried.add(level)
+  }
+  if (soldCarried.size > 0) {
+    plan.carriedLevels = plan.carriedLevels.filter(
+      (level) => !soldCarried.has(level)
+    )
   }
 
   // ----- 4b. Follow price up ----------------------------------------------
@@ -187,14 +208,7 @@ export async function advanceGrid(
   // at rather than at a price it never traded. BEFORE the buys, so the moved
   // levels are watched on this same pass instead of a second late.
   //
-  // Two conditions carry the whole safety of this, and both are refusals
-  // rather than adjustments:
-  //
-  // - **Upward only.** Below the bottom a grid is fully loaded, and re-pricing
-  //   its levels lower would sell that bag under what it paid, while the stop
-  //   measured from the bottom slid down with it and never fired. There is no
-  //   safe downward version, so there is no downward version.
-  // - **Only while it holds nothing.** That is what makes a move free: no
+  // Only while it holds nothing. That is what makes an upward move free: no
   //   position to settle means not one order is placed. It is also the ordinary
   //   state up here, because a grid above its top has already sold every level.
 
@@ -210,7 +224,9 @@ export async function advanceGrid(
 
   if (plan.follow && plan.entered && mark !== null) {
     const stillHeld = book.positions.get(row.marketKey) ?? null
-    const anyHeldLevel = plan.levels.some((level) => level.status === "holding")
+    const anyHeldLevel = [...plan.levels, ...plan.carriedLevels].some(
+      (level) => level.status === "holding"
+    )
     if (!anyHeldLevel && (!stillHeld || stillHeld.szi <= 0)) {
       const moved = gridFollowShift({
         topPx: plan.topPx,
@@ -264,7 +280,7 @@ export async function advanceGrid(
     // once, but a grid level buys back forever, so leftover carried forward
     // would compound on every round trip.
     const sz = gridLevelSize(level, plan.sizeDecimals)
-    if (sz <= 0 || sz * level.buyPx < MIN_ORDER_USD) {
+    if (sz <= 0 || sz * level.buyPx < plan.minOrderValueUsd) {
       // Too small to be a trade at this price, and it will not grow.
       level.status = "cancelled"
       changed = true
@@ -293,6 +309,40 @@ export async function advanceGrid(
     level.status = "holding"
     level.heldSz = sz
     changed = true
+  }
+
+  // ----- 5b. Follow price down --------------------------------------------
+  //
+  // AFTER existing buys, so a level crossed during this pass buys at the
+  // price it was already watching. One level is then introduced below the
+  // range for the next pass. A crash cannot turn one range move into a second
+  // burst of buys.
+
+  if (plan.followDown && plan.entered && mark !== null) {
+    const moved = gridFollowDownShift({
+      topPx: plan.topPx,
+      bottomPx: plan.bottomPx,
+      levels: plan.levels.length,
+      spacing: plan.spacing,
+      mark,
+    })
+    if (mark < plan.bottomPx && !moved) {
+      plan.paused = true
+      plan.pauseReason =
+        "The next lower grid level does not fit this market's price step. The grid paused before placing it."
+      await deps.saveLadder(row, "active", now)
+      return
+    }
+    if (moved) {
+      const followed = followTheRangeDown(plan, moved, roundPx)
+      if (followed.reason) {
+        plan.paused = true
+        plan.pauseReason = followed.reason
+        await deps.saveLadder(row, "active", now)
+        return
+      }
+      if (followed.moved) changed = true
+    }
   }
 
   // ----- 6. Aim the stop, and only the stop -------------------------------
@@ -406,7 +456,8 @@ function followTheRangeUp(
     // A buy at or above the price is one the next step would fill at market,
     // which is exactly the cost this whole feature exists to avoid.
     if (level.buyPx >= mark) return false
-    if (level.sz <= 0 || level.sz * level.buyPx < MIN_ORDER_USD) return false
+    if (level.sz <= 0 || level.sz * level.buyPx < plan.minOrderValueUsd)
+      return false
   }
 
   const top = roundPx(moved.topPx)
@@ -425,6 +476,105 @@ function followTheRangeUp(
 }
 
 /**
+ * Introduce one new bottom buy and leave the old top holding at its old sale.
+ * Every candidate number is checked before the plan changes.
+ */
+function followTheRangeDown(
+  plan: GridPlan,
+  moved: { topPx: number; bottomPx: number },
+  roundPx: (px: number) => number
+): { moved: boolean; reason: string | null } {
+  const prices = gridLevels({
+    topPx: moved.topPx,
+    bottomPx: moved.bottomPx,
+    levels: plan.levels.length,
+    spacing: plan.spacing,
+  }).map((level) => ({
+    buyPx: roundPx(level.buyPx),
+    sellPx: roundPx(level.sellPx),
+  }))
+  const topPx = roundPx(moved.topPx)
+  const bottomPx = roundPx(moved.bottomPx)
+  if (
+    prices.length !== plan.levels.length ||
+    !(topPx > bottomPx) ||
+    !(bottomPx > 0) ||
+    prices.some((level) => !(level.buyPx > 0) || !(level.sellPx > level.buyPx))
+  ) {
+    return {
+      moved: false,
+      reason:
+        "The next lower grid level does not fit this market's price step. The grid paused before placing it.",
+    }
+  }
+
+  // Old level 0 becomes new level 1, and so on. If the exchange's price tick
+  // prevents that exact overlap, moving would rewrite the prices old coins
+  // bought at. Pause instead.
+  for (let index = 0; index < plan.levels.length - 1; index += 1) {
+    const old = plan.levels[index]
+    const next = prices[index + 1]
+    if (old.buyPx !== next.buyPx || old.sellPx !== next.sellPx) {
+      return {
+        moved: false,
+        reason:
+          "The next lower grid level does not fit this market's price step. The grid paused before placing it.",
+      }
+    }
+  }
+
+  const pot = plan.levels.reduce((sum, level) => sum + level.budget, 0)
+  const shares = gridShares(plan.levels.length, plan.sizing)
+  const sized = prices.map((level, index) => {
+    const sz = floorSize((pot * shares[index]) / level.buyPx, plan.sizeDecimals)
+    return { ...level, sz, budget: sz * level.buyPx }
+  })
+  if (
+    sized.some(
+      (level) => level.sz <= 0 || level.budget + 1e-9 < plan.minOrderValueUsd
+    )
+  ) {
+    return {
+      moved: false,
+      reason:
+        "The next lower grid buy is smaller than this market accepts. The grid paused before placing it.",
+    }
+  }
+
+  const oldTop = plan.levels.at(-1)
+  const stopPx = gridStopPx(plan)
+  const nextLevels = [
+    {
+      buyPx: sized[0].buyPx,
+      sellPx: sized[0].sellPx,
+      sz: sized[0].sz,
+      budget: sized[0].budget,
+      heldSz: 0,
+      status: "waiting" as const,
+      armed: true,
+      dead: stopPx !== null && sized[0].buyPx <= stopPx,
+      cycles: 0,
+    },
+    ...plan.levels.slice(0, -1).map((level, index) => ({
+      ...level,
+      // The money split follows the level's new place in the active range.
+      // Coins already held keep `heldSz`; this changes only the next cycle.
+      sz: sized[index + 1].sz,
+      budget: sized[index + 1].budget,
+    })),
+  ]
+
+  if (oldTop?.status === "holding" && oldTop.heldSz > 0) {
+    plan.carriedLevels.push(oldTop)
+  }
+  plan.levels = nextLevels
+  plan.topPx = topPx
+  plan.bottomPx = bottomPx
+  plan.downShifts += 1
+  return { moved: true, reason: null }
+}
+
+/**
  * Sells the whole position and stops every level — the one exit that closes a
  * grid rather than cycling it.
  *
@@ -440,7 +590,7 @@ function sellEverything(
   mark: number,
   now: number
 ): void {
-  for (const level of plan.levels) {
+  for (const level of [...plan.levels, ...plan.carriedLevels]) {
     level.heldSz = 0
   }
   const sz = held ? floorSize(held.szi, plan.sizeDecimals) : 0
@@ -477,4 +627,3 @@ function reconcileDeadLevels(plan: GridPlan, stopPx: number | null): boolean {
   }
   return changed
 }
-

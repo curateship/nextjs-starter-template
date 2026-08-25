@@ -19,6 +19,10 @@ const SENTENCES = {
     "KuCoin says this price is outside the range allowed for the market. Move it inside the current allowed range and try again.",
   KUCOIN_RISK_LIMIT:
     "KuCoin says this order would exceed the market's risk limit. Reduce the size or leverage, then try again.",
+  KUCOIN_ISOLATED_LEVERAGE:
+    "KuCoin only changes leverage on a market using cross margin. This position is isolated, so keep its current leverage or close it and open it again with the leverage you want.",
+  KUCOIN_MARGIN_CROSS:
+    "KuCoin only lets Trade add margin to an isolated position. This position uses cross margin, where the account balance already stands behind it.",
 } as const
 
 export type KucoinRefusal = keyof typeof SENTENCES
@@ -28,6 +32,9 @@ function kucoinCode(reason: string): string {
 }
 
 export function kucoinRefusalCode(reason: string): KucoinRefusal | null {
+  if (reason.startsWith("KUCOIN_ISOLATED_LEVERAGE"))
+    return "KUCOIN_ISOLATED_LEVERAGE"
+  if (reason.startsWith("KUCOIN_MARGIN_CROSS")) return "KUCOIN_MARGIN_CROSS"
   const code = kucoinCode(reason)
   if (["106164", "106166"].includes(code)) return "KUCOIN_ORDER_TOO_SMALL"
   if (

@@ -47,6 +47,7 @@ import {
   type PartCloseOutcome,
   flattenWalletApi,
   reconcileLiveSmartOrders,
+  resumeSmartOrder as resumeSmartOrderApi,
   updateLadderExits,
   moveWatch,
   editWatch,
@@ -282,6 +283,8 @@ export type Trading = {
   olderTradesDone: boolean
   /** Every smart order still working across every wallet, of either kind. */
   smartOrders: SmartOrder[]
+  /** Restarts one strategy after its refusal has been fixed. */
+  resumeSmartOrder: (order: SmartOrder) => Promise<boolean>
   /** Just the DCA ladders, for the screens that only know about those. */
   ladders: SmartLadder[]
   /** Each wallet's name, for the Wallet column. */
@@ -470,7 +473,7 @@ export type Trading = {
   setGridFollow: (
     walletId: string,
     gridId: string,
-    follow: boolean
+    following: { up: boolean; down: boolean }
   ) => Promise<boolean>
   /**
    * The other emergency button: every ladder and every grid you placed, stood
@@ -1743,6 +1746,20 @@ export function useTrading(
     [callOff, nameOf]
   )
 
+  const resumeSmartOrder: Trading["resumeSmartOrder"] = React.useCallback(
+    async (order) =>
+      await runWith(
+        getTradingSmartOrderError,
+        () =>
+          resumeSmartOrderApi({
+            walletId: order.walletId,
+            ladderId: order.id,
+          }),
+        `${marketSymbol(order.marketKey)} smart order resumed.`
+      ),
+    [runWith]
+  )
+
   const setLadderExits: Trading["setLadderExits"] = React.useCallback(
     async (walletId, ladderId, exits) => {
       return await runWith(
@@ -1869,11 +1886,19 @@ export function useTrading(
   )
 
   const setGridFollow: Trading["setGridFollow"] = React.useCallback(
-    async (walletId, gridId, follow) => {
+    async (walletId, gridId, following) => {
       return await runWith(
         getTradingSmartOrderError,
-        () => setGridFollowApi({ walletId, gridId, follow }),
-        follow ? "Grid follows price up." : "Grid stays where it is."
+        () =>
+          setGridFollowApi({
+            walletId,
+            gridId,
+            follow: following.up,
+            followDown: following.down,
+          }),
+        following.up || following.down
+          ? "Grid following changed."
+          : "Grid stays where it is."
       )
     },
     [runWith]
@@ -2168,9 +2193,7 @@ export function useTrading(
         // answer while the full account read catches up — see `cancel`.
         if (gone.length > 0) {
           const off = new Set(gone)
-          setPlacedSmart((held) =>
-            held.filter((one) => !off.has(one.order.id))
-          )
+          setPlacedSmart((held) => held.filter((one) => !off.has(one.order.id)))
         }
 
         // A refused watch was never called off, so its hold is let go at once
@@ -2218,7 +2241,13 @@ export function useTrading(
       }
       await runWith(
         getLiveErrorMessage,
-        () => changeLiveLeverage({ walletId, marketKey, leverage }),
+        () =>
+          changeLiveLeverage({
+            walletId,
+            marketKey,
+            leverage,
+            positionSide: position.szi > 0 ? "long" : "short",
+          }),
         `${marketSymbol(marketKey)} asked to change to ${leverage}× in ${nameOf(walletId)}. The row shows what the exchange settled on.`
       )
     },
@@ -2237,7 +2266,13 @@ export function useTrading(
         }
         await runWith(
           getLiveErrorMessage,
-          () => changeLiveMargin({ walletId, marketKey, dollars }),
+          () =>
+            changeLiveMargin({
+              walletId,
+              marketKey,
+              dollars,
+              positionSide: position.szi > 0 ? "long" : "short",
+            }),
           dollars > 0
             ? `${formatUsd(dollars)} asked to go behind ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
             : `${formatUsd(-dollars)} asked back out of ${marketSymbol(marketKey)} in ${nameOf(walletId)}. The row shows what the exchange settled on.`
@@ -2316,6 +2351,7 @@ export function useTrading(
       (liveBefore === null ||
         (liveBefore === undefined && liveAnswer?.nextBefore === null)),
     smartOrders,
+    resumeSmartOrder,
     ladders,
     grids,
     busy: pending > 0,

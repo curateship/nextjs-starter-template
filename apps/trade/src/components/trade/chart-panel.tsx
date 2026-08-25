@@ -1330,8 +1330,8 @@ export function ChartPanel({
         onReshape={(one, shape) =>
           trading.reshapeGrid(one.walletId, one.id, shape)
         }
-        onSetFollow={(one, follow) =>
-          trading.setGridFollow(one.walletId, one.id, follow)
+        onSetFollow={(one, following) =>
+          trading.setGridFollow(one.walletId, one.id, following)
         }
         onClose={() => setStopFor(null)}
       />

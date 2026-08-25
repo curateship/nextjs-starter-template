@@ -1,5 +1,7 @@
 import { z } from "zod"
 
+import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
+
 /**
  * A price being watched, and the trade taken when it is reached.
  *
@@ -28,6 +30,7 @@ export const WATCH_PHASES = [
 ] as const
 
 export const watchPlanSchema = z.object({
+  ...smartOrderPauseFields,
   /** The price that starts it: the level that was clicked. */
   triggerPx: z.number().positive(),
   side: z.enum(["buy", "sell"]),

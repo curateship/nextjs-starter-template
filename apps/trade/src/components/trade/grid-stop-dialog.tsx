@@ -39,7 +39,9 @@ import {
   type GridParams,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
+import { WARNING } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
 
 /**
  * Changing a running grid: how it is sliced, and where it gets out.
@@ -63,12 +65,18 @@ export function GridStopDialog({
 }: {
   grid: SmartGrid | null
   busy: boolean
-  onSave: (grid: SmartGrid, stopLoss: GridParams["stopLoss"]) => Promise<boolean>
+  onSave: (
+    grid: SmartGrid,
+    stopLoss: GridParams["stopLoss"]
+  ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
   ) => Promise<boolean>
-  onSetFollow: (grid: SmartGrid, follow: boolean) => Promise<boolean>
+  onSetFollow: (
+    grid: SmartGrid,
+    following: { up: boolean; down: boolean }
+  ) => Promise<boolean>
   onClose: () => void
 }) {
   return (
@@ -105,12 +113,18 @@ function StopForm({
 }: {
   grid: SmartGrid
   busy: boolean
-  onSave: (grid: SmartGrid, stopLoss: GridParams["stopLoss"]) => Promise<boolean>
+  onSave: (
+    grid: SmartGrid,
+    stopLoss: GridParams["stopLoss"]
+  ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
   ) => Promise<boolean>
-  onSetFollow: (grid: SmartGrid, follow: boolean) => Promise<boolean>
+  onSetFollow: (
+    grid: SmartGrid,
+    following: { up: boolean; down: boolean }
+  ) => Promise<boolean>
   onClose: () => void
 }) {
   const plan = grid.plan
@@ -119,6 +133,7 @@ function StopForm({
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
   const [followOn, setFollowOn] = React.useState(plan.follow)
+  const [followDownOn, setFollowDownOn] = React.useState(plan.followDown)
   const [slOn, setSlOn] = React.useState(plan.stopLoss !== null)
   const [underPct, setUnderPct] = React.useState(
     String(plan.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT)
@@ -139,7 +154,11 @@ function StopForm({
     parsedLevels <= MAX_GRID_LEVELS
   )
   const parsedPot = Number(potPct)
-  const badPot = !(Number.isFinite(parsedPot) && parsedPot > 0 && parsedPot <= 100)
+  const badPot = !(
+    Number.isFinite(parsedPot) &&
+    parsedPot > 0 &&
+    parsedPot <= 100
+  )
   const resliced =
     !badLevels &&
     !badPot &&
@@ -148,10 +167,9 @@ function StopForm({
   // What one round trip would be worth after re-slicing, which is the number
   // that decides whether more levels is a good idea or a slower way to pay
   // fees. A range cut finer earns less each time round.
-  const step = !badLevels
-    ? (plan.topPx - plan.bottomPx) / parsedLevels
-    : null
-  const followChanged = followOn !== plan.follow
+  const step = !badLevels ? (plan.topPx - plan.bottomPx) / parsedLevels : null
+  const followChanged =
+    followOn !== plan.follow || followDownOn !== plan.followDown
   const parsedUnder = Number(underPct)
   const badUnder =
     slOn &&
@@ -167,11 +185,25 @@ function StopForm({
   const badBaseUnder = slOn && baseOn && badBaseUnderPct(baseUnderPct)
   const badBaseDays = slOn && baseOn && badBaseReclaimDays(baseReclaimDays)
   const badBase = badBaseUnder || badBaseDays
+  const stopChanged =
+    slOn !== (plan.stopLoss !== null) ||
+    (slOn &&
+      plan.stopLoss !== null &&
+      (parsedUnder !== plan.stopLoss.underPct ||
+        baseOn !== (plan.stopLoss.base !== null) ||
+        (baseOn &&
+          plan.stopLoss.base !== null &&
+          (parsedBaseUnder !== plan.stopLoss.base.underPct ||
+            parsedDays !== plan.stopLoss.base.reclaimDays))))
 
   // Where it would rest, shown as a price. A percent below a percent is a
   // number nobody can check; the price it lands on is one anybody can.
   const restsAt =
-    slOn && !badUnder ? gridStopUnder(plan.bottomPx, parsedUnder) : null
+    slOn && !badUnder
+      ? plan.stopLoss?.mode === "fixed" && !stopChanged
+        ? plan.stopLoss.px
+        : gridStopUnder(plan.bottomPx, parsedUnder)
+      : null
 
   // Every reason this window would refuse, said above the button so nobody
   // presses Save to find out. Same order as the cards on screen.
@@ -206,20 +238,25 @@ function StopForm({
     // Then following, which only flips a flag. After the re-slice so it is
     // written onto the levels the re-slice drew, not the ones it replaced.
     if (followChanged) {
-      const followed = await onSetFollow(grid, followOn)
+      const followed = await onSetFollow(grid, {
+        up: followOn,
+        down: followDownOn,
+      })
       if (!followed) return
     }
-    const saved = await onSave(
-      grid,
-      slOn
-        ? {
-            underPct: parsedUnder,
-            base: baseOn
-              ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
-              : null,
-          }
-        : null
-    )
+    const saved = stopChanged
+      ? await onSave(
+          grid,
+          slOn
+            ? {
+                underPct: parsedUnder,
+                base: baseOn
+                  ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
+                  : null,
+              }
+            : null
+        )
+      : true
     if (saved) onClose()
   }
 
@@ -318,6 +355,29 @@ function StopForm({
                 Follow price up
               </FieldLabel>
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-follow-down-on"
+                checked={followDownOn}
+                disabled={busy}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setFollowDownOn(next === true)
+                }}
+              />
+              <FieldLabel
+                htmlFor="grid-follow-down-on"
+                hint="When price falls through the bottom, the range adds one new lower buy per pass. Filled levels above it keep their original sell prices."
+              >
+                Follow price down
+              </FieldLabel>
+            </div>
+            {followDownOn ? (
+              <p className={cn("text-xs", WARNING)}>
+                This keeps buying as price falls. The stop stays where you set
+                it, even when the range moves through it.
+              </p>
+            ) : null}
             {followOn && plan.takeProfitPx !== null ? (
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Saving removes the finish line at{" "}
@@ -327,9 +387,9 @@ function StopForm({
               </p>
             ) : null}
             <p className="text-xs text-muted-foreground">
-              {plan.shifts === 0
+              {plan.shifts === 0 && plan.downShifts === 0
                 ? "The range has not moved yet."
-                : `The range has moved up ${plan.shifts} time${plan.shifts === 1 ? "" : "s"} so far.`}
+                : `Moved up ${plan.shifts} time${plan.shifts === 1 ? "" : "s"} and down ${plan.downShifts} time${plan.downShifts === 1 ? "" : "s"}.`}
             </p>
           </CardContent>
         </Card>

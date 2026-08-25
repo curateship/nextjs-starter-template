@@ -1,11 +1,14 @@
 import { z } from "zod"
 
+import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
+
 import {
   baseStopDetection,
   dcaAllocationPcts,
   dcaBaseDetectionSchema,
   dcaBaseStopSchema,
   floorSize,
+  MIN_ORDER_USD,
   sizeOneOrder,
   volumeCapUsd,
 } from "@/lib/trade/dca"
@@ -219,6 +222,8 @@ export const gridParamsSchema = z.object({
    * conditions.
    */
   follow: z.boolean().default(false),
+  /** Keep adding one new lower level as price falls through the bottom. */
+  followDown: z.boolean().default(false),
   /**
    * How far ABOVE the price the top of the range sits, in percent.
    *
@@ -261,6 +266,7 @@ export function defaultGridParams(): GridParams {
     sizing: "even",
     anchor: "price",
     follow: false,
+    followDown: false,
     abovePct: DEFAULT_GRID_ABOVE_PCT,
     rangePct: DEFAULT_GRID_BELOW_PCT,
     baseDetection: baseStopDetection(),
@@ -406,6 +412,37 @@ export function gridFollowShift(input: {
 }
 
 /**
+ * Move a range exactly one level lower after price leaves through the bottom.
+ *
+ * A sharp fall may be several ranges deep. Moving one step per engine pass
+ * introduces one new buy instead of sending every crossed buy together.
+ */
+export function gridFollowDownShift(input: {
+  topPx: number
+  bottomPx: number
+  levels: number
+  spacing: GridSpacing
+  mark: number
+}): { topPx: number; bottomPx: number } | null {
+  const { topPx, bottomPx, levels, mark } = input
+  if (!(topPx > bottomPx) || !(bottomPx > 0) || levels < 1) return null
+  if (!(mark < bottomPx)) return null
+
+  if (input.spacing === "compounding") {
+    const ratio = (topPx / bottomPx) ** (1 / levels)
+    if (!(ratio > 1)) return null
+    const nextBottom = bottomPx / ratio
+    const nextTop = topPx / ratio
+    if (!(nextBottom > 0) || !Number.isFinite(nextTop)) return null
+    return { topPx: nextTop, bottomPx: nextBottom }
+  }
+
+  const step = (topPx - bottomPx) / levels
+  if (!(step > 0) || !(bottomPx > step)) return null
+  return { topPx: topPx - step, bottomPx: bottomPx - step }
+}
+
+/**
  * The gap between two levels, as a share of the price — what a round trip earns
  * before fees, and the number the fee check is made against.
  *
@@ -470,7 +507,7 @@ export function gridShares(count: number, sizing: GridSizing): number[] {
  * same `sizeOneOrder` the ladder uses, so there is one liquidity guard and one
  * too-small-to-be-a-trade rule in the app rather than two.
  *
-* How the pot is divided is the one thing `gridShares` decides, and it is
+ * How the pot is divided is the one thing `gridShares` decides, and it is
  * decided in one place so the window and the server cannot disagree about it.
  */
 export function gridOrderPlan(input: {
@@ -624,6 +661,7 @@ const gridPlanStopSchema = z.object({
  * reads them as they stand.
  */
 export const gridPlanSchema = z.object({
+  ...smartOrderPauseFields,
   topPx: z.number().positive(),
   bottomPx: z.number().positive(),
   /**
@@ -653,8 +691,15 @@ export const gridPlanSchema = z.object({
   sizeDecimals: z.number().nullable(),
   /** The market's smallest price step, frozen with the rest. Null: no tick stated. */
   priceTick: z.number().nullable().default(null),
+  /** The smallest dollar order this market accepted when the grid was placed. */
+  minOrderValueUsd: z.number().positive().default(MIN_ORDER_USD),
   maxLeverage: z.number().positive(),
-  levels: z.array(gridLevelStateSchema).min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS),
+  levels: z
+    .array(gridLevelStateSchema)
+    .min(MIN_GRID_LEVELS)
+    .max(MAX_GRID_LEVELS),
+  /** Filled levels left above a range that followed downward. */
+  carriedLevels: z.array(gridLevelStateSchema).default([]),
   stopLoss: gridPlanStopSchema.nullable(),
   /** How this grid finds a base, frozen at placement. */
   baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
@@ -697,6 +742,8 @@ export const gridPlanSchema = z.object({
    * see `advanceGrid` for the conditions and why each one is there.
    */
   follow: z.boolean().default(false),
+  /** Slide the range down one level per pass after price leaves the bottom. */
+  followDown: z.boolean().default(false),
   /**
    * Whether price has ever been at or under the top of the range — whether
    * the range has actually been in play. Follow may only slide a range price
@@ -709,6 +756,8 @@ export const gridPlanSchema = z.object({
   entered: z.boolean().default(true),
   /** How many times the range has moved up. For the record, beside `cycles`. */
   shifts: z.number().int().min(0).default(0),
+  /** How many one-level downward moves the range has made. */
+  downShifts: z.number().int().min(0).default(0),
   /** Why it finished, once it has. Null while it is still working. */
   closedReason: z
     .enum(["takeProfit", "aboveTop", "stop", "flat", "cancelled"])
@@ -872,10 +921,12 @@ export function isGridStopLeg(
  * buys nothing on the way in now, so most of the time there is nothing holding
  * and the range moves freely. Once it is holding, it stays put.
  */
-export function gridRangeMovable(plan: Pick<GridPlan, "levels">): boolean {
+export function gridRangeMovable(
+  plan: Pick<GridPlan, "levels"> & { carriedLevels?: GridLevelState[] }
+): boolean {
   return (
     plan.levels.some((level) => level.status === "waiting") &&
-    !plan.levels.some((level) => level.status === "holding")
+    !plan.levels.some((level) => level.status === "holding") &&
+    !(plan.carriedLevels ?? []).some((level) => level.status === "holding")
   )
 }
-

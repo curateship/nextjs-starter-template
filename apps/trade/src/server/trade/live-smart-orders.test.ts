@@ -7,7 +7,12 @@ import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { encryptSecret } from "@/server/auth/encryption"
 import { type CustomShellDb } from "@/server/db"
-import { createTestDatabase, insertUser } from "@/server/test-support"
+import {
+  createTestDatabase,
+  insertUser,
+  insertWorkspace,
+} from "@/server/test-support"
+import { customShellAnnouncements } from "@/server/schema"
 import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
@@ -757,6 +762,86 @@ describe("live Smart orders", () => {
     expect(rows[0].status).toBe("active")
   })
 
+  it("pauses one strategy after five refusals and writes one notice", async () => {
+    await insertWorkspace(database, { userId })
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      new Error(
+        "LIVE_ORDER_REFUSED:The order is below this market's minimum size."
+      )
+    )
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      resetRefusalHolds()
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+      await reconcileLiveLadders(userId, wallet)
+      expect((await watchPlanNow()).refusalStreak).toBe(attempt)
+    }
+
+    const paused = await watchPlanNow()
+    expect(paused.paused).toBe(true)
+    expect(paused.pauseReason).toBe(
+      "The order is below this market's minimum size."
+    )
+    expect(place).toHaveBeenCalledTimes(5)
+
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    await reconcileLiveLadders(userId, wallet)
+    expect(place).toHaveBeenCalledTimes(5)
+
+    const notices = await database.select().from(customShellAnnouncements)
+    expect(notices).toHaveLength(1)
+    expect(notices[0]).toMatchObject({
+      title: "BTC watched order paused",
+      level: "warning",
+    })
+    expect(notices[0].body).toContain(
+      "The order is below this market's minimum size."
+    )
+  })
+
+  it("clears four refusals after the exchange accepts the order", async () => {
+    await watchThroughTheLevel()
+    place.mockRejectedValue(
+      new Error("LIVE_ORDER_REFUSED:The order is below the market minimum.")
+    )
+
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      resetRefusalHolds()
+      await database
+        .update(tradeSmartLadders)
+        .set({ updatedAt: new Date(Date.now() - 3_000) })
+        .where(eq(tradeSmartLadders.id, "watch-1"))
+      await reconcileLiveLadders(userId, wallet)
+    }
+    expect((await watchPlanNow()).refusalStreak).toBe(4)
+
+    resetRefusalHolds()
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, "watch-1"))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "accepted",
+      avgPx: 94,
+      filledSz: 1,
+    })
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(await watchPlanNow()).toMatchObject({
+      paused: false,
+      pauseReason: null,
+      refusalStreak: 0,
+    })
+  })
+
   it("puts a watched level back when its market buy was refused", async () => {
     // **The 21 Aug 2026 freeze.** A Phemex watch on NFLX was drawn above the
     // price, so the engine went to take the market; the exchange refused it;
@@ -822,6 +907,7 @@ describe("live Smart orders", () => {
     const plan = await watchPlanNow()
     expect(plan.sent).toBe(false)
     expect(plan.phase).toBe("waiting")
+    expect(plan.refusalStreak ?? 0).toBe(0)
 
     // And the moment the exchange answers again, it buys — no minute's hold,
     // because the hold belongs to a refusal that would repeat.
@@ -918,8 +1004,10 @@ describe("dragging a live grid's stop", () => {
       startedAt: Date.now() - 60_000,
       sizeDecimals: 3,
       priceTick: null,
+      minOrderValueUsd: 10,
       maxLeverage: 50,
       levels,
+      carriedLevels: [],
       stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
       baseDetection: defaultGridParams().baseDetection,
       baseWatch: null,
@@ -927,8 +1015,10 @@ describe("dragging a live grid's stop", () => {
       seenFillsTo: 0,
       cycles: 0,
       follow: false,
+      followDown: false,
       entered: false,
       shifts: 0,
+      downShifts: 0,
       closedReason: null,
     }
     await database.insert(tradeSmartLadders).values({

@@ -32,11 +32,14 @@ vi.mock("@/server/protocols/phemex/private-feed", () => ({
   dropIdlePhemexPrivateFeeds: () => {},
 }))
 import {
+  adjustPhemexMargin,
+  cancelPhemexOrder,
   clearPhemexOrderCaches,
   fetchPhemexOrderFills,
   fetchPhemexOrderInfo,
   fetchPhemexPortfolio,
   placePhemexOrder,
+  setPhemexLeverage,
 } from "@/server/protocols/phemex/orders"
 import { clearPhemexAccountCache } from "@/server/protocols/phemex/account"
 
@@ -489,6 +492,234 @@ describe("placing", () => {
     expect(
       sent.filter((one) => one.url.pathname === "/g-orders/create")
     ).toHaveLength(0)
+  })
+})
+
+describe("changing an open position", () => {
+  it("changes one-way leverage without changing its margin mode", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "100" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "OneWay",
+                  posSide: "Merged",
+                  side: "Buy",
+                  sizeRq: "0.01",
+                  leverageRr: "-5",
+                  positionMarginRv: "100",
+                },
+              ],
+            },
+          },
+        },
+        {
+          path: "/g-positions/leverage",
+          answer: { code: 0, msg: "", data: {} },
+        },
+      ],
+      sent
+    )
+
+    await setPhemexLeverage("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      leverage: 3,
+      szi: 0.01,
+    })
+
+    const changed = sent.find(
+      (one) => one.url.pathname === "/g-positions/leverage"
+    )
+    expect(changed?.method).toBe("PUT")
+    expect(changed?.url.searchParams.get("leverageRr")).toBe("-3")
+    expect(changed?.url.searchParams.get("longLeverageRr")).toBeNull()
+  })
+
+  it("does not guess the margin mode when Phemex omits current leverage", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "100" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "OneWay",
+                  posSide: "Merged",
+                  side: "Buy",
+                  sizeRq: "0.01",
+                },
+              ],
+            },
+          },
+        },
+      ],
+      sent
+    )
+
+    await expect(
+      setPhemexLeverage("mainnet", AUTH, {
+        marketId: "BTCUSDT",
+        leverage: 3,
+        szi: 0.01,
+      })
+    ).rejects.toThrow("cannot keep its margin mode unchanged")
+    expect(
+      sent.filter((one) => one.url.pathname === "/g-positions/leverage")
+    ).toHaveLength(0)
+  })
+
+  it("rereads the other hedged side before changing leverage", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    let shortLeverage = "-5"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (rawUrl: string | URL, init?: RequestInit) => {
+        const url = new URL(String(rawUrl))
+        const method = init?.method ?? "GET"
+        sent.push({ method, url })
+        if (url.pathname === "/g-accounts/positions") {
+          return Response.json({
+            code: 0,
+            msg: "",
+            data: {
+              account: {
+                accountBalanceRv: "1000",
+                totalUsedBalanceRv: "100",
+              },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  side: "Buy",
+                  sizeRq: "0.01",
+                  leverageRr: "-4",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  side: "Sell",
+                  sizeRq: "0.02",
+                  leverageRr: shortLeverage,
+                },
+              ],
+            },
+          })
+        }
+        if (
+          url.pathname === "/g-orders/cancel" ||
+          url.pathname === "/g-positions/leverage"
+        ) {
+          return Response.json({ code: 0, msg: "", data: {} })
+        }
+        return new Response(null, { status: 404 })
+      })
+    )
+
+    // A prior account action leaves the mode and both leverage values held.
+    await cancelPhemexOrder("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      orderId: "old-order",
+    })
+    shortLeverage = "-7"
+
+    await setPhemexLeverage("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      leverage: 3,
+      szi: 0.01,
+    })
+
+    expect(
+      sent.filter((one) => one.url.pathname === "/g-accounts/positions")
+    ).toHaveLength(2)
+    const changed = sent.find(
+      (one) => one.url.pathname === "/g-positions/leverage"
+    )
+    expect(changed?.url.searchParams.get("longLeverageRr")).toBe("-3")
+    expect(changed?.url.searchParams.get("shortLeverageRr")).toBe("-7")
+  })
+
+  it("adds and removes margin on the matching hedged side", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/g-accounts/positions",
+          answer: {
+            code: 0,
+            msg: "",
+            data: {
+              account: { accountBalanceRv: "1000", totalUsedBalanceRv: "100" },
+              positions: [
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Long",
+                  side: "Buy",
+                  sizeRq: "0.01",
+                  positionMarginRv: "100",
+                },
+                {
+                  symbol: "BTCUSDT",
+                  posMode: "Hedged",
+                  posSide: "Short",
+                  side: "Sell",
+                  sizeRq: "0.02",
+                  positionMarginRv: "80",
+                },
+              ],
+            },
+          },
+        },
+        {
+          path: "/g-positions/assign",
+          answer: { code: 0, msg: "", data: {} },
+        },
+      ],
+      sent
+    )
+
+    await adjustPhemexMargin("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      szi: -0.02,
+      dollars: 25,
+    })
+    await adjustPhemexMargin("mainnet", AUTH, {
+      marketId: "BTCUSDT",
+      szi: -0.02,
+      dollars: -20,
+    })
+
+    const changed = sent.filter(
+      (one) => one.url.pathname === "/g-positions/assign"
+    )
+    expect(changed.map((one) => one.method)).toEqual(["POST", "POST"])
+    expect(changed.map((one) => one.url.searchParams.get("posSide"))).toEqual([
+      "Short",
+      "Short",
+    ])
+    expect(
+      changed.map((one) => one.url.searchParams.get("posBalanceRv"))
+    ).toEqual(["105", "60"])
   })
 })
 

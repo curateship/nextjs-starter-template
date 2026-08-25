@@ -51,11 +51,13 @@ vi.mock("@/server/protocols/kucoin/private-feed", () => ({
 }))
 
 const {
+  adjustKucoinMargin,
   clearKucoinMarginModes,
   clearKucoinOrderCaches,
   fetchKucoinOrderFills,
   fetchKucoinPortfolio,
   placeKucoinOrder,
+  setKucoinLeverage,
   triggerDirection,
 } = await import("@/server/protocols/kucoin/orders")
 
@@ -537,6 +539,122 @@ describe("placing", () => {
     expect(stop?.stopPriceType).toBe("MP")
     expect(target?.stop).toBe("up")
     expect(outcome.protection).toBe("ok")
+  })
+})
+
+describe("changing an open position", () => {
+  it("changes cross leverage through KuCoin's account setting", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        {
+          path: "/api/v2/getCrossUserLeverage",
+          answer: ok({ symbol: "XBTUSDTM", leverage: 5 }),
+        },
+        { path: "/api/v2/changeCrossUserLeverage", answer: ok(true) },
+      ],
+      sent
+    )
+
+    await setKucoinLeverage("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      leverage: 3,
+    })
+
+    const changed = sent.find(
+      (one) => one.url.pathname === "/api/v2/changeCrossUserLeverage"
+    )
+    expect(changed?.method).toBe("POST")
+    expect(changed?.body).toMatchObject({ symbol: "XBTUSDTM", leverage: "3" })
+  })
+
+  it("adds cash to an isolated position", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" }),
+        },
+        {
+          path: "/api/v1/position/margin/deposit-margin",
+          answer: ok(true),
+        },
+      ],
+      sent
+    )
+
+    await adjustKucoinMargin("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      szi: 0.01,
+      dollars: 25,
+    })
+
+    const changed = sent.find(
+      (one) => one.url.pathname === "/api/v1/position/margin/deposit-margin"
+    )
+    expect(changed?.body).toMatchObject({ symbol: "XBTUSDTM", margin: "25" })
+    expect((changed?.body as Record<string, unknown>).bizNo).toEqual(
+      expect.any(String)
+    )
+  })
+
+  it("takes cash back from an isolated position", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" }),
+        },
+        {
+          path: "/api/v1/margin/withdrawMargin",
+          answer: ok("10"),
+        },
+      ],
+      sent
+    )
+
+    await adjustKucoinMargin("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      szi: 0.01,
+      dollars: -10,
+    })
+
+    const changed = sent.find(
+      (one) => one.url.pathname === "/api/v1/margin/withdrawMargin"
+    )
+    expect(changed?.body).toEqual({
+      symbol: "XBTUSDTM",
+      withdrawAmount: "10",
+    })
+  })
+
+  it("explains why isolated leverage cannot be changed", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const leverageSent: Sent[] = []
+    stubExchange(
+      [
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" }),
+        },
+      ],
+      leverageSent
+    )
+    await expect(
+      setKucoinLeverage("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        leverage: 3,
+      })
+    ).rejects.toThrow("KuCoin only changes leverage")
   })
 })
 

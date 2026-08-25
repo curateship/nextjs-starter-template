@@ -74,6 +74,8 @@ import {
   fetchPhemexPortfolio,
   modifyPhemexOrder,
   placePhemexOrder,
+  adjustPhemexMargin,
+  setPhemexLeverage,
   setPhemexBrackets,
 } from "@/server/protocols/phemex/orders"
 import {
@@ -114,6 +116,8 @@ import {
   fetchKucoinPortfolio,
   modifyKucoinOrder,
   placeKucoinOrder,
+  adjustKucoinMargin,
+  setKucoinLeverage,
   setKucoinBrackets,
 } from "@/server/protocols/kucoin/orders"
 import {
@@ -154,6 +158,7 @@ import {
   fetchAsterOrderPortfolio,
   modifyAsterOrder,
   placeAsterOrder,
+  adjustAsterMargin,
   setAsterBrackets,
   setAsterLeverage,
 } from "@/server/protocols/aster/orders"
@@ -412,7 +417,7 @@ export type ProtocolEntry = {
     setLeverage?(
       network: NetworkId,
       auth: OrderAuth,
-      params: { marketId: string; leverage: number }
+      params: { marketId: string; leverage: number; szi: number }
     ): Promise<void>
     /**
      * Adds or takes back the cash behind one isolated position. `dollars` is
@@ -592,16 +597,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
-      changeLeverage: {
-        can: false,
-        because:
-          "Phemex sets leverage as part of an order, and a hedged account keeps a separate figure for each side. Changing it on an open position has not been read back from Phemex yet, so it is not offered here.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Adding or taking back the cash behind one Phemex position has not been built. Close the position or change its size instead.",
-      },
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
     },
     markets: {
       fetch: fetchPhemexMarkets,
@@ -649,6 +646,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       cancel: cancelPhemexOrder,
       modify: modifyPhemexOrder,
       close: closePhemexPosition,
+      setLeverage: setPhemexLeverage,
+      adjustMargin: adjustPhemexMargin,
       setBrackets: setPhemexBrackets,
       portfolio: fetchPhemexPortfolio,
       fills: fetchPhemexOrderFills,
@@ -677,16 +676,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
-      changeLeverage: {
-        can: false,
-        because:
-          "KuCoin keeps leverage per market for cross margin only; an isolated position carries the figure its own order asked for. Changing it on an open position has not been read back from KuCoin yet, so it is not offered here.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Adding or taking back the cash behind one KuCoin position has not been built. Close the position or change its size instead.",
-      },
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
     },
     markets: {
       fetch: fetchKucoinMarkets,
@@ -746,6 +737,8 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       cancel: cancelKucoinOrder,
       modify: modifyKucoinOrder,
       close: closeKucoinPosition,
+      setLeverage: setKucoinLeverage,
+      adjustMargin: adjustKucoinMargin,
       setBrackets: setKucoinBrackets,
       portfolio: fetchKucoinPortfolio,
       fills: fetchKucoinOrderFills,
@@ -765,11 +758,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       accounts: true,
       orders: true,
       changeLeverage: { can: true },
-      adjustMargin: {
-        can: false,
-        because:
-          "Adding or taking back the cash behind one Aster position has not been built. Change its leverage instead, which moves the same figure.",
-      },
+      adjustMargin: { can: true },
     },
     markets: {
       fetch: fetchAsterMarkets,
@@ -815,6 +804,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       modify: modifyAsterOrder,
       close: closeAsterPosition,
       setLeverage: setAsterLeverage,
+      adjustMargin: adjustAsterMargin,
       setBrackets: setAsterBrackets,
       portfolio: fetchAsterOrderPortfolio,
       fills: fetchAsterOrderFills,

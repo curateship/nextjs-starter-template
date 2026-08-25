@@ -16,6 +16,10 @@ describe("Aster refusals", () => {
     [400, "-4161", "ASTER_LEVERAGE_OPEN_POSITION"],
     [400, "-4168", "ASTER_ISOLATED_MULTI_ASSET"],
     [400, "-2013", "ASTER_ORDER_GONE"],
+    [400, "-4049", "ASTER_MARGIN_REJECTED"],
+    [400, "-4050", "ASTER_MARGIN_BALANCE"],
+    [400, "-4054", "ASTER_POSITION_GONE"],
+    [400, "-4055", "ASTER_MARGIN_POSITIVE"],
   ])("maps %s and %s to %s", (status, code, expected) => {
     expect(asterRefusalError({ status, code }).message).toMatch(
       new RegExp(`^${expected}:`)

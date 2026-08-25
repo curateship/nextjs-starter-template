@@ -424,10 +424,29 @@ export async function setAsterLeverage(
   orderAuth: OrderAuth,
   params: { marketId: string; leverage: number }
 ): Promise<void> {
+  await assertRealMoneyAllowed(network)
   leverageCache.delete(
     `${network}:${account(orderAuth).toLowerCase()}:${params.marketId}`
   )
   await setLeverage(network, orderAuth, params.marketId, params.leverage)
+  clearOrderReads(network, account(orderAuth), credential(orderAuth))
+}
+
+export async function adjustAsterMargin(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; szi: number; dollars: number }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  if (params.szi === 0) throw new Error("LIVE_POSITION_GONE")
+  if (!Number.isFinite(params.dollars) || params.dollars === 0) {
+    throw new Error("LIVE_MARGIN_NOTHING")
+  }
+  await signed(network, orderAuth, "POST", "/fapi/v3/positionMargin", 1, {
+    symbol: params.marketId,
+    amount: decimal(Math.abs(params.dollars)),
+    type: params.dollars > 0 ? 1 : 2,
+  })
   clearOrderReads(network, account(orderAuth), credential(orderAuth))
 }
 
@@ -873,12 +892,7 @@ export async function fetchAsterOrderFills(
   since: number,
   credentialFn: () => string | null
 ): Promise<WalletOrderFill[]> {
-  const pushed = asterFillsFromStream(
-    network,
-    address,
-    since,
-    credentialFn
-  )
+  const pushed = asterFillsFromStream(network, address, since, credentialFn)
   if (pushed) return pushed
 
   const blob = credentialFn()
@@ -943,13 +957,7 @@ export async function fetchAsterOrderFills(
     }
   }
   fills.sort((a, b) => a.at - b.at)
-  markAsterFillsRecovered(
-    network,
-    address,
-    since,
-    fills,
-    recoveryVersion
-  )
+  markAsterFillsRecovered(network, address, since, fills, recoveryVersion)
   return fills
 }
 

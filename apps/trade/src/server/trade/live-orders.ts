@@ -554,7 +554,12 @@ export async function liveHeldPosition(
  */
 export async function changeLiveLeverage(
   userId: string,
-  input: { walletId: string; marketKey: string; leverage: number }
+  input: {
+    walletId: string
+    marketKey: string
+    leverage: number
+    positionSide?: "long" | "short"
+  }
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
@@ -577,13 +582,17 @@ export async function changeLiveLeverage(
       () => credentialFor(row)
     )
     const held = portfolio.positions.find(
-      (one) => one.marketId === ref.marketId
+      (one) =>
+        one.marketId === ref.marketId &&
+        (input.positionSide === undefined ||
+          (input.positionSide === "long" ? one.szi > 0 : one.szi < 0))
     )
     if (!held) throw new Error("LIVE_POSITION_GONE")
 
     await change(row.network, authFor(row), {
       marketId: ref.marketId,
       leverage: asked,
+      szi: held.szi,
     })
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
@@ -612,7 +621,12 @@ export async function changeLiveLeverage(
  */
 export async function changeLiveMargin(
   userId: string,
-  input: { walletId: string; marketKey: string; dollars: number }
+  input: {
+    walletId: string
+    marketKey: string
+    dollars: number
+    positionSide?: "long" | "short"
+  }
 ): Promise<void> {
   const row = await liveWallet(userId, input.walletId)
   if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
@@ -631,7 +645,10 @@ export async function changeLiveMargin(
       () => credentialFor(row)
     )
     const held = portfolio.positions.find(
-      (one) => one.marketId === ref.marketId
+      (one) =>
+        one.marketId === ref.marketId &&
+        (input.positionSide === undefined ||
+          (input.positionSide === "long" ? one.szi > 0 : one.szi < 0))
     )
     if (!held) throw new Error("LIVE_POSITION_GONE")
 

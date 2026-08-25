@@ -31,6 +31,7 @@ import {
   listActiveSmartOrdersIfChanged,
   placeDcaLadder,
   placeWatchOrder,
+  resumeSmartOrder,
   saveLadderPlan,
   updateLadderExits,
 } from "@/server/trade/smart-orders"
@@ -446,6 +447,34 @@ describe("the smart-order stamp", () => {
       changed.stamp
     )
     expect(gone.smartOrders).toEqual([])
+  })
+})
+
+describe("resuming a paused smart order", () => {
+  it("clears the refusal and leaves the strategy active", async () => {
+    await place()
+    const ladder = await onlyLadder()
+    await saveLadderPlan(
+      userId,
+      ladder.id,
+      {
+        ...ladder.plan,
+        paused: true,
+        pauseReason: "The order is below the market minimum.",
+        refusalStreak: 5,
+      },
+      "active"
+    )
+
+    await resumeSmartOrder(userId, wallet.id, ladder.id)
+
+    const [resumed] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(resumed.plan).toMatchObject({
+      paused: false,
+      pauseReason: null,
+      refusalStreak: 0,
+    })
+    expect(resumed.status).toBe("active")
   })
 })
 

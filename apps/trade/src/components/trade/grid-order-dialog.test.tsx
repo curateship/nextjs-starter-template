@@ -134,4 +134,17 @@ describe("the grid window's saved settings", () => {
     // The late-arriving save loses: the typed value stays.
     expect(levels?.value).toBe("9")
   })
+
+  it("warns before a new grid follows price down", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    expect(host.textContent).not.toContain("This keeps buying as price falls")
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#grid-follow-down")?.click()
+    })
+
+    expect(host.textContent).toContain("This keeps buying as price falls")
+    expect(host.textContent).toContain("Your stop stays where it was set")
+  })
 })

@@ -262,6 +262,7 @@ const changeLiveLeverageFn = createServerFn({ method: "POST" })
   .inputValidator(
     positionSchema.extend({
       leverage: z.number().int().min(1).max(200),
+      positionSide: z.enum(["long", "short"]).optional(),
     })
   )
   .handler(async ({ data, context }): Promise<{ asked: true }> => {
@@ -282,6 +283,7 @@ const changeLiveMarginFn = createServerFn({ method: "POST" })
         .number()
         .finite()
         .refine((value) => value !== 0, { message: "LIVE_MARGIN_NOTHING" }),
+      positionSide: z.enum(["long", "short"]).optional(),
     })
   )
   .handler(async ({ data, context }): Promise<{ asked: true }> => {
@@ -349,6 +351,7 @@ export function changeLiveLeverage(input: {
   walletId: string
   marketKey: string
   leverage: number
+  positionSide?: "long" | "short"
 }) {
   return changeLiveLeverageFn({ data: input })
 }
@@ -357,6 +360,7 @@ export function changeLiveMargin(input: {
   walletId: string
   marketKey: string
   dollars: number
+  positionSide?: "long" | "short"
 }) {
   return changeLiveMarginFn({ data: input })
 }

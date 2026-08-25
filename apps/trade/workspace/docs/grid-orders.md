@@ -162,7 +162,7 @@ rather than per sale, so a KuCoin grid's sells arrived with no figure at all
 and the panel had to leave them blank. A level's round trip is worked out from
 the fills, so KuCoin's grids now get a figure like everybody else's.
 
-## Following price up
+## Following price up and down
 
 Switched on, the range slides up behind price. When price climbs past the top,
 the whole range moves up in whole steps until the top sits just above price, and
@@ -182,21 +182,44 @@ order is placed. The move puts price back inside the top step, above every
 level's buy price, so the grid buys nothing on the way and is simply ready for
 the next dip.
 
-**It only ever goes up.** Below the bottom a grid is fully loaded, and
-re-pricing its levels lower would sell that bag under what it paid, while the
-stop measured from the bottom slid down with it and never fired. There is no
-safe downward version, so there is no downward version. What a grid does when
-price falls out of the bottom is unchanged: it stops buying, keeps what it
-holds, and waits for the stop or for price to come back.
+**Following down is a separate switch and starts off.** When price falls below
+the bottom, the range moves down by one level on each engine pass. A fall
+through several whole ranges still introduces one new lower buy at a time, so
+one fast candle cannot send a pile of new orders together.
 
-**The stop rides up with it**, because the stop is measured from the bottom of
-the range. A grid that keeps climbing keeps what it has made. A stop you dragged
-into place by hand stays where you put it.
+The old top level leaves the active range on each downward move. If that level
+still holds coins, it keeps its original buy and sell prices until it sells.
+The grid calls it a carried level and never recycles it after the sale. The
+active range keeps the original number of levels and splits its next buys by
+the same money rule the grid was placed with.
 
-**A following grid never finishes on its own.** It runs until you switch
-following off or the stop below the range is hit. Switching following on removes
-the finish line, and the window says so before it does it, because a range that
-slides up ahead of price can never reach a line above it.
+The position on the wallet is still the final count of what exists. If coins
+from a carried level were already closed by hand, the grid removes that carried
+level when price next crosses its sale instead of leaving a sale behind for
+coins the wallet no longer holds.
+
+Both follow switches may be on. Upward following still waits until every
+active and carried level has sold. Downward following can keep adding one lower
+level while older levels remain carried above it.
+
+**The stop rides up with an upward move**, because the stop is measured from the
+bottom of the range. A grid that keeps climbing keeps what it has made. A stop
+you dragged into place by hand stays where you put it.
+
+**The stop never rides down.** Switching downward following on freezes the stop
+at the price where it was set. The range may move through that line, but the
+line still fires there. Any new lower level at or below the stop stays unable to
+buy. The grid window says this beside the switch because following down means
+buying into a fall without moving the agreed loss limit away.
+
+If the next lower price cannot fit the exchange's price step, or its buy would
+be smaller than the exchange accepts, the grid pauses before sending it. The
+Smart orders panel shows the reason and a Resume button.
+
+**A grid following up never finishes on its own.** It runs until you switch
+upward following off or the stop below the range is hit. Switching upward
+following on removes the finish line, and the window says so before it does it,
+because a range that slides up ahead of price can never reach a line above it.
 
 **It can stop following on its own, in one case.** Levels spread the same
 dollars apart earn a smaller percentage the higher the range climbs: ten dollars
@@ -276,6 +299,6 @@ percentages. A dash means that card's numbers do not make sense yet.
 ## What is remembered between grids
 
 The window remembers shape, not prices: how deep, how many levels, how the money
-is split, where the range sits, whether it follows. A percentage means the same
-thing on the next coin you open and a price does not, so nothing about one
-coin's range is carried onto another chart.
+is split, where the range sits, and whether it follows up or down. A percentage
+means the same thing on the next coin you open and a price does not, so nothing
+about one coin's range is carried onto another chart.

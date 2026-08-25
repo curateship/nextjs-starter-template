@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   laddersAndGridsYouPlaced,
+  smartOrdersYouPlaced,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
 
@@ -57,5 +58,19 @@ describe("the ladders and grids one press stands down", () => {
       order("SOL", "grid"),
     ])
     expect(stood.map((one) => one.id)).toEqual(["SOL"])
+  })
+})
+
+describe("the smart orders panel", () => {
+  it("shows a paused watched or flow order so it can be resumed", () => {
+    const watch = order("BTC", "watch")
+    const flow = order("ETH", "dca", "run-1")
+    watch.plan.paused = true
+    flow.plan.paused = true
+
+    expect(smartOrdersYouPlaced([watch, flow]).map((one) => one.id)).toEqual([
+      "BTC",
+      "ETH",
+    ])
   })
 })

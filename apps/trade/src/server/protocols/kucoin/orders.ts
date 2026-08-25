@@ -325,10 +325,9 @@ async function applyAskedLeverage(
     // Named so the screens can say the true thing: the order was not placed,
     // and why. Silently opening at the account's leverage would be worse than
     // any refusal.
+    const refusal = kucoinRefusalError(scrubbedMessage(error)).message
     throw new Error(
-      `LIVE_LEVERAGE:This market is on cross margin and its leverage could not be set to ${leverage}x, so nothing was ordered. Change it on KuCoin, or switch the market to isolated. (${
-        error instanceof Error ? error.message : String(error)
-      })`
+      `LIVE_LEVERAGE:This market is on cross margin and its leverage could not be set to ${leverage}x, so nothing was ordered. ${refusal}`
     )
   }
 }
@@ -691,6 +690,75 @@ export async function closeKucoinPosition(
   // It went, but the fill had not landed by the time we looked. The sweep
   // reports it a moment later; claiming a price here would be inventing one.
   return { avgPx: null, filledSz: null }
+}
+
+// ----- Leverage and margin on an open position ----------------------------
+
+export async function setKucoinLeverage(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; leverage: number }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
+  if ((await marginModeOf(network, credential, params.marketId)) !== "CROSS") {
+    throw exchangeError(new Error("KUCOIN_ISOLATED_LEVERAGE"))
+  }
+  await applyAskedLeverage(
+    network,
+    credential,
+    params.marketId,
+    Math.max(1, Math.round(params.leverage))
+  )
+}
+
+export async function adjustKucoinMargin(
+  network: NetworkId,
+  orderAuth: OrderAuth,
+  params: { marketId: string; szi: number; dollars: number }
+): Promise<void> {
+  await assertRealMoneyAllowed(network)
+  if (params.szi === 0) throw new Error("LIVE_POSITION_GONE")
+  if (!Number.isFinite(params.dollars) || params.dollars === 0) {
+    throw new Error("LIVE_MARGIN_NOTHING")
+  }
+  const credential = auth(orderAuth)
+  if (
+    (await marginModeOf(network, credential, params.marketId)) !== "ISOLATED"
+  ) {
+    throw exchangeError(new Error("KUCOIN_MARGIN_CROSS"))
+  }
+
+  try {
+    if (params.dollars > 0) {
+      await kucoinSigned(
+        network,
+        credential,
+        "POST",
+        "/api/v1/position/margin/deposit-margin",
+        {},
+        {
+          symbol: params.marketId,
+          margin: decimalString(params.dollars),
+          bizNo: randomUUID(),
+        }
+      )
+    } else {
+      await kucoinSigned(
+        network,
+        credential,
+        "POST",
+        "/api/v1/margin/withdrawMargin",
+        {},
+        {
+          symbol: params.marketId,
+          withdrawAmount: decimalString(-params.dollars),
+        }
+      )
+    }
+  } catch (error) {
+    throw exchangeError(error)
+  }
 }
 
 // ----- Brackets -------------------------------------------------------------

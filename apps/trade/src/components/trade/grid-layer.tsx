@@ -189,6 +189,7 @@ type AtPrice = {
   buy: number | null
   sell: number | null
   holding: number | null
+  carried: boolean
   dead: boolean
   /** This price is also an end of the range, so its label says so. */
   edge: "top" | "bottom" | null
@@ -218,6 +219,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
       buy: null,
       sell: null,
       holding: null,
+      carried: false,
       dead: false,
       edge: null,
       usd: 0,
@@ -239,6 +241,13 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
       one.holding = index
       one.usd = level.buyPx * level.sz
     }
+  }
+  for (const level of plan.carriedLevels) {
+    if (level.status !== "holding") continue
+    const one = slot(level.buyPx)
+    one.holding = -1
+    one.carried = true
+    one.usd += level.buyPx * level.heldSz
   }
   // The ends of the range are not separate things to draw. The bottom IS the
   // deepest buy and the top IS the shallowest sell — that is what makes the
@@ -299,9 +308,9 @@ function GridLines({
   const waiting = plan.levels.filter(
     (level) => level.status === "waiting"
   ).length
-  const holding = plan.levels.filter(
-    (level) => level.status === "holding"
-  ).length
+  const holding =
+    plan.levels.filter((level) => level.status === "holding").length +
+    plan.carriedLevels.length
   // While a paint tool is held, these controls must not steal its presses.
   const controls = tool ? "none" : "auto"
 
@@ -561,9 +570,11 @@ function GridLines({
               title={
                 at.dead
                   ? "Below your stop — it cannot buy without the stop firing first. It wakes up if the stop moves down."
-                  : selling
-                    ? `Selling here. When it fills, a buy goes back on at ${formatPrice(at.px)} one step down.`
-                    : `Waiting to buy ${formatPrice(at.px)}. When it fills, a sell goes on one step above — and when THAT fills, this buy comes back.`
+                  : at.carried
+                    ? `This level belongs to an older range. It keeps its original sell and finishes when that sale fills.`
+                    : selling
+                      ? `Selling here. When it fills, a buy goes back on at ${formatPrice(at.px)} one step down.`
+                      : `Waiting to buy ${formatPrice(at.px)}. When it fills, a sell goes on one step above — and when THAT fills, this buy comes back.`
               }
               action={
                 at.buy !== null ? (

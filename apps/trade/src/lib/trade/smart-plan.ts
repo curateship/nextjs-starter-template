@@ -59,7 +59,10 @@ export type SmartLadder = SmartOrderShared & { kind: "dca"; plan: LadderPlan }
 export type SmartGrid = SmartOrderShared & { kind: "grid"; plan: GridPlan }
 
 /** One coin being traded on an indicator's say-so, as the screens see it. */
-export type SmartSignal = SmartOrderShared & { kind: "signal"; plan: SignalPlan }
+export type SmartSignal = SmartOrderShared & {
+  kind: "signal"
+  plan: SignalPlan
+}
 
 /** One price being watched, and the trade taken when it is reached. */
 export type SmartWatch = SmartOrderShared & { kind: "watch"; plan: WatchPlan }
@@ -87,7 +90,8 @@ export function laddersAndGridsYouPlaced(
 ): (SmartLadder | SmartGrid)[] {
   return orders.filter(
     (order): order is SmartLadder | SmartGrid =>
-      order.flowRunId === null && (order.kind === "dca" || order.kind === "grid")
+      order.flowRunId === null &&
+      (order.kind === "dca" || order.kind === "grid")
   )
 }
 
@@ -101,16 +105,19 @@ export function laddersAndGridsYouPlaced(
  * panel put the same holding on screen twice. One function so the two lists
  * can never disagree about which coins those are.
  *
- * A flow's orders are not here: the flow has its own run dashboard, and its
- * position stays in the Positions tab because nothing else on this screen
- * shows it. A watched price is not here either — it has not bought anything
- * yet, and it already has a chart line and an Open orders row.
+ * A flow's working orders are not here: the flow has its own run dashboard,
+ * and its position stays in the Positions tab because nothing else on this
+ * screen shows it. A paused flow order is the exception. It needs the reason
+ * and Resume button this panel owns, then disappears back to its run after it
+ * resumes. A watched price is not here either unless it paused.
  */
 export function smartOrdersYouPlaced(
   orders: readonly SmartOrder[]
 ): SmartOrder[] {
   return orders.filter(
-    (order) => order.flowRunId === null && order.kind !== "watch"
+    (order) =>
+      order.plan.paused === true ||
+      (order.flowRunId === null && order.kind !== "watch")
   )
 }
 

@@ -20,6 +20,14 @@ const SENTENCES = {
   ASTER_MARGIN_UNCHANGED: "Aster is already using that margin mode.",
   ASTER_MARGIN_OPEN:
     "Aster will not change this market's margin mode while it has an open position or order. Close or cancel it first.",
+  ASTER_MARGIN_REJECTED:
+    "Aster refused that isolated-margin change. Try a smaller amount and check that the position uses isolated margin.",
+  ASTER_MARGIN_BALANCE:
+    "Aster says there is not enough free cash for that margin change. Add less, or free cash held by another position or order.",
+  ASTER_POSITION_GONE:
+    "Aster says this position is no longer open. Refresh the account before changing its margin.",
+  ASTER_MARGIN_POSITIVE:
+    "Aster needs a margin amount above zero. Enter how much cash to add or take out.",
 } as const
 
 export type AsterRefusal = keyof typeof SENTENCES
@@ -41,6 +49,10 @@ export function asterRefusalCode(
   if (code === "-2013") return "ASTER_ORDER_GONE"
   if (code === "-4046") return "ASTER_MARGIN_UNCHANGED"
   if (code === "-4047" || code === "-4048") return "ASTER_MARGIN_OPEN"
+  if (code === "-4049") return "ASTER_MARGIN_REJECTED"
+  if (code === "-4050" || code === "-4051") return "ASTER_MARGIN_BALANCE"
+  if (code === "-4054") return "ASTER_POSITION_GONE"
+  if (code === "-4055") return "ASTER_MARGIN_POSITIVE"
   return null
 }
 

@@ -49,10 +49,7 @@ import {
   saveSmartDca,
   saveSmartGrid,
 } from "@/server/trade/prefs"
-import {
-  openPartClose,
-  type PartCloseOutcome,
-} from "@/server/trade/part-close"
+import { openPartClose, type PartCloseOutcome } from "@/server/trade/part-close"
 
 export type { PartCloseOutcome }
 import {
@@ -71,6 +68,7 @@ import {
   moveWatchOrder as moveWatchRow,
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
+  resumeSmartOrder as resumeSmartOrderRow,
   updateLadderExits as updateExitsRows,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
@@ -213,6 +211,15 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
     return wallet.kind === "live"
       ? await cancelLiveLadderRest(context.user.id, wallet, data)
       : await cancelRestRows(context.user.id, wallet, data)
+  })
+
+const resumeSmartOrderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(ladderSchema)
+  .handler(async ({ data, context }): Promise<{ resumed: true }> => {
+    await tradingWallet(context.user.id, data.walletId)
+    await resumeSmartOrderRow(context.user.id, data.walletId, data.ladderId)
+    return { resumed: true }
   })
 
 const cancelAllSmartOrdersSchema = z.object({
@@ -453,6 +460,10 @@ export function cancelLadderRest(input: z.infer<typeof ladderSchema>) {
   return cancelLadderRestFn({ data: input })
 }
 
+export function resumeSmartOrder(input: z.infer<typeof ladderSchema>) {
+  return resumeSmartOrderFn({ data: input })
+}
+
 export function cancelAllSmartOrders(
   input: z.infer<typeof cancelAllSmartOrdersSchema>
 ) {
@@ -614,6 +625,7 @@ const gridFollowSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
   follow: z.boolean(),
+  followDown: z.boolean().optional(),
 })
 
 const setGridFollowFn = createServerFn({ method: "POST" })
@@ -720,7 +732,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
     SMART_ORDER_NOT_FOUND:
-      "That watched order is not there any more. The account will refresh now.",
+      "That smart order is not there any more. The account will refresh now.",
+    SMART_ORDER_NOT_PAUSED: "That smart order is already running.",
     SMART_RUNG_DONE: "That rung already bought or was already called off.",
     SMART_GRID_RANGE:
       "The bottom of the grid has to be below the top. Check the two prices and try again.",

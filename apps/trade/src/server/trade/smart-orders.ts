@@ -35,6 +35,7 @@ import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
+import { resumeSmartOrderPlan } from "@/server/trade/smart-order-pause"
 import {
   assertFlowRunAcceptingPlacements,
   flowLadderOrderIds,
@@ -672,6 +673,36 @@ export async function saveLadderPlan(
         eq(tradeSmartLadders.status, "active")
       )
     )
+}
+
+/** Clears a strategy pause after its owner has fixed the refusal. */
+export async function resumeSmartOrder(
+  userId: string,
+  walletId: string,
+  smartOrderId: string
+): Promise<void> {
+  const rows = await db
+    .select({
+      kind: tradeSmartLadders.kind,
+      plan: tradeSmartLadders.plan,
+    })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.id, smartOrderId),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  const row = rows[0]
+  const kind = row ? readSmartOrderKind(row.kind) : null
+  const plan = kind && row ? readSmartPlan(kind, row.plan) : null
+  if (!plan) throw new Error("SMART_ORDER_NOT_FOUND")
+  if (!plan.paused) throw new Error("SMART_ORDER_NOT_PAUSED")
+  resumeSmartOrderPlan(plan)
+  await saveLadderPlan(userId, smartOrderId, plan, "active")
 }
 
 async function deleteOrders(userId: string, orderIds: string[]): Promise<void> {

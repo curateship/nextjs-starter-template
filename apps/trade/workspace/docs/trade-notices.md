@@ -123,6 +123,26 @@ buy, so every stop a person did not ask for is a notice, level `warning`:
 Switching one wallet off and on repeatedly is one stop — and one notice — per
 off. Correct, and a little loud.
 
+## When one smart order keeps getting refused
+
+A live ladder, grid or watched order pauses after five order-specific refusals
+in a row. The pause belongs to that one strategy. Other strategies on the same
+wallet keep working, and any position or stop already on the exchange stays
+untouched.
+
+The fifth refusal sends one warning notice. Its title names the coin and the
+kind of smart order, its body carries the exchange's plain explanation, and
+pressing it opens that coin's chart. Later engine passes send nothing for the
+paused strategy and no more notices. The Smart orders panel shows the same
+reason and a Resume button. Resume clears the count, but it never happens on
+its own.
+
+One accepted order resets the count to zero. A rate limit, timeout or exchange
+outage neither adds to the count nor clears it, because those problems belong
+to the exchange-wide request limits and engine health. The default of five can
+be changed with `TRADE_SMART_ORDER_REFUSAL_LIMIT`; values are kept between two
+and twenty.
+
 ## What sends nothing
 
 Resting orders being placed or cancelled, per-coin waiting reasons ("no base
