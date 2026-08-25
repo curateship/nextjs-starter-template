@@ -36,6 +36,7 @@ import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
+import { useTradeSounds } from "@/components/trade/trade-sounds"
 
 /**
  * Everything this app puts in the canvas header: what the flow is, and every
@@ -79,6 +80,7 @@ const SHOW_AT_MOST = 6
 export default function FlowStatusHeader({
   automationId,
 }: AutomationCanvasStatusProps) {
+  useTradeSounds()
   const [flow, setFlow] = React.useState<FlowTrading | null>(null)
   const [busy, setBusy] = React.useState(false)
   const [open, setOpen] = React.useState(false)

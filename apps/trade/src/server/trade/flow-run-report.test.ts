@@ -353,6 +353,29 @@ describe("readFlowRun", () => {
     const stranger = await insertUser(db)
     expect(await readFlowRun(stranger.id, "run-1")).toBeNull()
   })
+
+  it("does not borrow another account's flow name", async () => {
+    const stranger = await insertUser(db)
+    const strangerWorkspace = await insertWorkspace(db)
+    await db.insert(customShellAutomations).values({
+      id: "stranger-flow",
+      userId: stranger.id,
+      workspaceId: strangerWorkspace.id,
+      name: "Somebody else's bot",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
+    })
+    await db
+      .update(tradeFlowRuns)
+      .set({ automationId: "stranger-flow" })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+
+    const report = await readFlowRun(userId, "run-1", NOW)
+
+    expect(report?.head.automationName).toBe("This flow has been deleted")
+  })
 })
 
 describe("readFlowRunCoin", () => {

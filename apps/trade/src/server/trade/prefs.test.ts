@@ -17,7 +17,9 @@ import {
   loadMinimumMarketVolume,
   loadLiquidationWarning,
   loadQuickOrder,
+  loadTradeSoundsEnabled,
   saveQuickOrder,
+  saveTradeSoundsEnabled,
   saveChartView,
   saveChartOptions,
   saveLastMarketKey,
@@ -101,6 +103,19 @@ describe("the market volume cutoff", () => {
       "hyperliquid:mainnet:BTC"
     )
     expect(await loadMinimumMarketVolume(id)).toBe(5_000_000)
+  })
+})
+
+describe("trade sounds", () => {
+  it("starts off and remembers the account's choice", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+
+    expect(await loadTradeSoundsEnabled(mine.id, database)).toBe(false)
+    await saveTradeSoundsEnabled(mine.id, true, database)
+
+    expect(await loadTradeSoundsEnabled(mine.id, database)).toBe(true)
+    expect(await loadTradeSoundsEnabled(theirs.id, database)).toBe(false)
   })
 })
 

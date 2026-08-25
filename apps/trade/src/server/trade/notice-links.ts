@@ -1,8 +1,12 @@
-import { and, eq, inArray } from "drizzle-orm"
+import { and, asc, eq, gt, inArray, isNotNull, or } from "drizzle-orm"
 
 import { db } from "@/server/db"
 import { customShellNotifications } from "@/server/schema"
 import { tradeNoticeLinks } from "@/server/trade/schema"
+import type {
+  TradeSoundCursor,
+  TradeSoundEvent,
+} from "@/lib/trade/trade-sounds"
 
 /**
  * Which of these notices have a page behind them, and where it is.
@@ -30,14 +34,71 @@ export async function tradeNoticeLinksFor(
     .from(customShellNotifications)
     .innerJoin(
       tradeNoticeLinks,
-      eq(tradeNoticeLinks.announcementId, customShellNotifications.announcementId)
+      eq(
+        tradeNoticeLinks.announcementId,
+        customShellNotifications.announcementId
+      )
     )
     .where(
       and(
         eq(customShellNotifications.recipientUserId, userId),
-        inArray(customShellNotifications.id, [...notificationIds])
+        inArray(customShellNotifications.id, [...notificationIds]),
+        isNotNull(tradeNoticeLinks.href)
       )
     )
 
-  return Object.fromEntries(rows.map((row) => [row.notificationId, row.href]))
+  return Object.fromEntries(
+    rows.map((row) => [row.notificationId, row.href as string])
+  )
+}
+
+/** New fill and stop notices after one browser tab's last answer. */
+export async function tradeSoundEventsAfter(
+  userId: string,
+  cursor: TradeSoundCursor
+): Promise<{ events: TradeSoundEvent[]; cursor: TradeSoundCursor }> {
+  const createdAt = new Date(cursor.afterAt)
+  const rows = await db
+    .select({
+      id: customShellNotifications.id,
+      kind: tradeNoticeLinks.soundKind,
+      createdAt: customShellNotifications.createdAt,
+    })
+    .from(customShellNotifications)
+    .innerJoin(
+      tradeNoticeLinks,
+      eq(
+        tradeNoticeLinks.announcementId,
+        customShellNotifications.announcementId
+      )
+    )
+    .where(
+      and(
+        eq(customShellNotifications.recipientUserId, userId),
+        isNotNull(tradeNoticeLinks.soundKind),
+        or(
+          gt(customShellNotifications.createdAt, createdAt),
+          and(
+            eq(customShellNotifications.createdAt, createdAt),
+            gt(customShellNotifications.id, cursor.afterId)
+          )
+        )
+      )
+    )
+    .orderBy(
+      asc(customShellNotifications.createdAt),
+      asc(customShellNotifications.id)
+    )
+    .limit(200)
+
+  const events = rows.map((row) => ({
+    id: row.id,
+    kind: row.kind as TradeSoundEvent["kind"],
+    createdAt: row.createdAt.getTime(),
+  }))
+  const last = events.at(-1)
+  return {
+    events,
+    cursor: last ? { afterAt: last.createdAt, afterId: last.id } : cursor,
+  }
 }

@@ -338,14 +338,21 @@ async function historyOf(
 /** Every run this person has ever switched on, newest first. */
 export async function listFlowRuns(
   userId: string,
-  now: number = Date.now()
+  now: number = Date.now(),
+  onlyRunIds?: readonly string[]
 ): Promise<FlowRunListRow[]> {
+  if (onlyRunIds?.length === 0) return []
   const rows = await db
     .select()
     .from(tradeFlowRuns)
-    .where(eq(tradeFlowRuns.userId, userId))
+    .where(
+      and(
+        eq(tradeFlowRuns.userId, userId),
+        onlyRunIds ? inArray(tradeFlowRuns.id, [...onlyRunIds]) : undefined
+      )
+    )
     .orderBy(desc(tradeFlowRuns.startedAt))
-    .limit(MAX_RUNS)
+    .limit(onlyRunIds?.length ?? MAX_RUNS)
   if (rows.length === 0) return []
 
   const wallets = await listWallets(userId)
@@ -360,9 +367,12 @@ export async function listFlowRuns(
       })
       .from(customShellAutomations)
       .where(
-        inArray(
-          customShellAutomations.id,
-          rows.map((row) => row.automationId)
+        and(
+          eq(customShellAutomations.userId, userId),
+          inArray(
+            customShellAutomations.id,
+            rows.map((row) => row.automationId)
+          )
         )
       ),
     // Every active row on these wallets is read once. Ownership and whether a
@@ -462,7 +472,12 @@ export async function readFlowRun(
   const [named] = await db
     .select({ name: customShellAutomations.name })
     .from(customShellAutomations)
-    .where(eq(customShellAutomations.id, row.automationId))
+    .where(
+      and(
+        eq(customShellAutomations.userId, userId),
+        eq(customShellAutomations.id, row.automationId)
+      )
+    )
     .limit(1)
 
   // A stopped flow cannot still be placing rungs. Active rows left behind by
