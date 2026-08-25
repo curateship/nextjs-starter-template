@@ -22,6 +22,11 @@ The preview and later notices reuse the same two retained audio players in that
 tab. Creating a new player only after money moved left some browsers free to
 refuse the call even after the page had been used.
 
+The open screen does not check every two seconds. The same live notice that
+updates the bell tells the sound listener to read the new fill or stop and play
+it. The existing one-minute check is only a backup if a live notice goes
+missing, and reconnecting the live notice stream also catches up immediately.
+
 ## Bursts stay short
 
 Repeats of the same sound within two seconds collapse into one. Twenty ladder

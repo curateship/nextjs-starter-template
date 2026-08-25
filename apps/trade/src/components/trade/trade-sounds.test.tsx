@@ -91,7 +91,7 @@ describe("the open Trade screen's sound listener", () => {
     await act(async () => secondRoot.unmount())
   })
 
-  it("plays a returned fill after the tab has been used", async () => {
+  it("plays a fill as soon as the live notice pings the open screen", async () => {
     vi.useFakeTimers()
     api.loadSettings.mockResolvedValue({ enabled: true })
     api.loadEvents.mockResolvedValue({
@@ -113,6 +113,21 @@ describe("the open Trade screen's sound listener", () => {
       "/sounds/trade-fill.wav",
     ])
     expect(FakeAudio.instances[0].play).toHaveBeenCalledOnce()
+    await act(async () => root.unmount())
+  })
+
+  it("does not check every two seconds while it waits for a live notice", async () => {
+    vi.useFakeTimers()
+    api.loadSettings.mockResolvedValue({ enabled: true })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_300)
+    })
+
+    expect(api.loadEvents).not.toHaveBeenCalled()
     await act(async () => root.unmount())
   })
 

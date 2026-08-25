@@ -2,6 +2,7 @@ import * as React from "react"
 import {
   ArchiveIcon,
   CheckIcon,
+  ChevronDownIcon,
   CreditCardIcon,
   EllipsisVerticalIcon,
   InfoIcon,
@@ -15,7 +16,17 @@ import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import type { useTradeAccount } from "@/components/trade/use-trade-account"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   WorkspacePanelTab,
   WorkspacePanelTabsHeader,
@@ -24,8 +35,6 @@ import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
   PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -58,11 +67,9 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * The right panel's wallet picker, and the All tab that manages every wallet.
- * Purely a view — the state comes in from the one
- * `useTradeAccount` the workspace owns, and the two dialogs (add, edit) are
- * the workspace's too, so the narrow-screen sheet and the desktop column can
- * never hold two copies of either.
+ * The chart header's wallet picker and its management popover. Purely a view:
+ * the state comes from the one `useTradeAccount` the workspace owns, and the
+ * add, details and edit windows belong to the workspace too.
  */
 
 export function KindBadge({ wallet }: { wallet: TradeWallet }) {
@@ -184,19 +191,7 @@ function WalletRowCells({
       <span className="flex min-w-0 items-center gap-2">
         {selector}
         <span className="truncate text-sm font-medium">{wallet.label}</span>
-        <span
-          className={cn(
-            "size-1.5 shrink-0 rounded-full",
-            inactive
-              ? "bg-muted-foreground"
-              : !ok
-                ? "bg-destructive"
-                : stale
-                  ? "bg-amber-500"
-                  : "bg-emerald-500"
-          )}
-          aria-hidden
-        />
+        <WalletStatusDot state={state} />
         {inactive ? (
           <span className="sr-only">Not switched on</span>
         ) : !ok || stale ? (
@@ -220,29 +215,44 @@ function WalletRowCells({
   )
 }
 
+function WalletStatusDot({
+  state,
+}: {
+  state: ReturnType<typeof walletRowState>
+}) {
+  const { inactive, ok, stale } = state
+  return (
+    <span
+      className={cn(
+        "size-1.5 shrink-0 rounded-full",
+        inactive
+          ? "bg-muted-foreground"
+          : !ok
+            ? "bg-destructive"
+            : stale
+              ? "bg-amber-500"
+              : "bg-emerald-500"
+      )}
+      aria-hidden
+    />
+  )
+}
+
 function ActiveWalletRow({
   wallet,
   summary,
   selected,
   onSelect,
-  onOpenWallet,
-  onFlatten,
-  onRetry,
-  marginHealth,
+  onOpenDetails,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
   selected: boolean
   onSelect: () => void
-  onOpenWallet: () => void
-  /** Sell everything on this wallet and call off what it has waiting. */
-  onFlatten: () => void
-  onRetry: () => void
-  marginHealth: WalletMarginHealth | null
+  onOpenDetails: () => void
 }) {
-  const [open, setOpen] = React.useState(false)
   const state = walletRowState(summary)
-  const { figures, refusal } = state
+  const { figures } = state
 
   return (
     <div
@@ -273,122 +283,15 @@ function ActiveWalletRow({
           }
         />
       </label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            aria-label={`Open ${wallet.label} wallet details`}
-          >
-            <EllipsisVerticalIcon className="size-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-80 gap-0 p-0">
-          <PopoverHeader className="border-b p-3">
-            <PopoverTitle>{wallet.label}</PopoverTitle>
-          </PopoverHeader>
-          <div className="grid gap-3 p-3">
-            <KeyExpiryNotice wallet={wallet} />
-            {figures ? (
-              <div className="flex flex-col gap-1 text-sm">
-                <FigureRow label="Free">
-                  <span className="tabular-nums">
-                    {formatUsd(figures.free)}
-                  </span>
-                </FigureRow>
-                <FigureRow label="In trades">
-                  <span className="tabular-nums">
-                    {formatUsd(figures.inTrades)}
-                  </span>
-                </FigureRow>
-                <FigureRow label="Margin used">
-                  <span className="tabular-nums">
-                    {marginHealth ? formatUsd(marginHealth.marginUsed) : "—"}
-                  </span>
-                </FigureRow>
-                <FigureRow label="Nearest position">
-                  <span className="tabular-nums">
-                    {marginHealth?.nearest
-                      ? `${formatAway(marginHealth.nearest.away)} away on ${marketSymbol(marginHealth.nearest.marketKey)}`
-                      : "—"}
-                  </span>
-                </FigureRow>
-                <FigureRow label="Open profit">
-                  <SignedUsd value={figures.openProfit} />
-                </FigureRow>
-                <FigureRow
-                  label={
-                    <span className="flex items-center gap-1">
-                      Settled
-                      {figures.unpricedFills ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              type="button"
-                              aria-label="About settled profit"
-                              className="text-muted-foreground transition-colors hover:text-foreground"
-                            >
-                              <InfoIcon className="size-3" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-64">
-                            Settled and Made or lost are short of{" "}
-                            {figures.unpricedFills.toLocaleString()}{" "}
-                            {figures.unpricedFills === 1 ? "trade" : "trades"}{" "}
-                            whose profit the exchange has not stated.
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : null}
-                    </span>
-                  }
-                >
-                  <SignedUsd value={figures.settled} />
-                </FigureRow>
-                <FigureRow label="Made or lost">
-                  <SignedUsd value={figures.madeOrLost} />
-                </FigureRow>
-              </div>
-            ) : refusal ? (
-              <p className="text-sm text-muted-foreground">{refusal}</p>
-            ) : (
-              <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
-                <p>
-                  The exchange did not answer for this wallet, so there are no
-                  figures to show. Showing zeros would be making them up.
-                </p>
-                <Button size="sm" variant="outline" onClick={onRetry}>
-                  Try again
-                </Button>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 border-t p-2.5">
-            <Button
-              type="button"
-              variant="destructive"
-              className="mr-auto"
-              onClick={() => {
-                setOpen(false)
-                onFlatten()
-              }}
-            >
-              <Trash2Icon className="size-4" />
-              Empty wallet
-            </Button>
-            <Button
-              type="button"
-              onClick={() => {
-                setOpen(false)
-                onOpenWallet()
-              }}
-            >
-              <SettingsIcon className="size-4" />
-              Edit wallet
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        aria-label={`Open ${wallet.label} wallet details`}
+        onClick={onOpenDetails}
+      >
+        <EllipsisVerticalIcon className="size-4" />
+      </Button>
     </div>
   )
 }
@@ -397,13 +300,13 @@ function WalletCard({
   wallet,
   summary,
   active,
-  onOpen,
+  onOpenDetails,
 }: {
   wallet: TradeWallet
   summary: WalletAccountSummary | null
   /** This is the wallet being traded with — the card says so. */
   active: boolean
-  onOpen: () => void
+  onOpenDetails: () => void
 }) {
   const state = walletRowState(summary)
   const { figures } = state
@@ -414,12 +317,7 @@ function WalletCard({
         active ? "bg-muted/60 hover:bg-muted/60" : "hover:bg-muted/40"
       )}
     >
-      <button
-        type="button"
-        onClick={onOpen}
-        className={cn(walletRowGridClassName, "text-left")}
-        aria-label={`${wallet.label}${active ? " — the wallet in use" : ""} — open wallet settings`}
-      >
+      <div className={walletRowGridClassName}>
         <WalletRowCells
           wallet={wallet}
           profit={figures?.openProfit ?? null}
@@ -436,13 +334,13 @@ function WalletCard({
             </span>
           }
         />
-      </button>
+      </div>
       <Button
         type="button"
         size="icon-sm"
         variant="ghost"
-        aria-label={`Open ${wallet.label} wallet settings`}
-        onClick={onOpen}
+        aria-label={`Open ${wallet.label} wallet details`}
+        onClick={onOpenDetails}
       >
         <EllipsisVerticalIcon className="size-4" />
       </Button>
@@ -455,19 +353,13 @@ export function ActiveWalletsView({
   summaryOf,
   activeWalletId,
   onUseWallet,
-  onOpenWallet,
-  onFlattenWallet,
-  onRetry,
-  healthOf,
+  onOpenWalletDetails,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
   activeWalletId: string | null
   onUseWallet: (walletId: string) => void
-  onOpenWallet: (wallet: TradeWallet) => void
-  onFlattenWallet: (wallet: TradeWallet) => void
-  onRetry: () => void
-  healthOf: (walletId: string) => WalletMarginHealth | null
+  onOpenWalletDetails: (wallet: TradeWallet) => void
 }) {
   return (
     <div>
@@ -478,10 +370,7 @@ export function ActiveWalletsView({
           summary={summaryOf(wallet.id)}
           selected={wallet.id === activeWalletId}
           onSelect={() => onUseWallet(wallet.id)}
-          onOpenWallet={() => onOpenWallet(wallet)}
-          onFlatten={() => onFlattenWallet(wallet)}
-          onRetry={onRetry}
-          marginHealth={healthOf(wallet.id)}
+          onOpenDetails={() => onOpenWalletDetails(wallet)}
         />
       ))}
     </div>
@@ -492,12 +381,12 @@ export function AllWalletsView({
   wallets,
   summaryOf,
   activeWalletId,
-  onOpenWallet,
+  onOpenWalletDetails,
 }: {
   wallets: TradeWallet[]
   summaryOf: (walletId: string) => WalletAccountSummary | null
   activeWalletId: string | null
-  onOpenWallet: (wallet: TradeWallet) => void
+  onOpenWalletDetails: (wallet: TradeWallet) => void
 }) {
   return (
     <div>
@@ -517,7 +406,7 @@ export function AllWalletsView({
             wallet={wallet}
             summary={summaryOf(wallet.id)}
             active={wallet.id === activeWalletId}
-            onOpen={() => onOpenWallet(wallet)}
+            onOpenDetails={() => onOpenWalletDetails(wallet)}
           />
         ))}
     </div>
