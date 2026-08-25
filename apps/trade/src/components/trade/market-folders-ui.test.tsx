@@ -80,6 +80,7 @@ const catalogs = [
     },
     rows: [btc],
     hiddenByVolumeKeys: [],
+    hiddenByVolumeRows: [],
   },
 ]
 
@@ -520,7 +521,12 @@ describe("the market folder controls", () => {
             {...shared}
             folders={[{ ...fav, marketKeys: [btc.key] }]}
             catalogs={[
-              { ...catalogs[0], rows: [], hiddenByVolumeKeys: [btc.key] },
+              {
+                ...catalogs[0],
+                rows: [],
+                hiddenByVolumeKeys: [btc.key],
+                hiddenByVolumeRows: [btc],
+              },
             ]}
           />
         </TooltipProvider>

@@ -727,12 +727,12 @@ line in the body, share the panel's one 12px gutter.
   Folder changes appear at once and revert with a toast if the save fails.
 - **Settings → Markets holds one minimum daily dollar volume for the account.**
   Every exchange uses the same number. Markets below it disappear from every
-  list, including folders and search, and a linked or remembered market below
-  it says the volume setting hid it instead of opening its chart or blaming the
-  exchange. A zero setting keeps the old rule, where markets with no reported
-  volume stay hidden. When the cutoff hides every market, All says none meet the
-  setting. A folder with no visible markets names the folder and points back to
-  the star control.
+  list, including folders and search. The setting never disables a market:
+  links, remembered markets, positions and orders still open its normal header,
+  chart and order controls. A zero setting keeps the old rule, where markets
+  with no reported volume stay hidden. When the cutoff hides every market, All
+  says none meet the setting. A folder with no visible markets names the folder
+  and points back to the star control.
 - **Selection lives in the address** as a full market key
   (`?market=hyperliquid:mainnet:BTC`), so a link means the same market even
   when a second exchange exists. The selected row keeps its gray fill and adds
@@ -947,10 +947,13 @@ inside it.
 ## Empty states
 
 Every panel says something true about itself rather than "coming soon". The
-words written for an empty panel are the same words a brand-new account sees on
-the finished page, so the empty page gets designed once, at the start.
+Words written for an empty panel are the same words a brand-new account sees on
+the finished page, so the empty page gets designed once, at the start. The
+middle panel draws its header only for a real market. No selection and an
+unavailable market leave the header out rather than drawing a substitute. On a
+narrow screen, either state opens the Markets sheet so the missing header does
+not remove the way to choose a market.
 
-- Markets — "Pick a market to chart it."
 - Chart — "The chart goes here." Under it, "Pick a market from the list and its
   candles draw in this space." It never names a side of the screen, because on a
   narrow screen the list is behind a header button and there is no left. It
@@ -969,17 +972,9 @@ a position closed. Still reading and a failed read already worked this way; the
 empty state now matches them, and the three answers stay separate — a table
 never says "nothing here" before a read has really landed.
 
-**A market that is not there has one voice.** Both places say the exchange is
-not listing it, in the same words and the same tense:
-
-- The market header, when a saved or linked market no longer resolves — "The
-  exchange is not listing this market right now."
-- The market list, when the exchange returned nothing to show — "The exchange is
-  not listing any markets right now."
-
-The only difference between the two is "this market" against "any markets". A
-second wording for the same failure makes a reader think there are two
-failures.
+When the exchange returned no markets to show, the market list says "The
+exchange is not listing any markets right now." The middle panel adds no second
+header for the same failure.
 
 ## Still reading
 
