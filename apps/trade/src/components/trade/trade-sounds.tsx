@@ -3,8 +3,8 @@ import * as React from "react"
 import { loadTradeSoundEvents } from "@/lib/api/notice-links"
 import { loadTradeSoundSettings } from "@/lib/api/trade-sound-settings"
 import {
-  createTradeSoundPlayer,
   ensureTradeSoundSetting,
+  playTradeSound,
   readRememberedTradeSoundSetting,
   rememberTradeSoundSetting,
   subscribeToTradeSoundSetting,
@@ -34,7 +34,6 @@ export function useTradeSounds() {
     typeof navigator !== "undefined" &&
       Boolean(navigator.userActivation?.hasBeenActive)
   )
-  const play = React.useRef(createTradeSoundPlayer())
 
   React.useEffect(() => {
     cursor.current = { afterAt: Date.now(), afterId: "" }
@@ -73,7 +72,7 @@ export function useTradeSounds() {
       const answer = await loadTradeSoundEvents(cursor.current)
       cursor.current = answer.cursor
       for (const event of answer.events) {
-        play.current(event.kind, interacted.current)
+        void playTradeSound(event.kind, interacted.current)
       }
     } catch {
       // The notice is already in the bell. A sound read must not add an error.

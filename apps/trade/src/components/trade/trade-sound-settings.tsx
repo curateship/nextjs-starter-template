@@ -21,6 +21,7 @@ import {
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ensureTradeSoundSetting,
+  primeTradeSounds,
   rememberTradeSoundSetting,
   TRADE_SOUND_SETTINGS_CHANNEL,
 } from "@/lib/trade/trade-sounds"
@@ -58,6 +59,9 @@ export default function TradeSoundSettings() {
   const change = async (next: boolean) => {
     if (busy) return
     const previous = enabled
+    // Start both audio elements inside the switch click. Some browsers grant
+    // permission to one element at a time, not to the whole page.
+    const preview = next ? primeTradeSounds() : null
     rememberTradeSoundSetting(next)
     setBusy(true)
     try {
@@ -68,9 +72,18 @@ export default function TradeSoundSettings() {
         channel.postMessage(answer.enabled)
         channel.close()
       }
-      toast.success(
-        answer.enabled ? "Trade sounds are on." : "Trade sounds are off."
-      )
+      const previewPlayed = preview ? await preview : true
+      if (answer.enabled && !previewPlayed) {
+        toast.warning(
+          "Trade sounds are on, but the test sound could not play. Allow sound for this site, then switch sounds off and on again."
+        )
+      } else {
+        toast.success(
+          answer.enabled
+            ? "Trade sounds are on. That was the fill sound."
+            : "Trade sounds are off."
+        )
+      }
     } catch (error) {
       rememberTradeSoundSetting(previous)
       showErrorToast(getTradeSoundSettingsSaveErrorMessage(error))
@@ -114,7 +127,7 @@ export default function TradeSoundSettings() {
               <span className="block text-sm font-medium">Fills and stops</span>
               <span className="mt-1 block text-sm text-muted-foreground">
                 Fills use a short high sound. Stops and targets use a lower
-                warning sound.
+                warning sound. Turning this on plays the fill sound once.
               </span>
             </label>
             <Switch

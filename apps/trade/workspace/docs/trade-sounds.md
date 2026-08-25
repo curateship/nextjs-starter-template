@@ -6,10 +6,21 @@ The app reads the switch once after sign-in and remembers it while the app stays
 open. Returning to Sounds shows the known switch immediately instead of loading
 the same setting again.
 
+Turning the switch on plays the fill sound during that click. The preview makes
+the setting testable without placing an order and gives the browser a direct
+request to allow audio. If playback is refused, Settings says that the sound did
+not play and points to the site's sound permission. The setting still stays on.
+The fill preview is audible. The same click starts the stop player silently and
+resets it, because Safari grants sound permission to each audio player rather
+than to the page as a whole.
+
 A fill uses the short high sound in `public/sounds/trade-fill.wav`. A stop or
 target uses the lower warning sound in `public/sounds/trade-stop.wav`. The
 notice remains the record. Its Trade metadata says which sound an open Trade
 screen may play, so one notice can never turn into two sounds after a reload.
+The preview and later notices reuse the same two retained audio players in that
+tab. Creating a new player only after money moved left some browsers free to
+refuse the call even after the page had been used.
 
 ## Bursts stay short
 

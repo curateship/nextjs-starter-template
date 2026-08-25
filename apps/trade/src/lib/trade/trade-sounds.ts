@@ -22,6 +22,9 @@ export const TRADE_SOUND_FILES: Record<TradeSoundKind, string> = {
   stop: "/sounds/trade-stop.wav",
 }
 
+type TradeSoundAudio = Pick<HTMLAudioElement, "play"> &
+  Partial<Pick<HTMLAudioElement, "currentTime" | "pause" | "volume">>
+
 let rememberedSetting: boolean | undefined
 let settingLoad: Promise<boolean> | null = null
 const settingListeners = new Set<() => void>()
@@ -69,31 +72,116 @@ export function ensureTradeSoundSetting(
 /**
  * Plays one sound per kind inside the collapse window.
  *
- * The browser's audio promise is deliberately ignored. A tab with no user
- * interaction is expected to be refused, and the bell notice still arrives.
+ * The caller may inspect the result for a Settings preview. Live events ignore
+ * it so a browser refusal never competes with the bell notice.
  */
 export function createTradeSoundPlayer({
   audio = (src) => new Audio(src),
   now = Date.now,
 }: {
-  audio?: (src: string) => Pick<HTMLAudioElement, "play">
+  audio?: (src: string) => TradeSoundAudio
   now?: () => number
 } = {}) {
   const lastPlayedAt: Partial<Record<TradeSoundKind, number>> = {}
+  const players: Partial<Record<TradeSoundKind, TradeSoundAudio>> = {}
 
-  return (kind: TradeSoundKind, interacted: boolean) => {
+  const playerFor = (kind: TradeSoundKind) =>
+    (players[kind] ??= audio(TRADE_SOUND_FILES[kind]))
+
+  const attempt = async (player: TradeSoundAudio) => {
+    try {
+      await player.play()
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  const play = async (
+    kind: TradeSoundKind,
+    interacted: boolean,
+    collapse = true
+  ) => {
     if (!interacted) return false
     const at = now()
     const last = lastPlayedAt[kind]
-    if (last !== undefined && at - last < TRADE_SOUND_COLLAPSE_MS) return false
-    lastPlayedAt[kind] = at
-    try {
-      void audio(TRADE_SOUND_FILES[kind])
-        .play()
-        .catch(() => undefined)
-    } catch {
-      // Some browsers refuse before returning a promise. Silence is expected.
+    if (
+      collapse &&
+      last !== undefined &&
+      at - last < TRADE_SOUND_COLLAPSE_MS
+    ) {
+      return false
     }
-    return true
+    lastPlayedAt[kind] = at
+    let player: TradeSoundAudio
+    try {
+      player = playerFor(kind)
+    } catch {
+      if (lastPlayedAt[kind] === at) delete lastPlayedAt[kind]
+      return false
+    }
+    const played = await attempt(player)
+    if (!played) {
+      // A refused attempt must not suppress a retry made from a later click.
+      if (lastPlayedAt[kind] === at) delete lastPlayedAt[kind]
+    }
+    return played
   }
+
+  return Object.assign(play, {
+    /**
+     * Starts both retained elements inside the Settings click. WebKit grants
+     * audio permission per element, so the silent stop attempt matters even
+     * after the audible fill preview succeeds.
+     */
+    prime: async () => {
+      const fillAttempt = play("fill", true, false)
+      let stop: TradeSoundAudio
+      try {
+        stop = playerFor("stop")
+      } catch {
+        await fillAttempt
+        return false
+      }
+
+      const previousVolume = stop.volume
+      try {
+        if (previousVolume !== undefined) stop.volume = 0
+        const stopAttempt = attempt(stop)
+        const [fillPlayed, stopPlayed] = await Promise.all([
+          fillAttempt,
+          stopAttempt,
+        ])
+
+        if (stopPlayed) {
+          stop.pause?.()
+          if (stop.currentTime !== undefined) stop.currentTime = 0
+        }
+        return fillPlayed && stopPlayed
+      } catch {
+        await fillAttempt
+        return false
+      } finally {
+        if (previousVolume !== undefined) stop.volume = previousVolume
+      }
+    },
+  })
+}
+
+let browserPlayer: ReturnType<typeof createTradeSoundPlayer> | null = null
+
+/** One retained player per tab, shared by the Settings preview and live events. */
+export function playTradeSound(
+  kind: TradeSoundKind,
+  interacted: boolean,
+  collapse = true
+) {
+  browserPlayer ??= createTradeSoundPlayer()
+  return browserPlayer(kind, interacted, collapse)
+}
+
+/** Audible fill preview plus a silent permission check for the stop player. */
+export function primeTradeSounds() {
+  browserPlayer ??= createTradeSoundPlayer()
+  return browserPlayer.prime()
 }
