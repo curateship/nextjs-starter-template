@@ -49,6 +49,11 @@ export const appOptions: AppOptions = {
         label: "Markets",
         panel: () => import("@/components/trade/market-settings"),
       },
+      {
+        id: "sounds",
+        label: "Sounds",
+        panel: () => import("@/components/trade/trade-sound-settings"),
+      },
     ],
   },
   automations: {

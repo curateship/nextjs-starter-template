@@ -245,6 +245,8 @@ export const tradePrefs = pgTable("trade_prefs", {
     .default({}),
   liquidationWarnUsd: doublePrecision("liquidation_warn_usd"),
   liquidationWarnPct: doublePrecision("liquidation_warn_pct"),
+  /** One account-wide choice for the fill and stop sounds. Off until chosen. */
+  tradeSoundsEnabled: boolean("trade_sounds_enabled").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1294,5 +1296,7 @@ export const tradeNoticeLinks = pgTable("trade_notice_links", {
   announcementId: varchar("announcement_id", { length: 36 })
     .primaryKey()
     .references(() => customShellAnnouncements.id, { onDelete: "cascade" }),
-  href: text("href").notNull(),
+  href: text("href"),
+  /** Which bundled sound an open trading screen may play for this notice. */
+  soundKind: varchar("sound_kind", { length: 8 }).$type<"fill" | "stop">(),
 })

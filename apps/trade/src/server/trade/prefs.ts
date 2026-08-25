@@ -257,6 +257,35 @@ export async function saveLiquidationWarning(
   return warning
 }
 
+/** Whether this account hears fill and stop sounds on an open trading screen. */
+export async function loadTradeSoundsEnabled(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  const [row] = await database
+    .select({ enabled: tradePrefs.tradeSoundsEnabled })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return row?.enabled ?? false
+}
+
+/** Remember the account-wide sound choice. */
+export async function saveTradeSoundsEnabled(
+  userId: string,
+  enabled: boolean,
+  database: CustomShellDb = db
+): Promise<boolean> {
+  await database
+    .insert(tradePrefs)
+    .values({ userId, tradeSoundsEnabled: enabled, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: { tradeSoundsEnabled: enabled, updatedAt: new Date() },
+    })
+  return enabled
+}
+
 /**
  * The wallet the account panel last had active on each exchange, keyed by
  * protocol id. Empty before any choice has been made anywhere.

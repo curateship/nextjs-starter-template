@@ -31,10 +31,12 @@ preferences and all, every time the connection blinked. It now asks for the
 market list alone (`useDashboardMarkets`), and keeps the list already on
 screen if that ask fails.
 
-The Bots tab gets its first list from that same opening call. While the tab is
-open it checks every six seconds, because a bot can stop without a click on the
-dashboard. Leaving the tab stops those checks. A failed refresh keeps the last
-list rather than replacing it with an empty answer.
+The Bots tab gets its first list from that same opening call. Pressing the tab
+asks again at once, so the figures do not wait up to six seconds for the first
+timer. While the tab is open it checks every six seconds, because a bot can
+stop without a click on the dashboard. Leaving the tab stops those checks. A
+failed refresh keeps the last list rather than replacing it with an empty
+answer. The richer rows reuse the stored run report and never ask an exchange.
 
 ## The screen is built once
 

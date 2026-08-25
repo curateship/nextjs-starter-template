@@ -132,15 +132,24 @@ The lower panel opens on **Smart orders**. The Smart orders tab keeps the
 hand-placed ladders and grids it already showed. The header has only the Smart
 orders and Bots tabs, with no working, holding or running summary beside them.
 The **Bots** tab lists every running bot for the exchange on the page. Each row
-shows the bot's name, whether it uses a DCA ladder or Signals, and how many
-markets it watches. The name opens that run's results dashboard. A stopped bot
-leaves the list on the next read.
+shows the bot's name, strategy, banked money, and how many of its coins are
+working. A bot with no closed trade shows a dash for money, never a made-up
+zero. The name opens that run's results dashboard. A stopped bot leaves the
+list on the next read.
 
-The Bots tab has its first answer when the dashboard opens, so pressing the tab
-does not wait for another request. While Bots stays open, the list checks again
-every six seconds. A failed first read says the bots could not be read and
-offers Try again. A later failure keeps the last answer on screen and says the
-refresh failed. An empty answer says no bot is running on this exchange.
+The row's three-dot button opens the same small popover shape as a wallet row.
+It shows the wallet, real or practice money, spending cap, closed trades,
+working and held coins, and when the bot was switched on. Pause leaves every
+order and position where it is. Stop opens the shared confirmation before it
+calls off orders that have not bought anything. Coins already held keep their
+stops and targets.
+
+The Bots tab has a cached first answer when the dashboard opens, then asks for
+a fresh one as soon as the tab is pressed. The cached rows stay on screen while
+that answer lands. While Bots stays open, the list checks again every six
+seconds. A failed first read says the bots could not be read and offers Try
+again. A later failure keeps the last answer on screen and says the refresh
+failed. An empty answer says no bot is running on this exchange.
 
 **A smaller window shrinks the chart, never the panels.** The Folders panel,
 the account column and the bottom Positions panel keep the pixel size they

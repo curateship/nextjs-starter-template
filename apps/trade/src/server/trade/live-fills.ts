@@ -296,6 +296,7 @@ async function announceFills(
       await writeTradeNotice({
         userId,
         href: marketChartHref(key),
+        soundKind: "fill",
         ...fillNoticeWords({
           marketKey: key,
           side: fill.side,
@@ -323,6 +324,7 @@ async function announceFills(
       await writeTradeNotice({
         userId,
         href: marketChartHref(key),
+        soundKind: "stop",
         ...triggerNoticeWords({
           kind: known.kind,
           marketKey: key,
@@ -460,6 +462,7 @@ async function resolveClosingOrders(
       await writeTradeNotice({
         userId,
         href: marketChartHref(made[0].marketKey),
+        soundKind: "stop",
         ...triggerNoticeWords({
           kind: one.kind,
           marketKey: made[0].marketKey,

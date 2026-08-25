@@ -60,6 +60,8 @@ Two files outrank the rest, and outrank the code:
 - `trade-notices.md` — the bell notices: one per fill, a second when a stop or
   target fires, what a flow says when it stops or goes quiet on its own, and
   where clicking one takes you.
+- `trade-sounds.md` — the optional sounds for fills and stops, what collapses a
+  burst, and when a browser stays silent.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how

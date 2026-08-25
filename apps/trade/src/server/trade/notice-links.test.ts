@@ -11,7 +11,10 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { recordLiveFills } from "@/server/trade/live-fills"
-import { tradeNoticeLinksFor } from "@/server/trade/notice-links"
+import {
+  tradeNoticeLinksFor,
+  tradeSoundEventsAfter,
+} from "@/server/trade/notice-links"
 import { writeTradeNotice } from "@/server/trade/notices"
 import { tradeWallets } from "@/server/trade/schema"
 
@@ -189,5 +192,53 @@ describe("where a trade notice leads", () => {
     expect(ids).toHaveLength(2)
     const found = await tradeNoticeLinksFor(userId, ids)
     expect(Object.values(found)).toEqual(["/flow-runs/run-7"])
+  })
+})
+
+describe("the sounds behind trade notices", () => {
+  it("returns new fill and stop sounds in order without exposing another account", async () => {
+    const mine = await makePerson()
+    const theirs = await makePerson()
+    await writeTradeNotice({
+      userId: mine,
+      title: "Filled",
+      body: "One fill.",
+      level: "info",
+      soundKind: "fill",
+      createdAt: new Date(1_001),
+      database,
+    })
+    await writeTradeNotice({
+      userId: theirs,
+      title: "Their stop",
+      body: "Not ours.",
+      level: "warning",
+      soundKind: "stop",
+      createdAt: new Date(1_002),
+      database,
+    })
+    await writeTradeNotice({
+      userId: mine,
+      title: "Stop hit",
+      body: "One stop.",
+      level: "warning",
+      soundKind: "stop",
+      createdAt: new Date(1_003),
+      database,
+    })
+
+    const answer = await tradeSoundEventsAfter(mine, {
+      afterAt: 1_000,
+      afterId: "",
+    })
+    expect(answer.events.map((event) => event.kind)).toEqual(["fill", "stop"])
+    expect(answer.cursor).toEqual({
+      afterAt: 1_003,
+      afterId: answer.events[1].id,
+    })
+    await expect(tradeSoundEventsAfter(mine, answer.cursor)).resolves.toEqual({
+      events: [],
+      cursor: answer.cursor,
+    })
   })
 })

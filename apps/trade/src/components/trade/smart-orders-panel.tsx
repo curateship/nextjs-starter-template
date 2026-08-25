@@ -1,6 +1,14 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import { BotIcon, EllipsisVerticalIcon, Grid2x2Icon } from "lucide-react"
+import { toast } from "sonner"
+import {
+  BotIcon,
+  EllipsisVerticalIcon,
+  Grid2x2Icon,
+  PauseIcon,
+  PlayIcon,
+  SquareIcon,
+} from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import {
@@ -8,6 +16,7 @@ import {
   WorkspacePanelTabsHeader,
 } from "@/components/shared/workspace-panel-header"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
   Popover,
   PopoverContent,
@@ -27,7 +36,10 @@ import {
   type MarketRow,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { formatDateTime } from "@/lib/format/format-time"
+import {
+  formatDateTime,
+  formatRelativeTime,
+} from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -52,6 +64,8 @@ import {
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
 import { cn } from "@/lib/utils"
+import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/flow-trading"
+import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**
  * Every coin a smart order is working right now, under the wallets.
@@ -121,22 +135,25 @@ export function SmartOrdersPanel({
   const [botsKnown, setBotsKnown] = React.useState(initialBotsError === null)
   const [botsBusy, setBotsBusy] = React.useState(false)
   const botsReading = React.useRef(false)
+  const botsKnownRef = React.useRef(initialBotsError === null)
 
   const refreshBots = React.useCallback(async () => {
     if (botsReading.current) return
     botsReading.current = true
-    if (!botsKnown) setBotsBusy(true)
+    const wasKnown = botsKnownRef.current
+    if (!wasKnown) setBotsBusy(true)
     try {
       setBots(await loadRunningBots(protocol))
       setBotsError(null)
       setBotsKnown(true)
+      botsKnownRef.current = true
     } catch (error) {
       setBotsError(getRunningBotsErrorMessage(error))
     } finally {
       botsReading.current = false
-      if (!botsKnown) setBotsBusy(false)
+      if (!wasKnown) setBotsBusy(false)
     }
-  }, [botsKnown, protocol])
+  }, [protocol])
 
   React.useEffect(() => {
     if (tab !== "bots") return
@@ -147,7 +164,11 @@ export function SmartOrdersPanel({
   return (
     <Tabs
       value={tab}
-      onValueChange={(value) => setTab(value as "smart" | "bots")}
+      onValueChange={(value) => {
+        const next = value as "smart" | "bots"
+        setTab(next)
+        if (next === "bots") void refreshBots()
+      }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
       <WorkspacePanelTabsHeader>
@@ -173,6 +194,7 @@ export function SmartOrdersPanel({
           known={botsKnown}
           busy={botsBusy}
           onRetry={() => void refreshBots()}
+          onRefresh={refreshBots}
         />
       </TabsContent>
     </Tabs>
@@ -185,13 +207,36 @@ function BotsView({
   known,
   busy,
   onRetry,
+  onRefresh,
 }: {
   bots: readonly RunningBot[]
   error: string | null
   known: boolean
   busy: boolean
   onRetry: () => void
+  onRefresh: () => Promise<void>
 }) {
+  const [stopping, setStopping] = React.useState<RunningBot | null>(null)
+  const [actingId, setActingId] = React.useState<string | null>(null)
+
+  const act = async (
+    bot: RunningBot,
+    action: () => Promise<{ summary: string }>
+  ) => {
+    if (actingId) return
+    setActingId(bot.runId)
+    try {
+      const answer = await action()
+      toast.success(answer.summary)
+      setStopping(null)
+      await onRefresh()
+    } catch (actionError) {
+      showErrorToast(flowActionProblem(actionError, bot.walletLabel))
+    } finally {
+      setActingId(null)
+    }
+  }
+
   if (!known && busy) {
     return <LoadingRow label="Reading your running bots" className="h-full" />
   }
@@ -229,35 +274,202 @@ function BotsView({
   }
 
   return (
-    <ScrollArea className="h-full">
-      {refreshError}
-      <ul>
-        {bots.map((bot) => (
-          <li key={bot.runId} className="border-b last:border-b-0">
-            <Link
-              to="/flow-runs/$runId"
-              params={{ runId: bot.runId }}
+    <>
+      <ScrollArea className="h-full">
+        {refreshError}
+        <ul>
+          {bots.map((bot) => (
+            <BotRow
+              key={bot.runId}
+              bot={bot}
+              busy={actingId === bot.runId}
+              onPause={() =>
+                void act(bot, () => pauseFlow(bot.automationId, !bot.paused))
+              }
+              onStop={() => setStopping(bot)}
+            />
+          ))}
+        </ul>
+      </ScrollArea>
+      <ConfirmDialog
+        open={stopping !== null}
+        onOpenChange={(open) => {
+          if (!open) setStopping(null)
+        }}
+        title="Stop this bot?"
+        description={
+          <>
+            The bot stops looking for coins and calls off the orders that have
+            not bought anything. Coins already held keep their stops and
+            targets. Use Pause to leave every order where it is.
+          </>
+        }
+        confirmLabel="Stop it"
+        loading={stopping !== null && actingId === stopping.runId}
+        onConfirm={() => {
+          if (stopping)
+            void act(stopping, () => stopFlow(stopping.automationId))
+        }}
+      />
+    </>
+  )
+}
+
+function BotRow({
+  bot,
+  busy,
+  onPause,
+  onStop,
+}: {
+  bot: RunningBot
+  busy: boolean
+  onPause: () => void
+  onStop: () => void
+}) {
+  const [open, setOpen] = React.useState(false)
+  const working = bot.stopping
+    ? `${bot.workingCount} left`
+    : `${bot.workingCount} of ${bot.marketCount}`
+
+  return (
+    <li className="border-b last:border-b-0">
+      <div className="flex items-center transition-colors hover:bg-muted/40">
+        <Link
+          to="/flow-runs/$runId"
+          params={{ runId: bot.runId }}
+          className={cn(
+            "flex min-h-12 min-w-0 flex-1 items-center justify-between gap-3 px-3 py-1.5 text-left",
+            focusRing
+          )}
+        >
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-medium hover:underline">
+              {bot.name}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {bot.stopping ? "Stopping" : bot.paused ? "Paused" : bot.strategy}
+            </span>
+          </span>
+          <span className="shrink-0 text-right text-xs tabular-nums">
+            <span
               className={cn(
-                "flex min-h-10 items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors hover:bg-muted/40",
-                focusRing
+                "block font-medium",
+                bot.tradesClosed > 0 && moneyTone(bot.netUsd)
               )}
             >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium hover:underline">
-                  {bot.name}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {bot.strategy}
-                </span>
-              </span>
-              <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-                {bot.marketCount} {bot.marketCount === 1 ? "market" : "markets"}
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </ScrollArea>
+              {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
+            </span>
+            <span className="block text-muted-foreground">
+              {working} working
+            </span>
+          </span>
+        </Link>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="mr-1"
+              aria-label={`Open ${bot.name} bot details`}
+            >
+              <EllipsisVerticalIcon className="size-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 gap-0 p-0">
+            <PopoverHeader className="border-b p-3">
+              <PopoverTitle>{bot.name}</PopoverTitle>
+            </PopoverHeader>
+            <div className="grid gap-3 p-3">
+              <div className="flex flex-col gap-1 text-sm">
+                <BotFigureRow label="Made or lost">
+                  <span
+                    className={cn(
+                      "tabular-nums",
+                      bot.tradesClosed > 0 && moneyTone(bot.netUsd)
+                    )}
+                  >
+                    {bot.tradesClosed > 0 ? formatSignedUsd(bot.netUsd) : "—"}
+                  </span>
+                </BotFigureRow>
+                <BotFigureRow label="Closed trades">
+                  <span className="tabular-nums">{bot.tradesClosed}</span>
+                </BotFigureRow>
+                <BotFigureRow label="Coins working">
+                  <span className="tabular-nums">{working}</span>
+                </BotFigureRow>
+                <BotFigureRow label="Coins held">
+                  <span className="tabular-nums">{bot.holdingCount}</span>
+                </BotFigureRow>
+                <BotFigureRow label="Wallet">{bot.walletLabel}</BotFigureRow>
+                <BotFigureRow label="Money">
+                  {bot.real ? "Real money" : "Practice money"}
+                </BotFigureRow>
+                <BotFigureRow label="Spending cap">
+                  <span className="tabular-nums">{formatUsd(bot.capUsd)}</span>
+                </BotFigureRow>
+                <BotFigureRow label="Switched on">
+                  <span title={formatDateTime(new Date(bot.startedAt))}>
+                    {formatRelativeTime(new Date(bot.startedAt))}
+                  </span>
+                </BotFigureRow>
+              </div>
+            </div>
+            {bot.stopping ? null : (
+              <div className="flex gap-2 border-t p-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => {
+                    setOpen(false)
+                    onPause()
+                  }}
+                >
+                  {bot.paused ? (
+                    <PlayIcon className="size-4" />
+                  ) : (
+                    <PauseIcon className="size-4" />
+                  )}
+                  {bot.paused ? "Resume" : "Pause"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={busy}
+                  onClick={() => {
+                    setOpen(false)
+                    onStop()
+                  }}
+                >
+                  <SquareIcon className="size-4" />
+                  Stop
+                </Button>
+              </div>
+            )}
+          </PopoverContent>
+        </Popover>
+      </div>
+    </li>
+  )
+}
+
+function BotFigureRow({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="min-w-0 truncate text-right font-medium">
+        {children}
+      </span>
+    </div>
   )
 }
 

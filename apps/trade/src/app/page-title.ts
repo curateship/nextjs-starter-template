@@ -1,6 +1,7 @@
 import * as React from "react"
 import { rootRouteId } from "@tanstack/react-router"
 
+import { useTradeSounds } from "@/components/trade/trade-sounds"
 import { resolveAppName, useAppName } from "@/lib/branding"
 import { parseMarketKey } from "@/lib/protocols/contracts"
 
@@ -55,6 +56,7 @@ export function marketTitleFromMatches(
 }
 
 export function useTradePageTitle(page: string) {
+  useTradeSounds()
   const appName = useAppName()
   React.useEffect(() => {
     const title = `${page} · ${appName}`

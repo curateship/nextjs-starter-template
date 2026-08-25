@@ -4,14 +4,14 @@ import type { ProtocolId } from "@/lib/protocols/contracts"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellAutomations } from "@/server/schema"
+import { listFlowRuns } from "@/server/trade/flow-run-report"
 import { tradeFlowRuns } from "@/server/trade/schema"
 
 /**
  * The switched-on bots for one exchange dashboard.
  *
- * The dashboard only needs the saved name, strategy and number of markets.
- * Reading fills, wallets or an exchange to draw these rows would make opening
- * a small tab cost the same as opening the full results dashboard.
+ * The dashboard reads the same stored run figures as the run list. Nothing
+ * asks an exchange, so opening this tab cannot spend a venue's request limit.
  */
 export async function listRunningBots(
   userId: string,
@@ -30,7 +30,7 @@ export async function listRunningBots(
       .where(
         and(
           eq(tradeFlowRuns.userId, userId),
-          eq(tradeFlowRuns.status, "running")
+          inArray(tradeFlowRuns.status, ["running", "stopping"])
         )
       )
       .orderBy(desc(tradeFlowRuns.startedAt))
@@ -38,6 +38,8 @@ export async function listRunningBots(
 
   if (running.length === 0) return []
 
+  const ids = new Set(running.map((run) => run.runId))
+  const specs = new Map(running.map((run) => [run.runId, run.spec]))
   const names = await database
     .select({
       id: customShellAutomations.id,
@@ -56,11 +58,26 @@ export async function listRunningBots(
   const nameOf = new Map(
     names.map((automation) => [automation.id, automation.name])
   )
-
-  return running.map((run) => ({
-    runId: run.runId,
-    name: nameOf.get(run.automationId) ?? "This flow has been deleted",
-    strategy: run.spec.strategy.kind === "dca" ? "DCA ladder" : "Signals",
-    marketCount: run.spec.marketKeys.length,
-  }))
+  return (await listFlowRuns(userId, Date.now(), [...ids]))
+    .filter((run) => ids.has(run.id))
+    .map((run) => {
+      const spec = specs.get(run.id)!
+      return {
+        runId: run.id,
+        automationId: run.automationId,
+        name: nameOf.get(run.automationId) ?? "This flow has been deleted",
+        strategy: spec.strategy.kind === "dca" ? "DCA ladder" : "Signals",
+        marketCount: run.coins,
+        workingCount: run.working,
+        holdingCount: run.holdingCoins,
+        netUsd: run.netUsd,
+        tradesClosed: run.tradesClosed,
+        walletLabel: run.walletLabel,
+        real: run.real,
+        capUsd: run.capUsd,
+        startedAt: run.startedAt,
+        paused: run.paused,
+        stopping: run.status === "stopping",
+      }
+    })
 }
