@@ -186,6 +186,70 @@ describe("what a flow is allowed to start with", () => {
     expect(spec.real).toBe(false)
   })
 
+  it("accepts Aster mainnet markets for an Aster mainnet live wallet", async () => {
+    walletRow = wallet({
+      label: "Aster main",
+      kind: "live",
+      protocol: "aster",
+      network: "mainnet",
+      address: "0x1",
+      hasKey: true,
+    })
+
+    const { spec } = await flowRunSpec(
+      userId,
+      nodes({
+        wallet: {
+          walletLabel: "Aster main",
+          walletKind: "live",
+          walletProtocol: "aster",
+          walletNetwork: "mainnet",
+        },
+        markets: {
+          protocol: "aster",
+          marketKeys: ["aster:mainnet:BTCUSDT"],
+        },
+      })
+    )
+
+    expect(spec).toMatchObject({
+      protocol: "aster",
+      network: "mainnet",
+      marketKeys: ["aster:mainnet:BTCUSDT"],
+      walletLabel: "Aster main",
+      real: true,
+    })
+  })
+
+  it("refuses an Aster testnet market for an Aster mainnet wallet", async () => {
+    walletRow = wallet({
+      label: "Aster main",
+      kind: "live",
+      protocol: "aster",
+      network: "mainnet",
+      address: "0x1",
+      hasKey: true,
+    })
+
+    await expect(
+      flowRunSpec(
+        userId,
+        nodes({
+          wallet: {
+            walletLabel: "Aster main",
+            walletKind: "live",
+            walletProtocol: "aster",
+            walletNetwork: "mainnet",
+          },
+          markets: {
+            protocol: "aster",
+            marketKeys: ["aster:testnet:BTCUSDT"],
+          },
+        })
+      )
+    ).rejects.toThrow("FLOW_WRONG_EXCHANGE")
+  })
+
   it("always measures the ladder from the base, whatever the flow saved", async () => {
     // A flow has nothing to click, so "wherever price happens to be" would buy
     // halfway up a rally with no floor beneath it. Same rule a backtest forces.

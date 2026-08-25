@@ -88,6 +88,33 @@ describe("pushedMarks", () => {
     expect(missing).toEqual(["kucoin:mainnet:XBTUSDTM"])
   })
 
+  it("keeps three exchanges live when Aster goes quiet", () => {
+    hubs.set("hyperliquid", { fresh: true, prices: new Map([["BTC", 64000]]) })
+    hubs.set("phemex", { fresh: true, prices: new Map([["BTCUSDT", 64000]]) })
+    hubs.set("kucoin", {
+      fresh: true,
+      prices: new Map([["XBTUSDTM", 64000]]),
+    })
+    hubs.set("aster", {
+      fresh: false,
+      prices: new Map([["BTCUSDT", 64000]]),
+    })
+
+    const { marks, missing } = pushedMarks([
+      "hyperliquid:mainnet:BTC",
+      "phemex:mainnet:BTCUSDT",
+      "kucoin:mainnet:XBTUSDTM",
+      "aster:mainnet:BTCUSDT",
+    ])
+
+    expect([...marks.keys()]).toEqual([
+      "hyperliquid:mainnet:BTC",
+      "phemex:mainnet:BTCUSDT",
+      "kucoin:mainnet:XBTUSDTM",
+    ])
+    expect(missing).toEqual(["aster:mainnet:BTCUSDT"])
+  })
+
   it("treats an exchange with no line at all as simply missing", () => {
     const { marks, missing } = pushedMarks(["phemex:mainnet:BTCUSDT"])
     expect(marks.size).toBe(0)

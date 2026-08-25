@@ -27,8 +27,8 @@ import {
   lastPass,
   onLadderRestartRequest,
 } from "@/server/trade/ladder-worker"
-import { listProtocols } from "@/server/protocols/registry"
 import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
+import { priceFeedStatus } from "@/server/trade/price-feed-status"
 import { writeHeartbeat } from "@/server/trade/workers"
 
 /** How often the ladders are worked once this copy is the one trading. */
@@ -61,19 +61,6 @@ let stopping = false
  * Workers screen is the difference between a spare and a mistake.
  */
 async function sayAlive(role: "leader" | "standby"): Promise<void> {
-  // One line per exchange that has a pushed-price hub at all, whatever
-  // network it is serving — the heartbeat is about the machinery being up,
-  // and mainnet is where the engine's wallets live.
-  const feed = listProtocols()
-    .filter((protocol) => protocol.livePrices)
-    .map((protocol) => {
-      const hub = protocol.livePrices!
-      const state = hub.fresh("mainnet")
-        ? `live, ${hub.read("mainnet").prices.size} markets`
-        : "asking"
-      return `${protocol.label}: ${state}`
-    })
-    .join(" · ")
   await writeHeartbeat({
     id: WORKER_ID,
     kind: "ladders",
@@ -83,7 +70,8 @@ async function sayAlive(role: "leader" | "standby"): Promise<void> {
       host: `${hostname()} (its own program)`,
       activity: role === "leader" ? lastPass.activity : "Waiting for the lock",
       error: lastPass.error,
-      priceFeed: role === "leader" ? feed : "Not needed while waiting",
+      priceFeed:
+        role === "leader" ? priceFeedStatus() : "Not needed while waiting",
       wallets: lastPass.wallets,
     },
   }).catch((error) => {

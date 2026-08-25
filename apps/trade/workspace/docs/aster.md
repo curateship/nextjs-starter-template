@@ -282,8 +282,9 @@ the app assumes will stay fixed.
   Testnet when that is the wrong side.
 - The worker opens price feeds from the registry, so Aster joins Hyperliquid,
   Phemex and KuCoin without a special engine branch. Its heartbeat is named
-  separately. Blocking one feed is isolated by the existing per-venue error
-  boundary.
+  separately. A feed whose status cannot be read says it is unavailable. The
+  other three feeds remain in the heartbeat and the worker still reports that
+  it is alive.
 - Mainnet operation is the long-running observation. A separate testnet or
   twenty-four-hour certification run does not hold up Aster trading.
 
