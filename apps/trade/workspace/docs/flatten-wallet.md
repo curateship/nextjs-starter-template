@@ -1,8 +1,9 @@
 # Emptying one wallet
 
-Open a wallet card in the Account panel and there are two actions at its foot:
-Edit wallet, and **Empty wallet**. Emptying it calls off everything that wallet
-has waiting and then sells everything it holds.
+Open a wallet from the chart header and press its three-dot button. The details
+window has two actions at its foot: Edit wallet and **Empty wallet**. Emptying
+it calls off everything that wallet has waiting and then sells everything it
+holds.
 
 ## The order is fixed, and it is the whole reason this exists
 

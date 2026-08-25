@@ -54,7 +54,7 @@ Two files outrank the rest, and outrank the code:
   position: what each exchange allows, when taking margin out is refused, and
   why the liquidation figure on the window is an estimate.
 - `wallet-reads.md` — which wallets get asked for figures, how often, and what a
-  failed answer does to the card.
+  failed answer does to the details window.
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.

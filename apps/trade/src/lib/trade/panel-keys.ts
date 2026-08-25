@@ -10,12 +10,10 @@
  * so a key from one can never land on the other.
  */
 export const tradePanelLayoutKey = {
-  /** Markets | chart | account, across the workspace. */
+  /** Markets | chart | smart orders, across the workspace. */
   workspaceHorizontal: "trade-workspace-horizontal",
   /** The chart row above, the positions row below. */
   workspaceVertical: "trade-workspace-vertical",
-  /** The wallets above, and the empty panel under them, in the right column. */
-  accountColumn: "trade-account-column",
   /** A backtest run: settings | chart | summary, across the workspace. */
   backtestHorizontal: "trade-backtest-horizontal",
   /** The backtest workspace above, its coins and trades below. */

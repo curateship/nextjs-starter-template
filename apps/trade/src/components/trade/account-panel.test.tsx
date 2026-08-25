@@ -9,7 +9,10 @@ import {
   ActiveWalletsView,
   AllWalletsView,
   KindBadge,
+  WalletDetailsDialog,
+  WalletManagement,
 } from "@/components/trade/account-panel"
+import type { TradeAccount } from "@/components/trade/use-trade-account"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 
@@ -89,9 +92,9 @@ afterEach(async () => {
 })
 
 function WalletPicker({
-  onOpenWallet = () => {},
+  onOpenWalletDetails = () => {},
 }: {
-  onOpenWallet?: (wallet: TradeWallet) => void
+  onOpenWalletDetails?: (wallet: TradeWallet) => void
 }) {
   const [activeWalletId, setActiveWalletId] = React.useState("main")
   return (
@@ -101,20 +104,7 @@ function WalletPicker({
         summaryOf={(walletId) => summaries.get(walletId) ?? null}
         activeWalletId={activeWalletId}
         onUseWallet={setActiveWalletId}
-        onOpenWallet={onOpenWallet}
-        onFlattenWallet={() => {}}
-        onRetry={() => {}}
-        healthOf={(walletId) =>
-          walletId === "main"
-            ? {
-                marginUsed: 1_100,
-                nearest: {
-                  marketKey: "hyperliquid:mainnet:ETH",
-                  away: 0.12,
-                },
-              }
-            : null
-        }
+        onOpenWalletDetails={onOpenWalletDetails}
       />
     </TooltipProvider>
   )
@@ -135,103 +125,33 @@ describe("the active wallet picker", () => {
     expect(host.textContent).toBe("PracticeTestnet")
     expect(host.textContent).not.toContain("Real")
     expect(host.textContent).not.toContain("Live")
-    expect(host.querySelector(".text-sky-700")).not.toBeNull()
   })
 
-  it("lists every active wallet and switches the wallet in use with one click", async () => {
-    await act(async () => root.render(<WalletPicker />))
+  it("switches wallets from the row and opens details from the three-dot button", async () => {
+    const onOpenWalletDetails = vi.fn()
+    await act(async () =>
+      root.render(<WalletPicker onOpenWalletDetails={onOpenWalletDetails} />)
+    )
 
-    expect(host.textContent).toContain("Main")
-    expect(host.textContent).toContain("Scalper")
-    expect(host.textContent).not.toContain("Hyperliquid")
     const mainRow = host
       .querySelector('[aria-label="Main is the wallet in use"]')
       ?.closest("label")
     expect(mainRow?.textContent).toContain("MainConnected$5,100.00+$75.00")
-    expect(mainRow?.querySelector(".sr-only")?.textContent).toBe("Connected")
-    expect(mainRow?.parentElement?.className).toContain("px-3")
-    expect(mainRow?.parentElement?.className).toContain("min-h-10")
+    expect(mainRow?.parentElement?.className).toContain("min-h-12")
+    expect(mainRow?.parentElement?.className).not.toContain("rounded")
     expect(mainRow?.parentElement?.className).toContain("bg-muted/60")
-    expect(mainRow?.className).toContain("grid-cols-")
     expect(mainRow?.parentElement?.parentElement?.className).not.toContain(
-      "py-2"
+      "px-2"
     )
-    expect(mainRow?.querySelector(".font-mono")?.textContent).toBe("$5,100.00")
-    expect(
-      host.querySelector('[aria-label="Main is the wallet in use"]')
-    ).not.toBeNull()
 
-    const scalperRow = host
-      .querySelector('[aria-label="Trade with Scalper"]')
-      ?.closest("label")
-    expect(scalperRow).not.toBeNull()
-    await act(async () => (scalperRow as HTMLElement | null)?.click())
-
+    await act(async () =>
+      host
+        .querySelector<HTMLElement>('[aria-label="Trade with Scalper"]')
+        ?.click()
+    )
     expect(
       host.querySelector('[aria-label="Scalper is the wallet in use"]')
     ).not.toBeNull()
-    expect(
-      host
-        .querySelector('[aria-label="Scalper is the wallet in use"]')
-        ?.closest("label")?.parentElement?.className
-    ).toContain("bg-muted/60")
-    expect(host.querySelector('[aria-label="Trade with Main"]')).not.toBeNull()
-  })
-
-  it("opens each wallet's figures in its three-dot popover", async () => {
-    await act(async () => root.render(<WalletPicker />))
-
-    expect(host.textContent).not.toContain("$4,000.00")
-    expect(host.textContent).not.toContain("$9,000.00")
-
-    const showScalper = host.querySelector<HTMLElement>(
-      '[aria-label="Open Scalper wallet details"]'
-    )
-    await act(async () => showScalper?.click())
-
-    expect(document.body.textContent).toContain("$9,000.00")
-    expect(document.body.textContent).toContain("Margin used—")
-    expect(document.body.textContent).not.toContain("Wallet details")
-  })
-
-  it("shows every stated key expiry and warns as it gets close", async () => {
-    const expiring = [
-      { ...wallets[0], keyValidUntil: Date.now() + 30 * 86_400_000 },
-      { ...wallets[1], keyValidUntil: null },
-    ]
-    await act(async () =>
-      root.render(
-        <TooltipProvider>
-          <ActiveWalletsView
-            wallets={expiring}
-            summaryOf={(walletId) => summaries.get(walletId) ?? null}
-            activeWalletId="main"
-            onUseWallet={() => {}}
-            onOpenWallet={() => {}}
-            onFlattenWallet={() => {}}
-            onRetry={() => {}}
-            healthOf={() => null}
-          />
-        </TooltipProvider>
-      )
-    )
-
-    await act(async () =>
-      host
-        .querySelector<HTMLElement>('[aria-label="Open Main wallet details"]')
-        ?.click()
-    )
-    expect(document.body.textContent).toContain(
-      "Trading key expires in 30 days."
-    )
-    expect(document.body.textContent).not.toContain("unknown")
-  })
-
-  it("opens wallet settings from the expanded figures", async () => {
-    const onOpenWallet = vi.fn()
-    await act(async () =>
-      root.render(<WalletPicker onOpenWallet={onOpenWallet} />)
-    )
 
     await act(async () =>
       host
@@ -240,30 +160,11 @@ describe("the active wallet picker", () => {
         )
         ?.click()
     )
-    await act(async () =>
-      [...document.body.querySelectorAll<HTMLElement>("button")]
-        .find((button) => button.textContent?.includes("Edit wallet"))
-        ?.click()
-    )
-
-    expect(onOpenWallet).toHaveBeenCalledWith(wallets[1])
+    expect(onOpenWalletDetails).toHaveBeenCalledWith(wallets[1])
+    expect(document.body.textContent).not.toContain("$9,000.00")
   })
 
-  it("leaves figures collapsed when that wallet is selected", async () => {
-    await act(async () => root.render(<WalletPicker />))
-
-    const scalper = host.querySelector<HTMLElement>(
-      '[aria-label="Trade with Scalper"]'
-    )
-    await act(async () => scalper?.click())
-
-    expect(host.textContent).not.toContain("$9,000.00")
-    expect(
-      host.querySelector('[aria-label="Open Scalper wallet details"]')
-    ).not.toBeNull()
-  })
-
-  it("names the Aster position-mode fix without showing position figures", async () => {
+  it("names an exchange refusal in the row", async () => {
     const refusal = new Map(summaries)
     refusal.set("main", {
       walletId: "main",
@@ -280,31 +181,177 @@ describe("the active wallet picker", () => {
             summaryOf={(walletId) => refusal.get(walletId) ?? null}
             activeWalletId="main"
             onUseWallet={() => {}}
-            onOpenWallet={() => {}}
-            onFlattenWallet={() => {}}
-            onRetry={() => {}}
-            healthOf={() => null}
+            onOpenWalletDetails={() => {}}
           />
         </TooltipProvider>
       )
     )
 
     expect(host.textContent).toContain("Two-sided. Change to one-way mode")
+  })
+})
+
+describe("wallet management in the chart header", () => {
+  it("opens the tabs, totals answered wallets, and adds from the footer", async () => {
+    const onAddWallet = vi.fn()
+    const onOpenWalletDetails = vi.fn()
+    const account: TradeAccount = {
+      loading: false,
+      failed: false,
+      wallets,
+      activeWallet: wallets[0],
+      summaryOf: (walletId) => summaries.get(walletId) ?? null,
+      refresh: async () => {},
+      switchWallet: () => {},
+    }
+
     await act(async () =>
-      host
+      root.render(
+        <TooltipProvider>
+          <WalletManagement
+            account={account}
+            cacheScope="person:hyperliquid"
+            detailsOpen={false}
+            onAddWallet={onAddWallet}
+            onOpenWalletDetails={onOpenWalletDetails}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    const trigger = host.querySelector<HTMLElement>(
+      '[aria-label="Manage wallets. Main is in use."]'
+    )
+    expect(trigger?.textContent).toContain("Main$5,100.00+$75.00")
+    await act(async () => trigger?.click())
+
+    expect(document.body.textContent).toContain("ActiveAllInactive")
+    expect(document.body.textContent).toContain("$15,300.00+$275.00")
+    expect(
+      document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')
+        ?.className
+    ).toContain("max-w-sm")
+    expect(
+      document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')
+        ?.className
+    ).toContain("overflow-hidden")
+    await act(async () =>
+      document.body
         .querySelector<HTMLElement>('[aria-label="Open Main wallet details"]')
         ?.click()
     )
-    expect(document.body.textContent).toContain(
-      "Change Position Mode to One-way Mode"
+    expect(onOpenWalletDetails).toHaveBeenCalledWith(wallets[0])
+    expect(
+      document.body.querySelector('[data-slot="popover-content"]')
+    ).not.toBeNull()
+    const add = [...document.body.querySelectorAll<HTMLElement>("button")].find(
+      (button) => button.textContent?.includes("Add wallet")
     )
+    await act(async () => add?.click())
+    expect(onAddWallet).toHaveBeenCalledOnce()
+  })
+})
+
+describe("the wallet details window", () => {
+  it("shows figures and key expiry, then hands off its two actions", async () => {
+    const onClose = vi.fn()
+    const onOpenWallet = vi.fn()
+    const onFlattenWallet = vi.fn()
+    const expiring = {
+      ...wallets[0],
+      keyValidUntil: Date.now() + 30 * 86_400_000,
+    }
+
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <WalletDetailsDialog
+            wallet={expiring}
+            summary={summaries.get("main") ?? null}
+            positions={[]}
+            fallbackMarks={new Map()}
+            onClose={onClose}
+            onOpenWallet={onOpenWallet}
+            onFlattenWallet={onFlattenWallet}
+            onRetry={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    expect(document.body.textContent).toContain(
+      "Trading key expires in 30 days."
+    )
+    expect(document.body.textContent).toContain("Free$4,000.00")
+    expect(document.body.textContent).toContain("Margin used—")
+    expect(document.body.textContent).toContain("Made or lost+$75.00")
+
+    const edit = [
+      ...document.body.querySelectorAll<HTMLElement>("button"),
+    ].find((button) => button.textContent?.includes("Edit wallet"))
+    await act(async () => edit?.click())
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onOpenWallet).toHaveBeenCalledWith(expiring)
+
+    onClose.mockClear()
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <WalletDetailsDialog
+            wallet={expiring}
+            summary={summaries.get("main") ?? null}
+            positions={[]}
+            fallbackMarks={new Map()}
+            onClose={onClose}
+            onOpenWallet={onOpenWallet}
+            onFlattenWallet={onFlattenWallet}
+            onRetry={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+    const empty = [
+      ...document.body.querySelectorAll<HTMLElement>("button"),
+    ].find((button) => button.textContent?.includes("Empty wallet"))
+    await act(async () => empty?.click())
+    expect(onClose).toHaveBeenCalledOnce()
+    expect(onFlattenWallet).toHaveBeenCalledWith(expiring)
+  })
+
+  it("explains an inactive wallet without stale expiry or figures", async () => {
+    const inactive = {
+      ...wallets[0],
+      status: "inactive" as const,
+      keyValidUntil: Date.now() + 30 * 86_400_000,
+    }
+    await act(async () =>
+      root.render(
+        <TooltipProvider>
+          <WalletDetailsDialog
+            wallet={inactive}
+            summary={{ walletId: inactive.id, state: "inactive" }}
+            positions={[]}
+            fallbackMarks={new Map()}
+            onClose={() => {}}
+            onOpenWallet={() => {}}
+            onFlattenWallet={() => {}}
+            onRetry={() => {}}
+          />
+        </TooltipProvider>
+      )
+    )
+
+    expect(document.body.textContent).toContain(
+      "This wallet is not switched on"
+    )
+    expect(document.body.textContent).not.toContain("Trading key expires")
     expect(document.body.textContent).not.toContain("Free")
   })
 })
 
 describe("the other wallet tabs", () => {
-  it("uses the same compact rows in All without an old summary block", async () => {
-    const onOpenWallet = vi.fn()
+  it("uses the same edge-to-edge rows and opens details from the three-dot button", async () => {
+    const onOpenWalletDetails = vi.fn()
     await act(async () =>
       root.render(
         <TooltipProvider>
@@ -312,71 +359,21 @@ describe("the other wallet tabs", () => {
             wallets={wallets}
             summaryOf={(walletId) => summaries.get(walletId) ?? null}
             activeWalletId="main"
-            onOpenWallet={onOpenWallet}
+            onOpenWalletDetails={onOpenWalletDetails}
           />
         </TooltipProvider>
       )
     )
 
-    expect(host.textContent).not.toContain("Total value")
-    const main = host.querySelector<HTMLElement>(
-      '[aria-label="Main — the wallet in use — open wallet settings"]'
+    const details = host.querySelector<HTMLElement>(
+      '[aria-label="Open Scalper wallet details"]'
     )
-    expect(main?.className).toContain("grid-cols-")
-    expect(main?.parentElement?.className).toContain("min-h-10")
-    expect(main?.parentElement?.className).toContain("px-3")
-    expect(main?.parentElement?.className).not.toContain("border-b")
-    expect(main?.firstElementChild?.firstElementChild?.className).toContain(
-      "size-4"
+    expect(details?.parentElement?.className).toContain("min-h-12")
+    expect(details?.parentElement?.className).not.toContain("rounded")
+    expect(details?.parentElement?.parentElement?.className).not.toContain(
+      "px-2"
     )
-    expect(main?.parentElement?.className).not.toContain("py-2")
-    expect(
-      host.querySelector('[aria-label="Open Main wallet settings"]')
-    ).not.toBeNull()
-
-    const scalper = host.querySelector<HTMLElement>(
-      '[aria-label="Scalper — open wallet settings"]'
-    )
-    await act(async () => scalper?.click())
-    expect(onOpenWallet).toHaveBeenCalledWith(wallets[1])
-
-    await act(async () =>
-      host
-        .querySelector<HTMLElement>(
-          '[aria-label="Open Scalper wallet settings"]'
-        )
-        ?.click()
-    )
-    expect(onOpenWallet).toHaveBeenCalledTimes(2)
-  })
-
-  it("uses the same compact rows in Inactive", async () => {
-    const inactiveWallet = { ...wallets[1], status: "inactive" as const }
-    const inactiveSummary: WalletAccountSummary = {
-      walletId: inactiveWallet.id,
-      state: "inactive",
-    }
-    await act(async () =>
-      root.render(
-        <TooltipProvider>
-          <AllWalletsView
-            wallets={[inactiveWallet]}
-            summaryOf={() => inactiveSummary}
-            activeWalletId={null}
-            onOpenWallet={() => {}}
-          />
-        </TooltipProvider>
-      )
-    )
-
-    expect(host.textContent).not.toContain("Total value")
-    const row = host.querySelector<HTMLElement>(
-      '[aria-label="Scalper — open wallet settings"]'
-    )
-    expect(row?.parentElement?.className).toContain("min-h-10")
-    expect(
-      host.querySelector('[aria-label="Open Scalper wallet settings"]')
-    ).not.toBeNull()
-    expect(row?.textContent).toContain("Not switched on")
+    await act(async () => details?.click())
+    expect(onOpenWalletDetails).toHaveBeenCalledWith(wallets[1])
   })
 })

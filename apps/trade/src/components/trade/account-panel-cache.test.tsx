@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { expect, it, vi } from "vitest"
 
-import { AccountPanel } from "@/components/trade/account-panel"
+import { WalletMenuContent } from "@/components/trade/account-panel"
 import type { TradeAccount } from "@/components/trade/use-trade-account"
 import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
 
@@ -47,14 +47,11 @@ it("uses cached wallets only to draw while the real account is loading", async (
 
   await act(async () => {
     root.render(
-      <AccountPanel
+      <WalletMenuContent
         account={account}
-        positions={[]}
-        fallbackMarks={new Map()}
         cacheScope="person:hyperliquid"
         onAddWallet={() => {}}
-        onOpenWallet={() => {}}
-        onFlattenWallet={() => {}}
+        onOpenWalletDetails={() => {}}
       />
     )
   })

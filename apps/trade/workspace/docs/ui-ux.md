@@ -82,55 +82,51 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   small surface the chart offers — the chart never learns what a line means,
   and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
-- **Right, top — Account.** Which account you are trading with.
-  The Active tab lists every wallet that is switched on. Pressing anywhere on
-  a wallet row makes it the wallet used for the next trade. The selection does
-  not open the figures. The checked control names the selected wallet and the
-  row keeps the panel background. Each wallet fits on one line: selection,
-  name, connection dot, total, profit and a vertical three-dot button. The
-  three-dot button opens a small popover beside the row with its figures and
-  wallet actions; it never blocks the rest of the screen. A fresh mainnet wallet
-  does not repeat its exchange, connection state or a Real chip. A failed or old
-  read still says what is wrong beside its dot. All and Inactive use the same
-  row grid, selector size, figures and three-dot placement. Pressing a row or
-  its three-dot button there opens its settings instead of changing the trading
-  wallet. Neither tab adds a separate total block above the rows.
-  The account column keeps the reference panel's 328px width on desktop, so
-  names and figures do not collapse into initials. All and Inactive omit the
-  old wallet-type chip; opening settings still shows the wallet's type.
-  Wallets use the same 40px row height as Smart orders, with no extra space
-  above the first wallet or below the last. The wallet name, total and
+- **Middle header, Wallets.** The wallet control sits after the chart controls.
+  It names the wallet in use and shows its total and made-or-lost figure. On a
+  phone it becomes a wallet icon with a Manage wallets tooltip, so the header
+  does not scroll sideways.
+  Pressing the control opens Active, All and Inactive above the chart. Active
+  lists every wallet that is switched on. Pressing a wallet row makes it the
+  wallet used for the next trade. The checked control names the selected wallet
+  and the row keeps the panel background. Each wallet fits on one line:
+  selection, name, connection dot, total, profit and a vertical three-dot
+  button. A fresh mainnet wallet does not repeat its exchange, connection state
+  or a Real chip. A failed or old read still says what is wrong beside its dot.
+  All and Inactive use the same row grid, selector size, figures and three-dot
+  placement. The total of active wallets that answered and Add wallet sit in
+  the menu footer.
+  Every three-dot button opens the same wallet details window. The window shows
+  the key-expiry notice, Free, In trades, margin health and profit figures. It
+  ends with Empty wallet and Edit wallet. Edit closes the details window before
+  the settings window opens, so two windows never sit on top of each other. The
+  wallet menu stays open behind the details window and is still open when the
+  window closes.
+  The wallet menu is at most 384px wide. Wallet rows are 48px high and run from
+  one menu edge to the other. The wallet name, total and
   profit keep their own columns, so each set of figures ends at the same point.
   A wallet turns light gray under the pointer and keeps that background while
-  selected. The selected background stops at the row. The rows use 12px side
-  gutters and 14px primary labels.
+  selected. The hover and selected backgrounds are square and reach both edges.
+  The menu clips its header, rows and footer to the rounded outer edge.
+  The rows use 12px inside gutters and 14px primary labels.
   Money is monospaced and tabular. Wallet and smart-order profit use the same
-  12px type and end on the same right edge. The add-wallet and row menus are
-  plain icon controls rather than filled buttons.
-- **Right, bottom — Order.** The form. Below the account, because the account is
-  what decides where an order goes and what it is allowed to be — reading down
-  the panel is the same order as making the decision.
-- **Bottom — what you are holding.** Positions, open orders and fills, as tabs.
+  12px type and end on the same right edge.
+- **Right, Smart orders and Bots.** The wallet block no longer takes the top of
+  this column. Smart orders and Bots use the full height.
+- **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
 
 **Every tab row and header icon on the workspace uses the shared 32px style.**
 The tab strip immediately behind the buttons uses the same light gray as the
 market control in the middle panel. The buttons, header and panel keep their
 existing backgrounds. The selected tab uses a small shadow, so it reads as the
 raised shared button shape instead of using a black underline. Icon buttons in
-a panel header, including the account panel's add-wallet +, the Folders panel's +
-and cog, and the narrow-screen markets and account buttons, use the same height.
+a panel header, including the Folders panel's + and cog and the narrow-screen
+Markets and Smart orders buttons, use the same height.
 The tab itself lives on the shared `WorkspacePanelTab` in
 `src/components/shared/workspace-panel-header.tsx`, a shell file changed in
 Custom Shell first and carried here unchanged.
 
-The right side is **two separate panels with a gap between them**.
-The wallet panel sits above the panel for Smart orders and Bots. Choosing
-Active, All or Inactive grows the wallet panel to fit every row in that tab,
-while the lower panel keeps the rest of the column. There is no draggable
-divider between them. The lower panel always keeps at least its own minimum
-height.
-
-The lower panel opens on **Smart orders**. The Smart orders tab keeps the
+The right panel opens on **Smart orders**. The Smart orders tab keeps the
 hand-placed ladders and grids it already showed. The header has only the Smart
 orders and Bots tabs, with no working, holding or running summary beside them.
 The **Bots** tab lists every running bot for the exchange on the page. Each row
@@ -154,7 +150,7 @@ again. A later failure keeps the last answer on screen and says the refresh
 failed. An empty answer says no bot is running on this exchange.
 
 **A smaller window shrinks the chart, never the panels.** The Folders panel,
-the account column and the bottom Positions panel keep the pixel size they
+the Smart orders column and the bottom Positions panel keep the pixel size they
 were dragged to when the window changes size; the chart absorbs the whole
 difference, both across and down. Before this every panel gave up its share,
 and half a window's width left the market list too narrow to read (decided
@@ -819,9 +815,9 @@ at a time on the chart, or mixed in with everything else under Open orders.
 
 Two things the old Trading app had that this does not, on purpose:
 
-- **No bar across the top.** The old one put the market's figures and the
-  account's picker in the same strip, where each could be read as the other's.
-  The market's figures belong to the chart underneath them.
+- **No separate account panel.** The wallet in use belongs beside the chart
+  controls because every order drawn on that chart goes to that wallet. Wallet
+  management opens from the same control without taking chart space.
 - **No order book or trades tape panels.**
 
 ## How the panels behave
@@ -829,8 +825,7 @@ Two things the old Trading app had that this does not, on purpose:
 The same panel parts as the Automation Canvas, not a second system. Anything
 fixed in one is fixed in both.
 
-- Every visible divider drags. The fixed gap between Wallets and Smart orders
-  is not a divider and does not drag.
+- Every visible divider drags.
 - **Left and right shut all the way to nothing.** A slim tab appears on the
   middle panel's edge where each one disappeared, and brings it back.
 - **The bottom never disappears.** It shuts down to its own tab row, which stays
@@ -842,6 +837,9 @@ fixed in one is fixed in both.
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.
 - **Sizes and shut panels survive a reload**, remembered per browser.
+- A saved set of panel sizes returns only while its panel names still match the
+  current screen. When a redesign replaces a panel, the old sizes are ignored
+  and the current layout opens at its defaults instead of stopping the page.
 - **Pressing a tab in the bottom panel grows it to fit that tab's rows.** Six
   waiting buys means all six on screen without touching the divider. The panel
   grows through the same resizable panel the divider drags, so there is one
@@ -916,16 +914,13 @@ Designed with the wide one, not bolted on.
 
 - The middle panel takes the whole width and stays the main thing.
 - Two labelled buttons in the market header slide the side panels in. The
-  markets sheet is the full market list; the account sheet carries its two rows
-  stacked, sharing the height — no divider, because a screen with no room to
-  spare does not need a third way to size the same thing.
-- A sheet closes toward the same edge it opened from. Closing Account keeps the
-  account sheet on the right until it is gone; it never turns into Markets on
+  Markets sheet holds the full market list. The Smart orders sheet holds Smart
+  orders and Bots. Wallet management stays in the chart header on every width.
+- A sheet closes toward the same edge it opened from. Closing Smart orders
+  keeps the sheet on the right until it is gone; it never turns into Markets on
   the left during the closing animation. The panel completes that exit in
   150ms instead of drifting a short distance and then disappearing. Reduced
   motion removes the animation.
-- In the Account sheet, Add wallet stays in the account header but leaves a
-  clear gap for the sheet's close button. The two actions never overlap.
 - The bottom panel stays where it is — it already works at any width.
 - A slid-open sheet closes when the window crosses the width boundary, in
   either direction.
@@ -991,7 +986,7 @@ screen listing money only one of them is safe to act on. Every panel that
 fetches its own contents says which one it means.
 
 **A return visit starts with the last complete answer this browser saw.** The
-wallets and Smart orders panels cache their last answer for each signed-in
+wallet menu and Smart orders panel cache their last answer for each signed-in
 account and exchange, including an empty answer. The cached rows stand in only
 until the first fresh read lands. A different account or exchange never sees
 them. Cached wallets can only draw the panel. They cannot choose where an order
@@ -1000,7 +995,7 @@ written by an older build still uses the reading state below.
 
 - **One treatment, and it is the shared spinner.** `loading-row.tsx` states the
   rule the whole app follows: a compact centred spinner sitting in the
-  surface's own frame, never a skeleton. The wallets panel used to draw five
+  surface's own frame, never a skeleton. The wallet menu used to draw five
   grey bars instead, which on a card of figures read as money arriving.
 - **The waiting words name what is being read** — "Reading your wallets",
   "Reading your smart orders", "Reading what you are holding". Whoever is
@@ -1174,9 +1169,9 @@ working bar streams beside it.
   in front of the press; nothing is said afterwards, real or pretend — see
   "Orders on the chart".
 
-The wallet card on each exchange dashboard shows settled trade profit since
-midnight on the start day, 20 August 2026, in Toronto, and current open
-profit. Its final row is Made or
+The wallet details window on each exchange dashboard shows settled trade
+profit since midnight on the start day, 20 August 2026, in Toronto, and current
+open profit. Its final row is Made or
 lost: those two figures added together. It does not use the wallet's opening
 balance, so older profit, deposits, and withdrawals cannot move either profit
 row. When KuCoin has not stated the profit for a partial sale, an info mark

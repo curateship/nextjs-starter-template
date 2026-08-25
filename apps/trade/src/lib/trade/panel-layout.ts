@@ -27,7 +27,10 @@ import type { GroupImperativeHandle, Layout } from "react-resizable-panels"
  * Spread `groupRef` and `onLayoutChanged` onto the group. No `key`, no
  * `defaultLayout`.
  */
-export function useRememberedPanelLayoutInPlace(key: string) {
+export function useRememberedPanelLayoutInPlace(
+  key: string,
+  panelIds: readonly string[]
+) {
   const handleRef = React.useRef<GroupImperativeHandle | null>(null)
   /** Whether the group on screen right now has been given the saved layout. */
   const appliedRef = React.useRef(false)
@@ -42,10 +45,10 @@ export function useRememberedPanelLayoutInPlace(key: string) {
     (layout: Layout) => {
       if (!appliedRef.current) {
         appliedRef.current = true
-        const saved = readSavedLayout(key)
-        // The library throws on a layout whose panel count does not match,
-        // and applies by position otherwise. A refused layout leaves the
-        // defaults, which is what the shell hook did too.
+        const saved = readSavedLayout(key, panelIds)
+        // A refused layout leaves the defaults. Panel names matter as much as
+        // the count: the resizing library accepts an old three-panel record
+        // with one renamed panel, then crashes when it reads that panel's size.
         if (saved && handleRef.current) {
           try {
             handleRef.current.setLayout(saved)
@@ -61,17 +64,45 @@ export function useRememberedPanelLayoutInPlace(key: string) {
         // Storage may be blocked; resizing still works for this session.
       }
     },
-    [key]
+    [key, panelIds]
   )
 
   return { groupRef, onLayoutChanged }
 }
 
-function readSavedLayout(key: string): Layout | null {
+function readSavedLayout(
+  key: string,
+  panelIds: readonly string[]
+): Layout | null {
   try {
     const saved = localStorage.getItem(key)
-    return saved ? (JSON.parse(saved) as Layout) : null
+    return saved ? matchingPanelLayout(JSON.parse(saved), panelIds) : null
   } catch {
     return null
   }
+}
+
+/** A saved layout only when it names every panel on the current screen. */
+export function matchingPanelLayout(
+  value: unknown,
+  panelIds: readonly string[]
+): Layout | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return null
+  }
+
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).length !== panelIds.length) return null
+
+  const layout: Layout = {}
+  let total = 0
+  for (const panelId of panelIds) {
+    const size = record[panelId]
+    if (typeof size !== "number" || !Number.isFinite(size) || size < 0) {
+      return null
+    }
+    layout[panelId] = size
+    total += size
+  }
+  return total > 0 ? layout : null
 }

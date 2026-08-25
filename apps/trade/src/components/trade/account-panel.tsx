@@ -50,10 +50,7 @@ import { readWalletPanelCache } from "@/lib/trade/dashboard-cache"
 import { formatAway, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
-import {
-  walletMarginHealth,
-  type WalletMarginHealth,
-} from "@/lib/trade/margin-health"
+import { walletMarginHealth } from "@/lib/trade/margin-health"
 import {
   ALARM_SURFACE,
   WARNING_SURFACE,
@@ -151,7 +148,7 @@ function KeyExpiryNotice({ wallet }: { wallet: TradeWallet }) {
 const walletRowGridClassName =
   "grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_5rem_3.75rem] items-center gap-2 self-stretch"
 const walletRowFrameClassName =
-  "flex min-h-10 items-center gap-2 px-3 transition-colors"
+  "flex min-h-12 items-center gap-2 px-3 transition-colors"
 
 function walletRowState(summary: WalletAccountSummary | null) {
   const figures = summary?.state === "ok" ? summary : null
@@ -413,33 +410,263 @@ export function AllWalletsView({
   )
 }
 
-export function AccountPanel({
-  account,
+export function WalletDetailsDialog({
+  wallet,
+  summary,
   positions,
   fallbackMarks,
-  cacheScope,
-  onAddWallet,
+  onClose,
   onOpenWallet,
   onFlattenWallet,
-  onContentHeightChange,
+  onRetry,
 }: {
-  account: ReturnType<typeof useTradeAccount>
+  wallet: TradeWallet | null
+  summary: WalletAccountSummary | null
   positions: readonly TradePosition[]
   fallbackMarks: ReadonlyMap<string, number>
+  onClose: () => void
+  onOpenWallet: (wallet: TradeWallet) => void
+  onFlattenWallet: (wallet: TradeWallet) => void
+  onRetry: () => void
+}) {
+  const walletPositions = wallet
+    ? positions.filter((position) => position.walletId === wallet.id)
+    : []
+  const marks = useLiveMarks(
+    walletPositions.map((position) => position.marketKey)
+  )
+  const marginHealth = wallet
+    ? walletMarginHealth(walletPositions, marks, fallbackMarks, wallet.id)
+    : null
+  if (!wallet) return null
+
+  const state = walletRowState(summary)
+  const { figures, inactive, refusal } = state
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent variant="admin" className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span className="truncate">{wallet.label}</span>
+            <WalletStatusDot state={state} />
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {state.status}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Card size="sm">
+            <CardContent className="grid gap-4">
+              {wallet.status === "active" ? (
+                <KeyExpiryNotice wallet={wallet} />
+              ) : null}
+              {figures ? (
+                <div className="grid gap-2">
+                  <FigureRow label="Free">
+                    <span className="font-mono tabular-nums">
+                      {formatUsd(figures.free)}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="In trades">
+                    <span className="font-mono tabular-nums">
+                      {formatUsd(figures.inTrades)}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="Margin used">
+                    <span className="font-mono tabular-nums">
+                      {marginHealth ? formatUsd(marginHealth.marginUsed) : "—"}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="Nearest position">
+                    <span className="text-right font-mono tabular-nums">
+                      {marginHealth?.nearest
+                        ? `${formatAway(marginHealth.nearest.away)} away on ${marketSymbol(marginHealth.nearest.marketKey)}`
+                        : "—"}
+                    </span>
+                  </FigureRow>
+                  <FigureRow label="Open profit">
+                    <SignedUsd
+                      value={figures.openProfit}
+                      className="font-mono"
+                    />
+                  </FigureRow>
+                  <FigureRow
+                    label={
+                      <span className="flex items-center gap-1">
+                        Settled
+                        {figures.unpricedFills ? (
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                aria-label="About settled profit"
+                                className="text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                <InfoIcon className="size-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-64">
+                              Settled and Made or lost are short of{" "}
+                              {figures.unpricedFills.toLocaleString()}{" "}
+                              {figures.unpricedFills === 1 ? "trade" : "trades"}{" "}
+                              whose profit the exchange has not stated.
+                            </TooltipContent>
+                          </Tooltip>
+                        ) : null}
+                      </span>
+                    }
+                  >
+                    <SignedUsd value={figures.settled} className="font-mono" />
+                  </FigureRow>
+                  <FigureRow label="Made or lost">
+                    <SignedUsd
+                      value={figures.madeOrLost}
+                      className="font-mono"
+                    />
+                  </FigureRow>
+                </div>
+              ) : inactive ? (
+                <p className="text-sm text-muted-foreground">
+                  This wallet is not switched on. Edit the wallet to make it
+                  active again.
+                </p>
+              ) : refusal ? (
+                <p className="text-sm text-muted-foreground">{refusal}</p>
+              ) : (
+                <div className="flex flex-col items-start gap-2 text-sm text-muted-foreground">
+                  <p>
+                    The exchange did not answer for this wallet, so there are no
+                    figures to show. Showing zeros would be making them up.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={onRetry}>
+                    Try again
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </DialogBody>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="destructive"
+            className="mr-auto"
+            onClick={() => {
+              onClose()
+              onFlattenWallet(wallet)
+            }}
+          >
+            <Trash2Icon className="size-4" />
+            Empty wallet
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              onClose()
+              onOpenWallet(wallet)
+            }}
+          >
+            <SettingsIcon className="size-4" />
+            Edit wallet
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type WalletMenuContentProps = {
+  account: ReturnType<typeof useTradeAccount>
   cacheScope: string
   onAddWallet: () => void
-  onOpenWallet: (wallet: TradeWallet) => void
-  /** Ask before emptying a wallet — the workspace owns the question. */
-  onFlattenWallet: (wallet: TradeWallet) => void
-  /** Lets the desktop split follow the rows instead of reserving half a column. */
-  onContentHeightChange?: (height: number) => void
-}) {
-  const root = React.useRef<HTMLDivElement | null>(null)
+  onOpenWalletDetails: (wallet: TradeWallet) => void
+}
+
+type WalletManagementProps = WalletMenuContentProps & {
+  detailsOpen: boolean
+}
+
+export function WalletManagement(props: WalletManagementProps) {
+  const [open, setOpen] = React.useState(false)
+  const { account } = props
+  const activeWallet = account.activeWallet
+  const activeSummary = activeWallet ? account.summaryOf(activeWallet.id) : null
+  const activeState = walletRowState(activeSummary)
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && props.detailsOpen) return
+        setOpen(nextOpen)
+      }}
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              aria-label={
+                activeWallet
+                  ? `Manage wallets. ${activeWallet.label} is in use.`
+                  : "Manage wallets"
+              }
+              className="max-w-72 min-w-0 bg-muted/60 dark:bg-muted/60"
+            >
+              <CreditCardIcon className="size-4" />
+              <span className="max-w-24 truncate max-sm:sr-only">
+                {activeWallet?.label ?? "Wallets"}
+              </span>
+              {activeState.figures ? (
+                <>
+                  <span className="hidden font-mono tabular-nums xl:inline">
+                    {formatUsd(activeState.figures.equity)}
+                  </span>
+                  <SignedUsd
+                    value={activeState.figures.madeOrLost}
+                    className="hidden font-mono xl:inline"
+                  />
+                </>
+              ) : null}
+              <ChevronDownIcon
+                className={cn(
+                  "size-4 text-muted-foreground transition-transform max-sm:hidden",
+                  open && "rotate-180"
+                )}
+              />
+            </Button>
+          </PopoverTrigger>
+        </TooltipTrigger>
+        <TooltipContent>Manage wallets</TooltipContent>
+      </Tooltip>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[calc(100vw-1rem)] max-w-sm gap-0 overflow-hidden p-0"
+      >
+        <WalletMenuContent
+          {...props}
+          onAddWallet={() => {
+            setOpen(false)
+            props.onAddWallet()
+          }}
+          onOpenWalletDetails={props.onOpenWalletDetails}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function WalletMenuContent({
+  account,
+  cacheScope,
+  onAddWallet,
+  onOpenWalletDetails,
+}: WalletMenuContentProps) {
   const [tab, setTab] = React.useState<"active" | "all" | "inactive">("active")
   const { wallets, activeWallet, summaryOf, loading, failed, refresh } = account
-  const marks = useLiveMarks(positions.map((position) => position.marketKey))
-  const healthOf = (walletId: string) =>
-    walletMarginHealth(positions, marks, fallbackMarks, walletId)
   const [cached, setCached] = React.useState(
     () => null as ReturnType<typeof readWalletPanelCache>
   )
@@ -465,63 +692,25 @@ export function AccountPanel({
   const inactiveWallets = shownWallets.filter(
     (wallet) => wallet.status === "inactive"
   )
-
-  useEffectBeforePaint(() => {
-    if (!onContentHeightChange) return
-    let observer: ResizeObserver | null = null
-    // Radix swaps the active tab panel after the parent's layout effect. One
-    // frame later the new viewport exists, still before the browser paints it.
-    const frame = window.requestAnimationFrame(() => {
-      const panel = root.current
-      const viewport = panel?.querySelector<HTMLElement>(
-        '[data-slot="tabs-content"][data-state="active"] [data-slot="scroll-area-viewport"]'
-      )
-      const header = panel?.firstElementChild
-      // Radix's viewport owns one direct content wrapper. Measuring the
-      // viewport itself only returns the old clipped panel height.
-      const content = viewport?.querySelector<HTMLElement>(":scope > div")
-      if (
-        !(header instanceof HTMLElement) ||
-        !(content instanceof HTMLElement)
-      ) {
-        return
-      }
-
-      const report = () =>
-        onContentHeightChange(header.offsetHeight + content.scrollHeight + 2)
-      report()
-      observer = new ResizeObserver(report)
-      observer.observe(header)
-      observer.observe(content)
-    })
-    return () => {
-      window.cancelAnimationFrame(frame)
-      observer?.disconnect()
-    }
-  }, [onContentHeightChange, tab, loading, failed, shownWallets.length])
+  const totals = activeWallets.reduce(
+    (sum, wallet) => {
+      const summary = shownSummaryOf(wallet.id)
+      if (summary?.state !== "ok") return sum
+      sum.wallets += 1
+      sum.equity += summary.equity
+      sum.madeOrLost += summary.madeOrLost
+      return sum
+    },
+    { wallets: 0, equity: 0, madeOrLost: 0 }
+  )
 
   return (
     <Tabs
-      ref={root}
       value={tab}
       onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
-      className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
+      className="min-w-0 gap-0 overflow-hidden bg-popover"
     >
-      {/* The shared tabs header, same as the activity panel's — the add
-          button rides in its `action` slot at the row's right-hand end. */}
-      <WorkspacePanelTabsHeader
-        action={
-          <Button
-            data-slot="account-add-wallet"
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Add a wallet"
-            onClick={onAddWallet}
-          >
-            <PlusIcon className="size-5" />
-          </Button>
-        }
-      >
+      <WorkspacePanelTabsHeader>
         <WorkspacePanelTab
           value="active"
           icon={<CreditCardIcon className="size-4" />}
@@ -540,7 +729,7 @@ export function AccountPanel({
       </WorkspacePanelTabsHeader>
 
       <TabsContent value="active" className="min-h-0 flex-1">
-        <ScrollArea className="h-full">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (
@@ -551,10 +740,7 @@ export function AccountPanel({
               summaryOf={shownSummaryOf}
               activeWalletId={shownActiveWalletId}
               onUseWallet={usingCache ? () => {} : account.switchWallet}
-              onOpenWallet={usingCache ? () => {} : onOpenWallet}
-              onFlattenWallet={usingCache ? () => {} : onFlattenWallet}
-              onRetry={() => void refresh()}
-              healthOf={healthOf}
+              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
             />
           ) : (
             <NoActiveWallets hasWallets={shownWallets.length > 0} />
@@ -563,7 +749,7 @@ export function AccountPanel({
       </TabsContent>
 
       <TabsContent value="inactive" className="min-h-0 flex-1">
-        <ScrollArea className="h-full">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (
@@ -573,7 +759,7 @@ export function AccountPanel({
               wallets={inactiveWallets}
               summaryOf={shownSummaryOf}
               activeWalletId={null}
-              onOpenWallet={usingCache ? () => {} : onOpenWallet}
+              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
             />
           ) : (
             <PanelPlaceholder
@@ -588,7 +774,7 @@ export function AccountPanel({
       </TabsContent>
 
       <TabsContent value="all" className="min-h-0 flex-1">
-        <ScrollArea className="h-full">
+        <ScrollArea className="max-h-80" viewportClassName="max-h-80">
           {loading && !usingCache ? (
             <PanelLoading />
           ) : failed && !usingCache ? (
@@ -598,13 +784,30 @@ export function AccountPanel({
               wallets={shownWallets}
               summaryOf={shownSummaryOf}
               activeWalletId={shownActiveWalletId}
-              onOpenWallet={usingCache ? () => {} : onOpenWallet}
+              onOpenWalletDetails={usingCache ? () => {} : onOpenWalletDetails}
             />
           ) : (
             <NoWalletsYet />
           )}
         </ScrollArea>
       </TabsContent>
+      <div className="flex min-h-14 items-center gap-2 border-t px-3">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="font-mono text-base font-semibold tabular-nums">
+            {totals.wallets > 0 ? formatUsd(totals.equity) : "—"}
+          </span>
+          {totals.wallets > 0 ? (
+            <SignedUsd
+              value={totals.madeOrLost}
+              className="font-mono text-sm"
+            />
+          ) : null}
+        </div>
+        <Button type="button" className="ml-auto" onClick={onAddWallet}>
+          <PlusIcon className="size-4" />
+          Add wallet
+        </Button>
+      </div>
     </Tabs>
   )
 }
@@ -642,8 +845,7 @@ function NoWalletsYet() {
       icon={<CreditCardIcon className="size-4" />}
       title="No wallets yet"
     >
-      Add one with the + above — a practice wallet with pretend cash, or a live
-      exchange account.
+      Add one below. It can use pretend cash or a live exchange account.
     </PanelPlaceholder>
   )
 }

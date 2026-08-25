@@ -2,7 +2,10 @@ import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
-import { AccountPanel } from "@/components/trade/account-panel"
+import {
+  WalletDetailsDialog,
+  WalletManagement,
+} from "@/components/trade/account-panel"
 import { FlattenWalletDialog } from "@/components/trade/flatten-wallet-dialog"
 import {
   allowed,
@@ -100,12 +103,15 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
  */
 const NO_RING = "focus-visible:ring-0"
 
+const HORIZONTAL_PANEL_IDS = ["markets", "chart", "smart-orders"] as const
+const VERTICAL_PANEL_IDS = ["workspace", "activity"] as const
+
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
 
 /** Which narrow-screen side panel the shared sheet belongs to. */
 type SideSheet = {
-  side: "markets" | "account"
+  side: "markets" | "smart-orders"
   open: boolean
 }
 
@@ -206,7 +212,7 @@ export function TradeWorkspace({
   const { user } = authenticatedRoute.useLoaderData()
   const desktop = useWideScreen()
   const [marketsCollapsed, setMarketsCollapsed] = React.useState(false)
-  const [accountCollapsed, setAccountCollapsed] = React.useState(false)
+  const [smartOrdersCollapsed, setSmartOrdersCollapsed] = React.useState(false)
   const [sideSheet, setSideSheet] = React.useState<SideSheet>({
     side: "markets",
     open: false,
@@ -303,8 +309,10 @@ export function TradeWorkspace({
   // What this exchange allows beyond placing an order — read from the server's
   // own table rather than decided here, which the protocol fence forbids.
   const abilities = useProtocolAbilities(protocol)
-  const [walletPanelHeight, setWalletPanelHeight] = React.useState(52.4)
   const [addingWallet, setAddingWallet] = React.useState(false)
+  const [walletDetailsId, setWalletDetailsId] = React.useState<string | null>(
+    null
+  )
   const [editingWalletId, setEditingWalletId] = React.useState<string | null>(
     null
   )
@@ -320,12 +328,10 @@ export function TradeWorkspace({
   // another tab closes its own window instead of editing a ghost.
   const editingWallet =
     account.wallets.find((wallet) => wallet.id === editingWalletId) ?? null
+  const walletDetails =
+    account.wallets.find((wallet) => wallet.id === walletDetailsId) ?? null
   const flattening =
     account.wallets.find((wallet) => wallet.id === flatteningId) ?? null
-
-  const fitWalletRows = React.useCallback((height: number) => {
-    setWalletPanelHeight(height)
-  }, [])
 
   // ----- Trading: one owner for the chart's lines and the panel ------------
   // Practice and real wallets flow through the same hook; it is the wallet a
@@ -339,18 +345,6 @@ export function TradeWorkspace({
         )
       ),
     [catalogs]
-  )
-  const accountPanel = (
-    <AccountPanel
-      account={account}
-      positions={trading.positions}
-      fallbackMarks={fallbackMarks}
-      cacheScope={dashboardCacheScope}
-      onAddWallet={() => setAddingWallet(true)}
-      onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
-      onFlattenWallet={(wallet) => setFlatteningId(wallet.id)}
-      onContentHeightChange={fitWalletRows}
-    />
   )
   const activeSummary = account.activeWallet
     ? account.summaryOf(account.activeWallet.id)
@@ -410,14 +404,16 @@ export function TradeWorkspace({
   )
 
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
-  const accountPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const smartOrdersPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
 
   const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.workspaceHorizontal
+    tradePanelLayoutKey.workspaceHorizontal,
+    HORIZONTAL_PANEL_IDS
   )
   const verticalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.workspaceVertical
+    tradePanelLayoutKey.workspaceVertical,
+    VERTICAL_PANEL_IDS
   )
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
@@ -428,7 +424,7 @@ export function TradeWorkspace({
   )
 
   const toggleMarkets = usePanelToggle(marketsPanelRef)
-  const toggleAccount = usePanelToggle(accountPanelRef)
+  const toggleSmartOrders = usePanelToggle(smartOrdersPanelRef)
   // Double-clicking the bottom panel's blank space shuts it, and this is the
   // one panel where that has to be spelled out rather than handed to
   // `usePanelToggle`.
@@ -452,7 +448,7 @@ export function TradeWorkspace({
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
   const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
-  const accountDoubleClick = useBlankSpaceDoubleClick(toggleAccount)
+  const smartOrdersDoubleClick = useBlankSpaceDoubleClick(toggleSmartOrders)
   const activityDoubleClick = useBlankSpaceDoubleClick(toggleActivity)
 
   // A slid-open panel belongs to the narrow layout, so crossing the width
@@ -627,6 +623,41 @@ export function TradeWorkspace({
     return byKey
   }, [catalogs])
 
+  const walletManagement = (
+    <WalletManagement
+      account={account}
+      cacheScope={dashboardCacheScope}
+      detailsOpen={walletDetails !== null}
+      onAddWallet={() => setAddingWallet(true)}
+      onOpenWalletDetails={(wallet) => setWalletDetailsId(wallet.id)}
+    />
+  )
+
+  const smartOrdersPanel = (
+    <SmartOrdersPanel
+      key={protocol}
+      protocol={protocol}
+      initialBots={initialRunningBots.rows}
+      initialBotsError={initialRunningBots.error}
+      cacheScope={dashboardCacheScope}
+      smartOrders={trading.smartOrders}
+      positions={trading.positions}
+      fills={trading.fills}
+      trades={trading.trades}
+      markets={marketsByKey}
+      wallets={account.wallets}
+      walletName={walletNameOf}
+      selectedMarketKey={selectedKey}
+      // The practice half can finish first. Wait for every wallet before an
+      // empty Smart orders result is allowed to mean nothing is working.
+      settled={trading.settled}
+      failed={trading.failed}
+      onRetry={trading.retry}
+      onResumeSmartOrder={trading.resumeSmartOrder}
+      onSelectMarket={onSelectMarket}
+    />
+  )
+
   const middle = (
     // flex-1 and min-w-0 are load-bearing: this sits in a flex row, and without
     // a width to fill it shrinks to its content.
@@ -641,16 +672,20 @@ export function TradeWorkspace({
         // sense once there is a market to chart. Indicators sit to the right
         // of the timeframe: which candles first, then what to draw on them.
         toolbar={
-          selection.kind === "market" ? (
-            <>
-              <IntervalPicker value={interval} onChange={setInterval} />
-              <IndicatorsMenu
-                indicators={indicators}
-                context={{ zone: chartOptions.options.zone, interval }}
-              />
-              <ChartOptionsMenu control={chartOptions} />
-            </>
-          ) : undefined
+          <>
+            {selection.kind === "market" ? (
+              <>
+                <IntervalPicker value={interval} onChange={setInterval} />
+                <IndicatorsMenu
+                  indicators={indicators}
+                  context={{ zone: chartOptions.options.zone, interval }}
+                />
+                <ChartOptionsMenu control={chartOptions} />
+                <span className="h-5 border-l" aria-hidden />
+              </>
+            ) : null}
+            {walletManagement}
+          </>
         }
         // On a wide screen both panels are already on screen, so the buttons
         // would only be a second way to do what the dividers already do.
@@ -659,10 +694,10 @@ export function TradeWorkspace({
             ? undefined
             : () => setSideSheet({ side: "markets", open: true })
         }
-        onOpenAccount={
+        onOpenSmartOrders={
           desktop
             ? undefined
-            : () => setSideSheet({ side: "account", open: true })
+            : () => setSideSheet({ side: "smart-orders", open: true })
         }
       />
       <div className="relative flex min-h-0 flex-1">
@@ -701,11 +736,11 @@ export function TradeWorkspace({
             onClick={toggleMarkets}
           />
         ) : null}
-        {desktop && accountCollapsed ? (
+        {desktop && smartOrdersCollapsed ? (
           <PanelReopenTab
             side="right"
-            label="Show account"
-            onClick={toggleAccount}
+            label="Show smart orders"
+            onClick={toggleSmartOrders}
           />
         ) : null}
       </div>
@@ -741,10 +776,14 @@ export function TradeWorkspace({
       <ResizablePanel id="chart" defaultSize="58%" minSize="30%">
         {middle}
       </ResizablePanel>
-      <ResizableHandle gap collapsed={accountCollapsed} className={NO_RING} />
+      <ResizableHandle
+        gap
+        collapsed={smartOrdersCollapsed}
+        className={NO_RING}
+      />
       <ResizablePanel
-        id="account"
-        panelRef={accountPanelRef}
+        id="smart-orders"
+        panelRef={smartOrdersPanelRef}
         collapsible
         collapsedSize="0%"
         defaultSize="20.5rem"
@@ -752,50 +791,15 @@ export function TradeWorkspace({
         maxSize="42%"
         // Same rule as the market list: the chart absorbs a window shrink.
         groupResizeBehavior="preserve-pixel-size"
-        onResize={(size) => setAccountCollapsed(size.asPercentage < 0.5)}
+        onResize={(size) => setSmartOrdersCollapsed(size.asPercentage < 0.5)}
       >
-        <div className="flex h-full min-h-0 flex-col gap-[var(--shell-gutter,0.75rem)]">
-          <div
-            className="min-h-[52.4px] shrink-0"
-            style={{ height: walletPanelHeight, maxHeight: "88%" }}
-          >
-            <WorkspacePanel
-              collapsed={accountCollapsed}
-              onDoubleClick={accountDoubleClick}
-            >
-              {accountPanel}
-            </WorkspacePanel>
-          </div>
-          <WorkspacePanel
-            collapsed={accountCollapsed}
-            className="flex min-h-[52.4px] flex-1 flex-col"
-          >
-            <SmartOrdersPanel
-              key={protocol}
-              protocol={protocol}
-              initialBots={initialRunningBots.rows}
-              initialBotsError={initialRunningBots.error}
-              cacheScope={dashboardCacheScope}
-              smartOrders={trading.smartOrders}
-              positions={trading.positions}
-              fills={trading.fills}
-              trades={trading.trades}
-              markets={marketsByKey}
-              wallets={account.wallets}
-              walletName={walletNameOf}
-              selectedMarketKey={selectedKey}
-              // NOT `trading.loading`: that turns false when the practice
-              // half lands on its own, and a screen whose ladders are all on
-              // real wallets would say "none working" until the exchange
-              // answered.
-              settled={trading.settled}
-              failed={trading.failed}
-              onRetry={trading.retry}
-              onResumeSmartOrder={trading.resumeSmartOrder}
-              onSelectMarket={onSelectMarket}
-            />
-          </WorkspacePanel>
-        </div>
+        <WorkspacePanel
+          collapsed={smartOrdersCollapsed}
+          onDoubleClick={smartOrdersDoubleClick}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {smartOrdersPanel}
+        </WorkspacePanel>
       </ResizablePanel>
     </ResizablePanelGroup>
   ) : (
@@ -863,26 +867,23 @@ export function TradeWorkspace({
           }
         >
           <SheetContent
-            side={sideSheet.side === "account" ? "right" : "left"}
+            side={sideSheet.side === "smart-orders" ? "right" : "left"}
             className="duration-150 ease-out motion-reduce:animate-none motion-reduce:transition-none data-closed:ease-in data-[side=left]:data-closed:slide-out-to-left-full data-[side=right]:data-closed:slide-out-to-right-full"
           >
             <SheetHeader className="sr-only">
               <SheetTitle>
-                {sideSheet.side === "account" ? "Account" : "Markets"}
+                {sideSheet.side === "smart-orders" ? "Smart orders" : "Markets"}
               </SheetTitle>
             </SheetHeader>
-            {sideSheet.side === "account" ? (
-              <div className="min-h-0 flex-1 [&_[data-slot=account-add-wallet]]:mr-9">
-                {accountPanel}
-              </div>
+            {sideSheet.side === "smart-orders" ? (
+              <div className="flex min-h-0 flex-1">{smartOrdersPanel}</div>
             ) : (
               <div className="flex min-h-0 flex-1">{marketColumn}</div>
             )}
           </SheetContent>
         </Sheet>
 
-        {/* One instance of each wallet window, owned here beside the one
-          account state, so the sheet and the desktop column share them. */}
+        {/* One instance of each wallet window beside the shared account state. */}
         <AddWalletDialog
           protocol={protocol}
           open={addingWallet}
@@ -905,6 +906,16 @@ export function TradeWorkspace({
             setFlatteningId(null)
           }}
           onDismiss={() => setFlatteningId(null)}
+        />
+        <WalletDetailsDialog
+          wallet={walletDetails}
+          summary={walletDetails ? account.summaryOf(walletDetails.id) : null}
+          positions={trading.positions}
+          fallbackMarks={fallbackMarks}
+          onClose={() => setWalletDetailsId(null)}
+          onOpenWallet={(wallet) => setEditingWalletId(wallet.id)}
+          onFlattenWallet={(wallet) => setFlatteningId(wallet.id)}
+          onRetry={() => void account.refresh()}
         />
         <WalletSettingsDialog
           wallet={editingWallet}

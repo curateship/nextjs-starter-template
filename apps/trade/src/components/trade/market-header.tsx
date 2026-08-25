@@ -1,10 +1,5 @@
 import * as React from "react"
-import {
-  CandlestickChartIcon,
-  InfoIcon,
-  ListIcon,
-  WalletIcon,
-} from "lucide-react"
+import { BotIcon, CandlestickChartIcon, InfoIcon, ListIcon } from "lucide-react"
 
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
@@ -62,7 +57,7 @@ export function MarketHeader({
   onSelectMarket,
   toolbar,
   onOpenMarkets,
-  onOpenAccount,
+  onOpenSmartOrders,
 }: {
   selection: MarketSelection
   markets: MarketRow[]
@@ -73,13 +68,14 @@ export function MarketHeader({
   toolbar?: React.ReactNode
   /**
    * Narrow screens only. The side panels are not on screen there, so the
-   * header is what opens them; passing neither leaves the buttons off.
+   * header opens Markets and Smart orders; passing neither leaves the buttons
+   * off.
    */
   onOpenMarkets?: () => void
-  onOpenAccount?: () => void
+  onOpenSmartOrders?: () => void
 }) {
   const sheetButtons =
-    onOpenMarkets || onOpenAccount ? (
+    onOpenMarkets || onOpenSmartOrders ? (
       <>
         {onOpenMarkets ? (
           <Tooltip>
@@ -98,21 +94,21 @@ export function MarketHeader({
             <TooltipContent>Show markets</TooltipContent>
           </Tooltip>
         ) : null}
-        {onOpenAccount ? (
+        {onOpenSmartOrders ? (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="Show account"
+                aria-label="Show smart orders"
                 className="bg-muted/60 dark:bg-muted/60"
-                onClick={onOpenAccount}
+                onClick={onOpenSmartOrders}
               >
-                <WalletIcon className="size-4" />
+                <BotIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Show account</TooltipContent>
+            <TooltipContent>Show smart orders</TooltipContent>
           </Tooltip>
         ) : null}
       </>
