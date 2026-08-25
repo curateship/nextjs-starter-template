@@ -2,6 +2,7 @@ import { and, desc, eq, inArray } from "drizzle-orm"
 
 import { parseMarketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
+  buildTradingOverviewBots,
   buildTradingOverviewProfit,
   buildTradingOverviewActiveTrades,
   isTradingOverviewWallet,
@@ -20,6 +21,7 @@ import { loadWalletSummaries } from "@/server/trade/wallets"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
 import { pricesEverySale } from "@/server/protocols/registry"
 import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
+import { listLatestFlowRuns } from "@/server/trade/flow-run-report"
 
 /**
  * Everything the trading overview needs. Wallet figures come through the one
@@ -27,9 +29,13 @@ import { loadPaperPortfolio, marksForKeys } from "@/server/trade/paper"
  */
 export async function loadTradingOverview(
   userId: string,
-  includeActiveTrades: boolean
+  includeActiveTrades: boolean,
+  includeBots: boolean
 ): Promise<TradingOverview> {
-  const walletRead = await loadWalletSummaries(userId)
+  const [walletRead, runs] = await Promise.all([
+    loadWalletSummaries(userId),
+    includeBots ? listLatestFlowRuns(userId) : [],
+  ])
   const summaries = new Map(
     walletRead.summaries.map((summary) => [summary.walletId, summary])
   )
@@ -148,6 +154,7 @@ export async function loadTradingOverview(
     fills,
     activeTrades,
     activeTradesUnavailable,
+    bots: buildTradingOverviewBots(runs),
     profit: countedWalletIds.size
       ? buildTradingOverviewProfit(
           countedFills,

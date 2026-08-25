@@ -47,6 +47,7 @@ const overview: TradingOverview = {
   fills: [],
   activeTrades: [],
   activeTradesUnavailable: [],
+  bots: [],
   profit: [],
   missingVenues: [],
   unpricedFills: 0,

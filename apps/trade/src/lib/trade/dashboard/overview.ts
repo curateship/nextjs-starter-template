@@ -57,14 +57,117 @@ export type TradingOverviewActiveTrade = {
   profitShare: number | null
 }
 
+export type TradingOverviewBotState =
+  "running" | "waiting" | "paused" | "stopping" | "stopped"
+
+export type TradingOverviewBot = {
+  automationId: string
+  runId: string
+  name: string
+  state: TradingOverviewBotState
+  statusWords: string | null
+  marketCount: number
+  positionCount: number
+  netUsd: number
+  startedAt: number
+}
+
+type TradingOverviewBotRun = {
+  id: string
+  automationId: string
+  automationName: string
+  status: "running" | "stopping" | "stopped"
+  paused: boolean
+  holding: boolean
+  working: number
+  startedAt: number
+  stoppedReason: string | null
+  headline: { words: string; problem: boolean } | null
+  coins: number
+  holdingCoins: number
+  netUsd: number
+}
+
 export type TradingOverview = {
   wallets: TradingOverviewWallet[]
   fills: TradingOverviewFill[]
   activeTrades: TradingOverviewActiveTrade[]
   activeTradesUnavailable: string[]
+  bots: TradingOverviewBot[]
   profit: TradingOverviewPoint[]
   missingVenues: string[]
   unpricedFills: number
+}
+
+const BOT_STATE_ORDER: Record<TradingOverviewBotState, number> = {
+  running: 0,
+  waiting: 1,
+  paused: 2,
+  stopping: 3,
+  stopped: 4,
+}
+
+/**
+ * Keeps the newest run of each flow. An unexpected stop remains until its run
+ * is deleted or the flow starts again, while a stop somebody asked for leaves
+ * the widget at once.
+ */
+export function buildTradingOverviewBots(
+  runs: readonly TradingOverviewBotRun[]
+): TradingOverviewBot[] {
+  const latest = [...runs].sort(
+    (left, right) => right.startedAt - left.startedAt
+  )
+  const seen = new Set<string>()
+  const bots = latest.flatMap((run): TradingOverviewBot[] => {
+    if (seen.has(run.automationId)) return []
+    seen.add(run.automationId)
+    if (
+      run.status === "stopped" &&
+      run.stoppedReason === "Switched off by hand."
+    ) {
+      return []
+    }
+
+    const state: TradingOverviewBotState =
+      run.status === "stopped"
+        ? "stopped"
+        : run.status === "stopping"
+          ? "stopping"
+          : run.paused
+            ? "paused"
+            : run.holding || (run.headline !== null && run.working === 0)
+              ? "waiting"
+              : "running"
+    const statusWords =
+      state === "stopped"
+        ? (run.stoppedReason ?? "Stopped.")
+        : state === "stopping"
+          ? `${run.working} ${run.working === 1 ? "ladder" : "ladders"} left to call off.`
+          : state === "paused"
+            ? "Looking at nothing."
+            : (run.headline?.words ?? null)
+
+    return [
+      {
+        automationId: run.automationId,
+        runId: run.id,
+        name: run.automationName,
+        state,
+        statusWords,
+        marketCount: run.coins,
+        positionCount: run.holdingCoins,
+        netUsd: run.netUsd,
+        startedAt: run.startedAt,
+      },
+    ]
+  })
+
+  return bots.sort(
+    (left, right) =>
+      BOT_STATE_ORDER[left.state] - BOT_STATE_ORDER[right.state] ||
+      right.startedAt - left.startedAt
+  )
 }
 
 /** Turns the shared position rows into the account-wide open-trades list. */

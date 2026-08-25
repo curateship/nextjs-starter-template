@@ -18,6 +18,12 @@ describe("the trading dashboard layout", () => {
     )
   })
 
+  it("puts running bots beside the trades on a new dashboard", () => {
+    expect(createDefaultTradingDashboardWidgets().left).toEqual([
+      "running-bots",
+    ])
+  })
+
   it("puts the combined PnL Graph first on a new dashboard", () => {
     expect(createDefaultTradingDashboardWidgets().top[0]).toBe("equity")
   })
@@ -31,12 +37,12 @@ describe("the trading dashboard layout", () => {
   it("drops unknown cards and repeats", () => {
     expect(
       normalizeTradingDashboardWidgets({
-        top: ["equity", "gone"],
+        top: ["equity", "running-bots", "gone"],
         left: ["wallets", "equity"],
         right: ["trades"],
       })
     ).toEqual({
-      top: ["equity"],
+      top: ["equity", "running-bots"],
       left: [],
       right: ["trades"],
     })

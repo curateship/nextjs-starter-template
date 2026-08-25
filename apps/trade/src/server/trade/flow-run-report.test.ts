@@ -69,6 +69,7 @@ const OTHER = "hyperliquid:mainnet:SOL"
 let client: PGlite
 let db: CustomShellDb
 let userId: string
+let workspaceId: string
 
 const wallet: TradeWallet = {
   id: "w1",
@@ -91,8 +92,13 @@ vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => wallet,
 }))
 
-const { deleteFlowRuns, listFlowRuns, readFlowRun, readFlowRunCoin } =
-  await import("@/server/trade/flow-run-report")
+const {
+  deleteFlowRuns,
+  listFlowRuns,
+  listLatestFlowRuns,
+  readFlowRun,
+  readFlowRunCoin,
+} = await import("@/server/trade/flow-run-report")
 
 function spec(patch: Partial<TradeFlowRunSpec> = {}): TradeFlowRunSpec {
   return {
@@ -150,12 +156,12 @@ async function roundTrip(input: {
 beforeEach(async () => {
   ;({ client, db } = await createTestDatabase())
   userId = (await insertUser(db)).id
-  const workspace = await insertWorkspace(db)
+  workspaceId = (await insertWorkspace(db)).id
 
   await db.insert(customShellAutomations).values({
     id: "flow-1",
     userId,
-    workspaceId: workspace.id,
+    workspaceId,
     name: "Ladder every coin",
     graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
     compiledConfig: null,
@@ -373,8 +379,10 @@ describe("readFlowRun", () => {
       .where(eq(tradeFlowRuns.id, "run-1"))
 
     const report = await readFlowRun(userId, "run-1", NOW)
+    const rows = await listFlowRuns(userId, NOW)
 
     expect(report?.head.automationName).toBe("This flow has been deleted")
+    expect(rows[0].automationName).toBe("This flow has been deleted")
   })
 })
 
@@ -474,6 +482,120 @@ describe("listFlowRuns", () => {
 
     const rows = await listFlowRuns(userId, NOW + 7_200_000)
     expect(rows[0].working).toBe(1)
+  })
+
+  it("uses the run dashboard's words for a waiting run", async () => {
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "running", stoppedAt: null })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+
+    const rows = await listFlowRuns(userId, NOW + 7_200_000)
+
+    expect(rows[0].headline?.words).toBe(
+      "1 coin is waiting for the right price."
+    )
+  })
+
+  it("credits one open position to the run that opened it", async () => {
+    await db.insert(tradeFlowRuns).values({
+      userId,
+      id: "run-2",
+      walletId: "w1",
+      automationId: "flow-1",
+      status: "stopped",
+      spec: spec(),
+      placed: [BTC],
+      waiting: {},
+      startedAt: new Date(NOW + 10_000),
+      stoppedAt: new Date(NOW + 20_000),
+      updatedAt: new Date(NOW + 20_000),
+    })
+    await db.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: "w1",
+      orderId: "later-open",
+      flowRunId: "run-2",
+      ladderId: "ladder-2",
+      marketKey: BTC,
+    })
+    await db.insert(tradePaperJournal).values([
+      {
+        userId,
+        id: "first-open-fill",
+        walletId: "w1",
+        marketKey: BTC,
+        side: "buy",
+        px: 100,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+        fillTime: new Date(NOW + 1_000),
+        orderId: "flow-open",
+      },
+      {
+        userId,
+        id: "later-open-fill",
+        walletId: "w1",
+        marketKey: BTC,
+        side: "buy",
+        px: 105,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+        fillTime: new Date(NOW + 2_000),
+        orderId: "later-open",
+      },
+    ])
+
+    const rows = await listFlowRuns(userId, NOW + 30_000)
+
+    expect(rows.find((row) => row.id === "run-1")?.holdingCoins).toBe(1)
+    expect(rows.find((row) => row.id === "run-2")?.holdingCoins).toBe(0)
+  })
+
+  it("finds each automation beyond the history page's 200-run cap", async () => {
+    await db.insert(customShellAutomations).values({
+      id: "busy-flow",
+      userId,
+      workspaceId,
+      name: "Busy flow",
+      graph: { nodes: [], edges: [], viewport: { x: 0, y: 0, zoom: 1 } },
+      compiledConfig: null,
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
+    })
+    const repeated = Array.from({ length: 200 }, (_, index) => ({
+      userId,
+      id: `busy-${index}`,
+      walletId: "w1",
+      automationId: "busy-flow",
+      status: "stopped" as const,
+      spec: spec(),
+      placed: [],
+      waiting: {},
+      startedAt: new Date(NOW + (index + 1) * 1_000),
+      stoppedAt: new Date(NOW + (index + 1) * 1_000 + 500),
+      updatedAt: new Date(NOW + (index + 1) * 1_000 + 500),
+    }))
+    for (let start = 0; start < repeated.length; start += 10) {
+      await db.insert(tradeFlowRuns).values(repeated.slice(start, start + 10))
+    }
+
+    expect(
+      (await listFlowRuns(userId, NOW)).some((row) => row.id === "run-1")
+    ).toBe(false)
+    const latest = await listLatestFlowRuns(userId, NOW)
+
+    expect(latest.map((row) => row.automationId).sort()).toEqual([
+      "busy-flow",
+      "flow-1",
+    ])
+    expect(latest.find((row) => row.automationId === "busy-flow")?.id).toBe(
+      "busy-199"
+    )
   })
 
   it("adds up only what each run banked", async () => {

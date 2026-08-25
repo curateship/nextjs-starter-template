@@ -40,6 +40,7 @@ function row(over: Partial<FlowRunListRow>): FlowRunListRow {
     netUsd: 0,
     tradesClosed: 0,
     holdingCoins: 0,
+    headline: null,
     ...over,
   }
 }

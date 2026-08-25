@@ -1254,6 +1254,39 @@ The PnL Graph and Trades cards use the same card, text, divider, and muted
 background rules as the rest of the dashboard. Money values use the dashboard's
 semibold tabular monospace treatment.
 
+Running bots is the fourth trading-overview widget. A new or reset dashboard
+puts it in the left column, beside All trades. A saved arrangement keeps its
+choices and finds Running bots under Settings → Widgets until somebody places
+it.
+
+Running bots uses the same table shape as Active Trades. Its columns are
+Automation, Status, Markets, Positions, and Made or lost. Markets is how many
+markets the automation watches. Positions is how many of those markets still
+hold an open position from the current run. When several runs added to the same
+open position, the run whose earliest recorded order opened it gets the count.
+Later runs do not count the same position again.
+
+Running bots also copies Active Trades' row type. Automation uses the same 12px
+medium text as Market. Status uses the same 12px muted text as Protocol and
+Wallet. Markets and Positions use the same 12px monospaced numbers as Value.
+Made or lost uses the same 12px type and medium-weight dollar figure as P/L.
+
+Each automation gets one row. When an automation has run more than once, its
+newest run supplies the status, counts, money, and dashboard link. Running
+comes first, followed by waiting, paused, stopping, and stopped. Waiting uses
+the same explanation as the run dashboard. Every heading sorts its column. A
+flow that stopped without a person pressing Stop stays in the table until its
+run is deleted or the flow is started again. A flow stopped by hand leaves the
+table. Backtests never enter the widget. The widget chooses the newest run of
+every automation before the history page's 200-run display limit is applied, so
+one frequently restarted automation cannot hide another.
+
+The whole row opens `/flow-runs/$runId`. The table scrolls inside the card when
+there are more rows than its height can hold. An empty card says "No running
+bots" and links to the automation canvases. The rows arrive in the same server
+answer as the other overview widgets, with no timer of their own. A row keeps
+its last banked dollar figure until the overview is read again.
+
 Practice wallets never enter a number on this screen. If one real wallet cannot
 be read, the rest of the screen stays up, the missing exchange is named, and
 every affected total says it is short. A failed read is never drawn as an empty

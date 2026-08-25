@@ -1,4 +1,5 @@
 import {
+  BotIcon,
   ChartNoAxesCombinedIcon,
   ListChecksIcon,
   ListIcon,
@@ -10,7 +11,8 @@ export const TRADING_DASHBOARD_WIDGET_SLOTS = ["top", "left", "right"] as const
 export type TradingDashboardWidgetSlot =
   (typeof TRADING_DASHBOARD_WIDGET_SLOTS)[number]
 
-export type TradingDashboardWidgetId = "equity" | "active-trades" | "trades"
+export type TradingDashboardWidgetId =
+  "equity" | "active-trades" | "running-bots" | "trades"
 
 export type TradingDashboardWidgetLayout = Record<
   TradingDashboardWidgetSlot,
@@ -44,6 +46,15 @@ const TRADING_DASHBOARD_WIDGETS: TradingDashboardWidget[] = [
     minSize: "28%",
   },
   {
+    id: "running-bots",
+    label: "Running bots",
+    description:
+      "Every live or practice flow still working or needing attention.",
+    icon: BotIcon,
+    size: 10,
+    minSize: "28%",
+  },
+  {
     id: "trades",
     label: "All trades",
     description: "Every recorded real fill, newest first, with its exchange.",
@@ -66,7 +77,7 @@ export function findTradingDashboardWidget(
 export function createDefaultTradingDashboardWidgets(): TradingDashboardWidgetLayout {
   return {
     top: ["equity", "active-trades"],
-    left: [],
+    left: ["running-bots"],
     right: ["trades"],
   }
 }

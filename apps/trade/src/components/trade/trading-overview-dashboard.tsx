@@ -15,6 +15,7 @@ import {
 import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
+import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,6 +78,7 @@ export function TradingOverviewDashboard({
           id,
           size: widget.size,
           minSize: widget.minSize,
+          stackedClassName: id === "running-bots" ? "h-72" : undefined,
           render: (className: string) => renderWidget(id, overview, className),
         },
       ]
@@ -99,7 +101,9 @@ export function TradingOverviewDashboard({
               ? "min-h-[38rem] shrink-0 lg:h-[38rem]"
               : id === "active-trades"
                 ? "shrink-0 max-h-[34rem]"
-                : "shrink-0 max-h-72"
+                : id === "running-bots"
+                  ? "h-72 shrink-0"
+                  : "shrink-0 max-h-72"
           )}
         </React.Fragment>
       ))}
@@ -120,6 +124,8 @@ function renderWidget(
       return <PnlGraphWidget overview={overview} className={className} />
     case "active-trades":
       return <ActiveTradesWidget overview={overview} className={className} />
+    case "running-bots":
+      return <RunningBotsWidget bots={overview.bots} className={className} />
     case "trades":
       return <TradesTable overview={overview} className={className} />
   }

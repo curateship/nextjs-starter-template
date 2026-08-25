@@ -54,6 +54,7 @@ describe("trading dashboard widget settings", () => {
 
     expect(host.textContent).toContain("PnL Graph")
     expect(host.textContent).toContain("Active Trades")
+    expect(host.textContent).toContain("Running bots")
     expect(host.textContent).not.toContain("Loading widgets")
     expect(loadTradingOverviewLayout).not.toHaveBeenCalled()
   })

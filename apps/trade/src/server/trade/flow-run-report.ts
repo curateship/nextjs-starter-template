@@ -11,6 +11,7 @@ import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import {
   openPositionIsRunning,
   splitRunTrades,
+  tradeRunId,
   tradesByRun,
   type FlowRunOrderOwners,
 } from "@/lib/trade/flow-run/attribution"
@@ -147,6 +148,8 @@ export type FlowRunListRow = FlowRunHead & {
   tradesClosed: number
   /** Coins this run is still holding a position on. */
   holdingCoins: number
+  /** The same short explanation shown at the top of the run dashboard. */
+  headline: { words: string; problem: boolean } | null
 }
 
 export type FlowRunReport = {
@@ -312,6 +315,35 @@ function headOf(
   }
 }
 
+function runWaiting(row: typeof tradeFlowRuns.$inferSelect): FlowWaiting[] {
+  return Object.entries(row.waiting)
+    .filter(
+      ([marketKey, reason]) =>
+        row.spec.marketKeys.includes(marketKey) &&
+        !flowWaitIsRetired(reason.code)
+    )
+    .map(([marketKey, reason]) => describeFlowWait(marketKey, reason))
+}
+
+function runHeadline(
+  row: typeof tradeFlowRuns.$inferSelect,
+  waiting: FlowWaiting[],
+  working: number,
+  now: number
+): { words: string; problem: boolean } | null {
+  const holding =
+    row.pausedAt === null &&
+    row.hold !== null &&
+    row.hold.strikes >= STRIKES_BEFORE_HOLD
+  const headline = flowHeadline(
+    waiting,
+    working,
+    holding ? row.hold : null,
+    now
+  )
+  return headline ? { words: headline.words, problem: headline.problem } : null
+}
+
 /** One wallet's finished trades and open fills, from rows already written. */
 async function historyOf(
   userId: string,
@@ -415,10 +447,13 @@ export async function listFlowRuns(
     await Promise.all(
       rows
         .filter((row) => row.status === "stopping")
-        .map(async (row) => [
-          row.id,
-          (await flowStopCounts(userId, row.automationId, db)).remaining,
-        ] as const)
+        .map(
+          async (row) =>
+            [
+              row.id,
+              (await flowStopCounts(userId, row.automationId, db)).remaining,
+            ] as const
+        )
     )
   )
 
@@ -426,31 +461,65 @@ export async function listFlowRuns(
   // one pass per run: this reads every five seconds while anything is running,
   // against a database a long way off.
   const { byRun } = tradesByRun(history.trades, owners)
-  const heldByRun = new Map<string, Set<string>>()
+  const openFillsByPosition = new Map<string, LiveFill[]>()
   for (const fill of history.fills) {
-    const runId = owners.get(fill.orderId)
+    const key = JSON.stringify([fill.walletId, fill.marketKey])
+    const fills = openFillsByPosition.get(key)
+    if (fills) fills.push(fill)
+    else openFillsByPosition.set(key, [fill])
+  }
+  const heldByRun = new Map<string, Set<string>>()
+  for (const fills of openFillsByPosition.values()) {
+    fills.sort((left, right) => left.at - right.at)
+    const runId = tradeRunId({ fills }, owners)
     if (!runId) continue
     const coins = heldByRun.get(runId) ?? new Set<string>()
-    coins.add(fill.marketKey)
+    coins.add(fills[0].marketKey)
     heldByRun.set(runId, coins)
   }
 
   return rows.map((row) => {
     const wallet = wallets.find((one) => one.id === row.walletId) ?? null
     const mine = byRun.get(row.id) ?? []
+    const working = stoppingCounts.get(row.id) ?? workingCount(row)
+    const waiting = runWaiting(row)
     return {
       ...headOf(
         row,
         wallet,
-        nameOf.get(row.automationId) ?? row.spec.walletLabel,
-        stoppingCounts.get(row.id) ?? workingCount(row),
+        nameOf.get(row.automationId) ?? "This flow has been deleted",
+        working,
         now
       ),
       netUsd: mine.reduce((sum, trade) => sum + trade.pnl, 0),
       tradesClosed: mine.length,
       holdingCoins: heldByRun.get(row.id)?.size ?? 0,
+      headline: runHeadline(row, waiting, working, now),
     }
   })
+}
+
+/** The newest run of every automation, without the history page's 200-row cap. */
+export async function listLatestFlowRuns(
+  userId: string,
+  now: number = Date.now()
+): Promise<FlowRunListRow[]> {
+  const latest = await db
+    .selectDistinctOn([tradeFlowRuns.automationId], {
+      id: tradeFlowRuns.id,
+    })
+    .from(tradeFlowRuns)
+    .where(eq(tradeFlowRuns.userId, userId))
+    .orderBy(
+      tradeFlowRuns.automationId,
+      desc(tradeFlowRuns.startedAt),
+      desc(tradeFlowRuns.id)
+    )
+  return listFlowRuns(
+    userId,
+    now,
+    latest.map((run) => run.id)
+  )
 }
 
 /** One run in full — what the dashboard draws. */
@@ -579,24 +648,8 @@ export async function readFlowRun(
     feesUsd: trade.fills.reduce((sum, fill) => sum + fill.fee, 0),
   }))
 
-  const waiting = Object.entries(row.waiting)
-    .filter(
-      ([marketKey, reason]) =>
-        row.spec.marketKeys.includes(marketKey) &&
-        // An answer to a rule that no longer exists is not a reason to wait.
-        !flowWaitIsRetired(reason.code)
-    )
-    .map(([marketKey, reason]) => describeFlowWait(marketKey, reason))
-  const holding =
-    row.pausedAt === null &&
-    row.hold !== null &&
-    row.hold.strikes >= STRIKES_BEFORE_HOLD
-  const headline = flowHeadline(
-    waiting,
-    workingCoins.size,
-    holding ? row.hold : null,
-    now
-  )
+  const waiting = runWaiting(row)
+  const headline = runHeadline(row, waiting, workingCoins.size, now)
 
   const netByCoin = new Map<string, { net: number; trades: number }>()
   for (const trade of trades) {
@@ -637,9 +690,7 @@ export async function readFlowRun(
     spec: row.spec,
     coins,
     waiting,
-    headline: headline
-      ? { words: headline.words, problem: headline.problem }
-      : null,
+    headline,
     positions,
     trades,
     notMine,

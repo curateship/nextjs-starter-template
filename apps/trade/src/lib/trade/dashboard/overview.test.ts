@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  buildTradingOverviewBots,
   buildTradingOverviewProfit,
   buildTradingOverviewActiveTrades,
   isTradingOverviewWallet,
@@ -12,6 +13,112 @@ import {
   walletProfitWindowLabel,
   walletProfitWindowStart,
 } from "../wallets"
+
+function botRun(
+  over: Partial<Parameters<typeof buildTradingOverviewBots>[0][number]>
+): Parameters<typeof buildTradingOverviewBots>[0][number] {
+  return {
+    id: "run-1",
+    automationId: "flow-1",
+    automationName: "Buy the dip",
+    status: "running",
+    paused: false,
+    holding: false,
+    working: 2,
+    startedAt: 100,
+    stoppedReason: null,
+    headline: null,
+    coins: 12,
+    holdingCoins: 3,
+    netUsd: 12.5,
+    ...over,
+  }
+}
+
+describe("running bots on the trading overview", () => {
+  it("orders running, waiting, paused and unexpected stops", () => {
+    const bots = buildTradingOverviewBots([
+      botRun({
+        id: "stopped",
+        automationId: "stopped-flow",
+        automationName: "Needs attention",
+        status: "stopped",
+        stoppedReason: "The wallet was deleted.",
+        startedAt: 400,
+      }),
+      botRun({
+        id: "paused",
+        automationId: "paused-flow",
+        automationName: "Paused bot",
+        paused: true,
+        startedAt: 300,
+      }),
+      botRun({
+        id: "waiting",
+        automationId: "waiting-flow",
+        automationName: "Waiting bot",
+        holding: true,
+        working: 0,
+        headline: {
+          words: "BTC — not enough free cash to place the whole ladder.",
+          problem: true,
+        },
+        startedAt: 200,
+      }),
+      botRun({ id: "running", startedAt: 100 }),
+    ])
+
+    expect(bots.map((bot) => bot.state)).toEqual([
+      "running",
+      "waiting",
+      "paused",
+      "stopped",
+    ])
+    expect(bots[1].statusWords).toBe(
+      "BTC — not enough free cash to place the whole ladder."
+    )
+    expect(bots[3].statusWords).toBe("The wallet was deleted.")
+  })
+
+  it("keeps an unexpected stop until deletion or restart", () => {
+    const stopped = botRun({
+      id: "old-stop",
+      status: "stopped",
+      stoppedReason: "The wallet was deleted.",
+      startedAt: 100,
+    })
+
+    expect(buildTradingOverviewBots([stopped])).toHaveLength(1)
+    expect(
+      buildTradingOverviewBots([
+        stopped,
+        botRun({
+          id: "new-run",
+          startedAt: 200,
+          coins: 7,
+          holdingCoins: 2,
+          netUsd: 31,
+        }),
+      ])
+    ).toEqual([
+      expect.objectContaining({
+        automationId: "flow-1",
+        runId: "new-run",
+        marketCount: 7,
+        positionCount: 2,
+        netUsd: 31,
+      }),
+    ])
+    expect(
+      buildTradingOverviewBots([
+        botRun({
+          ...stopped,
+          stoppedReason: "Switched off by hand.",
+        }),
+      ])
+    ).toEqual([])
+  })
+})
 
 describe("trading overview money", () => {
   it("combines open trades from every wallet", () => {

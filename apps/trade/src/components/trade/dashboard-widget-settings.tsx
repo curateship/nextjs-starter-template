@@ -304,7 +304,7 @@ function WidgetEditor({
         open={resetOpen}
         onOpenChange={setResetOpen}
         title="Reset the trading dashboard?"
-        description="PnL Graph and Active Trades return to the top, and All trades returns to the right. The platform Overview is not changed. This cannot be undone."
+        description="PnL Graph and Active Trades return to the top, Running bots returns to the left, and All trades returns to the right. The platform Overview is not changed. This cannot be undone."
         confirmLabel="Reset dashboard"
         onConfirm={() => {
           setResetOpen(false)
