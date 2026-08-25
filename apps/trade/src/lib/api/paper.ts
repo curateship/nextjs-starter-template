@@ -363,6 +363,16 @@ const paperErrorMessage = createErrorMessage(
     PAPER_SIZE: "That size is too small to be an order.",
     SMART_LADDER_EXISTS:
       "This market already has a ladder, grid or watched price in that wallet. There can only be one of them per market — cancel it before setting another.",
+    SMART_PAIR_LIVE_ONLY:
+      "A grid and a ladder can share a coin on a live wallet only — a practice wallet can hold one stop per position and cannot play the handoff honestly.",
+    SMART_PAIR_PROTOCOL:
+      "This exchange cannot hold the grid's own part-size stop beside the ladder's, so the pairing is refused here. It works on Hyperliquid, Aster and KuCoin.",
+    SMART_PAIR_GRID_STOP_REQUIRED:
+      "To share a coin with a ladder the grid needs a stop — the stop is what hands the coin over to the ladder on the way down.",
+    SMART_PAIR_GRID_STOP_BASE:
+      "A stop riding the 4h base can move down later, below where the ladder starts buying. Give the grid a plain percent or fixed stop to pair it with a ladder.",
+    SMART_PAIR_STOP_BELOW_BASE:
+      "The grid's stop must sit above the price where the ladder starts buying — that ordering is what makes the pairing safe, so it is refused, not warned about.",
     PAPER_LEVERAGE: "That is more leverage than this market allows.",
     PAPER_MARGIN:
       "There is not enough free cash for that. Use a smaller size, more leverage, or close something first.",

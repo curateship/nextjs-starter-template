@@ -809,8 +809,9 @@ export async function setAsterBrackets(
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
+    slSz: number | null
   }
-): Promise<void> {
+): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
   const oldIds = [...new Set(params.position.protectionOrderIds)]
   const long = params.position.szi > 0
@@ -820,18 +821,24 @@ export async function setAsterBrackets(
       ? [
           {
             label: `stop at ${params.slPx}`,
+            sl: true,
+            // A null size is `closePosition`, which sells whatever is held
+            // when it fires — the whole-position stop. A number is a fixed
+            // `quantity` with `reduceOnly`, the same shape a sized target
+            // already uses, so it sells that many coins and no more.
             order: protectionParams({
               marketId: params.marketId,
               long,
               kind: "stop" as const,
               triggerPx: params.slPx,
-              size: null,
+              size: params.slSz,
             }),
           },
         ]
       : []),
     ...params.targets.map((target) => ({
       label: `target at ${target.px}`,
+      sl: false,
       order: protectionParams({
         marketId: params.marketId,
         long,
@@ -843,9 +850,11 @@ export async function setAsterBrackets(
   ]
 
   const landed: string[] = []
+  let slOrderId: string | null = null
   for (const leg of legs) {
     try {
-      await placeRaw(network, orderAuth, leg.order)
+      const placed = await placeRaw(network, orderAuth, leg.order)
+      if (leg.sl) slOrderId = String(placed.orderId)
       landed.push(leg.label)
     } catch (error) {
       throw new Error(
@@ -884,6 +893,7 @@ export async function setAsterBrackets(
       )
     }
   }
+  return { slOrderId }
 }
 
 export async function fetchAsterOrderFills(

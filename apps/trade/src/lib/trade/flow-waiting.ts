@@ -132,6 +132,11 @@ const JUST_WAITING: Record<string, string> = {
   SMART_LADDER_UNDER_BASE: "Price has already fallen through the base",
   SMART_LADDER_ABOVE_MARKET: "Price is below every rung, so there is nothing to wait for",
   SMART_LADDER_EXISTS: "Already has a ladder working",
+  SMART_PAIR_LIVE_ONLY: "A grid holds this coin, and only a live wallet can pair with one",
+  SMART_PAIR_PROTOCOL: "A grid holds this coin, and this exchange cannot pair with one",
+  SMART_PAIR_GRID_STOP_REQUIRED: "A grid without a stop holds this coin",
+  SMART_PAIR_GRID_STOP_BASE: "A grid with a base-riding stop holds this coin",
+  SMART_PAIR_STOP_BELOW_BASE: "The grid's stop sits below where this ladder would start",
   // The signals flow's own. All three are the strategy working, and all three
   // are about ONE coin — so none of them count towards the back-off, for the
   // same reason "no base yet" does not.

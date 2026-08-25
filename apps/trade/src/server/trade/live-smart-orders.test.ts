@@ -281,7 +281,7 @@ beforeEach(async () => {
   portfolio.mockResolvedValue({ positions: [], orders: [] })
   fills.mockResolvedValue([])
   cancel.mockResolvedValue(undefined)
-  setBrackets.mockResolvedValue(undefined)
+  setBrackets.mockResolvedValue({ slOrderId: null })
 
   userId = (await insertUser(database)).id
   await database.insert(tradeWallets).values({
@@ -1012,6 +1012,7 @@ describe("dragging a live grid's stop", () => {
       baseDetection: defaultGridParams().baseDetection,
       baseWatch: null,
       aimedSlPx: null,
+      pairedStop: null,
       seenFillsTo: 0,
       cycles: 0,
       follow: false,
@@ -1073,7 +1074,15 @@ describe("dragging a live grid's stop", () => {
   it("still writes the stop to the exchange when coins are held", async () => {
     await restingGrid()
     portfolio.mockResolvedValue({
-      positions: [{ marketId: "BTC", szi: 1, entryPx: 85, leverage: 1 }],
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 85,
+          leverage: 1,
+          protectionOrderIds: [],
+        },
+      ],
       orders: [],
     })
 

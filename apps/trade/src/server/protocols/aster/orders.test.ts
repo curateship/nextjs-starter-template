@@ -637,6 +637,7 @@ describe("Aster orders", () => {
       position: { szi: 2, protectionOrderIds: [] },
       targets: [{ px: 120, sz: 0.5 }],
       slPx: null,
+      slSz: null,
     })
     const partial = sent.find(
       (one) => one.url.searchParams.get("type") === "TAKE_PROFIT_MARKET"

@@ -1297,6 +1297,12 @@ export function ChartPanel({
           free={free}
           interval={interval}
           busy={trading.busy}
+          pairedWithGrid={trading.smartOrders.some(
+            (one) =>
+              one.kind === "grid" &&
+              one.marketKey === market.key &&
+              one.status === "active"
+          )}
           onPreview={setPreview}
           onClose={() => setSmart(null)}
           onPlace={(input) =>
@@ -1314,6 +1320,12 @@ export function ChartPanel({
           free={free}
           takerFeeRate={TAKER_FEE_RATE}
           busy={trading.busy}
+          pairedWithLadder={trading.smartOrders.some(
+            (one) =>
+              one.kind === "dca" &&
+              one.marketKey === market.key &&
+              one.status === "active"
+          )}
           onPreview={setGridPreview}
           onClose={() => setGrid(null)}
           onPlace={(input) =>

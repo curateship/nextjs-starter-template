@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, count, eq, inArray, max, ne, sql } from "drizzle-orm"
+import { and, count, eq, inArray, max, sql } from "drizzle-orm"
 
 import { parseMarketKey, type CandleInterval } from "@/lib/protocols/contracts"
 import {
@@ -31,11 +31,12 @@ import {
   orderDollars,
 } from "@/lib/trade/market-info"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db, type CustomShellDb } from "@/server/db"
+import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
 import { resumeSmartOrderPlan } from "@/server/trade/smart-order-pause"
+import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
 import {
   assertFlowRunAcceptingPlacements,
   flowLadderOrderIds,
@@ -395,10 +396,13 @@ export async function placeDcaLadder(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("PAPER_MARKET")
 
-  // Any kind, not just another ladder: a grid on this coin would fight this
-  // ladder over the one position's stop.
-  const existing = await activeSmartOrderId(userId, wallet.id, input.marketKey)
-  if (existing) throw new Error("SMART_LADDER_EXISTS")
+  // Any kind, not just another ladder — with one exception. A live grid
+  // holding a fixed-size stop above this ladder's first buy may share the
+  // coin; everything else would fight this ladder over the one position's
+  // stop, and a practice wallet cannot hold the grid's second stop at all.
+  await assertSmartOrderPlacable(userId, wallet, input.marketKey, {
+    kind: "dca",
+  })
 
   const protocol = getProtocol(wallet.protocol)
   const roundPx = (px: number) =>
@@ -474,15 +478,15 @@ export async function placeDcaLadder(
 
     await assertFlowRunAcceptingPlacements(tx, userId, input.flowRunId)
 
-    // Re-checked under the lock: two tabs placing at once must not both win,
-    // and neither may a ladder and a grid.
-    const race = await activeSmartOrderId(
+    // Re-checked under the lock: two tabs placing at once must not both win.
+    // This is also where the pairing rules finally see the drawn rungs.
+    await assertSmartOrderPlacable(
       userId,
-      wallet.id,
+      wallet,
       input.marketKey,
+      { kind: "dca", plan },
       tx
     )
-    if (race) throw new Error("SMART_LADDER_EXISTS")
 
     await saveBook(tx, userId, book, new Date(now))
 
@@ -563,44 +567,6 @@ export type LadderRowRecord = {
   marketKey: string
   status: "active" | "done"
   plan: LadderPlan
-}
-
-/**
- * Is there ALREADY a smart order working on this coin in this wallet, of any
- * kind? Its id, or null.
- *
- * This is the exclusivity check both placement paths make, and it deliberately
- * does not parse the plan. There is one position per coin per wallet and every
- * kind of smart order writes its stop, so two of them would fight — and a check
- * that parsed the plan would answer "no" for the kind it did not recognise and
- * let exactly that happen.
- */
-export async function activeSmartOrderId(
-  userId: string,
-  walletId: string,
-  marketKey: string,
-  tx: CustomShellDb = db
-): Promise<string | null> {
-  const rows = await tx
-    .select({ id: tradeSmartLadders.id })
-    .from(tradeSmartLadders)
-    .where(
-      and(
-        eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.walletId, walletId),
-        eq(tradeSmartLadders.marketKey, marketKey),
-        eq(tradeSmartLadders.status, "active"),
-        // A watched price is a plain order that shares this table, not a
-        // strategy. The one-per-coin rule exists so two strategies cannot
-        // both manage the same position — a plain order manages nothing, so
-        // it neither blocks a ladder nor is blocked by one. Before plain
-        // orders became watches, they rested on the book and this rule never
-        // saw them; becoming a row here must not change what they may do.
-        ne(tradeSmartLadders.kind, "watch")
-      )
-    )
-    .limit(1)
-  return rows[0]?.id ?? null
 }
 
 export async function activeLadder(

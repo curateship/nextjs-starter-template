@@ -771,8 +771,9 @@ export async function setKucoinBrackets(
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
+    slSz: number | null
   }
-): Promise<void> {
+): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
   const credential = auth(orderAuth)
   const { lot, priceTick } = await kucoinMarketRules(network, params.marketId)
@@ -786,11 +787,17 @@ export async function setKucoinBrackets(
     if (lots !== null && !(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
     return { ...target, lots }
   })
+  // Null lots is `closeOrder` — closes whatever is held when it fires. A
+  // number is a fixed lot count with `reduceOnly`, the same shape a sized
+  // target already uses, so the stop sells that many coins and no more.
+  const slLots = params.slSz === null ? null : lotsOf(params.slSz, lot)
+  if (slLots !== null && !(slLots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
 
   const landed: string[] = []
+  let slOrderId: string | null = null
   try {
     if (params.slPx !== null) {
-      await sendOrder(
+      const placed = await sendOrder(
         network,
         credential,
         protectionBody({
@@ -799,9 +806,10 @@ export async function setKucoinBrackets(
           leg: "stop",
           triggerPx: params.slPx,
           tick: priceTick,
-          lots: null,
+          lots: slLots,
         })
       )
+      slOrderId = placed.orderId
       landed.push(`stop at ${params.slPx}`)
     }
     for (const target of targets) {
@@ -854,6 +862,7 @@ export async function setKucoinBrackets(
       )
     }
   }
+  return { slOrderId }
 }
 
 // ----- Reading the account back ---------------------------------------------

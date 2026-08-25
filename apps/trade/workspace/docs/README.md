@@ -35,6 +35,9 @@ Two files outrank the rest, and outrank the code:
   coin the exchange would not cancel.
 - `grid-orders.md` — how a grid recycles, where its range sits, how the money is
   split between levels, what a sell is worth, and what following price up does.
+- `grid-above-ladder.md` — the one allowed pairing of two smart orders on a
+  coin: a grid working a range above a DCA ladder, the grid's own fixed-size
+  stop, and every reason the pairing is refused.
 - `watched-orders.md` — how a plain order works now, and what dragging does.
 - `position-protection.md` — the stop and target riding on an open position: how
   a position ends up carrying spares, why replacing one takes every leg off, and

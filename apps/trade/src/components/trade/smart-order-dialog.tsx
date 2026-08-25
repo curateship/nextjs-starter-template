@@ -113,6 +113,7 @@ export function SmartOrderDialog({
   free,
   interval,
   busy,
+  pairedWithGrid = false,
   onPreview,
   onPlace,
   onClose,
@@ -129,6 +130,11 @@ export function SmartOrderDialog({
   /** The chart's timeframe — what two-green mode would watch. */
   interval: CandleInterval
   busy: boolean
+  /**
+   * A grid is already working this coin, so placing the ladder pairs the
+   * two. The window then says out loud what they will share.
+   */
+  pairedWithGrid?: boolean
   /** The rung prices as edited, live — the chart draws them as faint lines. */
   onPreview: (levels: number[] | null) => void
   onPlace: (input: {
@@ -771,6 +777,15 @@ export function SmartOrderDialog({
       {/* Below the scroll, not in it: however many rungs the ladder has, the
             refusal and the button that explains it stay on screen. */}
       <div className="border-t p-3">
+        {pairedWithGrid ? (
+          <p className="pb-3 text-xs text-muted-foreground">
+            This coin already has a grid. Placing this ladder pairs the two:
+            the grid's stop must sit above this ladder's first buy, and on
+            the exchange they still share one position — one pot of margin
+            and one liquidation price. If this ladder falls far enough, the
+            exchange can close the grid's coins with it.
+          </p>
+        ) : null}
         <OrderRefusal id="ladder-refusal" className="pb-3">
           {showValidation ? blockedReason : null}
         </OrderRefusal>

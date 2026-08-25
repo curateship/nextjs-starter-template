@@ -857,9 +857,18 @@ export async function setPhemexBrackets(
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
+    slSz: number | null
   }
-): Promise<void> {
+): Promise<{ slOrderId: string | null }> {
   await assertRealMoneyAllowed(network)
+  // Every stop this file places carries `closeOnTrigger`, and it is not yet
+  // proven whether Phemex honours a smaller `orderQtyRq` beside that flag or
+  // closes the whole position anyway. Until a real-exchange test answers
+  // that, a fixed-size stop here could sell coins it promised to leave alone
+  // — so it is refused outright rather than placed on hope. The pairing gate
+  // upstream already keeps grid-above-ladder off Phemex wallets; this is the
+  // door bolted from the inside as well.
+  if (params.slSz !== null) throw new Error("LIVE_SIZED_STOP_UNSUPPORTED")
   const credential = auth(orderAuth)
   const rules = await symbolRules(network, params.marketId)
   const size = Math.abs(params.position.szi)
@@ -933,6 +942,10 @@ export async function setPhemexBrackets(
       )
     }
   }
+  // Phemex's create answer is not captured leg by leg, and nothing here needs
+  // the whole-position stop's id — only a sized stop's owner does, and sized
+  // stops are refused above.
+  return { slOrderId: null }
 }
 
 /**

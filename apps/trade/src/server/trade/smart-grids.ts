@@ -2,6 +2,7 @@ import { floorSize } from "@/lib/trade/dca"
 import {
   gridFollowDownShift,
   gridFollowShift,
+  gridHeldSz,
   gridLevels,
   gridLevelSize,
   gridShares,
@@ -54,6 +55,14 @@ export type GridRow = {
   id: string
   marketKey: string
   plan: GridPlan
+  /**
+   * A DCA ladder shares this coin. The position's one stop then belongs to
+   * the ladder: this grid must not aim it, and its own protection is the
+   * fixed-size stop order the live pass reconciles from `plan.pairedStop`.
+   * Only the live pass ever sets this — a practice wallet refuses the
+   * pairing at placement.
+   */
+  paired?: boolean
 }
 
 export async function advanceGrid(
@@ -99,7 +108,21 @@ export async function advanceGrid(
   const target = gridTakeProfitPx(plan)
   let closedAbove = false
   if (mark !== null && target !== null && mark >= target) {
-    sellEverything(plan, book, deps, row.marketKey, held, mark, now)
+    // Paired with a ladder, the position is not all the grid's to sell. A
+    // jump past the finish line sells what the GRID holds and no more — the
+    // ladder's coins stay, still covered by the ladder's own stop.
+    const gridOnly = row.paired
+      ? Math.min(gridHeldSz(plan), held ? Math.max(held.szi, 0) : 0)
+      : null
+    sellEverything(
+      plan,
+      book,
+      deps,
+      row.marketKey,
+      gridOnly !== null && held ? { ...held, szi: gridOnly } : held,
+      mark,
+      now
+    )
     plan.closedReason = "takeProfit"
     closedAbove = true
     changed = true
@@ -120,8 +143,12 @@ export async function advanceGrid(
     // It believed it was holding and the position has gone — stopped out,
     // closed by hand, or liquidated.
     (anyHolding && !position) ||
-    // Every level called off and nothing held: there is no grid left.
-    (!anyWaiting && !position)
+    // Every level called off and nothing held: there is no grid left. A
+    // paired grid cannot wait for the POSITION to go — the ladder's coins
+    // keep it alive forever — so its own emptiness is the test, or a grid
+    // whose levels were all called off would sit as a zombie half of the
+    // pair and block the coin for good.
+    (row.paired ? !anyWaiting && !anyHolding : !anyWaiting && !position)
 
   // Note what is NOT here: being flat with levels still waiting. For a ladder
   // that means the trade is finished; for a grid it is the ordinary state
@@ -358,7 +385,17 @@ export async function advanceGrid(
   // reason.
 
   const after = book.positions.get(row.marketKey) ?? null
-  if (!after || after.szi <= 0) {
+  if (row.paired) {
+    // The position's one stop belongs to the ladder beneath this grid, so
+    // nothing here may aim it — and nothing may be remembered as aimed, or
+    // the hand-moved test would read the ladder's stop as a drag. The grid's
+    // own protection is its fixed-size stop order, which the live pass
+    // places and moves from `plan.pairedStop` after this engine has run.
+    if (plan.aimedSlPx !== null) {
+      plan.aimedSlPx = null
+      changed = true
+    }
+  } else if (!after || after.szi <= 0) {
     // Nothing held, so there is nothing to remember aiming at.
     //
     // This reset is load-bearing here in a way it never was for a ladder. The
@@ -395,7 +432,11 @@ export async function advanceGrid(
   if (
     reconcileDeadLevels(
       plan,
-      book.positions.get(row.marketKey)?.slPx ?? gridStopPx(plan)
+      // Paired, the position's stop is the ladder's and says nothing about
+      // where THIS grid gives up — its own plan does.
+      row.paired
+        ? gridStopPx(plan)
+        : (book.positions.get(row.marketKey)?.slPx ?? gridStopPx(plan))
     )
   ) {
     changed = true

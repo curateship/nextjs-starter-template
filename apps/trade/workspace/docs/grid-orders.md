@@ -260,6 +260,11 @@ A grid never writes a take profit onto the position. Its exits are its own
 sells, one per level, and a single target would sell the lot at one price and
 defeat the whole order.
 
+When a DCA ladder shares the coin, the position's ordinary stop belongs to the
+ladder and the grid carries its own fixed-size stop instead, sized to exactly
+what the grid holds. `grid-above-ladder.md` is the rulebook for that pairing,
+including why the grid's stop must sit above the ladder's first buy.
+
 **The stop can be moved whenever you like, including while the grid holds
 nothing.** That is the ordinary state between one cycle and the next, and the
 stop is then a plan for later rather than protection on something open. It is

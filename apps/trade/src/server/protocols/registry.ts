@@ -428,7 +428,22 @@ export type ProtocolEntry = {
       auth: OrderAuth,
       params: { marketId: string; szi: number; dollars: number }
     ): Promise<void>
-    /** Replaces the stop and target riding on a real position. */
+    /**
+     * Replaces the stop and target riding on a real position.
+     *
+     * `slSz` null means the stop closes the whole position, however big the
+     * position is when it fires — the only stop most positions ever carry. A
+     * number is a fixed-size stop that sells exactly that many coins, the way
+     * a target with a size does, so a second strategy's coins on the same
+     * position survive it. The app layer has already checked the size against
+     * what is held; a venue that cannot place a fixed-size stop throws
+     * `LIVE_SIZED_STOP_UNSUPPORTED` rather than placing something that would
+     * close more than it promised.
+     *
+     * Answers with the new stop's own order id when the venue names one, so a
+     * caller that owns its stop — a grid running above a ladder — can cancel
+     * or move that one order later without touching anything else.
+     */
     setBrackets(
       network: NetworkId,
       auth: OrderAuth,
@@ -437,8 +452,9 @@ export type ProtocolEntry = {
         position: Pick<WalletPosition, "szi" | "protectionOrderIds">
         targets: Array<{ px: number; sz: number | null }>
         slPx: number | null
+        slSz: number | null
       }
-    ): Promise<void>
+    ): Promise<{ slOrderId: string | null }>
     /**
      * What a live wallet holds and has waiting, from the exchange itself.
      * `credential` as on `account.fetch`: needed by API-key venues, ignored

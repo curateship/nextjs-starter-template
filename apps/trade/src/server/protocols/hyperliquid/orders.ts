@@ -643,8 +643,9 @@ export async function setHyperliquidBrackets(
     position: Pick<WalletPosition, "szi" | "protectionOrderIds">
     targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
+    slSz: number | null
   }
-): Promise<void> {
+): Promise<{ slOrderId: string | null }> {
   const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
 
@@ -671,8 +672,19 @@ export async function setHyperliquidBrackets(
           {
             tpsl: "sl" as const,
             px: formatPx(params.slPx, asset.szDecimals),
-            sz: fullSz,
-            grouping: "positionTpsl" as const,
+            // A sized stop is built exactly the way a sized target already is:
+            // a plain reduce-only trigger with its own fixed size, filed under
+            // `na`. `positionTpsl` would stretch it back over the whole
+            // position, which is the one thing a sized stop must never do —
+            // its job is to sell one strategy's coins and leave the rest.
+            sz:
+              params.slSz === null
+                ? fullSz
+                : formatSize(params.slSz, asset.szDecimals),
+            grouping:
+              params.slSz === null
+                ? ("positionTpsl" as const)
+                : ("na" as const),
             label: `stop at ${params.slPx}`,
           },
         ]
@@ -689,6 +701,7 @@ export async function setHyperliquidBrackets(
   // Place first. If any new leg is refused, every old leg stays where it was
   // and the error names the extra new legs that did land.
   const landed: string[] = []
+  let slOrderId: string | null = null
   for (const grouping of ["positionTpsl", "na"] as const) {
     const batch = legs.filter((leg) => leg.grouping === grouping)
     if (batch.length === 0) continue
@@ -725,12 +738,25 @@ export async function setHyperliquidBrackets(
     const answered = batch.map((leg, index) => ({
       leg,
       error: statusError(statuses[index]),
+      status: statuses[index],
     }))
     landed.push(
       ...answered
         .filter((one) => one.error === null)
         .map((one) => one.leg.label)
     )
+    // The stop's own id, off the answer that accepted it, so a caller that
+    // owns its stop can cancel exactly this order later.
+    const sl = answered.find((one) => one.leg.tpsl === "sl")
+    if (sl && sl.error === null && typeof sl.status === "object") {
+      const oid =
+        "resting" in sl.status
+          ? sl.status.resting.oid
+          : "filled" in sl.status
+            ? sl.status.filled.oid
+            : null
+      if (oid !== null) slOrderId = String(oid)
+    }
     const refused = answered.find((one) => one.error !== null)
     if (refused) {
       throw new Error(
@@ -758,6 +784,7 @@ export async function setHyperliquidBrackets(
       )
     }
   }
+  return { slOrderId }
 }
 
 // ----- Reading the portfolio ----------------------------------------------

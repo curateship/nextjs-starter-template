@@ -830,6 +830,20 @@ export const ladderPlanSchema = z.object({
 
 export type LadderPlan = z.infer<typeof ladderPlanSchema>
 
+/**
+ * The coins the ladder's filled rungs are holding right now — the rungs that
+ * have bought and not yet sold. What the ladder's take profit is sized to
+ * while a grid shares the coin, so the target sells the ladder's coins and
+ * not one of the grid's.
+ */
+export function ladderHeldSz(plan: Pick<LadderPlan, "rungs">): number {
+  let sum = 0
+  for (const rung of plan.rungs) {
+    if (rung.status === "filled") sum += rung.sz
+  }
+  return sum
+}
+
 export const LADDER_STATUSES = ["active", "done"] as const
 export type LadderStatus = (typeof LADDER_STATUSES)[number]
 

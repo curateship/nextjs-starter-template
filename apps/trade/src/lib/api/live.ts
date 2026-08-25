@@ -392,6 +392,19 @@ const LIVE_SENTENCES: Record<string, string> = {
     "Each target needs its own size when a position has more than one target.",
   LIVE_STOP_SIDE:
     "A stop must stay beyond the current price — below it on a long, above it on a short.",
+  LIVE_STOP_SIZE: "The stop cannot sell more than the position holds.",
+  LIVE_SIZED_STOP_UNSUPPORTED:
+    "This exchange cannot hold a stop that sells only part of the position, so nothing was placed.",
+  SMART_PAIR_LIVE_ONLY:
+    "A grid and a ladder can share a coin on a live wallet only — a practice wallet can hold one stop per position and cannot play the handoff honestly.",
+  SMART_PAIR_PROTOCOL:
+    "This exchange cannot hold the grid's own part-size stop beside the ladder's, so the pairing is refused here. It works on Hyperliquid, Aster and KuCoin.",
+  SMART_PAIR_GRID_STOP_REQUIRED:
+    "To share a coin with a ladder the grid needs a stop — the stop is what hands the coin over to the ladder on the way down.",
+  SMART_PAIR_GRID_STOP_BASE:
+    "A stop riding the 4h base can move down later, below where the ladder starts buying. Give the grid a plain percent or fixed stop to pair it with a ladder.",
+  SMART_PAIR_STOP_BELOW_BASE:
+    "The grid's stop must sit above the price where the ladder starts buying — that ordering is what makes the pairing safe, so it is refused, not warned about.",
   LIVE_SIZE: "That size is smaller than this market's smallest step.",
   LIVE_PRICE: "That price cannot be used. Pick a level on the chart again.",
   LIVE_ORDER_ID: "That order id is not one the exchange would recognise.",
@@ -441,6 +454,10 @@ export function getLiveErrorMessage(error: unknown): string {
   const targetTotal = message.match(/LIVE_TAKE_PROFIT_TOTAL:([^:]+):([^:]+)/)
   if (targetTotal) {
     return `The targets add up to ${formatUsd(Number(targetTotal[1]))}, but the position holds ${formatUsd(Number(targetTotal[2]))}. Lower one or more target sizes.`
+  }
+  const stopTotal = message.match(/LIVE_STOP_TOTAL:([^:]+):([^:]+)/)
+  if (stopTotal) {
+    return `The stop would sell ${formatUsd(Number(stopTotal[1]))}, but the position holds ${formatUsd(Number(stopTotal[2]))}. Lower the stop's size.`
   }
   const bracketReplacement = message.match(
     /LIVE_BRACKET_REPLACE_(?:PARTIAL|DOUBLED):(.*)$/s

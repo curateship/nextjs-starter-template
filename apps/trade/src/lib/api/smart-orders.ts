@@ -717,6 +717,16 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "That many rungs would pass the fifty-order cap. Cancel some orders or use fewer rungs.",
     SMART_LADDER_EXISTS:
       "This market already has a live ladder in that wallet — cancel it before placing another.",
+    SMART_PAIR_LIVE_ONLY:
+      "A grid and a ladder can share a coin on a live wallet only — a practice wallet can hold one stop per position and cannot play the handoff honestly.",
+    SMART_PAIR_PROTOCOL:
+      "This exchange cannot hold the grid's own part-size stop beside the ladder's, so the pairing is refused here. It works on Hyperliquid, Aster and KuCoin.",
+    SMART_PAIR_GRID_STOP_REQUIRED:
+      "To share a coin with a ladder the grid needs a stop — the stop is what hands the coin over to the ladder on the way down.",
+    SMART_PAIR_GRID_STOP_BASE:
+      "A stop riding the 4h base can move down later, below where the ladder starts buying. Give the grid a plain percent or fixed stop to pair it with a ladder.",
+    SMART_PAIR_STOP_BELOW_BASE:
+      "The grid's stop must sit above the price where the ladder starts buying — that ordering is what makes the pairing safe, so it is refused, not warned about.",
     SMART_SHORT_HELD:
       "This wallet is short this market, and a buy ladder would just shrink the short. Close it first.",
     SMART_RUNG_TOO_SMALL:

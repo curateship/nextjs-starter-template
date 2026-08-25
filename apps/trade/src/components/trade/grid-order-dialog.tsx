@@ -108,6 +108,7 @@ export function GridOrderDialog({
   free,
   takerFeeRate,
   busy,
+  pairedWithLadder = false,
   onPreview,
   onPlace,
   onClose,
@@ -124,6 +125,11 @@ export function GridOrderDialog({
   /** One side of a round trip, for the "does the step clear the fee" check. */
   takerFeeRate: number
   busy: boolean
+  /**
+   * A DCA ladder is already working this coin, so placing the grid pairs
+   * the two. The window then says out loud what they will share.
+   */
+  pairedWithLadder?: boolean
   /** The levels as edited, live — the chart draws them as faint lines. */
   onPreview: (lines: GridPreviewLine[] | null) => void
   onPlace: (input: {
@@ -974,6 +980,15 @@ export function GridOrderDialog({
       {/* Below the scroll, not in it: however many levels the grid has, the
             refusal and the button that explains it stay on screen. */}
       <div className="border-t p-3">
+        {pairedWithLadder ? (
+          <p className="pb-3 text-xs text-muted-foreground">
+            This coin already has a ladder. Placing this grid pairs the two:
+            the grid's stop must sit above the ladder's first buy, and on the
+            exchange they still share one position — one pot of margin and
+            one liquidation price. If the ladder falls far enough, the
+            exchange can close the grid's coins with it.
+          </p>
+        ) : null}
         <OrderRefusal id="grid-refusal" className="pb-3">
           {showValidation ? refusal : null}
         </OrderRefusal>

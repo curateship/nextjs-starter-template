@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
+import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelLiveOrder,
@@ -13,7 +14,11 @@ import {
 } from "@/server/trade/live-orders"
 import { loadLiveRefusals } from "@/server/trade/live-fills"
 import { randomUUID } from "node:crypto"
-import { tradeLiveJournal, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeLiveJournal,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 // The exchange is a mock: these tests are about the store's rails — the
 // wallet and network checks, the nonce counter, and the journal — not about
@@ -73,6 +78,7 @@ beforeEach(async () => {
   marketFloor = null
   marketMinSize = null
   portfolio.mockResolvedValue({ positions: [], orders: [] })
+  setBrackets.mockResolvedValue({ slOrderId: null })
   place.mockResolvedValue({
     status: "resting",
     orderId: "77",
@@ -328,6 +334,7 @@ describe("the rails around placing", () => {
           slPx: null,
           tpOrderId: null,
           slOrderId: null,
+          protectionOrderIds: [],
         },
       ],
       orders: [],
@@ -432,6 +439,7 @@ describe("protecting a position", () => {
           slPx: null,
           tpOrderId: null,
           slOrderId: null,
+          protectionOrderIds: [],
         },
       ],
       orders: [],
@@ -488,6 +496,7 @@ describe("protecting a position", () => {
           slPx: null,
           tpOrderId: null,
           slOrderId: null,
+          protectionOrderIds: [],
         },
       ],
       orders: [],
@@ -513,6 +522,178 @@ describe("protecting a position", () => {
     )
   })
 
+  it("sizes the stop the way a target is sized", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    // Bigger than the position: refused before the exchange hears about it.
+    await expect(
+      setLiveBrackets(userId, {
+        walletId,
+        marketKey: MARKET,
+        targets: [],
+        slPx: 80_000,
+        slSz: 1.5,
+      })
+    ).rejects.toThrow("LIVE_STOP_TOTAL")
+    expect(setBrackets).not.toHaveBeenCalled()
+
+    // A part of the position travels through as given.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 80_000,
+      slSz: 0.4,
+    })
+    expect(setBrackets.mock.calls[0][2]).toMatchObject({
+      slPx: 80_000,
+      slSz: 0.4,
+    })
+
+    // Exactly the whole position collapses back to the growing stop.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 80_000,
+      slSz: 1,
+    })
+    expect(setBrackets.mock.calls[1][2]).toMatchObject({
+      slPx: 80_000,
+      slSz: null,
+    })
+
+    // Unless the caller owns its stop and named the order it replaces: a
+    // paired grid can hold the entire position while the ladder waits, and
+    // a collapse then would stretch its stop over the ladder's later rungs.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 80_000,
+      slSz: 1,
+      replaceOrderIds: [],
+    })
+    expect(setBrackets.mock.calls[2][2]).toMatchObject({
+      slPx: 80_000,
+      slSz: 1,
+    })
+  })
+
+  it("spares a paired grid's own stop, and replaces only what a caller names", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    const level = (buyPx: number) => ({
+      buyPx,
+      sellPx: buyPx + 1_000,
+      sz: 0.2,
+      budget: buyPx * 0.2,
+      heldSz: 0.2,
+      status: "holding",
+      armed: true,
+      dead: false,
+      cycles: 0,
+    })
+    // Through the real reader, so the fixture is a plan the app would
+    // actually accept — a hand-typed shape the schema refuses would make
+    // the sparing quietly not happen and the test pass for the wrong
+    // reason.
+    const plan = readSmartPlan("grid", {
+      topPx: 100_000,
+      bottomPx: 95_000,
+      potPct: 20,
+      startedAt: 1,
+      sizeDecimals: 3,
+      maxLeverage: 20,
+      levels: [level(95_000), level(96_000)],
+      stopLoss: { mode: "fixed", underPct: 5, px: 92_000, base: null },
+      aimedSlPx: null,
+      pairedStop: { orderId: "7", px: 92_000, sz: 0.4, placedAt: 1 },
+    })
+    if (!plan) throw new Error("the test's grid plan did not parse")
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: crypto.randomUUID(),
+      walletId,
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 90_000,
+          leverage: 5,
+          marginUsed: 18_000,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: 92_000,
+          tpOrderId: null,
+          slOrderId: "7",
+          protectionOrderIds: ["7", "8"],
+        },
+      ],
+      orders: [],
+    })
+
+    // An ordinary replace — a hand dragging the position's stop — cancels
+    // every leg EXCEPT the grid's own.
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 85_000,
+    })
+    expect(setBrackets.mock.calls[0][2].position.protectionOrderIds).toEqual([
+      "8",
+    ])
+
+    // The grid replacing its own stop names exactly its old order, and the
+    // new order's id comes back so the grid can keep hold of it.
+    setBrackets.mockResolvedValue({ slOrderId: "99" })
+    const placed = await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [],
+      slPx: 91_000,
+      slSz: 0.4,
+      replaceOrderIds: ["7"],
+    })
+    expect(setBrackets.mock.calls[1][2].position.protectionOrderIds).toEqual([
+      "7",
+    ])
+    expect(setBrackets.mock.calls[1][2]).toMatchObject({ slSz: 0.4 })
+    expect(placed.slOrderId).toBe("99")
+  })
+
   it("lets a long trail its stop above entry but not beyond the current price", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
@@ -530,6 +711,7 @@ describe("protecting a position", () => {
           slPx: null,
           tpOrderId: null,
           slOrderId: null,
+          protectionOrderIds: [],
         },
       ],
       orders: [],
@@ -571,6 +753,7 @@ describe("protecting a position", () => {
           slPx: null,
           tpOrderId: null,
           slOrderId: null,
+          protectionOrderIds: [],
         },
       ],
       orders: [],

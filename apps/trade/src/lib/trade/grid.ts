@@ -726,6 +726,29 @@ export const gridPlanSchema = z.object({
    */
   aimedSlPx: z.number().nullable(),
   /**
+   * The grid's own fixed-size stop order on the exchange, when a DCA ladder
+   * shares the coin. Null for a grid running alone — a lone grid writes the
+   * position's ordinary whole-position stop through `aimedSlPx` instead.
+   *
+   * When a ladder shares the coin the position's one stop slot belongs to the
+   * ladder, so the grid places a separate reduce-only trigger sized to what
+   * the grid will be holding when price reaches it. This records exactly what
+   * was placed: the id so cancelling or moving the grid touches only this
+   * order, the price and size so a pass can tell whether the order standing
+   * still matches what the grid wants, and the moment it went on so a
+   * portfolio read that has not caught up yet is not mistaken for the stop
+   * having fired.
+   */
+  pairedStop: z
+    .object({
+      orderId: z.string(),
+      px: z.number().positive(),
+      sz: z.number().positive(),
+      placedAt: z.number(),
+    })
+    .nullable()
+    .default(null),
+  /**
    * How far the exchange's fill feed has been read, in epoch milliseconds.
    *
    * A ladder makes perhaps forty fills in its whole life, so the live pass could
@@ -788,6 +811,21 @@ export function gridLevelSize(
   sizeDecimals: number | null
 ): number {
   return floorSize(level.budget / level.buyPx, sizeDecimals)
+}
+
+/**
+ * The coins the grid is holding right now, active and carried levels
+ * together. What a paired grid's fixed-size stop is sized to: exactly what
+ * the grid owns, never a coin of the ladder's beneath it.
+ */
+export function gridHeldSz(
+  plan: Pick<GridPlan, "levels" | "carriedLevels">
+): number {
+  let sum = 0
+  for (const level of [...plan.levels, ...plan.carriedLevels]) {
+    if (level.status === "holding" && level.heldSz > 0) sum += level.heldSz
+  }
+  return sum
 }
 
 /**

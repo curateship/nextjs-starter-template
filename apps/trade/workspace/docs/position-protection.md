@@ -24,6 +24,12 @@ When you move a stop or a target, the app cancels what is there before placing
 the new one. It cancels **every** reduce-only leg the exchange is holding on
 that market, not the two it happens to show you.
 
+One exception, and it is tracked by order id rather than guessed: on a coin
+running a grid above a DCA ladder, the grid holds its own fixed-size stop, and
+its order id is written on the grid's record. An ordinary replace spares
+exactly that one order, so dragging the position's stop can never silently
+delete the grid's. `grid-above-ladder.md` covers the pairing.
+
 This is the part that used to be wrong, and it cost real money rather than
 looking untidy. The app knew two leg ids. A third leg was invisible to it, so
 it could never be cancelled, and every replacement added one more. A position

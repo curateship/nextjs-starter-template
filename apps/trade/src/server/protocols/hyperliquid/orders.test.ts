@@ -652,6 +652,7 @@ describe("the protection on a real position", () => {
         position: HELD,
         targets: [{ px: 120_000, sz: 0.000001 }],
         slPx: 90_000,
+        slSz: null,
       })
     ).rejects.toThrow("LIVE_SIZE")
 
@@ -680,6 +681,7 @@ describe("the protection on a real position", () => {
         { px: 135_000, sz: 0.2 },
       ],
       slPx: 90_000,
+      slSz: null,
     })
 
     expect(exchangeCancel).toHaveBeenCalledTimes(1)
@@ -714,6 +716,32 @@ describe("the protection on a real position", () => {
     )
   })
 
+  it("builds a sized stop as a plain fixed-size trigger and answers its id", async () => {
+    exchangeOrder.mockResolvedValue({
+      response: { data: { statuses: [{ resting: { oid: 77 } }] } },
+    })
+    const placed = await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: HELD,
+      targets: [],
+      slPx: 90_000,
+      slSz: 0.2,
+    })
+
+    // One batch only: a sized stop is filed under `na`, exactly like a sized
+    // target — `positionTpsl` would stretch it back over the whole position,
+    // and its whole point is selling one strategy's coins and no more.
+    expect(exchangeOrder).toHaveBeenCalledTimes(1)
+    const batch = exchangeOrder.mock.calls[0][0]
+    expect(batch.grouping).toBe("na")
+    expect(batch.orders).toHaveLength(1)
+    expect(batch.orders[0].s).toBe("0.2")
+    expect(batch.orders[0].r).toBe(true)
+    expect(batch.orders[0].t.trigger.tpsl).toBe("sl")
+    // The id comes back so the stop's owner can cancel exactly this order.
+    expect(placed.slOrderId).toBe("77")
+  })
+
   it("keeps the old protection and names the new legs when part of the target list is refused", async () => {
     exchangeOrder
       .mockResolvedValueOnce({
@@ -739,6 +767,7 @@ describe("the protection on a real position", () => {
           { px: 180_000, sz: 0.2 },
         ],
         slPx: 90_000,
+        slSz: null,
       })
     ).rejects.toThrow(
       "The old protection is still on. The new stop at 90000 and target at 110000 also went on. The new target at 180000 was refused"
@@ -771,6 +800,7 @@ describe("the protection on a real position", () => {
           { px: 120_000, sz: 0.2 },
         ],
         slPx: 90_000,
+        slSz: null,
       })
     ).rejects.toThrow(
       "The old protection is still on. The new stop at 90000 and target at 120000 also went on. The new target at 180000 was refused"
@@ -784,6 +814,7 @@ describe("the protection on a real position", () => {
       position: HELD,
       targets: [{ px: 120_000, sz: null }],
       slPx: 90_000,
+      slSz: null,
     })
 
     expect(exchangeOrder).toHaveBeenCalledTimes(2)
@@ -806,6 +837,7 @@ describe("the protection on a real position", () => {
       position: { szi: 0.5, protectionOrderIds: ["41", "42", "43", "44"] },
       targets: [],
       slPx: 90_000,
+      slSz: null,
     })
 
     expect(exchangeCancel).toHaveBeenCalledTimes(1)
@@ -821,6 +853,7 @@ describe("the protection on a real position", () => {
       position: HELD,
       targets: [],
       slPx: null,
+      slSz: null,
     })
 
     expect(exchangeCancel).toHaveBeenCalledTimes(1)

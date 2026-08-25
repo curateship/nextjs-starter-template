@@ -15,6 +15,7 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
+  ladderHeldSz,
   type LadderPlan,
   type LadderRungState,
   type DcaParams,
@@ -22,11 +23,18 @@ import {
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
+  gridHeldSz,
   gridRangeMovable,
   gridStopPx,
   gridStopUnder,
   type GridParams,
+  type GridPlan,
 } from "@/lib/trade/grid"
+import {
+  gridLadderPairingRefusal,
+  reattributePairedStops,
+  type PairedStopRef,
+} from "@/lib/trade/pairing"
 import {
   forEachPlanOrderId,
   readSmartEntry,
@@ -73,12 +81,15 @@ import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import {
-  activeSmartOrderId,
   ladderById,
   saveLadderPlan,
   type PlaceLadderInput,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
+import {
+  assertSmartOrderPlacable,
+  pairedLadderPlan,
+} from "@/server/trade/smart-pairing"
 import { advanceGrid } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
 import { advanceWatch } from "./smart-watch"
@@ -212,9 +223,11 @@ async function placeLiveDcaLadderOnce(
   ) {
     throw new Error("LIVE_MARKET")
   }
-  if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
-    throw new Error("SMART_LADDER_EXISTS")
-  }
+  // Coarse first, for a fast refusal — the full pairing rules run again
+  // inside the write once the rungs are drawn.
+  await assertSmartOrderPlacable(userId, wallet, input.marketKey, {
+    kind: "dca",
+  })
 
   const protocol = getProtocol(wallet.protocol)
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -353,13 +366,14 @@ async function placeLiveDcaLadderOnce(
       )
       .for("update")
     await assertFlowRunAcceptingPlacements(tx, userId, input.flowRunId)
-    const race = await activeSmartOrderId(
+    // Under the lock, with the rungs drawn — the full pairing rules run here.
+    await assertSmartOrderPlacable(
       userId,
-      wallet.id,
+      wallet,
       input.marketKey,
+      { kind: "dca", plan },
       tx
     )
-    if (race) throw new Error("SMART_LADDER_EXISTS")
     await tx.insert(tradeSmartLadders).values({
       userId,
       id: ladderId,
@@ -739,6 +753,16 @@ async function updateLiveLadderExitsOnce(
 const reconciles = new Map<string, Promise<unknown>>()
 const EXCHANGE_VISIBILITY_GRACE_MS = 2_000
 
+/**
+ * How long a paired grid's stop may be missing from the portfolio read
+ * before that absence is believed to mean it fired. Longer than the
+ * ordinary order grace on purpose: mistaking a slow read for a fired stop
+ * closes the whole grid, and nothing about a stop that really fired gets
+ * worse by being noticed a few seconds later — its levels cannot buy below
+ * it anyway.
+ */
+const PAIRED_STOP_VISIBILITY_GRACE_MS = 15_000
+
 async function serializeLiveWallet<T>(
   userId: string,
   wallet: TradeWallet,
@@ -970,7 +994,38 @@ async function reconcileLiveLaddersOnce(
     engineSweptAt.set(wallet.id, Date.now())
     void sweepLiveFills(userId, wallet, portfolio, credential)
   }
-  const warningPositions: TradePosition[] = portfolio.positions.map((held) => {
+
+  // Hand each stop back to its owner before anything reads the positions.
+  // On a coin running a grid above a ladder, the exchange read names the
+  // oldest stop leg — usually the grid's — as THE position's stop, and the
+  // ladder's engine would then read a price it never wrote as a hand-move
+  // and stop managing its stop for good. See `reattributePairedStops`.
+  const pairedRefs = new Map<string, PairedStopRef>()
+  for (const row of rows) {
+    if (row.kind !== "grid") continue
+    const entry = parsed.get(row.id)
+    if (!entry || entry.kind !== "grid") continue
+    const gridPlan = entry.plan as GridPlan
+    if (!gridPlan.pairedStop) continue
+    const marketId = parseMarketKey(row.marketKey)?.marketId
+    if (!marketId) continue
+    const ladderRow = rows.find(
+      (one) => one.kind === "dca" && one.marketKey === row.marketKey
+    )
+    const ladderEntry = ladderRow ? parsed.get(ladderRow.id) : undefined
+    pairedRefs.set(marketId, {
+      orderId: gridPlan.pairedStop.orderId,
+      px: gridPlan.pairedStop.px,
+      sz: gridPlan.pairedStop.sz,
+      ladderAimedSlPx:
+        ladderEntry?.kind === "dca"
+          ? ((ladderEntry.plan as LadderPlan).aimedSlPx ?? null)
+          : null,
+    })
+  }
+  const folio = reattributePairedStops(portfolio, pairedRefs)
+
+  const warningPositions: TradePosition[] = folio.positions.map((held) => {
     const key = toMarketKey({
       protocol: wallet.protocol,
       network: wallet.network,
@@ -1106,7 +1161,7 @@ async function reconcileLiveLaddersOnce(
   }
 
   const positions = new Map<string, TradePosition>()
-  for (const held of portfolio.positions) {
+  for (const held of folio.positions) {
     const marketKey = refs.get(held.marketId)
     if (!marketKey) continue
     const held_plan = planFor(marketKey)?.plan
@@ -1125,7 +1180,7 @@ async function reconcileLiveLaddersOnce(
       updatedAt: now,
     })
   }
-  const orders: TradeOrder[] = portfolio.orders.flatMap((order) => {
+  const orders: TradeOrder[] = folio.orders.flatMap((order) => {
     const marketKey = refs.get(order.marketId)
     if (!marketKey) return []
     return [
@@ -1245,28 +1300,39 @@ async function reconcileLiveLaddersOnce(
       const marketKey = refs.get(one.marketId)
       if (!marketKey) return []
       if (managedOrders.has(one.orderId)) return []
-      const entry = planFor(marketKey)
       const near = (wanted: number | null) =>
         wanted !== null &&
         Math.abs(one.px - wanted) <= Math.max(1e-8, one.px * 1e-6)
-      // A grid never writes a take-profit onto the position — its exits are its
-      // resting sells — so there is no target price for one of its fills to
-      // have come from.
-      const aimedTpPx =
-        entry && entry.kind === "dca"
-          ? (entry.plan as LadderPlan).aimedTpPx
-          : null
-      // Only the two that manage a stop of their own can have fired one. A
-      // signal trade writes no protection at all — its exit is the next arrow
-      // — and a watch hands its stop to the position and is done.
-      const aimedSlPx =
-        entry && (entry.kind === "dca" || entry.kind === "grid")
-          ? entry.plan.aimedSlPx
-          : null
+      // EVERY smart order on this coin, not the first row found — a grid
+      // above a ladder is two rows, each with a stop of its own that can
+      // have fired. A grid never writes a take-profit onto the position —
+      // its exits are its resting sells — so only a ladder contributes a
+      // target price. Only the two kinds that manage a stop contribute one:
+      // a signal trade writes no protection at all, and a watch hands its
+      // stop to the position and is done.
+      const stopPxs: number[] = []
+      const targetPxs: number[] = []
+      for (const row of rows) {
+        if (row.marketKey !== marketKey) continue
+        const entry = parsed.get(row.id)
+        if (!entry) continue
+        if (entry.kind === "dca") {
+          const plan = entry.plan as LadderPlan
+          if (plan.aimedSlPx !== null) stopPxs.push(plan.aimedSlPx)
+          if (plan.aimedTpPx !== null) targetPxs.push(plan.aimedTpPx)
+        }
+        if (entry.kind === "grid") {
+          const plan = entry.plan as GridPlan
+          if (plan.aimedSlPx !== null) stopPxs.push(plan.aimedSlPx)
+          // A paired grid's stop is its own exchange order rather than the
+          // position's — a sell at its price is still that stop firing.
+          if (plan.pairedStop) stopPxs.push(plan.pairedStop.px)
+        }
+      }
       const reason: PaperFillReason =
-        one.side === "sell" && near(aimedSlPx)
+        one.side === "sell" && stopPxs.some((px) => near(px))
           ? "stop_loss"
-          : one.side === "sell" && near(aimedTpPx)
+          : one.side === "sell" && targetPxs.some((px) => near(px))
             ? "take_profit"
             : "order"
       if (reason === "order") return []
@@ -1357,6 +1423,18 @@ async function reconcileLiveLaddersOnce(
     ) => Promise<void>
   ): Promise<void> => {
     const originalPlan = structuredClone(entry.plan)
+    // Whether this row is one half of a grid-above-ladder pairing. A paired
+    // grid keeps its hands off the position's protection — its own stop is a
+    // separate order, reconciled after the engine runs — and a paired
+    // ladder's target is sized to the ladder's coins so firing it cannot
+    // sell the grid's.
+    const paired = rows.some(
+      (other) =>
+        other.id !== raw.id &&
+        other.marketKey === raw.marketKey &&
+        (other.kind === "grid" || other.kind === "dca") &&
+        parsed.has(other.id)
+    )
     let pauseNoticeReason: string | null = null
     const rememberRefusal = (error: unknown): void => {
       const reason = smartOrderRefusalReason(error)
@@ -1673,18 +1751,43 @@ async function reconcileLiveLaddersOnce(
               originalBrackets?.slPx != null)
           if (
             entry.kind !== "signal" &&
+            // A paired grid owns no position protection at all — the
+            // position's stop and target belong to the ladder beneath it,
+            // and the grid's own fixed-size stop is reconciled separately
+            // after this engine pass. Writing here would replace the
+            // ladder's protection with the grid's idea of it.
+            !(entry.kind === "grid" && paired) &&
             position &&
             wantsProtection &&
             book.touchedMarkets.has(row.marketKey)
           ) {
+            // A paired ladder's target is sized to the LADDER's coins. The
+            // whole-position target a lone ladder writes would, on this
+            // coin, sell the grid's coins with it when it fired.
+            const pairedTargetSz =
+              entry.kind === "dca" && paired
+                ? floorSize(
+                    Math.min(
+                      ladderHeldSz(entry.plan as LadderPlan),
+                      Math.max(position.szi, 0)
+                    ),
+                    entry.plan.sizeDecimals
+                  )
+                : null
             try {
               await setLiveBrackets(userId, {
                 walletId: wallet.id,
                 marketKey: row.marketKey,
                 targets:
-                  position.tpPx === null
+                  position.tpPx === null ||
+                  (pairedTargetSz !== null && !(pairedTargetSz > 0))
                     ? []
-                    : [{ px: position.tpPx, sz: position.tpSz ?? null }],
+                    : [
+                        {
+                          px: position.tpPx,
+                          sz: pairedTargetSz ?? position.tpSz ?? null,
+                        },
+                      ],
                 slPx: position.slPx,
               })
             } catch (error) {
@@ -1715,8 +1818,92 @@ async function reconcileLiveLaddersOnce(
           }
         },
       },
-      { id: raw.id, marketKey: raw.marketKey, plan: entry.plan } as never
+      { id: raw.id, marketKey: raw.marketKey, plan: entry.plan, paired } as never
     )
+  }
+
+  /**
+   * Keeps a paired grid's fixed-size stop on the exchange in step with the
+   * grid: at the plan's stop price, sized to exactly what the grid holds —
+   * capped at the position, so a bookkeeping slip can never write a stop
+   * that sells more than exists. Replaces only its own old order, through
+   * `replaceOrderIds`, so the ladder's protection is never touched.
+   *
+   * A failure lands in the row-failure record and is retried next pass —
+   * the same contract every other exchange write in this pass has.
+   */
+  const reconcilePairedGridStop = async (
+    raw: (typeof rows)[number],
+    plan: GridPlan,
+    pairedNow: boolean
+  ): Promise<void> => {
+    try {
+      const roundPx = (px: number) =>
+        protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+      const position = book.positions.get(raw.marketKey) ?? null
+      const wantedPxRaw = gridStopPx(plan)
+      const wantedPx = wantedPxRaw === null ? null : roundPx(wantedPxRaw)
+      const positionSz = position && position.szi > 0 ? position.szi : 0
+      const wantedSz =
+        pairedNow && plan.closedReason === null && wantedPx !== null
+          ? floorSize(
+              Math.min(gridHeldSz(plan), positionSz),
+              plan.sizeDecimals
+            )
+          : 0
+      const have = plan.pairedStop
+      const closeEnough = (a: number, b: number) =>
+        Math.abs(a - b) <= Math.max(1e-9, Math.abs(b) * 1e-6)
+      const status = plan.closedReason === null ? "active" : "done"
+      if (wantedSz > 0 && wantedPx !== null) {
+        if (
+          have &&
+          closeEnough(have.px, wantedPx) &&
+          closeEnough(have.sz, wantedSz)
+        ) {
+          return
+        }
+        const placed = await setLiveBrackets(userId, {
+          walletId: wallet.id,
+          marketKey: raw.marketKey,
+          targets: [],
+          slPx: wantedPx,
+          slSz: wantedSz,
+          replaceOrderIds: have ? [have.orderId] : [],
+        })
+        plan.pairedStop = placed.slOrderId
+          ? {
+              orderId: placed.slOrderId,
+              px: wantedPx,
+              sz: wantedSz,
+              placedAt: Date.now(),
+            }
+          : null
+        await saveLadderPlan(userId, raw.id, plan, status)
+      } else if (have) {
+        // Nothing left for the stop to guard — the grid is empty, done, or
+        // the ladder is gone. A plain cancel, not a bracket replace: it
+        // works whether or not the position still exists.
+        //
+        // Forgotten only when the exchange confirmed the cancel. A refusal
+        // can mean the venue is busy with the order still standing, and a
+        // stop forgotten while it stands is one nothing spares and nothing
+        // retries — the record stays and the next pass tries again. A stop
+        // that is refused because it already FIRED is caught by the
+        // fired-stop check at the top of the pass instead.
+        const cancelled = await rollbackLiveOrder(userId, {
+          walletId: wallet.id,
+          marketKey: raw.marketKey,
+          orderId: have.orderId,
+        })
+        if (cancelled) {
+          plan.pairedStop = null
+          await saveLadderPlan(userId, raw.id, plan, status)
+        }
+      }
+    } catch (error) {
+      await noteRowFailure(userId, wallet.id, raw.marketKey, error)
+    }
   }
 
   for (const raw of rows) {
@@ -1746,9 +1933,48 @@ async function reconcileLiveLaddersOnce(
       if (entry.plan.paused) continue
 
       if (entry.kind === "grid") {
+        const plan = entry.plan as GridPlan
+        const pairedNow = rows.some(
+          (other) =>
+            other.id !== raw.id &&
+            other.marketKey === raw.marketKey &&
+            other.kind === "dca"
+        )
+        // The grid's own stop no longer standing on the exchange means it
+        // fired, and the grid's coins are already sold — the ladder carries
+        // the fall from here. Close the grid now, before its engine runs,
+        // or it would keep believing in levels whose coins are gone and
+        // sell the ladder's instead. The grace covers a stop the exchange
+        // has accepted but not yet shown back.
+        const stop = plan.pairedStop
+        if (
+          stop &&
+          now - stop.placedAt >= PAIRED_STOP_VISIBILITY_GRACE_MS &&
+          !folio.positions.some((one) =>
+            one.protectionOrderIds.includes(stop.orderId)
+          ) &&
+          !folio.orders.some((one) => one.orderId === stop.orderId)
+        ) {
+          for (const level of plan.levels) {
+            if (level.status === "waiting") level.status = "cancelled"
+          }
+          if (!plan.closedReason) plan.closedReason = "stop"
+          plan.pairedStop = null
+          await saveLadderPlan(userId, raw.id, plan, "done")
+          continue
+        }
         // A grid has no orders on the exchange to match fills against: its
         // levels are watched prices and it buys when one is reached.
         await advanceRow(raw, entry, advanceGrid)
+        // A paired grid's stop is its own exchange order, kept in step with
+        // what the grid actually holds — after the engine, so a level that
+        // bought on this pass is covered on this pass. Also runs when the
+        // pairing has just ENDED (`pairedStop` still set with no ladder
+        // left), to take the now-orphaned stop off before the grid goes
+        // back to writing the position's ordinary one.
+        if (pairedNow || plan.pairedStop) {
+          await reconcilePairedGridStop(raw, plan, pairedNow)
+        }
         continue
       }
 
@@ -1926,9 +2152,11 @@ async function placeLiveGridOrderOnce(
   ) {
     throw new Error("LIVE_MARKET")
   }
-  if (await activeSmartOrderId(userId, wallet.id, input.marketKey)) {
-    throw new Error("SMART_LADDER_EXISTS")
-  }
+  // Coarse first, for a fast refusal — the full pairing rules run again
+  // inside the write once the grid and its stop are drawn.
+  await assertSmartOrderPlacable(userId, wallet, input.marketKey, {
+    kind: "grid",
+  })
 
   const protocol = getProtocol(wallet.protocol)
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -1992,13 +2220,15 @@ async function placeLiveGridOrderOnce(
           and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
         )
         .for("update")
-      const race = await activeSmartOrderId(
+      // Under the lock, with the grid's stop drawn — the full pairing rules
+      // run here.
+      await assertSmartOrderPlacable(
         userId,
-        wallet.id,
+        wallet,
         input.marketKey,
+        { kind: "grid", plan },
         tx
       )
-      if (race) throw new Error("SMART_LADDER_EXISTS")
       await tx.insert(tradeSmartLadders).values({
         userId,
         id,
@@ -2142,6 +2372,38 @@ async function heldOnExchange(
   )
 }
 
+/**
+ * Moves a paired grid's own stop order to a new price, keeping its size,
+ * and records what now stands. No stop on the exchange yet — the grid is
+ * flat — means nothing to move: the engine places one the moment a level
+ * buys, at the price the plan now says.
+ */
+async function movePairedGridStop(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  plan: GridPlan,
+  px: number
+): Promise<void> {
+  if (!plan.pairedStop) return
+  const placed = await setLiveBrackets(userId, {
+    walletId,
+    marketKey,
+    targets: [],
+    slPx: px,
+    slSz: plan.pairedStop.sz,
+    replaceOrderIds: [plan.pairedStop.orderId],
+  })
+  plan.pairedStop = placed.slOrderId
+    ? {
+        orderId: placed.slOrderId,
+        px,
+        sz: plan.pairedStop.sz,
+        placedAt: Date.now(),
+      }
+    : null
+}
+
 /** Changing a live grid's stop. */
 export async function updateLiveGridStop(
   userId: string,
@@ -2165,15 +2427,36 @@ export async function updateLiveGridStop(
         }
       : null
 
+    // While a ladder shares the coin, the stop is the handoff line: it must
+    // exist and sit above the ladder's first buy, or the pairing's whole
+    // safety ordering is gone. Checked before anything reaches the exchange.
+    const ladder = await pairedLadderPlan(userId, wallet.id, grid.marketKey)
+    if (ladder) {
+      const refusal = gridLadderPairingRefusal({
+        walletKind: wallet.kind,
+        protocol: wallet.protocol,
+        grid: plan,
+        ladder,
+      })
+      if (refusal) throw new Error(refusal)
+    }
+
     const wanted = gridStopPx(plan)
     const slPx =
       wanted === null
         ? null
         : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
-    // Only onto the exchange when there is something to protect. Flat, the
-    // plan is the whole record, and `advanceGrid` writes the stop onto the
-    // position the moment a level buys.
-    if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+    if (ladder) {
+      // Paired, the grid's stop is its own order — the position's stop
+      // belongs to the ladder and is not touched.
+      plan.aimedSlPx = null
+      if (slPx !== null) {
+        await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, slPx)
+      }
+    } else if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+      // Only onto the exchange when there is something to protect. Flat, the
+      // plan is the whole record, and `advanceGrid` writes the stop onto the
+      // position the moment a level buys.
       await setLiveBrackets(userId, {
         walletId: wallet.id,
         marketKey: grid.marketKey,
@@ -2298,12 +2581,27 @@ export async function reshapeLiveGrid(
           : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
       baseWatch: plan.baseWatch,
       aimedSlPx: plan.aimedSlPx,
+      pairedStop: plan.pairedStop,
       seenFillsTo: plan.seenFillsTo,
       // A move re-prices the levels; it does not reset the grid's history.
       cycles: plan.cycles,
       shifts: plan.shifts,
       downShifts: plan.downShifts,
       carriedLevels: plan.carriedLevels,
+    }
+    // A percent-mode stop rides the bottom of the range, so moving the range
+    // moves the stop — and while a ladder shares the coin the stop may not
+    // come down to the ladder's first buy. Checked on the redrawn plan
+    // before anything is saved.
+    const ladder = await pairedLadderPlan(userId, wallet.id, grid.marketKey)
+    if (ladder) {
+      const refusal = gridLadderPairingRefusal({
+        walletKind: wallet.kind,
+        protocol: wallet.protocol,
+        grid: next,
+        ladder,
+      })
+      if (refusal) throw new Error(refusal)
     }
     const at = Date.now()
     await saveGridPlan(userId, grid.id, next, "active", at)
@@ -2340,9 +2638,25 @@ export async function moveLiveGridExit(
         px,
         base: null,
       }
-      // See `updateLiveGridStop`: a grid with nothing open has no brackets to
-      // set, and asking anyway threw the drag away along with the new stop.
-      if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+      // While a ladder shares the coin the stop is the handoff line — it
+      // may move, but never to or below the ladder's first buy.
+      const ladder = await pairedLadderPlan(userId, wallet.id, grid.marketKey)
+      if (ladder) {
+        const refusal = gridLadderPairingRefusal({
+          walletKind: wallet.kind,
+          protocol: wallet.protocol,
+          grid: plan,
+          ladder,
+        })
+        if (refusal) throw new Error(refusal)
+        // Paired, the grid's stop is its own order; the position's stop is
+        // the ladder's and stays where the ladder put it.
+        plan.aimedSlPx = null
+        await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, px)
+      } else if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
+        // See `updateLiveGridStop`: a grid with nothing open has no brackets
+        // to set, and asking anyway threw the drag away along with the new
+        // stop.
         await setLiveBrackets(userId, {
           walletId: wallet.id,
           marketKey: grid.marketKey,

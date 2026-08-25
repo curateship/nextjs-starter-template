@@ -354,7 +354,10 @@ describe("placing a grid", () => {
 
 describe("one smart order per coin per wallet", () => {
   // Both kinds write the one position's stop, so two on the same coin would
-  // fight over it. This is the check that makes sharing a table safe.
+  // fight over it. The one exception — a grid above a ladder — lives on live
+  // wallets only: the paper book holds one stop per position and cannot
+  // simulate the handoff, so a practice wallet gets the pairing's own
+  // refusal instead of the blanket one.
   it("refuses a grid when a ladder is already working that coin", async () => {
     await placeDcaLadder(userId, wallet, {
       marketKey: BTC,
@@ -377,7 +380,7 @@ describe("one smart order per coin per wallet", () => {
         stopLoss: null,
       },
     })
-    await expect(place()).rejects.toThrow("SMART_LADDER_EXISTS")
+    await expect(place()).rejects.toThrow("SMART_PAIR_LIVE_ONLY")
   })
 
   it("refuses a ladder when a grid is already working that coin", async () => {
@@ -404,7 +407,7 @@ describe("one smart order per coin per wallet", () => {
           stopLoss: null,
         },
       })
-    ).rejects.toThrow("SMART_LADDER_EXISTS")
+    ).rejects.toThrow("SMART_PAIR_LIVE_ONLY")
   })
 })
 

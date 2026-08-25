@@ -25,6 +25,9 @@ import {
 } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { floorSize } from "@/lib/trade/dca"
+import type { GridPlan } from "@/lib/trade/grid"
+import { reattributePairedStops } from "@/lib/trade/pairing"
+import { readSmartPlan } from "@/lib/trade/smart-plan"
 import {
   minimumOrderDollars,
   minimumOrderUsd,
@@ -35,6 +38,7 @@ import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
 import { openingMarginMode } from "@/server/protocols/order-settings"
+import { pairedStopRefs } from "@/server/trade/smart-pairing"
 import {
   loadLiveHistoryIfChanged,
   loadLiveRefusals,
@@ -45,6 +49,7 @@ import {
 } from "@/server/trade/live-fills"
 import {
   tradeLiveJournal,
+  tradeSmartLadders,
   tradeWalletNonces,
   tradeWallets,
 } from "@/server/trade/schema"
@@ -767,6 +772,40 @@ export async function liveHeldPositions(
     }))
 }
 
+/**
+ * The order ids of grid-owned stops on this market — the fixed-size stop a
+ * grid places for itself while a DCA ladder shares the coin.
+ *
+ * Read here, inside the bracket replace, rather than passed in by callers:
+ * replacing a position's protection cancels every leg the exchange holds, and
+ * every caller — the drag on the chart, the ladder's own engine pass, the ×
+ * on a pill — must spare the grid's stop without having to know grids exist.
+ * A hand moving the position's stop deletes the position's stop, not the
+ * grid's.
+ */
+async function pairedGridStopOrderIds(
+  userId: string,
+  walletId: string,
+  marketKey: string
+): Promise<string[]> {
+  const rows = await db
+    .select({ plan: tradeSmartLadders.plan })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.marketKey, marketKey),
+        eq(tradeSmartLadders.kind, "grid"),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+  return rows.flatMap((row) => {
+    const plan = readSmartPlan("grid", row.plan) as GridPlan | null
+    return plan?.pairedStop ? [plan.pairedStop.orderId] : []
+  })
+}
+
 export async function setLiveBrackets(
   userId: string,
   input: {
@@ -774,8 +813,22 @@ export async function setLiveBrackets(
     marketKey: string
     targets: Array<{ px: number; sz: number | null }>
     slPx: number | null
+    /**
+     * Coins the stop sells, or null/absent for the whole position. The same
+     * rules as a target's size: more than is held is refused, and a size
+     * that IS the whole position collapses back to null so the exchange
+     * holds a stop that grows with the position.
+     */
+    slSz?: number | null
+    /**
+     * Replace exactly these protection orders and leave the rest standing —
+     * how a grid swaps its own stop without touching the ladder's. Absent,
+     * every protection leg is replaced except a paired grid's own stop,
+     * which no ordinary replace may take off.
+     */
+    replaceOrderIds?: string[]
   }
-): Promise<void> {
+): Promise<{ slOrderId: string | null }> {
   const row = await liveWallet(userId, input.walletId)
   const protocol = getProtocol(row.protocol)
   let side: TradeSide | null = null
@@ -820,6 +873,28 @@ export async function setLiveBrackets(
         `LIVE_TAKE_PROFIT_TOTAL:${targetsUsd}:${heldSz * held.entryPx}`
       )
     }
+    // The stop's size, checked the way the target's already is. A stop for
+    // more coins than are held would sell somebody else's; a stop for
+    // exactly what is held is the whole-position stop and is sent as one, so
+    // it keeps growing with the position instead of freezing at today's size.
+    //
+    // EXCEPT for a caller that owns its stop and named the order it is
+    // replacing. A paired grid can hold the entire position for a while —
+    // the ladder beneath it has simply not bought yet — and collapsing its
+    // stop to the growing kind then would quietly stretch it over every
+    // rung the ladder buys later. An owned stop keeps its exact size.
+    let slSz = input.slPx === null ? null : (input.slSz ?? null)
+    if (slSz !== null) {
+      if (!(slSz > 0)) throw new Error("LIVE_STOP_SIZE")
+      if (slSz > heldSz * (1 + 1e-6)) {
+        throw new Error(
+          `LIVE_STOP_TOTAL:${slSz * (input.slPx ?? 0)}:${heldSz * held.entryPx}`
+        )
+      }
+      if (slSz >= heldSz * (1 - 1e-6) && input.replaceOrderIds === undefined) {
+        slSz = null
+      }
+    }
     if (input.slPx !== null) {
       const prices = await protocol.markets.prices(row.network, [ref.marketId])
       const mark = prices.get(ref.marketId)
@@ -828,25 +903,51 @@ export async function setLiveBrackets(
       if (!ahead) throw new Error("LIVE_STOP_SIDE")
     }
 
-    await ordersOf(protocol).setBrackets(row.network, authFor(row), {
-      marketId: ref.marketId,
-      position: held,
-      targets,
-      slPx: input.slPx,
-    })
+    // Which legs this replace may take off. A grid running above a ladder
+    // owns its stop outright: an ordinary replace spares it, and the grid's
+    // own replace names exactly its old order and touches nothing else.
+    const spared =
+      input.replaceOrderIds === undefined
+        ? new Set(
+            await pairedGridStopOrderIds(
+              userId,
+              input.walletId,
+              input.marketKey
+            )
+          )
+        : null
+    const replacing = spared
+      ? held.protectionOrderIds.filter((id) => !spared.has(id))
+      : held.protectionOrderIds.filter((id) =>
+          (input.replaceOrderIds as string[]).includes(id)
+        )
+
+    const placed = await ordersOf(protocol).setBrackets(
+      row.network,
+      authFor(row),
+      {
+        marketId: ref.marketId,
+        position: { ...held, protectionOrderIds: replacing },
+        targets,
+        slPx: input.slPx,
+        slSz,
+      }
+    )
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,
-      note: describeBrackets(targets, input.slPx),
+      note: describeBrackets(targets, input.slPx, slSz),
     })
+    return { slOrderId: placed.slOrderId }
   } catch (error) {
-    await refuse(userId, row.id, input.marketKey, side, error)
+    return await refuse(userId, row.id, input.marketKey, side, error)
   }
 }
 
 function describeBrackets(
   targets: Array<{ px: number; sz: number | null }>,
-  slPx: number | null
+  slPx: number | null,
+  slSz: number | null
 ): string {
   const parts = [
     targets.length > 0
@@ -857,7 +958,9 @@ function describeBrackets(
           )
           .join(", ")}`
       : "take profits removed",
-    slPx !== null ? `stop at ${slPx}` : "stop removed",
+    slPx !== null
+      ? `stop at ${slPx}${slSz !== null ? ` selling ${slSz}` : ""}`
+      : "stop removed",
   ]
   return `Protection set: ${parts.join(", ")}.`
 }
@@ -959,6 +1062,12 @@ export async function loadLivePortfolio(
     ])
   const early = anyWaited ? null : readHistory()
 
+  // Which markets are running a grid above a ladder, so each stop can be
+  // handed back to its owner — the exchange read names the oldest stop leg
+  // as the position's, which is usually the grid's. One indexed query for
+  // every wallet, empty for anyone not using the pairing.
+  const pairedStops = await pairedStopRefs(userId, walletIds)
+
   await Promise.all(
     live.map(async (wallet) => {
       try {
@@ -976,10 +1085,9 @@ export async function loadLivePortfolio(
             if (!readPortfolio) {
               throw new Error(`PROTOCOL_NO_PORTFOLIO:${protocol.id}`)
             }
-            const portfolio = await readPortfolio(
-              wallet.network,
-              wallet.address ?? "",
-              credential
+            const portfolio = reattributePairedStops(
+              await readPortfolio(wallet.network, wallet.address ?? "", credential),
+              pairedStops.get(wallet.id) ?? new Map()
             )
             const rows = livePortfolioRows(wallet, portfolio, now)
             positions.push(...rows.positions)

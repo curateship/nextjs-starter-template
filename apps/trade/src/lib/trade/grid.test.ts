@@ -274,6 +274,7 @@ describe("reading a stored grid back", () => {
     baseDetection: defaultGridParams().baseDetection,
     baseWatch: null,
     aimedSlPx: null,
+    pairedStop: null,
     seenFillsTo: 0,
     cycles: 0,
     follow: false,

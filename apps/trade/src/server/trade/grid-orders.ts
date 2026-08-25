@@ -32,7 +32,7 @@ import {
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
-import { activeSmartOrderId } from "./smart-orders"
+import { assertSmartOrderPlacable } from "./smart-pairing"
 
 /**
  * Placing and steering grid orders — the actions behind the right-click
@@ -252,6 +252,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     baseDetection: params.baseDetection,
     baseWatch: null,
     aimedSlPx: null,
+    pairedStop: null,
     seenFillsTo: 0,
     cycles: 0,
     follow: params.follow,
@@ -284,10 +285,13 @@ export async function placeGridOrder(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("PAPER_MARKET")
 
-  // Any kind of smart order, not just another grid: there is one position per
-  // coin and both kinds write its stop, so two of them would fight over it.
-  const existing = await activeSmartOrderId(userId, wallet.id, input.marketKey)
-  if (existing) throw new Error("SMART_LADDER_EXISTS")
+  // Any kind of smart order, not just another grid — with one exception. A
+  // live grid may sit above a DCA ladder when its stop clears the ladder's
+  // first buy; everything else fights over the one position's stop, and a
+  // practice wallet cannot hold two stops at all.
+  await assertSmartOrderPlacable(userId, wallet, input.marketKey, {
+    kind: "grid",
+  })
 
   const protocol = getProtocol(wallet.protocol)
   const roundPx = (px: number) =>
@@ -333,15 +337,15 @@ export async function placeGridOrder(
       )
       .for("update")
 
-    // Re-checked under the lock: two tabs placing at once must not both win,
-    // and neither may a grid and a ladder.
-    const race = await activeSmartOrderId(
+    // Re-checked under the lock: two tabs placing at once must not both win.
+    // This is also where the pairing rules see the drawn grid's own stop.
+    await assertSmartOrderPlacable(
       userId,
-      wallet.id,
+      wallet,
       input.marketKey,
+      { kind: "grid", plan },
       tx
     )
-    if (race) throw new Error("SMART_LADDER_EXISTS")
 
     // Nothing is bought here, on purpose. Placing a grid spends nothing at all:
     // every level waits for price to reach it and pays its own way then.
