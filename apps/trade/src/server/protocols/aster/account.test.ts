@@ -95,6 +95,7 @@ describe("the Aster account", () => {
           positionSide: "BOTH",
           isolatedMargin: "8",
           liquidationPrice: "0",
+          unRealizedProfit: "0",
         },
       ],
     })
@@ -173,6 +174,7 @@ describe("the Aster account", () => {
           positionSide: "BOTH",
           isolatedMargin: "0",
           liquidationPrice: "0",
+          unRealizedProfit: "0",
         },
       ],
     })

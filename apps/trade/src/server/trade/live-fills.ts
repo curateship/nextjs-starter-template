@@ -208,7 +208,6 @@ export async function sweepLiveFills(
       credential
     )
     await recordLiveFills(userId, wallet, fills)
-    orders.fillsRecovered?.(wallet.network, wallet.address)
   } catch (error) {
     // Loud, because a silent gap here is a Journal that quietly stops growing.
     console.error("trade_live_fills sweep failed", error)

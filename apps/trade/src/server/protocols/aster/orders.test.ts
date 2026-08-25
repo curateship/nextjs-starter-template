@@ -527,6 +527,7 @@ describe("Aster orders", () => {
             marginType: "cross",
             positionSide: "BOTH",
             isolatedMargin: "0",
+            unRealizedProfit: "0",
           },
         ]
       }
@@ -610,6 +611,7 @@ describe("Aster orders", () => {
             marginType: "cross",
             positionSide: "BOTH",
             isolatedMargin: "0",
+            unRealizedProfit: "0",
           },
         ]
       }

@@ -159,7 +159,6 @@ import {
 } from "@/server/protocols/aster/orders"
 import {
   asterFillsNeedRecovery,
-  markAsterFillsRecovered,
   watchAsterFills,
 } from "@/server/protocols/aster/user-stream"
 
@@ -474,8 +473,6 @@ export type ProtocolEntry = {
     ): void
     /** True once a pushed feed is up and needs one gap-closing REST read. */
     fillsNeedRecovery?(network: NetworkId, address: string): boolean
-    /** Marks that gap-closing read complete for the current connection. */
-    fillsRecovered?(network: NetworkId, address: string): void
   }
 }
 
@@ -824,7 +821,6 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       orderInfo: fetchAsterOrderInfo,
       watchFills: watchAsterFills,
       fillsNeedRecovery: asterFillsNeedRecovery,
-      fillsRecovered: markAsterFillsRecovered,
     },
   },
   binance: {

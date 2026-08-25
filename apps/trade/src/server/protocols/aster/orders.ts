@@ -26,11 +26,24 @@ import {
 } from "@/server/protocols/aster/client"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { scrubbedMessage } from "@/server/protocols/scrub"
+import {
+  asterPortfolioNeedsRecovery,
+  asterSnapshotRecoveryVersion,
+  clearAsterUserSnapshots,
+  primeAsterPortfolioSnapshot,
+  readAsterPushedPortfolio,
+  rememberAsterLeverage,
+} from "@/server/protocols/aster/user-snapshot"
+import {
+  asterFillsFromStream,
+  asterFillsRecoveryVersion,
+  markAsterFillsRecovered,
+} from "@/server/protocols/aster/user-stream"
 
 const orderSchema = z.object({
   orderId: z.union([z.string(), z.number()]),
   symbol: z.string(),
-  side: z.string(),
+  side: z.enum(["BUY", "SELL"]),
   type: z.string(),
   status: z.string().optional(),
   price: z.union([z.string(), z.number()]).optional(),
@@ -46,7 +59,7 @@ const fillSchema = z.object({
   id: z.union([z.string(), z.number()]),
   orderId: z.union([z.string(), z.number()]),
   symbol: z.string(),
-  side: z.string(),
+  side: z.enum(["BUY", "SELL"]),
   price: z.union([z.string(), z.number()]),
   qty: z.union([z.string(), z.number()]),
   realizedPnl: z.union([z.string(), z.number()]).optional(),
@@ -74,7 +87,12 @@ const accountMarginModeLoads = new Map<string, Promise<AsterMarginMode>>()
 const knownSymbols = new Map<string, Set<string>>()
 const portfolioCache = new Map<
   string,
-  { at: number; answer: Promise<WalletPortfolio> }
+  {
+    at: number
+    answer: Promise<WalletPortfolio>
+    settled: boolean
+    recoveryVersion: number
+  }
 >()
 const MARKET_CAP = 0.03
 const PRICE_BAND_SHARE = 0.95
@@ -156,6 +174,7 @@ async function setLeverage(
       leverage: asked,
     })
     leverageCache.set(key, asked)
+    rememberAsterLeverage(network, account(orderAuth), symbol, asked)
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     throw new Error(
@@ -573,9 +592,10 @@ async function openOrders(
   )
   const rows = z.array(z.unknown()).safeParse(answer)
   if (!rows.success) throw new Error("LIVE_UNREADABLE")
-  return rows.data.flatMap((raw) => {
+  return rows.data.map((raw) => {
     const parsed = orderSchema.safeParse(raw)
-    return parsed.success ? [parsed.data] : []
+    if (!parsed.success) throw new Error("LIVE_UNREADABLE")
+    return parsed.data
   })
 }
 
@@ -603,7 +623,7 @@ function attachOrders(
       const position = positions.find((one) => one.marketId === row.symbol)
       if (!position) continue
       const triggerPx = num(row.stopPrice)
-      if (triggerPx === null) continue
+      if (triggerPx === null) throw new Error("LIVE_UNREADABLE")
       // Every leg is counted, even the ones that do not become the position's
       // own stop or target, because `setBrackets` has to cancel all of them.
       position.protectionOrderIds.push(String(row.orderId))
@@ -621,7 +641,7 @@ function attachOrders(
     }
     const px = num(row.price)
     const sz = num(row.origQty)
-    if (px === null || sz === null) continue
+    if (px === null || sz === null) throw new Error("LIVE_UNREADABLE")
     orders.push({
       orderId: String(row.orderId),
       marketId: row.symbol,
@@ -650,9 +670,17 @@ export async function fetchAsterOrderPortfolio(
   const blob = credentialFn()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseAsterCredential(blob)
+  const pushed = readAsterPushedPortfolio(network, address)
+  if (pushed) return pushed
   const key = readKey(network, address, parsed)
+  const recoveryVersion = asterSnapshotRecoveryVersion(network, address)
   const cached = portfolioCache.get(key)
-  if (cached && Date.now() - cached.at < ACCOUNT_READ_GOOD_FOR_MS) {
+  if (
+    cached &&
+    ((!cached.settled && cached.recoveryVersion === recoveryVersion) ||
+      (!asterPortfolioNeedsRecovery(network, address) &&
+        Date.now() - cached.at < ACCOUNT_READ_GOOD_FOR_MS))
+  ) {
     return cached.answer
   }
   const at = Date.now()
@@ -662,12 +690,21 @@ export async function fetchAsterOrderPortfolio(
   ]).then(([base, rows]) => {
     for (const row of rows) remember(network, address, row.symbol)
     for (const row of base.positions) remember(network, address, row.marketId)
-    return attachOrders(base, rows)
+    const portfolio = attachOrders(base, rows)
+    primeAsterPortfolioSnapshot(network, address, portfolio, recoveryVersion)
+    return portfolio
   })
+  const held = { at, answer, settled: false, recoveryVersion }
   answer.catch(() => {
-    if (portfolioCache.get(key)?.at === at) portfolioCache.delete(key)
+    if (portfolioCache.get(key) === held) portfolioCache.delete(key)
   })
-  portfolioCache.set(key, { at, answer })
+  answer.then(
+    () => {
+      held.settled = true
+    },
+    () => {}
+  )
+  portfolioCache.set(key, held)
   return answer
 }
 
@@ -828,11 +865,23 @@ export async function fetchAsterOrderFills(
   since: number,
   credentialFn: () => string | null
 ): Promise<WalletOrderFill[]> {
+  const pushed = asterFillsFromStream(
+    network,
+    address,
+    since,
+    credentialFn
+  )
+  if (pushed) return pushed
+
   const blob = credentialFn()
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseAsterCredential(blob)
   const symbols = knownSymbols.get(`${network}:${address.toLowerCase()}`)
-  if (!symbols || symbols.size === 0) return []
+  const recoveryVersion = asterFillsRecoveryVersion(network, address)
+  if (!symbols || symbols.size === 0) {
+    markAsterFillsRecovered(network, address, since, [], recoveryVersion)
+    return []
+  }
   const answers = await Promise.all(
     [...symbols].map((symbol) =>
       asterSigned(network, address, parsed, "GET", "/fapi/v3/userTrades", 5, {
@@ -844,15 +893,24 @@ export async function fetchAsterOrderFills(
   const fills: WalletOrderFill[] = []
   for (const answer of answers) {
     const rows = z.array(z.unknown()).safeParse(answer)
-    if (!rows.success) continue
+    if (!rows.success) throw new Error("LIVE_UNREADABLE")
     for (const raw of rows.data) {
       const parsedFill = fillSchema.safeParse(raw)
-      if (!parsedFill.success) continue
+      if (!parsedFill.success) throw new Error("LIVE_UNREADABLE")
       const row = parsedFill.data
       const px = num(row.price)
       const sz = num(row.qty)
       const at = num(row.time)
-      if (px === null || sz === null || at === null) continue
+      if (
+        px === null ||
+        !(px > 0) ||
+        sz === null ||
+        !(sz > 0) ||
+        at === null ||
+        at < 0
+      ) {
+        throw new Error("LIVE_UNREADABLE")
+      }
       const pnl = num(row.realizedPnl) ?? 0
       fills.push({
         fillId: String(row.id),
@@ -876,7 +934,15 @@ export async function fetchAsterOrderFills(
       })
     }
   }
-  return fills.sort((a, b) => a.at - b.at)
+  fills.sort((a, b) => a.at - b.at)
+  markAsterFillsRecovered(
+    network,
+    address,
+    since,
+    fills,
+    recoveryVersion
+  )
+  return fills
 }
 
 export async function fetchAsterOrderInfo(
@@ -918,4 +984,5 @@ export function clearAsterOrderState(): void {
   accountMarginModeLoads.clear()
   knownSymbols.clear()
   portfolioCache.clear()
+  clearAsterUserSnapshots()
 }

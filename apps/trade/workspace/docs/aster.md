@@ -248,10 +248,24 @@ the app assumes will stay fixed.
   account and network. The key is renewed every thirty minutes. A failed
   renewal, an expired key, a socket close or a socket error tears the line down
   and reconnects with a delay that tops out at thirty seconds.
-- Order and account events invalidate the short account cache. Trade fills are
-  translated immediately into the same record used by recovery reads, whose
-  primary key makes the pushed and recovered copy one fill. A REST fill read
-  runs once after the stream opens or reconnects, not on a healthy timer.
+- The first healthy connection and every reconnection read the account,
+  positions, open orders and missed fills once. Events after that update one
+  copy in server memory. The wallet card, the bottom panel and the engine read
+  that copy without asking Aster again on their own timers. Callers arriving
+  during recovery share the same request instead of each starting one.
+- Aster says account events may arrive out of order. Trade keeps the newest
+  event for each asset, market and order. An event it cannot read makes the
+  next account use recover through REST instead of trusting an incomplete
+  copy. An unreadable row in a recovery answer also leaves recovery pending.
+- Aster's REST account total converts supported collateral into dollars. A
+  pushed asset balance changes that converted starting total by the asset's
+  difference; it never replaces the total with a raw sum of tokens. A position
+  event does not carry a liquidation price, so a changed position clears the
+  old price instead of showing one that no longer belongs to it.
+- Trade fills go straight through the same database write as recovery fills.
+  The database key makes a pushed fill and its recovered copy one row. A
+  healthy line answers later fill reads from its in-memory history and runs no
+  fill sweep.
 - Aster requires a market name on its recovery trade endpoint. The connector
   remembers markets seen in positions, open orders and orders sent by this
   process, then recovers those markets. A newly connected account with only

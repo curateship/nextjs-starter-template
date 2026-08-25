@@ -6,16 +6,23 @@ import {
   asterWsUrl,
   num,
 } from "@/lib/protocols/aster/translate"
-import { clearAsterAccountCache } from "@/server/protocols/aster/account"
 import {
   asterSigned,
   parseAsterCredential,
 } from "@/server/protocols/aster/client"
+import {
+  applyAsterUserEvent,
+  clearAsterUserSnapshots,
+  markAsterSnapshotConnected,
+  markAsterSnapshotDisconnected,
+  markAsterSnapshotNeedsRecovery,
+} from "@/server/protocols/aster/user-snapshot"
 
 const listenKeySchema = z.object({ listenKey: z.string().min(1) })
 const KEEP_ALIVE_MS = 30 * 60_000
 const WATCHDOG_MS = 3_000
 const IDLE_MS = 10 * 60_000
+const KEEP_FILLS = 5_000
 
 type Listener = (fill: WalletOrderFill) => void
 
@@ -35,6 +42,9 @@ type Line = {
   healthy: boolean
   changedAt: number
   needsRecovery: boolean
+  recoveryVersion: number
+  coveredFrom: number
+  fills: Map<string, WalletOrderFill>
 }
 
 const scope = globalThis as {
@@ -49,11 +59,24 @@ function keyFor(network: NetworkId, address: string): string {
   return `${network}:${address.toLowerCase()}`
 }
 
+function forgetOldFills(line: Line): void {
+  if (line.fills.size <= KEEP_FILLS) return
+  const fills = [...line.fills.values()].sort(
+    (left, right) => left.at - right.at
+  )
+  const dropped = fills.slice(0, fills.length - KEEP_FILLS)
+  for (const fill of dropped) line.fills.delete(fill.fillId)
+  const oldest = fills[dropped.length]
+  if (oldest) line.coveredFrom = Math.max(line.coveredFrom, oldest.at)
+}
+
 function schedule(line: Line): void {
   line.healthy = false
   line.needsRecovery = true
+  line.recoveryVersion += 1
   line.reconnectAt = Date.now() + asterReconnectDelay(line.attempts)
   line.attempts += 1
+  markAsterSnapshotDisconnected(line.network, line.address)
 }
 
 function teardown(line: Line): void {
@@ -64,6 +87,7 @@ function teardown(line: Line): void {
   const socket = line.socket
   line.socket = null
   line.healthy = false
+  markAsterSnapshotDisconnected(line.network, line.address)
   try {
     socket?.close()
   } catch {
@@ -96,7 +120,7 @@ function fillOf(message: unknown): WalletOrderFill | null {
       e: z.string(),
       o: z.object({
         s: z.string(),
-        S: z.string(),
+        S: z.enum(["BUY", "SELL"]),
         x: z.string(),
         X: z.string(),
         i: z.union([z.string(), z.number()]),
@@ -120,7 +144,9 @@ function fillOf(message: unknown): WalletOrderFill | null {
     sz === null ||
     !(sz > 0) ||
     px === null ||
-    at === null
+    !(px > 0) ||
+    at === null ||
+    at < 0
   ) {
     return null
   }
@@ -193,6 +219,7 @@ async function connect(line: Line): Promise<void> {
     if (generation !== line.generation) return
     line.healthy = true
     line.attempts = 0
+    markAsterSnapshotConnected(line.network, line.address)
     line.keepAlive = setInterval(() => {
       void renew(line).catch(() => {
         if (generation !== line.generation) return
@@ -214,10 +241,36 @@ async function connect(line: Line): Promise<void> {
     const eventName = (message as { e?: unknown }).e
     if (eventName === "ORDER_TRADE_UPDATE" || eventName === "ACCOUNT_UPDATE") {
       line.changedAt = Date.now()
-      clearAsterAccountCache()
     }
     const fill = fillOf(message)
-    if (fill) for (const listener of line.listeners.values()) listener(fill)
+    if (fill) {
+      line.fills.set(fill.fillId, fill)
+      forgetOldFills(line)
+    }
+    const applied = applyAsterUserEvent(line.network, line.address, message)
+    const execution = (message as { o?: { x?: unknown } }).o?.x
+    if (
+      (!applied &&
+        (eventName === "ORDER_TRADE_UPDATE" ||
+          eventName === "ACCOUNT_UPDATE" ||
+          eventName === "ACCOUNT_CONFIG_UPDATE")) ||
+      (eventName === "ORDER_TRADE_UPDATE" &&
+        execution === "TRADE" &&
+        !fill)
+    ) {
+      markAsterSnapshotNeedsRecovery(line.network, line.address)
+      line.needsRecovery = true
+      line.recoveryVersion += 1
+    }
+    if (fill) {
+      for (const listener of line.listeners.values()) {
+        try {
+          listener(fill)
+        } catch (error) {
+          console.error("Aster fill listener failed", error)
+        }
+      }
+    }
     if (eventName === "listenKeyExpired") {
       line.generation += 1
       teardown(line)
@@ -280,6 +333,9 @@ export function watchAsterFills(
       healthy: false,
       changedAt: 0,
       needsRecovery: true,
+      recoveryVersion: 0,
+      coveredFrom: Date.now(),
+      fills: new Map(),
     }
     lines().set(key, line)
     void connect(line)
@@ -296,6 +352,7 @@ export function closeAsterUserStreams(): void {
     if (line.watchdog) clearInterval(line.watchdog)
   }
   lines().clear()
+  clearAsterUserSnapshots()
 }
 
 export function asterUserStreamState(
@@ -315,15 +372,55 @@ export function asterFillsNeedRecovery(
   address: string
 ): boolean {
   const line = lines().get(keyFor(network, address))
-  return Boolean(line?.healthy && line.needsRecovery)
+  return Boolean(line?.needsRecovery)
 }
 
 export function markAsterFillsRecovered(
   network: NetworkId,
-  address: string
+  address: string,
+  since = Date.now(),
+  fills: readonly WalletOrderFill[] = [],
+  recoveryVersion?: number
 ): void {
   const line = lines().get(keyFor(network, address))
-  if (line?.healthy) line.needsRecovery = false
+  if (
+    !line?.healthy ||
+    (recoveryVersion !== undefined &&
+      recoveryVersion !== line.recoveryVersion)
+  ) {
+    return
+  }
+  for (const fill of fills) line.fills.set(fill.fillId, fill)
+  line.coveredFrom = Math.min(line.coveredFrom, since)
+  line.needsRecovery = false
+  forgetOldFills(line)
+}
+
+export function asterFillsRecoveryVersion(
+  network: NetworkId,
+  address: string
+): number {
+  return lines().get(keyFor(network, address))?.recoveryVersion ?? 0
+}
+
+export function asterFillsFromStream(
+  network: NetworkId,
+  address: string,
+  since: number,
+  credential: () => string | null
+): WalletOrderFill[] | null {
+  watchAsterFills(network, address, "__aster_fill_cache__", credential, () => {})
+  const line = lines().get(keyFor(network, address))
+  if (
+    !line?.healthy ||
+    line.needsRecovery ||
+    since < line.coveredFrom
+  ) {
+    return null
+  }
+  return [...line.fills.values()]
+    .filter((fill) => fill.at >= since)
+    .sort((left, right) => left.at - right.at)
 }
 
 export { fillOf as asterStreamFill }

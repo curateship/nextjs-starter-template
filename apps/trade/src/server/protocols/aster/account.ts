@@ -11,6 +11,12 @@ import {
   asterSigned,
   parseAsterCredential,
 } from "@/server/protocols/aster/client"
+import {
+  asterAccountNeedsRecovery,
+  asterSnapshotRecoveryVersion,
+  primeAsterAccountSnapshot,
+  readAsterPushedAccount,
+} from "@/server/protocols/aster/user-snapshot"
 
 const accountPositionSchema = z.object({
   symbol: z.string(),
@@ -23,6 +29,14 @@ const accountSchema = z.object({
   totalUnrealizedProfit: z.union([z.string(), z.number()]),
   availableBalance: z.union([z.string(), z.number()]),
   positions: z.array(accountPositionSchema),
+  assets: z
+    .array(
+      z.object({
+        asset: z.string(),
+        walletBalance: z.union([z.string(), z.number()]),
+      })
+    )
+    .optional(),
 })
 
 const positionSchema = z.object({
@@ -34,18 +48,29 @@ const positionSchema = z.object({
   positionSide: z.string(),
   isolatedMargin: z.union([z.string(), z.number()]),
   liquidationPrice: z.union([z.string(), z.number()]).optional(),
+  unRealizedProfit: z.union([z.string(), z.number()]),
 })
 
 type Snapshot = {
   figures: WalletAccountFigures
   portfolio: WalletPortfolio
+  balanceByAsset: Map<string, number>
+  profitByMarket: Map<string, number>
 }
 
 // Watched prices still move every second on the open stream. Aster charges ten
 // request units for this account pair, so four refreshes a minute are enough.
 // Every successful order clears the cache before the next engine pass.
 const ACCOUNT_GOOD_FOR_MS = 15_000
-const cache = new Map<string, { at: number; answer: Promise<Snapshot> }>()
+const cache = new Map<
+  string,
+  {
+    at: number
+    answer: Promise<Snapshot>
+    settled: boolean
+    recoveryVersion: number
+  }
+>()
 
 export const ASTER_ONE_WAY_REQUIRED =
   "This Aster account can hold a long and a short in the same coin. Trade works with one direction at a time. Change Position Mode to One-way Mode on Aster, then refresh."
@@ -103,6 +128,11 @@ export function toAsterAccountSnapshot(input: {
   const free = required(account.availableBalance)
   const openProfit = required(account.totalUnrealizedProfit)
   const positions: WalletPosition[] = []
+  const balanceByAsset = new Map<string, number>()
+  const profitByMarket = new Map<string, number>()
+  for (const asset of account.assets ?? []) {
+    balanceByAsset.set(asset.asset, required(asset.walletBalance))
+  }
   const crossMargins = new Map(
     account.positions.map((row) => [
       `${row.symbol}:${row.positionSide}`,
@@ -139,6 +169,7 @@ export function toAsterAccountSnapshot(input: {
       slOrderId: null,
       protectionOrderIds: [],
     })
+    profitByMarket.set(row.symbol, required(row.unRealizedProfit))
   }
 
   return {
@@ -149,6 +180,8 @@ export function toAsterAccountSnapshot(input: {
       openProfit,
     },
     portfolio: { positions, orders: [] },
+    balanceByAsset,
+    profitByMarket,
   }
 }
 
@@ -161,8 +194,14 @@ async function read(
   if (!blob) throw new Error("LIVE_WALLET_KEY")
   const parsed = parseAsterCredential(blob)
   const key = `${network}:${address.toLowerCase()}:${parsed.signer}`
+  const recoveryVersion = asterSnapshotRecoveryVersion(network, address)
   const cached = cache.get(key)
-  if (cached && Date.now() - cached.at < ACCOUNT_GOOD_FOR_MS)
+  if (
+    cached &&
+    ((!cached.settled && cached.recoveryVersion === recoveryVersion) ||
+      (!asterAccountNeedsRecovery(network, address) &&
+        Date.now() - cached.at < ACCOUNT_GOOD_FOR_MS))
+  )
     return cached.answer
 
   const at = Date.now()
@@ -176,13 +215,22 @@ async function read(
       5
     ),
     asterSigned(network, address, parsed, "GET", "/fapi/v3/positionRisk", 5),
-  ]).then(([account, positions]) =>
-    toAsterAccountSnapshot({ account, positions })
-  )
-  answer.catch(() => {
-    if (cache.get(key)?.at === at) cache.delete(key)
+  ]).then(([account, positions]) => {
+    const snapshot = toAsterAccountSnapshot({ account, positions })
+    primeAsterAccountSnapshot(network, address, snapshot, recoveryVersion)
+    return snapshot
   })
-  cache.set(key, { at, answer })
+  const held = { at, answer, settled: false, recoveryVersion }
+  answer.catch(() => {
+    if (cache.get(key) === held) cache.delete(key)
+  })
+  answer.then(
+    () => {
+      held.settled = true
+    },
+    () => {}
+  )
+  cache.set(key, held)
   return answer
 }
 
@@ -191,7 +239,12 @@ export async function fetchAsterAccount(
   address: string,
   credential: () => string | null
 ): Promise<WalletAccountFigures> {
-  return (await read(network, address, credential)).figures
+  const blob = credential()
+  if (!blob) throw new Error("LIVE_WALLET_KEY")
+  parseAsterCredential(blob)
+  const pushed = readAsterPushedAccount(network, address)
+  if (pushed) return pushed
+  return (await read(network, address, () => blob)).figures
 }
 
 export async function fetchAsterPortfolio(
