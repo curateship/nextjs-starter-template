@@ -30,6 +30,7 @@ import {
   asterPortfolioNeedsRecovery,
   asterSnapshotRecoveryVersion,
   clearAsterUserSnapshots,
+  markAsterSnapshotNeedsRecovery,
   primeAsterPortfolioSnapshot,
   readAsterPushedPortfolio,
   rememberAsterLeverage,
@@ -138,6 +139,7 @@ function clearOrderReads(
   const key = readKey(network, accountAddress, credentialValue)
   portfolioCache.delete(key)
   clearAsterAccountCache()
+  markAsterSnapshotNeedsRecovery(network, accountAddress)
 }
 
 async function signed(
@@ -520,6 +522,12 @@ export async function placeAsterOrder(
   const filledSz = num(final?.executedQty) ?? 0
   const avgPx = num(final?.avgPrice)
   const filled = final?.status === "FILLED" || (market && filledSz > 0)
+  // A poll can start after Aster accepts the order but before Aster confirms
+  // its fill. Invalidate again at confirmation so that older read cannot put
+  // the pre-fill snapshot back in front of the action's immediate refresh.
+  if (filled) {
+    clearOrderReads(network, account(orderAuth), credential(orderAuth))
+  }
   return {
     status: filled ? "filled" : "resting",
     orderId,

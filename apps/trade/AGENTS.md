@@ -24,6 +24,12 @@ Three rules never wait for a file to be opened:
   are the default stopping point. A database change may need a deployment, but
   explain why and wait for Tyler to authorize it. Never treat an earlier deploy
   request as standing permission for later fixes.
+- **Solve small in-scope problems instead of only reporting them.** When a
+  clear fix is safe, narrow and does not need Tyler's decision or new
+  authority, make the fix and verify it. Tell Tyler about suggestions when he
+  needs them to choose a direction, understand a meaningful risk or approve a
+  larger change. Stop at diagnosis only when Tyler asked for diagnosis alone,
+  the right fix is genuinely unclear or the next action needs his permission.
 
 The monorepo's root `AGENTS.md` covers the repo shape, the ports and which apps
 are live. The root `CLAUDE.md` covers how to write and how to treat evidence.

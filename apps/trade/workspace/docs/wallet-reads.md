@@ -214,9 +214,16 @@ once shares a single answer. **A failed read is never cached** — one refusal
 must not be handed to every caller for the next five seconds, and "Try again"
 has to really try.
 
-Aster shares its balance and position pair for two seconds. Each pair costs 10
-of Aster's request units, 5 for balance and 5 for positions. The shorter cache
-still joins the wallet card and positions table when they repaint together.
+Aster's signed balance and position pair is recovery for its private account
+line. One recovery answer may stand for the next for fifteen seconds while the
+line has reported no change. Each pair costs 10 of Aster's request units, 5 for
+balance and 5 for positions.
+
+A successful Aster order ends that reuse immediately. A confirmed fill ends it
+again, after Aster has named the fill, so an account read that began before the
+fill cannot put its empty answer back in front of the action. The order action
+then starts its own refresh. Positions does not wait for the ordinary
+four-second repaint to discover a fill Trade just made.
 
 ## A missed read is not "this wallet is worth nothing"
 

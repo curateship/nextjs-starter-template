@@ -119,6 +119,10 @@ add up to.
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is
   on the chart to drag or cancel the moment it lands.
+- **A confirmed fill changes Positions from that action.** The regular
+  four-second repaint is a safety net for trades made somewhere else and for
+  reconnect recovery. An order Trade sent does not wait for that repaint to
+  show the position Aster has already confirmed.
 
 ## Ladders
 

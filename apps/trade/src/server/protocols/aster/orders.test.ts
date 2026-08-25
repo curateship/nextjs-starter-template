@@ -16,6 +16,11 @@ import {
   readAsterAccountMarginMode,
   setAsterBrackets,
 } from "@/server/protocols/aster/orders"
+import {
+  markAsterSnapshotConnected,
+  primeAsterAccountSnapshot,
+  primeAsterPortfolioSnapshot,
+} from "@/server/protocols/aster/user-snapshot"
 
 const ACCOUNT = "0x1111111111111111111111111111111111111111"
 const AUTH: OrderAuth = {
@@ -62,7 +67,7 @@ function order(overrides: Record<string, unknown> = {}) {
 }
 
 function stub(
-  answer: (method: string, url: URL) => unknown,
+  answer: (method: string, url: URL) => unknown | Promise<unknown>,
   sent: Sent[]
 ): void {
   vi.stubGlobal(
@@ -77,7 +82,7 @@ function stub(
       if (url.pathname.endsWith("/time")) {
         return Response.json({ serverTime: Date.now() })
       }
-      return Response.json(answer(method, url))
+      return Response.json(await answer(method, url))
     })
   )
 }
@@ -340,6 +345,105 @@ describe("Aster orders", () => {
     expect(placed?.url.searchParams.get("type")).toBe("LIMIT")
     expect(placed?.url.searchParams.get("timeInForce")).toBe("IOC")
     expect(placed?.url.searchParams.get("price")).toBe("103")
+  })
+
+  it("does not let the snapshot from before a confirmed fill hide its position", async () => {
+    const sent: Sent[] = []
+    let filled = false
+    let announceOrderLookup!: () => void
+    let releaseOrderLookup!: () => void
+    const orderLookupStarted = new Promise<void>((resolve) => {
+      announceOrderLookup = resolve
+    })
+    const orderLookupReleased = new Promise<void>((resolve) => {
+      releaseOrderLookup = resolve
+    })
+    markAsterSnapshotConnected("testnet", ACCOUNT)
+    primeAsterAccountSnapshot("testnet", ACCOUNT, {
+      figures: { equity: 100, free: 100, inTrades: 0, openProfit: 0 },
+      balanceByAsset: new Map([["USDT", 100]]),
+      profitByMarket: new Map(),
+    })
+    primeAsterPortfolioSnapshot("testnet", ACCOUNT, {
+      positions: [],
+      orders: [],
+    })
+    stub(async (method, url) => {
+      if (method === "POST" && url.pathname.endsWith("/order")) {
+        return order()
+      }
+      if (url.pathname.endsWith("/order")) {
+        announceOrderLookup()
+        await orderLookupReleased
+        filled = true
+        return order({
+          status: "FILLED",
+          avgPrice: "100",
+          executedQty: "1",
+        })
+      }
+      if (url.pathname.endsWith("/accountWithJoinMargin")) {
+        return {
+          totalMarginBalance: "100",
+          totalUnrealizedProfit: "0",
+          availableBalance: "90",
+          positions: [
+            {
+              symbol: "BTCUSDT",
+              positionSide: "BOTH",
+              positionInitialMargin: "10",
+            },
+          ],
+          assets: [{ asset: "USDT", walletBalance: "100" }],
+        }
+      }
+      if (url.pathname.endsWith("/positionRisk")) {
+        return filled
+          ? [
+              {
+                symbol: "BTCUSDT",
+                positionAmt: "1",
+                entryPrice: "100",
+                leverage: "10",
+                marginType: "cross",
+                positionSide: "BOTH",
+                isolatedMargin: "0",
+                liquidationPrice: "90",
+                unRealizedProfit: "0",
+              },
+            ]
+          : []
+      }
+      if (url.pathname.endsWith("/openOrders")) return []
+      return {}
+    }, sent)
+
+    const placing = placeAsterOrder("testnet", AUTH, {
+      marketId: "BTCUSDT",
+      side: "buy",
+      kind: "market",
+      px: 100,
+      sz: 1,
+      reduceOnly: false,
+      leverage: null,
+      marginMode: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    await orderLookupStarted
+    await expect(
+      fetchAsterOrderPortfolio("testnet", ACCOUNT, () => AUTH.agentKey)
+    ).resolves.toMatchObject({ positions: [] })
+
+    releaseOrderLookup()
+    await expect(placing).resolves.toMatchObject({ status: "filled" })
+
+    await expect(
+      fetchAsterOrderPortfolio("testnet", ACCOUNT, () => AUTH.agentKey)
+    ).resolves.toMatchObject({
+      positions: [{ marketId: "BTCUSDT", szi: 1, entryPx: 100 }],
+    })
   })
 
   it("snaps an immediate order cap to Aster's price tick", async () => {
