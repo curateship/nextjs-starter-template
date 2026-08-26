@@ -279,10 +279,18 @@ describe("the market folder controls", () => {
 
     await act(async () => click(favToggle))
     expect(favToggle.getAttribute("aria-expanded")).toBe("true")
-    expect(favToggle.className).toContain("bg-muted/60")
-    expect(favToggle.parentElement?.nextElementSibling?.className).toContain(
-      "bg-muted/60"
-    )
+    // The open row takes the darker gray and its list a very light one, so
+    // the two cannot blur into each other. Two different fills is the point,
+    // so they are checked against each other rather than each being pinned
+    // to a shade on its own.
+    const openBody = favToggle.parentElement?.nextElementSibling
+    expect(favToggle.className).toContain("bg-muted")
+    expect(favToggle.className).not.toContain("bg-muted/")
+    expect(openBody?.className).toContain("bg-muted/30")
+    // The open row is fenced off above and below by plain theme borders, so
+    // the shell's Borders setting still controls them.
+    expect(favToggle.parentElement?.className).toContain("border-t")
+    expect(favToggle.parentElement?.className).toContain("border-b")
     expect(folderPanel.textContent).toContain("BTC")
     const expandedMarket = Array.from(
       folderPanel.querySelectorAll("button")
