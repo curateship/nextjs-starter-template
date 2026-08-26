@@ -6,6 +6,7 @@ import {
   fetchLighterOrderPortfolio,
   modifyLighterOrder,
   placeLighterOrder,
+  setLighterBrackets,
 } from "@/server/protocols/lighter/orders"
 import {
   lighterPrivate,
@@ -288,5 +289,129 @@ describe("reading Lighter's resting orders", () => {
       () => KEY
     )
     expect(portfolio.orders).toEqual([])
+  }, 60_000)
+})
+
+describe("stops and targets on a Lighter position", () => {
+  const longPosition = { szi: 0.0006, protectionOrderIds: [] as string[] }
+
+  /** Every signed body Lighter was handed, in order. */
+  function allBodies() {
+    return sent.mock.calls.map(
+      (call) => JSON.parse(String(call[1].txInfo)) as Record<string, unknown>
+    )
+  }
+
+  it("guards a long by selling, reduce-only, at the trigger", async () => {
+    await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: longPosition,
+      targets: [],
+      slPx: 70_000,
+      slSz: null,
+    })
+    const [stop] = allBodies()
+    expect(stop.IsAsk).toBe(1)
+    expect(stop.ReduceOnly).toBe(1)
+    expect(stop.TriggerPrice).toBe(700_000)
+    // Type 3 is the stop-loss LIMIT. Type 2 fills at whatever the market is,
+    // and this app sends no market orders.
+    expect(stop.Type).toBe(3)
+    expect(stop.Type).not.toBe(2)
+    // The whole position, since no size was named.
+    expect(stop.BaseAmount).toBe(60)
+  }, 60_000)
+
+  it("prices the stop's limit through its trigger so it actually fills", async () => {
+    // A stop that rests at its own trigger sits above a market that has
+    // already fallen past it, and never gets out.
+    await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: longPosition,
+      targets: [],
+      slPx: 70_000,
+      slSz: null,
+    })
+    const [stop] = allBodies()
+    expect(Number(stop.Price)).toBeLessThan(Number(stop.TriggerPrice))
+  }, 60_000)
+
+  it("guards a short by buying back, with the limit above the trigger", async () => {
+    await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: { szi: -0.0006, protectionOrderIds: [] },
+      targets: [],
+      slPx: 90_000,
+      slSz: null,
+    })
+    const [stop] = allBodies()
+    expect(stop.IsAsk).toBe(0)
+    expect(Number(stop.Price)).toBeGreaterThan(Number(stop.TriggerPrice))
+  }, 60_000)
+
+  it("takes the old legs off before putting new ones on", async () => {
+    // A leg left behind sells the position a second time. On 24 Aug 2026 a
+    // Hyperliquid position was found holding four.
+    await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: { szi: 0.0006, protectionOrderIds: ["111", "222"] },
+      targets: [{ px: 90_000, sz: null }],
+      slPx: 70_000,
+      slSz: null,
+    })
+    const kinds = sent.mock.calls.map((call) => call[1].txType)
+    // Two cancels first, then the stop and the target.
+    expect(kinds).toEqual([15, 15, 14, 14])
+  }, 60_000)
+
+  it("places a take-profit as its own limit leg", async () => {
+    await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: longPosition,
+      targets: [{ px: 90_000, sz: 0.0003 }],
+      slPx: null,
+      slSz: null,
+    })
+    const [target] = allBodies()
+    // Type 5 is the take-profit LIMIT.
+    expect(target.Type).toBe(5)
+    expect(target.ReduceOnly).toBe(1)
+    // A sized target sells only what it was given, so a second strategy's
+    // coins on the same position survive it.
+    expect(target.BaseAmount).toBe(30)
+  }, 60_000)
+
+  it("answers the stop's own id, and none when there is no stop", async () => {
+    const withStop = await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: longPosition,
+      targets: [],
+      slPx: 70_000,
+      slSz: null,
+    })
+    expect(withStop.slOrderId).toBe("42")
+
+    sent.mockClear()
+    const targetsOnly = await setLighterBrackets("mainnet", auth(), {
+      marketId: "BTC",
+      position: longPosition,
+      targets: [{ px: 90_000, sz: null }],
+      slPx: null,
+      slSz: null,
+    })
+    expect(targetsOnly.slOrderId).toBeNull()
+  }, 60_000)
+
+  it("refuses to guard a position that is not there", async () => {
+    await expect(
+      setLighterBrackets("mainnet", auth(), {
+        marketId: "BTC",
+        position: { szi: 0, protectionOrderIds: [] },
+        targets: [],
+        slPx: 70_000,
+        slSz: null,
+      })
+    ).rejects.toThrow("LIVE_POSITION_GONE")
+    expect(sent).not.toHaveBeenCalled()
   }, 60_000)
 })

@@ -19,6 +19,7 @@ import { lighterPrivate, lighterSendTx } from "@/server/protocols/lighter/client
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { fetchLighterPortfolio } from "@/server/protocols/lighter/account"
 import {
+  fetchLighterPrices,
   lighterMarketByIndex,
   lighterMarketFacts,
 } from "@/server/protocols/lighter/markets"
@@ -177,14 +178,17 @@ export async function placeLighterOrder(
     orderId: String(clientOrderIndex),
     avgPx: null,
     filledSz: null,
-    // Lighter has no way to attach a stop or target to the order itself, so
-    // none was asked for here. `setBrackets` places them separately once the
-    // position exists, and saying "ok" for legs nobody sent would be a lie.
+    /**
+     * Lighter cannot carry a stop or target on the entry itself — each one is
+     * its own order, placed by `setBrackets` once the position exists. So an
+     * entry that was asked for protection reports "partial" and says so
+     * rather than claiming legs that were never sent with it.
+     */
     protection: params.tpPx === null && params.slPx === null ? null : "partial",
     protectionNote:
       params.tpPx === null && params.slPx === null
         ? null
-        : "Lighter takes a stop or target as its own order, so it is placed after the position opens rather than with it.",
+        : "Lighter takes a stop or target as its own order, so it goes on just after the position opens rather than with it.",
   }
 }
 
@@ -319,4 +323,206 @@ async function fetchLighterOpenOrders(
     })
   }
   return rows
+}
+
+/**
+ * How far through the mark a closing order may reach.
+ *
+ * **Closing cannot be post-only.** A post-only order is refused rather than
+ * filled when it would cross the spread, which is exactly what closing has to
+ * do. So a close is the one order here sent Immediate-or-Cancel — still a
+ * limit with a price on it, never a market order. Three percent is the same
+ * cap Aster's close uses: wide enough to fill, tight enough that a broken
+ * price feed cannot sell into nothing.
+ */
+const CLOSE_THROUGH_MARK = 0.03
+
+/**
+ * Closes a position with a reduce-only order priced through the mark.
+ *
+ * Reduce-only matters as much as the price: it can shrink a position and can
+ * never open one the other way, so a size that is stale by the time Lighter
+ * sees it leaves nothing behind.
+ */
+export async function closeLighterPosition(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: { marketId: string; szi: number }
+): Promise<{ avgPx: number | null; filledSz: number | null }> {
+  if (params.szi === 0) return { avgPx: null, filledSz: null }
+  const where = await orderContext(network, auth, params.marketId)
+  const marks = await fetchLighterPrices(network, [params.marketId])
+  const mark = marks.get(params.marketId)
+  if (mark === undefined || !(mark > 0)) throw new Error("LIVE_NO_PRICE")
+
+  // Selling a long reaches DOWN through the mark, buying back a short reaches
+  // up: the cap has to be on the side the order will actually cross to.
+  const selling = params.szi > 0
+  const capped = selling
+    ? mark * (1 - CLOSE_THROUGH_MARK)
+    : mark * (1 + CLOSE_THROUGH_MARK)
+
+  const price = scaleLighterPrice(capped, where.priceDecimals)
+  const size = scaleLighterSize(Math.abs(params.szi), where.sizeDecimals)
+  if (price === null || size === null || size <= 0) {
+    throw new Error(
+      "LIGHTER_ORDER_SHAPE:That position's size cannot be said in the whole numbers Lighter takes for this market."
+    )
+  }
+
+  const clientOrderIndex = await auth.allocateNonce(
+    `lighter:${where.accountIndex}`
+  )
+  const nonce = await nextLighterNonce(
+    network,
+    where.accountIndex,
+    where.apiKeyIndex
+  )
+  const signed = await signLighterOrder({
+    accountIndex: where.accountIndex,
+    marketIndex: where.marketIndex,
+    clientOrderIndex,
+    baseAmount: size,
+    price,
+    side: selling ? "sell" : "buy",
+    orderType: LIGHTER_ORDER_TYPE.limit,
+    timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
+    reduceOnly: true,
+    nonce,
+  })
+  await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
+  // Lighter answers the send, not the fill. What actually filled arrives on
+  // the trade history, so claiming a price here would be inventing one.
+  return { avgPx: null, filledSz: null }
+}
+
+/**
+ * How far past its trigger a protective order's limit price is set.
+ *
+ * **A stop cannot be a market order here**, because this app sends none
+ * anywhere. So each protective order is a limit that only appears when the
+ * trigger is hit, priced this far through the trigger so it actually fills
+ * rather than resting where the market has already gone. Three percent is
+ * the same reach a close uses.
+ */
+const TRIGGER_LIMIT_REACH = 0.03
+
+/**
+ * Replaces the stop and targets riding on a Lighter position.
+ *
+ * **Every leg is a fixed size, and that is why they are replaced rather than
+ * adjusted.** Lighter has no "whatever the position holds" flag, so a leg
+ * names a number of coins; when the position grows or shrinks, the old legs
+ * are cancelled and fresh ones placed at the new size. Cancelling first is
+ * what stops a position ending up with two stops selling it twice over.
+ */
+export async function setLighterBrackets(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: {
+    marketId: string
+    position: Pick<WalletPosition, "szi" | "protectionOrderIds">
+    targets: Array<{ px: number; sz: number | null }>
+    slPx: number | null
+    slSz: number | null
+  }
+): Promise<{ slOrderId: string | null }> {
+  const where = await orderContext(network, auth, params.marketId)
+  const held = Math.abs(params.position.szi)
+  if (held === 0) throw new Error("LIVE_POSITION_GONE")
+  // A long is protected by selling and a short by buying back.
+  const closingSide = params.position.szi > 0 ? "sell" : "buy"
+
+  // **Off before on.** A leg left behind sells the position a second time.
+  for (const orderId of params.position.protectionOrderIds) {
+    await cancelLighterOrder(network, auth, {
+      marketId: params.marketId,
+      orderId,
+    })
+  }
+
+  let slOrderId: string | null = null
+  if (params.slPx !== null) {
+    slOrderId = await placeTriggerOrder(network, auth, where, {
+      side: closingSide,
+      triggerPx: params.slPx,
+      sz: params.slSz ?? held,
+      kind: "stop",
+    })
+  }
+  for (const target of params.targets) {
+    await placeTriggerOrder(network, auth, where, {
+      side: closingSide,
+      triggerPx: target.px,
+      sz: target.sz ?? held,
+      kind: "target",
+    })
+  }
+  return { slOrderId }
+}
+
+/** One reduce-only leg that only exists once its trigger is reached. */
+async function placeTriggerOrder(
+  network: NetworkId,
+  auth: OrderAuth,
+  where: Awaited<ReturnType<typeof orderContext>>,
+  leg: {
+    side: "buy" | "sell"
+    triggerPx: number
+    sz: number
+    kind: "stop" | "target"
+  }
+): Promise<string> {
+  /**
+   * The limit sits through the trigger on the side the order will cross to,
+   * so a stop that fires actually gets out instead of resting above a market
+   * that has already fallen past it.
+   */
+  const limitPx =
+    leg.side === "sell"
+      ? leg.triggerPx * (1 - TRIGGER_LIMIT_REACH)
+      : leg.triggerPx * (1 + TRIGGER_LIMIT_REACH)
+
+  const trigger = scaleLighterPrice(leg.triggerPx, where.priceDecimals)
+  const price = scaleLighterPrice(limitPx, where.priceDecimals)
+  const size = scaleLighterSize(leg.sz, where.sizeDecimals)
+  if (trigger === null || price === null || size === null || size <= 0) {
+    throw new Error(
+      "LIGHTER_ORDER_SHAPE:That stop or target price cannot be said in the whole numbers Lighter takes for this market."
+    )
+  }
+
+  const clientOrderIndex = await auth.allocateNonce(
+    `lighter:${where.accountIndex}`
+  )
+  const nonce = await nextLighterNonce(
+    network,
+    where.accountIndex,
+    where.apiKeyIndex
+  )
+  const signed = await signLighterOrder({
+    accountIndex: where.accountIndex,
+    marketIndex: where.marketIndex,
+    clientOrderIndex,
+    baseAmount: size,
+    price,
+    side: leg.side,
+    // The LIMIT kinds, never the plain stop-loss or take-profit, because
+    // those fill at whatever the market is and this app sends no market
+    // orders.
+    orderType:
+      leg.kind === "stop"
+        ? LIGHTER_ORDER_TYPE.stopLossLimit
+        : LIGHTER_ORDER_TYPE.takeProfitLimit,
+    // Good till time: a protective order has to wait for its trigger, and a
+    // post-only one would be refused for crossing when it fires.
+    timeInForce: LIGHTER_TIME_IN_FORCE.goodTillTime,
+    // Reduce-only, so a stop can only ever shrink the position it guards and
+    // never open one the other way.
+    reduceOnly: true,
+    triggerPrice: trigger,
+    nonce,
+  })
+  await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
+  return String(clientOrderIndex)
 }

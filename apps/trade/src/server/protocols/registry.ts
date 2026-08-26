@@ -195,6 +195,18 @@ import {
 } from "@/server/protocols/lighter/account"
 import { verifyLighterAgentKey } from "@/server/protocols/lighter/agent"
 import { packLighterCredential } from "@/server/protocols/lighter/client"
+import {
+  fetchLighterOrderFills,
+  fetchLighterOrderInfo,
+} from "@/server/protocols/lighter/fills"
+import {
+  cancelLighterOrder,
+  closeLighterPosition,
+  fetchLighterOrderPortfolio,
+  modifyLighterOrder,
+  placeLighterOrder,
+  setLighterBrackets,
+} from "@/server/protocols/lighter/orders"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -885,16 +897,16 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     capabilities: {
       markets: true,
       accounts: true,
-      orders: false,
+      orders: true,
       changeLeverage: {
         can: false,
         because:
-          "Trade cannot place Lighter orders yet, so it cannot change this position's leverage either. Use Lighter's own site until that is built.",
+          "Changing a Lighter position's leverage is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
       },
       adjustMargin: {
         can: false,
         because:
-          "Trade cannot place Lighter orders yet, so it cannot move this position's margin either. Use Lighter's own site until that is built.",
+          "Moving the cash behind a Lighter position is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
       },
     },
     markets: {
@@ -931,6 +943,19 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       profitPerSale: false,
     },
     agent: { verify: verifyLighterAgentKey },
+    orders: {
+      place: placeLighterOrder,
+      cancel: cancelLighterOrder,
+      // Moving one is a cancel and a fresh order. Lighter has an amend
+      // transaction and it is deliberately unused: an amend that half-applies
+      // leaves an order at a price nobody chose.
+      modify: modifyLighterOrder,
+      close: closeLighterPosition,
+      setBrackets: setLighterBrackets,
+      portfolio: fetchLighterOrderPortfolio,
+      fills: fetchLighterOrderFills,
+      orderInfo: fetchLighterOrderInfo,
+    },
     credentials: {
       form: {
         addressLabel: "Lighter account address",

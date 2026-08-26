@@ -403,22 +403,23 @@ describe("a watched order's market minimum", () => {
      * no order path has nothing to reject at the moment one is saved. Without
      * this the level sat looking like it was working, and the first sign of
      * trouble was a refusal at the price, repeated on every engine pass.
-     * Lighter is the first venue that can hold a wallet without being able to
-     * trade with it.
+     * Binance is the standing example: the app reads its candles and has no
+     * order path for it. Lighter was this test's example until its own order
+     * path was built.
      */
-    const lighterWallet: TradeWallet = {
+    const cannotTrade: TradeWallet = {
       ...wallet,
-      label: "Lighter",
+      label: "Binance",
       kind: "live",
-      protocol: "lighter",
+      protocol: "binance",
       network: "mainnet",
       address: "0x1234",
       hasKey: true,
     }
 
     await expect(
-      placeWatchOrder(userId, lighterWallet, {
-        marketKey: "lighter:mainnet:BTC",
+      placeWatchOrder(userId, cannotTrade, {
+        marketKey: "binance:mainnet:BTC",
         side: "buy",
         px: 70_000,
         sz: 1,
@@ -427,7 +428,7 @@ describe("a watched order's market minimum", () => {
         tpPx: null,
         slPx: null,
       })
-    ).rejects.toThrow("PROTOCOL_NO_ORDERS:lighter")
+    ).rejects.toThrow("PROTOCOL_NO_ORDERS:binance")
 
     // Nothing was written, so nothing waits at a price that can never fire.
     expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])

@@ -1,9 +1,10 @@
 # What Lighter does differently
 
 Trade reads Lighter's perpetual markets, charts and funding at
-`/admin/lighter`, on mainnet only, and can hold a connected Lighter wallet and
-show what it holds. It cannot yet place a Lighter order. This file records only
-behaviour the app runs today or a live response proved.
+`/admin/lighter`, on mainnet only, holds a connected Lighter wallet, shows what
+it holds, and places, moves, cancels and closes orders on it with a stop and
+targets. This file records only behaviour the app runs today or a live response
+proved.
 
 Every figure below was measured against Lighter's live API on 26 August 2026,
 between 14:05 and 14:55 UTC. They are dated readings, not numbers the app
@@ -11,9 +12,14 @@ assumes will hold.
 
 ## The two things that shape everything else
 
-- **Lighter charges nothing to trade.** Every one of its 212 active markets
-  reported a maker fee of 0 and a taker fee of 0. Every other venue in this app
-  takes a cut on each fill.
+- **Lighter's catalogue advertises no fees, and real trades still carry one.**
+  Every one of its 212 active markets reported a maker fee of 0 and a taker fee
+  of 0 in the catalogue. Actual trades read from its own trade history on
+  26 August 2026 showed otherwise: one BTC fill carried a taker fee of 100 and
+  a maker fee of 28, in millionths of a dollar, so a fraction of a cent on a
+  $3.94 trade. The catalogue's zeros describe a fee tier rather than a promise,
+  so the Journal takes each fill's fee from the trade itself and never assumes
+  it is nothing.
 - **A Standard account gets sixty requests a minute, and the socket spends the
   same sixty.** Lighter counts REST calls and socket messages against one
   allowance. That is why the socket does nearly all the reading here. Premium
@@ -310,10 +316,29 @@ complete signed transaction, so everything up to the moment of posting is
 checked by tests. Only the posting itself is unproven, and the first proof of
 it will be a real order from the server.
 
+## Stops and targets
+
+- **Every order this app sends Lighter is a limit with a price on it**, stops
+  included. Lighter has a plain stop-loss that fills at whatever the market is
+  when it triggers, and it is never used. The stop-loss LIMIT and take-profit
+  LIMIT kinds are, with the limit priced three percent through the trigger on
+  the side the order will cross to — so a stop that fires actually gets out
+  instead of resting above a market that has already fallen past it.
+- Every protective leg is reduce-only, so it can only ever shrink the position
+  it guards and can never open one the other way.
+- **Lighter has no "whatever the position holds" flag**, so a leg names a
+  number of coins. When the position grows or shrinks, the old legs come off
+  and fresh ones go on at the new size. The cancels go first: a leg left
+  behind sells the position a second time.
+- An entry asked for with a stop reports its protection as "partial", because
+  Lighter cannot carry one on the entry itself — the legs go on just after the
+  position opens. Reporting "ok" for legs that were not sent with it would be
+  the worst kind of lie here.
+
 ## Not built yet
 
-Placing orders. Trade cannot yet buy, sell, cancel, or set a stop or target on
-Lighter.
+Changing a position's leverage, and moving the cash behind it. Lighter takes
+each as its own kind of transaction. Both refuse by name and say so.
 
 **The order controls are still on screen and still take a click.** Nothing
 reads a venue's "can it trade" flag except the backtest picker, because until
