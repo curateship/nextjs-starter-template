@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
+import { defaultGridParams } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
@@ -13,6 +14,7 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { customShellAutomations } from "@/server/schema"
+import { draftGridOrder } from "@/server/trade/grid-orders"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { mayOpenCoin } from "@/server/trade/smart-ladders"
 import {
@@ -663,6 +665,45 @@ describe("who placed a smart order", () => {
       .where(eq(tradeFlowRuns.id, "run-1"))
     const claimed = await listActiveSmartOrders(userId, [wallet.id])
     expect(claimed[0].flowRunId).toBe("run-1")
+
+    // A manual grid may sit above the flow's DCA ladder on the same coin. The
+    // shared coin record must not make the newer grid look flow-owned too, or
+    // the Smart orders panel hides the grid from the person who placed it.
+    const grid = draftGridOrder({
+      marketKey: BTC,
+      params: defaultGridParams(),
+      topPx: 110,
+      bottomPx: 90,
+      mark: 100,
+      rules: {
+        sizeDecimals: 3,
+        priceTick: null,
+        maxLeverage: 50,
+        volume24hUsd: null,
+      },
+      roundPx: (px) => px,
+      equity: 5_000,
+      takerFeeRate: 0.0005,
+      startedAt: ladder.createdAt.getTime() + 120_000,
+      heldSzi: null,
+    })
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: "manual-grid",
+      walletId: wallet.id,
+      marketKey: BTC,
+      kind: "grid",
+      status: "active",
+      flowRunId: null,
+      plan: grid.plan,
+      createdAt: new Date(ladder.createdAt.getTime() + 120_000),
+    })
+
+    const paired = await listActiveSmartOrders(userId, [wallet.id])
+    expect(paired.find((order) => order.kind === "dca")?.flowRunId).toBe(
+      "run-1"
+    )
+    expect(paired.find((order) => order.kind === "grid")?.flowRunId).toBeNull()
   })
 
   it("never credits a run with an order older than itself", async () => {

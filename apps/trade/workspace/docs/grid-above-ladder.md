@@ -56,6 +56,14 @@ stop ordering prevents that, and both placement windows say so before the
 pairing is placed. The exchange also reports one average entry price for the
 blob, so profit per strategy is the app's own count from each order's fills.
 
+## What appears in Smart orders
+
+A grid placed by hand stays in the Smart orders panel when the ladder below it
+belongs to a running automation. Older orders that do not carry their owner's
+run id are matched back to an automation by wallet, coin and order kind. The
+coin alone is not enough because the automation's DCA ladder and the manual
+grid deliberately share it.
+
 ## How the app keeps the two stops apart
 
 - Replacing a position's protection normally cancels **every** leg the

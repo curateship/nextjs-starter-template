@@ -22,6 +22,7 @@ import {
   readSmartPlan,
   type SmartLadder,
   type SmartOrder,
+  type SmartOrderKind,
   type SmartPlan,
 } from "@/lib/trade/smart-plan"
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
@@ -1008,12 +1009,17 @@ export async function updateLadderExits(
   await settleWallet(userId, wallet)
 }
 
-/** The run that placed this order, where only the flow's own record says so. */
+/** The run that placed this kind of order, where the flow's own record says so. */
 function placedByFlow(
-  row: { walletId: string; marketKey: string; createdAt: Date },
+  row: {
+    walletId: string
+    marketKey: string
+    kind: SmartOrderKind
+    createdAt: Date
+  },
   placed: ReadonlyMap<string, { runId: string; since: number }>
 ): string | null {
-  const owner = placed.get(`${row.walletId}:${row.marketKey}`)
+  const owner = placed.get(`${row.walletId}:${row.marketKey}:${row.kind}`)
   if (!owner) return null
   // Older than the run itself, so the run cannot have placed it.
   return row.createdAt.getTime() >= owner.since ? owner.runId : null
@@ -1024,6 +1030,7 @@ function runningFlows(userId: string, walletIds: readonly string[]) {
     .select({
       id: tradeFlowRuns.id,
       walletId: tradeFlowRuns.walletId,
+      spec: tradeFlowRuns.spec,
       placed: tradeFlowRuns.placed,
       startedAt: tradeFlowRuns.startedAt,
     })
@@ -1141,7 +1148,7 @@ export async function listActiveSmartOrders(
   ])
 
   /**
-   * Which switched-on flow placed each coin's order, for rows carrying no stamp.
+   * Which switched-on flow placed each coin and kind, for rows carrying no stamp.
    *
    * A ladder placed before the stamp existed says nothing about who placed it,
    * and on an account whose flow watches a hundred and fifty coins that is a
@@ -1150,9 +1157,11 @@ export async function listActiveSmartOrders(
    * **Read off `placed`, which is the flow's own record of what it put in the
    * market — never off its coin list.** The list is what it is watching, and a
    * ladder somebody placed by hand on one of those coins is theirs: the flow
-   * finds the coin taken and skips it. Going by the list would have hidden
-   * that order from its owner on every screen, which is the worst thing this
-   * could do with a real order.
+   * finds the coin taken and skips it. Kind matters too. A manual grid may sit
+   * above a flow's DCA ladder on the same coin, and the DCA's ownership must
+   * not hide that grid from its owner. Going by the coin alone would hide the
+   * order on every screen, which is the worst thing this could do with a real
+   * order.
    *
    * Still not proof, and it does not pretend to be — a coin the flow placed
    * on months ago, whose ladder finished, and which somebody then placed by
@@ -1162,8 +1171,9 @@ export async function listActiveSmartOrders(
    */
   const flowPlaced = new Map<string, { runId: string; since: number }>()
   for (const run of running) {
+    const kind = run.spec.strategy.kind === "signals" ? "signal" : "dca"
     for (const marketKey of run.placed) {
-      flowPlaced.set(`${run.walletId}:${marketKey}`, {
+      flowPlaced.set(`${run.walletId}:${marketKey}:${kind}`, {
         runId: run.id,
         since: run.startedAt.getTime(),
       })
