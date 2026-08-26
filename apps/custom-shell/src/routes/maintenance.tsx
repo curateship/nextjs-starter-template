@@ -3,6 +3,10 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import {
+  getVisitorPageErrorMessage,
+  visitorRouteErrorComponent,
+} from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
 import { getAuthErrorMessage, logout } from "@/lib/api/auth/auth"
 import { loadMaintenance } from "@/lib/api/maintenance"
@@ -36,6 +40,7 @@ export const Route = createFileRoute("/maintenance")({
       viewingAs,
     }
   },
+  errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   component: MaintenanceRoute,
 })
 

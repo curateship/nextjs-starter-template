@@ -110,7 +110,7 @@ export function AdminAiUsageDashboard({
               navigate({ range: value === "month" ? undefined : value })
             }
           >
-            <TabsList className="h-8 p-[3px]">
+            <TabsList>
               {(Object.keys(RANGE_LABELS) as AiUsageRange[]).map((key) => (
                 <TabsTrigger key={key} value={key} className="h-full">
                   {RANGE_LABELS[key]}

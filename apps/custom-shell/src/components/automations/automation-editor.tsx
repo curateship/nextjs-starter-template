@@ -601,12 +601,15 @@ export function AutomationEditor({
 
   const runsPanel =
     !templateMode && initialRuns ? (
-      <AutomationRunsPanel
-        key={`${initial.id}:${openRunId ?? "runs"}`}
-        automationId={initial.id}
-        initial={initialRuns}
-        openRunId={openRunId}
-      />
+      (active: boolean) => (
+        <AutomationRunsPanel
+          key={`${initial.id}:${openRunId ?? "runs"}`}
+          automationId={initial.id}
+          initial={initialRuns}
+          openRunId={openRunId}
+          active={active}
+        />
+      )
     ) : null
   const editingEmailNode = editingEmailNodeId
     ? (graph.nodes.find((node) => node.id === editingEmailNodeId) ?? null)
@@ -922,7 +925,7 @@ export function AutomationEditor({
                 onDoubleClick={runsDoubleClick}
                 headerOnly={runsShut.collapsed}
               >
-                {runsPanel}
+                {runsPanel?.(!runsShut.collapsed)}
               </WorkspacePanel>
             </ResizablePanel>
           </ResizablePanelGroup>

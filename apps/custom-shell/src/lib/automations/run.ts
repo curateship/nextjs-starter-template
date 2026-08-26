@@ -32,6 +32,10 @@ export type AutomationRunStatus =
   | "rejected"
   | "canceled"
 
+/** Statuses that never change again. Anything else is still moving. */
+export const finalAutomationRunStatuses: ReadonlySet<AutomationRunStatus> =
+  new Set(["completed", "failed", "rejected", "canceled"])
+
 export type AutomationRunStepStatus = "completed" | "failed" | "rejected"
 
 export type AutomationApprovalDecision = "approved" | "rejected" | "timed_out"

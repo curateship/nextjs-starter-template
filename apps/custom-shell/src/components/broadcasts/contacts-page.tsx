@@ -13,7 +13,11 @@ import { toast } from "sonner"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
 import {
   DashboardToolbarButton,
@@ -46,9 +50,7 @@ import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   deleteContacts,
@@ -97,6 +99,37 @@ const contactsRoute = getRouteApi("/_authenticated/admin/contacts")
 
 /** One shared empty list, so "no filters" is the same object every render. */
 const EMPTY_RULES: SegmentRules = { conditions: [] }
+
+const CONTACT_COLUMNS: TableHeaderColumn<ContactSortColumn>[] = [
+  { key: "email", label: "Email", column: "main" },
+  {
+    key: "name",
+    label: "Name",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  // Tags are a list, so there is no single value to order by.
+  {
+    key: "tags",
+    label: "Tags",
+    sortable: false,
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  { key: "status", label: "Status", column: "meta" },
+  {
+    key: "emailed",
+    label: "Last emailed",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+  {
+    key: "created",
+    label: "Added",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
@@ -602,65 +635,23 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
           ) : null
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <SelectAllTableHead noun="contacts" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => {
-                setMatchingList(null)
-                selection.toggleVisible(visibleIds)
-              }} />
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "email"}
-                  direction={direction}
-                  onClick={() => toggleSort("email")}
-                >
-                  Email
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              {/* Tags are a list, so there is no single value to order by. */}
-              <TableHead column="meta" className="hidden md:table-cell">Tags</TableHead>
-              {/* Status and Added used to hide at different widths in the
-                  heading and in the rows, so a narrow screen labelled the
-                  status badges "Added". Each pair now hides together. */}
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "emailed"}
-                  direction={direction}
-                  onClick={() => toggleSort("emailed")}
-                >
-                  Last emailed
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "created"}
-                  direction={direction}
-                  onClick={() => toggleSort("created")}
-                >
-                  Added
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={CONTACT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="contacts"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => {
+                  setMatchingList(null)
+                  selection.toggleVisible(visibleIds)
+                }}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={data.contacts.length === 0}
         emptyText={

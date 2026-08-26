@@ -13,7 +13,11 @@ import { plural } from "@/lib/format/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -37,9 +41,7 @@ import { Label } from "@/components/ui/label"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   createBroadcast,
@@ -59,6 +61,28 @@ import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "status" | "sent" | "updated"
+
+const BROADCAST_COLUMNS: SortableColumn<SortColumn>[] = [
+  { key: "name", label: "Name", column: "main" },
+  {
+    key: "status",
+    label: "Status",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "sent",
+    label: "Sent",
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  {
+    key: "updated",
+    label: "Updated",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
 
 const STATUS_LABELS: Record<BroadcastListItem["status"], string> = {
   draft: "Draft",
@@ -225,42 +249,20 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <SelectAllTableHead noun="newsletters" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden md:table-cell">
-                <TableSortButton active={sort === "sent"} direction={direction} onClick={() => toggleSort("sent")}>Sent</TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "updated"}
-                  direction={direction}
-                  onClick={() => toggleSort("updated")}
-                >
-                  Updated
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={BROADCAST_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="newsletters"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={sorted.length === 0}
         emptyText={

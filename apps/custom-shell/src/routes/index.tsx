@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router"
 
 import { pricingLandingPage } from "@/components/marketing/pricing-landing-page"
+import {
+  getVisitorPageErrorMessage,
+  visitorRouteErrorComponent,
+} from "@/components/shell/route-error"
 import { catchAllOverride, landingPageOverride } from "@/lib/app-options"
 
 /**
@@ -33,6 +37,7 @@ export const Route = createFileRoute("/")({
 
     return { source: "landing" as const, data: (await page.loader?.()) ?? null }
   },
+  errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   // `head` is handed what the loader returned, so a page whose title depends on
   // what it just fetched does not have to fetch it a second time. A head that
   // takes no argument — every one written before this did — is unaffected.

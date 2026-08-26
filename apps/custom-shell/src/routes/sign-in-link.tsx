@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import {
   HumanCheck,
@@ -42,6 +43,7 @@ export const Route = createFileRoute("/sign-in-link")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: SignInLinkRoute,
 })
 

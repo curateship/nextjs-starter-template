@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -30,6 +31,7 @@ export const Route = createFileRoute("/verify-email")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: VerifyEmailRoute,
 })
 

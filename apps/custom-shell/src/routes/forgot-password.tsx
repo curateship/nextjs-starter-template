@@ -8,6 +8,7 @@ import {
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import {
   HumanCheck,
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/forgot-password")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: ForgotPasswordRoute,
 })
 
