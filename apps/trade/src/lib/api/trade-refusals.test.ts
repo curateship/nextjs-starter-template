@@ -69,6 +69,26 @@ describe("a refusal that carries its own figures", () => {
     )
   })
 
+  it("does not tell anyone to retry an exchange it cannot trade yet", () => {
+    // Lighter can hold a wallet but not place an order, which no venue had
+    // done before. Without this the screen said "That did not go through.
+    // Try it again." about something that can never go through, on a screen
+    // about real money.
+    const said = getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:lighter"))
+    expect(said).toContain("Lighter")
+    expect(said).toContain("cannot place")
+    expect(said).not.toContain("Try it again")
+    // The venue is named from the id, so the next exchange in this position
+    // reads correctly without another edit here.
+    expect(getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:kucoin"))).toContain(
+      "KuCoin"
+    )
+    // An id this build does not know must not be printed back raw.
+    expect(
+      getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:whatever"))
+    ).toContain("This exchange")
+  })
+
   it("keeps the fixed sentences for the codes that carry no figures", () => {
     expect(
       getLiveErrorMessage(new Error("LIVE_LEVERAGE_UNSUPPORTED"))

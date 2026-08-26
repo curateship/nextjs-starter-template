@@ -4,7 +4,9 @@ import { z } from "zod"
 import {
   KNOWN_PROTOCOLS,
   parseMarketKey,
+  protocolLabel,
   type PlaceOrderOutcome,
+  type ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { PollScope } from "@/lib/api/paper"
 import type { LiveRefusal } from "@/lib/trade/live"
@@ -498,6 +500,20 @@ export function getLiveErrorMessage(error: unknown): string {
   const gone = message.match(/LIVE_BRACKETS_GONE:(.*)$/s)
   if (gone) {
     return `The old stop and target were removed but the new ones were refused (${humanizeExchangeReason(gone[1].trim())}). The position is UNPROTECTED — set them again now.`
+  }
+  /**
+   * An exchange this app can hold a wallet on but cannot yet trade.
+   *
+   * **"Try it again" is the wrong thing to say here**, because trying again
+   * can never work, and it is said on a screen about real money. The venue is
+   * named from the id the refusal carries rather than compared against, so
+   * this stays true for whichever exchange is next.
+   */
+  const noOrders = message.match(/PROTOCOL_NO_ORDERS:([a-z]+)/)
+  if (noOrders) {
+    const id = noOrders[1] as ProtocolId
+    const named = KNOWN_PROTOCOLS.includes(id) ? protocolLabel(id) : "This exchange"
+    return `Trade cannot place ${named} orders yet — the wallet is connected and its positions are readable, but ordering is still being built. Use ${named}'s own site to trade for now.`
   }
   return "That did not go through. Try it again."
 }

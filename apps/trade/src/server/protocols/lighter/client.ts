@@ -4,6 +4,7 @@ import {
   clearLighterBudgets,
 } from "@/server/protocols/lighter/budget"
 import { lighterRefusalError } from "@/server/protocols/lighter/refusals"
+import { LIGHTER_PRIVATE_KEY_BYTES } from "@/server/protocols/lighter/signer"
 import {
   isTimeout,
   READ_TIMEOUT_MS,
@@ -109,6 +110,69 @@ export async function lighterPublic(
     throw lighterRefusalError({ status: response.status, code })
   }
   return payload
+}
+
+/**
+ * The credential blob, which for Lighter is the API private key and nothing
+ * else.
+ *
+ * Lighter's account number and the slot its key sits in are not stored: they
+ * are Lighter's own answers, looked up when needed and cached. Writing them
+ * down at save time would go stale the day a key is registered again in a
+ * different slot, and a stale index signs perfectly valid rubbish that
+ * Lighter then refuses — which reads as a bad key.
+ *
+ * Opaque outside this folder, as `OrderAuth.agentKey` requires.
+ */
+export function packLighterCredential(input: {
+  agentKey?: string
+  secret?: string
+}): string {
+  /**
+   * **The pasted key arrives as `secret`, not `agentKey`.** The wallet dialog
+   * chooses between those two field names from `secretIsAgentKey`, and
+   * Lighter's is false because its keys are its own 40-byte kind rather than
+   * an Ethereum agent key. Reading only `agentKey` here meant every save
+   * arrived with an empty key and was refused as malformed — while the field
+   * on screen plainly had a key in it.
+   *
+   * Both names are read, so that flag and this function can never disagree
+   * again. That is not future-proofing for a case nobody has met: it is the
+   * bug above, which reached a person.
+   */
+  const pasted = (input.secret ?? input.agentKey ?? "").trim()
+  if (!pasted) throw new Error("KEY_SECRET_REQUIRED")
+  const bare = bareLighterKey(pasted)
+  if (bare === null) {
+    throw new Error(
+      `KEY_NOT_APPROVED:A Lighter API key is ${LIGHTER_PRIVATE_KEY_BYTES} bytes — ${LIGHTER_PRIVATE_KEY_BYTES * 2} characters of hex, with or without the leading 0x. Copy the private key Lighter showed you when you made the API key.`
+    )
+  }
+  return `0x${bare}`
+}
+
+/**
+ * Reads back what `packLighterCredential` stored. A blob that no longer
+ * reads is a stored credential problem rather than something just typed, so
+ * it refuses with the code the trading paths already know.
+ */
+export function parseLighterCredential(blob: string): { privateKey: string } {
+  const bare = bareLighterKey(blob)
+  if (bare === null) throw new Error("LIVE_WALLET_KEY")
+  return { privateKey: `0x${bare}` }
+}
+
+/**
+ * Lighter's keys are exactly forty bytes — its own signer refuses anything
+ * else, naming the length it wanted. Checked here too so a mistyped key is
+ * caught before it reaches the signer. Answers null rather than throwing, so
+ * each caller can refuse in the words its own situation needs, and neither
+ * ever repeats the key back.
+ */
+function bareLighterKey(value: string): string | null {
+  const bare = value.trim().replace(/^0x/i, "").toLowerCase()
+  const wanted = LIGHTER_PRIVATE_KEY_BYTES * 2
+  return bare.length === wanted && /^[0-9a-f]+$/.test(bare) ? bare : null
 }
 
 /** Test state must not carry a hold or a spent minute into another case. */

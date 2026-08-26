@@ -1,9 +1,9 @@
 # What Lighter does differently
 
 Trade reads Lighter's perpetual markets, charts and funding at
-`/admin/lighter`, on mainnet only. It cannot yet hold a Lighter wallet or place
-a Lighter order. This file records only behaviour the app runs today or a live
-response proved.
+`/admin/lighter`, on mainnet only, and can hold a connected Lighter wallet and
+show what it holds. It cannot yet place a Lighter order. This file records only
+behaviour the app runs today or a live response proved.
 
 Every figure below was measured against Lighter's live API on 26 August 2026,
 between 14:05 and 14:55 UTC. They are dated readings, not numbers the app
@@ -195,10 +195,120 @@ feeds the snapshot and this file's arithmetic.
   refusal, and Trade keeps only the number. Its free-form message is discarded
   before anything reaches a screen or a log.
 
+## Signing in
+
+Lighter signs nothing the way the other four venues do. It runs its own chain,
+and its signatures are Poseidon hashes over its own curve rather than the
+Ethereum signing Aster and Hyperliquid use, so the library that does it is
+Lighter's own compiled one, vendored into
+`src/server/protocols/lighter/signer/`. `PROVENANCE.md` beside it records the
+exact file, the commit it came from and its checksum.
+
+- The signer is 7.7 MB of WebAssembly that Lighter publishes already built,
+  plus Go's own `wasm_exec.js` glue at the version that built it. Neither file
+  is edited here.
+- **It runs.** That was the one thing most likely to fail in the whole Lighter
+  job, so it is proven by a test that really loads it and really signs, not by
+  assumption. Under Node 24.1.0 it starts in about a second and signs in about
+  two and a half milliseconds.
+- Nothing outside that one folder may load either file. The protocol fence
+  fails the build if anything does, because a second way into the signing path
+  is a second place a private key could go.
+
+## What proves a key belongs to you
+
+**A signature proves nothing on its own here.** Any forty random bytes sign a
+Lighter auth token perfectly well, so signing one and getting a result back
+says only that the maths worked. What matters is whether Lighter has that key
+registered against your account.
+
+So the check is a comparison. Trade derives the public key from what you
+pasted, asks Lighter which public keys it holds for the account, and looks for
+a match. No signature, no spent order, and one clear answer.
+
+That comparison also settles something nobody would otherwise know to ask.
+Lighter files each key in a numbered slot, and every signed request has to name
+its slot. Matching the public key finds that number, so nobody has to read it
+off a screen and type it in.
+
+- The Add wallet window asks for two things: the wallet address you trade with
+  on Lighter, and the private key of an API key you made on Lighter's own site.
+- Your wallet's own Ethereum key is never asked for and never needed.
+- Trade finds your account number itself. One address can hold several accounts
+  on Lighter, the main one and its sub-accounts, handed back in no promised
+  order — the lowest number is the main account, and that is the one taken.
+- **A Lighter API key is 40 bytes, not 32.** Its own signer refuses any other
+  length, naming the length it wanted. This matters more than it sounds: the
+  shared wallet dialog has a shape check for Ethereum agent keys that insists
+  on 32, and while Lighter's key was wrongly flagged as one of those, the
+  window refused every real Lighter key with "a key is exactly 64 characters"
+  before it could be saved. Lighter's key is not an Ethereum key at all, so
+  that check is off and the real length rule lives in the Lighter connector.
+- A key that is the wrong length is refused before a single request is spent
+  on it. A key that is the right length but not registered is refused after
+  two. Neither refusal ever repeats the key back.
+
+### Two things that had to be right for a save to work
+
+Both were found by pasting a key into the running app, not by any test, and
+both showed up as the same unhelpful "That did not save. Try it again."
+
+- **The pasted key arrives under one of two names.** The wallet window sends
+  it as `agentKey` when a venue's secret is an Ethereum agent key, and as
+  `secret` otherwise. Lighter's is not an Ethereum key, so it comes as
+  `secret`. While the Lighter connector read only `agentKey`, every save
+  arrived with an empty key and was refused as malformed — with a key plainly
+  sitting in the field on screen.
+- **Only two refusal codes carry their reason to the screen.** The wallet
+  window reads the sentence after `KEY_NOT_APPROVED:` or
+  `WALLET_POSITION_MODE:` and drops everything else, so Lighter's own
+  carefully worded refusals were being thrown away. They now use the shared
+  code, and the reason arrives with the refusal.
+
+## What a connected wallet shows
+
+The account panel reads Lighter's account endpoint, which is public: an account
+can be read by its number with no signature at all. The credential is still
+needed, because the number itself is found from your address and your key.
+
+- Account worth, free cash, money in trades and open profit. Checked against a
+  live account on 26 Aug 2026: worth $3.708185, free $2.771356, and money in
+  trades came to $0.936829 — the same figure to the cent that Lighter states
+  as that account's own margin requirement.
+- Positions carry Lighter's own size, entry price, liquidation price and
+  leverage. Lighter states direction as a separate flag beside an unsigned
+  size, so a short is put back together here rather than read off one number.
+- **Leverage is a percent turned around.** Lighter states a position's margin
+  requirement as "2.00", meaning 2%, which is 50x. Note the units differ from
+  the market list, where the same idea is stated in hundredths of a percent.
+- A cross position leaves its allocated margin at zero and states the percent
+  instead, so its margin is worked out from the percent. That reproduced
+  Lighter's own account-wide figure exactly.
+
 ## Not built yet
 
-Accounts, keys and orders. Lighter runs its own chain and signs orders with its
-own scheme rather than the Ethereum signing Aster and Hyperliquid use, so
-signing needs the WASM build from Lighter's Go library vendored into the app.
-Until that lands, `/admin/lighter` reads and charts and offers no trade, and the
-market picker says so rather than showing a button that would be refused.
+Placing orders. Trade cannot yet buy, sell, cancel, or set a stop or target on
+Lighter.
+
+**The order controls are still on screen and still take a click.** Nothing
+reads a venue's "can it trade" flag except the backtest picker, because until
+Lighter every exchange that could hold a wallet could also trade with it. So
+pressing Buy on a Lighter wallet gets a refusal rather than a hidden button.
+That refusal now says what is really going on and does not invite a retry that
+could never work; hiding or explaining the controls up front is part of
+building the order path.
+
+**A watched level is refused when it is saved, not when it fires.** This is
+the dangerous one, and it was found by placing a real one. A watched order
+sends nothing to the exchange until the price arrives — that is the whole
+point of it — so a venue with no order path has nothing to reject at the
+moment the level is saved. The level sat in the Watched tab looking like it
+was working, and the first sign of trouble would have been a refusal at the
+price, repeated on every engine pass. All three doors now check first: a plain
+watched level, a DCA ladder or grid, and an order that fills straight away.
+Practice wallets are exempt, because they never reach an exchange at all.
+
+One consequence is worth being clear about: a position's stop and target read
+as empty here because Trade has placed none. If you have set one on Lighter's
+own site it is real and it will still fire — Trade simply cannot see it yet,
+and does not claim the position is unprotected.

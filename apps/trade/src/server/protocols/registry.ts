@@ -189,6 +189,12 @@ import {
   lighterIntervalMs,
   roundLighterPx,
 } from "@/lib/protocols/lighter/translate"
+import {
+  fetchLighterAccount,
+  fetchLighterPortfolio,
+} from "@/server/protocols/lighter/account"
+import { verifyLighterAgentKey } from "@/server/protocols/lighter/agent"
+import { packLighterCredential } from "@/server/protocols/lighter/client"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -853,12 +859,15 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
   },
   /**
-   * Markets, charts and funding only — no keys, no money, yet.
+   * Markets, charts, funding and a connected wallet. No orders yet.
    *
-   * Lighter is the one venue here that runs its own chain and signs orders
-   * with its own maths rather than Ethereum signing, so its accounts and
-   * orders arrive in later stages once the vendored WASM signer is proven.
-   * A Standard account also gets only 60 requests a minute, REST and socket
+   * Lighter is the one venue here that runs its own chain and signs with its
+   * own maths rather than Ethereum signing, so it carries a vendored copy of
+   * Lighter's own compiled signer — see `lighter/signer/PROVENANCE.md`. That
+   * signer works and is proven by a test that really runs it, which is why a
+   * wallet can be connected. Placing orders is the next stage.
+   *
+   * A Standard account gets only 60 requests a minute, REST and socket
    * together, so the socket does nearly all the reading and every REST call
    * goes through `lighter/budget.ts`.
    *
@@ -875,17 +884,17 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     defaultNetwork: "mainnet",
     capabilities: {
       markets: true,
-      accounts: false,
+      accounts: true,
       orders: false,
       changeLeverage: {
         can: false,
         because:
-          "Lighter is read-only here so far — no wallet trades on it yet.",
+          "Trade cannot place Lighter orders yet, so it cannot change this position's leverage either. Use Lighter's own site until that is built.",
       },
       adjustMargin: {
         can: false,
         because:
-          "Lighter is read-only here so far — no wallet trades on it yet.",
+          "Trade cannot place Lighter orders yet, so it cannot move this position's margin either. Use Lighter's own site until that is built.",
       },
     },
     markets: {
@@ -908,6 +917,50 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       // Hourly, measured 26 Aug 2026: three days of rows sat exactly one
       // hour apart.
       intervalMs: lighterFundingIntervalMs,
+    },
+    account: {
+      fetch: fetchLighterAccount,
+      // Positions only. Read-only while the order path is still closed, so
+      // the panel can show what is held without offering to change it.
+      portfolio: fetchLighterPortfolio,
+      // Lighter states a realized figure per position rather than per sale,
+      // and nothing has been measured yet because no fill has come from
+      // Trade. Left at the safe answer until a real fill proves otherwise:
+      // counting an unstated zero as "made nothing" would report a day of
+      // trading as flat.
+      profitPerSale: false,
+    },
+    agent: { verify: verifyLighterAgentKey },
+    credentials: {
+      form: {
+        addressLabel: "Lighter account address",
+        addressHint: "0x…",
+        addressPattern: "^0x[0-9a-fA-F]{40}$",
+        secretLabel: "API private key",
+        needsPassphrase: false,
+        /**
+         * False, though this task's own notes asked for true.
+         *
+         * That flag turns on the dialog's EVM agent-key checks, and those
+         * insist a key is 32 bytes. Lighter's are 40 — its own signer
+         * refuses anything else, naming the length — so the dialog refused
+         * every real Lighter key with "a key is exactly 64 characters"
+         * before one could be saved. The warning that comes with the flag
+         * does not fit either: a Lighter API key is not an Ethereum key at
+         * all, so "never your main key" is about the wrong thing.
+         *
+         * The length rule still exists; it lives in `packLighterCredential`,
+         * where the right number is.
+         */
+        secretIsAgentKey: false,
+        keyHelp:
+          "Make an API key on Lighter's own site and paste the private key it " +
+          "shows you. The first field takes the wallet address you trade with " +
+          "on Lighter. Trade finds your account number and which key slot it " +
+          "sits in by itself, and never asks for the wallet's own Ethereum " +
+          "key.",
+      },
+      pack: packLighterCredential,
     },
   },
   binance: {

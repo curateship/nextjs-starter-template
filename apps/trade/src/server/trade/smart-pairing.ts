@@ -1,6 +1,6 @@
 import { and, eq, inArray, ne } from "drizzle-orm"
 
-import { parseMarketKey } from "@/lib/protocols/contracts"
+import { parseMarketKey, type ProtocolId } from "@/lib/protocols/contracts"
 import type { LadderPlan } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/trade/pairing"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
 import { db, type CustomShellDb } from "@/server/db"
+import { getProtocol } from "@/server/protocols/registry"
 import { tradeSmartLadders } from "@/server/trade/schema"
 
 /**
@@ -31,6 +32,27 @@ export async function assertSmartOrderPlacable(
     | { kind: "dca"; plan?: LadderPlan },
   tx: CustomShellDb = db
 ): Promise<void> {
+  /**
+   * An exchange with no order path cannot run a strategy on real money.
+   *
+   * Refused at the door for the same reason a watched level is: a ladder's
+   * rungs send nothing until their prices arrive, so nothing would reject it
+   * today, and it would sit looking like it was working until the first rung
+   * was reached. Practice wallets never reach an exchange, so they are free
+   * to pretend on any venue.
+   */
+  if (wallet.kind === "live") {
+    // `wallet.protocol` is a plain string here, so the lookup may find
+    // nothing rather than an entry — reading through it without the second
+    // `?.` would crash instead of refusing. An id this build does not know
+    // is left to the market check further in, which names it properly.
+    const entry = getProtocol(wallet.protocol as ProtocolId) as
+      | ReturnType<typeof getProtocol>
+      | undefined
+    if (entry?.capabilities?.orders === false) {
+      throw new Error(`PROTOCOL_NO_ORDERS:${entry.id}`)
+    }
+  }
   const rows = await tx
     .select({ kind: tradeSmartLadders.kind, plan: tradeSmartLadders.plan })
     .from(tradeSmartLadders)

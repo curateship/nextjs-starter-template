@@ -62,9 +62,17 @@ let marketMaxLeverage = 50
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
 // call to nothing.
-vi.mock("@/server/protocols/registry", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getProtocol: () => ({
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@/server/protocols/registry")>()
+  return {
+  ...real,
+  // The id and what the venue can do come from the REAL registry, so a test
+  // asking about a venue that cannot place orders gets the true answer. Only
+  // the market data below is invented.
+  getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
+    id,
+    capabilities: real.getProtocol(id).capabilities,
     label: "Hyperliquid",
     markets: {
       fetch: async () => ({
@@ -105,7 +113,8 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
     },
     account: { fetch: async () => null },
   }),
-}))
+  }
+})
 
 const BTC = "hyperliquid:mainnet:BTC"
 const MINUTE = 60_000
@@ -386,6 +395,64 @@ describe("a watched order's market minimum", () => {
     )
 
     expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("refuses a live watch on an exchange Trade cannot order on", async () => {
+    /**
+     * **A watch sends nothing until its price arrives**, so an exchange with
+     * no order path has nothing to reject at the moment one is saved. Without
+     * this the level sat looking like it was working, and the first sign of
+     * trouble was a refusal at the price, repeated on every engine pass.
+     * Lighter is the first venue that can hold a wallet without being able to
+     * trade with it.
+     */
+    const lighterWallet: TradeWallet = {
+      ...wallet,
+      label: "Lighter",
+      kind: "live",
+      protocol: "lighter",
+      network: "mainnet",
+      address: "0x1234",
+      hasKey: true,
+    }
+
+    await expect(
+      placeWatchOrder(userId, lighterWallet, {
+        marketKey: "lighter:mainnet:BTC",
+        side: "buy",
+        px: 70_000,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow("PROTOCOL_NO_ORDERS:lighter")
+
+    // Nothing was written, so nothing waits at a price that can never fire.
+    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+  })
+
+  it("still lets a practice wallet pretend on an exchange with no orders", async () => {
+    // Practice money never reaches an exchange, so a venue with no order
+    // path is no reason to refuse a pretend one.
+    const practiceOnLighter: TradeWallet = {
+      ...wallet,
+      protocol: "lighter",
+      network: "mainnet",
+    }
+    expect(
+      await placeWatchOrder(userId, practiceOnLighter, {
+        marketKey: "lighter:mainnet:BTC",
+        side: "buy",
+        px: 70_000,
+        sz: 1,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+    ).toEqual({ watching: true })
   })
 
   it("uses the protocol's dollar floor after rounding the coin size", async () => {

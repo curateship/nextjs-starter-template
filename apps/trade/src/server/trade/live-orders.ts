@@ -218,6 +218,12 @@ export async function placeLiveOrder(
   const row = await liveWallet(userId, input.walletId)
   if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
   const protocol = getProtocol(row.protocol)
+  // Refused before any price is read or size worked out, so an exchange with
+  // no order path says so plainly instead of failing deep inside `ordersOf`
+  // with the market rules already fetched.
+  if (protocol.capabilities?.orders === false) {
+    throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
+  }
 
   try {
     const ref = checkedMarket(row, input.marketKey)

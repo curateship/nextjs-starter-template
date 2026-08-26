@@ -45,6 +45,14 @@ const EXCHANGE_PACKAGES: Array<{ pkg: string; homes: string[] }> = [
   },
 ]
 
+/**
+ * Lighter ships a compiled signer rather than a package, so the fence around
+ * it is a path rather than an import name: only the folder that owns those
+ * two vendored files may load them. Anywhere else is a place a private key
+ * could be handed to a blob nobody here can read.
+ */
+const SIGNER_HOME = join("server", "protocols", "lighter", "signer")
+
 /** Where naming a concrete protocol id is legitimate. */
 const PROTOCOL_AWARE = [
   join("server", "protocols") + sep,
@@ -111,6 +119,24 @@ describe("the protocol fence", () => {
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))
+      .map(({ path }) => path)
+    expect(offenders).toEqual([])
+  })
+
+  it("keeps Lighter's vendored signer inside its own folder", () => {
+    // The `.wasm` and Go's `wasm_exec.js` are loaded by exactly one file.
+    // Anything else naming them is a second door to the signing path, and
+    // the whole point of one door is that a private key only ever goes
+    // through it.
+    // Both files are reached through `join(...)` rather than a bare import
+    // string, so this looks for the names themselves. That means this file
+    // has to leave itself out, the same way the package check above can name
+    // its packages only because it matches `from "…"` and its list does not.
+    const loadsSigner = /wasm_exec\.js|lighter-signer\.wasm/
+    const offenders = sources
+      .filter(({ path }) => !path.startsWith(SIGNER_HOME + sep))
+      .filter(({ path }) => path !== relative(SRC, __filename))
+      .filter(({ text }) => loadsSigner.test(text))
       .map(({ path }) => path)
     expect(offenders).toEqual([])
   })

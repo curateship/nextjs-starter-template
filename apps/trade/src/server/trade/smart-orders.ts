@@ -1189,6 +1189,18 @@ export async function placeWatchOrder(
     throw new Error("PAPER_MARKET")
   }
   const protocol = getProtocol(wallet.protocol)
+  /**
+   * **A watch on a venue this app cannot order on is refused here, not when
+   * it fires.** A watched level sends nothing until the price arrives, so an
+   * exchange with no order path has nothing to reject at the moment it is
+   * saved — the level simply sits there looking like it is working, and the
+   * first anyone hears of the problem is a refusal at the price, repeated on
+   * every pass. Practice wallets are exempt: they never send anything to an
+   * exchange, so a venue with no order path is no obstacle to pretending.
+   */
+  if (wallet.kind === "live" && protocol.capabilities?.orders === false) {
+    throw new Error(`PROTOCOL_NO_ORDERS:${protocol.id}`)
+  }
   const [rules, prices] = await Promise.all([
     marketRules(wallet.protocol, wallet.network, ref.marketId),
     protocol.markets.prices(wallet.network, [ref.marketId]),

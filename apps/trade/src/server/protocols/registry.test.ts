@@ -41,6 +41,61 @@ describe("the protocol registry", () => {
     }
   })
 
+  it("does not call Lighter's key an EVM agent key, because it is not one", () => {
+    // `secretIsAgentKey` turns on the dialog's EVM shape checks, and those
+    // insist a key is 32 bytes. Lighter's are 40, so this being true refused
+    // every real Lighter key with "a key is exactly 64 characters" before it
+    // could be saved. Found by typing one into the running app.
+    const form = getProtocol("lighter").credentials?.form
+    expect(form?.secretIsAgentKey).toBe(false)
+    expect(form?.needsPassphrase).toBe(false)
+    expect(form?.addressLabel).toBe("Lighter account address")
+    expect(form?.secretLabel).toBe("API private key")
+    // Trade works the account number and key slot out for itself, so nobody
+    // is asked to find them, and the wallet's own Ethereum key is never
+    // wanted.
+    expect(form?.keyHelp).toContain("never asks for the wallet's own Ethereum")
+  })
+
+  it("reads Lighter's key from the field the dialog actually sends", () => {
+    // **This is the bug that made a real save fail.** The dialog puts the
+    // pasted secret in `agentKey` only when `secretIsAgentKey` is true, and
+    // in `secret` otherwise. Lighter's is false, so a packer reading only
+    // `agentKey` received nothing and refused a key that was plainly there.
+    const pack = getProtocol("lighter").credentials?.pack
+    const key = `0x${"ab".repeat(40)}`
+    expect(pack?.({ secret: key })).toBe(key)
+  })
+
+  it("keeps Lighter's key rule where the right length lives", () => {
+    // The length rule did not disappear when the flag above went false — it
+    // moved to the packer, which knows Lighter's real number.
+    const pack = getProtocol("lighter").credentials?.pack
+    expect(() => pack?.({ secret: `0x${"ab".repeat(40)}` })).not.toThrow()
+    // A 32-byte key is the Ethereum shape, and Lighter refuses it.
+    expect(() => pack?.({ secret: `0x${"ab".repeat(32)}` })).toThrow(
+      /^KEY_NOT_APPROVED:/
+    )
+    expect(() => pack?.({ secret: "  " })).toThrow("KEY_SECRET_REQUIRED")
+  })
+
+  it("refuses a Lighter key in words the wallet window can show", () => {
+    // Only `KEY_NOT_APPROVED:` and `WALLET_POSITION_MODE:` carry a reason
+    // through to the screen. Any other code, however well worded, is dropped
+    // and the person sees only "That did not save. Try it again."
+    const pack = getProtocol("lighter").credentials?.pack
+    try {
+      pack?.({ secret: "0xdeadbeef" })
+      throw new Error("should have refused")
+    } catch (error) {
+      const message = (error as Error).message
+      expect(message.startsWith("KEY_NOT_APPROVED:")).toBe(true)
+      expect(message).toContain("80 characters")
+      // A refusal never repeats the key back.
+      expect(message).not.toContain("deadbeef")
+    }
+  })
+
   it("distinguishes Aster's main wallet from its generated API wallet", () => {
     const form = getProtocol("aster").credentials?.form
     expect(form?.addressLabel).toBe("Main Aster wallet address")

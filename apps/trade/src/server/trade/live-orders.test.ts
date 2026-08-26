@@ -37,9 +37,17 @@ let marketTick: number | null = null
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
 // call to nothing.
-vi.mock("@/server/protocols/registry", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getProtocol: () => ({
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@/server/protocols/registry")>()
+  return {
+  ...real,
+  // The id and what the venue can do come from the REAL registry, so a test
+  // about a venue that cannot place orders gets the true answer. Only the
+  // market data below is invented.
+  getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
+    id,
+    capabilities: real.getProtocol(id).capabilities,
     label: "Hyperliquid",
     markets: {
       prices,
@@ -61,7 +69,8 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
     },
     orders: { place, cancel, close, setBrackets, portfolio },
   }),
-}))
+  }
+})
 
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 const KEY = "ab".repeat(32)
