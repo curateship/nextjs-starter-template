@@ -187,7 +187,7 @@ describe("what the widgets say about when they started", () => {
     expect(shown).not.toContain("2 days ago")
   })
 
-  it("keeps switched-off and unreachable wallets honest", () => {
+  it("hides switched-off wallets and keeps unreachable wallets honest", () => {
     const shown = show("2026-08-24T16:00:00.000Z", {
       ...overview,
       wallets: [
@@ -226,7 +226,8 @@ describe("what the widgets say about when they started", () => {
       missingVenues: ["Phemex"],
     })
 
-    expect(shown).toContain("Switched off · not counted")
+    expect(shown).not.toContain("Off wallet")
+    expect(shown).not.toContain("Switched off")
     expect(shown).toContain("Phemex did not answer")
     expect(shown).toContain("2 missing")
   })

@@ -415,6 +415,58 @@ describe("the Smart orders panel", () => {
     host.remove()
   })
 
+  it("shows when a sale happened and the dollars sold", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 25, 19, 9))
+    const soldAt = new Date(2026, 7, 23, 18, 9).getTime()
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[ladder]}
+          fills={[
+            {
+              fillId: "sale-1",
+              orderId: "order-1",
+              walletId: ladder.walletId,
+              marketKey: ladder.marketKey,
+              side: "sell",
+              px: 0.032181,
+              sz: 2_000,
+              at: soldAt,
+              closedPnl: 0.5,
+              fee: 0.01,
+              dir: "Close Long",
+              liquidation: false,
+            },
+          ]}
+          settled
+          failed={false}
+        />
+      )
+    })
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Open XMR smart order details"]'
+        )
+        ?.click()
+    })
+
+    expect(document.body.textContent).toContain("2 days ago @ 6:09 PM · $64.36")
+    expect(document.body.textContent).not.toContain("$0.032181")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("keeps the charted smart order selected across the whole row", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

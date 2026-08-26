@@ -37,7 +37,12 @@ import {
   type MarketRow,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
+import {
+  formatClockTime,
+  formatDateTime,
+  formatRelativeTime,
+  formatTimeAgo,
+} from "@/lib/format/format-time"
 import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { keyExpiryNotice } from "@/lib/trade/live"
 import { useLiveMarks } from "@/lib/trade/live-market"
@@ -781,8 +786,13 @@ function SmartOrderDetailsPopover({
                   key={sell.fillId}
                   className="flex items-baseline justify-between gap-3 text-sm"
                 >
-                  <span className="truncate text-muted-foreground">
-                    {formatDateTime(new Date(sell.at))} · {formatPrice(sell.px)}
+                  <span
+                    className="truncate text-muted-foreground"
+                    title={formatDateTime(new Date(sell.at))}
+                  >
+                    {formatTimeAgo(new Date(sell.at))} @{" "}
+                    {formatClockTime(new Date(sell.at))} ·{" "}
+                    {formatUsd(sell.amountUsd)}
                   </span>
                   <span
                     className={cn(
@@ -910,7 +920,8 @@ const SHOW_AT_MOST = 12
 type Sale = {
   fillId: string
   at: number
-  px: number
+  /** Gross dollars bought or sold by the closing fill. */
+  amountUsd: number
   /** Null when the venue sold but never said what the sale banked. */
   money: number | null
 }
@@ -979,7 +990,7 @@ export function bankedBy(
     sales.push({
       fillId: fill.fillId,
       at: fill.at,
-      px: fill.px,
+      amountUsd: Math.abs(fill.px * fill.sz),
       money: level ? level.money : stated ? fill.closedPnl - fill.fee : null,
     })
   }
@@ -988,7 +999,7 @@ export function bankedBy(
     sales.push({
       fillId: trade.id,
       at: trade.closedAt,
-      px: trade.exitPx,
+      amountUsd: Math.abs(trade.exitPx * trade.sz),
       money: trade.pnl,
     })
   }

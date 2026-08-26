@@ -83,9 +83,9 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   and has never heard the word "indicator".
   Decided in `workspace/tasks/Platform/plain-price-chart.md`.
 - **Middle header, Wallets.** The wallet control sits after the chart controls.
-  It names the wallet in use and shows its total and made-or-lost figure. On a
-  phone it becomes a wallet icon with a Manage wallets tooltip, so the header
-  does not scroll sideways.
+  It names the wallet in use, separates the name and total with " - ", then
+  shows the made-or-lost figure. On a phone it becomes a wallet icon with a
+  Manage wallets tooltip, so the header does not scroll sideways.
   Pressing the control opens Active, All and Inactive above the chart. Active
   lists every wallet that is switched on. Pressing a wallet row makes it the
   wallet used for the next trade. The checked control names the selected wallet
@@ -509,10 +509,13 @@ placed, and for the same reason.
 ### What the Smart orders panel counts as a sale
 
 Opening a smart order in the right-hand panel lists what it has sold and what
-that banked. The vertical three-dot button at the row's right edge opens a small
-popover without blocking the chart. The whole row turns light gray under the
-pointer, including the three-dot area. Pressing the smart order opens its market
-on the chart and keeps the whole row light gray while that market is selected.
+that banked. Each sale says how long ago it happened, its clock time, and the
+gross dollars sold. The exact date and time stays in the hover text. The market
+price no longer takes the sold amount's place. The vertical three-dot button at
+the row's right edge opens a small popover without blocking the chart. The whole
+row turns light gray under the pointer, including the three-dot area. Pressing
+the smart order opens its market on the chart and keeps the whole row light
+gray while that market is selected.
 The market favicon starts each row. The coin, order kind and wallet stay on one
 line beside it. Open profit and banked money sit together at the right, with
 open profit carrying the made-or-lost colour and banked money kept gray. A
@@ -1188,9 +1191,8 @@ Every answered row has the wallet's balance, Made or lost, and a small line over
 time. Settled, open, and fee figures appear once at the bottom of the wallet
 pane for the selected wallet. Selecting All wallets shows the account-wide
 breakdown there. The graph pane stays clear for the money-over-time chart.
-A switched-off wallet stays as a quiet row saying it was not counted. A wallet
-whose exchange did not answer stays named as a failed answer. It never becomes
-a row of zeroes. The
+Switched-off wallets stay out of PnL Graph. A wallet whose exchange did not
+answer stays named as a failed answer. It never becomes a row of zeroes. The
 All wallets row starts selected. The selected row has a light gray background,
 a 2px high-contrast right border, and a heavier wallet name. Every row reserves
 the border's width so changing the selection does not shift its contents. Every

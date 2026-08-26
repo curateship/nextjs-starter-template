@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { bankedBy } from "@/components/trade/smart-orders-panel"
-import type { LiveFill } from "@/lib/trade/live-trades"
+import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
 
 /**
@@ -44,7 +44,7 @@ describe("bankedBy", () => {
   it("counts a sell the venue put no figure on", () => {
     const banked = bankedBy(order, [fill({})], [])
     expect(banked.sells).toHaveLength(1)
-    expect(banked.sells[0].px).toBeCloseTo(89.35, 9)
+    expect(banked.sells[0].amountUsd).toBeCloseTo(17.87, 2)
     // Null, never zero. Zero is a real answer meaning the sale broke even, and
     // printing it for a sale that made money is the kind of wrong that gets
     // believed.
@@ -80,6 +80,7 @@ describe("bankedBy", () => {
       []
     )
     expect(banked.sells).toHaveLength(1)
+    expect(banked.sells[0].amountUsd).toBeCloseTo(17.87, 2)
     expect(banked.sells[0].money).toBeCloseTo(1.18, 9)
   })
 
@@ -94,6 +95,33 @@ describe("bankedBy", () => {
       []
     )
     expect(banked.sells).toHaveLength(0)
+  })
+
+  it("uses the dollars sold when a finished trade supplies the sale", () => {
+    const trade = {
+      id: "trade-1",
+      walletId: order.walletId,
+      marketKey: order.marketKey,
+      live: true,
+      direction: "long",
+      openedAt: PLACED_AT,
+      closedAt: PLACED_AT + 2_000,
+      heldMs: 2_000,
+      entryPx: 100,
+      exitPx: 105,
+      sz: 0.2,
+      amountUsd: 20,
+      pnl: 1,
+      returnPct: 5,
+      ending: "closed",
+      stopPx: null,
+      fills: [],
+    } satisfies LiveTrade
+
+    const banked = bankedBy(order, [], [trade])
+
+    expect(banked.sells[0].amountUsd).toBe(21)
+    expect(banked.sells[0].money).toBe(1)
   })
 })
 

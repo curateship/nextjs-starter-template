@@ -622,7 +622,7 @@ export function WalletManagement(props: WalletManagementProps) {
               {activeState.figures ? (
                 <>
                   <span className="hidden font-mono tabular-nums xl:inline">
-                    {formatUsd(activeState.figures.equity)}
+                    - {formatUsd(activeState.figures.equity)}
                   </span>
                   <SignedUsd
                     value={activeState.figures.madeOrLost}

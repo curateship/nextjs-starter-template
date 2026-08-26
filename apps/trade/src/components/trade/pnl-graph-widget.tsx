@@ -113,6 +113,12 @@ function answeredWallets(overview: TradingOverview): AnsweredWallet[] {
   )
 }
 
+function visibleWallets(overview: TradingOverview) {
+  return overview.wallets.filter(
+    (wallet) => wallet.summary.state !== "inactive"
+  )
+}
+
 function profitSeries(overview: TradingOverview): ProfitSeries[] {
   return [
     {
@@ -122,7 +128,7 @@ function profitSeries(overview: TradingOverview): ProfitSeries[] {
       color: "var(--foreground)",
       points: overview.profit,
     },
-    ...overview.wallets.flatMap((wallet, index) => {
+    ...visibleWallets(overview).flatMap((wallet, index) => {
       if (
         wallet.summary.state !== "ok" ||
         !wallet.performance ||
@@ -415,7 +421,8 @@ function WalletList({
   const missing = overview.wallets.filter(
     (wallet) => wallet.summary.state === "unreachable"
   ).length
-  const orderedWallets = [...overview.wallets].sort((left, right) => {
+  const wallets = visibleWallets(overview)
+  const orderedWallets = [...wallets].sort((left, right) => {
     const direction = sortDirection === "asc" ? 1 : -1
     if (sortKey === "wallet") {
       return left.label.localeCompare(right.label) * direction
@@ -478,9 +485,7 @@ function WalletList({
           onSelect={() => onSelectWallet(null)}
         />
         {orderedWallets.map((wallet) => {
-          const colorIndex = overview.wallets.findIndex(
-            (one) => one.id === wallet.id
-          )
+          const colorIndex = wallets.findIndex((one) => one.id === wallet.id)
           if (
             wallet.summary.state !== "ok" ||
             !wallet.performance ||
@@ -686,7 +691,6 @@ function WalletResultRow({
 }
 
 function UnavailableWalletRow({ wallet }: { wallet: TradingOverviewWallet }) {
-  const inactive = wallet.summary.state === "inactive"
   return (
     <div className="border-b px-5 py-4 text-muted-foreground last:border-b-0">
       <div className="flex min-w-0 items-center gap-2">
@@ -699,11 +703,7 @@ function UnavailableWalletRow({ wallet }: { wallet: TradingOverviewWallet }) {
         </span>
         <span className="truncate text-xs">{wallet.venue}</span>
       </div>
-      <p className="mt-2 text-xs">
-        {inactive
-          ? "Switched off · not counted"
-          : `${wallet.venue} did not answer`}
-      </p>
+      <p className="mt-2 text-xs">{wallet.venue} did not answer</p>
     </div>
   )
 }
