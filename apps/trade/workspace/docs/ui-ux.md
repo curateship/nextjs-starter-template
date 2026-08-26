@@ -7,7 +7,7 @@ agreed yet.
 ## The Trade workspace
 
 Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
-`/admin/kucoin`, and `/admin/aster`.
+`/admin/kucoin`, `/admin/aster`, and `/admin/lighter`.
 
 ```
 ┌────────────┬─────────────────────┬────────────┐

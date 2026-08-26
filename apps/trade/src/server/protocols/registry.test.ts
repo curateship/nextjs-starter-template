@@ -103,5 +103,6 @@ describe("the protocol registry", () => {
     expect(named).toContain("Phemex")
     expect(named).toContain("KuCoin")
     expect(named).toContain("Aster")
+    expect(named).toContain("Lighter")
   })
 })

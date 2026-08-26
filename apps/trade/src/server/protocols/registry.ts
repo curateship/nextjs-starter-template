@@ -166,6 +166,29 @@ import {
   asterFillsNeedRecovery,
   watchAsterFills,
 } from "@/server/protocols/aster/user-stream"
+import {
+  LIGHTER_HISTORY_BATCH_BARS,
+  fetchLighterCandleHistory,
+  fetchLighterCandles,
+} from "@/server/protocols/lighter/candles"
+import {
+  fetchLighterFunding,
+  lighterFundingIntervalMs,
+} from "@/server/protocols/lighter/funding"
+import {
+  fetchLighterMarkets,
+  fetchLighterPrices,
+  lighterPricesWereRationed,
+} from "@/server/protocols/lighter/markets"
+import {
+  lighterLivePricesFresh,
+  openLighterLivePrices,
+  readLighterLivePrices,
+} from "@/server/protocols/lighter/live-prices"
+import {
+  lighterIntervalMs,
+  roundLighterPx,
+} from "@/lib/protocols/lighter/translate"
 
 /**
  * The lookup between "a protocol id" and "the module that speaks it".
@@ -827,6 +850,64 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       orderInfo: fetchAsterOrderInfo,
       watchFills: watchAsterFills,
       fillsNeedRecovery: asterFillsNeedRecovery,
+    },
+  },
+  /**
+   * Markets, charts and funding only — no keys, no money, yet.
+   *
+   * Lighter is the one venue here that runs its own chain and signs orders
+   * with its own maths rather than Ethereum signing, so its accounts and
+   * orders arrive in later stages once the vendored WASM signer is proven.
+   * A Standard account also gets only 60 requests a minute, REST and socket
+   * together, so the socket does nearly all the reading and every REST call
+   * goes through `lighter/budget.ts`.
+   *
+   * Mainnet only, decided 26 Aug 2026. Lighter runs a testnet and it is not
+   * worth carrying: it held three markets, had been reset two days earlier,
+   * and served no candles at all. The order path will be proven the way
+   * Phemex's and KuCoin's were, with signed reads first and then one tiny
+   * real order behind both real-money switches.
+   */
+  lighter: {
+    id: "lighter",
+    label: "Lighter",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: false,
+      orders: false,
+      changeLeverage: {
+        can: false,
+        because:
+          "Lighter is read-only here so far — no wallet trades on it yet.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Lighter is read-only here so far — no wallet trades on it yet.",
+      },
+    },
+    markets: {
+      fetch: fetchLighterMarkets,
+      candles: fetchLighterCandles,
+      history: fetchLighterCandleHistory,
+      historyBatchBars: LIGHTER_HISTORY_BATCH_BARS,
+      intervalMs: lighterIntervalMs,
+      prices: fetchLighterPrices,
+      roundPx: roundLighterPx,
+      pricesWereRationed: lighterPricesWereRationed,
+    },
+    livePrices: {
+      open: openLighterLivePrices,
+      read: readLighterLivePrices,
+      fresh: lighterLivePricesFresh,
+    },
+    funding: {
+      fetch: fetchLighterFunding,
+      // Hourly, measured 26 Aug 2026: three days of rows sat exactly one
+      // hour apart.
+      intervalMs: lighterFundingIntervalMs,
     },
   },
   binance: {

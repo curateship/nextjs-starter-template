@@ -9,6 +9,7 @@ import * as hyperliquidStream from "@/lib/protocols/hyperliquid/stream"
 import * as kucoinStream from "@/lib/protocols/kucoin/stream"
 import * as phemexStream from "@/lib/protocols/phemex/stream"
 import * as asterStream from "@/lib/protocols/aster/stream"
+import * as lighterStream from "@/lib/protocols/lighter/stream"
 
 /**
  * The browser-side twin of the server's protocol registry: hand it a
@@ -58,6 +59,7 @@ const LIVE_ADAPTERS: Partial<Record<ProtocolId, LiveAdapter>> = {
   phemex: phemexStream,
   kucoin: kucoinStream,
   aster: asterStream,
+  lighter: lighterStream,
 }
 
 export function getLiveAdapter(id: ProtocolId): LiveAdapter | undefined {
