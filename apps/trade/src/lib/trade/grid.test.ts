@@ -489,9 +489,16 @@ describe("gridFollowShift", () => {
     }
   })
 
-  it("does not move while price is still inside the range or on the top", () => {
+  it("moves one step when price reaches the top", () => {
+    expect(gridFollowShift({ ...range, mark: 120 })).toEqual({
+      topPx: 120 + 40 / 12,
+      bottomPx: 80 + 40 / 12,
+      steps: 1,
+    })
+  })
+
+  it("does not move while price is still inside the range", () => {
     expect(gridFollowShift({ ...range, mark: 100 })).toBeNull()
-    expect(gridFollowShift({ ...range, mark: 120 })).toBeNull()
     expect(gridFollowShift({ ...range, mark: 79 })).toBeNull()
   })
 
@@ -517,6 +524,10 @@ describe("gridFollowDownShift", () => {
   }
 
   it("moves exactly one level per pass however far price fell", () => {
+    expect(gridFollowDownShift({ ...range, mark: 80 })).toEqual({
+      topPx: 110,
+      bottomPx: 70,
+    })
     expect(gridFollowDownShift({ ...range, mark: 79 })).toEqual({
       topPx: 110,
       bottomPx: 70,
@@ -528,7 +539,6 @@ describe("gridFollowDownShift", () => {
   })
 
   it("does not move inside the range or below the market's lowest price", () => {
-    expect(gridFollowDownShift({ ...range, mark: 80 })).toBeNull()
     expect(
       gridFollowDownShift({
         topPx: 15,

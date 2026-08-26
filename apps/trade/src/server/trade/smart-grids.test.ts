@@ -881,6 +881,30 @@ describe("a hand in the middle of it", () => {
 })
 
 describe("following price up", () => {
+  it("moves every rung up when the highest rung sells at the top", async () => {
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(111)
+    await priceTo(109)
+    expect((await onlyGrid()).plan.levels.at(-1)?.status).toBe("holding")
+
+    await priceTo(120)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(1)
+    expect(grid.plan.topPx).toBeCloseTo(130, 9)
+    expect(grid.plan.bottomPx).toBeCloseTo(90, 9)
+    expect(await positions()).toHaveLength(0)
+
+    // Another engine pass at the same price must not buy the moved top rung.
+    // Price has to climb above that rung, then return to it.
+    await settle()
+    expect(await positions()).toHaveLength(0)
+    await priceTo(121)
+    await priceTo(120)
+    expect((await onlyGrid()).plan.levels.at(-1)?.status).toBe("holding")
+  })
+
   it("slides the range up a whole step once price clears the top", async () => {
     // Placed straddling $100, so two levels hold from the start. At $130 both
     // of those sell, the grid is empty, and only then does it move.
@@ -1052,6 +1076,22 @@ describe("following price up", () => {
 })
 
 describe("following price down", () => {
+  it("moves every rung down when the lowest rung buys at the bottom", async () => {
+    await priceTo(100)
+    await place({ followDown: true })
+    await priceTo(121)
+
+    await priceTo(80)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.downShifts).toBe(1)
+    expect(grid.plan.topPx).toBeCloseTo(110, 9)
+    expect(grid.plan.bottomPx).toBeCloseTo(70, 9)
+    expect(grid.plan.levels.map((level) => level.buyPx)).toEqual([
+      70, 80, 90, 100,
+    ])
+  })
+
   it("moves one level lower and keeps old holdings at their original sells", async () => {
     await priceTo(100)
     await place({ followDown: true })

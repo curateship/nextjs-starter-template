@@ -353,7 +353,7 @@ export async function advanceGrid(
       spacing: plan.spacing,
       mark,
     })
-    if (mark < plan.bottomPx && !moved) {
+    if (mark <= plan.bottomPx && !moved) {
       plan.paused = true
       plan.pauseReason =
         "The next lower grid level does not fit this market's price step. The grid paused before placing it."
@@ -494,9 +494,11 @@ function followTheRangeUp(
   }))
   for (const level of sized) {
     if (!(level.buyPx > 0) || !(level.sellPx > level.buyPx)) return false
-    // A buy at or above the price is one the next step would fill at market,
-    // which is exactly the cost this whole feature exists to avoid.
-    if (level.buyPx >= mark) return false
+    // A buy above the price would fire on this pass. A buy exactly at the
+    // price is the old top becoming the new highest buy when the last rung
+    // sells. It moves with the range, but starts unready below so the same
+    // boundary cannot sell and buy in one move.
+    if (level.buyPx > mark) return false
     if (level.sz <= 0 || level.sz * level.buyPx < plan.minOrderValueUsd)
       return false
   }
@@ -511,6 +513,9 @@ function followTheRangeUp(
     level.buyPx = sized[index].buyPx
     level.sellPx = sized[index].sellPx
     level.sz = sized[index].sz
+    if (level.status === "waiting") {
+      level.armed = level.buyPx < mark
+    }
   }
   plan.shifts += 1
   return true

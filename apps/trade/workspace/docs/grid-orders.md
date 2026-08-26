@@ -166,9 +166,10 @@ the fills, so KuCoin's grids now get a figure like everybody else's.
 
 ## Following price up and down
 
-Switched on, the range slides up behind price. When price climbs past the top,
-the whole range moves up in whole steps until the top sits just above price, and
-the grid carries on.
+Switched on, the range slides up behind price. When the highest rung sells at
+the top, the whole range moves up at once. Every rung moves with it and the new
+top sits one step above price. The grid does not wait for price to move beyond
+the old top.
 
 **It only follows a range price has actually been in.** A grid placed below
 the price — hung under a clicked level, waiting for a fall — stays exactly
@@ -180,14 +181,14 @@ instruction and still catches the range up at once.
 
 It costs nothing. By the time price is above the top the grid has already sold
 every level and holds nothing, so there is no position to settle and not one
-order is placed. The move puts price back inside the top step, above every
+order is placed. The move puts price back inside the top step, at or above every
 level's buy price, so the grid buys nothing on the way and is simply ready for
 the next dip.
 
-**Following down is a separate switch and starts off.** When price falls below
-the bottom, the range moves down by one level on each engine pass. A fall
-through several whole ranges still introduces one new lower buy at a time, so
-one fast candle cannot send a pile of new orders together.
+**Following down is a separate switch and starts off.** When the lowest rung
+buys at the bottom, the range moves down by one level on that engine pass. A
+fall through several whole ranges still introduces one new lower buy at a time,
+so one fast candle cannot send a pile of new orders together.
 
 The old top level leaves the active range on each downward move. If that level
 still holds coins, it keeps its original buy and sell prices until it sells.

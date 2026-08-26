@@ -372,8 +372,9 @@ export function gridRangeFromClick(input: {
  * Where a following grid's range moves to, or null when it should not move.
  *
  * Whole steps, never a re-centring on the price. A step at a time puts the new
- * top just above the price, so the price lands inside the top step and above
- * every level's buy — every level stays waiting and the grid buys nothing.
+ * top just above the price, so the price lands inside the top step and at or
+ * above every level's buy — every level stays waiting and the grid buys
+ * nothing.
  * Re-centring would leave levels above the price, and a level above the price
  * is one the grid SELLS at, so it would have to buy the coins for them at
  * market, at the top, which is the one thing following must never do.
@@ -388,13 +389,15 @@ export function gridFollowShift(input: {
 }): { topPx: number; bottomPx: number; steps: number } | null {
   const { topPx, bottomPx, levels, mark } = input
   if (!(topPx > bottomPx) || !(bottomPx > 0) || levels < 1) return null
-  if (!(mark > topPx)) return null
+  if (mark < topPx) return null
 
   if (input.spacing === "compounding") {
     const ratio = (topPx / bottomPx) ** (1 / levels)
     if (!(ratio > 1)) return null
-    const steps = Math.ceil(Math.log(mark / topPx) / Math.log(ratio))
-    if (steps < 1) return null
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.log(mark / topPx) / Math.log(ratio))
+    )
     const factor = ratio ** steps
     if (!Number.isFinite(factor)) return null
     return { topPx: topPx * factor, bottomPx: bottomPx * factor, steps }
@@ -402,8 +405,7 @@ export function gridFollowShift(input: {
 
   const step = (topPx - bottomPx) / levels
   if (!(step > 0)) return null
-  const steps = Math.ceil((mark - topPx) / step)
-  if (steps < 1) return null
+  const steps = Math.max(1, Math.ceil((mark - topPx) / step))
   return {
     topPx: topPx + step * steps,
     bottomPx: bottomPx + step * steps,
@@ -426,7 +428,7 @@ export function gridFollowDownShift(input: {
 }): { topPx: number; bottomPx: number } | null {
   const { topPx, bottomPx, levels, mark } = input
   if (!(topPx > bottomPx) || !(bottomPx > 0) || levels < 1) return null
-  if (!(mark < bottomPx)) return null
+  if (mark > bottomPx) return null
 
   if (input.spacing === "compounding") {
     const ratio = (topPx / bottomPx) ** (1 / levels)
