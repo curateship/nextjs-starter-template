@@ -33,6 +33,9 @@ test them, and how another app adopts them.
 - The sticky header top-left area is local navigation for the current context.
 - Since the root does not have local navigation (child items) Index can have its own local nav, such as `[Overview] [Overview 2]`.
 - Clicking a sidebar parent opens that parent section's landing page.
+- Each child link has its own eye control in Sidebar settings. Switching a
+  child off removes it from both the sidebar and the sticky header without
+  deleting its name, address, icon or place in the list.
 - When a parent section is active, the sticky header top-left nav should show the section-local nav as `[parent] [child] [child]`.
 - Example: clicking `Media Library` should open the `Media Library` page, and the sticky header should show `[Media Library] [Images] [Folders]`.
 - A plain sidebar destination without children is just a page. It does not get fake sticky header child nav.

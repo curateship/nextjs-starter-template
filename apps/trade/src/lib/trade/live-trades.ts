@@ -299,8 +299,8 @@ export type LiveFillMark = {
   detail: string | null
 }
 
-/** What one grid level's own round trip came to, and what it paid going in. */
-export type GridRoundTrip = { money: number; buyPx: number }
+/** What one grid level's own round trip made after both fees. */
+export type GridRoundTrip = { money: number }
 
 /**
  * What each grid sell made on its OWN buy, rather than on the position average.
@@ -366,14 +366,12 @@ export function gridRoundTrips(
     // level, and a penny of daylight is a reason to trust neither figure.
     let left = fill.sz
     let money = -fill.fee
-    let cost = 0
     let matched = 0
     while (left > DUST && stack.length > 0) {
       const lot = stack[stack.length - 1]
       const part = Math.min(left, lot.sz)
       const share = lot.sz > 0 ? part / lot.sz : 0
       money += part * (fill.px - lot.px) - lot.fee * share
-      cost += part * lot.px
       lot.fee -= lot.fee * share
       lot.sz -= part
       if (lot.sz <= DUST) stack.pop()
@@ -382,7 +380,7 @@ export function gridRoundTrips(
     }
 
     if (!fill.grid || left > DUST || matched <= DUST) continue
-    out.set(fill.fillId, { money, buyPx: cost / matched })
+    out.set(fill.fillId, { money })
   }
 
   return out
@@ -413,9 +411,11 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
   const grouped = groupFills(trade.fills)
   const last = grouped[grouped.length - 1]
   const levels = gridRoundTrips(grouped)
+  let held = 0
   return grouped.map((fill) => {
     const opening =
       trade.direction === "long" ? fill.side === "buy" : fill.side === "sell"
+    held = Math.max(0, held + (opening ? fill.sz : -fill.sz))
     // The arrow that ends the trade says what the WHOLE trade made — the same
     // figure as its row in the table, fee on the way in included. Anything
     // else and the two disagree by the entry fee, and a penny of daylight
@@ -430,18 +430,19 @@ export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
       !opening && fill === last
         ? trade.pnl
         : (level?.money ?? fill.closedPnl - fill.fee)
+    const amount = money$(fill.px * fill.sz)
     const label = opening
-      ? `${fill.side === "buy" ? "Bought" : "Sold short"} ${price$(fill.px)}`
-      : `${fill.side === "buy" ? "Bought back" : "Sold"} ${price$(fill.px)} · ${
+      ? `${fill.side === "buy" ? "Bought" : "Sold short"} ${amount}`
+      : `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount} · ${
           money >= 0 ? "made" : "lost"
         } ${money$(Math.abs(money))}`
     const detail = opening
-      ? `${money$(fill.px * fill.sz)} in`
+      ? null
       : fill === last
         ? tradeEndingLabel(trade)
         : level
-          ? `Level bought ${price$(level.buyPx)} · ${money$(fill.px * fill.sz)} out`
-          : `Part closed · ${money$(fill.px * fill.sz)}`
+          ? `Still holding ${money$(held * fill.px)}`
+          : `Part closed · ${money$(held * fill.px)} left`
     return {
       at: fill.at,
       px: fill.px,
@@ -483,29 +484,40 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
     )
   )
   const levels = gridRoundTrips(grouped)
+  const heldByPosition = new Map<string, { amount: number; known: boolean }>()
   return grouped.map((fill) => {
     const level = levels.get(fill.fillId)
     const money = level?.money ?? fill.closedPnl - fill.fee
     const closed = level !== undefined || fill.closedPnl !== 0
+    const key = `${fill.walletId} ${fill.marketKey}`
+    const previous = heldByPosition.get(key)
+    const held =
+      (previous?.amount ?? 0) +
+      (fill.side === "buy" ? fill.sz : -fill.sz)
+    const holdingKnown = previous?.known === true || !closed
+    heldByPosition.set(key, { amount: held, known: holdingKnown })
+    const amount = money$(fill.px * fill.sz)
+    const holding = money$(Math.abs(held) * fill.px)
     return {
       at: fill.at,
       px: fill.px,
       side: fill.side,
       sz: fill.sz,
       label: closed
-        ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${price$(fill.px)} · ${
+        ? `${fill.side === "buy" ? "Bought back" : "Sold"} ${amount} · ${
             money >= 0 ? "made" : "lost"
           } ${money$(Math.abs(money))}`
-        : `${fill.side === "buy" ? "Bought" : "Sold"} ${price$(fill.px)}`,
+        : `${fill.side === "buy" ? "Bought" : "Sold"} ${amount}`,
       // Said out loud, because the trade behind it is still open: this is what
-      // one sell banked, not what the position has made. A grid level says
-      // what it paid too, since the whole figure rests on that price and it is
-      // not the grid line the arrow sits under.
+      // one sell banked, not what the position has made. The second line says
+      // how much remains, which is the missing half of a part-sale.
       detail: level
-        ? `Level bought ${price$(level.buyPx)} · still holding the rest`
+        ? `Still holding ${holding}`
         : closed
-          ? `Part closed · ${money$(fill.px * fill.sz)} · still holding the rest`
-          : `${money$(fill.px * fill.sz)} in`,
+          ? holdingKnown
+            ? `Part closed · ${holding} left`
+            : "Part closed"
+          : null,
     }
   })
 }
@@ -612,15 +624,6 @@ function groupFills(fills: readonly LiveFill[]): LiveFill[] {
     out.push({ ...fill })
   }
   return out
-}
-
-/** A price, with enough places to be exact on a coin worth a few cents. */
-function price$(value: number): string {
-  const places = value !== 0 && Math.abs(value) < 1 ? 6 : 2
-  return `$${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: places,
-  })}`
 }
 
 /**

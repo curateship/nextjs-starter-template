@@ -66,6 +66,7 @@ import {
   createDefaultShellConfig,
   createDefaultTopRightNavigation,
   isActiveShellHref,
+  isShellEntryVisible,
   isShellItem,
   MAX_AUTOMATION_PAUSE_NAME_LENGTH,
   normalizeAutomationPause,
@@ -4310,6 +4311,14 @@ describe("member sidebar", () => {
     expect(entry.href).toBe("/admin/users")
     expect(canSeeShellEntry(entry, "member")).toBe(false)
     expect(canSeeShellEntry(entry, "admin")).toBe(true)
+  })
+})
+
+describe("saved child visibility", () => {
+  it("shows older child links unless an admin explicitly hides them", () => {
+    expect(isShellEntryVisible({})).toBe(true)
+    expect(isShellEntryVisible({ visible: true })).toBe(true)
+    expect(isShellEntryVisible({ visible: false })).toBe(false)
   })
 })
 

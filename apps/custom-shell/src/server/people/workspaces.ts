@@ -2023,7 +2023,7 @@ function promoteChild(
     label: child.label,
     href: child.href,
     icon: child.icon ?? parent.icon,
-    visible: Boolean(parent.visible),
+    visible: Boolean(parent.visible && child.visible !== false),
     ...(child.roles ? { roles: child.roles } : {}),
   }
 }

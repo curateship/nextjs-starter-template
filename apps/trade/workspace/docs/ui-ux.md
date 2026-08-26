@@ -1413,6 +1413,7 @@ database — not in code. Trade is a copy of Custom Shell, and an app never edit
 a shell file, so these are changed on the Settings screens:
 
 - Settings → Sidebar — the **Trading overview** link to
-  `/admin/trading-overview`.
+  `/admin/trading-overview`. A child link's eye switches that one shortcut off
+  in both the sidebar and the sticky header without deleting it.
 - Settings → General settings — the admin and member home pages, both
   `/admin/trading-overview`.

@@ -358,7 +358,7 @@ describe("tradeFillMarks", () => {
     expect(marks).toHaveLength(2)
     expect(marks[1].sz).toBeCloseTo(0.69, 10)
     // The money on the arrow now agrees with the money on the row.
-    expect(marks[1].label).toBe("Sold $234.74 · made $6.83")
+    expect(marks[1].label).toBe("Sold $161.97 · made $6.83")
     expect(trade.pnl).toBeCloseTo(6.830723, 6)
   })
 
@@ -394,7 +394,7 @@ describe("tradeFillMarks", () => {
 
     // The price keeps its places, because a cent coin needs them. The money
     // does not.
-    expect(tradeFillMarks(trade)[1].label).toBe("Sold $0.0395 · made $0.50")
+    expect(tradeFillMarks(trade)[1].label).toBe("Sold $3.95 · made $0.50")
   })
 })
 
@@ -418,11 +418,21 @@ describe("arrows on a position that is still open", () => {
   it("says what one sell banked while the rest is still held", () => {
     // A grid recycles a level without the position ever going flat, so this
     // sell is never part of a finished trade — and it still made money.
-    const [mark] = openFillMarks([
-      fill({ side: "sell", closedPnl: 12.5, fee: 0.5, dir: "Close Long" }),
+    const marks = openFillMarks([
+      fill({ sz: 2 }),
+      fill({
+        fillId: "f2",
+        orderId: "o2",
+        side: "sell",
+        closedPnl: 12.5,
+        fee: 0.5,
+        dir: "Close Long",
+        at: 2_000,
+      }),
     ])
+    const mark = marks[1]
     expect(mark.label).toContain("made $12.00")
-    expect(mark.detail).toContain("still holding the rest")
+    expect(mark.detail).toBe("Part closed · $100.00 left")
   })
 
   it("says lost when the sell closed under what it paid", () => {
@@ -430,14 +440,14 @@ describe("arrows on a position that is still open", () => {
       fill({ side: "sell", closedPnl: -8, fee: 0.25, dir: "Close Long" }),
     ])
     expect(mark.label).toContain("lost $8.25")
+    expect(mark.detail).toBe("Part closed")
   })
 
   it("puts no money on a fill that only opened", () => {
     // Zero here would read as "made nothing", which is a different claim.
     const [mark] = openFillMarks([fill()])
     expect(mark.label).toBe("Bought $100.00")
-    // In dollars: what it put in, not how much of the coin it bought.
-    expect(mark.detail).toBe("$100.00 in")
+    expect(mark.detail).toBeNull()
   })
 })
 
@@ -488,14 +498,15 @@ describe("a grid level's own round trip", () => {
     const found = gridRoundTrips([...buys, sell])
     // 1,713 bought at 0.027746 and sold at 0.030268, less both fees.
     expect(found.get(sell.fillId)?.money).toBeCloseTo(4.2755, 3)
-    expect(found.get(sell.fillId)?.buyPx).toBeCloseTo(0.027746, 6)
   })
 
   it("writes made, not lost, on the arrow the exchange called a loss", () => {
     const marks = openFillMarks([...buys, sell])
+    expect(marks[3].label).toBe("Bought $46.98")
+    expect(marks[3].detail).toBeNull()
     const arrow = marks[marks.length - 1]
-    expect(arrow.label).toBe("Sold $0.030268 · made $4.28")
-    expect(arrow.detail).toBe("Level bought $0.027746 · still holding the rest")
+    expect(arrow.label).toBe("Sold $51.85 · made $4.28")
+    expect(arrow.detail).toBe("Still holding $182.82")
   })
 
   it("leaves a ladder's part-close on the exchange's figure", () => {
@@ -505,7 +516,7 @@ describe("a grid level's own round trip", () => {
       [...buys, sell].map((one) => ({ ...one, grid: false }))
     )
     const arrow = marks[marks.length - 1]
-    expect(arrow.label).toBe("Sold $0.030268 · lost $1.15")
+    expect(arrow.label).toBe("Sold $51.85 · lost $1.15")
   })
 
   it("keeps the venue's figure on a sell older than the fills on hand", () => {

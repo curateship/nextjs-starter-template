@@ -219,6 +219,8 @@ export type ShellChildItem = {
   label: string
   href: string
   icon?: ShellIcon
+  /** Switched off in navigation. Absent on older saved links means visible. */
+  visible?: boolean
   /** Who sees this item. Absent means everyone. */
   roles?: ShellRole[]
 }
@@ -256,6 +258,11 @@ export function canSeeShellEntry(
   }
 
   return !isAdminHref(entry.href)
+}
+
+/** Older saved child links have no visibility field, so only `false` hides. */
+export function isShellEntryVisible(entry: { visible?: boolean }) {
+  return entry.visible !== false
 }
 
 /**

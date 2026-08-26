@@ -149,8 +149,10 @@ its sell.
 
 Two places show this figure, and they now agree.
 
-- **The arrow on the chart.** Point at a grid's sell and it reads "Sold
-  $0.030268, made $4.28", with the level's own buy price under it.
+- **The arrow on the chart.** Point at this grid's sell and it reads "Sold
+  $51.85, made $4.28", with "Still holding $182.82" under it. Buy arrows use
+  the same rule and say how many dollars they bought, while their place on the
+  price axis still shows the price.
 - **The Smart orders panel**, on the grid's row, as banked.
 
 **A ladder is left alone on purpose.** A ladder's exits take a share off one

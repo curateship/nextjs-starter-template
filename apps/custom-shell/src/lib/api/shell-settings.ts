@@ -46,6 +46,7 @@ const shellChildItemSchema = z.object({
   label: z.string(),
   href: z.string(),
   icon: shellIconSchema.optional(),
+  visible: z.boolean().optional(),
   roles: shellRolesSchema,
 })
 

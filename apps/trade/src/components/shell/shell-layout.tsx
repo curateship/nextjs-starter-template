@@ -25,6 +25,7 @@ import {
   getModalStyleVars,
   isActiveShellHref,
   isShellEntryNamed,
+  isShellEntryVisible,
   isShellItem,
   MODAL_STYLE_VAR_NAMES,
   normalizeAutomationPause,
@@ -747,7 +748,10 @@ function getShellItems(config: ShellConfig, role: string) {
     .map((item) => ({
       ...item,
       children: item.children?.filter(
-        (child) => canSeeShellEntry(child, role) && isShellEntryNamed(child)
+        (child) =>
+          isShellEntryVisible(child) &&
+          canSeeShellEntry(child, role) &&
+          isShellEntryNamed(child)
       ),
     }))
 }
