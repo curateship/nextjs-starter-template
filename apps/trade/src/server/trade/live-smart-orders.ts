@@ -10,7 +10,6 @@ import {
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import {
-  CASH_ONLY,
   dcaLadderPlan,
   floorSize,
   ladderBaseStopOf,
@@ -129,12 +128,6 @@ import {
  */
 const ENGINE_SWEEP_EVERY_MS = 30_000
 const engineSweptAt = new Map<string, number>()
-
-/** The flow's cap when it has one, never more than the account holds. */
-function livePotOf(input: { potUsd?: number }, walletPot: number): number {
-  if (input.potUsd === undefined) return walletPot
-  return Math.min(input.potUsd, walletPot)
-}
 
 export async function placeLiveDcaLadder(
   userId: string,
@@ -281,18 +274,12 @@ async function placeLiveDcaLadderOnce(
   }
   if (!(anchorPx > 0)) throw new Error("LIVE_PRICE")
 
+  const maxLeverage = rules.maxLeverage ?? input.params.leverage
+  const leverage = Math.min(input.params.leverage, maxLeverage)
   const drawn = dcaLadderPlan({
     anchorPx,
-    equity: livePotOf(
-      input,
-      input.params.compound ? account.equity : wallet.startingBalance
-    ),
-    // Real money, so the same rule as the practice path and for the same
-    // reason: the sizing multiplies each rung by the borrowing setting while
-    // the orders below are sent at leverage 1. Reading it here would buy three
-    // times the intended coin with cash, on a real Hyperliquid account, from a
-    // box the panel says is only for backtests.
-    params: { ...input.params, leverage: CASH_ONLY },
+    equity: input.params.compound ? account.equity : wallet.startingBalance,
+    params: { ...input.params, leverage },
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,
   })
@@ -311,15 +298,6 @@ async function placeLiveDcaLadderOnce(
     }
     return { px, sz }
   })
-  // Only what could actually be committed at once has to be affordable now.
-  //
-  // A watching ladder commits nothing when it is placed: each rung is bought
-  // when price reaches it, and the engine re-checks the cash at that moment.
-  // Demanding the whole ladder's cost up front refused ladders over money they
-  // would never hold at the same time.
-  const committing = Math.max(...priced.map((r) => r.px * r.sz))
-  if (committing > account.free + 1e-9) throw new Error("SMART_LADDER_COST")
-
   const twoGreen = input.params.twoGreen
   const rungs: LadderRungState[] = priced.map((rung) => ({
     ...rung,
@@ -353,7 +331,8 @@ async function placeLiveDcaLadderOnce(
     input,
     rules.sizeDecimals,
     rules.priceTick,
-    rules.maxLeverage ?? 1,
+    maxLeverage,
+    leverage,
     anchorPx,
     rungs
   )
@@ -420,6 +399,7 @@ function ladderPlan(
   sizeDecimals: number | null,
   priceTick: number | null,
   maxLeverage: number,
+  leverage: number,
   anchorPx: number,
   rungs: LadderRungState[]
 ): LadderPlan {
@@ -444,11 +424,7 @@ function ladderPlan(
     sizeDecimals,
     priceTick,
     maxLeverage,
-    // Cash, deliberately, and not read from the settings. A real wallet's
-    // ladder taking leverage would hand the exchange a price at which it can
-    // close the position — a decision nobody has made yet. The setting exists
-    // so a backtest can measure the idea; it does not reach a live book.
-    leverage: 1,
+    leverage,
     rungs,
     takeProfit: takeProfit
       ? {

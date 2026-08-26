@@ -68,7 +68,6 @@ export type FlowTrading =
        * network, because that is the difference worth seeing at a glance.
        */
       venue: string
-      capUsd: number | null
       coins: number
       /** Why it could not run as it stands, in plain words, or null. */
       problem: string | null
@@ -248,7 +247,6 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
         walletLabel: live.spec.walletLabel,
         real: live.spec.real,
         venue: venueLabel(live.spec.protocol, live.spec.network),
-        capUsd: live.spec.capUsd,
         coins: live.spec.marketKeys.length,
         problem: null,
         running: live.status === "running",
@@ -312,9 +310,6 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
         })
         if (mismatch) return mismatch
       }
-      if (named.capUsd === null) {
-        return "Say how much of the wallet this flow may use, on the Wallet step."
-      }
       return null
     })()
 
@@ -325,7 +320,6 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
       venue: wallet
         ? venueLabel(wallet.protocol, wallet.network)
         : (named.protocol ?? ""),
-      capUsd: named.capUsd,
       coins,
       problem,
       running: false,
@@ -392,7 +386,6 @@ function drawingMovedOn(
   // By id, not by name. Two wallets may be called the same thing, and a rename
   // is not a change to what is being traded.
   if (named.id !== walletId) return true
-  if (named.capUsd !== spec.capUsd) return true
   if (marketKeys.length !== spec.marketKeys.length) return true
   const held = new Set(spec.marketKeys)
   return marketKeys.some((key) => !held.has(key))

@@ -651,7 +651,7 @@ describe("why a coin never got a ladder", () => {
       trades: 0,
       armRefusals: [
         { reason: "SMART_LADDER_UNDER_BASE", bars: 1_204, lastAt: 1_700 },
-        { reason: "SMART_LADDER_COST", bars: 2, lastAt: 900 },
+        { reason: "SMART_RUNG_TOO_SMALL:1", bars: 2, lastAt: 900 },
       ],
     })
 
@@ -664,7 +664,7 @@ describe("why a coin never got a ladder", () => {
     expect(
       whyNoLadder({
         trades: 4,
-        armRefusals: [{ reason: "SMART_LADDER_COST", bars: 9, lastAt: 1 }],
+        armRefusals: [{ reason: "SMART_RUNG_TOO_SMALL:1", bars: 9, lastAt: 1 }],
       })
     ).toBeNull()
   })

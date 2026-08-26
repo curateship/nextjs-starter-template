@@ -56,6 +56,7 @@ let candles: CandleBar[] = []
 let minOrderValueUsd: number | null = null
 let minOrderSize: number | null = null
 let sizeDecimals = 3
+let marketMaxLeverage = 50
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -82,7 +83,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             priceTick: null,
             minOrderValueUsd,
             minOrderSize,
-            maxLeverage: 50,
+            maxLeverage: marketMaxLeverage,
             isolatedOnly: false,
             iconUrl: null,
             price: marks.get("BTC") ?? 100,
@@ -317,6 +318,7 @@ beforeEach(async () => {
   minOrderValueUsd = null
   minOrderSize = null
   sizeDecimals = 3
+  marketMaxLeverage = 50
   dipSlot = 9
   // A ladder hangs from the confirmed base, so every test needs one. 100 is
   // the base throughout unless a test swaps the tape, which keeps the rungs
@@ -803,11 +805,7 @@ describe("placing a ladder", () => {
     expect((await onlyLadder()).flowRunId).toBeNull()
   })
 
-  it("ignores the borrowing setting outright — a wallet only ever spends cash", async () => {
-    // The setting exists so a BACKTEST can measure borrowing. It reaches the
-    // rung sizing, and the orders are still sent at leverage 1 — so a wallet
-    // that read it would buy three times the coin and pay the whole price in
-    // cash. Practice money here, real money on the live path, same rule.
+  it("uses the borrowing chosen for a practice-wallet ladder", async () => {
     const cash = await place()
     const asked = await (async () => {
       await database.delete(tradeSmartLadders)
@@ -815,11 +813,21 @@ describe("placing a ladder", () => {
     })()
 
     expect(asked).toMatchObject({ placed: cash.placed, passed: cash.passed })
-    expect(asked.ladder.plan.rungs).toEqual(cash.ladder.plan.rungs)
     const ladder = await onlyLadder()
-    expect(ladder.plan.leverage).toBe(1)
-    expect(ladder.plan.rungs[0].sz).toBeCloseTo(7.017, 9)
-    expect(ladder.plan.rungs[1].sz).toBeCloseTo(15.255, 9)
+    expect(ladder.plan.leverage).toBe(3)
+    expect(ladder.plan.rungs[0].sz).toBeCloseTo(21.052, 9)
+    expect(ladder.plan.rungs[1].sz).toBeCloseTo(45.766, 9)
+  })
+
+  it("uses the market maximum when chosen borrowing is higher", async () => {
+    marketMaxLeverage = 2
+    clearMarketRulesCache()
+
+    await place({ leverage: 3 })
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.leverage).toBe(2)
+    expect(ladder.plan.rungs[0].sz).toBeCloseTo(14.035, 9)
   })
 
   it("keeps fixed sizing on the wallet's starting balance after a profit", async () => {
@@ -926,7 +934,7 @@ describe("placing a ladder", () => {
     }
   })
 
-  it("refuses a ladder that costs more than the free cash, writing nothing", async () => {
+  it("places a watched ladder even when the wallet cannot afford its rungs yet", async () => {
     // Half the account is already margin behind a position.
     await placePaperOrder(userId, wallet, {
       marketKey: BTC,
@@ -939,10 +947,10 @@ describe("placing a ladder", () => {
       slPx: null,
     })
 
-    await expect(place({ maxPositionPct: 100 })).rejects.toThrow(
-      "SMART_LADDER_COST"
-    )
-    expect(await ladderRows()).toHaveLength(0)
+    await expect(place({ maxPositionPct: 100 })).resolves.toMatchObject({
+      placed: 2,
+    })
+    expect(await ladderRows()).toHaveLength(1)
     expect(await orders()).toHaveLength(0)
   })
 
@@ -1673,43 +1681,6 @@ describe("two-green mode and rungs above the market", () => {
     ])
     // Nothing rests on the book in this mode.
     expect(await orders()).toHaveLength(0)
-  })
-})
-
-describe("a ladder that waits does not tie up the money for every rung", () => {
-  it("is refused only when it cannot afford the rung it would buy", async () => {
-    // The two rungs cost about $667 and $1,333. Park most of the account in a
-    // manual position so roughly $1,390 is free: the whole ladder is
-    // unaffordable, the biggest single rung is not. Asking for the whole cost
-    // up front — the old rule — refused exactly this ladder.
-    await placePaperOrder(userId, wallet, {
-      marketKey: BTC,
-      side: "buy",
-      px: 100,
-      sz: 86,
-      leverage: 1,
-      reduceOnly: false,
-      tpPx: null,
-      slPx: null,
-    })
-
-    expect(await place()).toMatchObject({ placed: 2, passed: 0 })
-  })
-
-  it("still refuses when even one rung is out of reach", async () => {
-    await placePaperOrder(userId, wallet, {
-      marketKey: BTC,
-      side: "buy",
-      px: 100,
-      sz: 95,
-      leverage: 1,
-      reduceOnly: false,
-      tpPx: null,
-      slPx: null,
-    })
-
-    await expect(place()).rejects.toThrow("SMART_LADDER_COST")
-    expect(await ladderRows()).toHaveLength(0)
   })
 })
 

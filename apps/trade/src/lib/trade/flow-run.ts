@@ -47,7 +47,7 @@ export type TradeFlowStrategy =
       indicators: IndicatorSettings
       /** The candle size the arrows are read on. */
       interval: CandleInterval
-      /** What one buy signal spends, as a share of the cap. */
+      /** What one buy signal spends, as a share of the wallet's sizing amount. */
       stakePct: number
       /** How far a buy may follow a price that runs, as a share of it. */
       chaseGiveUp: number
@@ -63,7 +63,12 @@ export type TradeFlowRunSpec = {
   marketKeys: string[]
   /** What it does about them. */
   strategy: TradeFlowStrategy
-  /** The most of the wallet this flow may spend, in dollars. */
+  /**
+   * The wallet's fixed sizing baseline when this run started.
+   *
+   * Watched buys check the wallet's free money when their price arrives, so
+   * this number is not a spending cap.
+   */
   capUsd: number
   /** What the wallet was called when it started, for a sentence afterwards. */
   walletLabel: string

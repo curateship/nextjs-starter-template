@@ -24,6 +24,7 @@ export function TradeNumberField({
   value,
   min,
   max,
+  integer = false,
   suffix,
   onChange,
 }: {
@@ -33,6 +34,8 @@ export function TradeNumberField({
   value: number
   min: number
   max: number
+  /** True when a decimal would not be honoured by the thing this controls. */
+  integer?: boolean
   /** A unit drawn after the box — "%", "days". */
   suffix?: string
   onChange: (next: number) => void
@@ -54,7 +57,8 @@ export function TradeNumberField({
     text.trim() !== "" &&
     Number.isFinite(parsed) &&
     parsed >= min &&
-    parsed <= max
+    parsed <= max &&
+    (!integer || Number.isInteger(parsed))
 
   return (
     <div className="grid gap-1.5">
@@ -64,7 +68,7 @@ export function TradeNumberField({
       <div className="flex items-center gap-2">
         <Input
           id={id}
-          inputMode="decimal"
+          inputMode={integer ? "numeric" : "decimal"}
           value={text}
           aria-invalid={!valid}
           onChange={(event) => {
@@ -74,7 +78,8 @@ export function TradeNumberField({
               event.target.value.trim() !== "" &&
               Number.isFinite(next) &&
               next >= min &&
-              next <= max
+              next <= max &&
+              (!integer || Number.isInteger(next))
             ) {
               onChange(next)
             }
@@ -96,9 +101,11 @@ export function TradeNumberField({
         <p className="text-xs text-destructive">
           {text.trim() === ""
             ? "This needs a number."
-            : `Between ${min.toLocaleString()} and ${max.toLocaleString()}${
-                suffix ? ` ${suffix}` : ""
-              }. Anything else is not saved.`}
+            : integer && Number.isFinite(parsed) && !Number.isInteger(parsed)
+              ? "Use a whole number. Anything else is not saved."
+              : `Between ${min.toLocaleString()} and ${max.toLocaleString()}${
+                  suffix ? ` ${suffix}` : ""
+                }. Anything else is not saved.`}
         </p>
       )}
     </div>

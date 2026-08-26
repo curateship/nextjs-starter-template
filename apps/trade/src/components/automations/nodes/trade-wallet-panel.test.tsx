@@ -112,14 +112,12 @@ describe("the wallet panel with a wallet named", () => {
       walletId: "w1",
       walletLabel: "Account #1",
       walletKind: "live",
-      spendCapUsd: 250,
     }),
   })
 
-  it("asks how much of that wallet the flow may spend", () => {
-    expect(html).toContain("Money this flow may use")
-    expect(html).toContain("Most it may spend")
-    expect(html).toContain('value="250"')
+  it("does not ask for a spending cap", () => {
+    expect(html).not.toContain("Money this flow may use")
+    expect(html).not.toContain("Most it may spend")
   })
 
   it("drops the pot and the fee boxes", () => {
@@ -148,7 +146,6 @@ describe("a practice wallet", () => {
         walletId: "w2",
         walletLabel: "Practice 2",
         walletKind: "paper",
-        spendCapUsd: 500,
       })
     )
 
@@ -169,11 +166,9 @@ describe("a step with a number on it that will not parse", () => {
         walletId: "w1",
         walletLabel: "Account #1",
         walletKind: "live",
-        spendCapUsd: 250,
       })
     )
 
-    expect(html).toContain("Money this flow may use")
     expect(html).toContain("Account #1")
     expect(html).not.toContain("What trading costs")
   })
@@ -262,7 +257,6 @@ describe("picking an Aster wallet", () => {
         walletKind: "live",
         walletProtocol: "aster",
         walletNetwork: "mainnet",
-        spendCapUsd: 10_000,
       },
     })
     expect(successToast).toHaveBeenCalledWith(

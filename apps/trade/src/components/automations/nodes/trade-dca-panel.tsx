@@ -110,18 +110,11 @@ export default function TradeDcaFields({
       ? saved.startingUsd
       : DEFAULT_BACKTEST_START_USD
 
-  /**
-   * The money these sums are a share of.
-   *
-   * **A named wallet's pot is its spend cap, never the pretend figure.** The
-   * two live side by side on the money step: one is what a backtest starts
-   * with, the other is the most of a real wallet this flow may use. Reading
-   * the wrong one told somebody their coin could spend $1,500 when the truth
-   * was $135 — and that figure is what decides whether a rung is even big
-   * enough for the exchange to accept.
-   */
-  const potUsd = named ? (named.capUsd ?? 0) : pretendUsd
-  const perCoinUsd = (potUsd * params.maxPositionPct) / 100
+  const potUsd = named ? null : pretendUsd
+  const perCoinAccountUsd = ((potUsd ?? 0) * params.maxPositionPct) / 100
+  const perCoinBuyingUsd = perCoinAccountUsd * params.leverage
+  const buyingPct =
+    Math.round(params.maxPositionPct * params.leverage * 100) / 100
   const shares = dcaAllocationPcts(
     params.rungs.length,
     params.maxPositionPct,
@@ -133,20 +126,21 @@ export default function TradeDcaFields({
       <InspectorCard title="Ladder">
         <div className="rounded-md border bg-background px-2.5 py-2 text-xs">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">Most one coin can spend</span>
+            <span className="text-muted-foreground">Most one coin may buy</span>
             <span className="font-medium tabular-nums">
-              {formatUsdRounded(perCoinUsd)}
+              {potUsd === null
+                ? `${buyingPct}% of the wallet in coin`
+                : formatUsdRounded(perCoinBuyingUsd)}
             </span>
           </div>
           <p className="mt-0.5 text-muted-foreground">
-            {params.maxPositionPct}% of{" "}
-            {named
-              ? `the ${formatUsdRounded(potUsd)} this flow may use`
-              : `a ${formatUsdRounded(potUsd)} pot`}
-            {walletNode ? "" : ", which is what the money step starts at"}. The
-            buys below add up to it. {params.compound
-              ? "Later ladders rise or fall with the pot."
-              : "Every later ladder stays based on this starting pot."}
+            {potUsd === null
+              ? params.leverage > 1
+                ? `The buys below use ${params.maxPositionPct}% of the wallet's money to buy ${buyingPct}% of its value in coin. The dollars are worked out when a ladder is placed. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
+                : `The dollars are worked out from the wallet when a ladder is placed. The buys below split that ${params.maxPositionPct}% share. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
+              : params.leverage > 1
+                ? `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot uses ${formatUsdRounded(perCoinAccountUsd)} of account money. At ${params.leverage}×, the buys below add up to ${formatUsdRounded(perCoinBuyingUsd)} of coin. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`
+                : `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot${walletNode ? "" : ", which is what the money step starts at"}. The buys below add up to it. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`}
           </p>
         </div>
 
@@ -182,7 +176,11 @@ export default function TradeDcaFields({
               className="flex h-8 items-center rounded-lg border bg-muted/40 px-2.5 text-xs text-muted-foreground tabular-nums"
               aria-label={`Rung ${index + 1} buy size`}
             >
-              {formatUsdRounded((potUsd * (shares[index] ?? 0)) / 100)}
+              {potUsd === null
+                ? `${Math.round((shares[index] ?? 0) * params.leverage * 100) / 100}% of wallet${params.leverage > 1 ? " in coin" : ""}`
+                : formatUsdRounded(
+                    (potUsd * (shares[index] ?? 0) * params.leverage) / 100
+                  )}
             </div>
             <Button
               type="button"
@@ -270,14 +268,15 @@ export default function TradeDcaFields({
           value={params.leverage}
           min={1}
           max={50}
+          integer
           suffix="×"
           onChange={(leverage) => setParams({ leverage })}
         />
         {params.leverage > 1 ? (
           <InspectorNote>
-            Backtests only. Every real and practice wallet still buys with cash,
-            whatever this says, so this measures the idea rather than trading
-            it.
+            The chosen borrowing applies to backtests, practice wallets and real
+            wallets. A market with a lower maximum uses the market&rsquo;s
+            limit.
           </InspectorNote>
         ) : null}
       </InspectorCard>
@@ -351,8 +350,8 @@ export default function TradeDcaFields({
           <span>
             Only levels with the trend
             <span className="mt-0.5 block text-muted-foreground">
-              A base only counts when it sits above the base before it. Off,
-              the ladder follows every floor down a falling market.
+              A base only counts when it sits above the base before it. Off, the
+              ladder follows every floor down a falling market.
             </span>
           </span>
         </label>
@@ -460,10 +459,7 @@ export default function TradeDcaFields({
                   })
                 }
               >
-                <SelectTrigger
-                  id={`dca-${node.id}-tp-mode`}
-                  className="w-full"
-                >
+                <SelectTrigger id={`dca-${node.id}-tp-mode`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -523,7 +519,9 @@ export default function TradeDcaFields({
               min={20}
               max={95}
               suffix="%"
-              onChange={(fallPct) => setParams({ cascade: { ...crash, fallPct } })}
+              onChange={(fallPct) =>
+                setParams({ cascade: { ...crash, fallPct } })
+              }
             />
             <TradeNumberField
               id={`dca-${node.id}-cascade-within`}
@@ -544,7 +542,9 @@ export default function TradeDcaFields({
               value={crash.minCoins}
               min={2}
               max={500}
-              onChange={(minCoins) => setParams({ cascade: { ...crash, minCoins } })}
+              onChange={(minCoins) =>
+                setParams({ cascade: { ...crash, minCoins } })
+              }
             />
             <TradeNumberField
               id={`dca-${node.id}-cascade-least-leverage`}
@@ -586,7 +586,9 @@ export default function TradeDcaFields({
             id={`dca-${node.id}-entry-on`}
             checked={entries !== null}
             onCheckedChange={(next) =>
-              setParams({ entryLimit: next === true ? defaultEntryLimit() : null })
+              setParams({
+                entryLimit: next === true ? defaultEntryLimit() : null,
+              })
             }
           />
           <FieldLabel
@@ -608,7 +610,9 @@ export default function TradeDcaFields({
               min={1}
               max={500}
               suffix="coins"
-              onChange={(coins) => setParams({ entryLimit: { ...entries, coins } })}
+              onChange={(coins) =>
+                setParams({ entryLimit: { ...entries, coins } })
+              }
             />
             <TradeNumberField
               id={`dca-${node.id}-entry-within`}
@@ -663,7 +667,9 @@ export default function TradeDcaFields({
             />
             <BaseStopFields
               on={baseStop !== null}
-              underPct={String(baseStop?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)}
+              underPct={String(
+                baseStop?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT
+              )}
               reclaimDays={String(
                 baseStop?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS
               )}
@@ -683,7 +689,12 @@ export default function TradeDcaFields({
               }
               onUnderPct={(text) => {
                 const next = Number(text.trim())
-                if (!baseStop || !Number.isFinite(next) || next < 0 || next > 50)
+                if (
+                  !baseStop ||
+                  !Number.isFinite(next) ||
+                  next < 0 ||
+                  next > 50
+                )
                   return
                 setParams({
                   stopLoss: { ...stop, base: { ...baseStop, underPct: next } },
@@ -691,7 +702,12 @@ export default function TradeDcaFields({
               }}
               onReclaimDays={(text) => {
                 const next = Number(text.trim())
-                if (!baseStop || !Number.isFinite(next) || next < 0 || next > 90)
+                if (
+                  !baseStop ||
+                  !Number.isFinite(next) ||
+                  next < 0 ||
+                  next > 90
+                )
                   return
                 setParams({
                   stopLoss: {
@@ -744,9 +760,9 @@ export default function TradeDcaFields({
       </InspectorCard>
 
       <InspectorNote>
-        Pressing Run above the canvas starts the test. Nothing follows this
-        step — it is the end of the flow, and where it got to shows in the
-        Backtests tab below.
+        Pressing Run above the canvas starts the test. Nothing follows this step
+        — it is the end of the flow, and where it got to shows in the Backtests
+        tab below.
       </InspectorNote>
     </>
   )

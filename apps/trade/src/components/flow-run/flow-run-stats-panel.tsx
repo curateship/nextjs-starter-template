@@ -100,7 +100,7 @@ export function FlowRunStatsPanel({
             <p className="mt-1 text-[11px] text-muted-foreground">
               {scoped
                 ? "over the stretch picked on the line"
-                : `out of the ${usd(head.capUsd)} this run was given`}
+                : "since this run was switched on"}
             </p>
           </div>
 
@@ -257,7 +257,6 @@ export function FlowRunStatsPanel({
               {head.walletLabel} · {head.real ? "real money" : "practice"}
             </Line>
             <Line label="Venue">{head.venue}</Line>
-            <Line label="Most it may spend">{usd(head.capUsd)}</Line>
             <Line label="Candles">{spec.strategy.interval}</Line>
             {spec.strategy.kind === "dca" ? (
               <>
@@ -284,7 +283,7 @@ export function FlowRunStatsPanel({
                   {signalIndicatorsOn(spec.strategy.indicators)}
                 </Line>
                 <Line label="Each trade spends">
-                  {roundedPct(spec.strategy.stakePct)} of the cap
+                  {roundedPct(spec.strategy.stakePct)} of the wallet
                 </Line>
               </>
             )}

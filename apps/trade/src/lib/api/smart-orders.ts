@@ -733,8 +733,6 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "A rung is too small to be an order at this market's size step — nothing was placed. Use fewer rungs, a gentler ramp, or a bigger share.",
     SMART_RUNG_DOLLAR_FLOOR:
       "A rung is below this market's smallest dollar order, so nothing was placed.",
-    SMART_LADDER_COST:
-      "The whole ladder costs more than the free cash — nothing was placed. Use a smaller share or fewer rungs.",
     SMART_LADDER_ABOVE_MARKET:
       "Every rung sits above the price right now, so there is nothing left to wait for — nothing was placed.",
     SMART_LADDER_NO_BASE:

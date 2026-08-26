@@ -136,11 +136,10 @@ zero. The name opens that run's results dashboard. A stopped bot leaves the
 list on the next read.
 
 The row's three-dot button opens the same small popover shape as a wallet row.
-It shows the wallet, real or practice money, spending cap, closed trades,
-working and held coins, and when the bot was switched on. Pause leaves every
-order and position where it is. Stop opens the shared confirmation before it
-calls off orders that have not bought anything. Coins already held keep their
-stops and targets.
+It shows the wallet, real or practice money, closed trades, working and held
+coins, and when the bot was switched on. Pause leaves every order and position
+where it is. Stop opens the shared confirmation before it calls off orders
+that have not bought anything. Coins already held keep their stops and targets.
 
 The Bots tab has a cached first answer when the dashboard opens, then asks for
 a fresh one as soon as the tab is pressed. The cached rows stay on screen while
@@ -385,6 +384,13 @@ targets, stops, step-down, reclaim, cancellation, and restart recovery. A live
 ladder stores Hyperliquid's order IDs and reconciles exchange fills before it
 takes another action. If only part of a new ladder is accepted, those orders
 are cancelled and no ladder is saved.
+
+The ladder's Position card includes Borrowing. It starts at 1×, takes whole
+numbers and remembers the last number placed. The chosen number sizes the
+ladder on practice and real wallets as well as in a backtest. A market with a
+lower maximum uses its own number. The Ladder card and its rung rows show the
+amount of coin bought after borrowing, while the explanation says how much
+account money backs it.
 
 **Neither window asks twice.** The ladder and the grid both place on the first
 press, on every wallet including real money. There used to be a second,

@@ -96,7 +96,6 @@ function flow(stopping: boolean): FlowTrading {
     walletLabel: "Live",
     real: true,
     venue: "Hyperliquid",
-    capUsd: 100,
     coins: 12,
     problem: null,
     running: !stopping,
@@ -183,7 +182,7 @@ describe("reading a flow", () => {
     expect(summary?.getAttribute("data-to")).toBe("/flow-runs/$runId")
     expect(summary?.getAttribute("data-run-id")).toBe("run-1")
     expect(summary?.textContent).toContain("Live")
-    expect(summary?.textContent).toContain("Spending cap")
+    expect(summary?.textContent).not.toContain("Spending cap")
   })
 
   it("keeps the summary plain when the flow has no run", async () => {
@@ -195,7 +194,7 @@ describe("reading a flow", () => {
 
     expect(host.querySelector('a[data-to="/flow-runs/$runId"]')).toBeNull()
     expect(host.textContent).toContain("Live")
-    expect(host.textContent).toContain("Spending cap")
+    expect(host.textContent).not.toContain("Spending cap")
   })
 
   it("keeps a status button in the header before the first answer lands", async () => {

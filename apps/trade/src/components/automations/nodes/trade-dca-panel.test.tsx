@@ -57,6 +57,28 @@ function graphWith(startingUsd: number, node: AutomationNode): AutomationGraph {
   }
 }
 
+function graphWithNamedWallet(node: AutomationNode): AutomationGraph {
+  return {
+    nodes: [
+      {
+        id: "wallet-1",
+        kind: tradeWalletNode.kind,
+        x: 0,
+        y: 0,
+        settings: {
+          ...tradeWalletNode.createSettings(),
+          walletId: "paper-1",
+          walletLabel: "Practice",
+          walletKind: "paper",
+        } as AutomationNode["settings"],
+      },
+      node,
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  }
+}
+
 function draw(node: AutomationNode, graph?: AutomationGraph): string {
   // The provider the real page puts above every panel; the field hints are
   // tooltips and refuse to render without it.
@@ -95,6 +117,38 @@ describe("what each buy spends", () => {
     })
     // One rung at 10% of $50,000 is the whole $5,000.
     expect(draw(node, graphWith(50_000, node))).toContain("$5,000")
+  })
+
+  it("shows the coin bought after borrowing, not only the account money", () => {
+    const node = dcaNode({
+      rungs: Array.from({ length: 7 }, (_, index) => ({
+        deviation: 20 + index * 3,
+      })),
+      maxPositionPct: 20,
+      sizeMultiplier: 2,
+      leverage: 2,
+    })
+    const html = draw(node, graphWith(10_000, node))
+
+    // The ladder uses $2,000 of the account to buy $4,000 of coin. Its seven
+    // buys split that $4,000 in a 1:2 ramp, just like the saved ladder does.
+    expect(html).toContain("$4,000")
+    expect(html).toContain("$31.50")
+    expect(html).toContain("$2,016")
+  })
+
+  it("shows borrowed buying power as a share for a named wallet", () => {
+    const node = dcaNode({
+      rungs: [{ deviation: 20 }],
+      maxPositionPct: 20,
+      sizeMultiplier: 1,
+      leverage: 2,
+    })
+    const html = draw(node, graphWithNamedWallet(node))
+
+    expect(html).toContain("40% of the wallet in coin")
+    expect(html).toContain("use 20% of the wallet&#x27;s money")
+    expect(html).not.toContain("$0.00")
   })
 
   it("offers compound and fixed sizing", () => {
@@ -139,10 +193,8 @@ describe("what counts as a base", () => {
 /**
  * Borrowing, and the one thing that must never be silent about it.
  *
- * The setting only reaches a replay — live and practice wallets still buy with
- * cash whatever it says — and a number that appears to change what a wallet
- * does when it does not is the worst kind of wrong on this screen. So the panel
- * says so, and only when it would matter.
+ * One is cash. A higher choice reaches backtests, practice wallets and real
+ * wallets, while the market's own lower maximum still wins.
  */
 describe("the borrowing box", () => {
   it("says nothing extra while the ladder buys with cash", () => {
@@ -152,10 +204,11 @@ describe("the borrowing box", () => {
     expect(html).not.toContain("Backtests only")
   })
 
-  it("says it is backtests only the moment it is turned up", () => {
+  it("says the chosen borrowing reaches every wallet", () => {
     const html = draw(dcaNode({ leverage: 2 }))
 
-    expect(html).toContain("Backtests only")
+    expect(html).toContain("practice wallets and real")
+    expect(html).not.toContain("Backtests only")
     expect(html).toContain('value="2"')
   })
 })

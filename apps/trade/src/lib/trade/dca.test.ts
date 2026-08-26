@@ -72,6 +72,7 @@ describe("dcaParamsSchema", () => {
     ["a ramp under 1", { sizeMultiplier: 0.5 }],
     ["a ramp over 10", { sizeMultiplier: 11 }],
     ["a pot over 100", { maxPositionPct: 101 }],
+    ["fractional borrowing", { leverage: 2.5 }],
     ["a zero target", { takeProfit: { mode: "average", pct: 0 } }],
     // 100 itself is allowed now — it is how a base stop says "nothing until
     // the base arrives". Anything past it is still nonsense.
@@ -176,7 +177,12 @@ describe("ladder plans", () => {
     anchorPx: 100,
     anchor: "click",
     rungEntry: "limit",
-    baseDetection: { searchBars: 36, holdBars: 8, withTrendOnly: true, minBarsApart: 20 },
+    baseDetection: {
+      searchBars: 36,
+      holdBars: 8,
+      withTrendOnly: true,
+      minBarsApart: 20,
+    },
     cascade: null,
     cascadeSeenAt: null,
     entryLimit: null,
@@ -325,7 +331,9 @@ describe("adding a rung to a ladder", () => {
 
     expect(added).toEqual([21, 26, 32])
     // Every gap wider than the one before it — that is what "exponential" buys.
-    const gaps = rungs.map((r, i) => (i === 0 ? 0 : r.deviation - rungs[i - 1].deviation))
+    const gaps = rungs.map((r, i) =>
+      i === 0 ? 0 : r.deviation - rungs[i - 1].deviation
+    )
     expect(gaps.at(-1)).toBeGreaterThan(gaps.at(-2)!)
   })
 
@@ -334,11 +342,15 @@ describe("adding a rung to a ladder", () => {
   })
 
   it("still deepens a ladder whose rungs are all the same", () => {
-    expect(nextDcaRung([{ deviation: 10 }, { deviation: 10 }]).deviation).toBeGreaterThan(10)
+    expect(
+      nextDcaRung([{ deviation: 10 }, { deviation: 10 }]).deviation
+    ).toBeGreaterThan(10)
   })
 
   it("never sends a rung past 99 percent below", () => {
-    expect(nextDcaRung([{ deviation: 60 }, { deviation: 90 }]).deviation).toBe(99)
+    expect(nextDcaRung([{ deviation: 60 }, { deviation: 90 }]).deviation).toBe(
+      99
+    )
   })
 })
 

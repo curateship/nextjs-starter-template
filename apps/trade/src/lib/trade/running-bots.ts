@@ -13,7 +13,6 @@ export type RunningBot = {
   tradesClosed: number
   walletLabel: string
   real: boolean
-  capUsd: number
   startedAt: number
   paused: boolean
   stopping: boolean

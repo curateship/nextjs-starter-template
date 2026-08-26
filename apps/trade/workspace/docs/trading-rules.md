@@ -187,6 +187,16 @@ add up to.
 
 ## Money
 
+- Tyler, 26 Aug 2026: **A wallet flow has no hand-set spending cap.** Its
+  orders wait inside Trade and commit no money until their price arrives. The
+  strategy and the market's own limits decide each order's size. A buy the
+  wallet cannot afford at that moment is refused, never made smaller.
+- **Borrowing is chosen, never assumed.** A new DCA ladder starts at 1×, which
+  uses cash only. The setting takes whole numbers. A higher choice applies to
+  backtests, practice wallets and real wallets. The market's lower maximum wins
+  when the chosen number is too high. The position percentage is account money,
+  before borrowing: 20% of a $10,000 account at 2× uses $2,000 and buys $4,000
+  of coin.
 - **The exchange's account is one pool.** Hyperliquid backs every market from
   the same USDC, moving slices as orders need them. Nothing in this app may
   gate an order, a coin list, or a flow on "money parked on that market" —

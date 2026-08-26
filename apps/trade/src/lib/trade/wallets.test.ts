@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 
 import {
-  capForPickedWallet,
   keepGoodSummaries,
   MISSES_BEFORE_UNREACHABLE,
   cleanAgentKey,
@@ -34,7 +33,6 @@ import {
   shortenAddress,
   summarizeWallet,
   venueLabel,
-  type WalletAccountSummary,
 } from "@/lib/trade/wallets"
 
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
@@ -109,9 +107,7 @@ describe("why a trading key was not approved", () => {
   })
 
   it("keeps a reason that runs to more than one line", () => {
-    expect(describeKeyRefusal("KEY_NOT_APPROVED:one.\ntwo.")).toBe(
-      "one.\ntwo."
-    )
+    expect(describeKeyRefusal("KEY_NOT_APPROVED:one.\ntwo.")).toBe("one.\ntwo.")
   })
 
   it("refuses to lift words out of the middle of some other error", () => {
@@ -131,42 +127,6 @@ describe("why a trading key was not approved", () => {
   })
 })
 
-describe("the cap a freshly picked wallet starts at", () => {
-  const readable: WalletAccountSummary = {
-    walletId: "w1",
-    state: "ok",
-    equity: 1_200,
-    free: 1_000,
-    inTrades: 200,
-    openProfit: 0,
-    madeOrLost: 200,
-    settled: 200,
-    unpricedFills: 0,
-  }
-
-  it("is what the wallet has free, not the backtest's pot", () => {
-    // A cap of $30,000 over a wallet holding $1,000 buys exactly what $1,000
-    // buys. The bigger number was never anything but a number on screen.
-    expect(capForPickedWallet(readable, 30_000)).toBe(1_000)
-  })
-
-  it("falls back when the exchange could not be reached", () => {
-    expect(
-      capForPickedWallet({ walletId: "w1", state: "unreachable" }, 30_000)
-    ).toBe(30_000)
-  })
-
-  it("falls back when the figures have not arrived", () => {
-    expect(capForPickedWallet(undefined, 30_000)).toBe(30_000)
-  })
-
-  it("falls back on an empty account rather than writing a cap of nothing", () => {
-    // The box will not take a zero, so an empty wallet has to leave the old
-    // number where it was.
-    expect(capForPickedWallet({ ...readable, free: 0 }, 30_000)).toBe(30_000)
-  })
-})
-
 describe("holding a wallet's figures through a missed read", () => {
   const GOOD = {
     walletId: "w1",
@@ -183,7 +143,10 @@ describe("holding a wallet's figures through a missed read", () => {
 
   it("keeps the last good figures through a hiccup, and marks them old", () => {
     const first = keepGoodSummaries(new Map(), [GOOD], new Map())
-    expect(first.summaries.get("w1")).toMatchObject({ state: "ok", equity: 1_000 })
+    expect(first.summaries.get("w1")).toMatchObject({
+      state: "ok",
+      equity: 1_000,
+    })
     expect(first.summaries.get("w1")).not.toHaveProperty("stale", true)
 
     const missed = keepGoodSummaries(first.summaries, [MISSED], first.misses)

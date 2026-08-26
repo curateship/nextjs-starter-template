@@ -24,9 +24,8 @@ vi.mock("@/lib/api/backtests", () => ({
   loadMarketProtocols: () => new Promise(() => {}),
 }))
 
-const { default: TradeMarketsFields } = await import(
-  "@/components/automations/nodes/trade-markets-panel"
-)
+const { default: TradeMarketsFields } =
+  await import("@/components/automations/nodes/trade-markets-panel")
 
 function marketsNode(): AutomationNode {
   return {
@@ -44,7 +43,9 @@ function marketsNode(): AutomationNode {
   }
 }
 
-function graphWith(walletPatch: Record<string, unknown> | null): AutomationGraph {
+function graphWith(
+  walletPatch: Record<string, unknown> | null
+): AutomationGraph {
   return {
     nodes: [
       {
@@ -82,7 +83,6 @@ const HYPERLIQUID = {
   walletKind: "live",
   walletProtocol: "hyperliquid",
   walletNetwork: "mainnet",
-  spendCapUsd: 250,
 }
 
 describe("the Markets step with pretend money", () => {
@@ -149,7 +149,6 @@ describe("a wallet named before the step learned to follow one", () => {
       walletId: "w1",
       walletLabel: "Account #1",
       walletKind: "live",
-      spendCapUsd: 250,
     })
 
     expect(html).toContain("Open the Wallet step once")

@@ -27,7 +27,6 @@ import {
 import { type CandleInterval, type MarketRow } from "@/lib/protocols/contracts"
 import {
   DCA_ANCHOR_HINTS,
-  CASH_ONLY,
   DCA_ANCHOR_LABELS,
   DCA_ANCHORS,
   DCA_TP_MODE_HINTS,
@@ -152,7 +151,7 @@ export function SmartOrderDialog({
   // it almost always answers with the same values the fields were seeded
   // with, so nothing on screen moves. Opening on defaults and swapping when
   // the read landed made the fields visibly snap a second in.
-  const seeded = React.useRef(knownDcaPrefs()).current
+  const [seeded] = React.useState(knownDcaPrefs)
   const [showValidation, setShowValidation] = React.useState(false)
   // A hand that has already touched a field beats the read either way,
   // because a form must never change under somebody typing into it.
@@ -176,6 +175,9 @@ export function SmartOrderDialog({
   )
   const [sizeMultiplier, setSizeMultiplier] = React.useState(
     String(seeded?.sizeMultiplier ?? defaultDcaParams().sizeMultiplier)
+  )
+  const [leverage, setLeverage] = React.useState(
+    String(seeded?.leverage ?? defaultDcaParams().leverage)
   )
   const [maxOrderVolPct, setMaxOrderVolPct] = React.useState(
     seeded ? String(seeded.maxOrderVolPct) : "0"
@@ -242,6 +244,7 @@ export function SmartOrderDialog({
       setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
       setMaxPositionPct(String(params.maxPositionPct))
       setSizeMultiplier(String(params.sizeMultiplier))
+      setLeverage(String(params.leverage))
       setMaxOrderVolPct(String(params.maxOrderVolPct))
       setTwoGreen(params.twoGreen)
       setAnchor(params.anchor)
@@ -289,10 +292,7 @@ export function SmartOrderDialog({
       sizeMultiplier: parsed(sizeMultiplier) ?? -1,
       // Hand-placed ladders have no repeat cycle. Keep their existing sizing.
       compound: true,
-      // Cash. A ladder placed by hand goes to a real or practice wallet, and
-      // both placement paths force this anyway — a box here would be a setting
-      // that does nothing.
-      leverage: CASH_ONLY,
+      leverage: parsed(leverage) ?? -1,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       twoGreen,
       anchor,
@@ -319,6 +319,7 @@ export function SmartOrderDialog({
     rungs,
     maxPositionPct,
     sizeMultiplier,
+    leverage,
     maxOrderVolPct,
     twoGreen,
     anchor,
@@ -331,6 +332,12 @@ export function SmartOrderDialog({
     baseUnderPct,
     baseReclaimDays,
   ])
+  const borrowing = parsed(leverage)
+  const borrowingInvalid =
+    borrowing === null ||
+    !Number.isInteger(borrowing) ||
+    borrowing < 1 ||
+    borrowing > 50
 
   // The click stands in for the base until the base read lands, so the rungs
   // draw in the same frame the window opens. Placing still waits for the real
@@ -474,9 +481,7 @@ export function SmartOrderDialog({
                     value={rung.value}
                     disabled={busy}
                     aria-label={`Rung ${index + 1}, percent below the buy above`}
-                    aria-invalid={
-                      showValidation && parsed(rung.value) === null
-                    }
+                    aria-invalid={showValidation && parsed(rung.value) === null}
                     onChange={(event) =>
                       touched(setRung)(rung.id, event.target.value)
                     }
@@ -520,7 +525,7 @@ export function SmartOrderDialog({
             title="Position"
             hint="How much of the account this ladder may put to work, and how that money is spread across the buys."
           >
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="smart-pot"
@@ -560,6 +565,24 @@ export function SmartOrderDialog({
                   onChange={(event) =>
                     touched(setSizeMultiplier)(event.target.value)
                   }
+                  onBlur={() => setShowValidation(true)}
+                  className="bg-background"
+                />
+              </div>
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="smart-leverage"
+                  hint="How many dollars of coin each dollar of the account buys. 1 is cash. A higher choice lets the exchange close the position if it falls far enough."
+                >
+                  Borrowing ×
+                </FieldLabel>
+                <Input
+                  id="smart-leverage"
+                  inputMode="numeric"
+                  value={leverage}
+                  disabled={busy}
+                  aria-invalid={showValidation && borrowingInvalid}
+                  onChange={(event) => touched(setLeverage)(event.target.value)}
                   onBlur={() => setShowValidation(true)}
                   className="bg-background"
                 />
@@ -779,11 +802,11 @@ export function SmartOrderDialog({
       <div className="border-t p-3">
         {pairedWithGrid ? (
           <p className="pb-3 text-xs text-muted-foreground">
-            This coin already has a grid. Placing this ladder pairs the two:
-            the grid's stop must sit above this ladder's first buy, and on
-            the exchange they still share one position — one pot of margin
-            and one liquidation price. If this ladder falls far enough, the
-            exchange can close the grid's coins with it.
+            This coin already has a grid. Placing this ladder pairs the two: the
+            grid's stop must sit above this ladder's first buy, and on the
+            exchange they still share one position — one pot of margin and one
+            liquidation price. If this ladder falls far enough, the exchange can
+            close the grid's coins with it.
           </p>
         ) : null}
         <OrderRefusal id="ladder-refusal" className="pb-3">

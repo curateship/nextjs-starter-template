@@ -50,12 +50,11 @@ import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import {
   chosenWallet,
   tradeWalletNode,
-  walletMoneyWords,
 } from "@/lib/automations/nodes/trade-wallet"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { plural } from "@/lib/format/plural"
 import type { MarketFolder } from "@/lib/trade/market-folders"
-import { formatCompactUsd, formatUsd } from "@/lib/trade/format"
+import { formatCompactUsd } from "@/lib/trade/format"
 import {
   changeVisibleMarketSelection,
   filterMarketsByVolume,
@@ -958,7 +957,7 @@ export default function TradeMarketsFields({
               {marketKeys.length === 0
                 ? "No coins chosen yet."
                 : wallet
-                  ? `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, all sharing ${wallet.capUsd === null ? "the money this flow may use" : formatUsd(wallet.capUsd)}.`
+                  ? `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, all sharing the same wallet.`
                   : `${marketKeys.length} ${plural(marketKeys.length, "coin", "coins")} chosen, ${(marketKeys.length * candlesPerCoin(interval, windowLength)).toLocaleString()} candles to read at ${interval}.`}
               {/* Said whenever the ceiling is in play, so nobody hunts for the
                   coins that would not go in. */}
@@ -1001,7 +1000,7 @@ export default function TradeMarketsFields({
         {folderMode
           ? "A flow reads the folder when it starts. A backtest saves the exact coins it read so the result can be repeated."
           : wallet
-            ? `Every chosen coin shares the one pot from the wallet step above, so all ${marketKeys.length.toLocaleString()} are competing for the same money${wallet.capUsd === null ? "" : ` — ${formatUsd(wallet.capUsd)} of ${walletMoneyWords(wallet.kind)}`}.`
+            ? `Every chosen coin shares the wallet above. Its watched buys compete for the same money, and any buy the wallet cannot afford when its price arrives is refused.`
             : "Every chosen coin shares the one pretend pot from the wallet step above, so twenty coins are competing for the same money — which is what running this for real would be like."}
       </InspectorNote>
     </>

@@ -28,9 +28,15 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 Every account starts on watch. One saved setting flips the whole account back
 to resting.
 
-The watch keeps the chosen leverage while it waits. An Aster watch reads the
-wallet's current margin choice when it fires, so Settings remains the only
-place that controls Aster margin.
+The watch keeps the chosen leverage while it waits. DCA ladders start at 1×
+and use a higher number only when somebody chooses it. Aster still reads the
+wallet's current margin choice when the order fires, so Settings remains the
+only place that controls Aster margin mode.
+
+A wallet flow has no separate spending cap. Waiting levels commit no money.
+The strategy works out each level from the wallet, and the engine checks the
+free money again when the level's price arrives. A buy that does not fit is
+refused and stays waiting.
 
 The dedicated trading engine waits in PostgreSQL's lock queue when another
 copy is already working. PostgreSQL gives the released lock to that queued

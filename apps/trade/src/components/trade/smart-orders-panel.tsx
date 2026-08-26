@@ -409,9 +409,6 @@ function BotRow({
                 <BotFigureRow label="Money">
                   {bot.real ? "Real money" : "Practice money"}
                 </BotFigureRow>
-                <BotFigureRow label="Spending cap">
-                  <span className="tabular-nums">{formatUsd(bot.capUsd)}</span>
-                </BotFigureRow>
                 <BotFigureRow label="Switched on">
                   <span title={formatDateTime(new Date(bot.startedAt))}>
                     {formatRelativeTime(new Date(bot.startedAt))}

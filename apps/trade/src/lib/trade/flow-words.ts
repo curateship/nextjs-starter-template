@@ -26,9 +26,6 @@ export function flowStartProblem(code: string, walletLabel: string): string {
   if (code.includes("FLOW_NO_WALLET")) {
     return "This flow does not name a wallet, so there is nothing to trade. Pick one on the Wallet step."
   }
-  if (code.includes("FLOW_NO_CAP")) {
-    return "Say how much of the wallet this flow may use, on the Wallet step. It will not start without a limit."
-  }
   if (code.includes("FLOW_WALLET_GONE")) {
     return `${walletLabel} has been deleted. Pick another wallet on the Wallet step.`
   }

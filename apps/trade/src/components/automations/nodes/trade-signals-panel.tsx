@@ -56,7 +56,10 @@ export default function TradeSignalsFields({
   const write = (next: TradeSignalsSettings) =>
     onChange({ ...node, settings: { ...node.settings, ...next } })
 
-  const setIndicator = (kind: string, patch: Partial<IndicatorSettings[string]>) =>
+  const setIndicator = (
+    kind: string,
+    patch: Partial<IndicatorSettings[string]>
+  ) =>
     write({
       ...settings,
       indicators: {
@@ -69,16 +72,17 @@ export default function TradeSignalsFields({
   // it — straight off the wallet step rather than through a parse of the whole
   // thing, because a whole-step parse fails on any one bad field and every
   // figure below would then quietly fall back to a default.
-  const walletNode = graph?.nodes.find((one) => one.kind === tradeWalletNode.kind)
+  const walletNode = graph?.nodes.find(
+    (one) => one.kind === tradeWalletNode.kind
+  )
   const named = walletNode ? chosenWallet(walletNode.settings) : null
   const saved = walletNode?.settings as { startingUsd?: unknown } | undefined
   const pretendUsd =
     typeof saved?.startingUsd === "number" && saved.startingUsd > 0
       ? saved.startingUsd
       : DEFAULT_BACKTEST_START_USD
-  // A named wallet's pot is its spend cap, never the pretend figure.
-  const potUsd = named ? (named.capUsd ?? 0) : pretendUsd
-  const perCoinUsd = (potUsd * settings.stakePct) / 100
+  const potUsd = named ? null : pretendUsd
+  const perCoinUsd = potUsd === null ? null : (potUsd * settings.stakePct) / 100
 
   const on = signalIndicatorsOn(settings.indicators)
 
@@ -116,11 +120,16 @@ export default function TradeSignalsFields({
             onToggle={(next) => setIndicator(module.kind, { on: next })}
             onSet={(key, value) =>
               setIndicator(module.kind, {
-                params: { ...settings.indicators[module.kind].params, [key]: value },
+                params: {
+                  ...settings.indicators[module.kind].params,
+                  [key]: value,
+                },
               })
             }
             onReset={() =>
-              setIndicator(module.kind, { params: defaultParamsOf(module.kind) })
+              setIndicator(module.kind, {
+                params: defaultParamsOf(module.kind),
+              })
             }
           />
         ))}
@@ -134,9 +143,9 @@ export default function TradeSignalsFields({
         ) : (
           <InspectorNote>
             Switching a side off switches that half of the trading off — no
-            ceilings means it never sells on a signal. These are this flow&rsquo;s
-            own settings: changing them on the chart moves what you see, not what
-            this trades.
+            ceilings means it never sells on a signal. These are this
+            flow&rsquo;s own settings: changing them on the chart moves what you
+            see, not what this trades.
           </InspectorNote>
         )}
       </InspectorCard>
@@ -175,9 +184,9 @@ export default function TradeSignalsFields({
           </Select>
         </div>
         <InspectorNote>
-          A base&rsquo;s arrow prints on the candle that FINISHED its wait, which
-          is however many candles it had to hold — so a buy here is a buy some
-          way above the floor itself, not at it. That is what the indicator
+          A base&rsquo;s arrow prints on the candle that FINISHED its wait,
+          which is however many candles it had to hold — so a buy here is a buy
+          some way above the floor itself, not at it. That is what the indicator
           means, and a smaller candle does not change it.
         </InspectorNote>
       </InspectorCard>
@@ -194,17 +203,24 @@ export default function TradeSignalsFields({
           onChange={(stakePct) => write({ ...settings, stakePct })}
         />
         <InspectorNote>
-          {settings.stakePct}% of{" "}
-          {named
-            ? `the ${formatUsdRounded(potUsd)} this flow may use`
-            : `a ${formatUsdRounded(potUsd)} pot`}
-          {walletNode ? "" : ", which is what the wallet step starts at"} — up to{" "}
-          <span className="font-medium text-foreground tabular-nums">
-            {formatUsdRounded(perCoinUsd)}
-          </span>{" "}
-          in each coin, and about{" "}
-          {Math.max(1, Math.floor(100 / settings.stakePct))} of them at once
-          before the money runs out.
+          {potUsd === null ? (
+            <>
+              {settings.stakePct}% of the wallet in each coin. The dollars are
+              worked out when the flow is switched on.
+            </>
+          ) : (
+            <>
+              {settings.stakePct}% of a {formatUsdRounded(potUsd)} pot
+              {walletNode ? "" : ", which is what the wallet step starts at"},
+              up to{" "}
+              <span className="font-medium text-foreground tabular-nums">
+                {formatUsdRounded(perCoinUsd ?? 0)}
+              </span>{" "}
+              in each coin.
+            </>
+          )}{" "}
+          About {Math.max(1, Math.floor(100 / settings.stakePct))} of them at
+          once before the money runs out.
         </InspectorNote>
       </InspectorCard>
 

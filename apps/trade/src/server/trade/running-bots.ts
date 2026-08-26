@@ -74,7 +74,6 @@ export async function listRunningBots(
         tradesClosed: run.tradesClosed,
         walletLabel: run.walletLabel,
         real: run.real,
-        capUsd: run.capUsd,
         startedAt: run.startedAt,
         paused: run.paused,
         stopping: run.status === "stopping",

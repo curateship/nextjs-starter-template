@@ -428,7 +428,6 @@ describe("a flow whose Wallet step names a wallet", () => {
         walletId: "w1",
         walletLabel: "Practice 2",
         walletKind: "paper",
-        spendCapUsd: 500,
         ...patch,
       },
     }

@@ -102,7 +102,6 @@ export type FlowStartRefusal =
   | "FLOW_WALLET_KEY"
   | "FLOW_NO_COINS"
   | "FLOW_EMPTY_FOLDER"
-  | "FLOW_NO_CAP"
   | "FLOW_WRONG_EXCHANGE"
   | "FLOW_ALREADY_RUNNING"
   | "FLOW_ALREADY_STOPPING"
@@ -137,9 +136,6 @@ export async function flowRunSpec(
 ): Promise<{ spec: TradeFlowRunSpec; wallet: TradeWallet }> {
   const named = chosenWallet(nodes.wallet)
   if (!named) throw new Error("FLOW_NO_WALLET")
-  if (named.capUsd === null || !(named.capUsd > 0)) {
-    throw new Error("FLOW_NO_CAP")
-  }
 
   const wallet = await findWallet(userId, named.id)
   if (!wallet) throw new Error("FLOW_WALLET_GONE")
@@ -223,7 +219,10 @@ export async function flowRunSpec(
       folderId: markets.data.folderId,
       marketKeys: [...marketKeys],
       strategy,
-      capUsd: named.capUsd,
+      // Kept on the saved run as the fixed sizing and reporting baseline. It
+      // is not a spending cap. Wallet ladders size from the wallet itself and
+      // check the free money again when each watched buy reaches its price.
+      capUsd: wallet.startingBalance,
       walletLabel: wallet.label,
       real: wallet.kind === "live",
     },
@@ -1270,7 +1269,6 @@ async function placeLadderForFlow(
     clickPx: 0,
     interval: spec.strategy.interval,
     params: spec.strategy.params,
-    potUsd: spec.capUsd,
   }
   if (wallet.kind === "live") {
     await placeLiveDcaLadder(userId, wallet, { ...input, flowRunId })

@@ -26,7 +26,7 @@ export const DEFAULT_SLIPPAGE_PCT = 0.05
 /** Fees and slippage are typed as percents, so the field reads the way it looks. */
 const pctSchema = z.number().min(0).max(5)
 
-/** The most a pot — pretend or real — may be set to. */
+/** The most a pretend pot may be set to. */
 export const MAX_POT_USD = 100_000_000
 
 export const tradeWalletSettingsSchema = z.object({
@@ -73,16 +73,6 @@ export const tradeWalletSettingsSchema = z.object({
    */
   walletProtocol: z.string().max(20).nullable().default(null),
   walletNetwork: z.enum(["mainnet", "testnet"]).nullable().default(null),
-  /**
-   * The most of that wallet this flow may spend, in dollars.
-   *
-   * Stands in for `startingUsd` once a wallet is named: it is the pot the
-   * ladder's "most of the pot, per coin" is measured against, so every sum
-   * already written for backtests carries straight over. It is **not** money
-   * set aside — the rest of the wallet stays free and so does this, right up
-   * until a buy actually happens.
-   */
-  spendCapUsd: z.number().positive().max(MAX_POT_USD).nullable().default(null),
 })
 
 export type TradeWalletSettings = z.infer<typeof tradeWalletSettingsSchema>
@@ -92,8 +82,6 @@ export type ChosenWallet = {
   id: string
   label: string
   kind: WalletKind
-  /** Null only on a flow edited by hand; the panel always writes one. */
-  capUsd: number | null
   /**
    * Null on a flow saved before these were carried. The Wallet step fills them
    * in the next time it is opened, so nothing needs migrating; until then the
@@ -113,7 +101,6 @@ export function chosenWallet(settings: {
   walletId?: unknown
   walletLabel?: unknown
   walletKind?: unknown
-  spendCapUsd?: unknown
   walletProtocol?: unknown
   walletNetwork?: unknown
 }): ChosenWallet | null {
@@ -126,8 +113,6 @@ export function chosenWallet(settings: {
         ? settings.walletLabel
         : "a saved wallet",
     kind: settings.walletKind === "live" ? "live" : "paper",
-    capUsd:
-      typeof settings.spendCapUsd === "number" ? settings.spendCapUsd : null,
     protocol:
       typeof settings.walletProtocol === "string" &&
       settings.walletProtocol !== ""
@@ -185,7 +170,6 @@ export const tradeWalletNode = defineNode({
     walletKind: null,
     walletProtocol: null,
     walletNetwork: null,
-    spendCapUsd: null,
   }),
   settingsSchema: tradeWalletSettingsSchema,
   name: () => "Wallet",
@@ -197,14 +181,7 @@ export const tradeWalletNode = defineNode({
       // glance, and this line is the glance.
       const lead = wallet.kind === "live" ? "REAL MONEY — " : ""
       const money = walletMoneyWords(wallet.kind)
-      if (wallet.capUsd === null) {
-        return `${lead}Trades ${wallet.label} — ${money}. Say how much of it this flow may use.`
-      }
-      // The cap is a ceiling, never a promise of money. "Up to $10,000 of
-      // real money" on a wallet holding $900 read as the flow having ten
-      // thousand to spend; what it spends is the SMALLER of the cap and what
-      // the wallet actually holds.
-      return `${lead}Trades ${wallet.label} — ${money}, capped at ${formatUsd(wallet.capUsd)}. It can never spend more than the wallet holds.`
+      return `${lead}Trades ${wallet.label} — ${money}. Each watched buy is refused if the wallet cannot afford it when the price arrives.`
     }
     const starting =
       typeof settings.startingUsd === "number" ? settings.startingUsd : null

@@ -240,28 +240,6 @@ export function walletProfitWindowLabel(now: Date): string {
   return `${days} days ago`
 }
 
-/**
- * What a flow's spending cap becomes the moment a wallet is picked: what that
- * wallet has free right now.
- *
- * **Because anything larger does nothing.** A ladder sizes itself from the
- * smaller of the cap and the account, so a cap of $3,000 over a wallet holding
- * $1,000 buys exactly what $1,000 would. Carrying a backtest's pot across left
- * a number on screen the flow would never honour, every time a strategy went
- * from tested to traded — which is the one moment it matters most.
- *
- * The fallback stands in when the exchange could not be reached, or when the
- * account is empty. Neither is a cap worth writing, and a cap of zero is not
- * one the box would accept anyway.
- */
-export function capForPickedWallet(
-  summary: WalletAccountSummary | undefined,
-  fallback: number
-): number {
-  if (!summary || summary.state !== "ok" || !(summary.free > 0)) return fallback
-  return summary.free
-}
-
 export const WALLET_LABEL_MAX = 40
 
 /** Generosity, not a target — one person's hand-made list, not a fleet. */

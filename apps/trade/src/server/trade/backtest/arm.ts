@@ -25,8 +25,7 @@ import type { MarketRules } from "@/server/trade/market-rules"
  * no. The reason is handed back so a run can say why nothing ever armed.
  */
 export type ArmOutcome =
-  | { plan: LadderPlan; refusal: null }
-  | { plan: null; refusal: string }
+  { plan: LadderPlan; refusal: null } | { plan: null; refusal: string }
 
 export function armLadder(input: {
   marketKey: string
@@ -38,7 +37,6 @@ export function armLadder(input: {
   rules: MarketRules
   roundPx: (px: number) => number
   equity: number
-  freeCash: number
   /** The bar this ladder is being armed on — where its candle watch starts. */
   startedAt: number
   /** How many orders the replay's book already holds, against its own cap. */
@@ -66,7 +64,6 @@ export function armLadder(input: {
       rules: input.rules,
       roundPx: input.roundPx,
       equity: input.equity,
-      freeCash: input.freeCash,
       startedAt: input.startedAt,
       heldSzi: input.heldSzi,
     })

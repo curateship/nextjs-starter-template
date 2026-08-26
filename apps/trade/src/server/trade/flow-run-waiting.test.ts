@@ -158,7 +158,9 @@ describe("why a coin has no ladder", () => {
   it("records the reason each coin was refused", async () => {
     place = async (marketKey) => {
       throw new Error(
-        marketKey.endsWith("ETH") ? "SMART_LADDER_COST" : "SMART_LADDER_NO_BASE"
+        marketKey.endsWith("ETH")
+          ? "SMART_RUNG_TOO_SMALL:1"
+          : "SMART_LADDER_NO_BASE"
       )
     }
 
@@ -166,7 +168,7 @@ describe("why a coin has no ladder", () => {
 
     const row = await runRow()
     expect(row.waiting["hyperliquid:mainnet:ETH"]).toEqual({
-      code: "SMART_LADDER_COST",
+      code: "SMART_RUNG_TOO_SMALL:1",
       at: NOW,
     })
     expect(row.waiting["hyperliquid:mainnet:BTC"].code).toBe(
@@ -282,14 +284,14 @@ describe("stopping when the same answer keeps coming back", () => {
 
   it("asks nothing at all while it is holding", async () => {
     place = async () => {
-      throw new Error("SMART_LADDER_COST")
+      throw new Error("SMART_RUNG_TOO_SMALL:1")
     }
     await advanceFlowRuns(NOW, db)
 
     const tried: string[] = []
     place = async (marketKey) => {
       tried.push(marketKey)
-      throw new Error("SMART_LADDER_COST")
+      throw new Error("SMART_RUNG_TOO_SMALL:1")
     }
     await advanceFlowRuns(NOW + 1_000, db)
 
@@ -298,7 +300,7 @@ describe("stopping when the same answer keeps coming back", () => {
 
   it("comes back with one coin, not the whole list", async () => {
     place = async () => {
-      throw new Error("SMART_LADDER_COST")
+      throw new Error("SMART_RUNG_TOO_SMALL:1")
     }
     await advanceFlowRuns(NOW, db)
     const { until } = await holdOf()
@@ -306,7 +308,7 @@ describe("stopping when the same answer keeps coming back", () => {
     const tried: string[] = []
     place = async (marketKey) => {
       tried.push(marketKey)
-      throw new Error("SMART_LADDER_COST")
+      throw new Error("SMART_RUNG_TOO_SMALL:1")
     }
     await advanceFlowRuns(until + 1, db)
 
@@ -329,7 +331,7 @@ describe("stopping when the same answer keeps coming back", () => {
   })
 
   it("starts the count again when a different thing refuses it", async () => {
-    let code = "SMART_LADDER_COST"
+    let code = "SMART_RUNG_TOO_SMALL:1"
     place = async () => {
       throw new Error(code)
     }
@@ -348,7 +350,7 @@ describe("stopping when the same answer keeps coming back", () => {
 
   it("forgets the whole thing once one goes through", async () => {
     place = async () => {
-      throw new Error("SMART_LADDER_COST")
+      throw new Error("SMART_RUNG_TOO_SMALL:1")
     }
     await advanceFlowRuns(NOW, db)
     const held = await holdOf()

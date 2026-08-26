@@ -328,7 +328,6 @@ async function walkByMinute(input: {
   }
 }
 
-
 export type BacktestCoin = {
   marketKey: string
   symbol: string
@@ -735,7 +734,8 @@ export async function runBacktest(
       let index = fundingIndex.get(coin.marketKey) ?? 0
       while (index < coin.funding.length) {
         const funding = coin.funding[index]
-        if (funding.time > time || (!includeTime && funding.time === time)) break
+        if (funding.time > time || (!includeTime && funding.time === time))
+          break
 
         const position = book.positions.get(coin.marketKey)
         const mark = marks.get(coin.marketKey)
@@ -767,7 +767,10 @@ export async function runBacktest(
           ladderBarsKey("base", coin.marketKey),
           { bars: ascending(coin.baseBars), barMs: BASE_STOP_BAR_MS },
         ],
-        [ladderBarsKey("green", coin.marketKey), { bars: ascending(coin.bars), barMs }],
+        [
+          ladderBarsKey("green", coin.marketKey),
+          { bars: ascending(coin.bars), barMs },
+        ],
       ],
     ])
   )
@@ -967,7 +970,6 @@ export async function runBacktest(
       book.fills = []
     }
 
-
     /**
      * The worst the pot got part-way through this candle, and when.
      *
@@ -1142,7 +1144,12 @@ export async function runBacktest(
         mark,
         base: baseAt(coin, closeTime, detection),
         rules: coin.rules,
-        roundPx: (px) => protocol.markets.roundPx(px, coin.rules.sizeDecimals, coin.rules.priceTick),
+        roundPx: (px) =>
+          protocol.markets.roundPx(
+            px,
+            coin.rules.sizeDecimals,
+            coin.rules.priceTick
+          ),
         // Compound sizes a fresh ladder from the shared pot as it stands now.
         // Fixed keeps every new ladder on the run's opening dollars. The plan
         // then freezes those rung sizes, so an active ladder never shifts.
@@ -1154,7 +1161,6 @@ export async function runBacktest(
               marks,
             }).equity
           : input.startingUsd,
-        freeCash: freeCash(book),
         openOrderCount: book.orders.length,
         // This bar, so the ladder never reads candles from before it existed.
         startedAt: closeTime,
@@ -1263,9 +1269,9 @@ export async function runBacktest(
       fundingPaid: fundingPaidByMarket.get(coin.marketKey) ?? 0,
       // Heaviest first: the reason that held a coin back for a thousand bars
       // is the answer, and the one that happened twice is a footnote.
-      armRefusals: [...(refusalsByMarket.get(coin.marketKey)?.values() ?? [])].sort(
-        (left, right) => right.bars - left.bars
-      ),
+      armRefusals: [
+        ...(refusalsByMarket.get(coin.marketKey)?.values() ?? []),
+      ].sort((left, right) => right.bars - left.bars),
       rungEvents: rungEventsByMarket.get(coin.marketKey) ?? [],
     })),
     equity,

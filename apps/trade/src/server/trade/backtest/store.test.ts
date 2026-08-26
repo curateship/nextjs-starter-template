@@ -53,7 +53,6 @@ function specOf(marketKeys: string[]): BacktestSpec {
       walletKind: null,
       walletProtocol: null,
       walletNetwork: null,
-      spendCapUsd: null,
     },
     markets: {
       protocol: "hyperliquid",

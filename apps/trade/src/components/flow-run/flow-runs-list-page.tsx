@@ -9,7 +9,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
+import { signedUsd, toneClass } from "@/components/backtest/backtest-kpi"
 import { DashboardTable } from "@/components/shared/dashboard-table"
 import { DashboardToolbarButton } from "@/components/shared/dashboard-toolbar"
 import { Badge } from "@/components/ui/badge"
@@ -291,7 +291,7 @@ export function FlowRunsListPage({ initial }: { initial: FlowRunListRow[] }) {
               </div>
               <p className="truncate text-xs text-muted-foreground">
                 {row.status === "running"
-                  ? `${row.coins} ${plural(row.coins, "coin", "coins")} · up to ${usd(row.capUsd)}`
+                  ? `${row.coins} ${plural(row.coins, "coin", "coins")}`
                   : row.status === "stopping"
                     ? `${row.working} ${plural(row.working, "ladder", "ladders")} left to call off`
                     : (row.stoppedReason ?? "Stopped.")}

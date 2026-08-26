@@ -35,7 +35,6 @@ import { formatRelativeTime } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { plural } from "@/lib/format/plural"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { formatUsd } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 import { useTradeSounds } from "@/components/trade/trade-sounds"
 
@@ -232,16 +231,10 @@ export default function FlowStatusHeader({
           <>
             It will trade <strong>{trades.walletLabel}</strong> with{" "}
             {trades.real ? "real money" : "practice money"} across{" "}
-            {trades.coins} {plural(trades.coins, "coin", "coins")} — spending at
-            most{" "}
-            <strong>
-              {trades.capUsd === null
-                ? "the cap you set"
-                : formatUsd(trades.capUsd)}
-            </strong>
-            , and never more than the wallet actually holds. It places a ladder
-            on each coin as that coin finds a base, and keeps going whether or
-            not this page is open.
+            {trades.coins} {plural(trades.coins, "coin", "coins")}. Each buy
+            waits for its price and is refused if the wallet cannot afford it
+            then. The flow places a ladder on each coin as that coin finds a
+            base, and keeps going whether or not this page is open.
           </>
         }
         confirmLabel={trades.real ? "Yes, trade real money" : "Switch it on"}
@@ -500,10 +493,6 @@ function RunDashboardSummary({
         <Row
           label="Money"
           value={live.real ? "Real money" : "Practice money"}
-        />
-        <Row
-          label="Spending cap"
-          value={live.capUsd === null ? "Not set" : formatUsd(live.capUsd)}
         />
         <Row label="Coins working" value={`${live.working} of ${live.coins}`} />
         {live.startedAt === null ? null : (

@@ -277,25 +277,10 @@ export const dcaParamsSchema = z.object({
   compound: z.boolean().default(true),
   /**
    * How many dollars of coin each dollar of the pot buys. 1 is cash.
-   *
-   * **BACKTESTS ONLY, and enforced rather than assumed.** Every real and
-   * practice placement forces this to `CASH_ONLY` before it sizes anything —
-   * see `placeDcaLadder` and `placeLiveDcaLadder`. That is not tidiness: the
-   * sizing below multiplies each rung by this number, so a wallet path that
-   * read it would buy three times the coin while still posting the full price
-   * in cash, because the orders themselves are placed at leverage 1. Three
-   * times the intended size, with real money, from a box the panel says is for
-   * backtests.
-   *
-   * Wiring it to a live wallet is a separate decision, because it hands the
-   * exchange the power to close a position: above 1 the position has a
-   * liquidation price, and the ladder's own stop only fires first if it sits
-   * above it.
-   *
-   * Defaulted to 1 so every ladder and every saved run reads back exactly as
-   * it always has.
+   * Defaults to cash. A higher number is used only when somebody chooses it,
+   * and the market's own maximum still wins when it is lower.
    */
-  leverage: z.number().min(1).max(50).default(1),
+  leverage: z.number().int().min(1).max(50).default(1),
   /**
    * Liquidity guard: no single buy bigger than this share of the coin's
    * last-24-hours volume, so thin coins get small orders. 0 = off.
@@ -373,16 +358,6 @@ export const dcaParamsSchema = z.object({
 })
 
 export type DcaParams = z.infer<typeof dcaParamsSchema>
-
-/**
- * What a ladder buys at when nobody may borrow — every real and practice
- * placement, always.
- *
- * Named rather than a bare `1` at each call site so the two places that force
- * it can be found from here, and so a third path added later is an obvious
- * omission rather than an invisible one.
- */
-export const CASH_ONLY = 1
 
 export function defaultDcaParams(): DcaParams {
   return {
@@ -725,9 +700,9 @@ export const ladderPlanSchema = z.object({
    * catalogue that may have moved since.
    *
    * Defaulted to 1, which is what every ladder placed before this existed was
-   * doing and what every live and practice placement still does.
+   * doing. New ladders also use 1 unless somebody chooses borrowing.
    */
-  leverage: z.number().positive().default(1),
+  leverage: z.number().int().positive().default(1),
   rungs: z.array(ladderRungStateSchema).min(1).max(20),
   takeProfit: ladderTakeProfitSchema.nullable(),
   stopLoss: ladderStopLossSchema.nullable(),

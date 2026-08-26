@@ -142,7 +142,6 @@ function nodes(
       walletKind: "paper",
       walletProtocol: "hyperliquid",
       walletNetwork: "mainnet",
-      spendCapUsd: 500,
       ...patch.wallet,
     },
     markets: {
@@ -211,11 +210,11 @@ afterEach(async () => {
 })
 
 describe("what a flow is allowed to start with", () => {
-  it("freezes the coins, the settings and the cap", async () => {
+  it("freezes the coins and settings without reading the old wallet cap", async () => {
     const { spec } = await flowRunSpec(userId, nodes())
 
     expect(spec.marketKeys).toEqual(["hyperliquid:mainnet:BTC"])
-    expect(spec.capUsd).toBe(500)
+    expect(spec.capUsd).toBe(10_000)
     expect(spec.walletLabel).toBe("Practice")
     expect(spec.real).toBe(false)
   })
@@ -344,12 +343,6 @@ describe("what a flow is allowed to start with", () => {
     expect(spec.strategy.chaseGiveUp).toBe(0.02)
   })
 
-  it("refuses a flow with no cap", async () => {
-    await expect(
-      flowRunSpec(userId, nodes({ wallet: { spendCapUsd: null } }))
-    ).rejects.toThrow("FLOW_NO_CAP")
-  })
-
   it("refuses a flow with no wallet", async () => {
     await expect(
       flowRunSpec(userId, nodes({ wallet: { walletId: null } }))
@@ -458,7 +451,7 @@ describe("switching one on", () => {
       .from(tradeFlowRuns)
       .where(eq(tradeFlowRuns.id, id))
     expect(row.status).toBe("running")
-    expect(row.spec.capUsd).toBe(500)
+    expect(row.spec.capUsd).toBe(10_000)
     expect(row.walletId).toBe("w1")
   })
 
@@ -492,23 +485,6 @@ describe("switching one on", () => {
         db
       )
     ).rejects.toThrow("FLOW_WALLET_BUSY")
-  })
-
-  it("writes nothing at all when it refuses", async () => {
-    await expect(
-      startFlowRun(
-        userId,
-        {
-          automationId: "flow-1",
-          nodes: nodes({ wallet: { spendCapUsd: null } }),
-          now: NOW,
-        },
-        db
-      )
-    ).rejects.toThrow("FLOW_NO_CAP")
-
-    const rows = await db.select().from(tradeFlowRuns)
-    expect(rows).toHaveLength(0)
   })
 })
 

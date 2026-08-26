@@ -1,11 +1,11 @@
 /**
  * Why a switched-on flow has not placed a ladder on a coin.
  *
- * **The problem this solves.** A flow that refuses every coin because the
- * wallet has no free cash looks exactly like a flow patiently waiting for the
- * right price — both show nothing happening. The first needs a person; the
- * second needs to be left alone. Until this existed there was no way to tell
- * them apart from outside, so "nothing is happening" was unanswerable.
+ * **The problem this solves.** A flow that refuses every coin because its rungs
+ * are too small looks exactly like a flow patiently waiting for the right price
+ * — both show nothing happening. The first needs a person; the second needs to
+ * be left alone. Until this existed there was no way to tell them apart from
+ * outside, so "nothing is happening" was unanswerable.
  *
  * Every refusal is sorted into one of those two piles, and the pile matters
  * more than the sentence: **waiting is the strategy working**, and a problem is
@@ -28,7 +28,7 @@ export type FlowWaitReason = {
  *
  * **Why this exists at all.** Some refusals are about one coin — it has no base
  * yet — and the next coin is a fair question. Others are about the setup: the
- * rungs come out too small, there is no free cash, the key was refused. Those
+ * rungs come out too small or the key was refused. Those
  * refuse every coin on the list identically, so asking about the next one is
  * asking a question the exchange has already answered. A flow watching a
  * hundred coins spent all day doing exactly that.
@@ -81,7 +81,8 @@ export function nextFlowHold(
   return {
     code,
     strikes,
-    until: strikes >= STRIKES_BEFORE_HOLD ? now + flowHoldFor(strikes, code) : 0,
+    until:
+      strikes >= STRIKES_BEFORE_HOLD ? now + flowHoldFor(strikes, code) : 0,
   }
 }
 
@@ -130,13 +131,17 @@ const JUST_WAITING: Record<string, string> = {
   EXCHANGE_BUSY: "The exchange is asking us to slow down",
   SMART_LADDER_NO_BASE: "Waiting for a base to form",
   SMART_LADDER_UNDER_BASE: "Price has already fallen through the base",
-  SMART_LADDER_ABOVE_MARKET: "Price is below every rung, so there is nothing to wait for",
+  SMART_LADDER_ABOVE_MARKET:
+    "Price is below every rung, so there is nothing to wait for",
   SMART_LADDER_EXISTS: "Already has a ladder working",
-  SMART_PAIR_LIVE_ONLY: "A grid holds this coin, and only a live wallet can pair with one",
-  SMART_PAIR_PROTOCOL: "A grid holds this coin, and this exchange cannot pair with one",
+  SMART_PAIR_LIVE_ONLY:
+    "A grid holds this coin, and only a live wallet can pair with one",
+  SMART_PAIR_PROTOCOL:
+    "A grid holds this coin, and this exchange cannot pair with one",
   SMART_PAIR_GRID_STOP_REQUIRED: "A grid without a stop holds this coin",
   SMART_PAIR_GRID_STOP_BASE: "A grid with a base-riding stop holds this coin",
-  SMART_PAIR_STOP_BELOW_BASE: "The grid's stop sits below where this ladder would start",
+  SMART_PAIR_STOP_BELOW_BASE:
+    "The grid's stop sits below where this ladder would start",
   // The signals flow's own. All three are the strategy working, and all three
   // are about ONE coin — so none of them count towards the back-off, for the
   // same reason "no base yet" does not.
@@ -146,7 +151,6 @@ const JUST_WAITING: Record<string, string> = {
 
 /** The refusals somebody has to act on, and what they would do about it. */
 const NEEDS_A_PERSON: Record<string, string> = {
-  SMART_LADDER_COST: "Not enough free cash to place the whole ladder",
   SMART_RUNG_TOO_SMALL:
     "The rungs come out too small to be orders — use fewer rungs or more money",
   SMART_SHORT_HELD:
@@ -256,11 +260,7 @@ export function flowWaitBacksOff(code: string): boolean {
 /** What a refusal means, in a few words. */
 export function flowWaitWords(code: string): string {
   const key = bare(code)
-  return (
-    JUST_WAITING[key] ??
-    NEEDS_A_PERSON[key] ??
-    NEEDS_A_PERSON.FLOW_UNKNOWN
-  )
+  return JUST_WAITING[key] ?? NEEDS_A_PERSON[key] ?? NEEDS_A_PERSON.FLOW_UNKNOWN
 }
 
 /** One coin's refusal, turned from what is stored into what is read. */
@@ -318,10 +318,13 @@ export function flowHeadline(
     const code = hold ? hold.code : commonest(problems)
     const words = flowWaitWords(code)
     const many = problems.filter((one) => bare(one.code) === bare(code))
-    const who =
-      many.length === 1 ? many[0].coin : `${many.length} coins`
+    const who = many.length === 1 ? many[0].coin : `${many.length} coins`
     const holding = hold && hold.until > now ? ` ${retryIn(hold, now)}.` : ""
-    return { words: `${who} — ${lowerFirst(words)}.${holding}`, code, problem: true }
+    return {
+      words: `${who} — ${lowerFirst(words)}.${holding}`,
+      code,
+      problem: true,
+    }
   }
 
   if (list.length === 0) return working > 0 ? null : null

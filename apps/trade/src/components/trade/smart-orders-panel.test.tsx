@@ -100,7 +100,6 @@ const runningBot = {
   tradesClosed: 4,
   walletLabel: "Practice",
   real: false,
-  capUsd: 500,
   startedAt: Date.now() - 60_000,
   paused: false,
   stopping: false,

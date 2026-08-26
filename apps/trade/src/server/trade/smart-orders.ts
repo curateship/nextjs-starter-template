@@ -4,7 +4,6 @@ import { and, count, eq, inArray, max, sql } from "drizzle-orm"
 
 import { parseMarketKey, type CandleInterval } from "@/lib/protocols/contracts"
 import {
-  CASH_ONLY,
   dcaLadderPlan,
   floorSize,
   ladderBaseStopOf,
@@ -41,7 +40,6 @@ import {
 } from "@/server/trade/flow-run-orders"
 import {
   exposedMarketKeys,
-  freeCash,
   marksForKeys,
   saveBook,
   settleWallet,
@@ -60,9 +58,8 @@ import {
  * right-click window. The engine half, what a ladder does as price moves,
  * lives in `smart-ladders.ts` and runs inside every settle.
  *
- * Placement is all-or-nothing: the whole ladder is checked — every rung big
- * enough to be an order, the whole cost within the free cash, the order cap —
- * and only then written. A ladder that is refused places nothing. The browser
+ * Placement is all-or-nothing: every rung is checked before the watched
+ * ladder is written. A ladder that is refused places nothing. The browser
  * never sends a size; every number is derived here from the same arithmetic
  * the window used, so what was shown is what is placed.
  */
@@ -74,16 +71,6 @@ export type PlaceLadderInput = {
   /** The chart's timeframe at placement — what two-green mode watches. */
   interval: CandleInterval
   params: DcaParams
-  /**
-   * The pot this ladder is a share of, when it is not the whole wallet.
-   *
-   * A hand-placed ladder measures "most of the pot, per coin" against the
-   * wallet itself. A flow measures it against the money that flow was given —
-   * so twenty coins on a $500 cap size themselves off $500, not off everything
-   * in the account. Left out by every hand-placed ladder, which is why it is
-   * optional rather than a fourth meaning bolted onto an existing field.
-   */
-  potUsd?: number
   /**
    * The switched-on flow placing this, when a flow is placing it.
    *
@@ -134,7 +121,6 @@ export type LadderDraftInput = {
   roundPx: (px: number) => number
   /** What the whole account is worth, which is what the pot is a share of. */
   equity: number
-  freeCash: number
   /** When this ladder is being created, in epoch ms — where its watch starts. */
   startedAt?: number
   /** What is already held in this market, signed, or null when nothing is. */
@@ -195,12 +181,22 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     throw new Error("SMART_SHORT_HELD")
   }
 
-  // The same arithmetic the window showed, then each level snapped to the
-  // market's price grid — sizes never round up into more risk.
+  // A missing ceiling is not a ceiling of 1. Keep the chosen borrowing for
+  // sizing, but preserve 1 as the engine's "no maintenance margin known"
+  // marker so a replay does not invent a liquidation price.
+  const maxLeverage = rules.maxLeverage ?? 1
+  const leverage =
+    rules.maxLeverage === null
+      ? params.leverage
+      : Math.min(params.leverage, rules.maxLeverage)
+
+  // The same arithmetic the window showed, with borrowing held to this
+  // market's maximum before it sizes anything. Each level is then snapped to
+  // the market's price grid, and sizes never round up into more risk.
   const drawn = dcaLadderPlan({
     anchorPx,
     equity: input.equity,
-    params,
+    params: { ...params, leverage },
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,
   })
@@ -226,35 +222,6 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
   }
 
   const twoGreen = params.twoGreen
-
-  const maxLeverage = rules.maxLeverage ?? 1
-  // Held to the coin's ceiling ONLY when the coin actually named one. The
-  // exchange would refuse a bigger ask at the moment of the buy, which reads as
-  // the strategy failing rather than as a number somebody typed.
-  //
-  // The `?? 1` above is "nobody said", not a limit of one, and clamping to it
-  // would quietly turn every ladder on a market with no stated ceiling back
-  // into cash — which is most of a Binance replay, and is exactly the bug where
-  // 2x did nothing at all.
-  const leverage =
-    rules.maxLeverage === null
-      ? params.leverage
-      : Math.min(params.leverage, rules.maxLeverage)
-
-  // Only what could be committed at once has to be affordable now. Placing
-  // commits nothing — each rung is bought when price reaches it, and the cash
-  // is re-checked then — so the whole-ladder cost is not the question, and
-  // asking it refused ladders over money they would never hold at one time.
-  // There is no order-cap check for the same reason: placing puts nothing on
-  // the book.
-  //
-  // Divided by the leverage because that is what the cash has to cover: a
-  // borrowed rung holding $2,000 of coin is $1,000 out of the account. Asking
-  // for the whole notional would refuse every borrowed ladder at the moment it
-  // was placed — which is exactly what borrowing is supposed to avoid.
-  const committing =
-    Math.max(...priced.map((rung) => rung.px * rung.sz)) / leverage
-  if (committing > input.freeCash + 1e-9) throw new Error("SMART_LADDER_COST")
 
   const rungs: LadderRungState[] = priced.map((rung) => {
     const state: LadderRungState = {
@@ -363,20 +330,6 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
   return { plan, rungs }
 }
 
-/**
- * The pot a ladder sizes itself from: the flow's cap when there is one, and
- * never more than the wallet really has behind it.
- *
- * Capped both ways on purpose. A cap bigger than the account would size rungs
- * off money that is not there, and every one of them would be refused at the
- * moment it tried to buy — which reads as the strategy failing rather than as
- * a number somebody typed.
- */
-function potOf(input: PlaceLadderInput, walletPot: number): number {
-  if (input.potUsd === undefined) return walletPot
-  return Math.min(input.potUsd, walletPot)
-}
-
 export async function placeDcaLadder(
   userId: string,
   wallet: TradeWallet,
@@ -433,23 +386,14 @@ export async function placeDcaLadder(
 
   const { plan, rungs } = draftDcaLadder({
     marketKey: input.marketKey,
-    // Borrowing is a backtest instrument and must not reach a wallet. The
-    // sizing multiplies every rung by it while the orders are still sent at
-    // leverage 1, so a ladder that read it would buy three times the coin and
-    // pay the whole price in cash. Forced here rather than trusted upstream:
-    // this is the only door a practice ladder comes through.
-    params: { ...input.params, leverage: CASH_ONLY },
+    params: input.params,
     interval: input.interval,
     clickPx: input.clickPx,
     mark,
     base,
     rules,
     roundPx,
-    equity: potOf(
-      input,
-      input.params.compound ? figures.equity : wallet.startingBalance
-    ),
-    freeCash: freeCash(book),
+    equity: input.params.compound ? figures.equity : wallet.startingBalance,
     // Where the candle watch starts reading. Without this the plan kept the
     // draft's zero, and the first settle walked every candle the feed held —
     // buying rungs on bars from months before the ladder existed. The live
@@ -503,7 +447,7 @@ export async function placeDcaLadder(
           side: "buy" as const,
           px: rung.px,
           sz: rung.sz,
-          leverage: 1,
+          leverage: plan.leverage,
           maxLeverage,
           reduceOnly: false,
           tpPx: null,

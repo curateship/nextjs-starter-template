@@ -26,7 +26,6 @@ describe("which wallet a step names", () => {
         walletId: "w1",
         walletLabel: "Main",
         walletKind: "live",
-        spendCapUsd: 500,
         walletProtocol: "hyperliquid",
         walletNetwork: "mainnet",
       })
@@ -34,7 +33,6 @@ describe("which wallet a step names", () => {
       id: "w1",
       label: "Main",
       kind: "live",
-      capUsd: 500,
       protocol: "hyperliquid",
       network: "mainnet",
     })
@@ -79,19 +77,16 @@ describe("what the step's card says", () => {
     )
   })
 
-  it("names the wallet, the cap and which kind of money", () => {
+  it("names the wallet and says buys still have to be affordable", () => {
     expect(
       say({
         ...tradeWalletNode.createSettings(),
         walletId: "w1",
         walletLabel: "Practice 2",
         walletKind: "paper",
-        spendCapUsd: 500,
       })
     ).toBe(
-      // The cap is a ceiling, never a promise: "up to $10,000 of real money"
-      // on a wallet holding $900 read as ten thousand to spend.
-      "Trades Practice 2 — practice money, capped at $500.00. It can never spend more than the wallet holds."
+      "Trades Practice 2 — practice money. Each watched buy is refused if the wallet cannot afford it when the price arrives."
     )
   })
 
@@ -104,7 +99,6 @@ describe("what the step's card says", () => {
         walletId: "w1",
         walletLabel: "Main",
         walletKind: "live",
-        spendCapUsd: 250,
       })
     ).toMatch(/^REAL MONEY — /)
   })
@@ -116,12 +110,11 @@ describe("what the step's card says", () => {
         walletId: "w1",
         walletLabel: "Main",
         walletKind: "live",
-        spendCapUsd: 250,
       })
     ).toContain("real money")
   })
 
-  it("asks for the cap rather than implying there is no limit", () => {
+  it("does not ask for a wallet cap", () => {
     expect(
       say({
         ...tradeWalletNode.createSettings(),
@@ -129,7 +122,7 @@ describe("what the step's card says", () => {
         walletLabel: "Main",
         walletKind: "live",
       })
-    ).toContain("how much of it this flow may use")
+    ).not.toContain("how much of it this flow may use")
   })
 })
 
@@ -145,6 +138,5 @@ describe("settings saved by an older build", () => {
     expect(parsed.walletId).toBeNull()
     expect(parsed.walletLabel).toBeNull()
     expect(parsed.walletKind).toBeNull()
-    expect(parsed.spendCapUsd).toBeNull()
   })
 })

@@ -43,6 +43,7 @@ const place = vi.fn()
 const cancel = vi.fn()
 const setBrackets = vi.fn()
 let marketFloor: number | null = null
+let marketMaxLeverage = 50
 
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
@@ -67,7 +68,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
             category: "crypto",
             sizeDecimals: 3,
             minOrderValueUsd: marketFloor,
-            maxLeverage: 50,
+            maxLeverage: marketMaxLeverage,
             isolatedOnly: false,
             iconUrl: null,
             price: 100,
@@ -267,6 +268,7 @@ beforeEach(async () => {
   // silently skipped the next test's.
   resetRefusalHolds()
   marketFloor = null
+  marketMaxLeverage = 50
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
   for (const mock of [
     prices,
@@ -621,11 +623,7 @@ describe("live Smart orders", () => {
     expect(finished.status).toBe("done")
   })
 
-  it("ignores the borrowing setting — real money only ever spends cash", async () => {
-    // The setting is a backtest instrument. It reaches the rung sizing, and
-    // the orders are still sent at leverage 1, so a live ladder that read it
-    // would buy three times the coin and pay the whole price out of a real
-    // Hyperliquid account.
+  it("uses the borrowing chosen for a real-money ladder", async () => {
     await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
       clickPx: 100,
@@ -634,9 +632,46 @@ describe("live Smart orders", () => {
     })
 
     const plan = await ladder()
-    expect(plan.leverage).toBe(1)
-    // The same size a cash ladder gets, to the ninth decimal.
-    expect(plan.rungs[0].sz).toBeCloseTo(0.701, 9)
+    expect(plan.leverage).toBe(3)
+    expect(plan.rungs[0].sz).toBeCloseTo(2.105, 9)
+  })
+
+  it("uses the market maximum when chosen borrowing is higher", async () => {
+    marketMaxLeverage = 2
+    clearMarketRulesCache()
+
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ leverage: 3 }),
+    })
+
+    const plan = await ladder()
+    expect(plan.leverage).toBe(2)
+    expect(plan.rungs[0].sz).toBeCloseTo(1.403, 9)
+  })
+
+  it("places a watched ladder when the real wallet has no free money yet", async () => {
+    account.mockResolvedValue({
+      equity: 1_000,
+      free: 0,
+      inTrades: 1_000,
+      openProfit: 0,
+    })
+
+    await expect(
+      placeLiveDcaLadder(userId, wallet, {
+        marketKey: MARKET,
+        clickPx: 100,
+        interval: "1m",
+        params: params(),
+      })
+    ).resolves.toMatchObject({ placed: 2 })
+
+    expect(
+      (await ladder()).rungs.every((rung) => rung.status === "waiting")
+    ).toBe(true)
   })
 
   it("keeps fixed sizing on the wallet's starting balance", async () => {

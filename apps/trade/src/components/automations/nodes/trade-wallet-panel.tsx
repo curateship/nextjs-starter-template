@@ -28,10 +28,8 @@ import {
   walletMoneyWords,
 } from "@/lib/automations/nodes/trade-wallet"
 import { plural } from "@/lib/format/plural"
-import { formatUsd } from "@/lib/trade/format"
 import { keyExpiryWarning } from "@/lib/trade/live"
 import {
-  capForPickedWallet,
   venueLabel,
   type TradeWallet,
   type WalletAccountSummary,
@@ -176,7 +174,6 @@ export default function TradeWalletFields({
   const row = wallets?.find((one) => one.id === named?.id) ?? null
   const summaries = answer?.summaries ?? held?.summaries ?? []
   const figures = summaries.find((one) => one.walletId === named?.id) ?? null
-  const freeCash = figures && figures.state === "ok" ? figures.free : null
 
   // A wallet renamed in the account panel leaves the copy on this step behind,
   // and that copy is what the canvas card draws. Correcting it here means a
@@ -290,10 +287,6 @@ export default function TradeWalletFields({
     )
   }
 
-  /** The cap as saved, falling back to the pot it stands in for. */
-  const capUsd = named?.capUsd ?? settings.startingUsd
-  const overCap = freeCash !== null && named !== null && capUsd > freeCash
-
   return (
     <>
       <InspectorCard title="Which wallet">
@@ -329,7 +322,6 @@ export default function TradeWalletFields({
                   walletKind: null,
                   walletProtocol: null,
                   walletNetwork: null,
-                  spendCapUsd: null,
                 })
                 return
               }
@@ -346,14 +338,6 @@ export default function TradeWalletFields({
                 walletKind: picked.kind,
                 walletProtocol: picked.protocol,
                 walletNetwork: picked.network,
-                // The cap starts at what this wallet actually has free; see
-                // capForPickedWallet for why anything else is a number the
-                // flow would not honour. It is still a box somebody can
-                // change — a smaller cap is a real choice.
-                spendCapUsd: capForPickedWallet(
-                  summaries.find((one) => one.walletId === picked.id),
-                  named?.capUsd ?? settings.startingUsd
-                ),
               })
             }}
           >
@@ -402,34 +386,7 @@ export default function TradeWalletFields({
         ) : null}
       </InspectorCard>
 
-      {named ? (
-        <InspectorCard title="Money this flow may use">
-          <TradeNumberField
-            id={`wallet-${node.id}-cap`}
-            label="Most it may spend"
-            hint="The pot this flow works with. Every coin shares it, and the ladder's 'most of the pot, per coin' is measured against this — so the sums are the same ones the backtest used, with this standing in for the starting money."
-            value={capUsd}
-            min={1}
-            max={MAX_POT_USD}
-            suffix="$"
-            onChange={(spendCapUsd) => set({ spendCapUsd })}
-          />
-          {freeCash !== null ? (
-            <p
-              className={
-                overCap
-                  ? "text-xs text-destructive"
-                  : "text-xs text-muted-foreground"
-              }
-            >
-              {named.label} has {formatUsd(freeCash)} free right now
-              {overCap
-                ? ", which is less than this cap. A buy it cannot afford when its turn comes is refused, never shrunk."
-                : "."}
-            </p>
-          ) : null}
-        </InspectorCard>
-      ) : (
+      {named ? null : (
         <>
           <InspectorCard title="The pot">
             <TradeNumberField
@@ -481,7 +438,7 @@ export default function TradeWalletFields({
 
       <InspectorNote>
         {named
-          ? `This flow spends ${named.label} — ${walletMoneyWords(named.kind)}. Nothing is set aside: the rest of the wallet stays free, and so does this until a buy actually happens.`
+          ? `This flow spends ${named.label} — ${walletMoneyWords(named.kind)}. Nothing is set aside while its orders wait. A buy the wallet cannot afford when its price arrives is refused.`
           : "Pretend money only. A backtest never touches a real or a practice wallet, and nothing here can move a cent. Funding uses the exchange's historical rates at each funding time and is listed on the results page."}
       </InspectorNote>
     </>
