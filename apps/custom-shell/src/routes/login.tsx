@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-ro
 import { Loader2Icon, RotateCcwIcon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import { PasskeySignIn } from "@/components/shell/passkey-sign-in"
 import { Button } from "@/components/ui/button"
@@ -52,6 +53,7 @@ export const Route = createFileRoute("/login")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: LoginRoute,
 })
 

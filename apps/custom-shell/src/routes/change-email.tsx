@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import {
   confirmEmailChange,
   getAuthErrorMessage,
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/change-email")({
     signedIn: Boolean(await loadCurrentUser()),
     linkExpiry: (await loadSignInOptions()).linkExpiry,
   }),
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: ChangeEmailRoute,
 })
 

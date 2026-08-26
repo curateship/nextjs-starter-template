@@ -119,7 +119,7 @@ export function AdminTrafficDashboard({
                 navigate({ days: value === "30" ? undefined : Number(value) })
               }
             >
-              <TabsList className="h-8 p-[3px]">
+              <TabsList>
                 {TRAFFIC_RANGES.map((key) => (
                   <TabsTrigger key={key} value={String(key)} className="h-full">
                     {TRAFFIC_RANGE_LABELS[key]}

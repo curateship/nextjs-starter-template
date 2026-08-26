@@ -1,5 +1,10 @@
 import { useRouter, type ErrorComponentProps } from "@tanstack/react-router"
 
+import {
+  AuthShell,
+  authLinkClassName,
+} from "@/components/shell/auth-shell"
+import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ErrorRow } from "@/components/ui/error-row"
 
@@ -32,6 +37,46 @@ export function routeErrorComponent(getMessage: (error: unknown) => string) {
       </Card>
     )
   }
+}
+
+/**
+ * A failed public loader stays inside the signed-out frame. The address does
+ * not change, Try again repeats that page's loader, and sign in is a useful
+ * way out for a visitor even when the page keeps failing.
+ */
+export function visitorRouteErrorComponent(
+  getMessage: (error: unknown) => string = getVisitorPageErrorMessage
+) {
+  return function VisitorRouteError({ error }: ErrorComponentProps) {
+    const router = useRouter()
+
+    return (
+      <AuthShell
+        title="This page could not be loaded"
+        description={getMessage(error)}
+        footer={
+          <p>
+            <a href="/login" className={authLinkClassName}>
+              Open sign in
+            </a>
+          </p>
+        }
+      >
+        <Button
+          type="button"
+          className="w-full"
+          onClick={() => void router.invalidate()}
+        >
+          Try again
+        </Button>
+      </AuthShell>
+    )
+  }
+}
+
+/** Public pages never print an unexpected server error to a signed-out user. */
+export function getVisitorPageErrorMessage(_error: unknown) {
+  return "The page did not finish loading. Please try again."
 }
 
 /** For a page with nothing of its own to name — the last resort at the root. */

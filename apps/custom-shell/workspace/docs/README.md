@@ -12,6 +12,10 @@ map, and the repo's `docs/README.md` indexes the rest.
 
 - `automation-run-results.md` — how an app gives its own automation step a
   result view inside the shell's Runs panel.
+- `account-security.md` explains password drafts and signing out other devices.
+- `public-page-load-errors.md` explains how signed-out pages handle a failed load.
+- `automation-run-refresh.md` explains when run and delivery history refresh.
+- `dashboard-controls.md` explains the shared tab and sortable-table rules.
 
 ## Adding a doc
 

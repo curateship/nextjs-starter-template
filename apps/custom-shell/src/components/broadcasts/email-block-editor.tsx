@@ -157,7 +157,7 @@ export function EmailBlockEditor({
   settingsExtra?: React.ReactNode
   /** Top-right of the canvas. Given a flush, so it can save before it acts. */
   headerAction?: (saveNow: () => Promise<boolean>) => React.ReactNode
-  bottomPanel: React.ReactNode
+  bottomPanel: React.ReactNode | ((active: boolean) => React.ReactNode)
   layout?: "broadcast" | "systemEmail" | "automationEmail"
   onSave: (fields: EmailEditableFields) => Promise<void | boolean>
 }) {
@@ -674,7 +674,9 @@ export function EmailBlockEditor({
               onDoubleClick={bottomDoubleClick}
               headerOnly={bottomShut.collapsed}
             >
-              {bottomPanel}
+              {typeof bottomPanel === "function"
+                ? bottomPanel(!bottomShut.collapsed)
+                : bottomPanel}
             </WorkspacePanel>
           </ResizablePanel>
         </ResizablePanelGroup>

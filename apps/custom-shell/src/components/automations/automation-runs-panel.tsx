@@ -39,6 +39,7 @@ import { automationNodeRunResult } from "@/lib/automations/node-registry"
 import {
   automationRunStatusLabel,
   automationRunStepStatusLabels,
+  finalAutomationRunStatuses,
 } from "@/lib/automations/run"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { plural } from "@/lib/format/plural"
@@ -63,11 +64,14 @@ export function AutomationRunsPanel({
   automationId,
   initial,
   openRunId,
+  active = true,
 }: {
   automationId: string
   initial: AutomationRunsPanelData
   /** The run a link asked for, opened once when the panel mounts. */
   openRunId?: string
+  /** False while the panel is dragged shut but deliberately stays mounted. */
+  active?: boolean
 }) {
   const [tab, setTab] = React.useState<PanelTab>(
     // A link to a run of another flow belongs in Waiting, where it actually is.
@@ -197,6 +201,7 @@ export function AutomationRunsPanel({
                     key={run.id}
                     run={run}
                     expanded={expandedId === run.id}
+                    panelActive={active}
                     onToggle={() =>
                       setExpandedId((current) =>
                         current === run.id ? null : run.id
@@ -245,6 +250,7 @@ export function AutomationRunsPanel({
                     // Across flows, so each row says which flow it belongs to.
                     showFlow
                     expanded={expandedId === run.id}
+                    panelActive={active}
                     onToggle={() =>
                       setExpandedId((current) =>
                         current === run.id ? null : run.id
@@ -283,14 +289,6 @@ export function AutomationRunsPanel({
 /** How often an unfinished run is re-read while it is open. */
 const STILL_GOING_MS = 3_000
 
-/** Statuses that never change again. Anything else is still moving. */
-const finalStatuses = new Set([
-  "completed",
-  "failed",
-  "rejected",
-  "canceled",
-])
-
 /**
  * One run: a line you can click open. Shut, it is the status and when. Open, it
  * loads its own steps — and, when it is waiting on somebody, the sentence the
@@ -300,6 +298,7 @@ function RunRow({
   run,
   showFlow,
   expanded,
+  panelActive,
   onToggle,
   onChanged,
   onDelete,
@@ -307,6 +306,7 @@ function RunRow({
   run: AutomationRunItem
   showFlow?: boolean
   expanded: boolean
+  panelActive: boolean
   onToggle: () => void
   onChanged: () => void
   /** Absent in the Waiting tab: a run still waiting cannot be deleted. */
@@ -342,20 +342,20 @@ function RunRow({
   const current = expanded && detail ? detail : run
 
   React.useEffect(() => {
-    if (!expanded) return
+    if (!expanded || !panelActive) return
     void load()
-  }, [expanded, load])
+  }, [expanded, load, panelActive])
 
   // A run that has not finished is still growing steps. Read once and it stays
   // as it was the instant it was opened — press Run and the row opens on a run
   // with no steps at all, then never draws the ones that arrive a second later.
   // A finished run never changes again, so this stops.
   React.useEffect(() => {
-    if (!expanded) return
-    if (finalStatuses.has(current.status)) return
+    if (!expanded || !panelActive) return
+    if (finalAutomationRunStatuses.has(current.status)) return
     const timer = window.setInterval(() => void load(), STILL_GOING_MS)
     return () => window.clearInterval(timer)
-  }, [expanded, load, current.status])
+  }, [expanded, load, current.status, panelActive])
 
   async function decide(decision: "approved" | "rejected") {
     if (deciding) return
@@ -531,6 +531,10 @@ function RunRow({
                         <AutomationDeliveryHistory
                           runId={detail.id}
                           nodeId={step.node_id}
+                          polling={
+                            panelActive &&
+                            !finalAutomationRunStatuses.has(detail.status)
+                          }
                         />
                       ) : null}
                       <StepRunResult runId={detail.id} step={step} />

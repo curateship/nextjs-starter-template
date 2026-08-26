@@ -3,14 +3,16 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { InboxIcon, MailCheckIcon, SettingsIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import type { SystemEmailsPageData } from "@/lib/api/email/system-emails"
 import {
@@ -22,6 +24,23 @@ import { formatDate } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "name" | "subject" | "sends" | "edited"
+
+const SYSTEM_EMAIL_COLUMNS: SortableColumn<SortColumn>[] = [
+  { key: "name", label: "Email", column: "main" },
+  {
+    key: "subject",
+    label: "Subject",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  {
+    key: "sends",
+    label: `Last ${RECENT_SEND_DAYS} days`,
+    column: "meta",
+    className: "hidden md:table-cell",
+  },
+  { key: "edited", label: "Edited", column: "meta" },
+]
 
 /**
  * The emails the app sends for itself.
@@ -102,47 +121,13 @@ export function SystemEmailsPage({
         label: "emails the app sends on its own",
       }}
       header={
-        <TableHeader>
-          <TableRow>
-            <TableHead column="main">
-              <TableSortButton
-                active={sort === "name"}
-                direction={direction}
-                onClick={() => toggleSort("name")}
-              >
-                Email
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta" className="hidden sm:table-cell">
-              <TableSortButton
-                active={sort === "subject"}
-                direction={direction}
-                onClick={() => toggleSort("subject")}
-              >
-                Subject
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta" className="hidden md:table-cell">
-              <TableSortButton
-                active={sort === "sends"}
-                direction={direction}
-                onClick={() => toggleSort("sends")}
-              >
-                Last {RECENT_SEND_DAYS} days
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta">
-              <TableSortButton
-                active={sort === "edited"}
-                direction={direction}
-                onClick={() => toggleSort("edited")}
-              >
-                Edited
-              </TableSortButton>
-            </TableHead>
-            <TableHead column="meta">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
+        <SortableTableHeader
+          columns={SYSTEM_EMAIL_COLUMNS}
+          sort={sort}
+          direction={direction}
+          onSort={toggleSort}
+          trailing={<TableHead column="meta">Actions</TableHead>}
+        />
       }
       isEmpty={false}
       // Never actually shown: these are built into the app and cannot be

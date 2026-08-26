@@ -27,7 +27,7 @@ export function SendEmailEditor({
   node: AutomationNode
   graph: AutomationGraph
   initialBlockDefaults: BroadcastBlockDefaults
-  bottomPanel: ReactNode
+  bottomPanel: ReactNode | ((active: boolean) => ReactNode)
   onSave: (node: AutomationNode) => Promise<boolean>
   onBack: () => void
 }) {

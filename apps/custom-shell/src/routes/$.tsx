@@ -1,6 +1,10 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
 
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import {
+  getVisitorPageErrorMessage,
+  visitorRouteErrorComponent,
+} from "@/components/shell/route-error"
 import { WrittenPageBody } from "@/components/pages/written-page-body"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { catchAllOverride } from "@/lib/app-options"
@@ -61,6 +65,7 @@ export const Route = createFileRoute("/$")({
 
     return { source: "written" as const, page: view.page }
   },
+  errorComponent: visitorRouteErrorComponent(getVisitorPageErrorMessage),
   component: CatchAllRoute,
   head: ({ loaderData }) => {
     if (!loaderData) return {}

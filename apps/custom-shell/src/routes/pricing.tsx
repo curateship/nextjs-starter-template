@@ -5,6 +5,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { authLinkClassName } from "@/components/shell/auth-shell"
 import { PublicPageFrame } from "@/components/shell/public-page-frame"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
 import { Button } from "@/components/ui/button"
@@ -62,6 +63,7 @@ export const Route = createFileRoute("/pricing")({
       trialUsed: Boolean(overview?.trialUsed),
     }
   },
+  errorComponent: visitorRouteErrorComponent(getBillingErrorMessage),
   component: PricingRoute,
 })
 

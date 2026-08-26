@@ -20,9 +20,12 @@ const DELIVERY_REFRESH_MS = 10_000
 export function AutomationDeliveryHistory({
   runId,
   nodeId,
+  polling,
 }: {
   runId: string
   nodeId: string
+  /** True only while the run can still change and its panel is visible. */
+  polling: boolean
 }) {
   const [page, setPage] = React.useState<AutomationRunDeliveryPageItem | null>(
     null
@@ -60,15 +63,17 @@ export function AutomationDeliveryHistory({
 
   React.useEffect(() => {
     const first = window.setTimeout(() => void loadFirstPage(true), 0)
+    return () => window.clearTimeout(first)
+  }, [loadFirstPage])
+
+  React.useEffect(() => {
+    if (!polling) return
     const timer = window.setInterval(
       () => void loadFirstPage(true),
       DELIVERY_REFRESH_MS
     )
-    return () => {
-      window.clearTimeout(first)
-      window.clearInterval(timer)
-    }
-  }, [loadFirstPage])
+    return () => window.clearInterval(timer)
+  }, [loadFirstPage, polling])
 
   async function loadMore() {
     if (!page || loadingMore || deliveries.length >= page.total) return

@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react"
 import { z } from "zod"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { Button } from "@/components/ui/button"
 import { FieldLabel } from "@/components/ui/field-label"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/reset-password")({
       throw redirect({ to: "/home", replace: true })
     }
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: ResetPasswordRoute,
 })
 

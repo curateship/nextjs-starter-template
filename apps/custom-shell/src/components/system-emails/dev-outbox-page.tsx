@@ -2,6 +2,10 @@ import * as React from "react"
 import { EyeIcon, InboxIcon } from "lucide-react"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
+import {
+  SortableTableHeader,
+  type SortableColumn,
+} from "@/components/shared/sortable-table-header"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -15,15 +19,24 @@ import {
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import type { DevOutboxItem } from "@/lib/api/email/dev-outbox"
 import { formatDateTime } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
 type SortColumn = "subject" | "recipient" | "created"
+
+const DEV_OUTBOX_COLUMNS: SortableColumn<SortColumn>[] = [
+  { key: "subject", label: "Subject", column: "main" },
+  {
+    key: "recipient",
+    label: "Recipient",
+    column: "meta",
+    className: "hidden sm:table-cell",
+  },
+  { key: "created", label: "Produced", column: "meta" },
+]
 
 export function DevOutboxPage({ emails }: { emails: DevOutboxItem[] }) {
   const [preview, setPreview] = React.useState<DevOutboxItem | null>(null)
@@ -58,38 +71,13 @@ export function DevOutboxPage({ emails }: { emails: DevOutboxItem[] }) {
           label: "recent emails kept until this server restarts",
         }}
         header={
-          <TableHeader>
-            <TableRow>
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "subject"}
-                  direction={direction}
-                  onClick={() => toggleSort("subject")}
-                >
-                  Subject
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden sm:table-cell">
-                <TableSortButton
-                  active={sort === "recipient"}
-                  direction={direction}
-                  onClick={() => toggleSort("recipient")}
-                >
-                  Recipient
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "created"}
-                  direction={direction}
-                  onClick={() => toggleSort("created")}
-                >
-                  Produced
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={DEV_OUTBOX_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={emails.length === 0}
         emptyText="Emails produced during development will appear here."

@@ -59,13 +59,28 @@ import { useBrowserSupportsWebAuthn } from "@/lib/hooks/use-webauthn-support"
 
 const MISMATCH_MESSAGE = "Those passwords do not match."
 
+export type AccountPasswordDraft = {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
+}
+
 export function AccountSecurityPage({
   user,
   isPaid,
+  passwordDraft,
+  onPasswordDraftChange,
+  onPasswordStatusChange,
 }: {
   user: AuthUser
   /** Whether they are on a paid plan, which deleting cancels. */
   isPaid: boolean
+  passwordDraft: AccountPasswordDraft
+  onPasswordDraftChange: (draft: AccountPasswordDraft) => void
+  onPasswordStatusChange: (status: {
+    saving: boolean
+    dirty: boolean
+  }) => void
 }) {
   const router = useRouter()
   // Changing a password signs out every other device, so the list below it has
@@ -76,6 +91,9 @@ export function AccountSecurityPage({
     <CardGroup className="w-full">
       <ChangePasswordCard
         hasPassword={user.hasPassword}
+        draft={passwordDraft}
+        onDraftChange={onPasswordDraftChange}
+        onStatusChange={onPasswordStatusChange}
         onPasswordChanged={() => {
           setDevicesChanged((count) => count + 1)
           // Setting a first password changes what this tab offers, and the
@@ -101,18 +119,27 @@ export function AccountSecurityPage({
  */
 function ChangePasswordCard({
   hasPassword,
+  draft,
+  onDraftChange,
+  onStatusChange,
   onPasswordChanged,
 }: {
   hasPassword: boolean
+  draft: AccountPasswordDraft
+  onDraftChange: (draft: AccountPasswordDraft) => void
+  onStatusChange: (status: { saving: boolean; dirty: boolean }) => void
   onPasswordChanged: () => void
 }) {
-  const [currentPassword, setCurrentPassword] = React.useState("")
-  const [newPassword, setNewPassword] = React.useState("")
-  const [confirmPassword, setConfirmPassword] = React.useState("")
   const [confirmTouched, setConfirmTouched] = React.useState(false)
   const [attempted, setAttempted] = React.useState(false)
   const [saved, setSaved] = React.useState(false)
   const [run, saving] = useAsyncAction(getAuthErrorMessage)
+  const { currentPassword, newPassword, confirmPassword } = draft
+  const dirty = Boolean(currentPassword || newPassword || confirmPassword)
+
+  React.useEffect(() => {
+    onStatusChange({ saving, dirty })
+  }, [dirty, onStatusChange, saving])
 
   const confirmMismatches =
     confirmPassword.length > 0 && confirmPassword !== newPassword
@@ -151,9 +178,11 @@ function ChangePasswordCard({
             hasPassword ? currentPassword : undefined,
             newPassword
           )
-          setCurrentPassword("")
-          setNewPassword("")
-          setConfirmPassword("")
+          onDraftChange({
+            currentPassword: "",
+            newPassword: "",
+            confirmPassword: "",
+          })
           setConfirmTouched(false)
           setAttempted(false)
           onPasswordChanged()
@@ -165,6 +194,7 @@ function ChangePasswordCard({
       currentPassword,
       hasPassword,
       newPassword,
+      onDraftChange,
       onPasswordChanged,
       run,
     ]
@@ -193,7 +223,10 @@ function ChangePasswordCard({
                   // Drop the "Password updated" note the moment a new change
                   // starts, so it cannot be read as the answer to this one.
                   setSaved(false)
-                  setCurrentPassword(event.target.value)
+                  onDraftChange({
+                    ...draft,
+                    currentPassword: event.target.value,
+                  })
                 }}
                 aria-invalid={(attempted && !currentPassword) || undefined}
               />
@@ -210,7 +243,7 @@ function ChangePasswordCard({
               value={newPassword}
               onChange={(event) => {
                 setSaved(false)
-                setNewPassword(event.target.value)
+                onDraftChange({ ...draft, newPassword: event.target.value })
               }}
               aria-invalid={(attempted && !newPassword) || undefined}
             />
@@ -229,7 +262,10 @@ function ChangePasswordCard({
               value={confirmPassword}
               onChange={(event) => {
                 setSaved(false)
-                setConfirmPassword(event.target.value)
+                onDraftChange({
+                  ...draft,
+                  confirmPassword: event.target.value,
+                })
               }}
               onBlur={() => {
                 setConfirmTouched(true)
@@ -502,6 +538,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   // all of them grey out. Null means nothing is running.
   const [runningId, setRunningId] = React.useState<string | null>(null)
   const [result, setResult] = React.useState<string | null>(null)
+  const [confirmingAllOthers, setConfirmingAllOthers] = React.useState(false)
 
   // Bumped to ask for the list again — by the retry button, and after anything
   // that ends a session. One counter keeps the fetch in a single place.
@@ -655,12 +692,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
             <Button
               variant="outline"
               disabled={working}
-              onClick={() =>
-                void run("all-others", async () => {
-                  const { removed } = await signOutOtherSessions()
-                  return `Signed out ${removed} other ${plural(removed, "device", "devices")}.`
-                })
-              }
+              onClick={() => setConfirmingAllOthers(true)}
             >
               {runningId === "all-others" ? (
                 <Loader2Icon className="size-4 animate-spin" />
@@ -683,6 +715,22 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
           </span>
         ) : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmingAllOthers}
+        onOpenChange={setConfirmingAllOthers}
+        title={`Sign out ${list ? list.total - 1 : 0} other ${plural(list ? list.total - 1 : 0, "device", "devices")}?`}
+        description="Every other phone, tablet and computer signed in to this account will need its password or passkey again. This device stays signed in."
+        confirmLabel="Sign out other devices"
+        loading={runningId === "all-others"}
+        onConfirm={() =>
+          void run("all-others", async () => {
+            const { removed } = await signOutOtherSessions()
+            setConfirmingAllOthers(false)
+            return `Signed out ${removed} other ${plural(removed, "device", "devices")}.`
+          })
+        }
+      />
     </Card>
   )
 }

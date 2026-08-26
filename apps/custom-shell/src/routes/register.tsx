@@ -3,6 +3,7 @@ import { createFileRoute, Link, redirect } from "@tanstack/react-router"
 import { Loader2Icon } from "lucide-react"
 
 import { AuthShell, authLinkClassName } from "@/components/shell/auth-shell"
+import { visitorRouteErrorComponent } from "@/components/shell/route-error"
 import { EmailDomainSuggestion } from "@/components/shell/email-domain-suggestion"
 import { GoogleSignIn } from "@/components/shell/google-sign-in"
 import {
@@ -51,6 +52,7 @@ export const Route = createFileRoute("/register")({
     }
     return options
   },
+  errorComponent: visitorRouteErrorComponent(getAuthErrorMessage),
   component: RegisterRoute,
 })
 

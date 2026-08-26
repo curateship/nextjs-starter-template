@@ -16,7 +16,11 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { DashboardTable } from "@/components/shared/dashboard-table"
-import { SelectAllTableHead } from "@/components/shared/sortable-table-header"
+import {
+  SelectAllTableHead,
+  SortableTableHeader,
+  type TableHeaderColumn,
+} from "@/components/shared/sortable-table-header"
 import {
   DashboardToolbarButton,
   DashboardToolbarSearch,
@@ -41,9 +45,7 @@ import {
 import {
   TableCell,
   TableHead,
-  TableHeader,
   TableRow,
-  TableSortButton,
 } from "@/components/ui/table"
 import {
   deleteAccountAsAdmin,
@@ -81,6 +83,27 @@ const usersRoute = getRouteApi("/_authenticated/admin/users")
  * lit up as the one being sorted by even though the sort itself worked.
  */
 type SortColumn = (typeof USER_SORT_COLUMNS)[number]
+
+const ACCOUNT_COLUMNS: TableHeaderColumn<SortColumn>[] = [
+  { key: "name", label: "Name", column: "main" },
+  { key: "email", label: "Email", column: "meta" },
+  { key: "role", label: "Role", column: "meta" },
+  { key: "status", label: "Status", column: "meta" },
+  {
+    key: "tags",
+    label: "Tags",
+    sortable: false,
+    column: "meta",
+    className: "hidden xl:table-cell",
+  },
+  { key: "plan", label: "Plan", column: "meta" },
+  {
+    key: "created",
+    label: "Joined",
+    column: "meta",
+    className: "hidden lg:table-cell",
+  },
+]
 
 /**
  * What deleting these accounts did, said plainly. The same button both marks an
@@ -465,69 +488,22 @@ export function AdminUsersDashboard({
           </>
         }
         header={
-          <TableHeader>
-            <TableRow>
-              <SelectAllTableHead noun="accounts" checked={allSelected ? true : someSelected ? "indeterminate" : false} onCheckedChange={toggleVisibleSelection} />
-              <TableHead column="main">
-                <TableSortButton
-                  active={sort === "name"}
-                  direction={direction}
-                  onClick={() => toggleSort("name")}
-                >
-                  Name
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "email"}
-                  direction={direction}
-                  onClick={() => toggleSort("email")}
-                >
-                  Email
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "role"}
-                  direction={direction}
-                  onClick={() => toggleSort("role")}
-                >
-                  Role
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden xl:table-cell">
-                Tags
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "status"}
-                  direction={direction}
-                  onClick={() => toggleSort("status")}
-                >
-                  Status
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">
-                <TableSortButton
-                  active={sort === "plan"}
-                  direction={direction}
-                  onClick={() => toggleSort("plan")}
-                >
-                  Plan
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta" className="hidden lg:table-cell">
-                <TableSortButton
-                  active={sort === "created"}
-                  direction={direction}
-                  onClick={() => toggleSort("created")}
-                >
-                  Joined
-                </TableSortButton>
-              </TableHead>
-              <TableHead column="meta">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <SortableTableHeader
+            columns={ACCOUNT_COLUMNS}
+            sort={sort}
+            direction={direction}
+            onSort={toggleSort}
+            leading={
+              <SelectAllTableHead
+                noun="accounts"
+                checked={
+                  allSelected ? true : someSelected ? "indeterminate" : false
+                }
+                onCheckedChange={toggleVisibleSelection}
+              />
+            }
+            trailing={<TableHead column="meta">Actions</TableHead>}
+          />
         }
         isEmpty={!loading && accounts.length === 0}
         emptyText="No accounts match those filters."

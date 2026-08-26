@@ -12,10 +12,23 @@ import {
 export type SortableColumn<Column extends string> = {
   key: Column
   label: string
+  sortable?: true
   /** The `TableHead` column preset — "main", "meta", "preview", "select". */
   column?: React.ComponentProps<typeof TableHead>["column"]
   className?: string
 }
+
+export type StaticTableColumn = {
+  key: string
+  label: React.ReactNode
+  sortable: false
+  column?: React.ComponentProps<typeof TableHead>["column"]
+  className?: string
+}
+
+export type TableHeaderColumn<Column extends string> =
+  | SortableColumn<Column>
+  | StaticTableColumn
 
 /**
  * The header row every sortable dashboard table used to write by hand: one
@@ -31,7 +44,7 @@ export function SortableTableHeader<Column extends string>({
   leading,
   trailing,
 }: {
-  columns: SortableColumn<Column>[]
+  columns: TableHeaderColumn<Column>[]
   sort: Column
   direction: TableSortDirection
   onSort: (column: Column) => void
@@ -42,29 +55,43 @@ export function SortableTableHeader<Column extends string>({
     <TableHeader>
       <TableRow>
         {leading}
-        {columns.map((column) => (
-          <TableHead
-            key={column.key}
-            column={column.column}
-            className={column.className}
-            aria-sort={
-              sort === column.key
-                ? direction === "asc"
-                  ? "ascending"
-                  : "descending"
-                : "none"
-            }
-          >
-            <TableSortButton
-              aria-label={column.label}
-              active={sort === column.key}
-              direction={direction}
-              onClick={() => onSort(column.key)}
+        {columns.map((column) => {
+          if (column.sortable === false) {
+            return (
+              <TableHead
+                key={column.key}
+                column={column.column}
+                className={column.className}
+              >
+                {column.label}
+              </TableHead>
+            )
+          }
+
+          return (
+            <TableHead
+              key={column.key}
+              column={column.column}
+              className={column.className}
+              aria-sort={
+                sort === column.key
+                  ? direction === "asc"
+                    ? "ascending"
+                    : "descending"
+                  : "none"
+              }
             >
-              {column.label}
-            </TableSortButton>
-          </TableHead>
-        ))}
+              <TableSortButton
+                aria-label={column.label}
+                active={sort === column.key}
+                direction={direction}
+                onClick={() => onSort(column.key)}
+              >
+                {column.label}
+              </TableSortButton>
+            </TableHead>
+          )
+        })}
         {trailing}
       </TableRow>
     </TableHeader>
