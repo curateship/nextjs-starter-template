@@ -107,7 +107,7 @@ describe("the protocol fence", () => {
     // fence; shared code only carries ids around. Every id the app knows is
     // in the pattern — a new exchange joins it the day its id exists.
     const comparison =
-      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster)["'`]\s*[=!]==?/
+      /[=!]==?\s*["'`](hyperliquid|binance|phemex|kucoin|aster|lighter)["'`]|["'`](hyperliquid|binance|phemex|kucoin|aster|lighter)["'`]\s*[=!]==?/
     const offenders = sources
       .filter(({ path }) => !PROTOCOL_AWARE.some((dir) => path.startsWith(dir)))
       .filter(({ text }) => comparison.test(text))

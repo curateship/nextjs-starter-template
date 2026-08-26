@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { type CustomShellDb } from "@/server/db"
 import { encryptSecret } from "@/server/auth/encryption"
 import { readSmartPlan } from "@/lib/trade/smart-plan"
+import { snapToTick } from "@/lib/protocols/tick"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelLiveOrder,
@@ -31,6 +32,7 @@ const setBrackets = vi.fn()
 const portfolio = vi.fn()
 let marketFloor: number | null = null
 let marketMinSize: number | null = null
+let marketTick: number | null = null
 // Only `getProtocol` is replaced. The rest of the module comes through as
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
@@ -46,7 +48,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
           {
             marketId: "BTC",
             sizeDecimals: 3,
-            priceTick: null,
+            priceTick: marketTick,
             minOrderValueUsd: marketFloor,
             minOrderSize: marketMinSize,
             maxLeverage: 50,
@@ -54,6 +56,8 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
           },
         ],
       }),
+      roundPx: (px: number, _sizeDecimals: number | null, tick: number | null) =>
+        snapToTick(px, tick),
     },
     orders: { place, cancel, close, setBrackets, portfolio },
   }),
@@ -77,6 +81,10 @@ beforeEach(async () => {
   prices.mockResolvedValue(new Map([["BTC", 100_000]]))
   marketFloor = null
   marketMinSize = null
+  marketTick = null
+  const { clearMarketRulesCache } =
+    await import("@/server/trade/market-rules")
+  clearMarketRulesCache()
   portfolio.mockResolvedValue({ positions: [], orders: [] })
   setBrackets.mockResolvedValue({ slOrderId: null })
   place.mockResolvedValue({
@@ -421,6 +429,48 @@ describe("cancelling", () => {
 })
 
 describe("protecting a position", () => {
+  it("rounds targets and stops to the market's price tick before sending them", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    marketTick = 0.00001
+    const { clearMarketRulesCache } =
+      await import("@/server/trade/market-rules")
+    clearMarketRulesCache()
+    prices.mockResolvedValue(new Map([["BTC", 0.02]]))
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          entryPx: 0.018,
+          leverage: 5,
+          marginUsed: 0.018,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: ["old-protection"],
+        },
+      ],
+      orders: [],
+    })
+
+    await setLiveBrackets(userId, {
+      walletId,
+      marketKey: MARKET,
+      targets: [{ px: 0.04111155774292908, sz: null }],
+      slPx: 0.019131285692003695,
+    })
+
+    expect(setBrackets.mock.calls[0][2]).toMatchObject({
+      targets: [{ px: 0.04111, sz: null }],
+      slPx: 0.01913,
+    })
+  })
+
   it("passes a part-sized target through, and refuses one bigger than the position", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)

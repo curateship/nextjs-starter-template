@@ -18,7 +18,7 @@
  * new module behind it, never a stray name invented at a call site.
  */
 export type ProtocolId =
-  "hyperliquid" | "binance" | "phemex" | "kucoin" | "aster"
+  "hyperliquid" | "binance" | "phemex" | "kucoin" | "aster" | "lighter"
 
 /** The two kinds of network an exchange runs: real money, or practice. */
 export type NetworkId = "mainnet" | "testnet"
@@ -126,6 +126,7 @@ export const KNOWN_PROTOCOLS = [
   "phemex",
   "kucoin",
   "aster",
+  "lighter",
 ] as const satisfies readonly ProtocolId[]
 
 /**
@@ -140,6 +141,7 @@ const PROTOCOL_LABELS: Record<ProtocolId, string> = {
   // Capital C, which is why this is a lookup and not a capitalised id.
   kucoin: "KuCoin",
   aster: "Aster",
+  lighter: "Lighter",
 }
 
 export function protocolLabel(id: ProtocolId): string {
@@ -191,6 +193,7 @@ const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   phemex: "/admin/phemex",
   kucoin: "/admin/kucoin",
   aster: "/admin/aster",
+  lighter: "/admin/lighter",
 }
 
 /** The chart address for a market whose protocol has a trading dashboard. */

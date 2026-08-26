@@ -41,7 +41,7 @@ Two files outrank the rest, and outrank the code:
 - `watched-orders.md` — how a plain order works now, and what dragging does.
 - `position-protection.md` — the stop and target riding on an open position: how
   a position ends up carrying spares, why replacing one takes every leg off, and
-  how the chart keeps two labels at one price apart.
+  how replacement prices stay on the market's legal steps.
 - `take-profit-levels.md` — how one position banks profit at up to three fixed
   prices, and how the app replaces, reads and fills those targets safely.
 - `part-close.md` — selling some of a position instead of all of it: why a part
@@ -71,6 +71,10 @@ Two files outrank the rest, and outrank the code:
   this app stays under it.
 - `aster.md` explains Aster's public markets, charts, funding, networks,
   measured catalogue size and the figures its public API does not state.
+- `lighter.md` — Lighter's markets, charts and hourly funding: why 18 listed
+  markets are left out, how far its three prices ran from the other four
+  venues, what a minute of reading costs against its sixty-a-minute cap, and
+  why it is mainnet only.
 - `backtest-market-selection.md` — how the Markets step picks the exchange and
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved

@@ -827,6 +827,16 @@ export async function setLiveBrackets(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
+    // Chart prices can carry more decimal places than the exchange accepts.
+    // Normalize them from server-read rules before checking or sending them.
+    const rules = await marketRules(row.protocol, row.network, ref.marketId)
+    if (!rules) throw new Error("LIVE_MARKET")
+    const roundPx = (px: number) =>
+      protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
+    const targets = input.targets
+      .map((target) => ({ ...target, px: roundPx(target.px) }))
+      .sort((left, right) => left.px - right.px)
+    const slPx = input.slPx === null ? null : roundPx(input.slPx)
     const portfolio = await ordersOf(protocol).portfolio(
       row.network,
       row.address ?? "",
@@ -839,10 +849,11 @@ export async function setLiveBrackets(
     side = held.szi > 0 ? "buy" : "sell"
 
     const long = held.szi > 0
-    const targets = [...input.targets].sort((left, right) => left.px - right.px)
     if (targets.length > 3) throw new Error("LIVE_TAKE_PROFIT_COUNT")
     for (const target of targets) {
-      const winning = long ? target.px > held.entryPx : target.px < held.entryPx
+      const winning =
+        target.px > 0 &&
+        (long ? target.px > held.entryPx : target.px < held.entryPx)
       if (!winning) throw new Error("LIVE_TAKE_PROFIT_SIDE")
     }
     if (targets.length > 1 && targets.some((target) => target.sz === null)) {
@@ -875,23 +886,23 @@ export async function setLiveBrackets(
     // the ladder beneath it has simply not bought yet — and collapsing its
     // stop to the growing kind then would quietly stretch it over every
     // rung the ladder buys later. An owned stop keeps its exact size.
-    let slSz = input.slPx === null ? null : (input.slSz ?? null)
+    let slSz = slPx === null ? null : (input.slSz ?? null)
     if (slSz !== null) {
       if (!(slSz > 0)) throw new Error("LIVE_STOP_SIZE")
       if (slSz > heldSz * (1 + 1e-6)) {
         throw new Error(
-          `LIVE_STOP_TOTAL:${slSz * (input.slPx ?? 0)}:${heldSz * held.entryPx}`
+          `LIVE_STOP_TOTAL:${slSz * (slPx ?? 0)}:${heldSz * held.entryPx}`
         )
       }
       if (slSz >= heldSz * (1 - 1e-6) && input.replaceOrderIds === undefined) {
         slSz = null
       }
     }
-    if (input.slPx !== null) {
+    if (slPx !== null) {
       const prices = await protocol.markets.prices(row.network, [ref.marketId])
       const mark = prices.get(ref.marketId)
       if (mark === undefined) throw new Error("LIVE_NO_PRICE")
-      const ahead = long ? input.slPx < mark : input.slPx > mark
+      const ahead = slPx > 0 && (long ? slPx < mark : slPx > mark)
       if (!ahead) throw new Error("LIVE_STOP_SIDE")
     }
 
@@ -921,14 +932,14 @@ export async function setLiveBrackets(
         marketId: ref.marketId,
         position: { ...held, protectionOrderIds: replacing },
         targets,
-        slPx: input.slPx,
+        slPx,
         slSz,
       }
     )
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,
-      note: describeBrackets(targets, input.slPx, slSz),
+      note: describeBrackets(targets, slPx, slSz),
     })
     return { slOrderId: placed.slOrderId }
   } catch (error) {
