@@ -24,6 +24,11 @@ When you move a stop or a target, the app cancels what is there before placing
 the new one. It cancels **every** reduce-only leg the exchange is holding on
 that market, not the two it happens to show you.
 
+Before the replacement is sent, every new stop and target is rounded to the
+market's legal price step. A chart can produce a price with many decimal
+places, but that raw number never reaches the exchange. The rounded price is
+also the one checked against the position and written to the Journal.
+
 One exception, and it is tracked by order id rather than guessed: on a coin
 running a grid above a DCA ladder, the grid holds its own fixed-size stop, and
 its order id is written on the grid's record. An ordinary replace spares
