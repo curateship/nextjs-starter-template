@@ -365,7 +365,12 @@ async function placeLiveDcaLadderOnce(
         and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
       )
       .for("update")
-    await assertFlowRunAcceptingPlacements(tx, userId, input.flowRunId)
+    await assertFlowRunAcceptingPlacements(
+      tx,
+      userId,
+      input.flowRunId,
+      input.marketKey
+    )
     // Under the lock, with the rungs drawn — the full pairing rules run here.
     await assertSmartOrderPlacable(
       userId,
@@ -551,6 +556,35 @@ export async function cancelLiveFlowLadderRest(
   })
 }
 
+/** Calls off a removed coin's waiting rungs and keeps anything already bought. */
+export async function cancelLiveFlowLadderRemainder(
+  userId: string,
+  wallet: TradeWallet,
+  input: { ladderId: string }
+): Promise<{ complete: boolean; done: boolean }> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    if (!wallet.address || !wallet.hasKey) throw new Error("LIVE_WALLET_KEY")
+    const portfolio = await ordersOf(getProtocol(wallet.protocol)).portfolio(
+      wallet.network,
+      wallet.address,
+      await walletCredential(userId, wallet.id)
+    )
+    await cancelLiveLadderRestOnce(userId, wallet, input, portfolio)
+    const [row] = await db
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(
+        and(
+          eq(tradeSmartLadders.userId, userId),
+          eq(tradeSmartLadders.walletId, wallet.id),
+          eq(tradeSmartLadders.id, input.ladderId)
+        )
+      )
+      .limit(1)
+    return { complete: true, done: row?.status === "done" }
+  })
+}
+
 /** Calls off one flow-owned signal buy without advancing unrelated smart orders. */
 export async function cancelLiveSignalRest(
   userId: string,
@@ -656,6 +690,7 @@ async function cancelLiveLadderRestOnce(
       )
     )
   )
+  const hasFill = ladder.plan.rungs.some((rung) => rung.status === "filled")
 
   // Older broken stops cleared ids from the plan without cancelling the real
   // orders. The permanent order record still says which ladder sent them, and
@@ -663,6 +698,7 @@ async function cancelLiveLadderRestOnce(
   // to cancel: matching by coin or price could take somebody's hand order too.
   for (const order of portfolio?.orders ?? []) {
     if (!recordedIds.has(order.orderId) || planIds.has(order.orderId)) continue
+    if (hasFill && (order.side !== "buy" || order.reduceOnly)) continue
     await cancelLiveOrder(userId, {
       walletId: wallet.id,
       marketKey: ladder.marketKey,
@@ -671,22 +707,28 @@ async function cancelLiveLadderRestOnce(
   }
 
   let cancelled = 0
-  for (const rung of ladder.plan.rungs) {
-    if (rung.status !== "waiting") continue
-    if (rung.orderId) {
-      await cancelLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: ladder.marketKey,
-        orderId: rung.orderId,
-      })
+  try {
+    for (const rung of ladder.plan.rungs) {
+      if (rung.status !== "waiting") continue
+      if (rung.orderId) {
+        await cancelLiveOrder(userId, {
+          walletId: wallet.id,
+          marketKey: ladder.marketKey,
+          orderId: rung.orderId,
+        })
+      }
+      rung.status = "cancelled"
+      rung.orderId = null
+      cancelled += 1
     }
-    rung.status = "cancelled"
-    rung.orderId = null
-    cancelled += 1
+  } catch (error) {
+    // Keep every successful cancel. The next pass retries only the rungs that
+    // still say waiting instead of asking the exchange to cancel the same
+    // order again and getting stuck on an already-gone id.
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    throw error
   }
-  const status = ladder.plan.rungs.some((rung) => rung.status === "filled")
-    ? "active"
-    : "done"
+  const status = hasFill ? "active" : "done"
   await saveLadderPlan(userId, ladder.id, ladder.plan, status)
   return { cancelled }
 }
@@ -1818,7 +1860,12 @@ async function reconcileLiveLaddersOnce(
           }
         },
       },
-      { id: raw.id, marketKey: raw.marketKey, plan: entry.plan, paired } as never
+      {
+        id: raw.id,
+        marketKey: raw.marketKey,
+        plan: entry.plan,
+        paired,
+      } as never
     )
   }
 
@@ -1846,10 +1893,7 @@ async function reconcileLiveLaddersOnce(
       const positionSz = position && position.szi > 0 ? position.szi : 0
       const wantedSz =
         pairedNow && plan.closedReason === null && wantedPx !== null
-          ? floorSize(
-              Math.min(gridHeldSz(plan), positionSz),
-              plan.sizeDecimals
-            )
+          ? floorSize(Math.min(gridHeldSz(plan), positionSz), plan.sizeDecimals)
           : 0
       const have = plan.pairedStop
       const closeEnough = (a: number, b: number) =>

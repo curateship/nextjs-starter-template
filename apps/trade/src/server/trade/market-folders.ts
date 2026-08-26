@@ -15,9 +15,12 @@ import {
 import { db, type CustomShellDb } from "@/server/db"
 import { saveMarketPanelRows } from "@/server/trade/prefs"
 import {
+  tradeFlowRuns,
   tradeMarketFolderItems,
   tradeMarketFolders,
+  tradeWallets,
 } from "@/server/trade/schema"
+import { requestFlowScan } from "@/server/trade/workers"
 
 // Raised from 100 on 23 Aug 2026: Tyler keeps whole-category folders — every
 // stock, every liquid coin — and Hyperliquid alone lists more than 100 of
@@ -158,6 +161,100 @@ async function ownedFolder(
   return folder
 }
 
+/** Keep running copies of this folder on the same coin list. */
+async function syncRunningFlowsToFolder(
+  userId: string,
+  input: { folderId: string; marketKey: string; saved: boolean },
+  now: Date,
+  database: CustomShellDb
+): Promise<void> {
+  const runs = await database
+    .select({
+      id: tradeFlowRuns.id,
+      walletId: tradeFlowRuns.walletId,
+      spec: tradeFlowRuns.spec,
+    })
+    .from(tradeFlowRuns)
+    .where(
+      and(eq(tradeFlowRuns.userId, userId), eq(tradeFlowRuns.status, "running"))
+    )
+  const matching = runs
+    .filter((run) => run.spec.folderId === input.folderId)
+    .sort((a, b) => a.walletId.localeCompare(b.walletId))
+  let scanNow = false
+
+  for (const match of matching) {
+    // Placement takes the same wallet lock before its final run check. A
+    // placement already inside finishes first and joins the cleanup below; a
+    // later placement sees the changed list and writes nothing.
+    await database
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, userId),
+          eq(tradeWallets.id, match.walletId)
+        )
+      )
+      .for("update")
+
+    const [run] = await database
+      .select({
+        id: tradeFlowRuns.id,
+        spec: tradeFlowRuns.spec,
+        waiting: tradeFlowRuns.waiting,
+        marketCancels: tradeFlowRuns.marketCancels,
+        pausedAt: tradeFlowRuns.pausedAt,
+      })
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, userId),
+          eq(tradeFlowRuns.id, match.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+      .limit(1)
+    if (!run || run.spec.folderId !== input.folderId) continue
+
+    const hadMarket = run.spec.marketKeys.includes(input.marketKey)
+    const marketKeys = input.saved
+      ? hadMarket
+        ? run.spec.marketKeys
+        : [input.marketKey, ...run.spec.marketKeys]
+      : run.spec.marketKeys.filter((key) => key !== input.marketKey)
+    const marketCancels = { ...run.marketCancels }
+    const waiting = { ...run.waiting }
+    delete waiting[input.marketKey]
+    if (input.saved) delete marketCancels[input.marketKey]
+    else if (hadMarket) marketCancels[input.marketKey] = randomUUID()
+
+    const listChanged = hadMarket !== input.saved
+    const cancelChanged =
+      run.marketCancels[input.marketKey] !== marketCancels[input.marketKey]
+    if (!listChanged && !cancelChanged) continue
+
+    await database
+      .update(tradeFlowRuns)
+      .set({
+        spec: { ...run.spec, marketKeys },
+        waiting,
+        marketCancels,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+    if (input.saved && listChanged && run.pausedAt === null) scanNow = true
+  }
+
+  if (scanNow) await requestFlowScan(database)
+}
+
 /** Add or remove one market after checking both the owner and exchange. */
 export async function setMarketInFolder(
   userId: string,
@@ -175,6 +272,7 @@ export async function setMarketInFolder(
   }
 
   await database.transaction(async (tx) => {
+    const now = new Date()
     const [locked] = await tx
       .select({ id: tradeMarketFolders.id })
       .from(tradeMarketFolders)
@@ -187,6 +285,7 @@ export async function setMarketInFolder(
       .for("update")
     if (!locked) throw new Error("That market folder no longer exists.")
 
+    let changed = false
     if (input.saved) {
       const [total] = await tx
         .select({ value: count() })
@@ -207,12 +306,14 @@ export async function setMarketInFolder(
           `A market folder can hold at most ${MAX_FOLDER_MARKETS} coins.`
         )
       }
-      await tx
+      const inserted = await tx
         .insert(tradeMarketFolderItems)
         .values({ folderId: folder.id, marketKey: input.marketKey })
         .onConflictDoNothing()
+        .returning({ marketKey: tradeMarketFolderItems.marketKey })
+      changed = inserted.length > 0
     } else {
-      await tx
+      const deleted = await tx
         .delete(tradeMarketFolderItems)
         .where(
           and(
@@ -220,11 +321,16 @@ export async function setMarketInFolder(
             eq(tradeMarketFolderItems.marketKey, input.marketKey)
           )
         )
+        .returning({ marketKey: tradeMarketFolderItems.marketKey })
+      changed = deleted.length > 0
     }
     await tx
       .update(tradeMarketFolders)
-      .set({ updatedAt: new Date() })
+      .set({ updatedAt: now })
       .where(eq(tradeMarketFolders.id, folder.id))
+    if (changed) {
+      await syncRunningFlowsToFolder(userId, input, now, tx)
+    }
   })
   return loadMarketFolders(userId, folder.protocol, folder.network, database)
 }

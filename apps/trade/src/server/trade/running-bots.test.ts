@@ -22,6 +22,7 @@ function spec(
   return {
     protocol,
     network: "mainnet",
+    folderId: null,
     marketKeys: markets,
     strategy: { kind: "dca", params: defaultDcaParams(), interval: "4h" },
     capUsd: 500,

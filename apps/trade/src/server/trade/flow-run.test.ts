@@ -22,11 +22,14 @@ import {
   tradeFlowRuns,
   tradeSmartLadders,
   tradeWallets,
+  tradeWorkerControls,
 } from "@/server/trade/schema"
 import {
   createMarketFolder,
   deleteMarketFolder,
+  setMarketInFolder,
 } from "@/server/trade/market-folders"
+import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders"
 
 /**
  * Switching a flow on and off.
@@ -53,6 +56,18 @@ const liveCancel = vi.hoisted(() =>
 const liveSignalCancel = vi.hoisted(() =>
   vi.fn(async () => ({ complete: true, done: true }))
 )
+const liveRemainderCancel = vi.hoisted(() =>
+  vi.fn(async () => ({ complete: true, done: true }))
+)
+const paperRemainderCancel = vi.hoisted(() =>
+  vi.fn(async () => ({ complete: true, done: true }))
+)
+const paperPlace = vi.hoisted(() =>
+  vi.fn(
+    async (_userId: string, _wallet: unknown, _input: { marketKey: string }) =>
+      undefined
+  )
+)
 
 vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
@@ -74,11 +89,24 @@ vi.mock("@/server/protocols/real-money", () => ({
 vi.mock("@/server/trade/live-smart-orders", () => ({
   placeLiveDcaLadder: async () => {},
   cancelLiveFlowLadderRest: liveCancel,
+  cancelLiveFlowLadderRemainder: liveRemainderCancel,
   cancelLiveSignalRest: liveSignalCancel,
 }))
 
-const { advanceStoppingFlows, flowRunSpec, startFlowRun, stopFlowRun } =
-  await import("@/server/trade/flow-run")
+vi.mock("@/server/trade/smart-orders", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  placeDcaLadder: paperPlace,
+  cancelFlowLadderRemainder: paperRemainderCancel,
+}))
+
+const {
+  advanceRemovedFlowLadders,
+  advanceRunningFlows,
+  advanceStoppingFlows,
+  flowRunSpec,
+  startFlowRun,
+  stopFlowRun,
+} = await import("@/server/trade/flow-run")
 type FlowNodes = Parameters<typeof flowRunSpec>[1]
 
 function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
@@ -140,6 +168,12 @@ beforeEach(async () => {
   liveCancel.mockResolvedValue({ complete: true, done: true })
   liveSignalCancel.mockReset()
   liveSignalCancel.mockResolvedValue({ complete: true, done: true })
+  liveRemainderCancel.mockReset()
+  liveRemainderCancel.mockResolvedValue({ complete: true, done: true })
+  paperRemainderCancel.mockReset()
+  paperRemainderCancel.mockResolvedValue({ complete: true, done: true })
+  paperPlace.mockReset()
+  paperPlace.mockResolvedValue(undefined)
 
   // Two real flows to hang the runs off. The table points at `automations` so
   // that deleting a flow stops it looking for coins, which means a test needs
@@ -382,6 +416,7 @@ describe("what a flow is allowed to start with", () => {
       })
     )
 
+    expect(spec.folderId).toBe(daily.id)
     expect(spec.marketKeys).toEqual(["hyperliquid:mainnet:ETH"])
   })
 
@@ -474,6 +509,462 @@ describe("switching one on", () => {
 
     const rows = await db.select().from(tradeFlowRuns)
     expect(rows).toHaveLength(0)
+  })
+})
+
+describe("changing a folder while its flow is running", () => {
+  it("adds the new coin to the right run and looks at it first", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const withOther = await createMarketFolder(
+      userId,
+      { protocol: "hyperliquid", network: "mainnet", name: "Other" },
+      db
+    )
+    const other = withOther.find((folder) => folder.name === "Other")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db
+      .update(tradeFlowRuns)
+      .set({
+        waiting: {
+          "hyperliquid:mainnet:BTC": { code: "FLOW_NO_BASE", at: NOW },
+        },
+      })
+      .where(eq(tradeFlowRuns.id, started.id))
+
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: other.id,
+        marketKey: "hyperliquid:mainnet:SOL",
+        saved: true,
+      },
+      db
+    )
+    expect((await db.select().from(tradeFlowRuns))[0].spec.marketKeys).toEqual([
+      "hyperliquid:mainnet:BTC",
+    ])
+
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:ETH",
+        saved: true,
+      },
+      db
+    )
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:ETH",
+        saved: true,
+      },
+      db
+    )
+    const [run] = await db.select().from(tradeFlowRuns)
+    expect(run.spec.marketKeys).toEqual([
+      "hyperliquid:mainnet:ETH",
+      "hyperliquid:mainnet:BTC",
+    ])
+    const [control] = await db.select().from(tradeWorkerControls)
+    expect(control.flowScanRequestedAt).not.toBeNull()
+
+    await advanceRunningFlows(NOW + 1, db)
+    expect(paperPlace).toHaveBeenCalled()
+    expect(paperPlace.mock.calls[0]?.[2]).toMatchObject({
+      marketKey: "hyperliquid:mainnet:ETH",
+    })
+  })
+
+  it("adds to a paused run without asking for an immediate hunt", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db
+      .update(tradeFlowRuns)
+      .set({ pausedAt: new Date(NOW + 1) })
+      .where(eq(tradeFlowRuns.id, started.id))
+
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:ETH",
+        saved: true,
+      },
+      db
+    )
+
+    expect(
+      (await db.select().from(tradeFlowRuns))[0].spec.marketKeys
+    ).toContain("hyperliquid:mainnet:ETH")
+    const [control] = await db.select().from(tradeWorkerControls)
+    expect(control.flowScanRequestedAt).toBeNull()
+  })
+
+  it("removes a coin before cleanup and cancels only that run's live ladder", async () => {
+    walletRow = wallet({ kind: "live", address: "0x1", hasKey: true })
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values([
+      {
+        userId,
+        walletId: "w1",
+        id: "flow-ladder",
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "dca",
+        status: "active",
+        flowRunId: started.id,
+        plan: { rungs: [{ status: "filled" }, { status: "waiting" }] } as never,
+      },
+      {
+        userId,
+        walletId: "w1",
+        id: "hand-ladder",
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "dca",
+        status: "active",
+        flowRunId: null,
+        plan: { rungs: [{ status: "waiting" }] } as never,
+      },
+      {
+        userId,
+        walletId: "w1",
+        id: "flow-signal",
+        marketKey: "hyperliquid:mainnet:BTC",
+        kind: "signal",
+        status: "active",
+        flowRunId: started.id,
+        plan: { phase: "buying" } as never,
+      },
+    ])
+
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:BTC",
+        saved: false,
+      },
+      db
+    )
+    const [removed] = await db.select().from(tradeFlowRuns)
+    expect(removed.spec.marketKeys).toEqual([])
+    const removalToken = removed.marketCancels["hyperliquid:mainnet:BTC"]
+    expect(removalToken).toBeTruthy()
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:BTC",
+        saved: false,
+      },
+      db
+    )
+    expect(
+      (await db.select().from(tradeFlowRuns))[0].marketCancels[
+        "hyperliquid:mainnet:BTC"
+      ]
+    ).toBe(removalToken)
+    await expect(
+      assertFlowRunAcceptingPlacements(
+        db,
+        userId,
+        started.id,
+        "hyperliquid:mainnet:BTC"
+      )
+    ).rejects.toThrow("FLOW_NOT_ACCEPTING_PLACEMENTS")
+
+    await advanceRemovedFlowLadders(NOW + 1, db)
+
+    expect(liveRemainderCancel).toHaveBeenCalledOnce()
+    expect(liveRemainderCancel).toHaveBeenCalledWith(userId, walletRow, {
+      ladderId: "flow-ladder",
+    })
+    expect(liveSignalCancel).toHaveBeenCalledWith(userId, walletRow, {
+      signalId: "flow-signal",
+      now: NOW + 1,
+    })
+    expect(paperRemainderCancel).not.toHaveBeenCalled()
+    expect((await db.select().from(tradeFlowRuns))[0].marketCancels).toEqual({})
+  })
+
+  it("cleans a paused practice run through the practice path", async () => {
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db
+      .update(tradeFlowRuns)
+      .set({ pausedAt: new Date(NOW + 1) })
+      .where(eq(tradeFlowRuns.id, started.id))
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "practice-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:BTC",
+        saved: false,
+      },
+      db
+    )
+
+    await advanceRemovedFlowLadders(NOW + 2, db)
+
+    expect(paperRemainderCancel).toHaveBeenCalledWith(userId, walletRow, {
+      ladderId: "practice-ladder",
+    })
+  })
+
+  it("keeps a failed live cancellation queued and sends one notice", async () => {
+    walletRow = wallet({ kind: "live", address: "0x1", hasKey: true })
+    liveRemainderCancel.mockRejectedValueOnce(new Error("exchange busy"))
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "stuck-ladder",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "dca",
+      status: "active",
+      flowRunId: started.id,
+      plan: { rungs: [{ status: "waiting" }] } as never,
+    })
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:BTC",
+        saved: false,
+      },
+      db
+    )
+
+    await advanceRemovedFlowLadders(NOW + 1, db)
+    let [run] = await db.select().from(tradeFlowRuns)
+    expect(run.marketCancels["hyperliquid:mainnet:BTC"]).toBeTruthy()
+    expect(run.waiting["hyperliquid:mainnet:BTC"]?.code).toBe(
+      "FLOW_CANCEL_FAILED"
+    )
+    expect(await db.select().from(customShellAnnouncements)).toHaveLength(1)
+
+    await advanceRemovedFlowLadders(NOW + 2, db)
+    ;[run] = await db.select().from(tradeFlowRuns)
+    expect(run.marketCancels).toEqual({})
+    expect(run.waiting["hyperliquid:mainnet:BTC"]).toBeUndefined()
+    expect(await db.select().from(customShellAnnouncements)).toHaveLength(1)
+  })
+
+  it("keeps an unconfirmed live cancellation queued without warning", async () => {
+    walletRow = wallet({ kind: "live", address: "0x1", hasKey: true })
+    liveSignalCancel
+      .mockResolvedValueOnce({ complete: false, done: false })
+      .mockResolvedValueOnce({ complete: true, done: true })
+    const folders = await createMarketFolder(
+      userId,
+      {
+        protocol: "hyperliquid",
+        network: "mainnet",
+        name: "Daily",
+        marketKey: "hyperliquid:mainnet:BTC",
+      },
+      db
+    )
+    const daily = folders.find((folder) => folder.name === "Daily")!
+    const started = await startFlowRun(
+      userId,
+      {
+        automationId: "flow-1",
+        nodes: nodes({
+          wallet: {
+            walletKind: "live",
+            walletAddress: "0x1",
+            walletHasKey: true,
+          },
+          markets: {
+            folderId: daily.id,
+            folderName: daily.name,
+            folderCount: 1,
+            marketKeys: [],
+          },
+        }),
+        now: NOW,
+      },
+      db
+    )
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "unconfirmed-signal",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "signal",
+      status: "active",
+      flowRunId: started.id,
+      plan: { phase: "buying" } as never,
+    })
+    await setMarketInFolder(
+      userId,
+      {
+        folderId: daily.id,
+        marketKey: "hyperliquid:mainnet:BTC",
+        saved: false,
+      },
+      db
+    )
+
+    await advanceRemovedFlowLadders(NOW + 1, db)
+    let [run] = await db.select().from(tradeFlowRuns)
+    expect(run.marketCancels["hyperliquid:mainnet:BTC"]).toBeTruthy()
+    expect(run.waiting["hyperliquid:mainnet:BTC"]).toBeUndefined()
+    expect(await db.select().from(customShellAnnouncements)).toHaveLength(0)
+
+    await advanceRemovedFlowLadders(NOW + 2, db)
+    ;[run] = await db.select().from(tradeFlowRuns)
+    expect(run.marketCancels).toEqual({})
+    expect(await db.select().from(customShellAnnouncements)).toHaveLength(0)
   })
 })
 

@@ -22,10 +22,12 @@ const control = vi.hoisted(() => ({
     enabled: boolean
     paused: boolean
     restartRequestedAt?: Date | null
+    flowScanRequestedAt?: Date | null
   },
   cleared: 0,
+  scanCleared: 0,
 }))
-const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0 }))
+const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0, removals: 0 }))
 
 vi.mock("@/server/db", () => ({
   db: {
@@ -52,9 +54,17 @@ vi.mock("@/server/trade/wallets", () => ({
 }))
 
 vi.mock("@/server/trade/workers", () => ({
-  workerControl: async () => ({ restartRequestedAt: null, ...control.value }),
+  workerControl: async () => ({
+    restartRequestedAt: null,
+    flowScanRequestedAt: null,
+    ...control.value,
+  }),
   clearWorkerRestart: async () => {
     control.cleared += 1
+  },
+  clearFlowScanRequest: async () => {
+    control.scanCleared += 1
+    control.value.flowScanRequestedAt = null
   },
 }))
 
@@ -95,6 +105,9 @@ vi.mock("@/server/trade/flow-run", () => ({
   advanceStoppingFlows: async () => {
     flowWork.stops += 1
   },
+  advanceRemovedFlowLadders: async () => {
+    flowWork.removals += 1
+  },
 }))
 
 const { advanceWorkingLadders, lastPass, resetLadderPassState } =
@@ -109,6 +122,8 @@ describe("the server's ladder job", () => {
     settled.fail = new Set()
     flowWork.scans = 0
     flowWork.stops = 0
+    flowWork.removals = 0
+    control.scanCleared = 0
     control.value = { enabled: true, paused: false }
     walletRows.value = [{ userId: "u1", walletId: "w1" }]
   })
@@ -130,7 +145,20 @@ describe("the server's ladder job", () => {
     await advanceWorkingLadders()
 
     expect(flowWork.stops).toBe(2)
+    expect(flowWork.removals).toBe(2)
     expect(flowWork.scans).toBe(1)
+  })
+
+  it("runs the next coin hunt when a folder asks for one", async () => {
+    await advanceWorkingLadders()
+    await advanceWorkingLadders()
+    expect(flowWork.scans).toBe(1)
+
+    control.value.flowScanRequestedAt = new Date()
+    await advanceWorkingLadders()
+
+    expect(flowWork.scans).toBe(2)
+    expect(control.scanCleared).toBe(1)
   })
 
   it("leaves a wallet with nothing running alone", async () => {
@@ -160,6 +188,7 @@ describe("the server's ladder job", () => {
     await advanceWorkingLadders()
     expect(settled.count).toBe(1)
     expect(flowWork.stops).toBe(2)
+    expect(flowWork.removals).toBe(2)
     expect(flowWork.scans).toBe(1)
   })
 
@@ -208,6 +237,7 @@ describe("the server's ladder job", () => {
     await advanceWorkingLadders()
     expect(settled.count).toBe(0)
     expect(flowWork.stops).toBe(1)
+    expect(flowWork.removals).toBe(1)
     expect(flowWork.scans).toBe(0)
   })
 })

@@ -118,6 +118,7 @@ function report(working: boolean): FlowRunReport {
     spec: {
       protocol: "hyperliquid",
       network: "mainnet",
+      folderId: null,
       marketKeys: [MARKET],
       strategy: { kind: "dca", interval: "1m" } as never,
       capUsd: 100,

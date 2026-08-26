@@ -66,7 +66,9 @@ declare global {
  * process. The exit lives there, not here — this file also runs inside the
  * website, which must never exit itself.
  */
-export function onLadderRestartRequest(handler: (reason: string) => void): void {
+export function onLadderRestartRequest(
+  handler: (reason: string) => void
+): void {
   globalThis.__tradeLadderRestart = handler
 }
 
@@ -137,14 +139,18 @@ export function ensureLadderLoop(): void {
           globalThis.__tradeLadderHeldSince = undefined
           globalThis.__tradeLadderSince = 0
           void taken.release().catch(() => {})
-          console.log("Trade ladders: the lock's connection dropped, letting go")
+          console.log(
+            "Trade ladders: the lock's connection dropped, letting go"
+          )
           return
         }
         void advanceWorkingLadders().catch((error) => {
           console.error("Ladder loop failed", error)
         })
       }, PASS_EVERY_MS)
-      console.log("Trade ladders: no worker holding the lock, so the site took it")
+      console.log(
+        "Trade ladders: no worker holding the lock, so the site took it"
+      )
     } catch (error) {
       console.error("Ladder lock check failed", error)
     } finally {
@@ -207,7 +213,8 @@ export async function walletsWithWork(): Promise<
     // A ladder whose wallet has been deleted is not this job's problem; it
     // simply has nothing to be advanced against. Nor is an inactive one: a
     // wallet somebody switched off should stop trading, not carry on.
-    if (wallet && wallet.status === "active") out.push({ userId: row.userId, wallet })
+    if (wallet && wallet.status === "active")
+      out.push({ userId: row.userId, wallet })
   }
   return out
 }
@@ -242,7 +249,7 @@ export const lastPass = {
  */
 const busyWallets = new Set<string>()
 let flowScanning = false
-let stoppingFlows = false
+let cleaningFlows = false
 let flowScanStartedAt = 0
 let lastFlowScanAt = 0
 
@@ -260,7 +267,7 @@ const FLOW_SCAN_STUCK_MS = 2 * 60_000
 export function resetLadderPassState(): void {
   busyWallets.clear()
   flowScanning = false
-  stoppingFlows = false
+  cleaningFlows = false
   flowScanStartedAt = 0
   lastFlowScanAt = 0
 }
@@ -386,9 +393,8 @@ export async function advanceWorkingLadders(): Promise<void> {
     // Both switches are read every pass, so switching one takes effect within
     // a second rather than at the next restart. Off and paused differ in what
     // they mean, not in what they do here — see `workers.ts`.
-    const { workerControl, clearWorkerRestart } = await import(
-      "@/server/trade/workers"
-    )
+    const { workerControl, clearWorkerRestart, clearFlowScanRequest } =
+      await import("@/server/trade/workers")
     const control = await workerControl("ladders")
     if (control.restartRequestedAt) {
       // Between passes on purpose: the `working` guard above means a pass in
@@ -411,18 +417,19 @@ export async function advanceWorkingLadders(): Promise<void> {
     // paused or switched off. Stop only removes waiting orders, so blocking it
     // behind either switch would leave real orders resting after the user had
     // asked to call them off.
-    const { advanceStoppingFlows } = await import("@/server/trade/flow-run")
-    if (!stoppingFlows) {
-      stoppingFlows = true
+    const { advanceRemovedFlowLadders, advanceStoppingFlows } =
+      await import("@/server/trade/flow-run")
+    if (!cleaningFlows) {
+      cleaningFlows = true
       started.push(
-        advanceStoppingFlows()
+        Promise.all([advanceStoppingFlows(), advanceRemovedFlowLadders()])
           .catch((error) => {
-            console.error("Flow stop pass failed", error)
+            console.error("Flow cleanup pass failed", error)
             lastPass.error =
               error instanceof Error ? error.message : String(error)
           })
           .finally(() => {
-            stoppingFlows = false
+            cleaningFlows = false
           })
       )
     }
@@ -441,14 +448,13 @@ export async function advanceWorkingLadders(): Promise<void> {
       { pushedMarks },
       { advanceRunningFlows },
       { checkLiquidationWarnings },
-    ] =
-      await Promise.all([
-        import("@/server/trade/paper"),
-        import("@/server/trade/live-smart-orders"),
-        import("@/server/trade/live-marks"),
-        import("@/server/trade/flow-run"),
-        import("@/server/trade/liquidation-warning"),
-      ])
+    ] = await Promise.all([
+      import("@/server/trade/paper"),
+      import("@/server/trade/live-smart-orders"),
+      import("@/server/trade/live-marks"),
+      import("@/server/trade/flow-run"),
+      import("@/server/trade/liquidation-warning"),
+    ])
 
     // Switched-on flows get their coins looked at first, so a ladder placed
     // this pass is worked by the same pass rather than waiting a second.
@@ -466,15 +472,19 @@ export async function advanceWorkingLadders(): Promise<void> {
     // What this costs: a ladder the flow places is worked by the NEXT pass
     // rather than this one, so it starts watching its rungs a second late. A
     // rung that has bought nothing yet loses nothing by that second.
-    if (
-      flowScanning &&
-      Date.now() - flowScanStartedAt >= FLOW_SCAN_STUCK_MS
-    ) {
+    if (flowScanning && Date.now() - flowScanStartedAt >= FLOW_SCAN_STUCK_MS) {
       lastPass.error = `The coin hunt has been running for ${Math.round(
         (Date.now() - flowScanStartedAt) / 60_000
       )} minutes and has not finished.`
     }
-    if (!flowScanning && Date.now() - lastFlowScanAt >= FLOW_SCAN_EVERY_MS) {
+    if (
+      !flowScanning &&
+      (control.flowScanRequestedAt != null ||
+        Date.now() - lastFlowScanAt >= FLOW_SCAN_EVERY_MS)
+    ) {
+      if (control.flowScanRequestedAt) {
+        await clearFlowScanRequest(control.flowScanRequestedAt)
+      }
       flowScanning = true
       flowScanStartedAt = Date.now()
       lastFlowScanAt = Date.now()

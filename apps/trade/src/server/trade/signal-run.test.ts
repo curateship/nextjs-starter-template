@@ -78,9 +78,8 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   }),
 }))
 
-const { advanceSignalFlow, resetSignalPacing, workingSignals } = await import(
-  "@/server/trade/signal-run"
-)
+const { advanceSignalFlow, resetSignalPacing, workingSignals } =
+  await import("@/server/trade/signal-run")
 
 const runId = "run-1"
 const BTC = "hyperliquid:mainnet:BTC"
@@ -116,6 +115,7 @@ function spec(over: Partial<TradeFlowRunSpec> = {}): TradeFlowRunSpec {
   return {
     protocol: "hyperliquid",
     network: "mainnet",
+    folderId: null,
     marketKeys: [BTC],
     strategy: {
       kind: "signals",
@@ -327,8 +327,7 @@ describe("acting on an arrow", () => {
     const lows = [10, 9, 8, 7, 5, 6]
     const shaped = (lastBarOpen: boolean) =>
       lows.map((low, index) => ({
-        openTime:
-          now - (lows.length - 1 - index + (lastBarOpen ? 0 : 1)) * BAR,
+        openTime: now - (lows.length - 1 - index + (lastBarOpen ? 0 : 1)) * BAR,
         open: low,
         high: low + 100,
         low,
@@ -449,7 +448,7 @@ describe("a sell arrow", () => {
 
     expect(outcome.did).toBe("closing")
     expect(outcome.marketKey).toBe(BTC)
-    expect((( await signalRows())[0].plan as SignalPlan).phase).toBe("selling")
+    expect(((await signalRows())[0].plan as SignalPlan).phase).toBe("selling")
   })
 
   it("does nothing about a coin this flow never bought", async () => {
@@ -477,6 +476,10 @@ describe("a sell arrow", () => {
 
 describe("which coin it looks at", () => {
   it("takes the one it has looked at longest ago", async () => {
+    await database
+      .update(tradeFlowRuns)
+      .set({ spec: spec({ marketKeys: [BTC, ETH] }) })
+      .where(eq(tradeFlowRuns.id, runId))
     const outcome = await advanceSignalFlow(
       {
         userId,

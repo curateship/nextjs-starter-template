@@ -85,7 +85,7 @@ Two files outrank the rest, and outrank the code:
   it skips, how the saved database copy works, and when the full suite still
   runs.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
-  and when flows and backtests read them.
+  how running flows follow them, and why backtests keep their starting list.
 - `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and
   the Journal, and the safety rules its empty and failed rows keep.
 - `hyperliquid.md` — the Hyperliquid refusal phrases seen in the Journal and

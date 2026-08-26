@@ -104,6 +104,7 @@ function spec(patch: Partial<TradeFlowRunSpec> = {}): TradeFlowRunSpec {
   return {
     protocol: "hyperliquid",
     network: "mainnet",
+    folderId: null,
     marketKeys: [BTC, ETH],
     strategy: { kind: "dca", params: defaultDcaParams(), interval: "4h" },
     capUsd: 500,

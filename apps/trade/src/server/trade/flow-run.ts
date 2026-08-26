@@ -35,11 +35,13 @@ import {
 } from "@/server/protocols/real-money"
 import { scrubSecrets } from "@/server/protocols/scrub"
 import {
+  cancelLiveFlowLadderRemainder,
   cancelLiveFlowLadderRest,
   cancelLiveSignalRest,
   placeLiveDcaLadder,
 } from "@/server/trade/live-smart-orders"
 import {
+  cancelFlowLadderRemainder,
   cancelFlowLadderRest,
   cancelSignalRest,
   placeDcaLadder,
@@ -218,6 +220,7 @@ export async function flowRunSpec(
     spec: {
       protocol: wallet.protocol,
       network: wallet.network,
+      folderId: markets.data.folderId,
       marketKeys: [...marketKeys],
       strategy,
       capUsd: named.capUsd,
@@ -706,6 +709,200 @@ export async function advanceStoppingFlows(
   }
 }
 
+async function markRemovedMarketCancelFailed(
+  run: FlowRunRow,
+  marketKey: string,
+  token: string,
+  now: number,
+  database: CustomShellDb
+): Promise<boolean> {
+  return await database.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, run.userId),
+          eq(tradeWallets.id, run.walletId)
+        )
+      )
+      .for("update")
+    const [current] = await tx
+      .select({
+        marketCancels: tradeFlowRuns.marketCancels,
+        waiting: tradeFlowRuns.waiting,
+      })
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, run.userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+      .limit(1)
+    if (!current || current.marketCancels[marketKey] !== token) return false
+    if (current.waiting[marketKey]?.code === "FLOW_CANCEL_FAILED") return false
+    await tx
+      .update(tradeFlowRuns)
+      .set({
+        waiting: {
+          ...current.waiting,
+          [marketKey]: { code: "FLOW_CANCEL_FAILED", at: now },
+        },
+        updatedAt: new Date(now),
+      })
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, run.userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+    return true
+  })
+}
+
+async function finishRemovedMarketCancel(
+  run: FlowRunRow,
+  marketKey: string,
+  token: string,
+  now: number,
+  database: CustomShellDb
+): Promise<void> {
+  await database.transaction(async (tx) => {
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, run.userId),
+          eq(tradeWallets.id, run.walletId)
+        )
+      )
+      .for("update")
+    const [current] = await tx
+      .select({
+        marketCancels: tradeFlowRuns.marketCancels,
+        waiting: tradeFlowRuns.waiting,
+      })
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, run.userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+      .limit(1)
+    if (!current || current.marketCancels[marketKey] !== token) return
+
+    const marketCancels = { ...current.marketCancels }
+    const waiting = { ...current.waiting }
+    delete marketCancels[marketKey]
+    if (waiting[marketKey]?.code === "FLOW_CANCEL_FAILED") {
+      delete waiting[marketKey]
+    }
+    await tx
+      .update(tradeFlowRuns)
+      .set({ marketCancels, waiting, updatedAt: new Date(now) })
+      .where(
+        and(
+          eq(tradeFlowRuns.userId, run.userId),
+          eq(tradeFlowRuns.id, run.id),
+          eq(tradeFlowRuns.status, "running")
+        )
+      )
+  })
+}
+
+/** Calls off every waiting rung owned by a coin removed from a running folder. */
+export async function advanceRemovedFlowLadders(
+  now: number = Date.now(),
+  database: CustomShellDb = db
+): Promise<void> {
+  const runs = await database
+    .select()
+    .from(tradeFlowRuns)
+    .where(eq(tradeFlowRuns.status, "running"))
+
+  for (const run of runs) {
+    for (const [marketKey, token] of Object.entries(run.marketCancels)) {
+      const rows = await database
+        .select({ id: tradeSmartLadders.id, kind: tradeSmartLadders.kind })
+        .from(tradeSmartLadders)
+        .where(
+          and(
+            eq(tradeSmartLadders.userId, run.userId),
+            eq(tradeSmartLadders.flowRunId, run.id),
+            eq(tradeSmartLadders.marketKey, marketKey),
+            inArray(tradeSmartLadders.kind, ["dca", "signal"]),
+            eq(tradeSmartLadders.status, "active")
+          )
+        )
+      const wallet =
+        rows.length > 0 ? await findWallet(run.userId, run.walletId) : null
+      let complete = rows.length === 0
+      let failed = rows.length > 0 && wallet === null
+      if (wallet) {
+        complete = true
+        for (const row of rows) {
+          try {
+            const outcome =
+              row.kind === "signal"
+                ? wallet.kind === "live"
+                  ? await cancelLiveSignalRest(run.userId, wallet, {
+                      signalId: row.id,
+                      now,
+                    })
+                  : await cancelSignalRest(run.userId, wallet, {
+                      signalId: row.id,
+                    })
+                : wallet.kind === "live"
+                  ? await cancelLiveFlowLadderRemainder(run.userId, wallet, {
+                      ladderId: row.id,
+                    })
+                  : await cancelFlowLadderRemainder(run.userId, wallet, {
+                      ladderId: row.id,
+                    })
+            if (!outcome.complete) complete = false
+          } catch {
+            complete = false
+            failed = true
+          }
+        }
+      }
+
+      if (complete) {
+        await finishRemovedMarketCancel(run, marketKey, token, now, database)
+        continue
+      }
+
+      if (!failed) continue
+
+      const newlyFailed = await markRemovedMarketCancelFailed(
+        run,
+        marketKey,
+        token,
+        now,
+        database
+      )
+      if (!newlyFailed) continue
+      const name = parseMarketKey(marketKey)?.marketId ?? marketKey
+      await tellFlowOwner(
+        run.userId,
+        {
+          title: `Flow ${await flowName(run.automationId, database)} could not call off every ladder`,
+          body: `Removing ${name} from its folder could not call off every remaining ladder. It will keep trying. Check those open orders before trading again.`,
+          level: "critical",
+        },
+        database,
+        run.id
+      )
+    }
+  }
+}
+
 /**
  * One pass over every switched-on flow: give each of them a coin or two to
  * work on, and stop.
@@ -886,6 +1083,7 @@ export async function advanceFlowRuns(
   database: CustomShellDb = db
 ): Promise<void> {
   await advanceStoppingFlows(now, database)
+  await advanceRemovedFlowLadders(now, database)
   await advanceRunningFlows(now, database)
 }
 

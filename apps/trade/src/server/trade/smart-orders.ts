@@ -472,7 +472,12 @@ export async function placeDcaLadder(
       )
       .for("update")
 
-    await assertFlowRunAcceptingPlacements(tx, userId, input.flowRunId)
+    await assertFlowRunAcceptingPlacements(
+      tx,
+      userId,
+      input.flowRunId,
+      input.marketKey
+    )
 
     // Re-checked under the lock: two tabs placing at once must not both win.
     // This is also where the pairing rules finally see the drawn rungs.
@@ -733,6 +738,24 @@ export async function cancelFlowLadderRest(
   wallet: TradeWallet,
   input: { ladderId: string }
 ): Promise<{ complete: boolean; done: boolean }> {
+  return cancelFlowLadderWaiting(userId, wallet, input, false)
+}
+
+/** Calls off the waiting part of a removed coin, even after an earlier rung bought. */
+export async function cancelFlowLadderRemainder(
+  userId: string,
+  wallet: TradeWallet,
+  input: { ladderId: string }
+): Promise<{ complete: boolean; done: boolean }> {
+  return cancelFlowLadderWaiting(userId, wallet, input, true)
+}
+
+async function cancelFlowLadderWaiting(
+  userId: string,
+  wallet: TradeWallet,
+  input: { ladderId: string },
+  cancelAfterFill: boolean
+): Promise<{ complete: boolean; done: boolean }> {
   let done = true
   await db.transaction(async (tx) => {
     await tx
@@ -763,10 +786,12 @@ export async function cancelFlowLadderRest(
 
     // A settle that won the lock may have bought a rung after Stop counted
     // this row. The position and every remaining rung are then left alone.
-    if (plan.rungs.some((rung) => rung.status === "filled")) {
+    const hasFill = plan.rungs.some((rung) => rung.status === "filled")
+    if (hasFill && !cancelAfterFill) {
       done = false
       return
     }
+    if (hasFill) done = false
 
     const recorded = await flowLadderOrderIds(
       userId,
@@ -787,13 +812,19 @@ export async function cancelFlowLadderRest(
           and(
             eq(tradePaperOrders.userId, userId),
             eq(tradePaperOrders.walletId, wallet.id),
-            inArray(tradePaperOrders.id, [...recorded])
+            inArray(tradePaperOrders.id, [...recorded]),
+            hasFill ? eq(tradePaperOrders.side, "buy") : undefined,
+            hasFill ? eq(tradePaperOrders.reduceOnly, false) : undefined
           )
         )
     }
     await tx
       .update(tradeSmartLadders)
-      .set({ status: "done", plan, updatedAt: new Date() })
+      .set({
+        status: hasFill ? "active" : "done",
+        plan,
+        updatedAt: new Date(),
+      })
       .where(
         and(
           eq(tradeSmartLadders.userId, userId),

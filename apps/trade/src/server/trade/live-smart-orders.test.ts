@@ -17,6 +17,7 @@ import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
   moveLiveGridExit,
+  cancelLiveFlowLadderRemainder,
   nothingStood,
   cancelLiveFlowLadderRest,
   cancelLiveLadderRest,
@@ -413,6 +414,65 @@ describe("live Smart orders", () => {
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.id, placed.ladder.id))
     expect(finished.status).toBe("done")
+  })
+
+  it("calls off a removed coin's deeper rungs after one already bought", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    const plan = (await ladder()) as LadderPlan
+    plan.rungs[0].status = "filled"
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    await database.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: wallet.id,
+      orderId: "held-exit",
+      flowRunId: "old-run",
+      ladderId: placed.ladder.id,
+      marketKey: MARKET,
+    })
+    portfolio.mockResolvedValue({
+      positions: [],
+      orders: [
+        {
+          orderId: "held-exit",
+          marketId: "BTC",
+          side: "sell",
+          px: 110,
+          sz: 1,
+          reduceOnly: true,
+          trigger: false,
+        },
+      ],
+    })
+
+    await expect(
+      cancelLiveFlowLadderRemainder(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: false })
+
+    const after = await ladder()
+    expect(after.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "cancelled",
+    ])
+    const [row] = await database
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    expect(row.status).toBe("active")
+    expect(cancel).not.toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ orderId: "held-exit" })
+    )
   })
 
   it("reports a recorded open rung when the exchange will not cancel it", async () => {

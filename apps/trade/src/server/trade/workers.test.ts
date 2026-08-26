@@ -5,7 +5,9 @@ import type { CustomShellDb } from "@/server/db"
 import { assertRealMoneySwitchOn } from "@/server/protocols/real-money"
 import { createTestDatabase } from "@/server/test-support"
 import {
+  clearFlowScanRequest,
   realMoneySwitch,
+  requestFlowScan,
   setRealMoneySwitch,
   setWorkerSwitch,
 } from "@/server/trade/workers"
@@ -67,6 +69,30 @@ describe("the real-money switch", () => {
 })
 
 describe("the ladders switch", () => {
+  it("does not clear a newer folder scan request", async () => {
+    await requestFlowScan(db)
+    const [first] = await db
+      .select({ requestedAt: tradeWorkerControls.flowScanRequestedAt })
+      .from(tradeWorkerControls)
+      .where(eq(tradeWorkerControls.kind, "ladders"))
+    await requestFlowScan(db)
+    const [second] = await db
+      .select({ requestedAt: tradeWorkerControls.flowScanRequestedAt })
+      .from(tradeWorkerControls)
+      .where(eq(tradeWorkerControls.kind, "ladders"))
+
+    expect(first?.requestedAt).not.toBeNull()
+    expect(second?.requestedAt?.getTime()).toBeGreaterThan(
+      first?.requestedAt?.getTime() ?? 0
+    )
+    await clearFlowScanRequest(first!.requestedAt!, db)
+    const [stillRequested] = await db
+      .select({ requestedAt: tradeWorkerControls.flowScanRequestedAt })
+      .from(tradeWorkerControls)
+      .where(eq(tradeWorkerControls.kind, "ladders"))
+    expect(stillRequested?.requestedAt).toEqual(second?.requestedAt)
+  })
+
   it("starts a new health window only when it is switched on", async () => {
     const oldEnabledAt = new Date("2026-08-01T00:00:00.000Z")
     await db

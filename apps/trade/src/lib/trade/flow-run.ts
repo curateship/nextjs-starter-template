@@ -17,7 +17,8 @@ import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 export type TradeFlowRunStatus = "running" | "stopping" | "stopped"
 
 /**
- * Everything a switched-on flow works from, frozen the moment it started.
+ * Everything a switched-on flow works from. The settings freeze when it
+ * starts; a chosen folder's coin list keeps following that folder.
  *
  * **Frozen is the point.** A flow can be redrawn while it is trading, and what
  * is already in the market must not change underneath somebody. Every field
@@ -56,6 +57,8 @@ export type TradeFlowRunSpec = {
   /** The exchange and network every coin on the list belongs to. */
   protocol: ProtocolId
   network: NetworkId
+  /** The folder kept in step with this run, or null for individually chosen coins. */
+  folderId: string | null
   /** The coins this flow watches, as full market keys. */
   marketKeys: string[]
   /** What it does about them. */

@@ -10,7 +10,11 @@ import {
   insertWorkspace,
 } from "@/server/test-support"
 import { customShellAutomations } from "@/server/schema"
-import { tradeFlowRuns, tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
+import {
+  tradeFlowRuns,
+  tradeSmartLadders,
+  tradeWallets,
+} from "@/server/trade/schema"
 
 /**
  * What a pass records about the coins it could not place on.
@@ -53,6 +57,9 @@ vi.mock("@/server/trade/smart-orders", () => ({
     _wallet: TradeWallet,
     input: { marketKey: string }
   ) => place(input.marketKey),
+  cancelFlowLadderRemainder: async () => ({ complete: true, done: true }),
+  cancelFlowLadderRest: async () => ({ complete: true, done: true }),
+  cancelSignalRest: async () => ({ complete: true, done: true }),
   cancelLadderRest: async () => {},
 }))
 
@@ -62,6 +69,9 @@ vi.mock("@/server/trade/live-smart-orders", () => ({
     _wallet: TradeWallet,
     input: { marketKey: string }
   ) => place(input.marketKey),
+  cancelLiveFlowLadderRemainder: async () => ({ complete: true, done: true }),
+  cancelLiveFlowLadderRest: async () => ({ complete: true, done: true }),
+  cancelLiveSignalRest: async () => ({ complete: true, done: true }),
   cancelLiveLadderRest: async () => ({ cancelled: 0 }),
 }))
 
@@ -79,6 +89,7 @@ async function startRun(marketKeys: string[] = COINS) {
     spec: {
       protocol: "hyperliquid",
       network: "mainnet",
+      folderId: null,
       marketKeys,
       strategy: {
         kind: "dca" as const,

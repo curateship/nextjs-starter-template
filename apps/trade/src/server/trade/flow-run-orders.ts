@@ -111,11 +111,12 @@ export async function flowLadderOrderIds(
 export async function assertFlowRunAcceptingPlacements(
   database: CustomShellDb,
   userId: string,
-  flowRunId: string | null | undefined
+  flowRunId: string | null | undefined,
+  marketKey: string
 ): Promise<void> {
   if (!flowRunId) return
   const [row] = await database
-    .select({ id: tradeFlowRuns.id })
+    .select({ id: tradeFlowRuns.id, spec: tradeFlowRuns.spec })
     .from(tradeFlowRuns)
     .where(
       and(
@@ -126,5 +127,7 @@ export async function assertFlowRunAcceptingPlacements(
       )
     )
     .limit(1)
-  if (!row) throw new Error("FLOW_NOT_ACCEPTING_PLACEMENTS")
+  if (!row || !row.spec.marketKeys.includes(marketKey)) {
+    throw new Error("FLOW_NOT_ACCEPTING_PLACEMENTS")
+  }
 }

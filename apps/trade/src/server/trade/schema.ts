@@ -1089,6 +1089,10 @@ export const tradeWorkerControls = pgTable("trade_worker_controls", {
    * replacement. Null means nothing asked.
    */
   restartRequestedAt: timestamp("restart_requested_at", { withTimezone: true }),
+  /** A folder changed and a running flow needs its next coin hunt now. */
+  flowScanRequestedAt: timestamp("flow_scan_requested_at", {
+    withTimezone: true,
+  }),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1141,10 +1145,9 @@ export const tradeEngineOutages = pgTable("trade_engine_outages", {
  * only says "keep looking for coins on this list to place one on, with these
  * settings, out of this much money".
  *
- * The settings are FROZEN when it starts. Editing the drawing afterwards must
- * not change what is already in the market — the same rule a placed ladder
- * follows with its rung prices. Changing a running flow means switching it off
- * and on again.
+ * The settings are frozen when it starts, apart from a chosen folder's coin
+ * list. Editing the drawing afterwards must not change what is already in the
+ * market. Adding or removing a coin from that folder does change the list.
  */
 export const tradeFlowRuns = pgTable(
   "trade_flow_runs",
@@ -1179,6 +1182,17 @@ export const tradeFlowRuns = pgTable(
      */
     waiting: jsonb("waiting")
       .$type<Record<string, FlowWaitReason>>()
+      .notNull()
+      .default({}),
+    /**
+     * Removed folder coins whose remaining ladders still need calling off.
+     *
+     * The value is a fresh token for each removal. A retry only clears the
+     * token it worked on, so a quick re-add and second removal cannot lose the
+     * newer cleanup request.
+     */
+    marketCancels: jsonb("market_cancels")
+      .$type<Record<string, string>>()
       .notNull()
       .default({}),
     /**

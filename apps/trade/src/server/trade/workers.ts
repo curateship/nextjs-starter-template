@@ -1,4 +1,4 @@
-import { desc, eq, lt, sql } from "drizzle-orm"
+import { and, desc, eq, lt, sql } from "drizzle-orm"
 
 import {
   safeWorkerError,
@@ -57,6 +57,7 @@ export async function workerControl(
   enabled: boolean
   paused: boolean
   restartRequestedAt: Date | null
+  flowScanRequestedAt: Date | null
 }> {
   const rows = await database
     .select()
@@ -68,6 +69,7 @@ export async function workerControl(
       enabled: rows[0].enabled,
       paused: rows[0].paused,
       restartRequestedAt: rows[0].restartRequestedAt,
+      flowScanRequestedAt: rows[0].flowScanRequestedAt,
     }
   }
 
@@ -75,7 +77,49 @@ export async function workerControl(
     .insert(tradeWorkerControls)
     .values({ kind, enabled: true, paused: false })
     .onConflictDoNothing()
-  return { enabled: true, paused: false, restartRequestedAt: null }
+  return {
+    enabled: true,
+    paused: false,
+    restartRequestedAt: null,
+    flowScanRequestedAt: null,
+  }
+}
+
+/** Ask the ladder engine to run the expensive coin hunt on its next pass. */
+export async function requestFlowScan(
+  database: CustomShellDb = db
+): Promise<void> {
+  await workerControl("ladders", database)
+  const now = new Date()
+  await database
+    .update(tradeWorkerControls)
+    .set({
+      // Keep each request distinct even when two folder edits land in the same
+      // millisecond. The engine can then clear the request it read without
+      // erasing the edit that arrived behind it.
+      flowScanRequestedAt: sql`GREATEST(
+        COALESCE(${tradeWorkerControls.flowScanRequestedAt} + interval '1 millisecond', 'epoch'::timestamptz),
+        date_trunc('milliseconds', clock_timestamp())
+      )`,
+      updatedAt: now,
+    })
+    .where(eq(tradeWorkerControls.kind, "ladders"))
+}
+
+/** Clear only the request this pass claimed, leaving a newer one in place. */
+export async function clearFlowScanRequest(
+  requestedAt: Date,
+  database: CustomShellDb = db
+): Promise<void> {
+  await database
+    .update(tradeWorkerControls)
+    .set({ flowScanRequestedAt: null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(tradeWorkerControls.kind, "ladders"),
+        eq(tradeWorkerControls.flowScanRequestedAt, requestedAt)
+      )
+    )
 }
 
 export async function setWorkerSwitch(
@@ -218,7 +262,12 @@ export async function writeHeartbeat(input: {
   // every few seconds anyway, and a delete of nothing costs nothing.
   await database
     .delete(tradeWorkerHeartbeats)
-    .where(lt(tradeWorkerHeartbeats.lastSeenAt, new Date(Date.now() - HEARTBEAT_KEEP_MS)))
+    .where(
+      lt(
+        tradeWorkerHeartbeats.lastSeenAt,
+        new Date(Date.now() - HEARTBEAT_KEEP_MS)
+      )
+    )
 }
 
 export async function workersDashboard(
@@ -259,7 +308,8 @@ export async function workersDashboard(
     const leader = alive.find((beat) => beat.role === "leader") ?? null
     // The leader speaks for the worker; with none alive, the most recent beat
     // of any kind still says when it was last seen.
-    const speaking = leader ?? alive[0] ?? beats.find((beat) => beat.kind === kind) ?? null
+    const speaking =
+      leader ?? alive[0] ?? beats.find((beat) => beat.kind === kind) ?? null
     const meta = (speaking?.meta ?? {}) as Record<string, unknown>
 
     const state: WorkerState = !enabled
@@ -299,7 +349,9 @@ export async function workersDashboard(
         {
           label: "Prices",
           value:
-            typeof meta.priceFeed === "string" ? meta.priceFeed : "Not reported",
+            typeof meta.priceFeed === "string"
+              ? meta.priceFeed
+              : "Not reported",
         },
       ],
     }

@@ -24,6 +24,7 @@ import { loadSmartDca, saveSmartDca } from "@/server/trade/prefs"
 import {
   cancelLadderRest,
   cancelLadderRung,
+  cancelFlowLadderRemainder,
   cancelFlowLadderRest,
   cancelSignalRest,
   cancelWatchOrder,
@@ -211,6 +212,7 @@ async function insertRunningFlow(id = "run-1"): Promise<void> {
     spec: {
       protocol: wallet.protocol,
       network: wallet.network,
+      folderId: null,
       marketKeys: [BTC],
       strategy: { kind: "dca", params: params(), interval: "1m" },
       capUsd: 500,
@@ -639,6 +641,7 @@ describe("who placed a smart order", () => {
       spec: {
         protocol: "hyperliquid",
         network: "mainnet",
+        folderId: null,
         marketKeys: [BTC],
         strategy: { kind: "dca", params: params(), interval: "1m" },
         capUsd: 500,
@@ -684,6 +687,7 @@ describe("who placed a smart order", () => {
       spec: {
         protocol: "hyperliquid",
         network: "mainnet",
+        folderId: null,
         marketKeys: [BTC],
         strategy: { kind: "dca", params: params(), interval: "1m" },
         capUsd: 500,
@@ -1202,6 +1206,55 @@ describe("the ladder at work", () => {
     expect(
       finished.plan.rungs.every((rung) => rung.status === "cancelled")
     ).toBe(true)
+  })
+
+  it("calls off a removed coin's deeper rungs after one already bought", async () => {
+    const placed = await place()
+    const [row] = await database
+      .select({ plan: tradeSmartLadders.plan })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    const plan = row.plan as LadderPlan
+    plan.rungs[0].status = "filled"
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    await insertRunningFlow("partial-run")
+    await database.insert(tradePaperOrders).values({
+      userId,
+      walletId: wallet.id,
+      id: "held-exit",
+      marketKey: BTC,
+      side: "sell",
+      px: 110,
+      sz: 1,
+      leverage: 1,
+      maxLeverage: 50,
+      reduceOnly: true,
+    })
+    await database.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: wallet.id,
+      orderId: "held-exit",
+      flowRunId: "partial-run",
+      ladderId: placed.ladder.id,
+      marketKey: BTC,
+    })
+
+    await expect(
+      cancelFlowLadderRemainder(userId, wallet, {
+        ladderId: placed.ladder.id,
+      })
+    ).resolves.toEqual({ complete: true, done: false })
+
+    const after = await onlyLadder()
+    expect(after.status).toBe("active")
+    expect(after.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "cancelled",
+    ])
+    expect((await orders()).map((order) => order.id)).toEqual(["held-exit"])
   })
 
   it("calls off a flow signal without waiting for the normal engine", async () => {

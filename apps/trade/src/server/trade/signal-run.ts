@@ -126,7 +126,8 @@ export async function advanceSignalFlow(
   database: CustomShellDb = db
 ): Promise<SignalPassOutcome> {
   const { spec, now } = input
-  if (spec.strategy.kind !== "signals") return { did: "nothing", marketKey: null }
+  if (spec.strategy.kind !== "signals")
+    return { did: "nothing", marketKey: null }
   if (!signalReadDue(now)) return { did: "nothing", marketKey: null }
 
   // A coin mid-buy or mid-sell is the engine's business this second, not ours:
@@ -281,7 +282,12 @@ async function openSignalTrade(
         )
       )
       .for("update")
-    await assertFlowRunAcceptingPlacements(tx, input.userId, input.flowRunId)
+    await assertFlowRunAcceptingPlacements(
+      tx,
+      input.userId,
+      input.flowRunId,
+      marketKey
+    )
     await tx.insert(tradeSmartLadders).values({
       userId: input.userId,
       id: randomUUID(),

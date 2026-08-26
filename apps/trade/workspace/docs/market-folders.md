@@ -103,9 +103,26 @@ removes it.
 ## Flows and backtests
 
 A Markets step can save individual coins or a folder. Picking a folder clears
-the individual list. A trading flow reads the folder when the flow starts and
-copies those market keys into the run. Changes to the folder do not change a
-run already in progress.
+the individual list. A trading flow saves which folder it came from and keeps
+its running coin list in step with that folder. Adding a coin puts it at the
+front of the next hunt, which the engine starts on its next one-second pass
+instead of waiting for the usual thirty-second hunt. A paused flow takes the
+new coin onto its list but does not hunt for it until the flow runs again.
+
+Removing a coin takes it out of the running list before the engine calls off
+that run's remaining ladder rungs on the next one-second pass. A rung that
+already bought stays in the wallet, along with its stop and target. The engine
+leaves hand-placed ladders and ladders from another flow alone. A live exchange
+refusal keeps the removal waiting for the next pass and sends the same critical
+notice used when a flow cannot call off a ladder.
+
+Stopping and stopped runs ignore later folder changes. A Markets step with
+individually chosen coins also keeps the list it started with.
+
+Migration 0148 gives the engine its immediate-hunt and unfinished-cancellation
+fields. A flow switched on before the matching app version has no saved folder
+link, so switch that run off and on once after the migration. Runs started by
+the matching version follow their folder without another restart.
 
 A missing or empty folder stops the next run and names the folder in the
 message. A folder from another exchange cannot run against the wallet.
