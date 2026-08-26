@@ -1,3 +1,4 @@
+import * as React from "react"
 import { PlusIcon, Trash2Icon } from "lucide-react"
 
 import {
@@ -28,6 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
+import {
+  loadAutomationWalletAccounts,
+  readAutomationWalletAccounts,
+} from "@/lib/automations/trade-wallet-accounts"
 import {
   tradeDcaNode,
   tradeDcaSettingsSchema,
@@ -92,9 +97,9 @@ export default function TradeDcaFields({
   // shown, exactly as the app this is a port of shows it — and it is the same
   // arithmetic the run itself uses, not a second sum drawn for the panel.
   //
-  // The pot comes off the money step in the same flow, so changing it there
-  // changes these. A flow with no money step yet falls back to the same figure
-  // that step starts life with, rather than showing nothing.
+  // A pretend pot comes off the money step in the same flow. A named wallet
+  // uses its current value for compound sizing and its saved starting amount
+  // for fixed sizing, which is the same choice the order code makes.
   const walletNode = graph?.nodes.find(
     (one) => one.kind === tradeWalletNode.kind
   )
@@ -110,11 +115,46 @@ export default function TradeDcaFields({
       ? saved.startingUsd
       : DEFAULT_BACKTEST_START_USD
 
-  const potUsd = named ? null : pretendUsd
+  const [walletAccounts, setWalletAccounts] = React.useState(
+    readAutomationWalletAccounts
+  )
+  const [walletReadDone, setWalletReadDone] = React.useState(
+    walletAccounts !== null
+  )
+  const walletId = named?.id ?? null
+
+  React.useEffect(() => {
+    if (!walletId) return
+    let alive = true
+    void loadAutomationWalletAccounts()
+      .then((answer) => {
+        if (!alive) return
+        setWalletAccounts(answer)
+        setWalletReadDone(true)
+      })
+      .catch(() => {
+        if (alive) setWalletReadDone(true)
+      })
+    return () => {
+      alive = false
+    }
+  }, [walletId])
+
+  const wallet = walletAccounts?.wallets.find((one) => one.id === walletId)
+  const summary = walletAccounts?.summaries.find(
+    (one) => one.walletId === walletId
+  )
+  const walletUsd =
+    named && wallet
+      ? params.compound
+        ? summary?.state === "ok"
+          ? summary.equity
+          : null
+        : wallet.startingBalance
+      : null
+  const potUsd = named ? walletUsd : pretendUsd
   const perCoinAccountUsd = ((potUsd ?? 0) * params.maxPositionPct) / 100
   const perCoinBuyingUsd = perCoinAccountUsd * params.leverage
-  const buyingPct =
-    Math.round(params.maxPositionPct * params.leverage * 100) / 100
   const shares = dcaAllocationPcts(
     params.rungs.length,
     params.maxPositionPct,
@@ -129,18 +169,24 @@ export default function TradeDcaFields({
             <span className="text-muted-foreground">Most one coin may buy</span>
             <span className="font-medium tabular-nums">
               {potUsd === null
-                ? `${buyingPct}% of the wallet in coin`
+                ? walletReadDone
+                  ? "Amount unavailable"
+                  : "Reading wallet…"
                 : formatUsdRounded(perCoinBuyingUsd)}
             </span>
           </div>
           <p className="mt-0.5 text-muted-foreground">
             {potUsd === null
-              ? params.leverage > 1
-                ? `The buys below use ${params.maxPositionPct}% of the wallet's money to buy ${buyingPct}% of its value in coin. The dollars are worked out when a ladder is placed. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
-                : `The dollars are worked out from the wallet when a ladder is placed. The buys below split that ${params.maxPositionPct}% share. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
-              : params.leverage > 1
-                ? `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot uses ${formatUsdRounded(perCoinAccountUsd)} of account money. At ${params.leverage}×, the buys below add up to ${formatUsdRounded(perCoinBuyingUsd)} of coin. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`
-                : `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot${walletNode ? "" : ", which is what the money step starts at"}. The buys below add up to it. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`}
+              ? walletReadDone
+                ? `${named?.label ?? "The wallet"} could not be read, so the dollar amounts below are unavailable.`
+                : `Reading ${named?.label ?? "the wallet"} to work out the dollar amounts below.`
+              : named
+                ? params.leverage > 1
+                  ? `${params.maxPositionPct}% of ${formatUsdRounded(potUsd)} uses ${formatUsdRounded(perCoinAccountUsd)} of account money. At ${params.leverage}×, the buys below add up to ${formatUsdRounded(perCoinBuyingUsd)} of coin. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
+                  : `The buys below split ${params.maxPositionPct}% of ${formatUsdRounded(potUsd)}. ${params.compound ? "Later ladders rise or fall with the wallet." : "Every later ladder stays based on the wallet's starting amount."}`
+                : params.leverage > 1
+                  ? `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot uses ${formatUsdRounded(perCoinAccountUsd)} of account money. At ${params.leverage}×, the buys below add up to ${formatUsdRounded(perCoinBuyingUsd)} of coin. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`
+                  : `${params.maxPositionPct}% of a ${formatUsdRounded(potUsd)} pot${walletNode ? "" : ", which is what the money step starts at"}. The buys below add up to it. ${params.compound ? "Later ladders rise or fall with the pot." : "Every later ladder stays based on this starting pot."}`}
           </p>
         </div>
 
@@ -177,7 +223,7 @@ export default function TradeDcaFields({
               aria-label={`Rung ${index + 1} buy size`}
             >
               {potUsd === null
-                ? `${Math.round((shares[index] ?? 0) * params.leverage * 100) / 100}% of wallet${params.leverage > 1 ? " in coin" : ""}`
+                ? "—"
                 : formatUsdRounded(
                     (potUsd * (shares[index] ?? 0) * params.leverage) / 100
                   )}

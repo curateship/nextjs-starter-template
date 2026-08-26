@@ -15,8 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getWalletErrorMessage, loadWalletAccounts } from "@/lib/api/wallets"
+import { getWalletErrorMessage } from "@/lib/api/wallets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
+import {
+  loadAutomationWalletAccounts,
+  readAutomationWalletAccounts,
+} from "@/lib/automations/trade-wallet-accounts"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
 import { DEFAULT_BACKTEST_PROTOCOL } from "@/lib/automations/nodes/trade-markets"
 import { marketsStepFollowingWallet } from "@/lib/automations/trade-wallet-markets"
@@ -69,13 +73,6 @@ const PRETEND = "pretend"
  * Module scope, not a hook, because it has to outlive the panel being
  * unmounted — which is the whole case it exists for.
  */
-const WALLETS_CACHE_MS = 60_000
-let walletCache: {
-  at: number
-  wallets: TradeWallet[]
-  summaries: WalletAccountSummary[]
-} | null = null
-
 export default function TradeWalletFields({
   node,
   graph,
@@ -120,26 +117,14 @@ export default function TradeWalletFields({
       // What is already known is read while drawing, so re-opening the step is
       // already on screen by the time this runs. Whether that copy is stale is
       // asked here rather than up there, because a render may not read a clock.
-      if (
-        walletCache &&
-        Date.now() - walletCache.at < WALLETS_CACHE_MS &&
-        attemptKey === 0
-      ) {
-        return
-      }
       try {
-        const read = await loadWalletAccounts()
-        walletCache = {
-          at: Date.now(),
-          wallets: read.wallets,
-          summaries: read.summaries,
-        }
+        const read = await loadAutomationWalletAccounts(attemptKey > 0)
         if (!alive) return
         setAnswer({
           wallets: read.wallets,
           summaries: read.summaries,
           error: null,
-          readAt: Date.now(),
+          readAt: read.at,
         })
       } catch (error: unknown) {
         if (!alive) return
@@ -159,7 +144,7 @@ export default function TradeWalletFields({
 
   // The fetch's answer if there is one, and whatever was already known
   // otherwise — so the second time this step is opened it draws filled in.
-  const held = walletCache
+  const held = readAutomationWalletAccounts()
   const wallets = answer?.wallets ?? held?.wallets ?? null
   /** When those figures were true. Zero means nothing has landed yet. */
   const readAt = answer?.readAt ?? held?.at ?? 0

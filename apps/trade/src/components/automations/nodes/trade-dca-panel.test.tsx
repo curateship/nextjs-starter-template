@@ -1,11 +1,48 @@
 import { renderToStaticMarkup } from "react-dom/server"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import TradeDcaFields from "@/components/automations/nodes/trade-dca-panel"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
+
+vi.mock("@/lib/automations/trade-wallet-accounts", () => {
+  const answer = {
+    at: 1,
+    wallets: [
+      {
+        id: "paper-1",
+        label: "Practice",
+        kind: "paper",
+        status: "active",
+        protocol: "hyperliquid",
+        network: "mainnet",
+        startingBalance: 8_000,
+        address: null,
+        hasKey: false,
+        keyValidUntil: null,
+      },
+    ],
+    summaries: [
+      {
+        walletId: "paper-1",
+        state: "ok",
+        equity: 10_000,
+        free: 10_000,
+        inTrades: 0,
+        openProfit: 0,
+        madeOrLost: 0,
+        settled: 0,
+        unpricedFills: 0,
+      },
+    ],
+  }
+  return {
+    readAutomationWalletAccounts: () => answer,
+    loadAutomationWalletAccounts: async () => answer,
+  }
+})
 
 /**
  * What the ladder panel actually puts on screen.
@@ -137,7 +174,7 @@ describe("what each buy spends", () => {
     expect(html).toContain("$2,016")
   })
 
-  it("shows borrowed buying power as a share for a named wallet", () => {
+  it("shows borrowed buying power in dollars for a named wallet", () => {
     const node = dcaNode({
       rungs: [{ deviation: 20 }],
       maxPositionPct: 20,
@@ -146,9 +183,20 @@ describe("what each buy spends", () => {
     })
     const html = draw(node, graphWithNamedWallet(node))
 
-    expect(html).toContain("40% of the wallet in coin")
-    expect(html).toContain("use 20% of the wallet&#x27;s money")
-    expect(html).not.toContain("$0.00")
+    expect(html).toContain("$4,000")
+    expect(html).toContain("uses $2,000 of account money")
+    expect(html).not.toContain("% of wallet")
+  })
+
+  it("uses the wallet's starting amount for fixed sizing", () => {
+    const node = dcaNode({
+      rungs: [{ deviation: 20 }],
+      maxPositionPct: 25,
+      sizeMultiplier: 1,
+      compound: false,
+    })
+
+    expect(draw(node, graphWithNamedWallet(node))).toContain("$2,000")
   })
 
   it("offers compound and fixed sizing", () => {

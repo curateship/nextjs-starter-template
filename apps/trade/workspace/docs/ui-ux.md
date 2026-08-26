@@ -390,7 +390,11 @@ numbers and remembers the last number placed. The chosen number sizes the
 ladder on practice and real wallets as well as in a backtest. A market with a
 lower maximum uses its own number. The Ladder card and its rung rows show the
 amount of coin bought after borrowing, while the explanation says how much
-account money backs it.
+account money backs it. On an automation, every rung shows that buy in dollars,
+including when the flow names a saved wallet. Compound sizing reads the wallet's
+current value. Fixed sizing reads the wallet's starting amount. If the wallet
+cannot be read, the panel says the amounts are unavailable instead of replacing
+the dollars with percentages.
 
 **Neither window asks twice.** The ladder and the grid both place on the first
 press, on every wallet including real money. There used to be a second,
