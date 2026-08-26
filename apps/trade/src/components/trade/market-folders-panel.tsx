@@ -16,7 +16,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   AllMarketsList,
   MarketRowLine,
@@ -352,10 +352,9 @@ export function MarketFoldersPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<FolderIcon />}
         title="Folders"
-        className="px-3 sm:px-3"
         action={
           // gap-2, the same 8px the middle header keeps between its
           // controls — the two headers sit side by side.

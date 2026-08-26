@@ -9,7 +9,7 @@ import {
 import { BacktestFocusLayer } from "@/components/backtest/backtest-focus-layer"
 import { BacktestMarksLayer } from "@/components/backtest/backtest-marks-layer"
 import { BacktestGraph } from "@/components/backtest/backtest-graph"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
@@ -222,7 +222,7 @@ export function BacktestChartPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         // The way back to the other picture: from the Graph to the market's
         // candles, and from the candles to the Graph. On a run with no Graph to
         // go to it falls back to the list of runs, which is the only other

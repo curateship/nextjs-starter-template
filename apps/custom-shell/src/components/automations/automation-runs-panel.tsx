@@ -17,9 +17,9 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { EmptyRow } from "@/components/shared/feed-card"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -169,24 +169,24 @@ export function AutomationRunsPanel({
         onValueChange={(value) => setTab(value as PanelTab)}
         className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
       >
-        <WorkspacePanelTabsHeader>
-          <WorkspacePanelTab
+        <DashboardCardTabsHeader>
+          <DashboardCardTab
             value="runs"
             icon={<HistoryIcon className="size-4" />}
             label="Runs"
             count={total}
           />
-          <WorkspacePanelTab
+          <DashboardCardTab
             value="waiting"
             icon={<UserCheckIcon className="size-4" />}
             label="Waiting on you"
             count={waitingTotal}
           />
-        </WorkspacePanelTabsHeader>
+        </DashboardCardTabsHeader>
 
         <TabsContent value="runs" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4 sm:p-5">
+            <div className="grid gap-2 p-3">
               {error ? (
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}
@@ -233,7 +233,7 @@ export function AutomationRunsPanel({
 
         <TabsContent value="waiting" className="min-h-0 flex-1">
           <ScrollArea className="h-full">
-            <div className="grid gap-2 p-4 sm:p-5">
+            <div className="grid gap-2 p-3">
               {error ? (
                 <ErrorBanner message={error} onRetry={() => void refresh()} />
               ) : null}

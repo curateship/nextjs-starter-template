@@ -16,9 +16,9 @@ import {
 } from "@/components/trade/positions-table"
 import type { Trading } from "@/components/trade/use-trading"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -312,7 +312,7 @@ export function ActivityPanel({
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      <WorkspacePanelTabsHeader
+      <DashboardCardTabsHeader
         action={
           <>
             {/* Removes every ticked Journal row at once, through the same
@@ -361,7 +361,7 @@ export function ActivityPanel({
         }
       >
         <PositionsGlance positions={visible} markets={markets}>
-          <WorkspacePanelTab
+          <DashboardCardTab
             value="positions"
             icon={<LayersIcon className="size-4" />}
             label="Positions"
@@ -369,21 +369,21 @@ export function ActivityPanel({
             onPointerDown={pressTab("positions")}
           />
         </PositionsGlance>
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="orders"
           icon={<ScrollTextIcon className="size-4" />}
           label="Open orders"
           count={countOf(trading.orders.length + trading.watchOrders.length)}
           onPointerDown={pressTab("orders")}
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="journal"
           icon={<BookOpenIcon className="size-4" />}
           label="Journal"
           count={countOf(trading.trades.length)}
           onPointerDown={pressTab("journal")}
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="positions" className="min-h-0 flex-1">
         <ScrollArea className="h-full">

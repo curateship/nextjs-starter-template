@@ -1,9 +1,10 @@
 import * as React from "react"
 
 import {
-  WorkspacePanelHeader,
-  workspacePanelHeadingClassName,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardHeader,
+  DashboardCardTitleHeader,
+  dashboardCardHeadingClassName,
+} from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -39,7 +40,7 @@ export function CardTop({
   sample?: boolean
 }) {
   return (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={<Icon className={cn("size-4", iconClassName)} />}
       title={
         <span className="flex min-w-0 items-center gap-2.5">
@@ -103,12 +104,7 @@ export function CardHeaderRow({
   className?: string
 }) {
   return (
-    <div
-      className={cn(
-        "flex h-[3.15rem] shrink-0 items-stretch gap-2.5 border-b px-4 sm:px-5",
-        className
-      )}
-    >
+    <DashboardCardHeader className={cn("items-stretch gap-2.5", className)}>
       <span
         className={cn(
           "flex shrink-0 items-center text-muted-foreground",
@@ -121,7 +117,7 @@ export function CardHeaderRow({
       <h2
         className={cn(
           "flex min-w-0 items-center truncate",
-          workspacePanelHeadingClassName
+          dashboardCardHeadingClassName
         )}
       >
         {title}
@@ -137,7 +133,7 @@ export function CardHeaderRow({
         </div>
       ) : null}
       <div className="ml-auto flex shrink-0 items-stretch">{children}</div>
-    </div>
+    </DashboardCardHeader>
   )
 }
 

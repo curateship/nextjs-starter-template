@@ -2,7 +2,7 @@ import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { ListChecksIcon, ListFilterIcon } from "lucide-react"
 
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
@@ -109,7 +109,7 @@ export function ActiveTradesWidget({
 
   return (
     <TableSurface className={cn("flex min-h-0 flex-col", className)}>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<ListChecksIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">

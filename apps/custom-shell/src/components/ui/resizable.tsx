@@ -2,6 +2,7 @@ import * as React from "react"
 import * as ResizablePrimitive from "react-resizable-panels"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
+import { DASHBOARD_CARD_COLLAPSED_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { cn } from "@/lib/utils"
 
 function ResizablePanelGroup({
@@ -67,12 +68,12 @@ function ResizableHandle({
 
 /**
  * What a workspace's bottom panel collapses to: exactly its own header (the
- * 50.4px row plus the card's top and bottom hairlines). The panel stays on
+ * 57px row plus the card's top and bottom hairlines). The panel stays on
  * screen when collapsed — its header holds the reopen controls, and the handle
  * above it keeps its gap so the bar stays draggable back open. Pass `gap`
  * alone to that handle, never `collapsed`.
  */
-const BOTTOM_COLLAPSED_HEIGHT = "52.4px"
+const BOTTOM_COLLAPSED_HEIGHT = `${DASHBOARD_CARD_COLLAPSED_HEIGHT_PX}px`
 
 function WorkspacePanel({
   className,

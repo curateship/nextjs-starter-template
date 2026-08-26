@@ -11,7 +11,7 @@ import {
   BacktestMarksLayer,
   type ChartFillMark,
 } from "@/components/backtest/backtest-marks-layer"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { IndicatorLayer } from "@/components/trade/indicator-layer"
 import { MeasureLayer } from "@/components/trade/measure-layer"
 import { PaintLayer } from "@/components/trade/paint/paint-layer"
@@ -132,7 +132,7 @@ export function FlowRunChartPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={null}
         back={
           hasGraph

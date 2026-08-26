@@ -1,3 +1,7 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it } from "vitest"
 
@@ -53,8 +57,17 @@ const market: MarketSelection = {
   },
 }
 
-function draw(selection: MarketSelection, favorites: string[]): string {
-  return renderToStaticMarkup(
+Object.assign(globalThis, {
+  IS_REACT_ACT_ENVIRONMENT: true,
+  ResizeObserver: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
+
+function header(selection: MarketSelection, favorites: string[]) {
+  return (
     <TooltipProvider>
       <MarketHeader
         selection={selection}
@@ -79,6 +92,10 @@ function draw(selection: MarketSelection, favorites: string[]): string {
       />
     </TooltipProvider>
   )
+}
+
+function draw(selection: MarketSelection, favorites: string[]): string {
+  return renderToStaticMarkup(header(selection, favorites))
 }
 
 describe("the market header's star", () => {
@@ -107,6 +124,28 @@ describe("the market header's star", () => {
         minOrderSize: 0.001,
       })
     ).toBe("Smallest order now: $77.12")
+  })
+
+  it("shows the market's daily dollar volume in its information tooltip", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+
+    await act(async () => root.render(header(market, [])))
+    const info = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="About BTC market, Hyperliquid, Mainnet"]'
+    )!
+    await act(async () => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
+      )
+      info.focus()
+    })
+
+    expect(document.body.textContent).toContain("Daily volume: $1.00m")
+
+    await act(async () => root.unmount())
+    host.remove()
   })
 
   it("offers to star the market on screen, naming it", () => {

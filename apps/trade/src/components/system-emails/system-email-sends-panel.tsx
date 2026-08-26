@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -24,7 +25,7 @@ const PAGE_SIZE = 25
  * is the whole panel.
  *
  * What has to survive the panel being dragged shut lives in the header strip,
- * since those 46px are all that is left on screen when it is collapsed.
+ * since that header is all that is left on screen when it is collapsed.
  */
 export function SystemEmailSendsPanel({
   kind,
@@ -91,15 +92,12 @@ export function SystemEmailSendsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <div
-        data-slot="workspace-panel-header"
-        className="flex h-11 shrink-0 items-center gap-3 border-b px-3"
-      >
+      <DashboardCardHeader className="gap-3">
         <span className="text-sm font-medium">Recent sends</span>
         <span className="truncate text-xs text-muted-foreground">
           {summary}
         </span>
-      </div>
+      </DashboardCardHeader>
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">

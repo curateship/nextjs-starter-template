@@ -3,9 +3,9 @@ import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   automationPaletteGroups,
@@ -65,18 +65,18 @@ export function AutomationPalette({
         className
       )}
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="fav"
           icon={<StarIcon className="size-4 fill-current" />}
           label="Fav"
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="all"
           icon={<LayoutGridIcon className="size-4" />}
           label="All nodes"
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
       <PaletteTab
         value="fav"
         groups={paletteGroupsFor("fav", favoriteNodeKeys)}
@@ -115,7 +115,7 @@ function PaletteTab({
   return (
     <TabsContent value={value} className="min-h-0 overflow-hidden">
       <ScrollArea className="h-full">
-        <div className="flex flex-col gap-4 p-4 sm:p-5">
+        <div className="flex flex-col gap-4 p-3">
           {groups.map((group) => (
             <section
               key={group.label}

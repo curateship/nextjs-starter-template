@@ -3,9 +3,9 @@ import { CoinsIcon, ListOrderedIcon } from "lucide-react"
 
 import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -107,20 +107,20 @@ export function FlowRunCoinsPanel({
       onValueChange={(value) => setTab(value as Tab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="coins"
           icon={<CoinsIcon className="size-4" />}
           label="Coins"
           count={report.coins.length}
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="results"
           icon={<ListOrderedIcon className="size-4" />}
           label="Results"
           count={traded.length}
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="coins" className="flex min-h-0 flex-1 flex-col">
         <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">

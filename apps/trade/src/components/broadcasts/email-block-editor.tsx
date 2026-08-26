@@ -6,7 +6,7 @@ import { BlockInspector } from "@/components/broadcasts/block-inspector"
 import { BlockPalette } from "@/components/broadcasts/block-palette"
 import { BroadcastCanvas } from "@/components/broadcasts/broadcast-canvas"
 import { SaveTemplateDialog } from "@/components/broadcasts/template-dialogs"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
@@ -511,7 +511,7 @@ export function EmailBlockEditor({
   )
 
   const canvasHeader = (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={<MailIcon className="size-4" />}
       back={back}
       title={title}

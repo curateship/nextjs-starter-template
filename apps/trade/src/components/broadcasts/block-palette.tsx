@@ -17,9 +17,9 @@ import { TemplatePreviewDialog } from "@/components/broadcasts/template-preview-
 import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { ErrorBanner } from "@/components/ui/error-banner"
@@ -133,22 +133,22 @@ export function BlockPalette({
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="blocks"
           icon={<LayoutGridIcon className="size-4" />}
           label="Blocks"
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="templates"
           icon={<LayoutTemplateIcon className="size-4" />}
           label="Templates"
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="blocks" className="min-h-0 overflow-hidden">
         <ScrollArea className="h-full">
-          <div className="grid gap-2 p-4 sm:p-5">
+          <div className="grid gap-2 p-3">
             {BROADCAST_BLOCK_KINDS.map((kind) => {
               const Icon = BLOCK_ICONS[kind]
               const meta = BROADCAST_BLOCK_META[kind]
@@ -367,7 +367,7 @@ function TemplatesTab({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid gap-2 p-4 sm:p-5">
+        <div className="grid gap-2 p-3">
           {error ? (
             <ErrorBanner message={error} />
           ) : templates === null ? (

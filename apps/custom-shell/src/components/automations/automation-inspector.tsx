@@ -10,7 +10,7 @@ import {
 
 import { InspectorNote } from "@/components/automations/inspector-card"
 import { AutomationNodeIcon } from "@/components/automations/automation-node-icon"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type {
@@ -67,7 +67,7 @@ export function AutomationInspector({
         className
       )}
     >
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={
           selectedNode ? (
             <AutomationNodeIcon

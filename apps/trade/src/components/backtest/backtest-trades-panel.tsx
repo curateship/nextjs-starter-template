@@ -7,7 +7,7 @@ import {
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -139,7 +139,7 @@ export function BacktestTradesPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<ListIcon />}
         title={symbol ? `Trades — ${symbol}` : "Trades"}
         meta={

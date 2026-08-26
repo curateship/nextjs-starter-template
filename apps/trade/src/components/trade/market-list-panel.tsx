@@ -51,6 +51,14 @@ const ROW_COLUMNS = "gap-1 px-3"
  */
 const CHANGE_COLUMN = "w-[5.5rem]"
 
+const MAX_TICKER_CHARACTERS = 9
+
+function tickerLabel(symbol: string) {
+  return symbol.length <= MAX_TICKER_CHARACTERS
+    ? symbol
+    : `${symbol.slice(0, MAX_TICKER_CHARACTERS - 1)}…`
+}
+
 /**
  * Every market the exchange lists, sorted, under its own sort header row.
  *
@@ -258,7 +266,8 @@ export function MarketRowLine({
           title={row.symbol}
           className="min-w-0 truncate text-sm font-medium"
         >
-          {row.symbol}
+          <span className="sr-only">{row.symbol}</span>
+          <span aria-hidden>{tickerLabel(row.symbol)}</span>
         </span>
         <span className="shrink-0 text-xs text-muted-foreground/60 tabular-nums">
           {formatCompactUsd(volume24hUsd)}

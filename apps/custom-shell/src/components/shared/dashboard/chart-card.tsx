@@ -4,10 +4,12 @@ import {
   Card,
   CardAction,
   CardContent,
-  CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { workspacePanelHeadingClassName } from "@/components/shared/workspace-panel-header"
+import {
+  DashboardCardHeader,
+  dashboardCardHeadingClassName,
+} from "@/components/shared/dashboard-card-header"
 import { cn } from "@/lib/utils"
 
 export const chartHeightClassName = "h-[200px] w-full min-w-0 sm:h-[240px]"
@@ -39,11 +41,11 @@ export function ChartCard({
 }) {
   return (
     <Card className={cn("flex min-w-0 flex-col gap-0 py-0", className)}>
-      <CardHeader className="min-h-14 items-center gap-2 border-b pt-4 has-data-[slot=card-action]:grid-cols-1 sm:px-5 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
+      <DashboardCardHeader className="grid grid-cols-1 has-data-[slot=card-action]:grid-cols-1 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
         <CardTitle
           className={cn(
             "flex min-w-0 items-center gap-2.5",
-            workspacePanelHeadingClassName
+            dashboardCardHeadingClassName
           )}
         >
           <span
@@ -65,7 +67,7 @@ export function ChartCard({
             {control}
           </CardAction>
         ) : null}
-      </CardHeader>
+      </DashboardCardHeader>
       {/* `min-h-0` so a card given a height can pass it on: without it this box
           refuses to go below the plot's own height, and a chart told to fill a
           column just ignores it. On a card left to size itself it changes

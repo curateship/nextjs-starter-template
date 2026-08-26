@@ -296,7 +296,7 @@ body.app-font {
  * geometry and happens whether or not the styling wrapper is above it.
  */
 [data-slot="workspace-panel"][data-header-only="true"]
-  [data-slot="workspace-panel-header"] {
+  [data-slot="dashboard-card-header"] {
   border-bottom-width: 0;
 }
 
@@ -383,7 +383,7 @@ body.app-font {
   /*
    * Settings → Styling → "Divider lines", the same as every other line that
    * parts one thing from another. `--border` is what that setting writes; see
-   * the note on `workspace-panel-header.tsx`.
+   * the note on `dashboard-card-header.tsx`.
    */
   --shell-panel-edge: var(--border);
   width: 1px;
@@ -396,13 +396,13 @@ body.app-font {
    * The top stretch is painted in the panel's own colour rather than left
    * see-through, because this handle is a real one-pixel column in the layout:
    * clear, it shows the page behind the panels and still reads as a line, just
-   * a grey one. The height is one header — the `h-[3.15rem]` in
-   * `workspace-panel-header.tsx`, which includes its own hairline.
+   * a grey one. The height comes from the same variable as
+   * `dashboard-card-header.tsx`, including the header's own hairline.
    */
   background-image: linear-gradient(
     to bottom,
-    var(--card) 0 3.15rem,
-    var(--shell-panel-edge) 3.15rem
+    var(--card) 0 var(--dashboard-card-header-height),
+    var(--shell-panel-edge) var(--dashboard-card-header-height)
   );
 }
 [data-content-styling][data-flat="true"]

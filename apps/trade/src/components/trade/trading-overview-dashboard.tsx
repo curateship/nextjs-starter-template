@@ -12,7 +12,7 @@ import {
   DashboardPanels,
   type DashboardBlock,
 } from "@/components/shared/dashboard/dashboard-panels"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
@@ -236,7 +236,7 @@ function TradesTable({
 
   return (
     <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<ListIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">

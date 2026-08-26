@@ -28,9 +28,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
@@ -710,23 +710,23 @@ export function WalletMenuContent({
       onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
       className="min-w-0 gap-0 overflow-hidden bg-popover"
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="active"
           icon={<CreditCardIcon className="size-4" />}
           label="Active"
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="all"
           icon={<LayersIcon className="size-4" />}
           label="All"
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="inactive"
           icon={<ArchiveIcon className="size-4" />}
           label="Inactive"
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="active" className="min-h-0 flex-1">
         <ScrollArea className="max-h-80" viewportClassName="max-h-80">

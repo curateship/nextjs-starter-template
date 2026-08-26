@@ -5,6 +5,17 @@
 - If a required shadcn component does not exist in `src/components/ui/`, add it there first, then use it in the page/component.
 - All custom Ui changes will be in global.css and not in the Ui Component
 
+## Workspace panels
+
+- Every panel header renders through `DashboardCardHeader` in
+  `src/components/shared/dashboard-card-header.tsx`. The shared header is 57px
+  tall and places its 32px controls 12px from the top, left and right edges.
+  Title rows, tab rows and custom rows such as the market picker compose that
+  component instead of rebuilding its frame.
+- A panel body that begins directly below the header uses 12px on every side.
+  The palette, run list and broadcast block list follow the same gutter, so the
+  body never steps inward when the header ends.
+
 ## Forms
 
 - Use shadcn form controls for inputs and interactions.

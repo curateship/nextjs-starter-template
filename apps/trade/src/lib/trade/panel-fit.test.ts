@@ -30,9 +30,9 @@ describe("fitPercent", () => {
   })
 
   it("grows a panel shut down to its tab row", () => {
-    // 52.4px of a 1000px workspace, with 300px of rows behind the header.
-    const wanted = fitPercent({ sizePx: 52.4, sizePercent: 5.24, hidden: 300 })
-    expect(wanted).toBeCloseTo(35.24, 5)
+    // 59px of a 1000px workspace, with 300px of rows behind the header.
+    const wanted = fitPercent({ sizePx: 59, sizePercent: 5.9, hidden: 300 })
+    expect(wanted).toBeCloseTo(35.9, 5)
   })
 
   it("says nothing rather than dividing by a height it has not got", () => {

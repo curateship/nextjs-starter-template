@@ -2,6 +2,7 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { resolveBackground, type ShellStyling } from "@/lib/custom-shell"
+import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 
 export function DashboardContent({
@@ -20,7 +21,11 @@ export function DashboardContent({
           "flex min-w-0 w-full flex-1 flex-col overflow-auto bg-muted/60 outline-none",
           className
         )}
-        style={{ padding: pageGutter, gap: pageGutter }}
+        style={{
+          "--dashboard-card-header-height": `${DASHBOARD_CARD_HEADER_HEIGHT_PX}px`,
+          padding: pageGutter,
+          gap: pageGutter,
+        } as React.CSSProperties}
         {...props}
       />
     )
@@ -51,6 +56,7 @@ export function DashboardContent({
         // --shell-gutter also cascades to the containers that stack cards
         // inside a page (CardGroup, the settings columns) so those match too.
         "--shell-gutter": `${styling.gutter}px`,
+        "--dashboard-card-header-height": `${DASHBOARD_CARD_HEADER_HEIGHT_PX}px`,
         padding: "var(--shell-gutter)",
         gap: "var(--shell-gutter)",
         backgroundColor: background,

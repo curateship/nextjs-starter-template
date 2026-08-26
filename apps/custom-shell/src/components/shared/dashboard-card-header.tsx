@@ -3,26 +3,48 @@ import { Link } from "@tanstack/react-router"
 import { ArrowLeftIcon } from "lucide-react"
 
 import { TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { DASHBOARD_CARD_HEADER_HEIGHT_PX } from "@/lib/layout/dashboard-card-header"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { cn } from "@/lib/utils"
 
-export const workspacePanelHeadingClassName =
+export const dashboardCardHeadingClassName =
   "font-heading text-[0.891rem] leading-snug font-medium"
 
-export const workspacePanelTabClassName =
+export const dashboardCardTabClassName =
   "font-heading text-[0.792rem] font-medium"
 
-/**
- * The one height every workspace panel header is drawn at. Named so a header
- * built outside this file — a market row header with its own anatomy, say —
- * can never quietly disagree with the ones built here.
- */
-export const workspacePanelHeaderHeightClassName = "h-[3.15rem]"
-
 const backTargetClassName =
-  "-m-1 flex size-6 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
+  "flex size-8 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground"
 
-export function WorkspacePanelHeaderIcon({
+/**
+ * The one frame every dashboard card header uses.
+ *
+ * Its 32px content row sits inside 12px on every side. The height comes from
+ * one CSS variable because collapsed panels and flat-mode divider lines need
+ * the same number without rebuilding this class elsewhere.
+ */
+export function DashboardCardHeader({
+  className,
+  style,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dashboard-card-header"
+      className={cn(
+        "flex min-h-[var(--dashboard-card-header-height)] shrink-0 items-center gap-2 border-b p-3",
+        className
+      )}
+      style={{
+        ...style,
+        "--dashboard-card-header-height": `${DASHBOARD_CARD_HEADER_HEIGHT_PX}px`,
+      } as React.CSSProperties}
+      {...props}
+    />
+  )
+}
+
+export function DashboardCardHeaderIcon({
   className,
   interactive,
   children,
@@ -62,7 +84,7 @@ export function WorkspacePanelHeaderIcon({
  * colour here is what made them disagree: it stayed a fixed grey while the
  * setting moved everything else.
  */
-export function WorkspacePanelHeader({
+export function DashboardCardTitleHeader({
   icon,
   back,
   title,
@@ -90,19 +112,12 @@ export function WorkspacePanelHeader({
   className?: string
 }) {
   return (
-    <div
-      data-slot="workspace-panel-header"
-      className={cn(
-        "flex shrink-0 items-center gap-2.5 border-b px-4 sm:px-5",
-        workspacePanelHeaderHeightClassName,
-        className
-      )}
-    >
-      <WorkspacePanelHeaderIcon interactive={back !== undefined}>
+    <DashboardCardHeader className={cn("gap-2.5", className)}>
+      <DashboardCardHeaderIcon
+        interactive={back !== undefined}
+        className={back ? "size-8" : undefined}
+      >
         {back ? (
-          /* Pulled in by a quarter on every side: the slot is 16px and this
-             target is 24px, so without it the hover box grows out of the slot
-             and sits off-centre against the title beside it. */
           back.to !== undefined ? (
             <Link
               to={back.to}
@@ -124,8 +139,8 @@ export function WorkspacePanelHeader({
         ) : (
           icon
         )}
-      </WorkspacePanelHeaderIcon>
-      <h2 className={cn("min-w-0 truncate", workspacePanelHeadingClassName)}>
+      </DashboardCardHeaderIcon>
+      <h2 className={cn("min-w-0 truncate", dashboardCardHeadingClassName)}>
         {title}
       </h2>
       {meta ? (
@@ -134,11 +149,11 @@ export function WorkspacePanelHeader({
         </div>
       ) : null}
       {action ? <div className="ml-auto shrink-0">{action}</div> : null}
-    </div>
+    </DashboardCardHeader>
   )
 }
 
-export function WorkspacePanelTabsHeader({
+export function DashboardCardTabsHeader({
   children,
   action,
 }: {
@@ -153,24 +168,18 @@ export function WorkspacePanelTabsHeader({
   action?: React.ReactNode
 }) {
   return (
-    <div
-      data-slot="workspace-panel-header"
-      className={cn(
-        "flex shrink-0 items-center gap-2 border-b px-3",
-        workspacePanelHeaderHeightClassName
-      )}
-    >
+    <DashboardCardHeader>
       <TabsList className="min-w-0 justify-start">
         {children}
       </TabsList>
       {action ? (
         <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>
       ) : null}
-    </div>
+    </DashboardCardHeader>
   )
 }
 
-export function WorkspacePanelTab({
+export function DashboardCardTab({
   icon,
   label,
   count,
@@ -185,15 +194,15 @@ export function WorkspacePanelTab({
     <TabsTrigger
       className={cn(
         "group/panel-tab flex-none",
-        workspacePanelTabClassName,
+        dashboardCardTabClassName,
         className
       )}
       {...props}
     >
       <span className="flex items-center gap-1.5">
-        <WorkspacePanelHeaderIcon className="group-data-[state=active]/panel-tab:text-foreground">
+        <DashboardCardHeaderIcon className="group-data-[state=active]/panel-tab:text-foreground">
           {icon}
-        </WorkspacePanelHeaderIcon>
+        </DashboardCardHeaderIcon>
         {label}
         {count !== undefined ? (
           <span className="ml-[3px] inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1.5 text-xs leading-none font-medium text-muted-foreground tabular-nums">

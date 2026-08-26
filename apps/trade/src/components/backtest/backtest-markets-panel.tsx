@@ -3,9 +3,9 @@ import { ListOrderedIcon, SkipForwardIcon } from "lucide-react"
 
 import { signedUsd, toneClass, usd } from "@/components/backtest/backtest-kpi"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
@@ -189,8 +189,8 @@ export function BacktestMarketsPanel({
       onValueChange={(value) => setTab(value as PanelTab)}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="results"
           icon={<ListOrderedIcon className="size-4" />}
           label="Results"
@@ -199,13 +199,13 @@ export function BacktestMarketsPanel({
         {/* Always there, even at zero. A run where every coin traded is worth
             being able to check, and a tab that comes and goes is one you cannot
             learn the place of. */}
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="skipped"
           icon={<SkipForwardIcon className="size-4" />}
           label="Skipped"
           count={skippedRows.length}
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="results" className="flex min-h-0 flex-1 flex-col">
         {/* The scroll box's own inner element is `display: table`, which sizes

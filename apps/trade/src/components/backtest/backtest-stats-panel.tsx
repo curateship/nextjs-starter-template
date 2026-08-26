@@ -10,7 +10,7 @@ import {
   usd,
 } from "@/components/backtest/backtest-kpi"
 import { BacktestPotMini } from "@/components/backtest/backtest-pot-mini"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import {
   Collapsible,
   CollapsibleContent,
@@ -112,7 +112,7 @@ export function BacktestStatsPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<FlaskConicalIcon />}
         title="Backtest · all markets"
         action={

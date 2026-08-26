@@ -2,7 +2,7 @@ import * as React from "react"
 import { Link, useNavigate } from "@tanstack/react-router"
 import { BotIcon } from "lucide-react"
 
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
@@ -100,7 +100,7 @@ export function RunningBotsWidget({
 
   return (
     <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<BotIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">

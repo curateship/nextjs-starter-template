@@ -400,8 +400,8 @@ describe("the Smart orders panel", () => {
       details?.previousElementSibling?.querySelector(".text-sm")?.textContent
     ).toBe("XMR")
     expect(
-      host.querySelector('[data-slot="workspace-panel-header"]')?.className
-    ).toContain("h-[3.15rem]")
+      host.querySelector('[data-slot="dashboard-card-header"]')?.className
+    ).toContain("min-h-[var(--dashboard-card-header-height)]")
     expect(details?.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
     expect(details?.previousElementSibling?.textContent).toContain(
       "$0.00 banked"

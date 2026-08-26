@@ -9,7 +9,7 @@ import {
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import type { FlowRunReport } from "@/lib/api/flow-runs"
@@ -71,7 +71,7 @@ export function FlowRunStatsPanel({
       {/* No wallet or venue up here: both are in the settings list at the
           foot of this panel, and saying them twice on one screen made the
           header read as a second, shorter answer to the same question. */}
-      <WorkspacePanelHeader icon={<ActivityIcon />} title="Live run" />
+      <DashboardCardTitleHeader icon={<ActivityIcon />} title="Live run" />
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 px-5 py-4">
           {/* Made or lost, and what of. The banked figure leads because it is

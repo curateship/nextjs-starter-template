@@ -18,7 +18,7 @@ import { AutomationFlowCanvas } from "@/components/automations/automation-flow-c
 import { AutomationInspector } from "@/components/automations/automation-inspector"
 import { AutomationPalette } from "@/components/automations/automation-palette"
 import { SendEmailEditor } from "@/components/automations/nodes/send-email-editor"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
@@ -655,7 +655,7 @@ export function AutomationEditor({
     />
   )
   const canvasHeader = (
-    <WorkspacePanelHeader
+    <DashboardCardTitleHeader
       icon={
         templateMode ? (
           <LayoutTemplateIcon className="size-4" />

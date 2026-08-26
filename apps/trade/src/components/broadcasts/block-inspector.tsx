@@ -16,7 +16,7 @@ import {
 } from "@/components/broadcasts/inspector-fields"
 import { RichTextEditor } from "@/components/shared/rich-text-editor"
 import { ImageUpload } from "@/components/shared/image-upload"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -519,7 +519,7 @@ export function BlockInspector({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={
           block ? (
             <MailIcon className="size-4" />

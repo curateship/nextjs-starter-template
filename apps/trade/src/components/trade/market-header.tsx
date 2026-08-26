@@ -3,7 +3,7 @@ import { BotIcon, InfoIcon, ListIcon } from "lucide-react"
 
 import { MarketPicker } from "@/components/trade/market-picker"
 import { MarketFolderStar } from "@/components/trade/market-folder-star"
-import { workspacePanelHeaderHeightClassName } from "@/components/shared/workspace-panel-header"
+import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import {
   Tooltip,
@@ -19,8 +19,8 @@ import type {
   MarketFolder,
   MarketFolderActions,
 } from "@/lib/trade/market-folders"
+import { formatCompactUsd } from "@/lib/trade/format"
 import { minimumOrderLabel } from "@/lib/trade/market-info"
-import { cn } from "@/lib/utils"
 
 /**
  * What the middle panel is showing.
@@ -114,13 +114,7 @@ export function MarketHeader({
     ) : undefined
 
   return (
-    <div
-      data-slot="workspace-panel-header"
-      className={cn(
-        "flex shrink-0 items-center gap-2 border-b px-3",
-        workspacePanelHeaderHeightClassName
-      )}
-    >
+    <DashboardCardHeader>
       <MarketFolderStar
         symbol={selection.row.symbol}
         marketKey={selection.row.key}
@@ -147,7 +141,7 @@ export function MarketHeader({
         </span>
       </div>
       {action ? <div className="ml-auto shrink-0">{action}</div> : null}
-    </div>
+    </DashboardCardHeader>
   )
 }
 
@@ -181,6 +175,9 @@ function MarketInfo({
         </span>
         <span>List price: mark price</span>
         <span>Chart bars: traded prices</span>
+        <span>
+          Daily volume: {formatCompactUsd(selection.row.volume24hUsd)}
+        </span>
         {minimumOrderLabel(selection.row) ? (
           <span>{minimumOrderLabel(selection.row)}</span>
         ) : null}

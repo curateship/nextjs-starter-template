@@ -115,16 +115,15 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   this column. Smart orders and Bots use the full height.
 - **Bottom, what you are holding.** Positions, open orders and fills, as tabs.
 
-**Every tab row and header icon on the workspace uses the shared 32px style.**
-The tab strip immediately behind the buttons uses the same light gray as the
-market control in the middle panel. The buttons, header and panel keep their
-existing backgrounds. The selected tab uses a small shadow, so it reads as the
-raised shared button shape instead of using a black underline. Icon buttons in
-a panel header, including the Folders panel's + and cog and the narrow-screen
-Markets and Smart orders buttons, use the same height.
-The tab itself lives on the shared `WorkspacePanelTab` in
-`src/components/shared/workspace-panel-header.tsx`, a shell file changed in
-Custom Shell first and carried here unchanged.
+**Every workspace panel header uses `DashboardCardHeader`.** The header is 57px
+tall with 12px on its top, left and right around the shared 32px controls. Title
+rows, tab rows, the market picker, feed cards and chart cards all render through
+that one component. A panel body that begins directly under the header also
+uses 12px. The tab strip immediately behind the buttons uses the same light
+gray as the market control in the middle panel. The selected tab uses a small
+shadow instead of a black underline. The component and its tabs live in
+`src/components/shared/dashboard-card-header.tsx`, changed in Custom Shell first
+and carried here unchanged.
 
 The right panel opens on **Smart orders**. The Smart orders tab keeps the
 hand-placed ladders and grids it already showed. The header has only the Smart
@@ -704,7 +703,9 @@ line in the body, share the panel's one 12px gutter.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain
-  dash, not a zero in a pill.
+  dash, not a zero in a pill. A ticker longer than nine characters shows its
+  first eight characters and an ellipsis. Hover and screen readers keep the
+  full ticker.
 - **Sub-exchange markets keep their full name** — "xyz:SNDK", never a
   stripped "SNDK" that could be read as a main-exchange coin. The (i)
   tooltip names the venue; coin art and the letter fallback use the bare
@@ -717,10 +718,10 @@ line in the body, share the panel's one 12px gutter.
   an order may use, the max leverage, and — where it applies — "Isolated
   only", explained in the same line. A rule the exchange does not state
   shows nothing, never a guess.
-- **The market header's (i) tooltip names both kinds of price.** The list and
-  every order rule use the exchange's mark price. Chart bars show traded
-  prices, so the newest candle may sit above or below the number the exchange
-  uses for stops and account value.
+- **The market header's (i) tooltip names both kinds of price and the daily
+  dollar volume.** The list and every order rule use the exchange's mark price.
+  Chart bars show traded prices, so the newest candle may sit above or below
+  the number the exchange uses for stops and account value.
 - **A bare visit reopens your last market**, remembered against the account
   (a second machine gets it too). A link with `?market=` always wins, and a
   remembered market that no longer resolves shows the honest missing state.

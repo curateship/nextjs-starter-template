@@ -13,9 +13,9 @@ import {
 
 import { MarketIcon } from "@/components/trade/market-icon"
 import {
-  WorkspacePanelTab,
-  WorkspacePanelTabsHeader,
-} from "@/components/shared/workspace-panel-header"
+  DashboardCardTab,
+  DashboardCardTabsHeader,
+} from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import {
@@ -175,18 +175,18 @@ export function SmartOrdersPanel({
       }}
       className="h-full min-h-0 flex-1 gap-0 overflow-hidden bg-card"
     >
-      <WorkspacePanelTabsHeader>
-        <WorkspacePanelTab
+      <DashboardCardTabsHeader>
+        <DashboardCardTab
           value="smart"
           icon={<Grid2x2Icon className="size-4" />}
           label="Smart orders"
         />
-        <WorkspacePanelTab
+        <DashboardCardTab
           value="bots"
           icon={<BotIcon className="size-4" />}
           label="Bots"
         />
-      </WorkspacePanelTabsHeader>
+      </DashboardCardTabsHeader>
 
       <TabsContent value="smart" className="min-h-0 flex-1">
         <SmartOrdersView {...smartOrdersProps} />

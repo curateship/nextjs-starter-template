@@ -414,6 +414,37 @@ describe("the market folder controls", () => {
     expect(marketNames()).toEqual(["ETH", "BTC", "SOL"])
   })
 
+  it("keeps folder ticker labels to nine characters", async () => {
+    const longMarket: MarketRow = {
+      ...btc,
+      key: "hyperliquid:mainnet:xyz:NATGAS" as MarketKey,
+      marketId: "xyz:NATGAS",
+      symbol: "xyz:NATGAS",
+    }
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[{ ...fav, marketKeys: [longMarket.key] }]}
+            catalogs={[{ ...catalogs[0], rows: [longMarket] }]}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const favToggle = Array.from(
+      host.querySelectorAll("button[aria-expanded]")
+    ).find((button) => button.textContent?.includes("Fav"))!
+    await act(async () => click(favToggle))
+
+    const ticker = host.querySelector<HTMLElement>('[title="xyz:NATGAS"]')!
+    const visibleTicker = ticker.querySelector<HTMLElement>("[aria-hidden]")!
+    expect(visibleTicker.textContent).toBe("xyz:NATG…")
+    expect(visibleTicker.textContent).toHaveLength(9)
+    expect(ticker.querySelector(".sr-only")?.textContent).toBe("xyz:NATGAS")
+  })
+
   it("follows the saved order and leaves a switched-off row out", async () => {
     const named: MarketFolder = {
       id: "00000000-0000-4000-8000-000000000002",

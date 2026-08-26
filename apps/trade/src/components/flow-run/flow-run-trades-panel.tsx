@@ -7,7 +7,7 @@ import {
   toneClass,
   usd,
 } from "@/components/backtest/backtest-kpi"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -101,7 +101,7 @@ export function FlowRunTradesPanel({
 
   return (
     <>
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<ListIcon />}
         title="Trades"
         meta={

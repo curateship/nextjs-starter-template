@@ -5,7 +5,7 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { WorkspacePanelHeader } from "@/components/shared/workspace-panel-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   getBroadcastErrorMessage,
@@ -129,7 +129,7 @@ export function BroadcastStatusPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <WorkspacePanelHeader
+      <DashboardCardTitleHeader
         icon={<SendIcon className="size-4" />}
         title="Sending"
         meta={
