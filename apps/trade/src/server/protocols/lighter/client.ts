@@ -113,6 +113,85 @@ export async function lighterPublic(
 }
 
 /**
+ * Sends one signed transaction. This is the only call in the Lighter folder
+ * that changes anything.
+ *
+ * Form-encoded, not JSON: `sendTx` wants `tx_type` and `tx_info` as ordinary
+ * form fields, with the body exactly as the signer produced it. Nothing here
+ * re-encodes or reformats that string, because the signature covers it.
+ *
+ * **It counts as order work in the budget**, so it may use the fifth of the
+ * minute that background reads are kept out of.
+ */
+export async function lighterSendTx(
+  network: NetworkId,
+  input: { txType: number; txInfo: string }
+): Promise<unknown> {
+  assertAvailable(network)
+  const base = restBase(network)
+  reserveLighterRequest(network, { weight: SEND_TX_WEIGHT, priority: "order" })
+
+  const body = new URLSearchParams()
+  body.set("tx_type", String(input.txType))
+  body.set("tx_info", input.txInfo)
+
+  let response: Response
+  try {
+    response = await fetch(new URL("/api/v1/sendTx", base), {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      body,
+      signal: requestSignal(READ_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (isTimeout(error)) throw new Error("EXCHANGE_BUSY")
+    throw new Error(scrubbedMessage(error))
+  }
+
+  if (response.status === 429 || response.status === 405) {
+    holds.set(network, Date.now() + RATE_HOLD_MS)
+    throw lighterRefusalError({ status: response.status, code: "" })
+  }
+
+  const payload = (await response
+    .json()
+    .catch(() => null)) as LighterEnvelope | null
+  const code =
+    payload !== null &&
+    (typeof payload.code === "number" || typeof payload.code === "string")
+      ? String(payload.code)
+      : String(response.status)
+  if (!response.ok || (payload !== null && code !== "200")) {
+    throw lighterRefusalError({ status: response.status, code })
+  }
+  return payload
+}
+
+/** Lighter's docs put `sendTx` at weight 6. */
+const SEND_TX_WEIGHT = 6
+
+/**
+ * One read that needs the account's own signature.
+ *
+ * Lighter takes the auth token as an `auth` query parameter. It is a signed
+ * string with a deadline in it, not a secret of lasting value, but it is
+ * still an account credential — so it goes on the query the same way Lighter
+ * expects and never into a log or a refusal.
+ */
+export async function lighterPrivate(
+  network: NetworkId,
+  path: string,
+  weight: number,
+  token: string,
+  params: Record<string, string | number> = {}
+): Promise<unknown> {
+  return lighterPublic(network, path, weight, { ...params, auth: token })
+}
+
+/**
  * The credential blob, which for Lighter is the API private key and nothing
  * else.
  *

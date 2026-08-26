@@ -20,6 +20,22 @@ describe("Lighter refusals", () => {
     expect(lighterRefusalCode(200, "21500")).toBe("LIGHTER_NOT_FOUND")
   })
 
+  it("names the country block, which reads nothing like a bad key", () => {
+    // Measured 26 Aug 2026 from Canada: every read answered 200 while
+    // `sendTx` answered 20558. Without its own words this arrives looking
+    // like a rejected key, and somebody spends an afternoon making new ones.
+    expect(lighterRefusalCode(400, "20558")).toBe("LIGHTER_REGION_BLOCKED")
+    const said = lighterRefusalSentence("LIGHTER_REGION_BLOCKED")
+    expect(said).toContain("country")
+    // It must say what would actually fix it, which is not a new key.
+    expect(said).toContain("server")
+  })
+
+  it("names a refused sequence number so the count gets thrown away", () => {
+    expect(lighterRefusalCode(400, "21120")).toBe("LIGHTER_NONCE")
+    expect(lighterRefusalSentence("LIGHTER_NONCE")).toContain("sequence")
+  })
+
   it("answers null for a code it does not know", () => {
     expect(lighterRefusalCode(400, "21952")).toBeNull()
   })

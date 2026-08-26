@@ -45,7 +45,7 @@ function barsFrom(bornAt: number, barMs: number) {
 beforeEach(() => {
   publicRead.mockReset()
   marketFacts.mockReset()
-  marketFacts.mockResolvedValue({ id: 1, bornAt: null })
+  marketFacts.mockResolvedValue({ id: 1, bornAt: null, priceDecimals: 1, sizeDecimals: 5 })
   publicRead.mockImplementation(async (_network, _path, _weight, params) => {
     const from = Number(params?.start_timestamp)
     const to = Number(params?.end_timestamp) + 1
@@ -107,7 +107,7 @@ describe("Lighter candle history", () => {
 
   it("skips the years before a young coin existed", async () => {
     const bornAt = 1_700_000_000_000 - (1_700_000_000_000 % MINUTE)
-    marketFacts.mockResolvedValue({ id: 9, bornAt })
+    marketFacts.mockResolvedValue({ id: 9, bornAt, priceDecimals: 1, sizeDecimals: 5 })
     publicRead.mockImplementation(barsFrom(bornAt, MINUTE))
 
     // Three 500-bar pages' worth of window, all but the last before the coin.
@@ -128,7 +128,7 @@ describe("Lighter candle history", () => {
 
   it("answers nothing when the whole window predates the market", async () => {
     const bornAt = 1_700_000_000_000
-    marketFacts.mockResolvedValue({ id: 9, bornAt })
+    marketFacts.mockResolvedValue({ id: 9, bornAt, priceDecimals: 1, sizeDecimals: 5 })
 
     const bars = await fetchLighterCandleHistory(
       "mainnet",
@@ -147,7 +147,7 @@ describe("the four-hour full history", () => {
   it("stops at the market's first day instead of asking past it", async () => {
     // A coin two hundred four-hour bars old: under half of one 500-bar page.
     const bornAt = Date.now() - 200 * FOUR_HOURS
-    marketFacts.mockResolvedValue({ id: 7, bornAt })
+    marketFacts.mockResolvedValue({ id: 7, bornAt, priceDecimals: 1, sizeDecimals: 5 })
     publicRead.mockImplementation(barsFrom(bornAt, FOUR_HOURS))
 
     const bars = await fetchLighterCandles("mainnet", "NEW", "4h")
@@ -160,7 +160,7 @@ describe("the four-hour full history", () => {
 
   it("walks until the bars run out when no first day is stated", async () => {
     const bornAt = Date.now() - 200 * FOUR_HOURS
-    marketFacts.mockResolvedValue({ id: 7, bornAt: null })
+    marketFacts.mockResolvedValue({ id: 7, bornAt: null, priceDecimals: 1, sizeDecimals: 5 })
     publicRead.mockImplementation(barsFrom(bornAt, FOUR_HOURS))
 
     await fetchLighterCandles("mainnet", "NODATE", "4h")

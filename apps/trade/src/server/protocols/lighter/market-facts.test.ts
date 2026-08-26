@@ -57,7 +57,7 @@ afterEach(() => {
 describe("what the catalogue teaches", () => {
   it("learns a market's number and first day from one read", async () => {
     const btc = await lighterMarketFacts("mainnet", "BTC")
-    expect(btc).toEqual({ id: 1, bornAt: BORN_AT })
+    expect(btc).toEqual({ id: 1, bornAt: BORN_AT, priceDecimals: 1, sizeDecimals: 5 })
     expect(publicRead).toHaveBeenCalledTimes(1)
     expect(publicRead.mock.calls[0]?.[1]).toBe("/api/v1/orderBookDetails")
     expect(publicRead.mock.calls[0]?.[3]).toMatchObject({ filter: "perp" })
@@ -75,6 +75,8 @@ describe("what the catalogue teaches", () => {
     expect(await lighterMarketFacts("mainnet", "NODATE")).toEqual({
       id: 2,
       bornAt: null,
+      priceDecimals: 2,
+      sizeDecimals: 2,
     })
   })
 

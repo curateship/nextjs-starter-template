@@ -26,6 +26,32 @@ export const LIGHTER_CHAIN_ID = 304
 /** Lighter refuses anything that is not exactly forty bytes. Measured. */
 export const LIGHTER_PRIVATE_KEY_BYTES = 40
 
+/**
+ * Lighter's own numbers for the kinds of order, read from
+ * `types/txtypes/constants.go` in the same repo the signer came from rather
+ * than from prose, because sending the wrong one buys the wrong thing.
+ */
+export const LIGHTER_ORDER_TYPE = {
+  limit: 0,
+  market: 1,
+  stopLoss: 2,
+  stopLossLimit: 3,
+  takeProfit: 4,
+  takeProfitLimit: 5,
+} as const
+
+/**
+ * How long an order may live. **Post-only is the one this app sends.** A
+ * post-only order that would take the market is refused by Lighter instead
+ * of filling, which is what `trading-rules.md` demands: this app never sends
+ * a market order.
+ */
+export const LIGHTER_TIME_IN_FORCE = {
+  immediateOrCancel: 0,
+  goodTillTime: 1,
+  postOnly: 2,
+} as const
+
 type SignerGlobals = {
   Go: new () => {
     importObject: WebAssembly.Imports
@@ -47,6 +73,27 @@ type SignerGlobals = {
   _createAuthToken?: (
     accountIndex: number,
     apiKeyIndex: number
+  ) => () => Promise<unknown>
+  /** Sizes and prices go as STRINGS of whole numbers, already scaled. */
+  _signCreateOrder?: (
+    accountIndex: number,
+    marketIndex: number,
+    clientOrderIndex: number,
+    baseAmount: string,
+    price: string,
+    isAsk: number,
+    orderType: number,
+    timeInForce: number,
+    reduceOnly: number,
+    triggerPrice: string,
+    orderExpiry: number,
+    nonce: number
+  ) => () => Promise<unknown>
+  _signCancelOrder?: (
+    accountIndex: number,
+    marketIndex: number,
+    orderIndex: string,
+    nonce: number
   ) => () => Promise<unknown>
 }
 
@@ -80,7 +127,9 @@ async function load(): Promise<SignerGlobals> {
   // a signing call with a key in hand.
   if (
     typeof scope._createClientByPrv !== "function" ||
-    typeof scope._createAuthToken !== "function"
+    typeof scope._createAuthToken !== "function" ||
+    typeof scope._signCreateOrder !== "function" ||
+    typeof scope._signCancelOrder !== "function"
   ) {
     throw new Error("LIGHTER_SIGNER_UNAVAILABLE")
   }
@@ -179,4 +228,104 @@ export async function lighterAuthToken(input: {
     throw new Error("LIGHTER_SIGNER_TOKEN:unreadable answer")
   }
   return { token, deadline }
+}
+
+/**
+ * Lighter's numbers for the KIND of transaction, which `sendTx` must be told
+ * separately.
+ *
+ * The signer does not answer with them. Lighter's plain build returns a
+ * `txType` beside the body and its own Node example reads one, but the
+ * browser build vendored here returns only the body and its hash — so the
+ * number comes from `types/txtypes/constants.go`, where the signer's own
+ * source keeps it.
+ */
+export const LIGHTER_TX_TYPE = {
+  createOrder: 14,
+  cancelOrder: 15,
+  cancelAllOrders: 16,
+  modifyOrder: 17,
+  updateLeverage: 20,
+  updateMargin: 29,
+} as const
+
+/** A signed transaction body, ready for `sendTx` beside its type number. */
+export type LighterSignedTx = {
+  /** The signed body, as the JSON string Lighter wants posted verbatim. */
+  txInfo: string
+  txHash: string
+}
+
+function signedTxOf(answer: unknown, what: string): LighterSignedTx {
+  const failed = errorOf(answer)
+  if (failed) throw new Error(`LIGHTER_SIGNER_${what}:${failed}`)
+  const row = (answer ?? {}) as { txInfo?: unknown; txHash?: unknown }
+  if (typeof row.txInfo !== "string" || typeof row.txHash !== "string") {
+    throw new Error(`LIGHTER_SIGNER_${what}:unreadable answer`)
+  }
+  return { txInfo: row.txInfo, txHash: row.txHash }
+}
+
+/**
+ * Signs one order. Every number here is already a whole number scaled by the
+ * market's own decimals — see `scaleLighterPrice` — because that is the only
+ * shape Lighter accepts.
+ *
+ * **Nothing is sent.** This produces a signed body; posting it is the
+ * client's job, and the two are kept apart so an order can be checked
+ * without a network at all.
+ */
+export async function signLighterOrder(input: {
+  accountIndex: number
+  marketIndex: number
+  /** The app's own order number, which comes back on the fill. */
+  clientOrderIndex: number
+  baseAmount: number
+  price: number
+  side: "buy" | "sell"
+  orderType: number
+  timeInForce: number
+  reduceOnly: boolean
+  triggerPrice?: number
+  /** Epoch ms, or -1 for Lighter's own 28-day default. */
+  orderExpiry?: number
+  nonce: number
+}): Promise<LighterSignedTx> {
+  const scope = await signer()
+  return signedTxOf(
+    await scope._signCreateOrder!(
+      input.accountIndex,
+      input.marketIndex,
+      input.clientOrderIndex,
+      String(input.baseAmount),
+      String(input.price),
+      input.side === "sell" ? 1 : 0,
+      input.orderType,
+      input.timeInForce,
+      input.reduceOnly ? 1 : 0,
+      String(input.triggerPrice ?? 0),
+      input.orderExpiry ?? -1,
+      input.nonce
+    )(),
+    "ORDER"
+  )
+}
+
+/** Signs the cancellation of one resting order, by Lighter's own order id. */
+export async function signLighterCancel(input: {
+  accountIndex: number
+  marketIndex: number
+  orderIndex: string
+  nonce: number
+}): Promise<LighterSignedTx> {
+  const scope = await signer()
+  return signedTxOf(
+    await scope._signCancelOrder!(
+      input.accountIndex,
+      input.marketIndex,
+      input.orderIndex,
+      input.nonce
+    )(),
+    "CANCEL"
+  )
 }

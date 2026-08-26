@@ -194,7 +194,17 @@ export function toLighterMarketCatalog(input: {
  * walk asking for years before the coin existed, which on BTC was a third of
  * the requests a four-hour chart spent.
  */
-type MarketFacts = { id: number; bornAt: number | null }
+type MarketFacts = {
+  id: number
+  bornAt: number | null
+  /**
+   * How many decimal places this market allows on a price and on a size.
+   * The order path scales every number it sends by these, because whole
+   * numbers are the only shape Lighter takes.
+   */
+  priceDecimals: number | null
+  sizeDecimals: number | null
+}
 
 const factsBySymbol = new Map<NetworkId, Map<string, MarketFacts>>()
 
@@ -209,6 +219,8 @@ function rememberFacts(network: NetworkId, answer: unknown): void {
     facts.set(row.data.symbol, {
       id: row.data.market_id,
       bornAt: bornAt !== null && bornAt > 0 ? bornAt : null,
+      priceDecimals: row.data.price_decimals,
+      sizeDecimals: row.data.size_decimals,
     })
   }
   factsBySymbol.set(network, facts)
@@ -240,6 +252,27 @@ async function orderBookDetails(network: NetworkId): Promise<unknown> {
     if (heldCatalogs.get(network)?.load === load) heldCatalogs.delete(network)
   })
   return load
+}
+
+/**
+ * The symbol behind one of Lighter's market numbers, and what that market
+ * is scaled by.
+ *
+ * Lighter answers an order row with a number rather than a name, and a screen
+ * showing "1" where every other part of the app says "BTC" would match
+ * nothing — not the position beside it, not the chart, not a saved market.
+ */
+export async function lighterMarketByIndex(
+  network: NetworkId,
+  marketIndex: number
+): Promise<{ symbol: string; facts: MarketFacts } | null> {
+  const search = () => {
+    for (const [symbol, facts] of factsBySymbol.get(network) ?? []) {
+      if (facts.id === marketIndex) return { symbol, facts }
+    }
+    return null
+  }
+  return search() ?? ((await orderBookDetails(network)), search())
 }
 
 /**

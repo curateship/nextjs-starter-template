@@ -77,6 +77,62 @@ export function lighterTickFromDecimals(priceDecimals: unknown): number | null {
   return Number((10 ** -decimals).toFixed(Math.min(decimals, 12)))
 }
 
+/**
+ * Lighter takes every price and size as a whole number, scaled by the
+ * decimals that market states. A price of 78,584.1 on a market with one
+ * decimal place goes as 785841.
+ *
+ * **Its price field is a 32-bit unsigned integer**, which is not big enough
+ * for every market it lists. A market priced in the thousands that also
+ * allows six decimal places would overflow it, and an overflowed price is
+ * not a refused order — it is a real order at a wildly wrong price. So the
+ * ceiling is checked here and a price past it is refused rather than sent.
+ */
+const LIGHTER_MAX_SCALED_PRICE = 4_294_967_295
+
+/**
+ * A price as Lighter's whole number, or null when it will not fit.
+ *
+ * Null is a refusal the caller must pass on, never a zero to send.
+ */
+export function scaleLighterPrice(
+  px: number,
+  priceDecimals: number
+): number | null {
+  const scaled = scaleByDecimals(px, priceDecimals)
+  if (scaled === null || scaled > LIGHTER_MAX_SCALED_PRICE) return null
+  return scaled
+}
+
+/** A coin size as Lighter's whole number, or null when it cannot be said. */
+export function scaleLighterSize(
+  sz: number,
+  sizeDecimals: number
+): number | null {
+  return scaleByDecimals(sz, sizeDecimals)
+}
+
+function scaleByDecimals(value: number, decimals: number): number | null {
+  if (!Number.isFinite(value) || value < 0) return null
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null
+  // Rounded, not truncated, and off the value's own decimal string rather
+  // than a multiplication: 1.1 * 100 is 110.00000000000001 in binary floating
+  // point, and flooring that is a different order than the one asked for.
+  const scaled = Math.round(Number(`${value}e${decimals}`))
+  return Number.isSafeInteger(scaled) ? scaled : null
+}
+
+/** Lighter's whole number back as a price or size a screen can show. */
+export function unscaleLighterNumber(
+  whole: number | string,
+  decimals: number
+): number | null {
+  const value = typeof whole === "number" ? whole : Number(whole)
+  if (!Number.isFinite(value)) return null
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null
+  return Number(`${value}e-${decimals}`)
+}
+
 /** The nearest price Lighter's stated decimal places allow. */
 export function roundLighterPx(
   px: number,

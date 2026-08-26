@@ -5,9 +5,65 @@ import {
   lighterIntervalMs,
   lighterTickFromDecimals,
   roundLighterPx,
+  scaleLighterPrice,
+  scaleLighterSize,
   toLighterBar,
   toLighterStatsFigures,
+  unscaleLighterNumber,
 } from "@/lib/protocols/lighter/translate"
+
+describe("Lighter's whole numbers", () => {
+  it("scales a price and a size by the market's own decimals", () => {
+    // BTC: one decimal place on price, five on size.
+    expect(scaleLighterPrice(78_584.1, 1)).toBe(785_841)
+    expect(scaleLighterSize(0.0006, 5)).toBe(60)
+    // LAUNCHCOIN: six on price, none on size.
+    expect(scaleLighterPrice(0.062636, 6)).toBe(62_636)
+    expect(scaleLighterSize(100, 0)).toBe(100)
+  })
+
+  it("round-trips a market with awkward decimals exactly", () => {
+    // The float trap: 1.1 times 100 is 110.00000000000001 in binary, and
+    // flooring that sends a different order than the one asked for.
+    for (const [value, decimals] of [
+      [1.1, 2],
+      [9.0112, 4],
+      [0.07, 2],
+      [78_584.1, 1],
+      [1.005, 3],
+    ] as const) {
+      const whole = scaleLighterPrice(value, decimals)
+      expect(whole, `${value} @ ${decimals}`).not.toBeNull()
+      expect(Number.isInteger(whole)).toBe(true)
+      expect(unscaleLighterNumber(whole as number, decimals)).toBeCloseTo(
+        value,
+        decimals
+      )
+    }
+  })
+
+  it("refuses a price too big for Lighter's 32-bit field", () => {
+    // Lighter takes the price as an unsigned 32-bit integer. A market in the
+    // thousands that also allows six decimals overflows it, and an overflowed
+    // price is a real order at a wildly wrong price, not a refused one.
+    expect(scaleLighterPrice(5_000, 6)).toBeNull()
+    expect(scaleLighterPrice(4_294.967_295, 6)).toBe(4_294_967_295)
+    expect(scaleLighterPrice(4_294.967_296, 6)).toBeNull()
+  })
+
+  it("refuses what it cannot say instead of sending a zero", () => {
+    expect(scaleLighterPrice(-1, 2)).toBeNull()
+    expect(scaleLighterPrice(Number.NaN, 2)).toBeNull()
+    expect(scaleLighterPrice(1, -1)).toBeNull()
+    expect(scaleLighterSize(Number.POSITIVE_INFINITY, 2)).toBeNull()
+    expect(unscaleLighterNumber("not a number", 2)).toBeNull()
+  })
+
+  it("reads Lighter's own whole numbers back", () => {
+    expect(unscaleLighterNumber("785841", 1)).toBeCloseTo(78_584.1, 4)
+    expect(unscaleLighterNumber(60, 5)).toBeCloseTo(0.0006, 8)
+  })
+})
 
 describe("Lighter translation", () => {
   it("maps all six app timeframes onto Lighter's own names", () => {

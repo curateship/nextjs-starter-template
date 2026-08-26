@@ -285,6 +285,31 @@ needed, because the number itself is found from your address and your key.
   instead, so its margin is worked out from the percent. That reproduced
   Lighter's own account-wide figure exactly.
 
+## Lighter decides by country, and only for orders
+
+Measured 26 August 2026. Every read answered normally from a machine in
+Canada — markets, candles, funding, accounts, and even `nextNonce`, which
+belongs to the order path. `POST /api/v1/sendTx` and `sendTxBatch` answered
+`20558`, "You are accessing Lighter from a restricted jurisdiction".
+
+- It is decided by where the server sits, not by the key or the account, so a
+  new API key changes nothing.
+- It is worth naming apart from every other refusal because it arrives looking
+  exactly like a rejected key, and somebody could spend an afternoon making
+  new ones.
+- **The practice network is not blocked.** The same machine reached testnet's
+  `sendTx` and got ordinary validation errors back.
+- The database this app uses sits in Germany. If the app runs beside it, it is
+  very likely able to place Lighter orders even though a Canadian laptop
+  cannot — but that has not been proven, and it can only be proven by the
+  server actually sending one.
+
+**What this costs.** The order path cannot be exercised end to end from a
+development machine here. Signing can: the signer runs locally and produces a
+complete signed transaction, so everything up to the moment of posting is
+checked by tests. Only the posting itself is unproven, and the first proof of
+it will be a real order from the server.
+
 ## Not built yet
 
 Placing orders. Trade cannot yet buy, sell, cancel, or set a stop or target on
