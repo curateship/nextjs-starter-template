@@ -291,6 +291,32 @@ needed, because the number itself is found from your address and your key.
   instead, so its margin is worked out from the percent. That reproduced
   Lighter's own account-wide figure exactly.
 
+## The signer is two files, and a build leaves them behind
+
+Learned the hard way on 26 August 2026. Lighter's signer is a `.wasm` binary
+and Go's glue script — data, not code — so a bundler compiles everything
+around them and does not carry them along. They existed only under `src/`.
+
+On a development machine the app runs straight from source, so it worked
+perfectly. On the deployed server the files were simply not there, and the
+result was silent in the worst way: every Lighter read failed on a missing
+file, the engine stepped over that whole wallet, and a watched Lighter order
+sat at a price it had already reached without one line in the Journal to say
+why. The other four venues carried on normally, which made it look like a
+Lighter problem rather than a missing file.
+
+Two things stop it happening again:
+
+- The worker's own Dockerfile copies both files next to the built bundle,
+  which is the first place the loader looks.
+- The loader searches the places a build can put them and, finding none,
+  refuses with a sentence saying the signing files are missing and listing
+  where it looked. A missing file must never again read as a bad key.
+
+**Anything that loads a file by path needs proving against a real build**, not
+against the development server. The signing itself was well tested and still
+none of it ran in production.
+
 ## Lighter decides by country, and only for orders
 
 Measured 26 August 2026. Every read answered normally from a machine in

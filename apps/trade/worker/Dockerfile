@@ -47,6 +47,16 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/apps/trade/worker/dist ./worker/dist
 COPY --from=build /app/apps/trade/package.json ./package.json
 
+# **Lighter's signer is two files, not code, so the bundler leaves them
+# behind.** The engine loads them from beside itself, and without this line
+# they simply are not there: every Lighter read fails on a missing file, the
+# whole wallet's pass is stepped over, and a watched Lighter order sits at a
+# price it has already reached without one word in the Journal. That is
+# exactly what happened on 26 Aug 2026. They land beside `trade.mjs` because
+# that is where the loader looks first.
+COPY --from=build /app/apps/trade/src/server/protocols/lighter/signer/lighter-signer.wasm ./worker/dist/
+COPY --from=build /app/apps/trade/src/server/protocols/lighter/signer/wasm_exec.js ./worker/dist/
+
 # No port and no health endpoint on purpose: it serves nothing. Whether it is
 # alive is answered by the lock — a copy that has died is not holding one.
 CMD ["node", "worker/dist/trade.mjs"]
