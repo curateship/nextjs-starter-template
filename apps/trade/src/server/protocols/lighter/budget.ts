@@ -19,6 +19,28 @@ export const LIGHTER_REQUESTS_PER_MINUTE = 60
 const BACKGROUND_NUMERATOR = 4
 const BACKGROUND_DENOMINATOR = 5
 
+/**
+ * **Two programs share Lighter's one allowance, and this counter only ever
+ * sees one of them.**
+ *
+ * The website and the trading engine are separate containers with separate
+ * memory, so each counted its own sixty and neither ever saw itself go over
+ * — while Lighter counted the pair against a single sixty. Both stayed
+ * politely under a limit that did not exist, and Lighter answered by
+ * dropping the socket, which sent every read back to REST, which spent more
+ * still. Measured 27 Aug 2026: the account socket died about every thirteen
+ * seconds in that state.
+ *
+ * So each process takes half. It wastes a little when only one of them is
+ * busy, and that is the right trade: the cost of being wrong the other way
+ * is a feed that collapses and takes the chart down with it.
+ */
+const PROCESSES_SHARING_THE_CAP = 2
+/** What THIS process may spend of Lighter's minute. Half of the venue's cap. */
+export const LIGHTER_REQUESTS_PER_PROCESS = Math.floor(
+  LIGHTER_REQUESTS_PER_MINUTE / PROCESSES_SHARING_THE_CAP
+)
+
 export type LighterRequestCost = {
   /**
    * Lighter's stated weight for the endpoint, carried so the doc's premium
@@ -68,9 +90,9 @@ export function reserveLighterRequest(
   prune(state, now)
   const ceiling =
     cost.priority === "order"
-      ? LIGHTER_REQUESTS_PER_MINUTE
+      ? LIGHTER_REQUESTS_PER_PROCESS
       : Math.floor(
-          (LIGHTER_REQUESTS_PER_MINUTE * BACKGROUND_NUMERATOR) /
+          (LIGHTER_REQUESTS_PER_PROCESS * BACKGROUND_NUMERATOR) /
             BACKGROUND_DENOMINATOR
         )
   if (state.entries.length + 1 > ceiling) throw new Error("EXCHANGE_BUSY")
@@ -100,7 +122,7 @@ export function lighterBudgetSnapshot(
   const state = stateFor(network)
   prune(state, now)
   return {
-    limit: LIGHTER_REQUESTS_PER_MINUTE,
+    limit: LIGHTER_REQUESTS_PER_PROCESS,
     requests: state.entries.length,
     restRequests: state.entries.filter((one) => one.kind === "rest").length,
     socketSends: state.entries.filter((one) => one.kind === "socket").length,

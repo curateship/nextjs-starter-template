@@ -55,6 +55,35 @@ import {
 const SWEEP_EVERY_MS = 30_000
 
 /**
+ * The same sweep when nobody has the Journal on screen.
+ *
+ * **Not "never".** The Journal is only DRAWN when it is open, but the record
+ * behind it is what sends the bell notice — a stop that fires at three in the
+ * morning has to be written down whether or not a tab is showing, or the
+ * notice never arrives and the row appears whenever somebody next looks. The
+ * engine covers this for wallets running ladders and only those, so a plain
+ * wallet holding one position has nothing else keeping its record.
+ *
+ * Two minutes rather than thirty seconds: four times less traffic, which is
+ * the point on a venue allowing sixty requests a minute, while a fill is
+ * still written down and announced within a couple of minutes of happening.
+ */
+const UNWATCHED_SWEEP_EVERY_MS = 120_000
+
+/**
+ * How long this wallet waits between reads of its trade history.
+ *
+ * Its own function so the rule can be pinned by a test: **unwatched means
+ * slower, never off.** Turning it off is the tempting simplification and it
+ * silently breaks the bell notice for a stop that fires overnight on a wallet
+ * with no ladder — the engine only keeps the record for wallets running
+ * orders.
+ */
+export function sweepWaitMs(watched: boolean): number {
+  return watched ? SWEEP_EVERY_MS : UNWATCHED_SWEEP_EVERY_MS
+}
+
+/**
  * Let the next read sweep straight away, whatever the clock says.
  *
  * **The wait above is for idle polling, not for something just done.** After
@@ -158,7 +187,9 @@ export async function sweepLiveFills(
   wallet: TradeWallet,
   portfolio: WalletPortfolio,
   /** Decrypts on demand, for venues whose history needs the key. */
-  credential: () => string | null
+  credential: () => string | null,
+  /** Whether the Journal is on screen. False only slows this down. */
+  watched = true
 ): Promise<void> {
   try {
     await recordTriggers(userId, wallet, portfolio)
@@ -182,8 +213,17 @@ export async function sweepLiveFills(
       wallet.network,
       wallet.address
     )
+    /**
+     * How long this wallet waits between reads. Nobody looking at the Journal
+     * makes it four times longer, never infinite — see
+     * `UNWATCHED_SWEEP_EVERY_MS` for why the record still has to be kept.
+     */
+    const every = sweepWaitMs(watched)
+    // A venue that PUSHES its fills is driven by its own recovery flag, not
+    // by a clock — that is the whole saving, and it holds whether or not
+    // anyone is watching. Only the venues still read on a timer slow down.
     if (orders.watchFills && !pushedRecovery) return
-    if (!pushedRecovery && now - last < SWEEP_EVERY_MS) return
+    if (!pushedRecovery && now - last < every) return
     sweptAt.set(walletKey, now)
 
     await resolveClosingOrders(userId, wallet, credential)

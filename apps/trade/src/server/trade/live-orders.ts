@@ -1040,6 +1040,17 @@ export async function loadLivePortfolio(
      * are small and always come back.
      */
     journalStamp?: string
+    /**
+     * Whether anyone is looking at the Journal.
+     *
+     * False means the sweep is skipped for wallets with nothing new. The
+     * Journal is history — it changes only when a fill lands — so keeping it
+     * current while another tab is showing bought nothing and cost a trade
+     * history read every half minute, on Lighter a real share of a
+     * sixty-a-minute allowance. A wallet that HAS just filled is still swept,
+     * whatever tab is open, so the bell notice and the row never disagree.
+     */
+    journalOpen?: boolean
     /** Each wallet's key, when the caller read the rows already. */
     credentials?: ReadonlyMap<string, () => string | null>
   } = {}
@@ -1143,7 +1154,17 @@ export async function loadLivePortfolio(
               if (sweepIsWaitedFor(userId, wallet.id)) {
                 await sweepLiveFills(userId, wallet, portfolio, credential)
               } else {
-                void sweepLiveFills(userId, wallet, portfolio, credential)
+                // Still swept when nobody is looking, just far less often:
+                // the record behind the Journal is what sends the bell
+                // notice, and a stop firing overnight has to be written down
+                // whether or not a tab is open.
+                void sweepLiveFills(
+                  userId,
+                  wallet,
+                  portfolio,
+                  credential,
+                  options.journalOpen ?? false
+                )
               }
             }
           })(),

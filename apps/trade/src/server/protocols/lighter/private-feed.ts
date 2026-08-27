@@ -58,6 +58,15 @@ const FIRST_SNAPSHOT_MS = 15_000
 const WATCHDOG_EVERY_MS = 4_000
 
 /**
+ * How long a line has to stay up before it counts as recovered.
+ *
+ * Lighter was measured dropping this socket after about thirteen seconds
+ * whenever the minute's allowance was spent, so anything under a minute is
+ * not proof of health — it is the same failure on its way round again.
+ */
+const STEADY_AFTER_MS = 60_000
+
+/**
  * How often the Journal is reconciled against Lighter's own trade history
  * even while the socket looks healthy.
  *
@@ -420,7 +429,19 @@ function connect(hub: Hub): void {
   })
   socket.addEventListener("message", (event) => {
     if (generation !== hub.generation) return
-    hub.attempts = 0
+    /**
+     * **The backoff is NOT reset here**, and that is the whole point.
+     *
+     * Lighter drops a socket when the minute's allowance is spent, and it
+     * keeps dropping it while the allowance stays spent. Clearing the count
+     * on the first frame meant every drop was followed by a one-second
+     * reconnect and three more subscribe frames — spent from the very bucket
+     * that was already empty — so the line died again about thirteen seconds
+     * later, measured, over and over. The reads in each gap fell back to
+     * REST, which spent more still. A line that keeps dying has to wait
+     * longer each time, and only a line that STAYS up has recovered, which
+     * the watchdog decides below.
+     */
     try {
       apply(hub, JSON.parse(String(event.data)))
     } catch {
@@ -449,6 +470,10 @@ function connect(hub: Hub): void {
         return
       }
       if (hub.reconnectAt > 0) return
+      // A line that has stayed up this long is genuinely healthy, so the
+      // backoff starts again from the beginning. Anything shorter is a line
+      // Lighter is still dropping, and it must keep waiting longer.
+      if (Date.now() - hub.openedAt >= STEADY_AFTER_MS) hub.attempts = 0
       // Lighter closes a line whose CLIENT stays silent for two minutes.
       // Pushed frames do not count, so the hub pings on its own clock.
       if (Date.now() - hub.lastPingAt >= LIGHTER_KEEPALIVE_MS) {
@@ -636,7 +661,67 @@ export function watchLighterFills(
   openLighterPrivateFeed(network, index)
 }
 
+/**
+ * How long one REST answer stands in for the next while the socket is down.
+ *
+ * **This is what stops the collapse.** Lighter drops the socket when the
+ * minute's allowance is spent. With nothing held, every four-second poll then
+ * asked over REST — spending the very allowance that was keeping the socket
+ * dead, so the line never recovered and the chart was refused. Measured
+ * 27 Aug 2026: 46 requests a minute with 11 refusals became 12 with none.
+ *
+ * Ten seconds, where Hyperliquid holds its portfolio for four. Longer because
+ * Lighter allows sixty requests a minute where Hyperliquid allows thousands,
+ * and because this is only ever reached when the socket is not there.
+ */
+const REST_HELD_MS = 10_000
+
+const held = new Map<string, { at: number; load: Promise<unknown> }>()
+
+/**
+ * One REST read standing in for every caller in the next few seconds.
+ *
+ * The position read and the balance read ask Lighter the very same endpoint,
+ * so without this a single poll cost two requests for one answer.
+ */
+export function heldLighterRead<T>(
+  kind: string,
+  network: NetworkId,
+  accountIndex: number,
+  load: () => Promise<T>
+): Promise<T> {
+  const key = `${kind}:${network}:${accountIndex}`
+  const found = held.get(key)
+  if (found && Date.now() - found.at < REST_HELD_MS) {
+    return found.load as Promise<T>
+  }
+  const fresh = load()
+  held.set(key, { at: Date.now(), load: fresh })
+  fresh.catch(() => {
+    if (held.get(key)?.load === fresh) held.delete(key)
+  })
+  return fresh
+}
+
+/**
+ * Drop everything held for one account.
+ *
+ * Called before this app changes anything on the exchange: whatever is held
+ * is about to stop being true. Without it an order could be cancelled and
+ * still listed for ten seconds — and `setBrackets` cancels the list it is
+ * given, so a stale one is a stop taken off a position that still needs it.
+ */
+export function forgetLighterHeldReads(
+  network: NetworkId,
+  accountIndex: number
+): void {
+  for (const key of [...held.keys()]) {
+    if (key.endsWith(`:${network}:${accountIndex}`)) held.delete(key)
+  }
+}
+
 export function closeLighterPrivateFeeds(): void {
+  held.clear()
   for (const hub of hubs().values()) {
     hub.generation += 1
     teardown(hub)

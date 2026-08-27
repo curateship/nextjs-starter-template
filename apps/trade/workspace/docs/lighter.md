@@ -218,9 +218,51 @@ on a timer tore the socket down and rebuilt it forever, and left every read
 falling back to REST — the exact thing the feed exists to stop. So the snapshot
 stands until Lighter replaces it or the line closes.
 
-The 17 that remain are the first fifteen seconds after a page opens, before the
-socket has its snapshot, plus the chart and the Journal. A tab left open longer
-costs less.
+### It went round in a circle, and that was the real problem
+
+Reading the account down a socket was not enough on its own, and the reason is
+worth keeping.
+
+**Lighter drops the socket when the minute's allowance is spent.** Measured
+27 Aug 2026: the line died about every thirteen seconds. Each death wiped the
+snapshot, so every four-second poll went back to REST, which spent more of the
+allowance, which kept the socket dead. It fed itself, and the chart — which
+asks last — was refused throughout.
+
+Three things broke the circle, and all three were needed:
+
+1. **Each program takes half the cap.** The website and the trading engine are
+   separate containers with separate memory, so each counted its own sixty
+   while Lighter counted the pair against one sixty. Both stayed politely under
+   a limit that did not exist. Each now works to thirty, twenty-four of it for
+   reading.
+2. **A REST answer stands for ten seconds.** Only ever reached when the socket
+   is down, and it is what lets the bucket drain so the socket can come back.
+   Hyperliquid holds its portfolio for four seconds; ten here because Lighter's
+   allowance is twenty times tighter. Anything this app sends the exchange
+   drops the held answer first, because a cancelled order still being listed is
+   how a stop gets taken off a position that still needs it.
+3. **A line that keeps dying waits longer each time.** The backoff used to
+   reset on the first frame, so every death was followed by a one-second
+   reconnect and three more subscribe frames — spent from the bucket that was
+   already empty. Only a line that stays up a full minute counts as recovered.
+
+**The Journal is only read while you are looking at it.** It is history: it
+changes when a fill lands and at no other time, so keeping it current behind
+another tab bought nothing and cost a trade-history read every thirty seconds
+forever. A wallet that has just filled is still read whatever tab is open, so
+the bell notice and the row never disagree.
+
+Measured on one idle tab, nobody clicking:
+
+| | requests a minute | refused |
+| --- | --- | --- |
+| before any of this | 46 | 11 |
+| socket only | 25 | 11 |
+| with all four changes | **12** | **0** |
+
+The twelve left are the chart, the catalogue, and the held REST reads for the
+seconds when the socket is still coming up.
 
 Lighter's docs list a weight per endpoint and say unlisted ones weigh 300. None
 of the market-data reads are on that list, so each declares 300. A Standard

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { recordLiveFills } from "@/server/trade/live-fills"
+import { recordLiveFills, sweepWaitMs } from "@/server/trade/live-fills"
 import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
 
 let client: PGlite
@@ -19,6 +19,21 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await client.close()
+})
+
+describe("how often a wallet's history is read", () => {
+  it("slows down when nobody is looking, and never stops", () => {
+    // The Journal is only DRAWN when it is open, but the record behind it is
+    // what sends the bell notice. The engine keeps that record only for
+    // wallets running ladders, so a plain wallet holding one position has
+    // nothing else — and a stop firing at three in the morning would go
+    // unannounced until somebody next opened the page. That is the bug this
+    // pins: unwatched means slower, never off.
+    expect(sweepWaitMs(true)).toBe(30_000)
+    expect(sweepWaitMs(false)).toBe(120_000)
+    expect(Number.isFinite(sweepWaitMs(false))).toBe(true)
+    expect(sweepWaitMs(false)).toBeGreaterThan(sweepWaitMs(true))
+  })
 })
 
 describe("live fill storage", () => {

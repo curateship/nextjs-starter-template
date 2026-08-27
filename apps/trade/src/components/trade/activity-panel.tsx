@@ -51,7 +51,14 @@ import {
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
 
-type ActivityTab = "positions" | "orders" | "journal"
+/**
+ * Which of the bottom panel's tabs is showing.
+ *
+ * Owned by the workspace rather than by this panel, because the poll needs
+ * the answer too: the Journal's trade history is only read from the exchange
+ * while the Journal is the tab on screen.
+ */
+export type ActivityTab = "positions" | "orders" | "journal"
 
 /** Whatever is highlighted right now, dropped. */
 function clearHighlight(): void {
@@ -91,6 +98,8 @@ function dropStrayHighlightAfter(): void {
  */
 export function ActivityPanel({
   trading,
+  tab,
+  onTabChange,
   catalogs,
   wallets,
   onSelectMarket,
@@ -104,6 +113,8 @@ export function ActivityPanel({
   fit,
 }: {
   trading: Trading
+  tab: ActivityTab
+  onTabChange: (tab: ActivityTab) => void
   catalogs: MarketCatalog[]
   /** Every wallet on this exchange, for telling real money from practice. */
   wallets: readonly TradeWallet[]
@@ -128,7 +139,7 @@ export function ActivityPanel({
   /** How the panel changes its own height when a tab is pressed. */
   fit: PanelFit
 }) {
-  const [tab, setTab] = React.useState<ActivityTab>("positions")
+
   const [editing, setEditing] = React.useState<TradePosition | null>(null)
   const [changingMargin, setChangingMargin] =
     React.useState<TradePosition | null>(null)
@@ -306,7 +317,7 @@ export function ActivityPanel({
       ref={root}
       value={tab}
       onValueChange={(value) => {
-        setTab(value as ActivityTab)
+        onTabChange(value as ActivityTab)
         setLanded((count) => count + 1)
         clearHighlight()
       }}

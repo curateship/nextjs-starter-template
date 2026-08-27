@@ -4,6 +4,7 @@ import {
   clearLighterBudgets,
   countLighterSocketSend,
   LIGHTER_REQUESTS_PER_MINUTE,
+  LIGHTER_REQUESTS_PER_PROCESS,
   lighterBudgetSnapshot,
   reserveLighterRequest,
 } from "@/server/protocols/lighter/budget"
@@ -13,17 +14,25 @@ import {
  * quietly disagree with the cap the code actually enforces.
  */
 const CAP = LIGHTER_REQUESTS_PER_MINUTE
-const BACKGROUND_CEILING = Math.floor((CAP * 4) / 5)
+const SHARE = LIGHTER_REQUESTS_PER_PROCESS
+const BACKGROUND_CEILING = Math.floor((SHARE * 4) / 5)
 
 afterEach(() => {
   clearLighterBudgets()
 })
 
 describe("what Lighter allows", () => {
-  it("is the sixty-a-minute Standard cap, with four fifths for reading", () => {
+  it("is the sixty-a-minute Standard cap, split between the two programs", () => {
     // Premium raises this to 24,000 a minute, but only by staking LIT.
     expect(CAP).toBe(60)
-    expect(BACKGROUND_CEILING).toBe(48)
+    // The website and the engine are separate containers with separate
+    // memory, and Lighter counts them together. Each counting the full sixty
+    // meant both stayed under a limit that did not exist, and Lighter
+    // answered by dropping the socket every thirteen seconds.
+    expect(SHARE).toBe(30)
+    expect(BACKGROUND_CEILING).toBe(24)
+    // Two processes at their own ceiling must still fit inside the real cap.
+    expect(SHARE * 2).toBeLessThanOrEqual(CAP)
   })
 })
 
@@ -39,8 +48,8 @@ describe("Lighter's request budget", () => {
         0
       )
     ).toThrow("EXCHANGE_BUSY")
-    // The last fifth stays free for order work.
-    for (let sent = 0; sent < CAP - BACKGROUND_CEILING; sent += 1) {
+    // The last fifth of THIS PROCESS'S share stays free for order work.
+    for (let sent = 0; sent < SHARE - BACKGROUND_CEILING; sent += 1) {
       reserveLighterRequest("mainnet", { weight: 6, priority: "order" }, 0)
     }
     expect(() =>

@@ -588,8 +588,30 @@ function scopedToProtocol<
 export function useTrading(
   wallet: TradeWallet | null,
   /** The page's exchange — the only one whose rows this hook answers with. */
-  protocol: ProtocolId
+  protocol: ProtocolId,
+  /**
+   * Whether the Journal is the tab on screen.
+   *
+   * Passed all the way to the server, where it decides whether a wallet's
+   * trade history is read from the exchange at all. The Journal only changes
+   * when a fill lands, so re-reading it while another tab is showing bought
+   * nothing — and on Lighter, which allows sixty requests a minute for
+   * everything, it was a real share of the allowance. A wallet that has just
+   * filled is still read whatever tab is open.
+   */
+  journalOpen = false
 ): Trading {
+  /**
+   * Held in a ref, not read straight from the argument: switching tabs must
+   * not restart the poll. A restart would cancel the request in flight and
+   * fire a fresh one, which is a request spent to learn nothing. The next
+   * tick simply asks with the new answer.
+   */
+  const journalOpenRef = React.useRef(journalOpen)
+  React.useEffect(() => {
+    journalOpenRef.current = journalOpen
+  }, [journalOpen])
+
   const [paperAnswer, setPaperAnswer] = React.useState<PaperAnswer | null>(null)
   const [liveAnswer, setLiveAnswer] = React.useState<LiveAnswer | null>(null)
   const [olderTrades, setOlderTrades] = React.useState<LiveTrade[]>([])
@@ -749,11 +771,13 @@ export function useTrading(
       protocol,
       journalStamp: stamps.paper.journal,
       smartOrdersStamp: stamps.paper.smart,
+      journalOpen: journalOpenRef.current,
     }
     const liveScope = {
       protocol,
       journalStamp: stamps.live.journal,
       smartOrdersStamp: stamps.live.smart,
+      journalOpen: journalOpenRef.current,
     }
     // The nudge goes out ALONGSIDE the reads, not before them. It tells the
     // engine to look at this wallet's ladders; the panel's rows do not come

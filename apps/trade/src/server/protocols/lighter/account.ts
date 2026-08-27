@@ -10,6 +10,7 @@ import { num } from "@/lib/protocols/lighter/translate"
 import { lighterPublic } from "@/server/protocols/lighter/client"
 import { lighterAccountIndex } from "@/server/protocols/lighter/agent"
 import {
+  heldLighterRead,
   lighterAccountFromFeed,
   openLighterPrivateFeed,
 } from "@/server/protocols/lighter/private-feed"
@@ -176,7 +177,7 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
  * **The socket is the normal path, not an optimisation.** Lighter allows
  * sixty requests a minute and asking for this over REST on every four-second
  * poll spent 46 of them — see `private-feed.ts`. Both paths end at the same
- * two converters below, because the pushed rows carry the same fields.
+ * two converters in this file, because the pushed rows carry the same fields.
  */
 async function readAccountPreferringFeed(
   network: NetworkId,
@@ -185,7 +186,12 @@ async function readAccountPreferringFeed(
   openLighterPrivateFeed(network, accountIndex)
   const pushed = lighterAccountFromFeed(network, accountIndex)
   if (pushed) return pushed.account
-  return readAccount(network, accountIndex)
+
+  // The socket has nothing yet, so one REST read stands for every caller in
+  // the next few seconds — see `heldLighterRead`.
+  return heldLighterRead("account", network, accountIndex, () =>
+    readAccount(network, accountIndex)
+  )
 }
 
 export async function fetchLighterAccount(

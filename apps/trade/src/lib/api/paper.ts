@@ -308,6 +308,8 @@ export type PollScope = {
   protocol?: ProtocolId
   journalStamp?: string
   smartOrdersStamp?: string
+  /** Whether the Journal tab is the one on screen. See `live.ts`. */
+  journalOpen?: boolean
 }
 
 export function loadOlderPaperTrades(before: number) {

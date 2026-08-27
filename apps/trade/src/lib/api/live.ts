@@ -108,6 +108,17 @@ const pollScopeSchema = z.object({
    * ladder's plan again — see `activeSmartOrdersStamp`.
    */
   smartOrdersStamp: z.string().max(200).optional(),
+  /**
+   * Whether the Journal is actually on screen.
+   *
+   * The Journal is history: it changes only when a fill lands, and nobody is
+   * reading it while another tab is showing. Keeping it up to date anyway
+   * meant asking the exchange for a trade history every half minute, forever,
+   * on a venue that allows sixty requests a minute in total. When this is
+   * false the sweep is skipped — except for a wallet that has just filled,
+   * which is read whatever tab is open so the notice and the row agree.
+   */
+  journalOpen: z.boolean().optional(),
 })
 
 const loadLiveTradingFn = createServerFn({ method: "GET" })
@@ -148,6 +159,7 @@ const loadLiveTradingFn = createServerFn({ method: "GET" })
       const [portfolio, smart] = await Promise.all([
         loadLivePortfolio(context.user.id, wallets, {
           journalStamp: data.journalStamp,
+          journalOpen: data.journalOpen ?? false,
           credentials: read.credentials,
         }),
         listActiveSmartOrdersIfChanged(

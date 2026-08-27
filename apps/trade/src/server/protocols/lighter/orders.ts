@@ -19,6 +19,8 @@ import { lighterPrivate, lighterSendTx } from "@/server/protocols/lighter/client
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { fetchLighterPortfolio } from "@/server/protocols/lighter/account"
 import {
+  forgetLighterHeldReads,
+  heldLighterRead,
   lighterOrdersFromFeed,
   openLighterPrivateFeed,
 } from "@/server/protocols/lighter/private-feed"
@@ -129,6 +131,16 @@ async function send(
   txType: number,
   txInfo: string
 ): Promise<void> {
+  /**
+   * **Whatever is held is about to stop being true.** Anything sent here
+   * changes what the account holds, so the brief REST hold is dropped before
+   * the send rather than after: a failure that half-applied must not leave a
+   * stale answer standing either. The same rule Hyperliquid's order path
+   * keeps. Without it, an order could be cancelled and still be listed for
+   * ten seconds — and `setBrackets` cancels the list it is given, so a stale
+   * one is a stop taken off the wrong position.
+   */
+  forgetLighterHeldReads(network, where.accountIndex)
   try {
     await lighterSendTx(network, { txType, txInfo })
   } catch (error) {
@@ -504,6 +516,18 @@ async function fetchLighterOpenOrders(
     if (converted.length === pushed.length) return converted
   }
 
+  // Same reasoning as the account read: while the socket is down, one REST
+  // answer stands for the polls in the next few seconds, so the fallback
+  // cannot spend the very allowance that is keeping the socket down.
+  return heldLighterRead("orders", network, facts.accountIndex, () =>
+    readLighterOpenOrders(network, facts)
+  )
+}
+
+async function readLighterOpenOrders(
+  network: NetworkId,
+  facts: { accountIndex: number; apiKeyIndex: number }
+): Promise<WalletOpenOrder[]> {
   const token = await lighterAuthToken(facts)
   const answer = await lighterPrivate(
     network,

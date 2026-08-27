@@ -12,7 +12,10 @@ import {
   refusalOf,
   useProtocolAbilities,
 } from "@/components/trade/use-protocol-abilities"
-import { ActivityPanel } from "@/components/trade/activity-panel"
+import {
+  ActivityPanel,
+  type ActivityTab,
+} from "@/components/trade/activity-panel"
 import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
 import { useTrading } from "@/components/trade/use-trading"
 import { useTradeAccount } from "@/components/trade/use-trade-account"
@@ -349,7 +352,18 @@ export function TradeWorkspace({
   // ----- Trading: one owner for the chart's lines and the panel ------------
   // Practice and real wallets flow through the same hook; it is the wallet a
   // row belongs to that decides which road an action takes.
-  const trading = useTrading(account.activeWallet, protocol)
+  /**
+   * Which bottom tab is showing, owned here because two things need it: the
+   * panel draws it, and the poll uses it to decide whether the Journal's
+   * trade history is worth asking the exchange for at all.
+   */
+  const [activityTab, setActivityTab] =
+    React.useState<ActivityTab>("positions")
+  const trading = useTrading(
+    account.activeWallet,
+    protocol,
+    activityTab === "journal"
+  )
   const fallbackMarks = React.useMemo(
     () =>
       new Map(
@@ -854,6 +868,8 @@ export function TradeWorkspace({
             <WorkspacePanel onDoubleClick={activityDoubleClick}>
               <ActivityPanel
                 trading={trading}
+                tab={activityTab}
+                onTabChange={setActivityTab}
                 catalogs={catalogs}
                 wallets={account.wallets}
                 onSelectMarket={onSelectMarket}

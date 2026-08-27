@@ -19,6 +19,7 @@ import {
   lighterMarketFacts,
 } from "@/server/protocols/lighter/markets"
 import { clearLighterNonces } from "@/server/protocols/lighter/nonces"
+import { forgetLighterHeldReads } from "@/server/protocols/lighter/private-feed"
 import { loadLighterKey } from "@/server/protocols/lighter/signer"
 
 vi.mock("@/server/protocols/lighter/client", async (importOriginal) => {
@@ -94,12 +95,17 @@ beforeEach(async () => {
   byIndex.mockResolvedValue({ symbol: "BTC", facts: BTC })
   privateRead.mockReset()
   clearLighterNonces()
+  // The resting orders and the account are held for ten seconds while the
+  // socket is down, so one case would otherwise be answered with the last
+  // one's rows. Same reason the nonces are cleared above.
+  forgetLighterHeldReads("mainnet", 5)
   // The real signer, because what it produces is the thing under test.
   await loadLighterKey({ privateKey: KEY, accountIndex: 5, apiKeyIndex: 2 })
 })
 
 afterEach(() => {
   clearLighterNonces()
+  forgetLighterHeldReads("mainnet", 5)
 })
 
 describe("placing a Lighter order", () => {
