@@ -89,6 +89,24 @@ describe("a refusal that carries its own figures", () => {
     ).toContain("This exchange")
   })
 
+  it("shows a Lighter refusal's own words rather than a retry", () => {
+    // Closing a Lighter position failed with "That did not go through. Try it
+    // again." because the connector's own codes reach no screen. The order
+    // path now badges them `LIVE_EXCHANGE:`, which does.
+    const blocked = getLiveErrorMessage(
+      new Error(
+        "LIVE_EXCHANGE:Lighter will not accept orders from this server's country."
+      )
+    )
+    expect(blocked).toContain("country")
+    expect(blocked).not.toContain("Try it again")
+
+    const missing = getLiveErrorMessage(
+      new Error("LIVE_EXCHANGE:Lighter's signing files are not on this server.")
+    )
+    expect(missing).toContain("signing files")
+  })
+
   it("keeps the fixed sentences for the codes that carry no figures", () => {
     expect(
       getLiveErrorMessage(new Error("LIVE_LEVERAGE_UNSUPPORTED"))

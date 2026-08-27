@@ -342,6 +342,29 @@ complete signed transaction, so everything up to the moment of posting is
 checked by tests. Only the posting itself is unproven, and the first proof of
 it will be a real order from the server.
 
+## Closing, and the expiry that has to be zero
+
+Closing is the one order here that is not post-only, because post-only refuses
+to cross the spread and crossing is exactly what closing does. It goes as a
+reduce-only limit priced three percent through the mark, immediate-or-cancel —
+still a price, never a market order.
+
+**Its expiry must be zero.** An order that lives only for this instant cannot
+also carry one weeks away, and Lighter's own signer refuses the whole
+transaction with "OrderExpiry is invalid". A close built with the usual
+28-day default never reached the exchange at all, and the screen said only
+"That did not go through. Try it again."
+
+## Every refusal now carries its own words
+
+Only a few refusal codes reach a screen with their sentence intact, and the
+ones this connector invented were not among them. So every Lighter refusal on
+the order path — the country block, a missing signer, a price that will not
+fit — arrived as "That did not go through. Try it again.", which is the least
+useful thing the app can say about real money and, for the country block, an
+instruction that can never work. The order path now badges them so the reason
+survives to the screen.
+
 ## Stops and targets
 
 - **Every order this app sends Lighter is a limit with a price on it**, stops

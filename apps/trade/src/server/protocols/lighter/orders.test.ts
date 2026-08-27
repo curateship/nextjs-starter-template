@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { OrderAuth, PlaceOrderParams } from "@/lib/protocols/contracts"
 import {
   cancelLighterOrder,
+  closeLighterPosition,
   fetchLighterOrderPortfolio,
   modifyLighterOrder,
   placeLighterOrder,
@@ -34,6 +35,7 @@ vi.mock("@/server/protocols/lighter/agent", () => ({
 vi.mock("@/server/protocols/lighter/markets", () => ({
   lighterMarketFacts: vi.fn(),
   lighterMarketByIndex: vi.fn(),
+  fetchLighterPrices: vi.fn(),
 }))
 vi.mock("@/server/protocols/lighter/nonces", () => ({
   nextLighterNonce: vi.fn(async () => 7),
@@ -155,7 +157,7 @@ describe("placing a Lighter order", () => {
     market.mockResolvedValue({ ...BTC, priceDecimals: 6 })
     await expect(
       placeLighterOrder("mainnet", auth(), order({ px: 5_000 }))
-    ).rejects.toThrow(/^LIGHTER_ORDER_SHAPE:/)
+    ).rejects.toThrow(/^LIVE_EXCHANGE:/)
     expect(sent).not.toHaveBeenCalled()
   }, 60_000)
 
@@ -164,7 +166,7 @@ describe("placing a Lighter order", () => {
     // for nothing is not an order.
     await expect(
       placeLighterOrder("mainnet", auth(), order({ sz: 0.000_000_1 }))
-    ).rejects.toThrow(/^LIGHTER_ORDER_SHAPE:/)
+    ).rejects.toThrow(/^LIVE_EXCHANGE:/)
     expect(sent).not.toHaveBeenCalled()
   }, 60_000)
 
@@ -289,6 +291,51 @@ describe("reading Lighter's resting orders", () => {
       () => KEY
     )
     expect(portfolio.orders).toEqual([])
+  }, 60_000)
+})
+
+describe("closing a Lighter position", () => {
+  it("signs a reduce-only sale that expires at once", async () => {
+    /**
+     * **An immediate-or-cancel order must expire at zero.** Lighter's signer
+     * refuses "OrderExpiry is invalid" for anything else, so a close built
+     * with the usual 28-day default never reached the exchange at all.
+     */
+    const { fetchLighterPrices } = await import(
+      "@/server/protocols/lighter/markets"
+    )
+    vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
+    await closeLighterPosition("mainnet", auth(), {
+      marketId: "BTC",
+      szi: 0.0006,
+    })
+    const body = bodySent()
+    expect(body.OrderExpiry).toBe(0)
+    // Immediate-or-cancel, reduce-only, selling a long, priced through the
+    // mark so it actually gets out.
+    expect(body.TimeInForce).toBe(0)
+    expect(body.ReduceOnly).toBe(1)
+    expect(body.IsAsk).toBe(1)
+    expect(Number(body.Price)).toBeLessThan(780_000)
+  }, 60_000)
+
+  it("buys back to close a short", async () => {
+    const { fetchLighterPrices } = await import(
+      "@/server/protocols/lighter/markets"
+    )
+    vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
+    await closeLighterPosition("mainnet", auth(), {
+      marketId: "BTC",
+      szi: -0.0006,
+    })
+    const body = bodySent()
+    expect(body.IsAsk).toBe(0)
+    expect(Number(body.Price)).toBeGreaterThan(780_000)
+  }, 60_000)
+
+  it("does nothing when there is no position to close", async () => {
+    await closeLighterPosition("mainnet", auth(), { marketId: "BTC", szi: 0 })
+    expect(sent).not.toHaveBeenCalled()
   }, 60_000)
 })
 
@@ -514,5 +561,46 @@ describe("pinning protective orders to their position", () => {
     expect(folio.positions).toHaveLength(1)
     expect(folio.positions[0].marketId).toBe("PUMP")
     expect(folio.orders).toEqual([])
+  }, 60_000)
+})
+
+describe("a refused Lighter order says why", () => {
+  /**
+   * **`LIVE_EXCHANGE:` is the badge that reaches a screen.** A code this app
+   * invented does not: every Lighter refusal on the order path used to arrive
+   * as "That did not go through. Try it again." — including the country
+   * block, which no amount of trying again will fix. The rendering itself is
+   * checked in `trade-refusals.test.ts`.
+   */
+  it("badges a refused order so its reason survives", async () => {
+    sent.mockRejectedValue(
+      new Error(
+        "LIGHTER_REGION_BLOCKED:Lighter will not accept orders from this server's country."
+      )
+    )
+    await expect(
+      placeLighterOrder("mainnet", auth(), order())
+    ).rejects.toSatisfy((error: Error) => {
+      expect(error.message.startsWith("LIVE_EXCHANGE:")).toBe(true)
+      expect(error.message).toContain("country")
+      return true
+    })
+  }, 60_000)
+
+  it("badges a refused close, which is where this was found", async () => {
+    const { fetchLighterPrices } = await import(
+      "@/server/protocols/lighter/markets"
+    )
+    vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
+    sent.mockRejectedValue(
+      new Error("LIGHTER_SIGNER_MISSING:Lighter's signing files are not here.")
+    )
+    await expect(
+      closeLighterPosition("mainnet", auth(), { marketId: "BTC", szi: 0.0006 })
+    ).rejects.toSatisfy((error: Error) => {
+      expect(error.message.startsWith("LIVE_EXCHANGE:")).toBe(true)
+      expect(error.message).toContain("signing files")
+      return true
+    })
   }, 60_000)
 })

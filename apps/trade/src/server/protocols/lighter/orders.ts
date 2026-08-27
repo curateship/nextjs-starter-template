@@ -94,7 +94,7 @@ async function orderContext(
   const market = await lighterMarketFacts(network, marketId)
   if (market.priceDecimals === null || market.sizeDecimals === null) {
     throw new Error(
-      "LIGHTER_ORDER_SHAPE:Lighter did not say how many decimal places this market allows, so an order cannot be sized for it."
+      "LIVE_EXCHANGE:Lighter did not say how many decimal places this market allows, so an order cannot be sized for it."
     )
   }
   return {
@@ -124,8 +124,28 @@ async function send(
     await lighterSendTx(network, { txType, txInfo })
   } catch (error) {
     forgetLighterNonce(network, where.accountIndex, where.apiKeyIndex)
-    throw error
+    throw asLiveRefusal(error)
   }
+}
+
+/**
+ * A Lighter refusal in words the trading screens will actually show.
+ *
+ * **Only a handful of codes carry their sentence to a screen**, and a code
+ * this app invented is not one of them: every Lighter refusal on the order
+ * path arrived as "That did not go through. Try it again." — including the
+ * country block, which no amount of trying again will fix, and a missing
+ * signer, which is a server problem nobody could guess at. Re-badging as
+ * `LIVE_EXCHANGE` is what puts the reason in front of the person.
+ */
+function asLiveRefusal(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error)
+  // Already a code the screens know how to read.
+  if (/^LIVE_[A-Z_]+/.test(message)) return new Error(message)
+  const said = /^[A-Z][A-Z0-9_]*:([^]+)$/.exec(message)
+  return new Error(
+    said ? `LIVE_EXCHANGE:${said[1].trim()}` : `LIVE_EXCHANGE:${message}`
+  )
 }
 
 export async function placeLighterOrder(
@@ -138,7 +158,7 @@ export async function placeLighterOrder(
   const size = scaleLighterSize(params.sz, where.sizeDecimals)
   if (price === null || size === null || size <= 0) {
     throw new Error(
-      "LIGHTER_ORDER_SHAPE:That price or size cannot be said in the whole numbers Lighter takes for this market. Move the price to the market's own step and try again."
+      "LIVE_EXCHANGE:That price or size cannot be said in the whole numbers Lighter takes for this market. Move the price to the market's own step and try again."
     )
   }
 
@@ -405,7 +425,7 @@ export async function closeLighterPosition(
   const size = scaleLighterSize(Math.abs(params.szi), where.sizeDecimals)
   if (price === null || size === null || size <= 0) {
     throw new Error(
-      "LIGHTER_ORDER_SHAPE:That position's size cannot be said in the whole numbers Lighter takes for this market."
+      "LIVE_EXCHANGE:That position's size cannot be said in the whole numbers Lighter takes for this market."
     )
   }
 
@@ -427,6 +447,15 @@ export async function closeLighterPosition(
     orderType: LIGHTER_ORDER_TYPE.limit,
     timeInForce: LIGHTER_TIME_IN_FORCE.immediateOrCancel,
     reduceOnly: true,
+    /**
+     * **Zero, and it has to be.** An order that lives only for this instant
+     * cannot also carry an expiry weeks away, and Lighter's own signer
+     * refuses the transaction outright with "OrderExpiry is invalid" — so a
+     * close never even reached the exchange. The default of -1 means
+     * "Lighter's usual 28 days", which is right for a resting order and
+     * nonsense for this one.
+     */
+    orderExpiry: 0,
     nonce,
   })
   await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
@@ -527,7 +556,7 @@ async function placeTriggerOrder(
   const size = scaleLighterSize(leg.sz, where.sizeDecimals)
   if (trigger === null || price === null || size === null || size <= 0) {
     throw new Error(
-      "LIGHTER_ORDER_SHAPE:That stop or target price cannot be said in the whole numbers Lighter takes for this market."
+      "LIVE_EXCHANGE:That stop or target price cannot be said in the whole numbers Lighter takes for this market."
     )
   }
 
