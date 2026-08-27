@@ -215,10 +215,12 @@ export async function placeLiveOrder(
     restingOnly?: boolean
     /**
      * A watched smart-order level has already decided to trade at market.
-     * Keep that decision even when the fresh quote taken here moved back over
-     * the level between the engine pass and this call.
+     * Keep it out of the resting-order path. A watched level can pair this
+     * with `marketGuardPx` when the fresh quote must still be at the level.
      */
     marketOnly?: boolean
+    /** A watched market order is skipped if the fresh quote left its level. */
+    marketGuardPx?: number
   }
 ): Promise<PlaceOrderOutcome> {
   const row = await liveWallet(userId, input.walletId)
@@ -241,6 +243,13 @@ export async function placeLiveOrder(
     if (mark === undefined) throw new Error("LIVE_NO_PRICE")
     if (input.restingOnly && input.marketOnly)
       throw new Error("LIVE_ORDER_KIND")
+    if (
+      input.marketOnly &&
+      input.marketGuardPx !== undefined &&
+      !isMarketable(input.side, input.marketGuardPx, mark)
+    ) {
+      throw new Error("LIVE_SMART_ORDER_PRICE_MOVED")
+    }
     const marketable =
       input.marketOnly || isMarketable(input.side, input.px, mark)
     if (input.restingOnly && marketable) {
@@ -329,6 +338,12 @@ export async function placeLiveOrder(
     }
     return outcome
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === "LIVE_SMART_ORDER_PRICE_MOVED"
+    ) {
+      throw error
+    }
     return await refuse(userId, row.id, input.marketKey, input.side, error)
   }
 }

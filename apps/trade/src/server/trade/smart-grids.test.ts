@@ -905,6 +905,33 @@ describe("following price up", () => {
     expect((await onlyGrid()).plan.levels.at(-1)?.status).toBe("holding")
   })
 
+  it("does not use the sell's own rise to ready the new top buy", async () => {
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(111)
+    await priceTo(109)
+
+    // Price clears the $120 sale and moves the range up. That same $121 look
+    // cannot also ready the new $120 buy created by the move.
+    await priceTo(121)
+    let grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(1)
+    expect(grid.plan.levels.at(-1)).toMatchObject({
+      buyPx: 120,
+      status: "waiting",
+      armed: false,
+    })
+
+    // Coming straight back to the sale price spends nothing. A later look
+    // above the new buy readies it, and only then may a return buy the rung.
+    await priceTo(120)
+    expect(await positions()).toHaveLength(0)
+    await priceTo(121)
+    await priceTo(120)
+    grid = await onlyGrid()
+    expect(grid.plan.levels.at(-1)?.status).toBe("holding")
+  })
+
   it("slides the range up a whole step once price clears the top", async () => {
     // Placed straddling $100, so two levels hold from the start. At $130 both
     // of those sell, the grid is empty, and only then does it move.
@@ -939,6 +966,8 @@ describe("following price up", () => {
     await place({ follow: true })
     await priceTo(130)
     // The moved range is $90 to $130, so its top buy is $120.
+    // The move itself does not ready that new buy. A later price above it does.
+    await priceTo(121)
     await priceTo(120)
 
     const grid = await onlyGrid()

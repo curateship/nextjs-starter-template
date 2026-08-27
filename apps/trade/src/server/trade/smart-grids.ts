@@ -81,6 +81,7 @@ export async function advanceGrid(
     )
   const mark = input.marks.get(row.marketKey) ?? null
   let changed = false
+  let shiftedUpThisPass = false
 
   // ----- 1. The 4h base the stop rides ------------------------------------
 
@@ -266,6 +267,10 @@ export async function advanceGrid(
         moved &&
         followTheRangeUp(plan, moved, mark, roundPx, book.costs.takerFeeRate)
       ) {
+        // The climb that sold the old top rung cannot also ready the new top
+        // rung to buy. It starts watching on the next pass and must see price
+        // above it after the move before a later fall may buy it.
+        shiftedUpThisPass = true
         changed = true
       }
     }
@@ -284,7 +289,7 @@ export async function advanceGrid(
   // the account sat at its most long at the exact moment a grid should be
   // waiting. One big lump is not a grid.
 
-  for (const level of plan.levels) {
+  for (const level of shiftedUpThisPass ? [] : plan.levels) {
     if (level.status !== "waiting" || level.dead) continue
     if (mark === null) continue
     // Price is above this level, so from here on it is allowed to buy when
@@ -318,6 +323,9 @@ export async function advanceGrid(
     // the grid nothing but a turn.
     if (level.budget > deps.freeCash(book) + 1e-9) continue
 
+    const priorSz = level.sz
+    const priorStatus = level.status
+    const priorHeldSz = level.heldSz
     level.sz = sz
     deps.fill(book, {
       marketKey: row.marketKey,
@@ -332,6 +340,12 @@ export async function advanceGrid(
       reduceOnly: false,
       reason: "order",
       at: now,
+      triggerPx: level.buyPx,
+      undo: () => {
+        level.sz = priorSz
+        level.status = priorStatus
+        level.heldSz = priorHeldSz
+      },
     })
     level.status = "holding"
     level.heldSz = sz
@@ -514,7 +528,7 @@ function followTheRangeUp(
     level.sellPx = sized[index].sellPx
     level.sz = sized[index].sz
     if (level.status === "waiting") {
-      level.armed = level.buyPx < mark
+      level.armed = false
     }
   }
   plan.shifts += 1

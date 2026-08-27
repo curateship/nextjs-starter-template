@@ -30,6 +30,14 @@ export type LadderOrderInput = {
   reduceOnly: boolean
   now: number
   /**
+   * The watched price that allowed this market action to fire.
+   *
+   * Live trading checks one fresh quote immediately before sending. If that
+   * quote has moved back across this price, no order is sent and the watched
+   * level goes back to waiting.
+   */
+  triggerPx?: number
+  /**
    * Where this slice sells itself, resting from the instant the buy fills.
    *
    * Only the replay reads it. A practice or real wallet settles seconds after
@@ -76,14 +84,16 @@ export type LadderEngineDeps = {
       reduceOnly: boolean
       reason: "order"
       at: number
+      /** The watched price that this fill must still have reached live. */
+      triggerPx?: number
       /**
        * Puts the engine's own bookkeeping back as if this fill never happened.
        *
-       * Only the live lane ever calls it, and only on `LIVE_ORDER_REFUSED` —
-       * the one error that promises the exchange processed the order and
-       * refused it, so nothing stood. Every other failure keeps the
-       * conservative "assume it filled" state, because acting on a maybe is
-       * how a rung gets bought twice.
+       * Only the live lane ever calls it, and only when the app knows no order
+       * stood: either the exchange refused it or the fresh price left the
+       * watched level before anything was sent. Every ambiguous failure keeps
+       * the conservative "assume it filled" state, because acting on a maybe
+       * is how a rung gets bought twice.
        */
       undo?: () => void
     }

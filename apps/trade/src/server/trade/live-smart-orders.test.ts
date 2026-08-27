@@ -864,7 +864,7 @@ describe("live Smart orders", () => {
     expect(rows[0].status).toBe("active")
   })
 
-  it("keeps a reached grid level as a market buy when the fresh quote moved up", async () => {
+  it("leaves a reached grid level waiting when the fresh quote moved above it", async () => {
     const plan: GridPlan = {
       topPx: 100,
       bottomPx: 90,
@@ -930,8 +930,8 @@ describe("live Smart orders", () => {
     })
 
     // The engine sees the $95 level reached at $94. Before the exchange call
-    // leaves, the fresh quote is $96. The buy is still the market action the
-    // watched level asked for, never a resting order at the stale price.
+    // leaves, the fresh quote is $96. Buying there would give this rung a
+    // price it never agreed to, so the engine sends nothing and keeps waiting.
     prices
       .mockResolvedValueOnce(new Map([["BTC", 94]]))
       .mockResolvedValueOnce(new Map([["BTC", 96]]))
@@ -944,13 +944,36 @@ describe("live Smart orders", () => {
 
     await reconcileLiveLadders(userId, wallet)
 
-    expect(place).toHaveBeenCalledTimes(1)
-    expect(place.mock.calls[0]?.[2]).toMatchObject({ kind: "market", px: 96 })
-    const [grid] = await database
+    expect(place).not.toHaveBeenCalled()
+    let [grid] = await database
       .select()
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.id, "grid-price-race"))
     expect(grid.status).toBe("active")
+    expect((grid.plan as GridPlan).levels[1]).toMatchObject({
+      status: "waiting",
+      heldSz: 0,
+    })
+
+    // The move is not an exchange refusal and carries no one-minute hold. A
+    // later pass where both prices still reach the rung buys normally.
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, "grid-price-race"))
+    prices
+      .mockResolvedValueOnce(new Map([["BTC", 94]]))
+      .mockResolvedValueOnce(new Map([["BTC", 94]]))
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place.mock.calls[0]?.[2]).toMatchObject({ kind: "market", px: 94 })
+    const [filledGrid] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-price-race"))
+    expect((filledGrid.plan as GridPlan).levels[1].status).toBe("holding")
   })
 
   it("keeps a watched order visible and records the protocol minimum when price makes it too small", async () => {

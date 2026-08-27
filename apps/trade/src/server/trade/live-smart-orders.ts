@@ -868,6 +868,7 @@ export function nothingStood(error: unknown): boolean {
     message.startsWith("LIVE_MARGIN_MODE") ||
     message.startsWith("LIVE_LEVERAGE") ||
     message.startsWith("ASTER_") ||
+    message === "LIVE_SMART_ORDER_PRICE_MOVED" ||
     message === "EXCHANGE_BUSY"
   )
 }
@@ -1649,10 +1650,11 @@ async function reconcileLiveLaddersOnce(
                   reduceOnly: input.reduceOnly,
                   tpPx: null,
                   slPx: null,
-                  // The watched price already made the decision. A second
-                  // quote moving back over the level must not turn this into
-                  // a resting order after the engine recorded a fill.
+                  // A watched action is either a market order or no order. A
+                  // level carrying `triggerPx` goes back to waiting when the
+                  // fresh quote has already left it.
                   marketOnly: true,
+                  marketGuardPx: input.triggerPx,
                 })
                 recordSmartOrderSendSuccess(entry.plan)
                 refusalHolds.delete(holdKey)
@@ -1682,14 +1684,15 @@ async function reconcileLiveLaddersOnce(
                 if (!nothingStood(error)) throw error
                 const message =
                   error instanceof Error ? error.message : String(error)
-                rememberRefusal(error)
+                const priceMoved = message === "LIVE_SMART_ORDER_PRICE_MOVED"
+                if (!priceMoved) rememberRefusal(error)
                 // The minute's hold is for a refusal, which will be refused
                 // again for the same reason a second later. A rate limit is
                 // already held off inside the exchange client, per key rather
                 // than per market, and the next attempt costs no request at
                 // all — so holding this market for a minute on top would only
                 // make the order late once the allowance came back.
-                if (message !== "EXCHANGE_BUSY") {
+                if (!priceMoved && message !== "EXCHANGE_BUSY") {
                   refusalHolds.set(holdKey, Date.now() + REFUSAL_HOLD_MS)
                 }
                 input.undo?.()

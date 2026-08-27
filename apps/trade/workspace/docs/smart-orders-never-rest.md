@@ -31,14 +31,18 @@ injected `fill` when one is crossed. There is no `insertOrder` for a level, no
 order id on a level, and nothing to cancel when a level is called off. The
 level's status changes and that is all.
 
-Reaching the level makes the order a market buy for the rest of that pass. The
-live order path reads one fresh price before sending, but a small move back over
-the level cannot turn the buy into a normal waiting order. CHIP on Hyperliquid
-showed why on 26 August 2026: its first grid level was recorded as bought while
-the exchange still held the buy as an order, the next account read had no
-position yet, and the grid ended before the buy filled. The fresh price now
-changes only the market price used to send the buy. It cannot change the kind
-of order.
+Reaching a level chooses between a market order and no order. The live path
+reads one fresh price immediately before sending. If that price has moved back
+across the level, the app sends nothing and puts the level back to waiting. It
+never changes the action into a normal order resting on the exchange.
+
+Both halves matter. CHIP on Hyperliquid showed why a watched buy must never
+become a resting order: the grid recorded the rung as bought before the order
+filled, then ended when the next account read found no position. ANSEM on Aster
+showed why a watched buy cannot be forced through after the fresh price leaves
+the rung: the grid sold its old top, moved upward, then bought the new top five
+seconds later at a higher price. A moved grid also starts its new top rung
+unready. It must see a later price above that rung before a return can buy it.
 
 ## What watching costs
 

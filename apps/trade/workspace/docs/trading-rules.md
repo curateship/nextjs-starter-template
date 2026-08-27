@@ -178,6 +178,14 @@ add up to.
 - **A rung above the price waits to be reached.** Price climbs past it, comes
   back down to it, and then it buys and sells one step up like every other rung.
   A rung price never visits simply never trades, and that costs nothing.
+- **A price that leaves a rung before the order is sent buys nothing.** The
+  exchange price is read again immediately before the order. If it has moved
+  back above a grid buy, the rung stays waiting instead of buying at a price it
+  never agreed to.
+- **Moving a grid up does not ready its new top buy.** The rise that sold the
+  old top rung has already done one job. After the range moves, price must be
+  seen above the new top buy on a later pass and then return before that rung
+  may buy.
 - **Every rung always spends the same money it was given**, cycle after cycle. A
   rung that buys back cheaper does not get to spend more next time.
 - Tyler, 26 Aug 2026: **With both follow switches on, the grid moves forever in
