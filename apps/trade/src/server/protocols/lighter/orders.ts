@@ -19,6 +19,10 @@ import { lighterPrivate, lighterSendTx } from "@/server/protocols/lighter/client
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { fetchLighterPortfolio } from "@/server/protocols/lighter/account"
 import {
+  lighterOrdersFromFeed,
+  openLighterPrivateFeed,
+} from "@/server/protocols/lighter/private-feed"
+import {
   fetchLighterPrices,
   lighterMarketByIndex,
   lighterMarketFacts,
@@ -28,12 +32,17 @@ import {
   nextLighterNonce,
 } from "@/server/protocols/lighter/nonces"
 import {
+  LIGHTER_MARGIN_DIRECTION,
+  LIGHTER_MARGIN_MODE,
   LIGHTER_ORDER_TYPE,
   LIGHTER_TIME_IN_FORCE,
   LIGHTER_TX_TYPE,
   lighterAuthToken,
+  lighterMarginFraction,
   signLighterCancel,
   signLighterOrder,
+  signLighterUpdateLeverage,
+  signLighterUpdateMargin,
 } from "@/server/protocols/lighter/signer"
 
 /**
@@ -161,6 +170,53 @@ function asLiveRefusal(error: unknown): Error {
   )
 }
 
+/**
+ * Tells Lighter the leverage and margin mode for one market.
+ *
+ * Its own transaction, sent on its own, because Lighter carries neither on
+ * the order — an order simply uses whatever the market was last told. So the
+ * leverage on the screen has to be sent BEFORE the first order on a market,
+ * or the position opens at whatever was set last time and the screen quietly
+ * lies about real money.
+ */
+async function applyLighterLeverage(
+  network: NetworkId,
+  where: Awaited<ReturnType<typeof orderContext>>,
+  leverage: number,
+  marginMode: "cross" | "isolated" | null | undefined
+): Promise<void> {
+  /**
+   * Said in words here rather than left as a code. `lighterMarginFraction`
+   * refuses a leverage Lighter's own field cannot carry, and a bare code
+   * reaches the screen as "That did not go through. Try it again." — which
+   * says nothing and invites a retry that would fail the same way.
+   */
+  let marginFraction: number
+  try {
+    marginFraction = lighterMarginFraction(leverage)
+  } catch {
+    throw new Error(
+      `LIVE_EXCHANGE:Lighter cannot carry ${leverage}x on this market. Pick a leverage it can state exactly.`
+    )
+  }
+  const nonce = await nextLighterNonce(
+    network,
+    where.accountIndex,
+    where.apiKeyIndex
+  )
+  const signed = await signLighterUpdateLeverage({
+    accountIndex: where.accountIndex,
+    marketIndex: where.marketIndex,
+    marginFraction,
+    marginMode:
+      marginMode === "isolated"
+        ? LIGHTER_MARGIN_MODE.isolated
+        : LIGHTER_MARGIN_MODE.cross,
+    nonce,
+  })
+  await send(network, where, LIGHTER_TX_TYPE.updateLeverage, signed.txInfo)
+}
+
 export async function placeLighterOrder(
   network: NetworkId,
   auth: OrderAuth,
@@ -173,6 +229,26 @@ export async function placeLighterOrder(
   if (price === null || size === null || size <= 0) {
     throw new Error(
       "LIVE_EXCHANGE:That price or size cannot be said in the whole numbers Lighter takes for this market. Move the price to the market's own step and try again."
+    )
+  }
+
+  /**
+   * Only when opening. The caller sends a leverage on the first order of a
+   * market and null once a position is held, because changing the leverage
+   * under an open position is a different act with its own window and its own
+   * refusals — see `changeLiveLeverage`.
+   *
+   * **After the price and size are known to be sendable**, because this is a
+   * real transaction with a lasting effect: setting it first would leave the
+   * market's leverage changed by an order that was then refused for a reason
+   * having nothing to do with leverage.
+   */
+  if (params.leverage != null && params.leverage > 0) {
+    await applyLighterLeverage(
+      network,
+      where,
+      params.leverage,
+      params.marginMode
     )
   }
 
@@ -246,6 +322,65 @@ export async function cancelLighterOrder(
     nonce,
   })
   await send(network, where, LIGHTER_TX_TYPE.cancelOrder, signed.txInfo)
+  })
+}
+
+/**
+ * Changes the leverage on a market that already holds a position.
+ *
+ * The caller has already refused a leverage above what the market allows and
+ * has already checked the position is there, so this only has to send it.
+ * Cross is kept as the mode: Lighter's own default, and the mode every
+ * position on this account was in when checked on 26 Aug 2026. Changing the
+ * mode under an open position is a separate act this app does not offer.
+ */
+export async function setLighterLeverage(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: { marketId: string; leverage: number; szi: number }
+): Promise<void> {
+  return saying(async () => {
+    const where = await orderContext(network, auth, params.marketId)
+    await applyLighterLeverage(network, where, params.leverage, "cross")
+  })
+}
+
+/**
+ * Adds cash to an isolated position or takes some back.
+ *
+ * `dollars` is signed — negative takes margin out — and Lighter carries the
+ * direction in its own field, so the amount itself is always positive. Whole
+ * millionths, the same six decimals every Lighter quote uses.
+ */
+export async function adjustLighterMargin(
+  network: NetworkId,
+  auth: OrderAuth,
+  params: { marketId: string; szi: number; dollars: number }
+): Promise<void> {
+  return saying(async () => {
+    const where = await orderContext(network, auth, params.marketId)
+    const millionths = Math.round(Math.abs(params.dollars) * 1e6)
+    if (millionths <= 0) {
+      throw new Error(
+        "LIVE_EXCHANGE:That is too small an amount for Lighter to move."
+      )
+    }
+    const nonce = await nextLighterNonce(
+      network,
+      where.accountIndex,
+      where.apiKeyIndex
+    )
+    const signed = await signLighterUpdateMargin({
+      accountIndex: where.accountIndex,
+      marketIndex: where.marketIndex,
+      usdcAmount: millionths,
+      direction:
+        params.dollars < 0
+          ? LIGHTER_MARGIN_DIRECTION.remove
+          : LIGHTER_MARGIN_DIRECTION.add,
+      nonce,
+    })
+    await send(network, where, LIGHTER_TX_TYPE.updateMargin, signed.txInfo)
   })
 }
 
@@ -346,6 +481,29 @@ async function fetchLighterOpenOrders(
   network: NetworkId,
   facts: { accountIndex: number; apiKeyIndex: number }
 ) {
+  /**
+   * The socket first. `account_all_orders` is the one private channel that
+   * needs the auth token, and the feed carries the token in its subscribe
+   * frame — so the orders arrive pushed and this costs nothing per poll.
+   *
+   * **A partly readable answer falls back rather than being shown.** If the
+   * feed names rows and any one of them cannot be read, the REST read runs
+   * instead: showing three resting orders as two is a lie about real money,
+   * where spending one request is only a cost.
+   */
+  openLighterPrivateFeed(network, facts.accountIndex, async () => {
+    try {
+      return (await lighterAuthToken(facts)).token
+    } catch {
+      return null
+    }
+  })
+  const pushed = lighterOrdersFromFeed(network, facts.accountIndex)
+  if (pushed) {
+    const converted = await toLighterOpenOrders(network, pushed)
+    if (converted.length === pushed.length) return converted
+  }
+
   const token = await lighterAuthToken(facts)
   const answer = await lighterPrivate(
     network,
@@ -356,9 +514,14 @@ async function fetchLighterOpenOrders(
   )
   const parsed = ordersAnswerSchema.safeParse(answer)
   if (!parsed.success) return []
+  return toLighterOpenOrders(network, parsed.data.orders)
+}
+
+/** Lighter's own order rows as this app's, from either the socket or REST. */
+async function toLighterOpenOrders(network: NetworkId, raw: readonly unknown[]) {
   const rows: WalletOpenOrder[] = []
-  for (const raw of parsed.data.orders) {
-    const row = orderRowSchema.safeParse(raw)
+  for (const one of raw) {
+    const row = orderRowSchema.safeParse(one)
     if (!row.success) continue
     const id = row.data.order_index ?? row.data.client_order_index
     if (id === undefined || row.data.market_index === undefined) continue

@@ -200,12 +200,18 @@ import {
   fetchLighterOrderInfo,
 } from "@/server/protocols/lighter/fills"
 import {
+  lighterFillsNeedRecovery,
+  watchLighterFills,
+} from "@/server/protocols/lighter/private-feed"
+import {
+  adjustLighterMargin,
   cancelLighterOrder,
   closeLighterPosition,
   fetchLighterOrderPortfolio,
   modifyLighterOrder,
   placeLighterOrder,
   setLighterBrackets,
+  setLighterLeverage,
 } from "@/server/protocols/lighter/orders"
 
 /**
@@ -951,10 +957,23 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       // leaves an order at a price nobody chose.
       modify: modifyLighterOrder,
       close: closeLighterPosition,
+      setLeverage: setLighterLeverage,
+      adjustMargin: adjustLighterMargin,
       setBrackets: setLighterBrackets,
       portfolio: fetchLighterOrderPortfolio,
       fills: fetchLighterOrderFills,
       orderInfo: fetchLighterOrderInfo,
+      /**
+       * Lighter's account arrives pushed, like every other venue's.
+       *
+       * These two together take the fills sweep off its thirty-second clock:
+       * it now reads Lighter's trade history when the socket says something
+       * happened, and otherwise five-minutely. That matters more here than
+       * anywhere else — sixty requests a minute is the tightest cap of the
+       * five, and one idle tab was measured spending 46 of them.
+       */
+      watchFills: watchLighterFills,
+      fillsNeedRecovery: lighterFillsNeedRecovery,
     },
     credentials: {
       form: {

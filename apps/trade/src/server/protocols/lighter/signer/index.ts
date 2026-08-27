@@ -96,6 +96,22 @@ type SignerGlobals = {
     orderIndex: string,
     nonce: number
   ) => () => Promise<unknown>
+  /** Hundredths of a percent, then 0 cross or 1 isolated. */
+  _signUpdateLeverage?: (
+    accountIndex: number,
+    marketIndex: number,
+    initialMarginFraction: number,
+    marginMode: number,
+    nonce: number
+  ) => () => Promise<unknown>
+  /** Millionths of a dollar, then 0 to add or 1 to take back. */
+  _signUpdateMargin?: (
+    accountIndex: number,
+    marketIndex: number,
+    usdcAmount: number,
+    direction: number,
+    nonce: number
+  ) => () => Promise<unknown>
 }
 
 let loading: Promise<SignerGlobals> | null = null
@@ -174,7 +190,9 @@ async function load(): Promise<SignerGlobals> {
     typeof scope._createClientByPrv !== "function" ||
     typeof scope._createAuthToken !== "function" ||
     typeof scope._signCreateOrder !== "function" ||
-    typeof scope._signCancelOrder !== "function"
+    typeof scope._signCancelOrder !== "function" ||
+    typeof scope._signUpdateLeverage !== "function" ||
+    typeof scope._signUpdateMargin !== "function"
   ) {
     throw new Error("LIGHTER_SIGNER_UNAVAILABLE")
   }
@@ -374,3 +392,96 @@ export async function signLighterCancel(input: {
     "CANCEL"
   )
 }
+
+/**
+ * How Lighter states leverage in a transaction: hundredths of a percent of
+ * the position's value, so 50x is 2% is 200.
+ *
+ * **Not the same units the account read uses.** A position states
+ * `initial_margin_fraction` as a plain percent — "2.00" — while the market
+ * catalogue and this transaction both count hundredths. Mixing the two sends
+ * a leverage a hundred times off on real money, so the conversion lives here
+ * and nowhere else.
+ */
+export function lighterMarginFraction(leverage: number): number {
+  if (!(leverage > 0)) throw new Error("LIGHTER_LEVERAGE_INVALID")
+  const fraction = Math.round(10_000 / leverage)
+  // The field is a uint16 in Lighter's own transaction.
+  if (fraction < 1 || fraction > 65_535) {
+    throw new Error("LIGHTER_LEVERAGE_INVALID")
+  }
+  /**
+   * **The rounding has to be harmless, not just legal.** Whole units run out
+   * at the top: 20,000x rounds to one unit, and one unit is 10,000x — half
+   * what was asked, sent without a word. So the number is turned back and
+   * compared, and anything that does not survive the trip is refused instead
+   * of quietly becoming a different leverage on real money.
+   */
+  const implied = 10_000 / fraction
+  if (Math.abs(implied - leverage) / leverage > 0.005) {
+    throw new Error("LIGHTER_LEVERAGE_INVALID")
+  }
+  return fraction
+}
+
+/** Cross and isolated, as Lighter's transactions number them. */
+export const LIGHTER_MARGIN_MODE = { cross: 0, isolated: 1 } as const
+
+/**
+ * Signs the leverage and margin mode for one market.
+ *
+ * Argument order read from `web-wasm/main.go` at the pinned commit rather
+ * than guessed: a wrong order here still signs, and the transaction is only
+ * refused once it reaches Lighter — or worse, applied to the wrong market.
+ */
+export async function signLighterUpdateLeverage(input: {
+  accountIndex: number
+  marketIndex: number
+  /** Hundredths of a percent — use `lighterMarginFraction`. */
+  marginFraction: number
+  marginMode: number
+  nonce: number
+}): Promise<LighterSignedTx> {
+  const scope = await signer()
+  return signedTxOf(
+    await scope._signUpdateLeverage!(
+      input.accountIndex,
+      input.marketIndex,
+      input.marginFraction,
+      input.marginMode,
+      input.nonce
+    )(),
+    "LEVERAGE"
+  )
+}
+
+/**
+ * Signs a change to the cash behind one isolated position.
+ *
+ * `usdcAmount` is a whole number of millionths, the same six decimals every
+ * Lighter quote uses, and `direction` says which way it moves: 0 adds, 1
+ * takes back. Lighter carries the direction separately, so the amount itself
+ * is never negative.
+ */
+export async function signLighterUpdateMargin(input: {
+  accountIndex: number
+  marketIndex: number
+  usdcAmount: number
+  direction: number
+  nonce: number
+}): Promise<LighterSignedTx> {
+  const scope = await signer()
+  return signedTxOf(
+    await scope._signUpdateMargin!(
+      input.accountIndex,
+      input.marketIndex,
+      input.usdcAmount,
+      input.direction,
+      input.nonce
+    )(),
+    "MARGIN"
+  )
+}
+
+/** Adding cash to a position, and taking it back. */
+export const LIGHTER_MARGIN_DIRECTION = { add: 0, remove: 1 } as const

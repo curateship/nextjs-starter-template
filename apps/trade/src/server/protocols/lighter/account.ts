@@ -9,6 +9,10 @@ import type {
 import { num } from "@/lib/protocols/lighter/translate"
 import { lighterPublic } from "@/server/protocols/lighter/client"
 import { lighterAccountIndex } from "@/server/protocols/lighter/agent"
+import {
+  lighterAccountFromFeed,
+  openLighterPrivateFeed,
+} from "@/server/protocols/lighter/private-feed"
 
 /**
  * What a Lighter account holds, in the app's own words.
@@ -165,6 +169,25 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
   }
 }
 
+/**
+ * The account, from the socket when it is speaking and from REST when it is
+ * not.
+ *
+ * **The socket is the normal path, not an optimisation.** Lighter allows
+ * sixty requests a minute and asking for this over REST on every four-second
+ * poll spent 46 of them — see `private-feed.ts`. Both paths end at the same
+ * two converters below, because the pushed rows carry the same fields.
+ */
+async function readAccountPreferringFeed(
+  network: NetworkId,
+  accountIndex: number
+): Promise<unknown> {
+  openLighterPrivateFeed(network, accountIndex)
+  const pushed = lighterAccountFromFeed(network, accountIndex)
+  if (pushed) return pushed.account
+  return readAccount(network, accountIndex)
+}
+
 export async function fetchLighterAccount(
   network: NetworkId,
   address: string,
@@ -173,8 +196,11 @@ export async function fetchLighterAccount(
   // No credential is read: Lighter answers an account publicly by its number,
   // and the number comes from the address. Keeping the signer out of a read
   // is what lets a server without the signing files still show a position.
+  // The socket's two account channels need no signature either.
   const accountIndex = await lighterAccountIndex(network, address)
-  const figures = toLighterAccountFigures(await readAccount(network, accountIndex))
+  const figures = toLighterAccountFigures(
+    await readAccountPreferringFeed(network, accountIndex)
+  )
   if (!figures) throw new Error("LIGHTER_ACCOUNT_UNREADABLE")
   return figures
 }
@@ -185,5 +211,7 @@ export async function fetchLighterPortfolio(
   _credential: () => string | null
 ): Promise<WalletPortfolio> {
   const accountIndex = await lighterAccountIndex(network, address)
-  return toLighterPortfolio(await readAccount(network, accountIndex))
+  return toLighterPortfolio(
+    await readAccountPreferringFeed(network, accountIndex)
+  )
 }

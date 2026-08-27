@@ -73,8 +73,9 @@ Two files outrank the rest, and outrank the code:
   measured catalogue size and the figures its public API does not state.
 - `lighter.md` — Lighter's markets, charts and hourly funding: why 18 listed
   markets are left out, how far its three prices ran from the other four
-  venues, what a minute of reading costs against its sixty-a-minute cap, and
-  why it is mainnet only.
+  venues, what a minute of reading costs against its sixty-a-minute cap, why
+  the account is pushed down a socket rather than polled, how leverage is
+  stated, and why it is mainnet only.
 - `backtest-market-selection.md` — how the Markets step picks the exchange and
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved

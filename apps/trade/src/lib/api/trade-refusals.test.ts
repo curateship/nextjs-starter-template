@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { getCandlesErrorMessage } from "@/lib/api/candles"
 import { getLiveErrorMessage } from "@/lib/api/live"
 import { getSmartOrderErrorMessage } from "@/lib/api/smart-orders"
 
@@ -105,6 +106,25 @@ describe("a refusal that carries its own figures", () => {
       new Error("LIVE_EXCHANGE:Lighter's signing files are not on this server.")
     )
     expect(missing).toContain("signing files")
+  })
+
+  it("tells a chart why it did not draw, when the app itself refused", () => {
+    // `EXCHANGE_BUSY` is the app's own counter refusing before a request
+    // leaves. It was not in the chart's list, so it fell through to "Nothing
+    // is wrong on your side", which sent Tyler hunting for a broken chart
+    // while Lighter's sixty-a-minute allowance was simply spent.
+    const said = getCandlesErrorMessage(new Error("EXCHANGE_BUSY"))
+    expect(said).toContain("allowance")
+    expect(said).not.toContain("Nothing is wrong on your side")
+
+    // The exchange saying it, rather than the app, still reads its own way.
+    expect(getCandlesErrorMessage(new Error("429 Too Many Requests"))).toContain(
+      "slow down"
+    )
+    // And anything genuinely unknown keeps the honest fallback.
+    expect(getCandlesErrorMessage(new Error("SOMETHING_ELSE"))).toContain(
+      "could not load"
+    )
   })
 
   it("keeps the fixed sentences for the codes that carry no figures", () => {

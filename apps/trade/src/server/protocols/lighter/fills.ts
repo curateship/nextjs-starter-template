@@ -9,6 +9,7 @@ import { num, unscaleLighterNumber } from "@/lib/protocols/lighter/translate"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { lighterPrivate } from "@/server/protocols/lighter/client"
 import { lighterMarketByIndex } from "@/server/protocols/lighter/markets"
+import { markLighterFillsReconciled } from "@/server/protocols/lighter/private-feed"
 import { lighterAuthToken } from "@/server/protocols/lighter/signer"
 
 /**
@@ -211,6 +212,10 @@ export async function fetchLighterOrderFills(
     cursor = parsed.data.next_cursor
     if (!cursor || parsed.data.trades.length < PAGE_ROWS) break
   }
+  // Read all the way through without throwing, so the socket may go back to
+  // waiting for something to happen rather than sending the sweep here again
+  // on its next tick.
+  markLighterFillsReconciled(network, address)
   return fills.sort((left, right) => left.at - right.at)
 }
 

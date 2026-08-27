@@ -5,6 +5,7 @@ import { z } from "zod"
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { lighterPublic, parseLighterCredential } from "@/server/protocols/lighter/client"
 import { loadLighterKey } from "@/server/protocols/lighter/signer"
+import { rememberLighterAccountIndex } from "@/server/protocols/lighter/private-feed"
 
 /**
  * Proving a Lighter key, and finding the two numbers Lighter needs to be
@@ -142,6 +143,18 @@ export async function lighterAccountIndex(
   const held = heldIndexes.get(key)
   if (held && Date.now() - held.at < FACTS_HELD_MS) return held.load
   const load = fetchLighterAccountIndex(network, address)
+  // The socket feed asks its questions by address on a path that cannot wait
+  // for an answer, so the number is remembered here, where it is learnt.
+  // The empty catch is not decoration: a bare `.then` on a lookup that fails
+  // is an unhandled rejection, and Node ends the process on one — which for
+  // the engine means every venue stops because Lighter could not be reached.
+  // The failure itself is handled below, where the held entry is dropped.
+  load.then(
+    (index) => {
+      rememberLighterAccountIndex(network, address, index)
+    },
+    () => {}
+  )
   heldIndexes.set(key, { at: Date.now(), load })
   load.catch(() => {
     if (heldIndexes.get(key)?.load === load) heldIndexes.delete(key)

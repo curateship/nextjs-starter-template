@@ -85,6 +85,17 @@ export const getCandlesErrorMessage = createErrorMessage(
       "The exchange is asking us to slow down — give it a few seconds and try again.",
     "rate limit":
       "The exchange is asking us to slow down — give it a few seconds and try again.",
+    /**
+     * The app's OWN counter refusing, before the request ever leaves. It
+     * reads the same to the person as the exchange refusing, so it says the
+     * same thing — the alternative was the fallback below, which claims
+     * nothing is wrong and sends somebody hunting for a broken chart.
+     *
+     * This was live for a day on Lighter, whose sixty-a-minute allowance an
+     * idle tab could spend on its own.
+     */
+    EXCHANGE_BUSY:
+      "This exchange's allowance for the next minute is spent — the chart will draw itself as soon as there is room.",
   },
   "The chart could not load. Nothing is wrong on your side — try again in a moment."
 )

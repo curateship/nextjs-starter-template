@@ -164,6 +164,64 @@ So the worst ordinary moment, opening the page, spends 10 of the 48 background
 allowance, and a normal minute spends 2 or 3. Nothing measured came near the
 cap.
 
+**Those figures are for a page with no wallet on it.** Connect a wallet and the
+account has to be read too, and that is a different order of cost — see the
+next section, which is where the allowance actually went.
+
+## The account is pushed, not polled
+
+**Measured 26 Aug 2026: one idle tab on the Lighter page, nobody clicking, was
+spending 46 requests a minute of the 48 allowed.** The chart asks last, so the
+chart was what got refused — and it said "The chart could not load. Nothing is
+wrong on your side", which sends a person hunting for a broken chart when the
+allowance was simply gone.
+
+The 46, counted at the budget over 92 seconds:
+
+| what asked | a minute |
+| --- | --- |
+| the position, over REST | 15 |
+| the resting orders, over REST | 14 |
+| the balance — the SAME endpoint, from a second caller | 9 |
+| the chart | 3 |
+| the Journal's sweep | 2 |
+
+Lighter was the only one of the five venues reading an account this way.
+Hyperliquid has `open-orders-feed` and `user-fills-feed`, Aster has
+`user-stream`, Phemex and KuCoin each have `private-feed`. Lighter had only its
+price socket, because the stage that would have built the rest was still
+unbuilt — and it is the one venue that cannot afford to poll, at sixty a minute
+against Hyperliquid's thousands.
+
+Now it reads three socket channels, and the same tab spends **17 a minute**:
+
+- `account_all/{index}` — the positions, and the trades that say the Journal
+  should be reconciled. **No auth.**
+- `user_stats/{index}` — collateral, portfolio value and available balance.
+  **No auth.** `account_all` does not state the money; this is where it comes
+  from.
+- `account_all_orders/{index}` — the resting orders. **This one needs the auth
+  token**, and refuses with `20001 invalid param : auth field is required`
+  without it. It is the only part that needs the signer, so a server with no
+  signing files still shows a position and a balance.
+
+The pushed rows carry exactly the fields the REST account read already parses,
+so both paths end at the same two converters in `account.ts`. Two readers of
+one payload is how a socket and a REST path quietly start disagreeing about
+money.
+
+**Silence is not staleness.** This is the one thing that separates an account
+feed from a price feed here. Prices tick several times a second, so twelve
+seconds of quiet means a broken line. An account that is not trading says
+nothing at all after its opening snapshot, sometimes for hours. Ageing it out
+on a timer tore the socket down and rebuilt it forever, and left every read
+falling back to REST — the exact thing the feed exists to stop. So the snapshot
+stands until Lighter replaces it or the line closes.
+
+The 17 that remain are the first fifteen seconds after a page opens, before the
+socket has its snapshot, plus the chart and the Journal. A tab left open longer
+costs less.
+
 Lighter's docs list a weight per endpoint and say unlisted ones weigh 300. None
 of the market-data reads are on that list, so each declares 300. A Standard
 account's cap counts requests rather than weight, so the declared weight only
@@ -384,30 +442,50 @@ survives to the screen.
   position opens. Reporting "ok" for legs that were not sent with it would be
   the worst kind of lie here.
 
-## Not built yet
+## Leverage, and the cash behind a position
 
-Changing a position's leverage, and moving the cash behind it. Lighter takes
-each as its own kind of transaction. Both refuse by name and say so.
+Lighter takes each as its own transaction, and carries neither on the order —
+an order simply uses whatever the market was last told. **So the leverage on
+the screen is sent before the first order on a market**, or the position would
+open at whatever was set last time while the screen said something else.
 
-**The order controls are still on screen and still take a click.** Nothing
-reads a venue's "can it trade" flag except the backtest picker, because until
-Lighter every exchange that could hold a wallet could also trade with it. So
-pressing Buy on a Lighter wallet gets a refusal rather than a hidden button.
-That refusal now says what is really going on and does not invite a retry that
-could never work; hiding or explaining the controls up front is part of
-building the order path.
+Leverage is stated in hundredths of a percent of the position's value, so 50x
+is 2% is 200. That is the same unit the market catalogue uses for its own
+maximum, and **not** the unit a position reports — a position says "2.00", a
+plain percent. Mixing the two sends a leverage a hundred times off on real
+money, so the conversion lives in one function and is pinned by a test.
 
-**A watched level is refused when it is saved, not when it fires.** This is
-the dangerous one, and it was found by placing a real one. A watched order
-sends nothing to the exchange until the price arrives — that is the whole
-point of it — so a venue with no order path has nothing to reject at the
-moment the level is saved. The level sat in the Watched tab looking like it
-was working, and the first sign of trouble would have been a refusal at the
-price, repeated on every engine pass. All three doors now check first: a plain
-watched level, a DCA ladder or grid, and an order that fills straight away.
-Practice wallets are exempt, because they never reach an exchange at all.
+That test also caught a real hole on the day it was written: 20,000x rounds to
+one whole unit, and one unit *is* 10,000x. It would have been sent without a
+word. Any leverage that does not survive being turned back into a number is
+now refused instead.
 
-One consequence is worth being clear about: a position's stop and target read
-as empty here because Trade has placed none. If you have set one on Lighter's
-own site it is real and it will still fire — Trade simply cannot see it yet,
-and does not claim the position is unprotected.
+Taking margin back out is refused where the position is not isolated, and the
+amount goes in whole millionths with the direction in its own field, so it is
+never negative.
+
+## A watched level is refused when it is saved, not when it fires
+
+Worth keeping even though it no longer bites Lighter, because it will bite the
+next venue added. A watched order sends nothing to the exchange until the price
+arrives — that is the whole point of it — so a venue with no order path has
+nothing to reject at the moment the level is saved. One sat in the Watched tab
+looking like it was working, and the first sign of trouble would have been a
+refusal at the price, repeated on every engine pass. All three doors check the
+venue first: a plain watched level, a DCA ladder or grid, and an order that
+fills straight away. Practice wallets are exempt, because they never reach an
+exchange at all.
+
+## Still to prove
+
+- **A day with all five wallets trading at once**, with Lighter blocked at the
+  network on purpose while the other four carry on. That is a real day's
+  running, not something a test can stand in for.
+- **What Lighter pushes on `account_all`'s `trades` field during a real
+  trade.** It was empty every time it was watched. Until that is seen, a pushed
+  trade is treated as "go and read the history", never as a fill in its own
+  right — the Journal is still written from Lighter's own trade history, which
+  has been checked against real fills. The saving is in how often that history
+  is read: when something happens, and otherwise five-minutely, instead of
+  every thirty seconds forever. It can never be read more often than the poll
+  it replaced, whatever the socket does.
