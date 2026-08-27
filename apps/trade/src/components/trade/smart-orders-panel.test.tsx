@@ -181,6 +181,17 @@ async function openBots(host: HTMLElement) {
 }
 
 describe("the Smart orders panel", () => {
+  it("gives its order list a bounded scroll area", () => {
+    const html = draw({ smartOrders: [ladder], settled: true, failed: false })
+    const document = new DOMParser().parseFromString(html, "text/html")
+    const smartTab = document.querySelector(
+      '[data-slot="tabs-content"][data-state="active"]'
+    )
+
+    expect(smartTab?.className).toContain("flex-col")
+    expect(smartTab?.querySelector('[data-slot="scroll-area"]')).not.toBeNull()
+  })
+
   it("says nothing is working only once both halves have answered", () => {
     const answered = draw({ smartOrders: [], settled: true, failed: false })
     expect(answered).toContain(EMPTY)

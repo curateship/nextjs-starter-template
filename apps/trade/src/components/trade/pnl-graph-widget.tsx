@@ -11,6 +11,7 @@ import {
   YAxis,
 } from "recharts"
 
+import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -39,7 +40,7 @@ import {
   mergeTradingOverviewProfitSeries,
   type TradingOverviewProfitChartPoint,
 } from "@/lib/trade/dashboard/profit-series"
-import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
+import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { walletProfitWindowLabel } from "@/lib/trade/wallets"
 import { useRememberedChoice } from "@/lib/remembered-choice"
@@ -91,13 +92,6 @@ type ProfitSeries = {
   label: string
   color: string
   points: TradingOverviewPoint[]
-}
-
-type ProfitBreakdown = {
-  label: string
-  settled: number
-  open: number
-  fees: number
 }
 
 function startedLabel() {
@@ -201,24 +195,15 @@ export function PnlGraphWidget({
     answered.reduce((total, wallet) => total + pick(wallet), 0)
   const balance = sum((wallet) => wallet.summary.equity)
   const madeOrLost = sum((wallet) => wallet.performance.madeOrLost)
+  const settled = sum((wallet) => wallet.performance.settled)
+  const open = sum((wallet) => wallet.performance.open)
   const fees = sum((wallet) => wallet.performance.fees)
+  const profitShare = balance > 0 ? madeOrLost / balance : null
   const selectedWallet = answered.find(
     (wallet) => wallet.id === selectedWalletId
   )
   const activeSelectedWalletId = selectedWallet?.id ?? null
-  const breakdown: ProfitBreakdown = selectedWallet
-    ? {
-        label: selectedWallet.label,
-        settled: selectedWallet.performance.settled,
-        open: selectedWallet.performance.open,
-        fees: selectedWallet.performance.fees,
-      }
-    : {
-        label: "All wallets",
-        settled: sum((wallet) => wallet.performance.settled),
-        open: sum((wallet) => wallet.performance.open),
-        fees,
-      }
+  const activeWallets = visibleWallets(overview)
   const series = profitSeries(overview)
   const data = mergeTradingOverviewProfitSeries(series)
   const rangeDates = profitRangeDates(data, range)
@@ -237,8 +222,8 @@ export function PnlGraphWidget({
             <ChartNoAxesCombinedIcon className="size-4 shrink-0 text-muted-foreground" />
             <h2 className="truncate font-semibold">PnL Graph</h2>
             <Badge variant="outline">
-              {overview.wallets.length.toLocaleString()}{" "}
-              {overview.wallets.length === 1 ? "wallet" : "wallets"}
+              {activeWallets.length.toLocaleString()}{" "}
+              {activeWallets.length === 1 ? "wallet" : "wallets"}
             </Badge>
             {missing ? (
               <Tooltip>
@@ -259,22 +244,29 @@ export function PnlGraphWidget({
             ) : null}
           </div>
           <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <p
-              className={cn(
-                "font-mono text-4xl leading-none font-semibold tracking-tight tabular-nums",
-                moneyTone(madeOrLost)
-              )}
-            >
-              {formatSignedUsd(madeOrLost)}
-            </p>
-            <div className="pb-0.5 text-xs text-muted-foreground">
-              <p>made or lost · since {startedLabel()}</p>
-              <p>
-                balance{" "}
-                <span className="text-foreground">{formatUsd(balance)}</span>
-                <span aria-hidden="true"> · </span>
-                fees <span className="text-foreground">{formatUsd(fees)}</span>
+            <div className="flex items-center gap-2">
+              <p
+                className={cn(
+                  "font-mono text-[1.8rem] leading-none font-semibold tracking-tight tabular-nums",
+                  moneyTone(madeOrLost)
+                )}
+              >
+                {formatSignedUsd(madeOrLost)}
               </p>
+              {profitShare === null ? null : (
+                <TradeBadge
+                  tone={
+                    madeOrLost > 0
+                      ? "made"
+                      : madeOrLost < 0
+                        ? "lost"
+                        : "neutral"
+                  }
+                  className="font-mono text-[1.8rem] leading-none font-semibold tracking-tight tabular-nums"
+                >
+                  {formatChange(profitShare)}
+                </TradeBadge>
+              )}
             </div>
           </div>
         </div>
@@ -292,7 +284,6 @@ export function PnlGraphWidget({
           answered={answered}
           selectedWalletId={activeSelectedWalletId}
           onSelectWallet={setSelectedWalletId}
-          breakdown={breakdown}
         />
         <ProfitChart
           overview={overview}
@@ -301,6 +292,10 @@ export function PnlGraphWidget({
           config={chartConfig}
           selectedWalletId={activeSelectedWalletId}
           rangeDates={rangeDates}
+          balance={balance}
+          settled={settled}
+          open={open}
+          fees={fees}
         />
       </div>
     </Card>
@@ -393,13 +388,11 @@ function WalletList({
   answered,
   selectedWalletId,
   onSelectWallet,
-  breakdown,
 }: {
   overview: TradingOverview
   answered: AnsweredWallet[]
   selectedWalletId: string | null
   onSelectWallet: (walletId: string | null) => void
-  breakdown: ProfitBreakdown
 }) {
   const [sort, rememberSort] = useRememberedChoice<WalletSort>(
     WALLET_SORT_STORAGE_KEY,
@@ -450,7 +443,7 @@ function WalletList({
       aria-label="Wallets"
       className="flex min-h-0 flex-col border-b lg:border-b-0"
     >
-      <div className="grid grid-cols-[1fr_auto] gap-3 border-b bg-muted/50 px-5 py-2 text-xs font-medium text-muted-foreground">
+      <div className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 border-b bg-muted/50 px-5 text-xs font-medium text-muted-foreground">
         <TableSortButton
           active={sortKey === "wallet"}
           direction={sortDirection}
@@ -508,55 +501,7 @@ function WalletList({
           )
         })}
       </ScrollArea>
-      <WalletBreakdown breakdown={breakdown} />
     </section>
-  )
-}
-
-function WalletBreakdown({ breakdown }: { breakdown: ProfitBreakdown }) {
-  return (
-    <aside
-      aria-label={`${breakdown.label} current breakdown`}
-      aria-live="polite"
-      className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-5 py-3"
-    >
-      <p className="text-xs font-medium">
-        {breakdown.label}
-        <span className="ml-1 font-normal text-muted-foreground">
-          current breakdown
-        </span>
-      </p>
-      <dl className="grid grid-cols-3 gap-x-5 text-xs">
-        <div>
-          <dt className="text-muted-foreground">Settled</dt>
-          <dd
-            className={cn(
-              "font-mono font-medium tabular-nums",
-              moneyTone(breakdown.settled)
-            )}
-          >
-            {formatSignedUsd(breakdown.settled)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Open</dt>
-          <dd
-            className={cn(
-              "font-mono font-medium tabular-nums",
-              moneyTone(breakdown.open)
-            )}
-          >
-            {formatSignedUsd(breakdown.open)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">Fees</dt>
-          <dd className="font-mono font-medium tabular-nums">
-            {formatUsd(breakdown.fees)}
-          </dd>
-        </div>
-      </dl>
-    </aside>
   )
 }
 
@@ -715,6 +660,10 @@ function ProfitChart({
   config,
   selectedWalletId,
   rangeDates,
+  balance,
+  settled,
+  open,
+  fees,
 }: {
   overview: TradingOverview
   series: ProfitSeries[]
@@ -722,6 +671,10 @@ function ProfitChart({
   config: ChartConfig
   selectedWalletId: string | null
   rangeDates: ReturnType<typeof profitRangeDates>
+  balance: number
+  settled: number
+  open: number
+  fees: number
 }) {
   const shownData =
     rangeDates.from === undefined || rangeDates.to === undefined
@@ -730,31 +683,47 @@ function ProfitChart({
 
   return (
     <section
-      aria-label="Money over time"
+      aria-label={`${startedLabel()} profit history`}
       className="flex min-h-72 min-w-0 flex-col px-5 py-4"
     >
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <div className="-mx-5 -mt-4 mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2 border-b bg-muted/50 px-5 py-2">
         <p className="text-xs font-medium text-muted-foreground">
-          Money over time
+          {startedLabel()}
         </p>
-        {overview.unpricedFills ? (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <InfoIcon className="size-3.5" />
-                {overview.unpricedFills.toLocaleString()} unpriced
-              </button>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-64">
-              The line is short of {overview.unpricedFills.toLocaleString()}{" "}
-              {overview.unpricedFills === 1 ? "trade" : "trades"} whose money
-              the exchange did not state.
-            </TooltipContent>
-          </Tooltip>
-        ) : null}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <p className="text-right">
+            balance{" "}
+            <span className="text-foreground">{formatUsd(balance)}</span>
+            <span aria-hidden="true"> · </span>
+            settled{" "}
+            <span className={moneyTone(settled)}>
+              {formatSignedUsd(settled)}
+            </span>
+            <span aria-hidden="true"> · </span>
+            open{" "}
+            <span className={moneyTone(open)}>{formatSignedUsd(open)}</span>
+            <span aria-hidden="true"> · </span>
+            fees <span className="text-foreground">{formatUsd(fees)}</span>
+          </p>
+          {overview.unpricedFills ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <InfoIcon className="size-3.5" />
+                  {overview.unpricedFills.toLocaleString()} unpriced
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-64">
+                The line is short of {overview.unpricedFills.toLocaleString()}{" "}
+                {overview.unpricedFills === 1 ? "trade" : "trades"} whose money
+                the exchange did not state.
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+        </div>
       </div>
       {shownData.length === 0 ? (
         <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

@@ -532,6 +532,8 @@ piggy-bank icon labels the banked amount instead of the word. Banked money stays
 visible at $0.00 before the first sale, so the amount does not appear and
 disappear as the order works. The existing favicon and type sizes do not change
 for this layout.
+A long Smart orders list scrolls inside the panel beneath its tabs. The panel
+keeps its own height instead of growing the list past the bottom edge.
 A grid's waiting and completed counts live inside that popover, such as "3
 waiting · 7 completed", followed by how many dollars it still holds to sell.
 The old price-range line repeated what the chart already shows and did not say
@@ -1192,19 +1194,25 @@ beside Settled says that both totals are short and names the missing trades.
 
 `/admin/trading-overview` answers the account-wide money question without
 belonging to one exchange. PnL Graph, short for profit and loss, is the main
-card. Its heading puts Made or lost first, then names the account balance and
-fees underneath. The old headline figures, Wallets card, and Money over time
-card are gone. Their answers now share this one card, so a wallet and the line
-it produced can be read together.
+card. Its heading puts Made or lost first, with its share of the current shown
+balance in a green, red, or neutral badge at the same 28.8px size. No percentage
+appears when the shown balance is zero or below. The chart's top row names Balance,
+Settled, Open, and Fees in that order. The age stays on the left. The figures
+and the warning about trades with unstated money align to the right. A light
+gray row and bottom divider keep this account summary apart from the chart. The
+gray chart row and the wallet column header are both 40px high. The old "made or lost"
+label and the breakdown below the wallet list are gone. The old headline
+figures, Wallets card, and Money over time card are gone too. Their answers now
+share this one card, so a wallet and the line it produced can be read together.
+The age does not repeat under the large result.
 
 The left side starts with All wallets and then lists each real mainnet wallet.
 Every answered row has the wallet's balance, Made or lost, and a small line over
-time. Settled, open, and fee figures appear once at the bottom of the wallet
-pane for the selected wallet. Selecting All wallets shows the account-wide
-breakdown there. The graph pane stays clear for the money-over-time chart.
-Switched-off wallets stay out of PnL Graph. A wallet whose exchange did not
-answer stays named as a failed answer. It never becomes a row of zeroes. The
-All wallets row starts selected. The selected row has a light gray background,
+time. The graph pane stays clear for the money-over-time chart. Switched-off
+wallets stay out of PnL Graph and out of the wallet count in its heading. A
+wallet whose exchange did not answer stays named as a failed answer. It never
+becomes a row of zeroes. The All wallets row starts selected. The selected row
+has a light gray background,
 a 2px high-contrast right border, and a heavier wallet name. Every row reserves
 the border's width so changing the selection does not shift its contents. Every
 answered wallet row has a hand cursor and can be selected by mouse or keyboard.
@@ -1215,6 +1223,8 @@ and the amount for every line. Hovering a wallet's small line keeps its dot and
 opens a readout with the date and that wallet's result at the marked point.
 The mini graph is a plain line and does not draw a filled block when it is
 clicked.
+The graph panel names the live age, such as "7 days ago", instead of the fixed
+"Money over time" label.
 The Wallets and Made or lost headings sort the wallet rows in either direction.
 All wallets is an account summary and stays pinned first. Unavailable results
 stay at the bottom when sorting by money. The last sort is remembered in this
@@ -1254,8 +1264,9 @@ empty wording still avoids claiming that every wallet was empty. A market whose
 current price could not be read shows a dash for both value and profit, never a
 made-up zero. A plain divider sits
 between every pair of trade rows, including the final two. The sticky table
-header uses the lighter muted gray rather than the full muted background. Every
-Active Trades column is left-aligned, including Value and P/L.
+header uses the full muted background, so a scrolling trade row never shows
+through the column names. Every Active Trades column is left-aligned, including
+Value and P/L.
 The footer stays at the bottom of the widget while the trades scroll. Total
 adds the value and current profit for the rows shown. Filters update the total.
 If any shown trade lacks a figure, the affected total uses a dash instead of

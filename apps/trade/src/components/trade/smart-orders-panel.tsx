@@ -188,7 +188,7 @@ export function SmartOrdersPanel({
         />
       </DashboardCardTabsHeader>
 
-      <TabsContent value="smart" className="min-h-0 flex-1">
+      <TabsContent value="smart" className="flex min-h-0 flex-1 flex-col">
         <SmartOrdersView {...smartOrdersProps} />
       </TabsContent>
       <TabsContent value="bots" className="min-h-0 flex-1">

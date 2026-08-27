@@ -51,6 +51,15 @@ function overview(activeTrades: TradingOverviewActiveTrade[]): TradingOverview {
 }
 
 describe("the Active Trades footer", () => {
+  it("keeps the sticky header opaque while rows scroll underneath it", () => {
+    const html = renderToStaticMarkup(
+      <ActiveTradesWidget overview={overview([trade({})])} className="" />
+    )
+
+    expect(html).toContain("[&amp;_thead_th]:bg-muted")
+    expect(html).not.toContain("[&amp;_thead_th]:bg-muted/50")
+  })
+
   it("shows the total for the rows in the widget", () => {
     const html = renderToStaticMarkup(
       <ActiveTradesWidget

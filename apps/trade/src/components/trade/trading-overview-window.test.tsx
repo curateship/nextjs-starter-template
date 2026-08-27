@@ -89,6 +89,26 @@ describe("what the widgets say about when they started", () => {
   it("replaces the separate money cards with PnL Graph", () => {
     const shown = show("2026-08-24T16:00:00.000Z")
     expect(shown).toContain("PnL Graph")
+    expect(shown).toContain("+$190.00+3.65%")
+    expect(
+      host.querySelector('[class*="bg-emerald-500/10"]')?.className
+    ).toContain("text-[1.8rem]")
+    expect(host.querySelector("p.font-mono")?.className).toContain(
+      "text-[1.8rem]"
+    )
+    expect(shown).toContain(
+      "4 days agobalance $5,200.00 · settled +$150.00 · open +$40.00 · fees $3.00"
+    )
+    expect(
+      host.querySelector(
+        'section[aria-label="4 days ago profit history"] > div'
+      )?.className
+    ).toContain("min-h-10")
+    expect(
+      host.querySelector('section[aria-label="Wallets"] > div')?.className
+    ).toContain("min-h-10")
+    expect(shown).not.toContain("since 4 days ago")
+    expect(shown).not.toContain("made or lost ·")
     expect(shown).toContain("1W1M3M6MAll")
     expect(shown).toContain("Reset")
     expect(shown).not.toContain("Total balance")
@@ -107,18 +127,7 @@ describe("what the widgets say about when they started", () => {
     expect(walletButtons[0].className).toContain("border-r-foreground")
     expect(walletButtons[1].className).toContain("border-r-transparent")
     expect(walletButtons[1].className).toContain("cursor-pointer")
-    const accountBreakdown = host.querySelector(
-      '[aria-label="All wallets current breakdown"]'
-    )
-    expect(accountBreakdown).not.toBeNull()
-    expect(
-      accountBreakdown?.closest("section")?.getAttribute("aria-label")
-    ).toBe("Wallets")
-    expect(
-      host.querySelector(
-        '[aria-label="Money over time"] [aria-label$="current breakdown"]'
-      )
-    ).toBeNull()
+    expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
 
     act(() => walletButtons[1].click())
 
@@ -127,9 +136,7 @@ describe("what the widgets say about when they started", () => {
     expect(walletButtons[1].className).toContain("bg-muted/60")
     expect(walletButtons[0].className).toContain("border-r-transparent")
     expect(walletButtons[1].className).toContain("border-r-foreground")
-    expect(
-      host.querySelector('[aria-label="Main current breakdown"]')
-    ).not.toBeNull()
+    expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
   })
 
   it("sorts wallet columns and remembers the choice", () => {
@@ -172,13 +179,15 @@ describe("what the widgets say about when they started", () => {
   })
 
   it("reads four days ago on 24 August 2026", () => {
-    expect(show("2026-08-24T16:00:00.000Z")).toContain("since 4 days ago")
+    const shown = show("2026-08-24T16:00:00.000Z")
+    expect(shown).toContain("4 days ago")
+    expect(shown).not.toContain("Money over time")
   })
 
   it("reads five days ago the next day, with nothing rebuilt", () => {
     // The whole failure was a sentence that stayed still while the calendar
     // moved. One day later the same widget must say something different.
-    expect(show("2026-08-25T16:00:00.000Z")).toContain("since 5 days ago")
+    expect(show("2026-08-25T16:00:00.000Z")).toContain("5 days ago")
   })
 
   it("never says two days ago again", () => {
@@ -228,6 +237,8 @@ describe("what the widgets say about when they started", () => {
 
     expect(shown).not.toContain("Off wallet")
     expect(shown).not.toContain("Switched off")
+    expect(shown).toContain("3 wallets")
+    expect(shown).not.toContain("4 wallets")
     expect(shown).toContain("Phemex did not answer")
     expect(shown).toContain("2 missing")
   })
