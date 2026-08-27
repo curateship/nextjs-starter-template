@@ -659,6 +659,63 @@ describe("changing an open position", () => {
 })
 
 describe("reading the account back", () => {
+  it("keeps finished stop rows out without hiding live orders", async () => {
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        { path: "/api/v1/positions", answer: ok([]) },
+        {
+          path: "/api/v1/orders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "open-1",
+                symbol: "XBTUSDTM",
+                side: "buy",
+                price: 68_000,
+                size: 2,
+                status: "open",
+                isActive: true,
+              },
+            ],
+          }),
+        },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "old-orphan-stop",
+                symbol: "XBTUSDTM",
+                side: "sell",
+                stop: "down",
+                stopPrice: 60_000,
+                closeOrder: true,
+                status: "done",
+                isActive: false,
+              },
+            ],
+          }),
+        },
+      ],
+      []
+    )
+
+    const portfolio = await fetchKucoinPortfolio(
+      "mainnet",
+      "key-id",
+      () => AUTH.agentKey
+    )
+
+    expect(portfolio.orders).toEqual([
+      expect.objectContaining({ orderId: "open-1", trigger: false }),
+    ])
+  })
+
   it("hangs the separate untriggered book back on the position", async () => {
     stubExchange(
       [

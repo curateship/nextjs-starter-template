@@ -212,6 +212,13 @@ function orderRows(rows: unknown[]): OrderRow[] {
     .map((row) => row.data)
 }
 
+/** Rows the exchange still holds, never completed stop-order history. */
+function activeOrderRows(rows: unknown[]): OrderRow[] {
+  return orderRows(rows).filter(
+    (row) => row.isActive !== false && row.status?.toLowerCase() !== "done"
+  )
+}
+
 async function orderById(
   network: NetworkId,
   credential: KucoinCredential,
@@ -1008,8 +1015,8 @@ export async function fetchKucoinPortfolio(
       orderBooks(network, parsed, credential),
     ])
 
-  const open = orderRows(activeRows)
-  const untriggered = orderRows(stopRows)
+  const open = activeOrderRows(activeRows)
+  const untriggered = activeOrderRows(stopRows)
 
   const bySymbol = new Map<string, OrderRow[]>()
   for (const row of untriggered) {

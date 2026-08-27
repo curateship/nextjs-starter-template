@@ -1,4 +1,14 @@
-# KuCoin refusals
+# KuCoin
+
+## Open orders
+
+KuCoin can return finished stop-order history from `/api/v1/stopOrders` when
+Trade asks for the protection and orders the account still holds. Trade drops
+every row KuCoin marks `isActive: false` or `status: done` before drawing the
+portfolio. A finished stop cannot appear as current position protection or as
+an order with a cancel button.
+
+## Refusals
 
 Trade maps the KuCoin Futures codes this app has seen, plus the size, price,
 cash, risk and request-limit families KuCoin publishes. Every sentence names

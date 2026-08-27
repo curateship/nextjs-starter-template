@@ -96,8 +96,8 @@ Two files outrank the rest, and outrank the code:
   the next step Trade gives each one.
 - `phemex.md` — Phemex refusal codes in plain words, with the action each one
   asks for.
-- `kucoin.md` — KuCoin refusal codes seen locally and the published order
-  families Trade translates.
+- `kucoin.md` — which KuCoin stop rows count as open, the refusal codes seen
+  locally and the published order families Trade translates.
 
 ## Adding a doc
 
