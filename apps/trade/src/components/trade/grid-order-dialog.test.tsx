@@ -8,8 +8,6 @@ vi.mock("@/lib/api/smart-orders", () => ({
   loadSmartGridParams: vi.fn(),
 }))
 
-// The isomorphic cookie read inside this hook throws under the test runner,
-// which has neither a server request nor a real browser cookie jar.
 vi.mock("@/lib/layout/wide-screen", () => ({
   useWideScreen: () => true,
 }))
@@ -114,7 +112,6 @@ describe("the grid window's saved settings", () => {
 
     await renderDialog()
 
-    // Nothing waits for the server: the range choice works at once.
     const rangeChoice = host.querySelector<HTMLButtonElement>("#grid-anchor")
     expect(rangeChoice?.disabled).toBe(false)
 
@@ -123,7 +120,6 @@ describe("the grid window's saved settings", () => {
       await read
     })
 
-    // Untouched, so the remembered settings replace the defaults.
     const levels = host.querySelector<HTMLInputElement>("#grid-levels")
     expect(levels?.value).toBe("17")
   })
@@ -138,7 +134,6 @@ describe("the grid window's saved settings", () => {
 
     await renderDialog()
 
-    // A hand gets there before the saved settings do.
     const levels = host.querySelector<HTMLInputElement>("#grid-levels")
     await act(async () => {
       const set = Object.getOwnPropertyDescriptor(
@@ -155,7 +150,6 @@ describe("the grid window's saved settings", () => {
       await read
     })
 
-    // The late-arriving save loses: the typed value stays.
     expect(levels?.value).toBe("9")
   })
 
@@ -343,5 +337,31 @@ describe("the grid window's saved settings", () => {
       .querySelector("#grid-tp-on")
       ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
     expect(endCard?.querySelectorAll("button")).toHaveLength(1)
+  })
+
+  it("keeps stop loss on when old saved settings had it off", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), stopLoss: null },
+    })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+    await act(async () => Promise.resolve())
+
+    expect(host.textContent).toContain("Stop loss")
+    expect(host.querySelector("#grid-sl-pct")).not.toBeNull()
+    expect(host.querySelector("#grid-sl-on")).toBeNull()
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          stopLoss: expect.objectContaining({ underPct: expect.any(Number) }),
+        }),
+      })
+    )
   })
 })
