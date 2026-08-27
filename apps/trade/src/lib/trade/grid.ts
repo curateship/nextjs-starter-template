@@ -254,7 +254,13 @@ export const gridParamsSchema = z.object({
   takeProfitPct: z.number().positive().max(999).nullable().default(null),
 })
 
+/** Settings accepted for a newly placed grid. A new grid always has a stop. */
+export const placeGridParamsSchema = gridParamsSchema.extend({
+  stopLoss: gridStopSchema,
+})
+
 export type GridParams = z.infer<typeof gridParamsSchema>
+export type PlaceGridParams = z.infer<typeof placeGridParamsSchema>
 
 export function defaultGridParams(): GridParams {
   return {

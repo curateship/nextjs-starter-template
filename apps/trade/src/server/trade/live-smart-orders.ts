@@ -26,8 +26,8 @@ import {
   gridRangeMovable,
   gridStopPx,
   gridStopUnder,
-  type GridParams,
   type GridPlan,
+  type GridStop,
 } from "@/lib/trade/grid"
 import {
   gridLadderPairingRefusal,
@@ -2435,7 +2435,7 @@ async function movePairedGridStop(
 export async function updateLiveGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridParams["stopLoss"] }
+  input: { gridId: string; stopLoss: GridStop }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -2443,16 +2443,14 @@ export async function updateLiveGridStop(
     const protocol = getProtocol(wallet.protocol)
     const plan = grid.plan
 
-    plan.stopLoss = input.stopLoss
-      ? {
-          mode: plan.followDown ? "fixed" : "percent",
-          underPct: input.stopLoss.underPct,
-          px: plan.followDown
-            ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
-            : null,
-          base: input.stopLoss.base,
-        }
-      : null
+    plan.stopLoss = {
+      mode: plan.followDown ? "fixed" : "percent",
+      underPct: input.stopLoss.underPct,
+      px: plan.followDown
+        ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+        : null,
+      base: input.stopLoss.base,
+    }
 
     // While a ladder shares the coin, the stop is the handoff line: it must
     // exist and sit above the ladder's first buy, or the pairing's whole

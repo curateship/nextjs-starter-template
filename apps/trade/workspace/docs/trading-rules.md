@@ -198,6 +198,8 @@ add up to.
   price.** The average falls as the grid recycles, so a stop following it would
   drift into the range and sell the grid on an ordinary dip, which is the exact
   move a grid exists to trade.
+- Tyler, 27 Aug 2026: **A grid smart order always has a stop loss.** The stop
+  cannot be switched off when the grid is placed or while it is running.
 
 ## Money
 

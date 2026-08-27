@@ -260,6 +260,30 @@ async function orderById(
   return parsed.success ? parsed.data : null
 }
 
+/** Confirm that KuCoin kept a newly placed stop in its working stop book. */
+async function stopOrderIsActive(
+  network: NetworkId,
+  credential: KucoinCredential,
+  marketId: string,
+  orderId: string
+): Promise<boolean> {
+  for (let poll = 0; poll < PLACE_POLLS; poll += 1) {
+    const row = orderRows(
+      await pagedItems(network, credential, "/api/v1/stopOrders", {
+        symbol: marketId,
+        status: "active",
+      })
+    ).find((one) => one.id === orderId)
+    if (row) {
+      return row.isActive !== false && row.status?.toLowerCase() !== "done"
+    }
+    if (poll < PLACE_POLLS - 1) {
+      await new Promise((resolve) => setTimeout(resolve, PLACE_POLL_WAIT_MS))
+    }
+  }
+  return false
+}
+
 // ----- Placing --------------------------------------------------------------
 
 type PlacedLeg = { orderId: string }
@@ -846,11 +870,14 @@ export async function setKucoinBrackets(
     if (lots !== null && !(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
     return { ...target, lots }
   })
-  // Null lots is `closeOrder` — closes whatever is held when it fires. A
-  // number is a fixed lot count with `reduceOnly`, the same shape a sized
-  // target already uses, so the stop sells that many coins and no more.
-  const slLots = params.slSz === null ? null : lotsOf(params.slSz, lot)
-  if (slLots !== null && !(slLots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
+  // KuCoin accepts `closeOrder` stop requests and returns an id, but has been
+  // observed marking those rows done immediately without triggering them.
+  // Size every open-position stop to what is held now instead. The grid
+  // replaces this stop whenever its held size changes.
+  const slLots = lotsOf(params.slSz ?? size, lot)
+  if (params.slPx !== null && !(slLots > 0)) {
+    throw new Error("LIVE_SIZE_TOO_SMALL")
+  }
 
   const landed: string[] = []
   let slOrderId: string | null = null
@@ -869,6 +896,18 @@ export async function setKucoinBrackets(
         })
       )
       slOrderId = placed.orderId
+      if (
+        !(await stopOrderIsActive(
+          network,
+          credential,
+          params.marketId,
+          placed.orderId
+        ))
+      ) {
+        throw new Error(
+          "KuCoin returned an order id but did not keep the stop active."
+        )
+      }
       landed.push(`stop at ${params.slPx}`)
     }
     for (const target of targets) {
@@ -910,9 +949,10 @@ export async function setKucoinBrackets(
     }
   }
   if (replacing.length > 0) {
-    const still = orderRows(
+    const still = activeOrderRows(
       await pagedItems(network, credential, "/api/v1/stopOrders", {
         symbol: params.marketId,
+        status: "active",
       })
     ).filter((row) => replacing.includes(row.id))
     if (still.length > 0) {
@@ -1031,7 +1071,9 @@ function orderBooks(
   const at = Date.now()
   const answer = Promise.all([
     pagedItems(network, credential, "/api/v1/orders", { status: "active" }),
-    pagedItems(network, credential, "/api/v1/stopOrders"),
+    pagedItems(network, credential, "/api/v1/stopOrders", {
+      status: "active",
+    }),
   ]).then(([active, stops]) => ({ active, stops }))
   // A failed read is never remembered as an answer — one refusal would
   // otherwise be handed to every caller until the ceiling ran out.

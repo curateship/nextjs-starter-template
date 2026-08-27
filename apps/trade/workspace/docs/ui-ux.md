@@ -494,6 +494,9 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   range that slides up ahead of price can never be reached, and a setting that
   quietly does nothing is worse than no setting. On the chart the line reads
   **FINISH**.
+- **Stop loss** is always on. Its card has no checkbox because a grid cannot be
+  placed or left running without a stop. The card sets the distance below the
+  range and the optional confirmed-base rule.
 - **Refusals** are said on the window before the button is pressed, in the
   server's own words. Doubling gets its own: it names the level that is too
   small and offers the three ways out, fewer levels, a bigger share, or the same

@@ -68,7 +68,7 @@ import {
 import type { DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
-import type { GridParams } from "@/lib/trade/grid"
+import type { GridStop, PlaceGridParams } from "@/lib/trade/grid"
 import {
   laddersAndGridsYouPlaced,
   type SmartGrid,
@@ -423,7 +423,7 @@ export type Trading = {
     marketKey: string
     topPx: number
     bottomPx: number
-    params: GridParams
+    params: PlaceGridParams
   }) => Promise<boolean>
   /** The × on one waiting level. Unlike the others it never comes back. */
   cancelGridLevel: (
@@ -464,7 +464,7 @@ export type Trading = {
   setGridStop: (
     walletId: string,
     gridId: string,
-    stopLoss: GridParams["stopLoss"]
+    stopLoss: GridStop
   ) => Promise<boolean>
   /**
    * Start or stop a grid following price up. Switching it on also clears the

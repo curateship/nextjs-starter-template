@@ -7,6 +7,7 @@ import {
   gridLevels,
   gridLevelSize,
   gridOrderPlan,
+  placeGridParamsSchema,
   gridRangeFromClick,
   gridShares,
   gridStepPct,
@@ -382,6 +383,20 @@ describe("gridShares", () => {
       const sum = gridShares(count, "double").reduce((a, b) => a + b, 0)
       expect(sum).toBeCloseTo(1, 12)
     }
+  })
+})
+
+describe("new grid requirements", () => {
+  it("accepts a stop and refuses a new grid without one", () => {
+    expect(placeGridParamsSchema.safeParse(defaultGridParams()).success).toBe(
+      true
+    )
+    expect(
+      placeGridParamsSchema.safeParse({
+        ...defaultGridParams(),
+        stopLoss: null,
+      }).success
+    ).toBe(false)
   })
 })
 

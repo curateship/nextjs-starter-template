@@ -254,6 +254,10 @@ level's own sell, one round trip at a time.
 
 ## The stop
 
+Every grid has a stop. The placement window asks where it sits, but has no
+switch that can remove it. The running grid window can move or change the stop,
+but cannot remove it either.
+
 The stop hangs off the **bottom of the range**, never off the average buy price.
 As levels recycle that average ratchets downward, so a stop following it drifts
 further away on every cycle, and after a run of shallow cycles it would sit
