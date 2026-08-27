@@ -125,6 +125,19 @@ describe("a refusal that carries its own figures", () => {
     expect(getCandlesErrorMessage(new Error("EXCHANGE_BUSY:Aster"))).toContain(
       "Aster"
     )
+
+    /**
+     * **The count reaches the screen.** Four guesses were made at why this
+     * fires on the deployed site and not locally, all wrong, because nothing
+     * said what had been spent. The figures travel with the refusal now.
+     */
+    const counted = getCandlesErrorMessage(
+      new Error("EXCHANGE_BUSY:Lighter — spent 34 of 34 this minute (22 read, 12 socket)")
+    )
+    expect(counted).toContain("Lighter")
+    expect(counted).toContain("34 of 34")
+    expect(counted).toContain("22 read")
+    expect(counted).toContain("12 socket")
     // And an unnamed one must never print a raw code back.
     const bare = getCandlesErrorMessage(new Error("EXCHANGE_BUSY"))
     expect(bare).toContain("exchange")

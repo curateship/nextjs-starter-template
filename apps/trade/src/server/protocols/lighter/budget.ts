@@ -127,7 +127,21 @@ export function reserveLighterRequest(
   const state = stateFor(network)
   prune(state, now)
   const ceiling = ceilingFor(cost.priority)
-  if (state.entries.length + 1 > ceiling) throw new Error("EXCHANGE_BUSY")
+  if (state.entries.length + 1 > ceiling) {
+    /**
+     * **The refusal carries the count.** Four separate guesses were made at
+     * why this fires on the deployed site while a local run sat at a third of
+     * the ceiling, and every one of them was wrong, because nothing anywhere
+     * said what had actually been spent. Now the number travels with the
+     * refusal and reaches the screen, so the next person to see it is reading
+     * a measurement rather than a theory.
+     */
+    const rest = state.entries.filter((one) => one.kind === "rest").length
+    const socket = state.entries.length - rest
+    throw new Error(
+      `EXCHANGE_BUSY:spent ${state.entries.length} of ${ceiling} this minute (${rest} read, ${socket} socket)`
+    )
+  }
   state.entries.push({ at: now, weight: cost.weight, kind: "rest" })
 }
 

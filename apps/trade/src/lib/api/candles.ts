@@ -71,7 +71,13 @@ const loadCandlesFn = createServerFn({ method: "GET" })
        */
       const said = error instanceof Error ? error.message : String(error)
       if (said.includes("EXCHANGE_BUSY")) {
-        throw new Error(`EXCHANGE_BUSY:${protocol.label}`)
+        // Keep whatever the venue said after the code — the budget puts its
+        // own count there, and that count is the only evidence of what spent
+        // the minute.
+        const detail = /EXCHANGE_BUSY:(.+)$/.exec(said)?.[1]?.trim() ?? ""
+        throw new Error(
+          `EXCHANGE_BUSY:${protocol.label}${detail ? ` — ${detail}` : ""}`
+        )
       }
       throw error
     }
@@ -95,9 +101,14 @@ export function loadCandles(
 function busyMessage(said: string): string | null {
   if (!said.includes("EXCHANGE_BUSY")) return null
   const named = /EXCHANGE_BUSY:(.+)$/.exec(said)?.[1]?.trim()
-  return named
-    ? `${named} would not answer just now. The chart will draw itself as soon as it does.`
-    : "That exchange would not answer just now. The chart will draw itself as soon as it does."
+  if (!named) {
+    return "That exchange would not answer just now. The chart will draw itself as soon as it does."
+  }
+  // "Lighter — spent 34 of 34 this minute (22 read, 12 socket)"
+  const [venue, detail] = named.split(" — ")
+  return detail
+    ? `${venue} would not answer just now — ${detail}. The chart will draw itself as soon as there is room.`
+    : `${venue} would not answer just now. The chart will draw itself as soon as it does.`
 }
 
 const candlesMessage = createErrorMessage(
