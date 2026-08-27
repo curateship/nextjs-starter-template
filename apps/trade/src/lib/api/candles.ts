@@ -50,15 +50,30 @@ const loadCandlesFn = createServerFn({ method: "GET" })
     const ref = parseMarketKey(data.marketKey)
     if (!ref) throw new Error("Not a market key.")
     const protocol = getProtocol(ref.protocol)
-    return {
-      candles: await protocol.markets.candles(
-        ref.network,
-        ref.marketId,
-        data.interval,
-        data.since === undefined
-          ? undefined
-          : earliestAskable(data.interval, data.since)
-      ),
+    try {
+      return {
+        candles: await protocol.markets.candles(
+          ref.network,
+          ref.marketId,
+          data.interval,
+          data.since === undefined
+            ? undefined
+            : earliestAskable(data.interval, data.since)
+        ),
+      }
+    } catch (error) {
+      /**
+       * **Say WHICH exchange refused.** `EXCHANGE_BUSY` is thrown by three of
+       * them, and Aster throws it for a plain timeout, where nothing is
+       * rationed at all. A message that named a cause it could not know sent
+       * two people hunting the wrong exchange for a day — so the venue's own
+       * name rides along, and the sentence stops claiming to know why.
+       */
+      const said = error instanceof Error ? error.message : String(error)
+      if (said.includes("EXCHANGE_BUSY")) {
+        throw new Error(`EXCHANGE_BUSY:${protocol.label}`)
+      }
+      throw error
     }
   })
 
@@ -70,7 +85,22 @@ export function loadCandles(
   return loadCandlesFn({ data: { marketKey, interval, since } })
 }
 
-export const getCandlesErrorMessage = createErrorMessage(
+/**
+ * `EXCHANGE_BUSY` means the venue would not answer right now, and NOT
+ * necessarily that a limit was reached: Aster throws the same code when a
+ * request simply times out. The old wording said the allowance was spent,
+ * which was a guess dressed as a fact, and it cost a day of looking at the
+ * wrong exchange. It names the venue and stops short of naming a cause.
+ */
+function busyMessage(said: string): string | null {
+  if (!said.includes("EXCHANGE_BUSY")) return null
+  const named = /EXCHANGE_BUSY:(.+)$/.exec(said)?.[1]?.trim()
+  return named
+    ? `${named} would not answer just now. The chart will draw itself as soon as it does.`
+    : "That exchange would not answer just now. The chart will draw itself as soon as it does."
+}
+
+const candlesMessage = createErrorMessage(
   {
     ASTER_IP_BANNED:
       "Aster has blocked this internet address. Trade has stopped asking Aster. Check Aster before restarting the app.",
@@ -85,17 +115,16 @@ export const getCandlesErrorMessage = createErrorMessage(
       "The exchange is asking us to slow down — give it a few seconds and try again.",
     "rate limit":
       "The exchange is asking us to slow down — give it a few seconds and try again.",
-    /**
-     * The app's OWN counter refusing, before the request ever leaves. It
-     * reads the same to the person as the exchange refusing, so it says the
-     * same thing — the alternative was the fallback below, which claims
-     * nothing is wrong and sends somebody hunting for a broken chart.
-     *
-     * This was live for a day on Lighter, whose sixty-a-minute allowance an
-     * idle tab could spend on its own.
-     */
-    EXCHANGE_BUSY:
-      "This exchange's allowance for the next minute is spent — the chart will draw itself as soon as there is room.",
   },
   "The chart could not load. Nothing is wrong on your side — try again in a moment."
 )
+
+export function getCandlesErrorMessage(error: unknown): string {
+  const said =
+    typeof error === "string"
+      ? error
+      : error instanceof Error
+        ? error.message
+        : ""
+  return busyMessage(said) ?? candlesMessage(error)
+}

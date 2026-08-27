@@ -108,14 +108,27 @@ describe("a refusal that carries its own figures", () => {
     expect(missing).toContain("signing files")
   })
 
-  it("tells a chart why it did not draw, when the app itself refused", () => {
-    // `EXCHANGE_BUSY` is the app's own counter refusing before a request
-    // leaves. It was not in the chart's list, so it fell through to "Nothing
-    // is wrong on your side", which sent Tyler hunting for a broken chart
-    // while Lighter's sixty-a-minute allowance was simply spent.
-    const said = getCandlesErrorMessage(new Error("EXCHANGE_BUSY"))
-    expect(said).toContain("allowance")
-    expect(said).not.toContain("Nothing is wrong on your side")
+  it("names the exchange that would not answer, and guesses no cause", () => {
+    /**
+     * `EXCHANGE_BUSY` is thrown by Lighter, Aster AND KuCoin, and Aster
+     * throws it for a plain timeout where nothing is rationed at all. An
+     * earlier version of this message announced that the allowance was
+     * spent — a guess dressed as a fact, and it cost a day of looking at the
+     * wrong exchange. So it says WHICH venue and stops there.
+     */
+    const named = getCandlesErrorMessage(new Error("EXCHANGE_BUSY:Lighter"))
+    expect(named).toContain("Lighter")
+    expect(named).not.toContain("allowance")
+    expect(named).not.toContain("Nothing is wrong on your side")
+
+    // A different venue reads as itself, from the same code.
+    expect(getCandlesErrorMessage(new Error("EXCHANGE_BUSY:Aster"))).toContain(
+      "Aster"
+    )
+    // And an unnamed one must never print a raw code back.
+    const bare = getCandlesErrorMessage(new Error("EXCHANGE_BUSY"))
+    expect(bare).toContain("exchange")
+    expect(bare).not.toContain("EXCHANGE_BUSY")
 
     // The exchange saying it, rather than the app, still reads its own way.
     expect(getCandlesErrorMessage(new Error("429 Too Many Requests"))).toContain(
