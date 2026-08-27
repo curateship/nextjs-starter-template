@@ -81,10 +81,15 @@ const RECONCILE_EVERY_MS = 5 * 60_000
 
 /**
  * The most often the Journal may be read from Lighter, whatever happens.
- * The same thirty seconds the sweep used before this file existed, kept as a
- * floor so a misbehaving feed can only ever cost less than the old poll.
+ *
+ * A floor, so a feed that keeps reconnecting — every drop asks for a
+ * reconcile — can never cost more than a plain poll would have. Measured
+ * 27 Aug 2026 while browsing thirty coins: at thirty seconds this was the
+ * single biggest spender left, ten of thirty-seven requests. At sixty it is
+ * half that, and a fill is still written down and announced within a minute
+ * of happening.
  */
-const SWEEP_FLOOR_MS = 30_000
+const SWEEP_FLOOR_MS = 60_000
 
 type Listener = (fill: WalletOrderFill) => void
 
@@ -670,11 +675,22 @@ export function watchLighterFills(
  * dead, so the line never recovered and the chart was refused. Measured
  * 27 Aug 2026: 46 requests a minute with 11 refusals became 12 with none.
  *
- * Ten seconds, where Hyperliquid holds its portfolio for four. Longer because
- * Lighter allows sixty requests a minute where Hyperliquid allows thousands,
- * and because this is only ever reached when the socket is not there.
+ * Thirty seconds, where Hyperliquid holds its portfolio for four. Longer
+ * because Lighter allows sixty requests a minute where Hyperliquid allows
+ * thousands, and because this is only ever reached when the socket — which is
+ * instant and free — is not answering.
+ *
+ * Measured 27 Aug 2026 while browsing thirty coins: the account and its
+ * resting orders were 34 of the 55 requests spent, all of them this fallback
+ * firing every ten seconds. At thirty they come to four a minute, which is
+ * the difference between a tight minute and a comfortable one.
+ *
+ * **What it costs.** A position or a resting order changed somewhere else —
+ * on Lighter's own site — can be up to thirty seconds out of date on screen
+ * while the socket is down. Anything THIS app sends drops the held answer
+ * first, so nothing you do here is ever answered with a stale one.
  */
-const REST_HELD_MS = 10_000
+const REST_HELD_MS = 30_000
 
 const held = new Map<string, { at: number; load: Promise<unknown> }>()
 

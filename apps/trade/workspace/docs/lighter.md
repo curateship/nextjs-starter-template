@@ -314,6 +314,28 @@ So Lighter, and only Lighter:
 The cost is that a Lighter coin opens on three months of history rather than
 two years. Scroll back and the rest arrives.
 
+### What a browsing session costs now
+
+Thirty coins clicked in a row with timeframe switches every fifth, measured
+27 Aug 2026 at the budget itself:
+
+| | requests | busiest minute | refusals |
+| --- | ---: | ---: | ---: |
+| before the shorter first chart | — | over 34 | 18 of 25 clicks |
+| after it | 55 | 21 of 34 | 0 |
+| holding a fallback answer 30s | 37 | 17 of 34 | 0 |
+| Journal floor at a minute | **36** | **16 of 34** | **0** |
+
+The chart is six of those thirty-six, for thirty coins — the held history is
+doing its job. What is left is the account and its resting orders, and those
+are only asked at all when the socket is not answering.
+
+**The socket is not as steady as it should be.** Watched over ninety seconds
+it served about a third of the account reads and was rebuilt several times.
+That is worth chasing on its own: every read it serves is free, so a steady
+feed would take the sixteen down to single figures. It is not what was
+refusing the chart, and it is not urgent now that nothing is being refused.
+
 **The two programs take different shares, forty and twenty.** Splitting the
 sixty down the middle was the first attempt and it caused the very thing it
 was meant to stop: the website's ceiling halved, and a chart somebody had just
