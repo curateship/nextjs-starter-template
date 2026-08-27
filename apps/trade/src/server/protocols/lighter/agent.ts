@@ -122,6 +122,34 @@ export async function findLighterApiKeyIndex(
 }
 
 /**
+ * Just the account number, which needs no signing at all.
+ *
+ * **Reading a Lighter account is public**, and the number behind an address
+ * is a public lookup too. Only signing needs the key, so a read must never
+ * depend on the signer being present — when it did, a deployed web server
+ * without the signer's files could not show a position that plainly existed.
+ *
+ * Held for the same ten minutes as the fuller answer, and by address alone
+ * because the number does not depend on which key is in the wallet.
+ */
+const heldIndexes = new Map<string, { at: number; load: Promise<number> }>()
+
+export async function lighterAccountIndex(
+  network: NetworkId,
+  address: string
+): Promise<number> {
+  const key = `${network}:${address.toLowerCase()}`
+  const held = heldIndexes.get(key)
+  if (held && Date.now() - held.at < FACTS_HELD_MS) return held.load
+  const load = fetchLighterAccountIndex(network, address)
+  heldIndexes.set(key, { at: Date.now(), load })
+  load.catch(() => {
+    if (heldIndexes.get(key)?.load === load) heldIndexes.delete(key)
+  })
+  return load
+}
+
+/**
  * Everything Lighter must be told about a wallet before it will sign, looked
  * up rather than stored.
  *
@@ -201,4 +229,5 @@ export async function verifyLighterAgentKey(
 /** Tests and a replaced key must not answer from an earlier lookup. */
 export function clearLighterAccountFacts(): void {
   heldFacts.clear()
+  heldIndexes.clear()
 }

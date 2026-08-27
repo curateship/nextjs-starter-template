@@ -256,10 +256,49 @@ export async function fetchLighterOrderPortfolio(
   address: string,
   credential: () => string | null
 ): Promise<WalletPortfolio> {
+  // Positions first, and on their own: Lighter answers them publicly, so they
+  // must never be lost to a failure on the orders half below.
   const portfolio = await fetchLighterPortfolio(network, address, credential)
-  const facts = await lighterAccountFacts(network, address, credential)
-  const orders = await fetchLighterOpenOrders(network, facts)
-  return { positions: portfolio.positions as WalletPosition[], orders }
+  /**
+   * **The resting orders are the only part that needs signing**, and losing
+   * them must not lose the positions with them. A server without the signing
+   * files, or a key that has been re-registered, would otherwise blank a
+   * position that plainly exists — which is exactly what happened on
+   * 26 Aug 2026, with a real PUMP position on the exchange and nothing on the
+   * screen. An empty order list beside a real position is a smaller lie than
+   * no position at all, and the wallet card still shows the money.
+   */
+  let orders: WalletOpenOrder[] = []
+  try {
+    const facts = await lighterAccountFacts(network, address, credential)
+    orders = await fetchLighterOpenOrders(network, facts)
+  } catch (error) {
+    console.error("Lighter resting orders could not be read", error)
+  }
+
+  /**
+   * **Every protective leg standing on a market is pinned to its position.**
+   *
+   * `setBrackets` cancels this list before placing a new stop, so a position
+   * that never carries one can never have its old stop taken off: replacing a
+   * stop would leave the old one resting, and the position would be sold
+   * twice over. Reading them back off the exchange is the only way the list
+   * is ever true — Lighter keeps each leg as its own ordinary order.
+   *
+   * A reduce-only order waiting on a trigger is a stop or a target and
+   * nothing else: an entry is never reduce-only, and a plain resting order
+   * has no trigger.
+   */
+  const positions = portfolio.positions.map((position) => ({
+    ...position,
+    protectionOrderIds: orders
+      .filter(
+        (one) =>
+          one.marketId === position.marketId && one.reduceOnly && one.trigger
+      )
+      .map((one) => one.orderId),
+  }))
+  return { positions, orders }
 }
 
 /**

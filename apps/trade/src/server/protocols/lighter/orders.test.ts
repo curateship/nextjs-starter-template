@@ -415,3 +415,104 @@ describe("stops and targets on a Lighter position", () => {
     expect(sent).not.toHaveBeenCalled()
   }, 60_000)
 })
+
+describe("pinning protective orders to their position", () => {
+  it("gives a position the ids of the stops standing on it", async () => {
+    /**
+     * **Without this a stop can never be replaced.** `setBrackets` cancels
+     * the ids on the position before placing a new one, so a position that
+     * carries none leaves its old stop resting and ends up sold twice over.
+     */
+    facts.mockResolvedValue({ accountIndex: 5, apiKeyIndex: 2 })
+    privateRead.mockResolvedValue({
+      code: 200,
+      orders: [
+        // A stop: reduce-only, waiting on a trigger.
+        {
+          order_index: 900,
+          market_index: 1,
+          is_ask: true,
+          price: "700000",
+          remaining_base_amount: "60",
+          reduce_only: true,
+          trigger_price: "705000",
+        },
+        // An ordinary resting buy, which is not protection and must not be
+        // cancelled when a stop is replaced.
+        {
+          order_index: 901,
+          market_index: 1,
+          is_ask: false,
+          price: "700000",
+          remaining_base_amount: "60",
+          reduce_only: false,
+          trigger_price: "0",
+        },
+      ],
+    })
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 0.0006,
+          entryPx: 78_000,
+          leverage: 10,
+          marginUsed: 4,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(folio.positions[0].protectionOrderIds).toEqual(["900"])
+  }, 60_000)
+
+  it("keeps the position when the resting orders cannot be read", async () => {
+    // A server with no signing files, or a re-registered key. Blanking a real
+    // position because its orders could not be read is the worse failure.
+    facts.mockRejectedValue(new Error("LIGHTER_SIGNER_MISSING:no files"))
+    const account = await import("@/server/protocols/lighter/account")
+    vi.mocked(account.fetchLighterPortfolio).mockResolvedValue({
+      positions: [
+        {
+          marketId: "PUMP",
+          szi: 4069,
+          entryPx: 0.0049,
+          leverage: 10,
+          marginUsed: 2,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          tpOrderId: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    const folio = await fetchLighterOrderPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => KEY
+    )
+    expect(folio.positions).toHaveLength(1)
+    expect(folio.positions[0].marketId).toBe("PUMP")
+    expect(folio.orders).toEqual([])
+  }, 60_000)
+})

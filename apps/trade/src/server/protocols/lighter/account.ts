@@ -8,15 +8,17 @@ import type {
 } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/lighter/translate"
 import { lighterPublic } from "@/server/protocols/lighter/client"
-import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
+import { lighterAccountIndex } from "@/server/protocols/lighter/agent"
 
 /**
  * What a Lighter account holds, in the app's own words.
  *
- * **Lighter answers this one publicly.** An account can be read by its index
- * without any signature, which is why the figures below cost no auth token.
- * The credential is still needed, because the index itself is found from the
- * wallet's address and its key — see `agent.ts`.
+ * **Lighter answers this one publicly**, by account number and with no
+ * signature at all, and the number behind an address is a public lookup too.
+ * So nothing here reads the wallet's key. That is what lets a server with no
+ * signing files still show what a wallet holds — when this did depend on the
+ * signer, a real position sat on the exchange with an empty screen in front
+ * of it.
  */
 
 const UNLISTED_WEIGHT = 300
@@ -105,10 +107,12 @@ function toPosition(raw: unknown): WalletPosition | null {
     leverage: leverageOf(row),
     marginUsed: marginUsed(row),
     liquidationPx: liquidation !== null && liquidation > 0 ? liquidation : null,
-    // Lighter's order path is not built yet, so Trade has placed no stop or
-    // target here and claims none. Anything set on Lighter's own site is
-    // real but not yet visible; the doc says so rather than the screen
-    // implying a position is unprotected.
+    /**
+     * Empty here on purpose, and filled in by the caller that also reads the
+     * resting orders. Lighter keeps every stop and target as its own ordinary
+     * order, so the account read alone cannot know about them — see
+     * `fetchLighterOrderPortfolio`, which pins them to their position.
+     */
     targets: [],
     tpPx: null,
     tpSz: null,
@@ -155,8 +159,8 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
     positions: rows
       .map(toPosition)
       .filter((one): one is WalletPosition => one !== null),
-    // Nothing can be placed on Lighter from here yet, so no waiting order is
-    // claimed. An empty list beats a made-up one.
+    // The account read says nothing about resting orders; they need the
+    // account's own signature and come from `fetchLighterOrderPortfolio`.
     orders: [],
   }
 }
@@ -164,9 +168,12 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
 export async function fetchLighterAccount(
   network: NetworkId,
   address: string,
-  credential: () => string | null
+  _credential: () => string | null
 ): Promise<WalletAccountFigures> {
-  const { accountIndex } = await lighterAccountFacts(network, address, credential)
+  // No credential is read: Lighter answers an account publicly by its number,
+  // and the number comes from the address. Keeping the signer out of a read
+  // is what lets a server without the signing files still show a position.
+  const accountIndex = await lighterAccountIndex(network, address)
   const figures = toLighterAccountFigures(await readAccount(network, accountIndex))
   if (!figures) throw new Error("LIGHTER_ACCOUNT_UNREADABLE")
   return figures
@@ -175,8 +182,8 @@ export async function fetchLighterAccount(
 export async function fetchLighterPortfolio(
   network: NetworkId,
   address: string,
-  credential: () => string | null
+  _credential: () => string | null
 ): Promise<WalletPortfolio> {
-  const { accountIndex } = await lighterAccountFacts(network, address, credential)
+  const accountIndex = await lighterAccountIndex(network, address)
   return toLighterPortfolio(await readAccount(network, accountIndex))
 }
