@@ -1649,6 +1649,10 @@ async function reconcileLiveLaddersOnce(
                   reduceOnly: input.reduceOnly,
                   tpPx: null,
                   slPx: null,
+                  // The watched price already made the decision. A second
+                  // quote moving back over the level must not turn this into
+                  // a resting order after the engine recorded a fill.
+                  marketOnly: true,
                 })
                 recordSmartOrderSendSuccess(entry.plan)
                 refusalHolds.delete(holdKey)

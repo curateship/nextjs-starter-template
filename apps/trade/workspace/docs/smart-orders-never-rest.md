@@ -31,6 +31,15 @@ injected `fill` when one is crossed. There is no `insertOrder` for a level, no
 order id on a level, and nothing to cancel when a level is called off. The
 level's status changes and that is all.
 
+Reaching the level makes the order a market buy for the rest of that pass. The
+live order path reads one fresh price before sending, but a small move back over
+the level cannot turn the buy into a normal waiting order. CHIP on Hyperliquid
+showed why on 26 August 2026: its first grid level was recorded as bought while
+the exchange still held the buy as an order, the next account read had no
+position yet, and the grid ended before the buy filled. The fresh price now
+changes only the market price used to send the buy. It cannot change the kind
+of order.
+
 ## What watching costs
 
 **A level the price reaches and leaves between two looks is missed.** That is

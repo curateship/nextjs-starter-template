@@ -864,6 +864,95 @@ describe("live Smart orders", () => {
     expect(rows[0].status).toBe("active")
   })
 
+  it("keeps a reached grid level as a market buy when the fresh quote moved up", async () => {
+    const plan: GridPlan = {
+      topPx: 100,
+      bottomPx: 90,
+      takeProfitPx: null,
+      spacing: "even",
+      sizing: "even",
+      potPct: 20,
+      maxOrderVolPct: 0,
+      startedAt: Date.now() - 60_000,
+      sizeDecimals: 3,
+      priceTick: null,
+      minOrderValueUsd: 10,
+      maxLeverage: 50,
+      levels: [
+        {
+          buyPx: 90,
+          sellPx: 95,
+          sz: 1,
+          budget: 90,
+          heldSz: 0,
+          status: "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+        {
+          buyPx: 95,
+          sellPx: 100,
+          sz: 1,
+          budget: 95,
+          heldSz: 0,
+          status: "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+        },
+      ],
+      carriedLevels: [],
+      stopLoss: null,
+      baseDetection: defaultGridParams().baseDetection,
+      baseWatch: null,
+      aimedSlPx: null,
+      pairedStop: null,
+      seenFillsTo: 0,
+      cycles: 0,
+      follow: false,
+      followDown: false,
+      entered: true,
+      shifts: 0,
+      downShifts: 0,
+      closedReason: null,
+    }
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: "grid-price-race",
+      walletId: wallet.id,
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan,
+      createdAt: new Date(Date.now() - 60_000),
+      updatedAt: new Date(Date.now() - 3_000),
+    })
+
+    // The engine sees the $95 level reached at $94. Before the exchange call
+    // leaves, the fresh quote is $96. The buy is still the market action the
+    // watched level asked for, never a resting order at the stale price.
+    prices
+      .mockResolvedValueOnce(new Map([["BTC", 94]]))
+      .mockResolvedValueOnce(new Map([["BTC", 96]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "grid-buy",
+      avgPx: 96,
+      filledSz: 1,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledTimes(1)
+    expect(place.mock.calls[0]?.[2]).toMatchObject({ kind: "market", px: 96 })
+    const [grid] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-price-race"))
+    expect(grid.status).toBe("active")
+  })
+
   it("keeps a watched order visible and records the protocol minimum when price makes it too small", async () => {
     marketFloor = 10
     clearMarketRulesCache()

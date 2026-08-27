@@ -213,6 +213,12 @@ export async function placeLiveOrder(
     slPx: number | null
     /** Smart rungs must rest; they may never turn into an untracked instant fill. */
     restingOnly?: boolean
+    /**
+     * A watched smart-order level has already decided to trade at market.
+     * Keep that decision even when the fresh quote taken here moved back over
+     * the level between the engine pass and this call.
+     */
+    marketOnly?: boolean
   }
 ): Promise<PlaceOrderOutcome> {
   const row = await liveWallet(userId, input.walletId)
@@ -233,7 +239,10 @@ export async function placeLiveOrder(
     const prices = await protocol.markets.prices(row.network, [ref.marketId])
     const mark = prices.get(ref.marketId)
     if (mark === undefined) throw new Error("LIVE_NO_PRICE")
-    const marketable = isMarketable(input.side, input.px, mark)
+    if (input.restingOnly && input.marketOnly)
+      throw new Error("LIVE_ORDER_KIND")
+    const marketable =
+      input.marketOnly || isMarketable(input.side, input.px, mark)
     if (input.restingOnly && marketable) {
       throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
     }
