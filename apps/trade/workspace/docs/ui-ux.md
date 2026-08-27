@@ -465,10 +465,12 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
 - **Range** starts with **Where the range sits**, a two-item dropdown. "Around
   today's price" keeps the two boxes it has always had, Above % and Below %.
   "Below the price you clicked" swaps them for one, **How far below %**, because
-  the top is worked out rather than typed, and adds a line reading **Top buy,
-  where you clicked** with that price on it. Where levels sit above the price,
-  the card says so and says plainly that placing still buys nothing. Both modes still show the range as
-  two prices, the step between levels, and what the whole grid costs.
+  the top is worked out rather than typed. Where levels sit above the price,
+  the card says so and says plainly that placing still buys nothing. The window
+  leaves out the repeated current price, range prices, clicked top buy and step
+  size. Those prices are already on the chart. **Share of account %** sits in
+  this card beside Levels. The card shows what each buy spends and what the
+  whole grid costs.
   Every control works the moment the window opens, on the settings last used —
   the saved grid setup arrives with the page itself, in the same bootstrap
   call that carries the quick-order window's setup, so even the first
@@ -476,32 +478,31 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   second later. A late-arriving answer never replaces a choice just made in
   the window or moves its preview. The DCA window follows the same rule, and
   the full rule lives in `instant-first.md`.
-- **Money** keeps Share of account % and gains **Split between levels**: "The
-  same at every level" or "Double at every level down". When it is set to
-  doubling, the readout under Range stops saying "Each buy spends" and says
-  **Top buy spends** and **Bottom buy spends** instead, because those are now
-  two different numbers and one of them is the interesting one.
-- **Follow price up** is its own card with a tick box, between Money and the
-  finish line. It has no settings of its own, so the card holds nothing but the
-  tick box: everything there is to say about it lives on the tooltip beside the
-  title, including that the stop slides up too, that the grid never finishes on
-  its own, and that levels the same dollars apart stop following once a round
-  trip no longer clears the fee. A card with one switch does not get a paragraph
-  under it.
-- **Finish the grid** was called Take profit and is the same card renamed. Its
-  readout says **Grid finishes at**, not "Sells everything at". Ticking Follow
-  price up hides this card entirely and switches it off, because a line above a
-  range that slides up ahead of price can never be reached, and a setting that
-  quietly does nothing is worse than no setting. On the chart the line reads
-  **FINISH**.
+- **Advanced settings** holds Follow price up, Follow price down, Levels spread
+  and the liquidity guard. It has no following summary on its folded header.
+  Each follow setting keeps its explanation in the tooltip beside its tick box.
+  The window does not repeat that explanation underneath the switch. The Levels
+  spread tooltip compares its two choices with prices. Dollar spacing can put
+  levels at $100, $90 and $80. Spacing them 10% apart puts them at $100, $90
+  and $81, which keeps the same percentage move on every cycle.
+- **End Grid** was called Finish the grid and keeps the same upper line. Its
+  distance is measured above today's price or the top of the range, whichever
+  is higher, so the line always starts above both. Its readout says **Grid ends
+  at**. Follow price up leaves End Grid visible and switched on. The range walks
+  upward under the fixed line until price reaches it. On the chart the line
+  reads **END GRID**. When End Grid is unchecked, the checkbox is the card's
+  only button. There is no help button or settings chevron to open. Checking it
+  opens the settings and adds both controls.
+- **Stop loss** follows the same checkbox rule. When it is unchecked, the
+  checkbox is the card's only button. Checking it opens the stop settings and
+  adds the help button and settings chevron.
 - **Refusals** are said on the window before the button is pressed, in the
-  server's own words. Doubling gets its own: it names the level that is too
-  small and offers the three ways out, fewer levels, a bigger share, or the same
-  size at every level.
+  server's own words. If a level is too small for the market, the window names
+  it and asks for fewer levels or a bigger account share.
 
-The window that edits a running grid gains a **Following** card between Slices
-and Stop loss: the same tick box, a line saying how many times the range has
-moved so far, and a warning before it removes a finish line that is already set.
+The window that edits a running grid has a **Following** card between Slices and
+Stop loss. Its upward switch says that the fixed End Grid line stays in place,
+and the card says how many times the range has moved so far.
 
 ### A placed grid is on the chart at once
 

@@ -7,6 +7,8 @@ import { MIN_ORDER_USD } from "@/lib/trade/dca"
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
+  gridEndAfterRangeMove,
+  gridEndPx,
   gridOrderPlan,
   gridRangeMovable,
   gridStopPx,
@@ -175,13 +177,13 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     return { buyPx, sellPx, sz }
   })
 
-  // A target price has to be somewhere price could still reach. One already
-  // below the market is a grid that would sell everything and finish on the
-  // pass that placed it — which is not what anybody drew.
+  // End Grid starts above both the market and the range. A range can sit below
+  // today's price, so measuring from its top alone would put the ending behind
+  // the market and close the grid on the pass that placed it.
   const targetPx =
     params.takeProfitPct === null
       ? null
-      : roundPx(topPx * (1 + params.takeProfitPct / 100))
+      : roundPx(gridEndPx(topPx, mark, params.takeProfitPct))
   if (targetPx !== null && mark >= targetPx) {
     throw new Error("SMART_GRID_TARGET_PASSED")
   }
@@ -226,6 +228,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     topPx,
     bottomPx,
     takeProfitPx: targetPx,
+    takeProfitPct: params.takeProfitPct,
     spacing: params.spacing,
     sizing: params.sizing,
     potPct: params.potPct,
@@ -603,11 +606,9 @@ export async function updateGridStop(
  * the position to match, which is a great deal of work and a real market order
  * to flip one flag.
  *
- * Switching it ON removes the finish line above the range. A following grid
- * slides its top up ahead of price, so a price above the top can never be
- * reached, and a finish line left behind would sit there doing nothing while
- * looking like an exit. Tyler's rule is that a following grid runs until it is
- * switched off or the stop fires, and this is where that rule is kept.
+ * The End Grid line stays at its fixed price while the range follows. The
+ * engine checks the line before it moves the range, so reaching the line ends
+ * the grid instead of carrying the range past it.
  */
 export async function setGridFollow(
   userId: string,
@@ -631,7 +632,6 @@ export async function setGridFollow(
   grid.plan.follow = input.follow
   if (input.followDown !== undefined) grid.plan.followDown = input.followDown
   if (input.follow) {
-    grid.plan.takeProfitPx = null
     // Switching following on BY HAND is a direct instruction, so the range
     // counts as in play from this moment — a range already past its top
     // catches up straight away. Only a follow choice remembered onto a NEW
@@ -688,6 +688,8 @@ export async function reshapeGrid(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("PAPER_MARKET")
   const protocol = getProtocol(wallet.protocol)
+  const roundPx = (px: number) =>
+    protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
   const marks = await marksForKeys([grid.marketKey])
   const mark = marks.get(grid.marketKey)
@@ -725,8 +727,7 @@ export async function reshapeGrid(
     bottomPx: input.bottomPx ?? plan.bottomPx,
     mark,
     rules,
-    roundPx: (px: number) =>
-      protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
+    roundPx,
     equity: figures.equity,
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: plan.startedAt,
@@ -738,11 +739,13 @@ export async function reshapeGrid(
   const next: GridPlan = {
     ...draft.plan,
     stopLoss: plan.stopLoss,
-    // The target moves with the range it was set against.
-    takeProfitPx:
-      plan.takeProfitPx === null
-        ? null
-        : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
+    // Keep the chosen distance above whichever is higher now: the moved range
+    // or today's price.
+    takeProfitPx: (() => {
+      const px = gridEndAfterRangeMove(plan, draft.plan.topPx, mark)
+      return px === null ? null : roundPx(px)
+    })(),
+    takeProfitPct: plan.takeProfitPct,
     baseWatch: plan.baseWatch,
     aimedSlPx: plan.aimedSlPx,
     seenFillsTo: plan.seenFillsTo,
@@ -815,6 +818,9 @@ export async function moveGridExit(
     // target in there would close the grid on an ordinary swing.
     if (px <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
     plan.takeProfitPx = px
+    // A hand-set line replaces the placement percentage. A later range move
+    // carries its distance from the range instead of restoring the old setting.
+    plan.takeProfitPct = undefined
   } else {
     // Below the range, for the mirror of the same reason.
     if (px >= plan.bottomPx) throw new Error("SMART_GRID_STOP_IN_RANGE")

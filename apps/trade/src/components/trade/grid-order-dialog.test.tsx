@@ -14,11 +14,22 @@ vi.mock("@/lib/layout/wide-screen", () => ({
   useWideScreen: () => true,
 }))
 
-import { GridOrderDialog } from "@/components/trade/grid-order-dialog"
+import {
+  GridOrderDialog,
+  type GridPreviewLine,
+} from "@/components/trade/grid-order-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadSmartGridParams } from "@/lib/api/smart-orders"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { defaultGridParams, type GridParams } from "@/lib/trade/grid"
+
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
 
 const market: MarketRow = {
   key: "hyperliquid:mainnet:BTC",
@@ -59,7 +70,14 @@ afterEach(async () => {
 })
 
 describe("the grid window's saved settings", () => {
-  const renderDialog = async () => {
+  const renderDialog = async (
+    onPlace: React.ComponentProps<
+      typeof GridOrderDialog
+    >["onPlace"] = async () => false,
+    onPreview: React.ComponentProps<
+      typeof GridOrderDialog
+    >["onPreview"] = () => undefined
+  ) => {
     await act(async () => {
       root.render(
         <TooltipProvider>
@@ -71,13 +89,20 @@ describe("the grid window's saved settings", () => {
             free={1_000}
             takerFeeRate={0.00045}
             busy={false}
-            onPreview={() => undefined}
-            onPlace={async () => false}
+            onPreview={onPreview}
+            onPlace={onPlace}
             onClose={() => undefined}
           />
         </TooltipProvider>
       )
     })
+  }
+
+  const openAdvanced = async () => {
+    const button = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show Advanced settings"]'
+    )
+    await act(async () => button?.click())
   }
 
   it("starts with every field typable, and merges the saved settings when they land", async () => {
@@ -135,16 +160,175 @@ describe("the grid window's saved settings", () => {
     expect(levels?.value).toBe("9")
   })
 
-  it("warns before a new grid follows price down", async () => {
+  it("does not repeat the Follow down tooltip under its checkbox", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     await renderDialog()
+    await openAdvanced()
 
-    expect(host.textContent).not.toContain("This keeps buying as price falls")
     await act(async () => {
       host.querySelector<HTMLButtonElement>("#grid-follow-down")?.click()
     })
 
-    expect(host.textContent).toContain("This keeps buying as price falls")
-    expect(host.textContent).toContain("Your stop stays where it was set")
+    expect(host.textContent).not.toContain("This keeps buying as price falls")
+  })
+
+  it("explains both level-spacing choices with concrete prices", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+    await openAdvanced()
+
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="About Levels spread"]'
+        )
+        ?.click()
+      await Promise.resolve()
+    })
+
+    expect(document.body.textContent).toContain("$100, $90 and $80")
+    expect(document.body.textContent).toContain("$100, $90 and $81")
+  })
+
+  it("keeps follow settings inside Advanced without a folded summary", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+    await openAdvanced()
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#grid-follow")?.click()
+      host.querySelector<HTMLButtonElement>("#grid-follow-down")?.click()
+    })
+
+    expect(host.textContent).not.toContain("Follows up + down")
+    expect(host.textContent).not.toContain("Follows up")
+    expect(host.textContent).not.toContain("Follows down")
+  })
+
+  it("keeps End Grid on when the grid follows price up", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+    await openAdvanced()
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#grid-follow")?.click()
+    })
+
+    expect(host.textContent).toContain("End Grid")
+    expect(
+      host
+        .querySelector<HTMLButtonElement>("#grid-tp-on")
+        ?.getAttribute("aria-checked")
+    ).toBe("true")
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          follow: true,
+          takeProfitPct: expect.any(Number),
+        }),
+      })
+    )
+  })
+
+  it("draws End Grid above today's price when the clicked range is below it", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), anchor: "click", takeProfitPct: 5 },
+    })
+    const onPreview = vi.fn(
+      (_lines: readonly GridPreviewLine[] | null) => undefined
+    )
+
+    await renderDialog(async () => false, onPreview)
+    await act(async () => Promise.resolve())
+
+    const previews = onPreview.mock.calls
+      .map(([lines]) => lines)
+      .filter((lines) => lines !== null)
+    const endGrid = previews
+      .at(-1)
+      ?.find((line) => line.kind === "takeProfit")
+
+    expect(host.textContent).toContain("Above the higher price %")
+    expect(endGrid?.px).toBeCloseTo(105, 9)
+  })
+
+  it("keeps the repeated price details out of the window", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    expect(host.textContent).not.toContain("Price now")
+    expect(host.textContent).not.toContain("Top buy, where you clicked")
+    expect(host.textContent).not.toContain("Step between levels")
+  })
+
+  it("puts the account share in Range and has no split dropdown", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    const rangeCard = host
+      .querySelector("#grid-pot")
+      ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
+    expect(rangeCard?.textContent).toContain("Range")
+    expect(rangeCard?.textContent).toContain("Share of account %")
+    expect(host.textContent).not.toContain("Money")
+    expect(host.textContent).not.toContain("Split between levels")
+    expect(host.textContent).not.toContain("Double at every level down")
+    expect(host.querySelector("#grid-sizing")).toBeNull()
+  })
+
+  it("places evenly even when saved settings still say double", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), sizing: "double" },
+    })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+    await act(async () => Promise.resolve())
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ sizing: "even" }),
+      })
+    )
+  })
+
+  it("removes the settings chevron when End Grid or Stop loss is off", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("#grid-tp-on")?.click()
+      host.querySelector<HTMLButtonElement>("#grid-sl-on")?.click()
+    })
+
+    expect(
+      host.querySelector(
+        'button[aria-label="Show End Grid"], button[aria-label="Hide End Grid"]'
+      )
+    ).toBeNull()
+    expect(
+      host.querySelector(
+        'button[aria-label="Show Stop loss"], button[aria-label="Hide Stop loss"]'
+      )
+    ).toBeNull()
+    const endCard = host
+      .querySelector("#grid-tp-on")
+      ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
+    const stopCard = host
+      .querySelector("#grid-sl-on")
+      ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
+    expect(endCard?.querySelectorAll("button")).toHaveLength(1)
+    expect(stopCard?.querySelectorAll("button")).toHaveLength(1)
   })
 })

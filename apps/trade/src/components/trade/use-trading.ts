@@ -453,7 +453,7 @@ export type Trading = {
     gridId: string,
     shape: { levels?: number; potPct?: number }
   ) => Promise<boolean>
-  /** Drag the grid's take profit or stop loss to a price. Always allowed. */
+  /** Drag the grid's end line or stop loss to a price. Always allowed. */
   moveGridExit: (
     walletId: string,
     gridId: string,
@@ -466,11 +466,7 @@ export type Trading = {
     gridId: string,
     stopLoss: GridParams["stopLoss"]
   ) => Promise<boolean>
-  /**
-   * Start or stop a grid following price up. Switching it on also clears the
-   * finish line, because a range that slides up ahead of price can never reach
-   * one.
-   */
+  /** Start or stop a grid following price up or down. */
   setGridFollow: (
     walletId: string,
     gridId: string,
@@ -1835,6 +1831,7 @@ export function useTrading(
         const { levels, totalCost, grid } = await placeGridOrder({
           walletId,
           ...input,
+          params: { ...input.params, sizing: "even" },
         })
         // On screen now, not after the next read.
         holdSmart(grid)

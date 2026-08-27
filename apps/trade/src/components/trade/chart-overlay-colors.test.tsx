@@ -55,6 +55,7 @@ describe("theme colours on chart overlays", () => {
         surface={surface}
         colors={colors}
         marketKey="market"
+        currentPx={100}
         grids={[]}
         preview={[
           { px: 130, kind: "upper" },

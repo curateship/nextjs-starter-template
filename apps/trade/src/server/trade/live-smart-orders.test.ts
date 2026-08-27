@@ -25,6 +25,7 @@ import {
   placeLiveDcaLadder,
   reconcileLiveLadders,
   resetRefusalHolds,
+  setLiveGridFollow,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -945,7 +946,7 @@ describe("live Smart orders", () => {
     await reconcileLiveLadders(userId, wallet)
 
     expect(place).not.toHaveBeenCalled()
-    let [grid] = await database
+    const [grid] = await database
       .select()
       .from(tradeSmartLadders)
       .where(eq(tradeSmartLadders.id, "grid-price-race"))
@@ -1215,13 +1216,13 @@ describe("live Smart orders", () => {
   })
 })
 
-describe("dragging a live grid's stop", () => {
+describe("changing a live grid while it is flat", () => {
   /**
    * A grid from $80 to $90 on a market trading at $100, so every level is
    * waiting and nothing is held. That is a grid's ordinary state between one
    * cycle and the next, not a broken one.
    */
-  async function restingGrid(): Promise<void> {
+  async function restingGrid(takeProfitPx: number | null = null): Promise<void> {
     const levels = [80, 85].map((buyPx) => ({
       buyPx,
       sellPx: buyPx + 5,
@@ -1236,7 +1237,7 @@ describe("dragging a live grid's stop", () => {
     const plan: GridPlan = {
       topPx: 90,
       bottomPx: 80,
-      takeProfitPx: null,
+      takeProfitPx,
       spacing: "even",
       sizing: "even",
       potPct: 20,
@@ -1283,6 +1284,20 @@ describe("dragging a live grid's stop", () => {
     expect(rows).toHaveLength(1)
     return rows[0].plan as GridPlan
   }
+
+  it("keeps End Grid when upward following is switched on", async () => {
+    await restingGrid(110)
+
+    await setLiveGridFollow(userId, wallet, {
+      gridId: "grid-1",
+      follow: true,
+    })
+
+    expect(await gridPlan()).toMatchObject({
+      follow: true,
+      takeProfitPx: 110,
+    })
+  })
 
   it("saves a stop dragged while the grid holds nothing", async () => {
     // The exchange has no position, because the grid has not bought yet. This

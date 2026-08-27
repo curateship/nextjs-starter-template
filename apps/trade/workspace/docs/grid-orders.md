@@ -78,35 +78,14 @@ the range moves freely.
 
 ## How the money is split
 
-The Money card sets one share of the account for the whole grid, and how that
-share is divided between the levels.
+Share of account % sits in the Range card. The grid divides that money equally
+between every level. There is no sizing dropdown.
 
-**The same at every level** gives every level equal dollars. It is the grid's
-own instinct: a grid is not betting on direction, so it wants the same money
-working at every price and each round trip earns the same.
-
-**Double at every level down** gives each level twice what the level above it
-got, so the deepest buy is the biggest. It is for a coin you are happy to own
-more of the cheaper it gets.
-
-```
-$2,000 across 6 levels
-
-The same at every level     Double at every level down
-
-top     $333                top       $32
-        $333                          $63
-        $333                         $127
-        $333                         $254
-        $333                         $508
-bottom  $333                bottom  $1,016
-```
-
-Doubling gets steep fast, and an exchange will not accept an order under $10. On
-a $2,000 pot it fits about six levels. Twelve levels doubling would make the top
-buy 49 cents, so the whole grid is refused and the window names the level that
-broke it. That refusal is the feature working. Placing eight of the twelve
-levels quietly would be worse.
+A grid placed before doubled sizing was removed keeps the amounts already
+written on its levels. Changing those amounts under a running live grid would
+change what it can buy, so the engine still reads that old saved plan until the
+grid ends. The old plan reader can be deleted once there are no active grids
+whose saved `sizing` is `double`. New placements refuse that value.
 
 Whatever a level is given is frozen the moment the grid is placed, and it spends
 that same amount every cycle for the rest of its life. A level that buys back
@@ -224,10 +203,14 @@ If the next lower price cannot fit the exchange's price step, or its buy would
 be smaller than the exchange accepts, the grid pauses before sending it. The
 Smart orders panel shows the reason and a Resume button.
 
-**A grid following up never finishes on its own.** It runs until you switch
-upward following off or the stop below the range is hit. Switching upward
-following on removes the finish line, and the window says so before it does it,
-because a range that slides up ahead of price can never reach a line above it.
+**End Grid is a fixed ceiling while the range follows up.** The range keeps
+moving behind price, but the End Grid line does not move with it. Reaching the
+line closes the grid. With End Grid switched off, an upward-following grid runs
+until you switch following off or the stop below the range is hit.
+
+When a grid starts, End Grid is measured from today's price or the top of the
+range, whichever is higher. A range drawn below the market therefore still gets
+an End Grid above the market. Moving an untouched range applies the same rule.
 
 **It can stop following on its own, in one case.** Levels spread the same
 dollars apart earn a smaller percentage the higher the range climbs: ten dollars
@@ -236,13 +219,18 @@ a round trip would no longer clear the trading fee three times over, the grid
 parks instead of following price into trades that lose money slowly. Levels
 spread the same percent apart never thin, so those follow without that limit.
 
-## Finishing the grid
+## Ending the grid
 
 The line above the range used to be called Take profit, which was wrong. It
 takes no profit. By the time price is up there every level has already sold and
 the grid holds nothing, so reaching that line sells nothing at all. What it does
-is close the grid and stop it watching. It is called **Finish the grid**, and on
-the chart the line reads FINISH.
+is close the grid and stop it watching. It is called **End Grid**, and the chart
+line reads **END GRID**.
+
+End Grid starts above both today's price and the range, then stays fixed when
+the range follows price up. The range can keep walking up underneath it, but the
+range never moves above the line. The first price at or above End Grid closes
+the grid before the range can move again.
 
 The one time it genuinely sells is a jump: if price leaps from inside the range
 straight past the line between two checks, the grid is still holding and sells
@@ -298,16 +286,16 @@ the line sits at.
 
 What a level puts in, in dollars, is still on the line, because the axis cannot
 tell you that. So is the name of each of the four lines you set: UPPER PRICE,
-LOWER PRICE, FINISH and STOP LOSS. The levels in between carry no name, because
+LOWER PRICE, END GRID and STOP LOSS. The levels in between carry no name, because
 a dozen labelled ones is a wall of text over the price action.
 
 ## The card headers say their answer
 
 Each card on the window prints its answer on the right of its own title, so a
 folded window still reads as a summary of what will be placed: Range shows the
-depth ("±5%", or "−10%" when the grid hangs under a click), Money shows what the
-whole grid costs in dollars, Stop loss and Finish the grid show their
-percentages. A dash means that card's numbers do not make sense yet.
+depth ("±5%", or "−10%" when the grid hangs under a click), while Stop loss and
+End Grid show their percentages. A dash means that card's numbers do not make
+sense yet.
 
 ## What is remembered between grids
 

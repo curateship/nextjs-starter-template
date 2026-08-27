@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest"
 
 import {
   defaultGridParams,
+  gridEndPx,
   gridFollowDownShift,
   gridFollowShift,
   gridLevels,
   gridLevelSize,
   gridOrderPlan,
+  placeGridParamsSchema,
   gridRangeFromClick,
   gridShares,
   gridStepPct,
@@ -346,18 +348,22 @@ describe("where a grid's stop sits under its range", () => {
   })
 })
 
-describe("a grid's take-profit", () => {
-  it("only counts when it is above the range", () => {
-    // A target inside the range is a level the grid means to sell at rung by
-    // rung. Treating it as the exit would close the whole grid the first time
-    // price touched a level it was built to trade.
-    expect(gridTakeProfitPx({ takeProfitPx: 120, topPx: 100 })).toBe(120)
-    expect(gridTakeProfitPx({ takeProfitPx: 90, topPx: 100 })).toBeNull()
-    expect(gridTakeProfitPx({ takeProfitPx: 100, topPx: 100 })).toBeNull()
+describe("a grid's End Grid line", () => {
+  it("starts above the market when the whole range sits below it", () => {
+    expect(gridEndPx(120, 200, 5)).toBeCloseTo(210, 9)
+  })
+
+  it("starts above the range when its top is already higher than the market", () => {
+    expect(gridEndPx(120, 100, 5)).toBeCloseTo(126, 9)
+  })
+
+  it("stays fixed when a following range reaches it", () => {
+    expect(gridTakeProfitPx({ takeProfitPx: 120 })).toBe(120)
+    expect(gridTakeProfitPx({ takeProfitPx: 100 })).toBe(100)
   })
 
   it("is nothing when none was set", () => {
-    expect(gridTakeProfitPx({ takeProfitPx: null, topPx: 100 })).toBeNull()
+    expect(gridTakeProfitPx({ takeProfitPx: null })).toBeNull()
   })
 })
 
@@ -382,6 +388,20 @@ describe("gridShares", () => {
       const sum = gridShares(count, "double").reduce((a, b) => a + b, 0)
       expect(sum).toBeCloseTo(1, 12)
     }
+  })
+})
+
+describe("new grid sizing", () => {
+  it("accepts even sizing and refuses the removed doubled choice", () => {
+    expect(
+      placeGridParamsSchema.safeParse(defaultGridParams()).success
+    ).toBe(true)
+    expect(
+      placeGridParamsSchema.safeParse({
+        ...defaultGridParams(),
+        sizing: "double",
+      }).success
+    ).toBe(false)
   })
 })
 

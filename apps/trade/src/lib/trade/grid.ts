@@ -41,16 +41,16 @@ export const DEFAULT_GRID_POT_PCT = 20
 /** How far under the bottom of the range the stop rests, in percent. */
 export const DEFAULT_GRID_STOP_UNDER_PCT = 5
 
-/** How far over the top of the range the take profit sits, in percent. */
+/** How far over the higher of price or range the fixed End Grid line sits. */
 export const DEFAULT_GRID_TAKE_PROFIT_PCT = 5
 
 /**
  * How far above and below the price the range opens at, in percent.
  *
- * A grid straddles the price: the levels above it are sells of what it holds,
- * the ones below are buys waiting. **The same either side**, because a grid is
- * not a view on direction — it earns from price crossing back and forth, and
- * an even range is the honest starting point. Both are typed over anyway.
+ * A grid straddles the price with waiting levels above and below it. **The same
+ * either side**, because a grid is not a view on direction — it earns from
+ * price crossing back and forth, and an even range is the honest starting
+ * point. Both are typed over anyway.
  */
 export const DEFAULT_GRID_ABOVE_PCT = 8
 export const DEFAULT_GRID_BELOW_PCT = DEFAULT_GRID_ABOVE_PCT
@@ -72,39 +72,17 @@ export const GRID_SPACING_LABELS: Record<GridSpacing, string> = {
   compounding: "The same percent apart",
 }
 
-export const GRID_SPACING_HINTS: Record<GridSpacing, string> = {
-  even: "Every level sits the same number of dollars below the one above it.",
-  compounding:
-    "Every level sits the same percent below the one above it, so each round trip earns the same percentage wherever it happens in the range.",
-}
+export const GRID_SPACING_HINT =
+  "At $100, the same dollars apart could place levels at $100, $90 and $80. The same percent apart at 10% places them at $100, $90 and $81. Dollar spacing makes equal gaps on the chart. Percent spacing gives every cycle the same percentage move."
 
 /**
  * How the pot is divided between the levels.
  *
- * "even" gives every level the same dollars, which is the grid's own instinct:
- * it is not betting on direction, so it wants the same money working at every
- * price. "double" gives each level down twice the one above it, for a coin you
- * are happy to own more of the cheaper it gets.
- *
- * Doubling gets steep fast. Twelve levels doubling makes the deepest buy 2,048
- * times the shallowest, and on an ordinary pot the top few land under the
- * exchange's minimum order and the whole grid is refused. That refusal is the
- * feature working: it fits about six levels, and it says so rather than quietly
- * placing five of the twelve.
+ * New grids use even sizing. "double" remains here only so grids placed before
+ * that choice was removed can keep their recorded budgets until they end.
  */
 export const GRID_SIZINGS = ["even", "double"] as const
 export type GridSizing = (typeof GRID_SIZINGS)[number]
-
-export const GRID_SIZING_LABELS: Record<GridSizing, string> = {
-  even: "The same at every level",
-  double: "Double at every level down",
-}
-
-export const GRID_SIZING_HINTS: Record<GridSizing, string> = {
-  even: "Every level buys the same amount, so each round trip earns the same.",
-  double:
-    "Each level down buys twice what the level above it bought, so the deepest buy is the biggest. It only fits about six levels before the top ones are too small for the exchange to accept.",
-}
 
 /** How much bigger each level down is, when the pot is doubled. */
 export const GRID_DOUBLE_MULTIPLIER = 2
@@ -112,9 +90,9 @@ export const GRID_DOUBLE_MULTIPLIER = 2
 /**
  * Where the range is measured from.
  *
- * "price" opens it around today's price, so it straddles: the levels above are
- * sells of what the grid holds, the ones below are buys waiting. That means it
- * buys at market the moment it is placed, to stand behind the sells above.
+ * "price" opens it around today's price. Every level starts waiting. A level
+ * above today's price has to be crossed on the way up before a later return can
+ * buy at that level.
  *
  * "click" hangs the whole grid under the price that was right-clicked, and the
  * click is the TOP BUY rather than the edge of the range — the edge sits one
@@ -132,7 +110,7 @@ export const GRID_ANCHOR_LABELS: Record<GridAnchor, string> = {
 
 export const GRID_ANCHOR_HINTS: Record<GridAnchor, string> = {
   price:
-    "The range opens above and below today's price. Levels above it are sells, so the grid buys at market as it is placed to stand behind them.",
+    "The range opens above and below today's price. Placing buys nothing. Every level waits until price reaches its own buy.",
   click:
     "The price you right-clicked becomes the top buy, and the whole grid hangs under it. Nothing is bought at market — every level waits for price to fall to it.",
 }
@@ -242,16 +220,21 @@ export const gridParamsSchema = z.object({
   baseDetection: dcaBaseDetectionSchema.default(baseStopDetection),
   stopLoss: gridStopSchema.nullable(),
   /**
-   * How far ABOVE the upper price the take profit sits, in percent. Reaching it
-   * sells everything and finishes the grid.
+   * How far ABOVE the higher of the current price or upper range the fixed End
+   * Grid line sits. Reaching it sells everything and closes the grid.
    *
    * Its own level rather than "the top of the range finishes it", because they
    * are two different ideas. The upper price is where the grid stops having
-   * anything left to sell; the take profit is where you have made enough and
-   * want out. Null leaves the grid running above its range, waiting for price
-   * to come back down into it.
+   * anything left to sell; End Grid is where the grid stops watching. Null
+   * leaves the grid running above its range, waiting for price to come back
+   * down into it.
    */
   takeProfitPct: z.number().positive().max(999).nullable().default(null),
+})
+
+/** Settings accepted for a newly placed grid. New grids always split evenly. */
+export const placeGridParamsSchema = gridParamsSchema.extend({
+  sizing: z.literal("even"),
 })
 
 export type GridParams = z.infer<typeof gridParamsSchema>
@@ -661,19 +644,21 @@ const gridPlanStopSchema = z.object({
 })
 
 /**
- * Everything a placed grid remembers. The percentages from the window die at
- * placement — from here on it is concrete prices and sizes, and every rule
- * reads them as they stand.
+ * Everything a placed grid remembers. Most percentages from the window die at
+ * placement. End Grid keeps its chosen percentage so a hand-moved range can
+ * put the line the same distance above the higher of the range or market.
  */
 export const gridPlanSchema = z.object({
   ...smartOrderPauseFields,
   topPx: z.number().positive(),
   bottomPx: z.number().positive(),
   /**
-   * Sell everything and finish here. Null means the grid never finishes on its
-   * own above the range — it simply runs out of levels and waits.
+   * Sell everything and end here. Null means the grid does not end on its own
+   * above the range. It simply runs out of levels and waits.
    */
   takeProfitPx: z.number().positive().nullable().default(null),
+  /** The chosen distance, kept so a hand-moved range can redraw End Grid. */
+  takeProfitPct: z.number().positive().max(999).nullable().optional(),
   spacing: z.enum(GRID_SPACINGS).default("even"),
   /**
    * How the pot was split at placement. Frozen for the same reason `spacing`
@@ -846,6 +831,32 @@ export function gridStopUnder(bottomPx: number, underPct: number): number {
 }
 
 /**
+ * Put End Grid above both today's price and the working range.
+ *
+ * A range may be placed below today's price. Measuring only from its top would
+ * put End Grid behind the market and finish the grid the moment it was placed.
+ */
+export function gridEndPx(
+  topPx: number,
+  currentPx: number,
+  abovePct: number
+): number {
+  return Math.max(topPx, currentPx) * (1 + abovePct / 100)
+}
+
+/** Keep End Grid the same chosen distance away when a hand moves the range. */
+export function gridEndAfterRangeMove(
+  plan: Pick<GridPlan, "topPx" | "takeProfitPx" | "takeProfitPct">,
+  nextTopPx: number,
+  currentPx: number
+): number | null {
+  if (plan.takeProfitPx === null) return null
+  const abovePct =
+    plan.takeProfitPct ?? (plan.takeProfitPx / plan.topPx - 1) * 100
+  return gridEndPx(nextTopPx, currentPx, abovePct)
+}
+
+/**
  * Where the grid wants its stop, given the base in force — or null when it has
  * no stop at all.
  *
@@ -856,16 +867,17 @@ export function gridStopUnder(bottomPx: number, underPct: number): number {
  * measured against the bottom of the range rather than against the first buy.
  */
 /**
- * Where the grid takes its profit and stops, or null when it has no such level.
+ * Where the fixed End Grid line sits, or null when it has no such line.
  *
- * Above the top of the range by definition: inside the range is where it is
- * working, so a target in there would close the grid on an ordinary swing.
+ * Placement and dragging keep the line above the range. Following may move the
+ * range up to the line, so the current top cannot decide whether the fixed line
+ * still counts.
  */
 export function gridTakeProfitPx(
-  plan: Pick<GridPlan, "takeProfitPx" | "topPx">
+  plan: Pick<GridPlan, "takeProfitPx">
 ): number | null {
   const px = plan.takeProfitPx
-  return px !== null && px > plan.topPx ? px : null
+  return px !== null && px > 0 ? px : null
 }
 
 export function gridStopPx(

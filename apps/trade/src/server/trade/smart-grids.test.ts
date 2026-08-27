@@ -193,6 +193,14 @@ afterEach(async () => {
 })
 
 describe("placing a grid", () => {
+  it("puts End Grid above today's price when the range is below it", async () => {
+    await place({ takeProfitPct: 5 })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.topPx).toBe(120)
+    expect(grid.plan.takeProfitPx).toBeCloseTo(210, 9)
+  })
+
   it("writes one row and rests nothing on the book", async () => {
     const placed = await place()
     expect(placed.levels).toBe(4)
@@ -476,7 +484,7 @@ describe("running out of the range", () => {
     expect(grid.status).toBe("active")
   })
 
-  it("sells everything and finishes at the take profit", async () => {
+  it("sells everything and finishes at End Grid", async () => {
     await placeGridOrder(userId, wallet, {
       marketKey: BTC,
       topPx: 240,
@@ -745,6 +753,22 @@ describe("moving the range", () => {
 })
 
 describe("re-slicing a running grid", () => {
+  it("keeps End Grid above price when a lower range is moved", async () => {
+    await place({ takeProfitPct: 5 })
+    const id = (await onlyGrid()).id
+
+    await reshapeGrid(userId, wallet, {
+      gridId: id,
+      topPx: 100,
+      bottomPx: 60,
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.topPx).toBe(100)
+    expect(grid.plan.takeProfitPct).toBe(5)
+    expect(grid.plan.takeProfitPx).toBeCloseTo(210, 9)
+  })
+
   it("changes how many levels the range has", async () => {
     await place()
     const id = (await onlyGrid()).id
@@ -1131,20 +1155,29 @@ describe("following price up", () => {
     expect(await orders()).toHaveLength(0)
   })
 
-  it("clears the finish line when following is switched on", async () => {
+  it("keeps End Grid fixed while the range follows and ends there", async () => {
     await priceTo(100)
-    await place({ takeProfitPct: 10 })
-    expect((await onlyGrid()).plan.takeProfitPx).toBeCloseTo(132, 9)
+    await place({ takeProfitPct: 1 })
+    expect((await onlyGrid()).plan.takeProfitPx).toBeCloseTo(121.2, 9)
 
     await setGridFollow(userId, wallet, {
       gridId: (await onlyGrid()).id,
       follow: true,
     })
-    // A range that slides up ahead of price can never reach a line above it,
-    // so the line goes rather than sitting there looking like an exit.
-    const grid = await onlyGrid()
-    expect(grid.plan.takeProfitPx).toBeNull()
-    expect(grid.plan.follow).toBe(true)
+    const following = await onlyGrid()
+    expect(following.plan.takeProfitPx).toBeCloseTo(121.2, 9)
+    expect(following.plan.follow).toBe(true)
+
+    await priceTo(121)
+    const moved = await onlyGrid()
+    expect(moved.plan.shifts).toBeGreaterThan(0)
+    expect(moved.plan.topPx).toBeCloseTo(121.2, 9)
+    expect(moved.plan.takeProfitPx).toBeCloseTo(121.2, 9)
+
+    await priceTo(121.2)
+    const ended = await onlyGrid()
+    expect(ended.status).toBe("done")
+    expect(ended.plan.closedReason).toBe("takeProfit")
   })
 })
 

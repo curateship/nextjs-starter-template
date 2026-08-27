@@ -22,6 +22,7 @@ import {
 import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
+  gridEndAfterRangeMove,
   gridHeldSz,
   gridRangeMovable,
   gridStopPx,
@@ -2358,7 +2359,6 @@ export async function setLiveGridFollow(
     grid.plan.follow = input.follow
     if (input.followDown !== undefined) grid.plan.followDown = input.followDown
     if (input.follow) {
-      grid.plan.takeProfitPx = null
       // A hand's own switch counts the range as in play — see `setGridFollow`.
       grid.plan.entered = true
     }
@@ -2545,6 +2545,8 @@ export async function reshapeLiveGrid(
           : "LIVE_NO_PRICE"
       )
     }
+    const roundPx = (px: number) =>
+      protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 
     const credential = await walletCredential(userId, wallet.id)
     const [account, portfolio] = await Promise.all([
@@ -2586,8 +2588,7 @@ export async function reshapeLiveGrid(
       bottomPx: input.bottomPx ?? plan.bottomPx,
       mark,
       rules,
-      roundPx: (px: number) =>
-        protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick),
+      roundPx,
       equity: account.equity,
       takerFeeRate: defaultPaperCosts().takerFeeRate,
       startedAt: plan.startedAt,
@@ -2602,10 +2603,11 @@ export async function reshapeLiveGrid(
     const next = {
       ...draft.plan,
       stopLoss: plan.stopLoss,
-      takeProfitPx:
-        plan.takeProfitPx === null
-          ? null
-          : draft.plan.topPx * (plan.takeProfitPx / plan.topPx),
+      takeProfitPx: (() => {
+        const px = gridEndAfterRangeMove(plan, draft.plan.topPx, mark)
+        return px === null ? null : roundPx(px)
+      })(),
+      takeProfitPct: plan.takeProfitPct,
       baseWatch: plan.baseWatch,
       aimedSlPx: plan.aimedSlPx,
       pairedStop: plan.pairedStop,
@@ -2657,6 +2659,7 @@ export async function moveLiveGridExit(
     if (input.which === "takeProfit") {
       if (px <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
       plan.takeProfitPx = px
+      plan.takeProfitPct = undefined
     } else {
       if (px >= plan.bottomPx) throw new Error("SMART_GRID_STOP_IN_RANGE")
       plan.stopLoss = {

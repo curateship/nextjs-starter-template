@@ -190,10 +190,19 @@ add up to.
   not enforce the rule.
 - **Every rung always spends the same money it was given**, cycle after cycle. A
   rung that buys back cheaper does not get to spend more next time.
+- Tyler, 27 Aug 2026: **New grids divide their account share evenly between
+  every level.** There is no doubled sizing choice. A grid placed before this
+  rule keeps the level amounts it already has until it ends.
 - Tyler, 26 Aug 2026: **With both follow switches on, the grid moves forever in
   either direction.** Selling the highest rung moves every rung up one step at
   once. Buying the lowest rung moves every rung down one step at once. Reaching
   the edge counts; the grid never waits for price to move beyond it.
+- Tyler, 27 Aug 2026: **"Basically, the grid keep walking up until it hit this
+  line."** The End Grid line stays fixed while the range follows price up.
+  Reaching the line closes the grid before the range can move again.
+- Tyler, 27 Aug 2026: **The End Grid line automatically starts above the
+  current price.** Trade measures its distance from the current price or the
+  top of the range, whichever is higher, so the line starts above both.
 - **The stop hangs off the bottom of the range, never off the average buy
   price.** The average falls as the grid recycles, so a stop following it would
   drift into the range and sell the grid on an ordinary dip, which is the exact

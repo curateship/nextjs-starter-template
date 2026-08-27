@@ -6,6 +6,7 @@ import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,7 +30,7 @@ import {
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
-import { BUY_BUTTON, WARNING } from "@/lib/trade/money-tone"
+import { BUY_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -37,6 +38,7 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   defaultGridParams,
+  gridEndPx,
   gridOrderPlan,
   gridParamsSchema,
   gridRangeFromClick,
@@ -44,10 +46,7 @@ import {
   GRID_ANCHOR_HINTS,
   GRID_ANCHOR_LABELS,
   GRID_ANCHORS,
-  GRID_SIZING_HINTS,
-  GRID_SIZING_LABELS,
-  GRID_SIZINGS,
-  GRID_SPACING_HINTS,
+  GRID_SPACING_HINT,
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
   GRID_STEP_FEE_MULTIPLE,
@@ -55,17 +54,15 @@ import {
   MIN_GRID_LEVELS,
   type GridAnchor,
   type GridParams,
-  type GridSizing,
   type GridSpacing,
 } from "@/lib/trade/grid"
 
 /**
  * The grid window the Smart order menu opens, floating at the level clicked.
  *
- * Where the range sits is the first thing it asks. Around today's price, which
- * straddles it and buys at market on the way in to stand behind the levels
- * above. Or under the price that was right-clicked, where the click is the top
- * BUY and nothing is bought at all. Everything else is the grid's shape: how
+ * Where the range sits is the first thing it asks. Around today's price, or
+ * under the price that was right-clicked, where the click is the top buy.
+ * Placing either shape buys nothing. Everything else is the grid's shape: how
  * deep, how many levels, how the money is split between them, and the stop that
  * ends it if the range fails.
  *
@@ -173,9 +170,6 @@ export function GridOrderDialog({
   const [spacing, setSpacing] = React.useState<GridSpacing>(
     seeded?.spacing ?? "even"
   )
-  const [sizing, setSizing] = React.useState<GridSizing>(
-    seeded?.sizing ?? "even"
-  )
   const [anchor, setAnchor] = React.useState<GridAnchor>(
     seeded?.anchor ?? "price"
   )
@@ -197,9 +191,8 @@ export function GridOrderDialog({
   const [belowPct, setBelowPct] = React.useState(
     String(seeded?.rangePct ?? DEFAULT_GRID_BELOW_PCT)
   )
-  // A following grid has no finish line, so a remembered one stays off.
   const [tpOn, setTpOn] = React.useState(
-    seeded ? !seeded.follow && seeded.takeProfitPct !== null : true
+    seeded ? seeded.takeProfitPct !== null : true
   )
   const [tpPct, setTpPct] = React.useState(
     String(
@@ -239,14 +232,12 @@ export function GridOrderDialog({
       setPotPct(String(params.potPct))
       setMaxOrderVolPct(String(params.maxOrderVolPct))
       setSpacing(params.spacing)
-      setSizing(params.sizing)
       setAnchor(params.anchor)
       setFollow(params.follow)
       setFollowDown(params.followDown)
       setAbovePct(String(params.abovePct))
       setBelowPct(String(params.rangePct))
-      // A following grid has no finish line, so a remembered one stays off.
-      setTpOn(!params.follow && params.takeProfitPct !== null)
+      setTpOn(params.takeProfitPct !== null)
       if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
       setSlOn(params.stopLoss !== null)
       if (params.stopLoss) {
@@ -305,7 +296,7 @@ export function GridOrderDialog({
       compound: true,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       spacing,
-      sizing,
+      sizing: "even",
       anchor,
       follow,
       followDown,
@@ -319,9 +310,7 @@ export function GridOrderDialog({
         anchor === "click" ? (above ?? DEFAULT_GRID_ABOVE_PCT) : (above ?? -1),
       rangePct: below ?? -1,
       baseDetection: baseStopDetection(),
-      // A following grid has no finish line: the range slides up ahead of
-      // price, so a level above it can never be reached.
-      takeProfitPct: follow ? null : tpOn ? (parsed(tpPct) ?? -1) : null,
+      takeProfitPct: tpOn ? (parsed(tpPct) ?? -1) : null,
       stopLoss: slOn
         ? {
             underPct: parsed(slUnderPct) ?? -1,
@@ -341,7 +330,6 @@ export function GridOrderDialog({
     potPct,
     maxOrderVolPct,
     spacing,
-    sizing,
     anchor,
     follow,
     followDown,
@@ -379,9 +367,15 @@ export function GridOrderDialog({
   const waitingAbove =
     plan?.levels.filter((one) => one.buyPx >= market.price).length ?? 0
 
+  const takeProfitPct = parsed(tpPct)
   const takeProfitPx =
-    !follow && tpOn && top !== null && top > 0
-      ? top * (1 + (parsed(tpPct) ?? 0) / 100)
+    tpOn &&
+    top !== null &&
+    top > 0 &&
+    market.price > 0 &&
+    takeProfitPct !== null &&
+    takeProfitPct > 0
+      ? gridEndPx(top, market.price, takeProfitPct)
       : null
 
   const stopPx =
@@ -410,45 +404,6 @@ export function GridOrderDialog({
     onPreview(lines)
   }, [plan, onPreview, top, bottom, takeProfitPx, stopPx])
 
-  /**
-   * The most levels doubling can actually fit with this money.
-   *
-   * Found by asking the planner, not by arithmetic on paper, so the market's
-   * own minimum order and its size step are part of the answer rather than
-   * something the answer is later wrong about.
-   *
-   * Only worked out once a doubled grid has already been refused, because it is
-   * the one number that helps: each level down needs twice the one above, so
-   * twelve levels need 4,095 times the smallest buy and no realistic share of
-   * an account closes that gap. Dropping one level halves what is needed.
-   */
-  const doublingFits = React.useMemo(() => {
-    if (sizing !== "double") return null
-    if (!params || !plan || plan.tooSmallIndex === null) return null
-    if (top === null || bottom === null) return null
-    for (let count = params.levels - 1; count >= MIN_GRID_LEVELS; count -= 1) {
-      const tried = gridOrderPlan({
-        topPx: top,
-        bottomPx: bottom,
-        equity,
-        params: { ...params, levels: count },
-        sizeDecimals: market.sizeDecimals,
-        volume24hUsd: market.volume24hUsd,
-      })
-      if (tried.tooSmallIndex === null) return count
-    }
-    return null
-  }, [
-    sizing,
-    params,
-    plan,
-    top,
-    bottom,
-    equity,
-    market.sizeDecimals,
-    market.volume24hUsd,
-  ])
-
   // Every refusal the server would give, in the same order and wording as the
   // server. It appears after a bad field loses focus or Place is pressed.
   const refusal =
@@ -463,11 +418,7 @@ export function GridOrderDialog({
           : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
             ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
             : plan && plan.tooSmallIndex !== null
-              ? sizing === "double"
-                ? doublingFits === null
-                  ? `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. There is not enough in the account for a doubled grid on this market, at any number of levels. Set the split back to the same at every level.`
-                  : `Doubling makes level ${plan.tooSmallIndex + 1} too small to trade here. With this much money it fits ${doublingFits} levels. A bigger share barely helps: each level down needs twice the one above it, so one level fewer halves what the grid needs.`
-                : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
+              ? `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
               : plan && plan.totalCost > free
                 ? `The grid costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
                 : null
@@ -488,14 +439,8 @@ export function GridOrderDialog({
     if (placed) onClose()
   }
 
-  // Index 0 is the bottom of the range, which doubling makes the biggest buy.
+  // Index 0 is the bottom of the range.
   const bottomBuy = plan?.levels[0]?.dollars ?? null
-  const topBuy = plan?.levels.at(-1)?.dollars ?? null
-  const stepUsd =
-    plan && plan.levels.length > 0
-      ? plan.levels[0].sellPx - plan.levels[0].buyPx
-      : null
-
   return (
     <FloatingOrderWindow
       label={`Grid on ${market.symbol}`}
@@ -511,16 +456,6 @@ export function GridOrderDialog({
     >
       <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
         <div className="grid gap-4 p-3">
-          {/* Where the price is right now, said out loud. The whole range has
-                to sit under it, and a window that only told you afterwards
-                would be a window you had to guess at. */}
-          <div className="flex items-baseline justify-between gap-2 text-xs">
-            <span className="text-muted-foreground">Price now</span>
-            <span className="font-medium tabular-nums">
-              {formatPrice(market.price)}
-            </span>
-          </div>
-
           <OptionCard
             id="grid-range"
             title="Range"
@@ -625,25 +560,6 @@ export function GridOrderDialog({
                 </div>
               </div>
             )}
-            {/* Where those percentages actually land, so the range can be
-                  checked against the chart without doing the sums. */}
-            <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-              <span>Range</span>
-              <span className="tabular-nums">
-                {bottom === null || top === null
-                  ? "—"
-                  : `${formatPrice(bottom)} – ${formatPrice(top)}`}
-              </span>
-            </div>
-            {anchor === "click" ? (
-              /* The one number this mode promises. The top of the range is a
-                   step above it and is not a buy, which is worth saying out
-                   loud on the window rather than only in the code. */
-              <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                <span>Top buy, where you clicked</span>
-                <span className="tabular-nums">{formatPrice(state.px)}</span>
-              </div>
-            ) : null}
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-levels"
@@ -662,66 +578,13 @@ export function GridOrderDialog({
                 className="bg-background"
               />
             </div>
-            {/* What the straddle means in plain numbers: how much it buys
-                  the moment you press Place, and how much waits below. */}
-            {waitingAbove > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                {waitingAbove} level{waitingAbove === 1 ? "" : "s"} sit above
-                the price. Placing this buys nothing: each level waits for price
-                to reach it and then buys at its own price.
-              </p>
-            ) : null}
-            {/* The two numbers that decide whether this is worth running:
-                  what one round trip is worth, and what each buy spends. */}
-            <div className="grid gap-1 text-xs text-muted-foreground">
-              <div className="flex items-baseline justify-between gap-2">
-                <span>Step between levels</span>
-                <span className="tabular-nums">
-                  {stepUsd === null ? "—" : formatPrice(stepUsd)}
-                </span>
-              </div>
-              {sizing === "double" ? (
-                <>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span>Top buy spends</span>
-                    <span className="tabular-nums">
-                      {topBuy === null ? "—" : formatUsd(topBuy)}
-                    </span>
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span>Bottom buy spends</span>
-                    <span className="tabular-nums">
-                      {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <div className="flex items-baseline justify-between gap-2">
-                  <span>Each buy spends</span>
-                  <span className="tabular-nums">
-                    {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
-                  </span>
-                </div>
-              )}
-              <div className="flex items-baseline justify-between gap-2">
-                <span>Whole grid</span>
-                <span className="tabular-nums">
-                  {plan === null ? "—" : formatUsd(plan.totalCost)}
-                </span>
-              </div>
-            </div>
-          </OptionCard>
-
-          <OptionCard
-            id="grid-money"
-            title="Money"
-            hint="The share of the account the whole grid may spend, and how that share is split between the levels. Whatever a level is given, it spends the same amount cycle after cycle."
-            summary={plan === null ? "—" : formatUsd(plan.totalCost)}
-          >
             <div className="grid gap-2">
-              <Label htmlFor="grid-pot" className="text-xs">
+              <FieldLabel
+                htmlFor="grid-pot"
+                hint="The share of the account the whole grid may spend. Every level gets the same amount."
+              >
                 Share of account %
-              </Label>
+              </FieldLabel>
               <Input
                 id="grid-pot"
                 inputMode="decimal"
@@ -733,123 +596,76 @@ export function GridOrderDialog({
                 className="bg-background"
               />
             </div>
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-sizing"
-                hint={GRID_SIZING_HINTS[sizing]}
-              >
-                Split between levels
-              </FieldLabel>
-              <Select
-                value={sizing}
-                disabled={busy}
-                onValueChange={touched((next: string) =>
-                  setSizing(next as GridSizing)
-                )}
-              >
-                <SelectTrigger
-                  id="grid-sizing"
-                  className="w-full bg-background"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GRID_SIZINGS.map((one) => (
-                    <SelectItem key={one} value={one}>
-                      {GRID_SIZING_LABELS[one]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            {/* A straddling grid still buys nothing at placement. Name the
+                  levels above price so that waiting state is not mistaken for
+                  an immediate buy. */}
+            {waitingAbove > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                {waitingAbove} level{waitingAbove === 1 ? "" : "s"} sit above
+                the price. Placing this buys nothing: each level waits for price
+                to reach it and then buys at its own price.
+              </p>
+            ) : null}
+            {/* What each buy spends and what the whole grid costs. */}
+            <div className="grid gap-1 text-xs text-muted-foreground">
+              <div className="flex items-baseline justify-between gap-2">
+                <span>Each buy spends</span>
+                <span className="tabular-nums">
+                  {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span>Whole grid</span>
+                <span className="tabular-nums">
+                  {plan === null ? "—" : formatUsd(plan.totalCost)}
+                </span>
+              </div>
             </div>
           </OptionCard>
 
           <OptionCard
-            id="grid-follow"
-            title="Follow price up"
-            hint="When price climbs past the top, the range slides up behind it and the grid carries on. It costs nothing, because by then every level has already sold. The stop slides up too, so it keeps what it has made, and it never finishes on its own: it runs until you switch this off or the stop is hit. Levels the same dollars apart thin as the range climbs, so following stops once a round trip no longer clears the fee. The same percent apart has no such limit."
+            id="grid-tp-on"
+            title="End Grid"
+            summary={
+              tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
+            }
+            hint="A fixed line above the range. The grid may keep following price up, but reaching this line closes it. The line usually sells nothing because every level has already sold by then. Without the line the grid keeps working until you stop it or its stop loss is hit."
+            foldWhenOff={false}
             toggle={{
-              checked: follow,
+              checked: tpOn,
               disabled: busy,
-              onChange: touched((next: boolean) => {
-                setFollow(next)
-                // A range that slides up ahead of price can never reach a
-                // line above it, so the finish line goes with it rather than
-                // sitting there looking like an exit.
-                if (next) setTpOn(false)
-              }),
+              onChange: touched(setTpOn),
             }}
           >
-            {/* Nothing to fold open. Following has no numbers of its own, and
-                  everything there is to say about it is on the tooltip beside
-                  the title, where it does not take up the window. */}
-            {null}
-          </OptionCard>
-
-          <OptionCard
-            id="grid-follow-down"
-            title="Follow price down"
-            hint="When price falls through the bottom, the range adds one new lower buy per pass and keeps working there. Filled levels above the moved range keep their original sell prices. The stop stays at the price where it was set."
-            toggle={{
-              checked: followDown,
-              disabled: busy,
-              onChange: touched(setFollowDown),
-            }}
-          >
-            {followDown ? (
-              <p className={cn("text-xs", WARNING)}>
-                This keeps buying as price falls. Your stop stays where it was
-                set, even when the range moves through it.
-              </p>
+            {tpOn ? (
+              <>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="grid-tp-pct"
+                    hint="Measured from today's price or the top of the grid, whichever is higher. End Grid starts above both."
+                  >
+                    Above the higher price %
+                  </FieldLabel>
+                  <Input
+                    id="grid-tp-pct"
+                    inputMode="decimal"
+                    value={tpPct}
+                    disabled={busy}
+                    aria-invalid={showValidation && parsed(tpPct) === null}
+                    onChange={(event) => touched(setTpPct)(event.target.value)}
+                    onBlur={() => setShowValidation(true)}
+                    className="bg-background"
+                  />
+                </div>
+                <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                  <span>Grid ends at</span>
+                  <span className="tabular-nums">
+                    {takeProfitPx === null ? "—" : formatPrice(takeProfitPx)}
+                  </span>
+                </div>
+              </>
             ) : null}
           </OptionCard>
-
-          {/* Hidden entirely while the grid follows price. A line above a
-                range that slides up ahead of price can never be reached, and a
-                setting that quietly does nothing is worse than no setting. */}
-          {follow ? null : (
-            <OptionCard
-              id="grid-tp-on"
-              title="Finish the grid"
-              summary={
-                tpOn ? (parsed(tpPct) === null ? "—" : `+${tpPct}%`) : null
-              }
-              hint="How far above the range price has to get before the grid closes itself. It rarely sells anything: by the time price is up there every level has already sold, so what this really does is stop the grid watching. Without it the grid waits above its range for price to come back down."
-              toggle={{
-                checked: tpOn,
-                disabled: busy,
-                onChange: touched(setTpOn),
-              }}
-            >
-              {tpOn ? (
-                <>
-                  <div className="grid gap-2">
-                    <Label htmlFor="grid-tp-pct" className="text-xs">
-                      Above the top %
-                    </Label>
-                    <Input
-                      id="grid-tp-pct"
-                      inputMode="decimal"
-                      value={tpPct}
-                      disabled={busy}
-                      aria-invalid={showValidation && parsed(tpPct) === null}
-                      onChange={(event) =>
-                        touched(setTpPct)(event.target.value)
-                      }
-                      onBlur={() => setShowValidation(true)}
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                    <span>Grid finishes at</span>
-                    <span className="tabular-nums">
-                      {takeProfitPx === null ? "—" : formatPrice(takeProfitPx)}
-                    </span>
-                  </div>
-                </>
-              ) : null}
-            </OptionCard>
-          )}
 
           <OptionCard
             id="grid-sl-on"
@@ -862,6 +678,7 @@ export function GridOrderDialog({
                 : null
             }
             hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
+            foldWhenOff={false}
             toggle={{
               checked: slOn,
               disabled: busy,
@@ -924,10 +741,44 @@ export function GridOrderDialog({
               ) : null
             }
           >
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-follow"
+                checked={follow}
+                disabled={busy}
+                onCheckedChange={touched(
+                  (next: boolean | "indeterminate") =>
+                    setFollow(next === true)
+                )}
+              />
+              <FieldLabel
+                htmlFor="grid-follow"
+                hint="When price climbs past the top, the range slides up behind it. End Grid stays fixed and closes the grid when price reaches it. Levels the same dollars apart stop following once a round trip no longer clears the fee."
+              >
+                Follow price up
+              </FieldLabel>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-follow-down"
+                checked={followDown}
+                disabled={busy}
+                onCheckedChange={touched(
+                  (next: boolean | "indeterminate") =>
+                    setFollowDown(next === true)
+                )}
+              />
+              <FieldLabel
+                htmlFor="grid-follow-down"
+                hint="When price falls through the bottom, the range adds one new lower buy per pass. Filled levels above it keep their sell prices, and the stop stays where it was set."
+              >
+                Follow price down
+              </FieldLabel>
+            </div>
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-spacing"
-                hint={GRID_SPACING_HINTS[spacing]}
+                hint={GRID_SPACING_HINT}
               >
                 Levels spread
               </FieldLabel>

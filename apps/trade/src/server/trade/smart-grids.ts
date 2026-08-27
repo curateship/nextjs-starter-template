@@ -98,19 +98,19 @@ export async function advanceGrid(
     }
   }
 
-  // ----- 2. The take profit ends a winning grid ---------------------------
+  // ----- 2. The fixed End Grid line closes the grid -----------------------
   //
   // Not the top of the range. Price above the TOP just means the grid has sold
   // everything it had up there and is waiting for price to come back down into
-  // its range, which is an ordinary thing for a grid to be doing. The take
-  // profit is where you have made enough and want out.
+  // its range, which is an ordinary thing for a grid to be doing. End Grid is
+  // the fixed ceiling where the grid stops following and closes.
 
   const held = book.positions.get(row.marketKey) ?? null
   const target = gridTakeProfitPx(plan)
   let closedAbove = false
   if (mark !== null && target !== null && mark >= target) {
     // Paired with a ladder, the position is not all the grid's to sell. A
-    // jump past the finish line sells what the GRID holds and no more — the
+    // jump past the End Grid line sells what the GRID holds and no more — the
     // ladder's coins stay, still covered by the ladder's own stop.
     const gridOnly = row.paired
       ? Math.min(gridHeldSz(plan), held ? Math.max(held.szi, 0) : 0)
@@ -257,13 +257,30 @@ export async function advanceGrid(
       (level) => level.status === "holding"
     )
     if (!anyHeldLevel && (!stillHeld || stillHeld.szi <= 0)) {
-      const moved = gridFollowShift({
+      let moved = gridFollowShift({
         topPx: plan.topPx,
         bottomPx: plan.bottomPx,
         levels: plan.levels.length,
         spacing: plan.spacing,
         mark,
       })
+      // The last upward step parks at End Grid instead of putting the range
+      // beyond its own ceiling while price is still just below it. Preserve
+      // the range's shape when shortening that final move.
+      if (moved && target !== null && moved.topPx > target) {
+        moved =
+          plan.spacing === "compounding"
+            ? {
+                ...moved,
+                topPx: target,
+                bottomPx: moved.bottomPx * (target / moved.topPx),
+              }
+            : {
+                ...moved,
+                topPx: target,
+                bottomPx: moved.bottomPx - (moved.topPx - target),
+              }
+      }
       if (
         moved &&
         followTheRangeUp(plan, moved, mark, roundPx, book.costs.takerFeeRate)

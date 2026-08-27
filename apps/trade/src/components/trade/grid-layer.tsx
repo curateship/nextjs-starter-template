@@ -6,6 +6,7 @@ import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import {
+  gridEndAfterRangeMove,
   gridLevels,
   gridRangeMovable,
   gridStopPx,
@@ -33,6 +34,7 @@ export const GridLayer = React.memo(function GridLayer({
   surface,
   colors,
   marketKey,
+  currentPx,
   grids,
   preview,
   tool,
@@ -46,6 +48,8 @@ export const GridLayer = React.memo(function GridLayer({
   surface: ChartSurface
   colors: ChartColors
   marketKey: string | null
+  /** Today's price, used when a hand moves a range that began below it. */
+  currentPx: number | null
   /** Every live grid, whichever wallet holds it; this market's are drawn. */
   grids: readonly SmartGrid[]
   /** The placement window's levels as edited, or null when it is shut. */
@@ -149,6 +153,7 @@ export const GridLayer = React.memo(function GridLayer({
         <GridLines
           key={grid.id}
           grid={grid}
+          currentPx={currentPx}
           colors={colors}
           yFor={yFor}
           yPinned={yPinned}
@@ -266,6 +271,7 @@ type DragEnd = "top" | "bottom" | "takeProfit" | "stopLoss"
 
 function GridLines({
   grid,
+  currentPx,
   colors,
   yFor,
   yPinned,
@@ -280,6 +286,7 @@ function GridLines({
   priceFrom,
 }: {
   grid: SmartGrid
+  currentPx: number | null
   colors: ChartColors
   yFor: (price: number) => number | null
   yPinned: (
@@ -479,10 +486,9 @@ function GridLines({
     rangeMoved && plan.stopLoss?.mode === "percent" && !plan.stopLoss.base
       ? gridStopUnder(shownBottom, plan.stopLoss.underPct)
       : null
-  const movedTarget =
-    rangeMoved && plan.takeProfitPx !== null && plan.topPx > 0
-      ? shownTop * (plan.takeProfitPx / plan.topPx)
-      : null
+  const movedTarget = rangeMoved
+    ? gridEndAfterRangeMove(plan, shownTop, currentPx ?? plan.topPx)
+    : null
 
   const shownTarget =
     movedTarget ?? showing("takeProfit", gridTakeProfitPx(plan))
@@ -687,11 +693,11 @@ function GridLines({
         <ChartLine
           y={targetY}
           colour={colors.up}
-          name="FINISH"
+          name="END GRID"
           dashed={false}
           grip
           onGripDown={startDrag("takeProfit", target)}
-          title="Reaching this sells everything the grid holds and finishes it. Drag it anywhere above the range."
+          title="Reaching this sells everything the grid holds and ends it. Drag it anywhere above the range."
         />
       ) : null}
       {stopY !== null && stop !== null ? (
@@ -721,7 +727,7 @@ function lineLook(
     return { colour: colors.primary, name: "LOWER PRICE", dashed: false }
   }
   if (kind === "takeProfit") {
-    return { colour: colors.up, name: "FINISH", dashed: false }
+    return { colour: colors.up, name: "END GRID", dashed: false }
   }
   if (kind === "stopLoss") {
     return { colour: colors.down, name: "STOP LOSS", dashed: false }

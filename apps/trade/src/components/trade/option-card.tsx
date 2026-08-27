@@ -32,6 +32,7 @@ export function OptionCard({
   toggle,
   summary,
   defaultOpen = true,
+  foldWhenOff = true,
   footer,
   children,
 }: {
@@ -46,6 +47,8 @@ export function OptionCard({
    */
   summary?: React.ReactNode
   defaultOpen?: boolean
+  /** Whether an unchecked card still offers its empty settings fold. */
+  foldWhenOff?: boolean
   /**
    * Drawn under the fold rather than inside it — for a note that explains
    * something printed elsewhere on the window. A warning nobody can see
@@ -57,10 +60,11 @@ export function OptionCard({
   // Remembered against the account when a `CardFolds` sits above this, and
   // just for as long as the window is open when one does not.
   const [open, setOpen] = useCardFold(id, defaultOpen)
+  const canFold = foldWhenOff || !toggle || toggle.checked
 
   return (
     <Collapsible
-      open={open}
+      open={canFold && open}
       onOpenChange={setOpen}
       className="grid gap-4 rounded-lg border bg-muted/30 p-3"
     >
@@ -79,7 +83,11 @@ export function OptionCard({
             }}
           />
         ) : null}
-        <FieldLabel htmlFor={toggle ? id : undefined} className="min-w-0 flex-1" hint={hint}>
+        <FieldLabel
+          htmlFor={toggle ? id : undefined}
+          className="min-w-0 flex-1"
+          hint={canFold ? hint : undefined}
+        >
           {title}
         </FieldLabel>
         {summary !== undefined && summary !== null ? (
@@ -87,18 +95,20 @@ export function OptionCard({
             {summary}
           </span>
         ) : null}
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            aria-label={open ? `Hide ${title}` : `Show ${title}`}
-            className={cn(
-              "group/card shrink-0 cursor-pointer rounded-md text-muted-foreground select-none hover:text-foreground",
-              focusRingInset
-            )}
-          >
-            <ChevronDownIcon className="size-4 transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
+        {canFold ? (
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              aria-label={open ? `Hide ${title}` : `Show ${title}`}
+              className={cn(
+                "group/card shrink-0 cursor-pointer rounded-md text-muted-foreground select-none hover:text-foreground",
+                focusRingInset
+              )}
+            >
+              <ChevronDownIcon className="size-4 transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+        ) : null}
       </div>
 
       <CollapsibleContent className="grid gap-4">{children}</CollapsibleContent>

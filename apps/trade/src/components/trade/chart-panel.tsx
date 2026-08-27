@@ -986,6 +986,7 @@ export function ChartPanel({
    */
   const currentKey = current?.key ?? ""
   const gridsShown = trading.grids
+  const currentMarketPx = market?.price ?? null
   const overlay = React.useCallback(
     (surface: ChartSurface, colors: ChartColors) => (
       <>
@@ -1050,6 +1051,7 @@ export function ChartPanel({
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
+          currentPx={currentMarketPx}
           grids={gridsShown}
           preview={gridPreview}
           tool={paintTool}
@@ -1109,6 +1111,7 @@ export function ChartPanel({
       onCancelRung,
       gridsShown,
       gridPreview,
+      currentMarketPx,
       onCancelGridLevel,
       onMoveGridRange,
       onMoveGridExit,

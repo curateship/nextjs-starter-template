@@ -81,8 +81,8 @@ grid deliberately share it.
   that as its stop having fired: it closes itself and the ladder carries on
   untouched. A short grace covers a slow read.
 - The ladder's take profit is sized to the ladder's own coins while paired,
-  so it cannot sell the grid's. The grid never writes a take profit at all —
-  its finish line, if price jumps past it, sells only the grid's holdings.
+  so it cannot sell the grid's. The grid never writes a take profit at all.
+  Its End Grid line sells only the grid's holdings if price jumps past it.
 
 ## Where the pieces live
 

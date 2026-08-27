@@ -9,6 +9,7 @@ import {
 } from "@/lib/trade/dca"
 import {
   gridParamsSchema,
+  placeGridParamsSchema,
   MAX_GRID_LEVELS,
   MIN_GRID_LEVELS,
   type GridParams,
@@ -489,7 +490,7 @@ const placeGridSchema = z.object({
   marketKey: marketKeySchema,
   topPx: z.number().positive().finite(),
   bottomPx: z.number().positive().finite(),
-  params: gridParamsSchema,
+  params: placeGridParamsSchema,
 })
 
 const gridLevelSchema = z.object({
@@ -754,11 +755,11 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_GRID_LEVEL_DONE:
       "That level already bought or was already called off.",
     SMART_GRID_TARGET_IN_RANGE:
-      "The line that finishes the grid has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
+      "The End Grid line has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
     SMART_GRID_STOP_IN_RANGE:
       "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
     SMART_GRID_TARGET_PASSED:
-      "The line that finishes the grid sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
+      "The End Grid line sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
     PART_CLOSE_MARKET: "That market is not one this wallet can trade.",
     PART_CLOSE_NO_PRICE:
       "The exchange would not give a price for that market, so nothing was placed.",

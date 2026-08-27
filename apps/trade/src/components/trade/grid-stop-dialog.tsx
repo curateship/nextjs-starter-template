@@ -39,9 +39,7 @@ import {
   type GridParams,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
-import { WARNING } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { cn } from "@/lib/utils"
 
 /**
  * Changing a running grid: how it is sliced, and where it gets out.
@@ -350,7 +348,7 @@ function StopForm({
               />
               <FieldLabel
                 htmlFor="grid-follow-on"
-                hint="When price climbs past the top of the range, the whole range slides up behind it and the grid carries on instead of waiting above its range. It costs nothing, because by the time price is up there every level has already sold. The stop under the range slides up with it."
+                hint="When price climbs past the top of the range, the whole range slides up behind it and the grid carries on instead of waiting above its range. It costs nothing, because by the time price is up there every level has already sold. The stop under the range slides up with it. The End Grid line stays fixed and closes the grid when price reaches it."
               >
                 Follow price up
               </FieldLabel>
@@ -372,20 +370,6 @@ function StopForm({
                 Follow price down
               </FieldLabel>
             </div>
-            {followDownOn ? (
-              <p className={cn("text-xs", WARNING)}>
-                This keeps buying as price falls. The stop stays where you set
-                it, even when the range moves through it.
-              </p>
-            ) : null}
-            {followOn && plan.takeProfitPx !== null ? (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                Saving removes the finish line at{" "}
-                {formatPrice(plan.takeProfitPx)}. A range that slides up ahead
-                of price can never reach a line above it, so a following grid
-                runs until you switch this off or the stop is hit.
-              </p>
-            ) : null}
             <p className="text-xs text-muted-foreground">
               {plan.shifts === 0 && plan.downShifts === 0
                 ? "The range has not moved yet."
