@@ -118,6 +118,17 @@ type Hub = {
   lastPingAt: number
   reconnectAt: number
   attempts: number
+  /**
+   * **One dial at a time.**
+   *
+   * Three readers open this feed in the same poll — the position, the balance
+   * and the resting orders — and each used to be able to start its own
+   * connection, every one of them tearing down the last. Lighter then saw a
+   * burst of handshakes and refused some outright (`1002`, a line that never
+   * upgraded), which read as a flaky socket and sent every account read back
+   * to REST. Aster's user stream has carried this same flag from the start.
+   */
+  dialling: boolean
   watchdog: ReturnType<typeof setInterval> | null
 }
 
@@ -188,6 +199,7 @@ function hubFor(network: NetworkId): Hub {
     lastPingAt: 0,
     reconnectAt: 0,
     attempts: 0,
+    dialling: false,
     watchdog: null,
   }
   hubs().set(network, made)
@@ -413,6 +425,9 @@ function scheduleReconnect(hub: Hub): void {
 }
 
 function connect(hub: Hub): void {
+  // A dial already under way is the answer for every caller behind it.
+  if (hub.dialling) return
+  hub.dialling = true
   const generation = (hub.generation += 1)
   teardown(hub)
   let socket: WebSocket
@@ -422,11 +437,13 @@ function connect(hub: Hub): void {
     // readonly line, and the orders channel authenticates in its own frame.
     socket = new WebSocket(`${lighterWsUrl(hub.network)}?readonly=true`)
   } catch {
+    hub.dialling = false
     scheduleReconnect(hub)
     return
   }
   hub.socket = socket
   socket.addEventListener("open", () => {
+    hub.dialling = false
     if (generation !== hub.generation) return
     hub.openedAt = Date.now()
     hub.lastPingAt = Date.now()
@@ -454,6 +471,7 @@ function connect(hub: Hub): void {
     }
   })
   const gone = () => {
+    hub.dialling = false
     if (generation !== hub.generation) return
     teardown(hub)
     scheduleReconnect(hub)

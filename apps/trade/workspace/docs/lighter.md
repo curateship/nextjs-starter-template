@@ -330,11 +330,14 @@ The chart is six of those thirty-six, for thirty coins — the held history is
 doing its job. What is left is the account and its resting orders, and those
 are only asked at all when the socket is not answering.
 
-**The socket is not as steady as it should be.** Watched over ninety seconds
-it served about a third of the account reads and was rebuilt several times.
-That is worth chasing on its own: every read it serves is free, so a steady
-feed would take the sixteen down to single figures. It is not what was
-refusing the chart, and it is not urgent now that nothing is being refused.
+**The socket used to rebuild itself constantly, and that is fixed.** Three
+readers open the feed in the same poll — the position, the balance and the
+resting orders — and each could start its OWN connection, every one tearing
+down the last. Lighter saw a burst of handshakes and refused some outright
+with `1002`, a line that never upgraded, which read as a flaky socket and sent
+every account read back to REST. One dial at a time now, the same flag Aster's
+user stream has carried from the start. Over ninety seconds the line is now
+built three times rather than seven, and serves the reads in between.
 
 **The two programs take different shares, forty and twenty.** Splitting the
 sixty down the middle was the first attempt and it caused the very thing it
