@@ -16,7 +16,7 @@ import type { NetworkId } from "@/lib/protocols/contracts"
  */
 const MINUTE_MS = 60_000
 export const LIGHTER_REQUESTS_PER_MINUTE = 60
-const BACKGROUND_NUMERATOR = 4
+const BACKGROUND_NUMERATOR = 3
 const BACKGROUND_DENOMINATOR = 5
 
 /**
@@ -35,11 +35,49 @@ const BACKGROUND_DENOMINATOR = 5
  * busy, and that is the right trade: the cost of being wrong the other way
  * is a feed that collapses and takes the chart down with it.
  */
-const PROCESSES_SHARING_THE_CAP = 2
-/** What THIS process may spend of Lighter's minute. Half of the venue's cap. */
-export const LIGHTER_REQUESTS_PER_PROCESS = Math.floor(
-  LIGHTER_REQUESTS_PER_MINUTE / PROCESSES_SHARING_THE_CAP
-)
+/**
+ * **The two programs do not need the same share.** Splitting the sixty down
+ * the middle was the first attempt and it caused the very thing it was meant
+ * to stop: the website's ceiling halved, so a chart somebody had just opened
+ * was refused by this counter while the engine sat on an allowance it was not
+ * using. The engine reads Lighter only for wallets running ladders, in short
+ * bursts; the website serves a person watching a screen.
+ *
+ * Forty and twenty. They still add to sixty, so the pair can never breach the
+ * one allowance Lighter actually counts.
+ */
+const WEB_SHARE = 40
+const ENGINE_SHARE = 20
+
+/**
+ * The trading engine says so at boot — see `worker/src/index.ts`. Read at
+ * call time rather than at import, because the engine's own modules are
+ * imported before it has finished starting.
+ */
+function isEngine(): boolean {
+  return (globalThis as { __tradeEngine?: boolean }).__tradeEngine === true
+}
+
+/** What THIS process may spend of Lighter's minute. */
+export function lighterRequestsPerProcess(): number {
+  return isEngine() ? ENGINE_SHARE : WEB_SHARE
+}
+
+/**
+ * Three tiers, because "is anyone waiting for this?" decides who should lose
+ * when the minute runs short.
+ *
+ * - `background` — the idle reads: the account, the resting orders, the trade
+ *   history, the catalogue. Nobody is watching a spinner for these.
+ * - `watched` — a chart somebody just opened. It asks LAST, after every
+ *   background read of the same poll, so with one shared ceiling it was
+ *   always the thing refused: the person saw "the allowance is spent" about
+ *   the one request they were actually waiting for, while idle polling had
+ *   quietly taken the lot. Measured 27 Aug 2026 on the deployed site.
+ * - `order` — real money. Never refused before the other two are.
+ */
+const WATCHED_NUMERATOR = 17
+const WATCHED_DENOMINATOR = 20
 
 export type LighterRequestCost = {
   /**
@@ -48,7 +86,7 @@ export type LighterRequestCost = {
    * requests, not weight, so the reservation itself always spends one.
    */
   weight: number
-  priority: "background" | "order"
+  priority: "background" | "watched" | "order"
 }
 
 type Entry = {
@@ -88,15 +126,21 @@ export function reserveLighterRequest(
   }
   const state = stateFor(network)
   prune(state, now)
-  const ceiling =
-    cost.priority === "order"
-      ? LIGHTER_REQUESTS_PER_PROCESS
-      : Math.floor(
-          (LIGHTER_REQUESTS_PER_PROCESS * BACKGROUND_NUMERATOR) /
-            BACKGROUND_DENOMINATOR
-        )
+  const ceiling = ceilingFor(cost.priority)
   if (state.entries.length + 1 > ceiling) throw new Error("EXCHANGE_BUSY")
   state.entries.push({ at: now, weight: cost.weight, kind: "rest" })
+}
+
+/** What this priority may spend of the process's share. */
+export function ceilingFor(
+  priority: LighterRequestCost["priority"]
+): number {
+  const share = lighterRequestsPerProcess()
+  if (priority === "order") return share
+  if (priority === "watched") {
+    return Math.floor((share * WATCHED_NUMERATOR) / WATCHED_DENOMINATOR)
+  }
+  return Math.floor((share * BACKGROUND_NUMERATOR) / BACKGROUND_DENOMINATOR)
 }
 
 /**
@@ -122,7 +166,7 @@ export function lighterBudgetSnapshot(
   const state = stateFor(network)
   prune(state, now)
   return {
-    limit: LIGHTER_REQUESTS_PER_PROCESS,
+    limit: lighterRequestsPerProcess(),
     requests: state.entries.length,
     restRequests: state.entries.filter((one) => one.kind === "rest").length,
     socketSends: state.entries.filter((one) => one.kind === "socket").length,

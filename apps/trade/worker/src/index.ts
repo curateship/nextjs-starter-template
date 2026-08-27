@@ -31,6 +31,18 @@ import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
 import { priceFeedStatus } from "@/server/trade/price-feed-status"
 import { writeHeartbeat } from "@/server/trade/workers"
 
+/**
+ * **This process is the trading engine, and Lighter's budget needs to know.**
+ *
+ * Lighter allows sixty requests a minute for everything, counted across the
+ * website and this engine together — but each program counts its own, so
+ * neither can see the other. They take different shares: the website serves
+ * somebody watching a screen and gets forty, this engine reads in short
+ * bursts for wallets running ladders and gets twenty. Set before anything
+ * else so no read can happen first and take the wrong share.
+ */
+;(globalThis as { __tradeEngine?: boolean }).__tradeEngine = true
+
 /** How often the ladders are worked once this copy is the one trading. */
 const PASS_EVERY_MS = 1_000
 

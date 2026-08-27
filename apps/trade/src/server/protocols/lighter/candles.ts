@@ -50,13 +50,20 @@ async function candlePage(
   to: number
 ): Promise<CandleBar[]> {
   return barsOf(
-    await lighterPublic(network, "/api/v1/candles", CANDLES_WEIGHT, {
-      market_id: marketId,
-      resolution: LIGHTER_INTERVALS[interval],
-      start_timestamp: from,
-      end_timestamp: to - 1,
-      count_back: ROWS_PER_PAGE,
-    })
+    await lighterPublic(
+      network,
+      "/api/v1/candles",
+      CANDLES_WEIGHT,
+      {
+        market_id: marketId,
+        resolution: LIGHTER_INTERVALS[interval],
+        start_timestamp: from,
+        end_timestamp: to - 1,
+        count_back: ROWS_PER_PAGE,
+      },
+      // Somebody is sitting in front of this chart right now.
+      "watched"
+    )
   ).filter((bar) => bar.openTime >= from && bar.openTime < to)
 }
 

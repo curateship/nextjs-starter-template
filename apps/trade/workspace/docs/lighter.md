@@ -264,6 +264,36 @@ Measured on one idle tab, nobody clicking:
 The twelve left are the chart, the catalogue, and the held REST reads for the
 seconds when the socket is still coming up.
 
+### Who loses when the minute runs short
+
+Even at twelve a minute the chart was still being refused, and the reason was
+not the traffic — it was the order things ask in. Every read used one priority,
+so the idle reads, which go first on every poll, could spend the whole ceiling
+before the chart asked at all. The person then saw "this exchange's allowance
+is spent" about the one request they were actually waiting for, while nothing
+they had asked for had taken it.
+
+There are three tiers now, each with its own ceiling out of the process's
+share:
+
+| tier | what it is | website | engine |
+| --- | --- | ---: | ---: |
+| background | the account, resting orders, trade history, catalogue | 24 | 12 |
+| watched | a chart somebody just opened | 34 | 17 |
+| order | real money | 40 | 20 |
+
+So idle polling can spend twenty-four and be refused, and the chart still has
+ten in hand. Orders are never refused before either of them.
+
+**The two programs take different shares, forty and twenty.** Splitting the
+sixty down the middle was the first attempt and it caused the very thing it
+was meant to stop: the website's ceiling halved, and a chart somebody had just
+opened was refused by our own counter while the engine sat on an allowance it
+was not using. The engine reads Lighter only for wallets running ladders, in
+short bursts; the website serves a person watching a screen. They still add to
+sixty, so the pair can never breach the one allowance Lighter counts. The
+engine says which it is at boot, in `worker/src/index.ts`.
+
 Lighter's docs list a weight per endpoint and say unlisted ones weigh 300. None
 of the market-data reads are on that list, so each declares 300. A Standard
 account's cap counts requests rather than weight, so the declared weight only

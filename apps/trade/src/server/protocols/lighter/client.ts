@@ -66,14 +66,20 @@ export async function lighterPublic(
   network: NetworkId,
   path: string,
   weight: number,
-  params: Record<string, string | number> = {}
+  params: Record<string, string | number> = {},
+  /**
+   * `"watched"` for a request somebody is sitting in front of — a chart they
+   * just opened. It keeps a little of the minute back from the idle reads,
+   * which ask first on every poll and would otherwise take the lot.
+   */
+  priority: "background" | "watched" = "background"
 ): Promise<unknown> {
   assertAvailable(network)
   if (!Number.isInteger(weight) || weight <= 0) {
     throw new Error("LIGHTER_REQUEST_WEIGHT_INVALID")
   }
   const base = restBase(network)
-  reserveLighterRequest(network, { weight, priority: "background" })
+  reserveLighterRequest(network, { weight, priority })
 
   const url = new URL(path, base)
   for (const [key, value] of Object.entries(params)) {
