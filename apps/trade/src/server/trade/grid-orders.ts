@@ -60,7 +60,7 @@ export type PlaceGridInput = {
 export type PlacedGrid = {
   /** How many levels the grid has. */
   levels: number
-  /** What the whole grid costs if every level buys at once. */
+  /** Dollars of coin the whole grid controls if every level buys. */
   totalCost: number
   /**
    * The grid exactly as it was written down, so the chart can draw it in the
@@ -99,14 +99,14 @@ export type GridDraftInput = {
   takerFeeRate: number
   /** When this grid is being created, in epoch ms. */
   startedAt?: number
-  /** What is already held in this market, signed, or null when nothing is. */
-  heldSzi: number | null
+  /** What is already held in this market, or null when nothing is. */
+  held: { szi: number; leverage: number } | null
 }
 
 export type GridDraft = {
   plan: GridPlan
   levels: GridLevelState[]
-  /** What the whole grid costs if every level buys at once. */
+  /** Dollars of coin the whole grid controls if every level buys. */
   totalCost: number
 }
 
@@ -135,15 +135,25 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   // grid it forced the whole range under the price, where the top half could
   // never do anything until price fell into it, and it made every grid you
   // placed sit off the bottom of the chart.
-  if (input.heldSzi !== null && input.heldSzi < 0) {
+  if (input.held !== null && input.held.szi < 0) {
     throw new Error("SMART_SHORT_HELD")
   }
 
+  const maxLeverage = rules.maxLeverage ?? 1
+  // One exchange position has one borrowing setting. A grid added beside a
+  // hand-held long must size and report itself with the number already fixed
+  // on that position, because later buys cannot change it.
+  const leverage =
+    input.held !== null && input.held.szi > 0
+      ? input.held.leverage
+      : rules.maxLeverage === null
+        ? params.leverage
+        : Math.min(params.leverage, rules.maxLeverage)
   const drawn = gridOrderPlan({
     topPx,
     bottomPx,
     equity: input.equity,
-    params,
+    params: { ...params, leverage },
     sizeDecimals: rules.sizeDecimals,
     volume24hUsd: rules.volume24hUsd,
   })
@@ -188,8 +198,6 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   if (targetPx !== null && mark >= targetPx) {
     throw new Error("SMART_GRID_TARGET_PASSED")
   }
-
-  const maxLeverage = rules.maxLeverage ?? 1
 
   // **Placing a grid buys nothing.** Every level waits its turn, wherever the
   // price is and whatever the range straddles.
@@ -237,6 +245,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     sizeDecimals: rules.sizeDecimals,
     priceTick: rules.priceTick,
     minOrderValueUsd: orderFloor,
+    leverage,
     maxLeverage,
     levels,
     carriedLevels: [],
@@ -328,7 +337,7 @@ export async function placeGridOrder(
     equity: input.params.compound ? figures.equity : wallet.startingBalance,
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: now,
-    heldSzi: book.positions.get(input.marketKey)?.szi ?? null,
+    held: book.positions.get(input.marketKey) ?? null,
   })
 
   await db.transaction(async (tx) => {
@@ -643,6 +652,39 @@ export async function setGridFollow(
   await settleWallet(userId, wallet)
 }
 
+/** Switch End Grid on or off, or change how far above price it waits. */
+export async function updateGridEnd(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; abovePct: number | null }
+): Promise<MovedGrid> {
+  await settleWallet(userId, wallet)
+  const grid = await gridById(userId, wallet.id, input.gridId)
+  const plan = grid.plan
+
+  if (input.abovePct === null) {
+    plan.takeProfitPx = null
+    plan.takeProfitPct = null
+  } else {
+    const mark = (await marksForKeys([grid.marketKey])).get(grid.marketKey)
+    if (mark === undefined || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
+    const protocol = getProtocol(wallet.protocol)
+    const target = protocol.markets.roundPx(
+      gridEndPx(plan.topPx, mark, input.abovePct),
+      plan.sizeDecimals,
+      plan.priceTick
+    )
+    if (target <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
+    if (target <= mark) throw new Error("SMART_GRID_TARGET_PASSED")
+    plan.takeProfitPx = target
+    plan.takeProfitPct = input.abovePct
+  }
+
+  const at = Date.now()
+  await saveGridPlan(userId, grid.id, plan, "active", at)
+  return movedGrid(wallet.id, grid, plan, at)
+}
+
 /**
  * Re-shaping a grid: a new range, a new level count, a new share of the
  * account, or any mix of them.
@@ -675,6 +717,7 @@ export async function reshapeGrid(
     bottomPx?: number
     levels?: number
     potPct?: number
+    leverage?: number
   }
 ): Promise<MovedGrid> {
   const book = await settleWallet(userId, wallet)
@@ -707,6 +750,7 @@ export async function reshapeGrid(
       levels: input.levels ?? plan.levels.length,
       potPct: input.potPct ?? plan.potPct,
       compound: true,
+      leverage: input.leverage ?? plan.leverage,
       maxOrderVolPct: plan.maxOrderVolPct,
       spacing: plan.spacing,
       sizing: plan.sizing,
@@ -730,7 +774,7 @@ export async function reshapeGrid(
     equity: figures.equity,
     takerFeeRate: book.costs.takerFeeRate,
     startedAt: plan.startedAt,
-    heldSzi: book.positions.get(grid.marketKey)?.szi ?? null,
+    held: book.positions.get(grid.marketKey) ?? null,
   })
 
   // Everything about the grid except where it sits is carried over — the stop

@@ -28,6 +28,7 @@ import {
   placeLiveGridOrder,
   reconcileLiveLadders,
   setLiveGridFollow,
+  updateLiveGridEnd,
   updateLiveGridStop,
   updateLiveLadderExits,
 } from "@/server/trade/live-smart-orders"
@@ -39,6 +40,7 @@ import {
   reshapeGrid as reshapeGridRows,
   placeGridOrder as placeGridRows,
   setGridFollow as setGridFollowRows,
+  updateGridEnd as updateGridEndRows,
   updateGridStop as updateGridStopRows,
   type MovedGrid,
   type PlacedGrid,
@@ -578,6 +580,7 @@ const reshapeGridSchema = z.object({
   gridId: z.string().max(36),
   levels: z.number().int().min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS).optional(),
   potPct: z.number().positive().max(100).optional(),
+  leverage: z.number().int().min(1).max(50).optional(),
 })
 
 const reshapeGridFn = createServerFn({ method: "POST" })
@@ -641,6 +644,22 @@ const setGridFollowFn = createServerFn({ method: "POST" })
     return { saved: true }
   })
 
+const gridEndSchema = z.object({
+  walletId: z.string().max(36),
+  gridId: z.string().max(36),
+  abovePct: z.number().positive().max(999).nullable(),
+})
+
+const updateGridEndFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridEndSchema)
+  .handler(async ({ data, context }): Promise<MovedGrid> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    return wallet.kind === "live"
+      ? await updateLiveGridEnd(context.user.id, wallet, data)
+      : await updateGridEndRows(context.user.id, wallet, data)
+  })
+
 /** The grid window's remembered settings, or null the first time it opens. */
 const loadSmartGridFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -678,6 +697,10 @@ export function updateGridStop(input: z.infer<typeof gridStopUpdateSchema>) {
 
 export function setGridFollow(input: z.infer<typeof gridFollowSchema>) {
   return setGridFollowFn({ data: input })
+}
+
+export function updateGridEnd(input: z.infer<typeof gridEndSchema>) {
+  return updateGridEndFn({ data: input })
 }
 
 export function loadSmartGridParams() {
@@ -721,6 +744,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "A grid and a ladder can share a coin on a live wallet only — a practice wallet can hold one stop per position and cannot play the handoff honestly.",
     SMART_PAIR_PROTOCOL:
       "This exchange cannot hold the grid's own part-size stop beside the ladder's, so the pairing is refused here. It works on Hyperliquid, Aster and KuCoin.",
+    SMART_PAIR_LEVERAGE:
+      "The grid and ladder share one position, so they must use the same borrowing. Change this order to match the one already working.",
     SMART_PAIR_GRID_STOP_REQUIRED:
       "To share a coin with a ladder the grid needs a stop — the stop is what hands the coin over to the ladder on the way down.",
     SMART_PAIR_GRID_STOP_BASE:

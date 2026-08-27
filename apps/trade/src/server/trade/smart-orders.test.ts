@@ -755,7 +755,7 @@ describe("who placed a smart order", () => {
       equity: 5_000,
       takerFeeRate: 0.0005,
       startedAt: ladder.createdAt.getTime() + 120_000,
-      heldSzi: null,
+      held: null,
     })
     await database.insert(tradeSmartLadders).values({
       userId,

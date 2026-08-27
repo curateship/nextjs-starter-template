@@ -73,7 +73,8 @@ describe("the grid window's saved settings", () => {
       typeof GridOrderDialog
     >["onPlace"] = async () => false,
     onPreview: React.ComponentProps<typeof GridOrderDialog>["onPreview"] = () =>
-      undefined
+      undefined,
+    positionLeverage: number | null = null
   ) => {
     await act(async () => {
       root.render(
@@ -86,6 +87,7 @@ describe("the grid window's saved settings", () => {
             free={1_000}
             takerFeeRate={0.00045}
             busy={false}
+            positionLeverage={positionLeverage}
             onPreview={onPreview}
             onPlace={onPlace}
             onClose={() => undefined}
@@ -196,6 +198,47 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).not.toContain("Follows up + down")
     expect(host.textContent).not.toContain("Follows up")
     expect(host.textContent).not.toContain("Follows down")
+  })
+
+  it("keeps borrowing in Advanced settings and sends it with the grid", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+
+    expect(host.querySelector("#grid-leverage")).toBeNull()
+    await openAdvanced()
+
+    const borrowing = host.querySelector<HTMLInputElement>("#grid-leverage")
+    expect(borrowing?.value).toBe("1")
+    await act(async () => {
+      const set = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      set?.call(borrowing, "3")
+      borrowing?.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ leverage: 3 }),
+      })
+    )
+  })
+
+  it("uses the borrowing already fixed by a held position", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog(undefined, undefined, 2)
+    await openAdvanced()
+
+    const borrowing = host.querySelector<HTMLInputElement>("#grid-leverage")
+    expect(borrowing?.value).toBe("2")
+    expect(borrowing?.disabled).toBe(true)
   })
 
   it("keeps End Grid on when the grid follows price up", async () => {

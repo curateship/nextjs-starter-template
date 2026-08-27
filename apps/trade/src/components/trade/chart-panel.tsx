@@ -1343,9 +1343,26 @@ export function ChartPanel({
           pairedWithLadder={trading.smartOrders.some(
             (one) =>
               one.kind === "dca" &&
+              one.walletId === trading.wallet?.id &&
               one.marketKey === market.key &&
               one.status === "active"
           )}
+          pairedLeverage={
+            trading.ladders.find(
+              (one) =>
+                one.walletId === trading.wallet?.id &&
+                one.marketKey === market.key &&
+                one.status === "active"
+            )?.plan.leverage ?? null
+          }
+          positionLeverage={
+            trading.positions.find(
+              (one) =>
+                one.walletId === trading.wallet?.id &&
+                one.marketKey === market.key &&
+                one.szi > 0
+            )?.leverage ?? null
+          }
           onPreview={setGridPreview}
           onClose={() => setGrid(null)}
           onPlace={(input) =>
@@ -1355,12 +1372,38 @@ export function ChartPanel({
       ) : null}
       <GridStopDialog
         grid={stopFor}
+        mark={
+          stopFor && market?.key === stopFor.marketKey ? market.price : null
+        }
         busy={trading.busy}
+        pairedLeverage={
+          stopFor
+            ? (trading.ladders.find(
+                (one) =>
+                  one.walletId === stopFor.walletId &&
+                  one.marketKey === stopFor.marketKey &&
+                  one.status === "active"
+              )?.plan.leverage ?? null)
+            : null
+        }
+        positionLeverage={
+          stopFor
+            ? (trading.positions.find(
+                (one) =>
+                  one.walletId === stopFor.walletId &&
+                  one.marketKey === stopFor.marketKey &&
+                  one.szi > 0
+              )?.leverage ?? null)
+            : null
+        }
         onSave={(one, stopLoss) =>
           trading.setGridStop(one.walletId, one.id, stopLoss)
         }
         onReshape={(one, shape) =>
           trading.reshapeGrid(one.walletId, one.id, shape)
+        }
+        onSetEnd={(one, abovePct) =>
+          trading.setGridEnd(one.walletId, one.id, abovePct)
         }
         onSetFollow={(one, following) =>
           trading.setGridFollow(one.walletId, one.id, following)

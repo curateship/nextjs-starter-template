@@ -19,6 +19,7 @@ import {
   placeGridOrder,
   reshapeGrid,
   setGridFollow,
+  updateGridEnd,
   updateGridStop,
 } from "@/server/trade/grid-orders"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -226,6 +227,40 @@ describe("placing a grid", () => {
     for (const level of grid.plan.levels) {
       expect(level.budget).toBeCloseTo(500, 0)
     }
+  })
+
+  it("uses the chosen borrowing when a level buys", async () => {
+    await place({ leverage: 3 })
+    const grid = await onlyGrid()
+    expect(grid.plan.leverage).toBe(3)
+    expect(grid.plan.levels[2].budget).toBeCloseTo(1_500, 0)
+
+    await priceTo(99)
+    const [position] = await positions()
+    expect(position.leverage).toBe(3)
+    expect(position.szi * position.entryPx).toBeGreaterThan(1_500)
+  })
+
+  it("inherits the borrowing already fixed by a held position", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      sz: 0.1,
+      leverage: 2,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      px: 200,
+    })
+
+    await place({ leverage: 3 })
+    const grid = await onlyGrid()
+    expect(grid.plan.leverage).toBe(2)
+    expect(grid.plan.levels[2].budget).toBeLessThan(1_100)
+
+    await priceTo(99)
+    const [position] = await positions()
+    expect(position.leverage).toBe(2)
   })
 
   it("refuses a range that is upside down", async () => {
@@ -753,6 +788,36 @@ describe("moving the range", () => {
 })
 
 describe("re-slicing a running grid", () => {
+  it("changes borrowing and redraws every waiting level", async () => {
+    await place({ leverage: 1 })
+    const id = (await onlyGrid()).id
+
+    await reshapeGrid(userId, wallet, { gridId: id, leverage: 3 })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.leverage).toBe(3)
+    expect(grid.plan.levels[0].budget).toBeCloseTo(1_500, 0)
+  })
+
+  it("switches End Grid on and off from a running grid", async () => {
+    await place({ takeProfitPct: null })
+    const id = (await onlyGrid()).id
+
+    const enabled = await updateGridEnd(userId, wallet, {
+      gridId: id,
+      abovePct: 5,
+    })
+    expect(enabled.grid.plan.takeProfitPct).toBe(5)
+    expect(enabled.grid.plan.takeProfitPx).toBeCloseTo(210, 9)
+
+    const disabled = await updateGridEnd(userId, wallet, {
+      gridId: id,
+      abovePct: null,
+    })
+    expect(disabled.grid.plan.takeProfitPx).toBeNull()
+    expect(disabled.grid.plan.takeProfitPct).toBeNull()
+  })
+
   it("keeps End Grid above price when a lower range is moved", async () => {
     await place({ takeProfitPct: 5 })
     const id = (await onlyGrid()).id

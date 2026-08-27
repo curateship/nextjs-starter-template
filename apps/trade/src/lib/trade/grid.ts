@@ -180,6 +180,11 @@ export const gridParamsSchema = z.object({
    */
   compound: z.boolean().default(true),
   /**
+   * How many dollars of coin each dollar behind the grid buys. Existing grids
+   * and saved settings default to cash, so borrowing is always chosen.
+   */
+  leverage: z.number().int().min(1).max(50).default(1),
+  /**
    * Liquidity guard: no single buy bigger than this share of the coin's
    * last-24-hours volume, so thin coins get small orders. 0 = off.
    */
@@ -246,6 +251,7 @@ export function defaultGridParams(): GridParams {
     levels: DEFAULT_GRID_LEVELS,
     potPct: DEFAULT_GRID_POT_PCT,
     compound: true,
+    leverage: 1,
     maxOrderVolPct: 0,
     spacing: "even",
     sizing: "even",
@@ -456,7 +462,7 @@ export type GridPlannedLevel = {
 
 export type GridOrderPlan = {
   levels: GridPlannedLevel[]
-  /** What the whole grid costs if every level buys at once — dollars. */
+  /** Dollars of coin the whole grid controls if every level buys. */
   totalCost: number
   /** First level too small to be an order at this market's size step, or null. */
   tooSmallIndex: number | null
@@ -503,7 +509,7 @@ export function gridOrderPlan(input: {
   equity: number
   params: Pick<
     GridParams,
-    "levels" | "potPct" | "maxOrderVolPct" | "spacing" | "sizing"
+    "levels" | "potPct" | "leverage" | "maxOrderVolPct" | "spacing" | "sizing"
   >
   sizeDecimals: number | null
   volume24hUsd: number | null
@@ -515,7 +521,10 @@ export function gridOrderPlan(input: {
     spacing: input.params.spacing,
   })
   const capUsd = volumeCapUsd(input.params.maxOrderVolPct, input.volume24hUsd)
-  const pot = (input.equity * input.params.potPct) / 100
+  // The account share is the cash behind the grid. Borrowing changes how many
+  // dollars of coin that cash controls, not how much of the account is set
+  // aside. At 3x, a $2,000 share buys $6,000 of coin across the levels.
+  const pot = (input.equity * input.params.potPct * input.params.leverage) / 100
   const shares = gridShares(prices.length, input.params.sizing)
 
   let totalCost = 0
@@ -685,6 +694,8 @@ export const gridPlanSchema = z.object({
   priceTick: z.number().nullable().default(null),
   /** The smallest dollar order this market accepted when the grid was placed. */
   minOrderValueUsd: z.number().positive().default(MIN_ORDER_USD),
+  /** The borrowing chosen for every fresh buy. Old grids used cash. */
+  leverage: z.number().int().positive().default(1),
   maxLeverage: z.number().positive(),
   levels: z
     .array(gridLevelStateSchema)

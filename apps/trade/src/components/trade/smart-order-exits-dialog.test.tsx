@@ -42,6 +42,8 @@ const grid = {
       { status: "waiting", heldSz: 0, buyPx: 95 },
     ],
     potPct: 10,
+    leverage: 1,
+    maxLeverage: 50,
     follow: true,
     followDown: false,
     shifts: 0,
@@ -50,6 +52,7 @@ const grid = {
     bottomPx: 90,
     topPx: 100,
     takeProfitPx: null,
+    takeProfitPct: null,
     stopLoss: {
       underPct: 2,
       base: { underPct: 1, reclaimDays: 2 },
@@ -99,9 +102,11 @@ async function draw(kind: "ladder" | "grid", busy: boolean) {
         ) : (
           <GridStopDialog
             grid={grid}
+            mark={100}
             busy={busy}
             onSave={async () => true}
             onReshape={async () => true}
+            onSetEnd={async () => true}
             onSetFollow={async () => true}
             onClose={() => undefined}
           />
@@ -145,6 +150,8 @@ describe.each([
     [
       "grid-edit-levels",
       "grid-edit-pot",
+      "grid-edit-leverage",
+      "grid-end-on",
       "grid-follow-on",
       "grid-stop-pct",
       "base-stop-on",
@@ -189,6 +196,45 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(control("grid-stop-pct").disabled).toBe(false)
 })
 
+it("edits borrowing and End Grid from the grid gear window", async () => {
+  const reshape = vi.fn(async () => true)
+  const setEnd = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridStopDialog
+          grid={grid}
+          mark={100}
+          busy={false}
+          onSave={async () => true}
+          onReshape={reshape}
+          onSetEnd={setEnd}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  expect((control("grid-edit-leverage") as HTMLInputElement).value).toBe("1")
+  expect(document.getElementById("grid-end-pct")).toBeNull()
+  await type("grid-edit-leverage", "3")
+  await act(async () => control("grid-end-on").click())
+  await type("grid-end-pct", "7")
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(reshape).toHaveBeenCalledWith(
+    grid,
+    expect.objectContaining({ leverage: 3 })
+  )
+  expect(setEnd).toHaveBeenCalledWith(grid, 7)
+})
+
 it("adds a stop when an older running grid did not have one", async () => {
   const oldGrid = {
     ...grid,
@@ -201,9 +247,11 @@ it("adds a stop when an older running grid did not have one", async () => {
       <TooltipProvider>
         <GridStopDialog
           grid={oldGrid}
+          mark={100}
           busy={false}
           onSave={saveStop}
           onReshape={async () => true}
+          onSetEnd={async () => true}
           onSetFollow={async () => true}
           onClose={() => undefined}
         />
@@ -244,9 +292,11 @@ it("does not reset a fixed stop when only following changes", async () => {
       <TooltipProvider>
         <GridStopDialog
           grid={fixed}
+          mark={100}
           busy={false}
           onSave={saveStop}
           onReshape={async () => true}
+          onSetEnd={async () => true}
           onSetFollow={saveFollowing}
           onClose={() => undefined}
         />

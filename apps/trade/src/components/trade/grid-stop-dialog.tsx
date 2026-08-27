@@ -31,7 +31,10 @@ import {
 } from "@/lib/trade/dca"
 import { formatPrice } from "@/lib/trade/format"
 import {
+  DEFAULT_GRID_TAKE_PROFIT_PCT,
   DEFAULT_GRID_STOP_UNDER_PCT,
+  gridEndPx,
+  gridRangeMovable,
   gridStopUnder,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
@@ -55,19 +58,30 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  */
 export function GridStopDialog({
   grid,
+  mark,
   busy,
+  pairedLeverage = null,
+  positionLeverage = null,
   onSave,
   onReshape,
+  onSetEnd,
   onSetFollow,
   onClose,
 }: {
   grid: SmartGrid | null
+  /** Today's price, used to preview End Grid at the same place as the server. */
+  mark: number | null
   busy: boolean
+  /** A paired DCA ladder fixes the borrowing for their shared position. */
+  pairedLeverage?: number | null
+  /** A position already held in this wallet fixes the borrowing. */
+  positionLeverage?: number | null
   onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
-    shape: { levels?: number; potPct?: number }
+    shape: { levels?: number; potPct?: number; leverage?: number }
   ) => Promise<boolean>
+  onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
     grid: SmartGrid,
     following: { up: boolean; down: boolean }
@@ -86,9 +100,13 @@ export function GridStopDialog({
           <StopForm
             key={grid.id}
             grid={grid}
+            mark={mark}
             busy={busy}
+            pairedLeverage={pairedLeverage}
+            positionLeverage={positionLeverage}
             onSave={onSave}
             onReshape={onReshape}
+            onSetEnd={onSetEnd}
             onSetFollow={onSetFollow}
             onClose={onClose}
           />
@@ -100,19 +118,27 @@ export function GridStopDialog({
 
 function StopForm({
   grid,
+  mark,
   busy,
+  pairedLeverage,
+  positionLeverage,
   onSave,
   onReshape,
+  onSetEnd,
   onSetFollow,
   onClose,
 }: {
   grid: SmartGrid
+  mark: number | null
   busy: boolean
+  pairedLeverage: number | null
+  positionLeverage: number | null
   onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
-    shape: { levels?: number; potPct?: number }
+    shape: { levels?: number; potPct?: number; leverage?: number }
   ) => Promise<boolean>
+  onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
     grid: SmartGrid,
     following: { up: boolean; down: boolean }
@@ -124,8 +150,23 @@ function StopForm({
 
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
+  const [leverage, setLeverage] = React.useState(String(plan.leverage))
   const [followOn, setFollowOn] = React.useState(plan.follow)
   const [followDownOn, setFollowDownOn] = React.useState(plan.followDown)
+  const [endOn, setEndOn] = React.useState(plan.takeProfitPx !== null)
+  const [endPct, setEndPct] = React.useState(
+    String(
+      plan.takeProfitPct ??
+        (plan.takeProfitPx !== null
+          ? (
+              (plan.takeProfitPx / Math.max(plan.topPx, mark ?? plan.topPx) -
+                1) *
+              100
+            ).toFixed(2)
+          : DEFAULT_GRID_TAKE_PROFIT_PCT)
+    )
+  )
+  const [endTouched, setEndTouched] = React.useState(false)
   const [underPct, setUnderPct] = React.useState(
     String(plan.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT)
   )
@@ -150,10 +191,25 @@ function StopForm({
     parsedPot > 0 &&
     parsedPot <= 100
   )
+  const parsedLeverage = Number(leverage)
+  const maxBorrowing = Math.max(
+    plan.leverage,
+    Math.min(50, Math.floor(plan.maxLeverage))
+  )
+  const badLeverage = !(
+    Number.isInteger(parsedLeverage) &&
+    parsedLeverage >= 1 &&
+    parsedLeverage <= maxBorrowing
+  )
+  const canReshape = gridRangeMovable(plan)
+  const fixedLeverage = positionLeverage ?? pairedLeverage
   const resliced =
     !badLevels &&
     !badPot &&
-    (parsedLevels !== plan.levels.length || parsedPot !== plan.potPct)
+    !badLeverage &&
+    (parsedLevels !== plan.levels.length ||
+      parsedPot !== plan.potPct ||
+      parsedLeverage !== plan.leverage)
 
   // What one round trip would be worth after re-slicing, which is the number
   // that decides whether more levels is a good idea or a slower way to pay
@@ -161,6 +217,19 @@ function StopForm({
   const step = !badLevels ? (plan.topPx - plan.bottomPx) / parsedLevels : null
   const followChanged =
     followOn !== plan.follow || followDownOn !== plan.followDown
+  const parsedEnd = Number(endPct)
+  const badEnd =
+    endOn && !(Number.isFinite(parsedEnd) && parsedEnd > 0 && parsedEnd <= 999)
+  const endChanged =
+    endTouched &&
+    (endOn !== (plan.takeProfitPx !== null) ||
+      (endOn && parsedEnd !== plan.takeProfitPct))
+  const endAt =
+    endOn && !badEnd && mark !== null
+      ? gridEndPx(plan.topPx, mark, parsedEnd)
+      : endOn
+        ? plan.takeProfitPx
+        : null
   const parsedUnder = Number(underPct)
   const badUnder = !(
     Number.isFinite(parsedUnder) &&
@@ -198,17 +267,21 @@ function StopForm({
     ? `Levels has to be a whole number between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS}.`
     : badPot
       ? "Share of account % has to be a number above zero and no more than 100."
-      : badUnder
-        ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
-        : badBaseUnder
-          ? BASE_STOP_UNDER_REFUSAL
-          : badBaseDays
-            ? BASE_STOP_DAYS_REFUSAL
-            : null
+      : badLeverage
+        ? `Borrowing has to be a whole number between 1× and ${maxBorrowing}×.`
+        : badEnd
+          ? "Above price or range % has to be a number above zero and no more than 999."
+          : badUnder
+            ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
+            : badBaseUnder
+              ? BASE_STOP_UNDER_REFUSAL
+              : badBaseDays
+                ? BASE_STOP_DAYS_REFUSAL
+                : null
 
   const save = async () => {
     if (busy) return
-    if (badUnder || badBase || badLevels || badPot) {
+    if (badUnder || badBase || badLevels || badPot || badLeverage || badEnd) {
       setShowValidation(true)
       if (refusal) showErrorToast(refusal)
       return
@@ -219,8 +292,13 @@ function StopForm({
       const shaped = await onReshape(grid, {
         levels: parsedLevels,
         potPct: parsedPot,
+        leverage: parsedLeverage,
       })
       if (!shaped) return
+    }
+    if (endChanged) {
+      const ended = await onSetEnd(grid, endOn ? parsedEnd : null)
+      if (!ended) return
     }
     // Then following, which only flips a flag. After the re-slice so it is
     // written onto the levels the re-slice drew, not the ones it replaced.
@@ -305,12 +383,96 @@ function StopForm({
                 onBlur={() => setShowValidation(true)}
               />
             </div>
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-edit-leverage"
+                hint={
+                  positionLeverage !== null
+                    ? "The position already held in this wallet fixed the borrowing for this coin. Grid buys add to the same position, so they must use the same number."
+                    : pairedLeverage !== null
+                      ? "The paired DCA ladder fixed the borrowing for this coin. The grid shares the same position, so both must use the same number."
+                      : canReshape
+                        ? "How many dollars of coin each dollar behind the grid buys. Changing borrowing redraws every waiting level."
+                        : "Borrowing can change only while the grid holds no coin and still has buys waiting."
+                }
+              >
+                Borrowing ×
+              </FieldLabel>
+              <Input
+                id="grid-edit-leverage"
+                inputMode="numeric"
+                value={fixedLeverage ?? leverage}
+                aria-invalid={showValidation && badLeverage}
+                disabled={busy || !canReshape || fixedLeverage !== null}
+                onChange={(event) => {
+                  setShowValidation(false)
+                  setLeverage(event.target.value)
+                }}
+                onBlur={() => setShowValidation(true)}
+              />
+            </div>
             {resliced ? (
               <p className="text-xs text-amber-700 dark:text-amber-400">
-                Saving re-cuts the range and settles what is held to match —
-                buying what the new slices need, or selling what they no longer
-                do.
+                Saving redraws every waiting level. Nothing buys until price
+                reaches a level.
               </p>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>End Grid</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="grid-end-on"
+                checked={endOn}
+                disabled={busy}
+                onCheckedChange={(next) => {
+                  setShowValidation(false)
+                  setEndTouched(true)
+                  setEndOn(next === true)
+                }}
+              />
+              <FieldLabel
+                htmlFor="grid-end-on"
+                hint="Reaching End Grid closes the grid and sells any coin it still holds."
+              >
+                End the grid at an upper price
+              </FieldLabel>
+            </div>
+            {endOn ? (
+              <>
+                <div className="grid gap-2">
+                  <FieldLabel
+                    htmlFor="grid-end-pct"
+                    hint="Measured above today's price or the top of the range, whichever is higher. Reaching this line closes the grid."
+                  >
+                    Above price or range %
+                  </FieldLabel>
+                  <Input
+                    id="grid-end-pct"
+                    inputMode="decimal"
+                    value={endPct}
+                    aria-invalid={showValidation && badEnd}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setShowValidation(false)
+                      setEndTouched(true)
+                      setEndPct(event.target.value)
+                    }}
+                    onBlur={() => setShowValidation(true)}
+                  />
+                </div>
+                <div className="flex items-baseline justify-between gap-2 text-sm">
+                  <span className="text-muted-foreground">Grid ends at</span>
+                  <span className="tabular-nums">
+                    {endAt === null ? "—" : formatPrice(endAt)}
+                  </span>
+                </div>
+              </>
             ) : null}
           </CardContent>
         </Card>

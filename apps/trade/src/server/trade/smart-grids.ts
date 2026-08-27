@@ -347,7 +347,7 @@ export async function advanceGrid(
     // Not affordable this minute. Left watching rather than thrown away: cash
     // frees up when another level sells. Nothing was reserved, so this costs
     // the grid nothing but a turn.
-    if (level.budget > deps.freeCash(book) + 1e-9) continue
+    if (level.budget / plan.leverage > deps.freeCash(book) + 1e-9) continue
 
     const priorSz = level.sz
     const priorStatus = level.status
@@ -361,7 +361,7 @@ export async function advanceGrid(
       px: slippedPx(mark, "buy", book.costs.slippageRate),
       sz,
       feeRate: book.costs.takerFeeRate,
-      leverage: 1,
+      leverage: plan.leverage,
       maxLeverage: plan.maxLeverage,
       reduceOnly: false,
       reason: "order",

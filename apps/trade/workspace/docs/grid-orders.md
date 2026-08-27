@@ -81,6 +81,21 @@ the range moves freely.
 Share of account % sits in the Range card. The grid divides that money equally
 between every level. There is no sizing dropdown.
 
+Borrowing sits in Advanced settings and starts at 1×. The account share is the
+cash behind the grid. Borrowing changes how many dollars of coin that cash
+buys. A grid using 20% of a $10,000 account puts $2,000 behind the range. At
+3×, the levels can hold $6,000 of coin while the margin stays $2,000. The
+window shows both the coin controlled by each buy and its margin.
+
+The exchange's maximum for the coin is the ceiling. A live order sets the
+chosen borrowing when the first grid level opens a position. Later levels add
+to that same position and inherit its setting. A position already held by hand
+also fixes the number, so the grid window shows that borrowing and does not let
+the grid choose a conflicting one. Practice trading follows the same sizing
+and margin arithmetic. Grids and DCA ladders sharing one coin must choose the
+same borrowing because the exchange gives their shared position only one
+setting.
+
 A grid placed before doubled sizing was removed keeps the amounts already
 written on its levels. Changing those amounts under a running live grid would
 change what it can buy, so the engine still reads that old saved plan until the
@@ -240,6 +255,18 @@ the three outcomes.
 Money the grid made never came from that line. It arrived in cash on each
 level's own sell, one round trip at a time.
 
+## Changing a running grid
+
+The gear beside UPPER PRICE opens the running grid window. The window can
+change Levels, Share of account, Borrowing, End Grid, following and the stop.
+End Grid can be switched on or off, and its percentage is measured above
+today's price or the top of the range just like placement.
+
+Changing Borrowing redraws every waiting level with the new amount of coin.
+Borrowing can change only while the grid holds no coin and still has buys
+waiting. A held position has already fixed its borrowing, and a paired DCA
+ladder fixes the same number for their shared position.
+
 ## The stop
 
 Every grid has a stop. The placement window asks where it sits, but has no
@@ -304,6 +331,7 @@ sense yet.
 ## What is remembered between grids
 
 The window remembers shape, not prices: how deep, how many levels, how the money
-is split, where the range sits, and whether it follows up or down. A percentage
-means the same thing on the next coin you open and a price does not, so nothing
-about one coin's range is carried onto another chart.
+is split, the chosen borrowing, where the range sits, and whether it follows up
+or down. A percentage means the same thing on the next coin you open and a
+price does not, so nothing about one coin's range is carried onto another
+chart.

@@ -73,13 +73,26 @@ export function gridStopRidesBase(
 export function gridLadderPairingRefusal(input: {
   walletKind: string
   protocol: string
-  grid: Pick<GridPlan, "stopLoss" | "bottomPx" | "baseWatch"> | null
-  ladder: Pick<LadderPlan, "rungs"> | null
+  grid: Pick<
+    GridPlan,
+    "stopLoss" | "bottomPx" | "baseWatch" | "leverage"
+  > | null
+  ladder: Pick<LadderPlan, "rungs" | "leverage"> | null
 }): string | null {
   // A practice wallet's book holds one stop per position and cannot hold the
   // grid's second one, so the handoff cannot be simulated honestly there.
   if (input.walletKind !== "live") return "SMART_PAIR_LIVE_ONLY"
   if (!PAIRABLE_PROTOCOLS.has(input.protocol)) return "SMART_PAIR_PROTOCOL"
+  // The exchange holds one position for the coin. Whichever strategy buys
+  // first fixes its leverage, and the other one inherits it, so two different
+  // choices would make one plan's sizes and margin promise false.
+  if (
+    input.grid &&
+    input.ladder &&
+    input.grid.leverage !== input.ladder.leverage
+  ) {
+    return "SMART_PAIR_LEVERAGE"
+  }
   if (input.grid) {
     if (!input.grid.stopLoss) return "SMART_PAIR_GRID_STOP_REQUIRED"
     if (gridStopRidesBase(input.grid)) return "SMART_PAIR_GRID_STOP_BASE"

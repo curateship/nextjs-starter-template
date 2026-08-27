@@ -14,8 +14,9 @@ import {
 /** The slimmest ladder the base-rung reader accepts. */
 function rungs(
   list: Array<{ px: number; status: LadderPlan["rungs"][number]["status"] }>
-): Pick<LadderPlan, "rungs"> {
+): Pick<LadderPlan, "rungs" | "leverage"> {
   return {
+    leverage: 1,
     rungs: list.map((one) => ({
       px: one.px,
       sz: 1,
@@ -26,7 +27,7 @@ function rungs(
       dead: false,
       touched: false,
     })),
-  } as Pick<LadderPlan, "rungs">
+  } as Pick<LadderPlan, "rungs" | "leverage">
 }
 
 function gridStop(input: {
@@ -43,6 +44,7 @@ function gridStop(input: {
     },
     bottomPx: 95,
     baseWatch: null,
+    leverage: 1,
   }
 }
 
@@ -102,7 +104,12 @@ describe("the pairing rules", () => {
       gridLadderPairingRefusal({
         walletKind: "live",
         protocol: "hyperliquid",
-        grid: { stopLoss: null, bottomPx: 95, baseWatch: null },
+        grid: {
+          stopLoss: null,
+          bottomPx: 95,
+          baseWatch: null,
+          leverage: 1,
+        },
         ladder,
       })
     ).toBe("SMART_PAIR_GRID_STOP_REQUIRED")
@@ -154,6 +161,17 @@ describe("the pairing rules", () => {
     ).toBe("SMART_PAIR_STOP_BELOW_BASE")
   })
 
+  it("refuses different borrowing on two plans sharing one position", () => {
+    expect(
+      gridLadderPairingRefusal({
+        walletKind: "live",
+        protocol: "hyperliquid",
+        grid: { ...gridStop({ mode: "percent" }), leverage: 3 },
+        ladder,
+      })
+    ).toBe("SMART_PAIR_LEVERAGE")
+  })
+
   it("skips only the checks whose side is not drawn yet", () => {
     // No plans at all: the wallet and exchange rules still answer.
     expect(
@@ -169,7 +187,12 @@ describe("the pairing rules", () => {
       gridLadderPairingRefusal({
         walletKind: "live",
         protocol: "aster",
-        grid: { stopLoss: null, bottomPx: 95, baseWatch: null },
+        grid: {
+          stopLoss: null,
+          bottomPx: 95,
+          baseWatch: null,
+          leverage: 1,
+        },
         ladder: null,
       })
     ).toBe("SMART_PAIR_GRID_STOP_REQUIRED")

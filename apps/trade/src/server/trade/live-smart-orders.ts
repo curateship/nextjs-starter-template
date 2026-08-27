@@ -23,6 +23,7 @@ import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
+  gridEndPx,
   gridHeldSz,
   gridRangeMovable,
   gridStopPx,
@@ -2230,7 +2231,7 @@ async function placeLiveGridOrderOnce(
     equity: input.params.compound ? account.equity : wallet.startingBalance,
     takerFeeRate: defaultPaperCosts().takerFeeRate,
     startedAt: now,
-    heldSzi: held?.szi ?? null,
+    held: held ? { szi: held.szi, leverage: held.leverage } : null,
   })
 
   const accepted: string[] = []
@@ -2363,6 +2364,54 @@ export async function setLiveGridFollow(
       grid.plan.entered = true
     }
     await saveGridPlan(userId, grid.id, grid.plan, "active")
+  })
+}
+
+/** Switch End Grid on or off on a live grid. See `updateGridEnd`. */
+export async function updateLiveGridEnd(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string; abovePct: number | null }
+): Promise<MovedGrid> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const plan = grid.plan
+
+    if (input.abovePct === null) {
+      plan.takeProfitPx = null
+      plan.takeProfitPct = null
+    } else {
+      const ref = parseMarketKey(grid.marketKey)
+      if (!ref) throw new Error("LIVE_MARKET")
+      const protocol = getProtocol(wallet.protocol)
+      const mark = (
+        await protocol.markets.prices(wallet.network, [ref.marketId])
+      ).get(ref.marketId)
+      if (mark === undefined || !(mark > 0)) {
+        throw new Error(
+          (protocol.markets.pricesWereRationed?.(
+            wallet.network,
+            ref.marketId
+          ) ?? false)
+            ? "EXCHANGE_BUSY"
+            : "LIVE_NO_PRICE"
+        )
+      }
+      const target = protocol.markets.roundPx(
+        gridEndPx(plan.topPx, mark, input.abovePct),
+        plan.sizeDecimals,
+        plan.priceTick
+      )
+      if (target <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
+      if (target <= mark) throw new Error("SMART_GRID_TARGET_PASSED")
+      plan.takeProfitPx = target
+      plan.takeProfitPct = input.abovePct
+    }
+
+    const at = Date.now()
+    await saveGridPlan(userId, grid.id, plan, "active", at)
+    return movedGrid(wallet.id, grid, plan, at)
   })
 }
 
@@ -2510,6 +2559,7 @@ export async function reshapeLiveGrid(
     bottomPx?: number
     levels?: number
     potPct?: number
+    leverage?: number
   }
 ): Promise<MovedGrid> {
   return await serializeLiveWallet(userId, wallet, async () => {
@@ -2567,6 +2617,7 @@ export async function reshapeLiveGrid(
         levels: input.levels ?? plan.levels.length,
         potPct: input.potPct ?? plan.potPct,
         compound: true,
+        leverage: input.leverage ?? plan.leverage,
         maxOrderVolPct: plan.maxOrderVolPct,
         spacing: plan.spacing,
         sizing: plan.sizing,
@@ -2590,9 +2641,14 @@ export async function reshapeLiveGrid(
       equity: account.equity,
       takerFeeRate: defaultPaperCosts().takerFeeRate,
       startedAt: plan.startedAt,
-      heldSzi:
-        portfolio.positions.find((one) => one.marketId === ref.marketId)?.szi ??
-        null,
+      held: (() => {
+        const position = portfolio.positions.find(
+          (one) => one.marketId === ref.marketId
+        )
+        return position
+          ? { szi: position.szi, leverage: position.leverage }
+          : null
+      })(),
     })
 
     // No orders to cancel, none to place, and no position to settle: every

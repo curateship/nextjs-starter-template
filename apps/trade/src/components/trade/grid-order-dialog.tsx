@@ -106,6 +106,8 @@ export function GridOrderDialog({
   takerFeeRate,
   busy,
   pairedWithLadder = false,
+  pairedLeverage = null,
+  positionLeverage = null,
   onPreview,
   onPlace,
   onClose,
@@ -127,6 +129,10 @@ export function GridOrderDialog({
    * the two. The window then says out loud what they will share.
    */
   pairedWithLadder?: boolean
+  /** The borrowing already fixed by a DCA ladder sharing this position. */
+  pairedLeverage?: number | null
+  /** The borrowing already fixed by a position held in this wallet. */
+  positionLeverage?: number | null
   /** The levels as edited, live — the chart draws them as faint lines. */
   onPreview: (lines: GridPreviewLine[] | null) => void
   onPlace: (input: {
@@ -164,6 +170,12 @@ export function GridOrderDialog({
   const [potPct, setPotPct] = React.useState(
     String(seeded?.potPct ?? defaultGridParams().potPct)
   )
+  const [chosenLeverage, setChosenLeverage] = React.useState(
+    String(seeded?.leverage ?? defaultGridParams().leverage)
+  )
+  const fixedLeverage = positionLeverage ?? pairedLeverage
+  const leverage =
+    fixedLeverage === null ? chosenLeverage : String(fixedLeverage)
   const [maxOrderVolPct, setMaxOrderVolPct] = React.useState(
     seeded ? String(seeded.maxOrderVolPct) : "0"
   )
@@ -227,6 +239,7 @@ export function GridOrderDialog({
       if (stale || !params || edited.current) return
       setLevels(String(params.levels))
       setPotPct(String(params.potPct))
+      setChosenLeverage(String(params.leverage))
       setMaxOrderVolPct(String(params.maxOrderVolPct))
       setSpacing(params.spacing)
       setAnchor(params.anchor)
@@ -259,6 +272,16 @@ export function GridOrderDialog({
   const above = parsed(abovePct)
   const below = parsed(belowPct)
   const levelCount = parsed(levels)
+  const borrowing = parsed(leverage)
+  const maxBorrowing =
+    market.maxLeverage === null
+      ? 50
+      : Math.max(1, Math.min(50, Math.floor(market.maxLeverage)))
+  const borrowingInvalid =
+    borrowing === null ||
+    !Number.isInteger(borrowing) ||
+    borrowing < 1 ||
+    borrowing > maxBorrowing
 
   const range = React.useMemo(() => {
     // Hanging off the click solves the top BACKWARDS from it, so the clicked
@@ -290,6 +313,7 @@ export function GridOrderDialog({
       potPct: parsed(potPct) ?? -1,
       // A grid placed by hand is sized once, off the account right now.
       compound: true,
+      leverage: borrowing ?? -1,
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       spacing,
       sizing: "even",
@@ -322,6 +346,7 @@ export function GridOrderDialog({
   }, [
     levels,
     potPct,
+    borrowing,
     maxOrderVolPct,
     spacing,
     anchor,
@@ -351,6 +376,8 @@ export function GridOrderDialog({
         : null,
     [params, top, bottom, equity, market.sizeDecimals, market.volume24hUsd]
   )
+  const marginNeeded =
+    plan !== null && borrowing !== null ? plan.totalCost / borrowing : null
 
   // The preview dies with the window, whichever way it closes.
   React.useEffect(() => () => onPreview(null), [onPreview])
@@ -406,15 +433,17 @@ export function GridOrderDialog({
         : "Both ends of the range need to be a percentage above zero."
       : bottom >= top
         ? "The bottom of the grid has to be below the top."
-        : !params
-          ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
-          : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
-            ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
-            : plan && plan.tooSmallIndex !== null
-              ? `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
-              : plan && plan.totalCost > free
-                ? `The grid costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
-                : null
+        : borrowingInvalid
+          ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
+          : !params
+            ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
+            : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
+              ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
+              : plan && plan.tooSmallIndex !== null
+                ? `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
+                : marginNeeded !== null && marginNeeded > free
+                  ? `The grid needs ${formatUsd(marginNeeded)} of margin but only ${formatUsd(free)} is free — nothing would fit.`
+                  : null
 
   const ready = !busy && refusal === null && plan !== null
 
@@ -434,6 +463,8 @@ export function GridOrderDialog({
 
   // Index 0 is the bottom of the range.
   const bottomBuy = plan?.levels[0]?.dollars ?? null
+  const bottomMargin =
+    bottomBuy === null || borrowing === null ? null : bottomBuy / borrowing
   return (
     <FloatingOrderWindow
       label={`Grid on ${market.symbol}`}
@@ -602,13 +633,19 @@ export function GridOrderDialog({
             {/* What each buy spends and what the whole grid costs. */}
             <div className="grid gap-1 text-xs text-muted-foreground">
               <div className="flex items-baseline justify-between gap-2">
-                <span>Each buy spends</span>
+                <span>Each buy controls</span>
                 <span className="tabular-nums">
                   {bottomBuy === null ? "—" : formatUsd(bottomBuy)}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-2">
-                <span>Whole grid</span>
+                <span>Margin per buy</span>
+                <span className="tabular-nums">
+                  {bottomMargin === null ? "—" : formatUsd(bottomMargin)}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-2">
+                <span>Whole grid controls</span>
                 <span className="tabular-nums">
                   {plan === null ? "—" : formatUsd(plan.totalCost)}
                 </span>
@@ -720,6 +757,32 @@ export function GridOrderDialog({
               ) : null
             }
           >
+            <div className="grid gap-2">
+              <FieldLabel
+                htmlFor="grid-leverage"
+                hint={
+                  fixedLeverage === null
+                    ? "How many dollars of coin each dollar behind the grid buys. 1 is cash. A higher choice lets the exchange close the position if it falls far enough."
+                    : positionLeverage !== null
+                      ? "The position already held in this wallet fixed the borrowing for this coin. Grid buys add to the same position, so they must use the same number."
+                      : "The DCA ladder already fixed the borrowing for this coin. The grid shares the same exchange position, so both must use the same number."
+                }
+              >
+                Borrowing ×
+              </FieldLabel>
+              <Input
+                id="grid-leverage"
+                inputMode="numeric"
+                value={leverage}
+                disabled={busy || fixedLeverage !== null}
+                aria-invalid={showValidation && borrowingInvalid}
+                onChange={(event) =>
+                  touched(setChosenLeverage)(event.target.value)
+                }
+                onBlur={() => setShowValidation(true)}
+                className="bg-background"
+              />
+            </div>
             <div className="flex items-center gap-2">
               <Checkbox
                 id="grid-follow"
@@ -810,8 +873,8 @@ export function GridOrderDialog({
             This coin already has a ladder. Placing this grid pairs the two: the
             grid's stop must sit above the ladder's first buy, and on the
             exchange they still share one position — one pot of margin and one
-            liquidation price. If the ladder falls far enough, the exchange can
-            close the grid's coins with it.
+            borrowing choice and one liquidation price. If the ladder falls far
+            enough, the exchange can close the grid's coins with it.
           </p>
         ) : null}
         <OrderRefusal id="grid-refusal" className="pb-3">

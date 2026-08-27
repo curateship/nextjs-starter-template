@@ -37,6 +37,7 @@ import {
   moveGridExit as moveGridExitApi,
   moveGridRange as moveGridRangeApi,
   reshapeGrid as reshapeGridApi,
+  updateGridEnd as updateGridEndApi,
   setGridFollow as setGridFollowApi,
   placeGridOrder,
   updateGridStop,
@@ -451,7 +452,13 @@ export type Trading = {
   reshapeGrid: (
     walletId: string,
     gridId: string,
-    shape: { levels?: number; potPct?: number }
+    shape: { levels?: number; potPct?: number; leverage?: number }
+  ) => Promise<boolean>
+  /** Switch End Grid on or off, or change its distance above price. */
+  setGridEnd: (
+    walletId: string,
+    gridId: string,
+    abovePct: number | null
   ) => Promise<boolean>
   /** Drag the grid's end line or stop loss to a price. Always allowed. */
   moveGridExit: (
@@ -1836,7 +1843,7 @@ export function useTrading(
         // On screen now, not after the next read.
         holdSmart(grid)
         toast.success(
-          `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} in total.`
+          `Grid placed in ${nameOf(walletId)} — ${levels} buys waiting, ${formatUsd(totalCost)} of coin at ${grid.plan.leverage}×.`
         )
         return true
       } catch (error) {
@@ -1906,7 +1913,25 @@ export function useTrading(
           // The redrawn levels are on the chart before the re-read lands.
           holdSmart(grid)
         },
-        "Grid re-sliced."
+        "Grid changed."
+      )
+    },
+    [runWith, holdSmart]
+  )
+
+  const setGridEnd: Trading["setGridEnd"] = React.useCallback(
+    async (walletId, gridId, abovePct) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        async () => {
+          const { grid } = await updateGridEndApi({
+            walletId,
+            gridId,
+            abovePct,
+          })
+          holdSmart(grid)
+        },
+        "End Grid changed."
       )
     },
     [runWith, holdSmart]
@@ -2441,6 +2466,7 @@ export function useTrading(
     moveGridRange,
     moveGridExit,
     reshapeGrid,
+    setGridEnd,
     setGridStop,
     setGridFollow,
     cancelAllSmartOrders,

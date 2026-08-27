@@ -25,7 +25,9 @@ import {
   placeLiveDcaLadder,
   reconcileLiveLadders,
   resetRefusalHolds,
+  reshapeLiveGrid,
   setLiveGridFollow,
+  updateLiveGridEnd,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -878,6 +880,7 @@ describe("live Smart orders", () => {
       sizeDecimals: 3,
       priceTick: null,
       minOrderValueUsd: 10,
+      leverage: 1,
       maxLeverage: 50,
       levels: [
         {
@@ -1246,6 +1249,7 @@ describe("changing a live grid while it is flat", () => {
       sizeDecimals: 3,
       priceTick: null,
       minOrderValueUsd: 10,
+      leverage: 1,
       maxLeverage: 50,
       levels,
       carriedLevels: [],
@@ -1297,6 +1301,36 @@ describe("changing a live grid while it is flat", () => {
       follow: true,
       takeProfitPx: 110,
     })
+  })
+
+  it("changes borrowing while every grid level is waiting", async () => {
+    await restingGrid()
+
+    await reshapeLiveGrid(userId, wallet, {
+      gridId: "grid-1",
+      leverage: 3,
+    })
+
+    const plan = await gridPlan()
+    expect(plan.leverage).toBe(3)
+    expect(plan.levels[0].budget).toBeCloseTo(300, 0)
+  })
+
+  it("switches End Grid on and off", async () => {
+    await restingGrid()
+
+    const enabled = await updateLiveGridEnd(userId, wallet, {
+      gridId: "grid-1",
+      abovePct: 5,
+    })
+    expect(enabled.grid.plan.takeProfitPct).toBe(5)
+    expect(enabled.grid.plan.takeProfitPx).toBeCloseTo(105, 9)
+
+    const disabled = await updateLiveGridEnd(userId, wallet, {
+      gridId: "grid-1",
+      abovePct: null,
+    })
+    expect(disabled.grid.plan.takeProfitPx).toBeNull()
   })
 
   it("saves a stop dragged while the grid holds nothing", async () => {

@@ -125,6 +125,23 @@ describe("gridOrderPlan", () => {
     expect(plan.totalCost).toBeCloseTo(2000, 1)
   })
 
+  it("uses borrowing to buy more coin without changing the account share", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, leverage: 3 },
+      sizeDecimals: 4,
+      volume24hUsd: null,
+    })
+    // The grid still puts 20% of the account behind the range. At 3x that
+    // $2,000 buys $6,000 of coin, split evenly between the four levels.
+    for (const level of plan.levels) {
+      expect(level.dollars).toBeCloseTo(1_500, 1)
+    }
+    expect(plan.totalCost).toBeCloseTo(6_000, 1)
+  })
+
   it("shrinks a buy that would be too big a share of the day's volume", () => {
     const plan = gridOrderPlan({
       topPx: 120,
@@ -246,6 +263,7 @@ describe("reading a stored grid back", () => {
     sizeDecimals: 4,
     priceTick: null,
     minOrderValueUsd: 10,
+    leverage: 1,
     maxLeverage: 20,
     levels: [
       {
@@ -291,6 +309,11 @@ describe("reading a stored grid back", () => {
     expect(readSmartPlan("grid", plan)).toEqual(plan)
     expect(readSmartPlan("grid", null)).toBeNull()
     expect(readSmartPlan("grid", { topPx: "up" })).toBeNull()
+  })
+
+  it("reads a grid saved before borrowing as cash", () => {
+    const { leverage: _leverage, ...oldPlan } = plan
+    expect(readSmartPlan("grid", oldPlan)).toMatchObject({ leverage: 1 })
   })
 
   it("refuses a grid read as a ladder", () => {

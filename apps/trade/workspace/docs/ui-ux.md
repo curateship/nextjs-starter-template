@@ -469,8 +469,8 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   the card says so and says plainly that placing still buys nothing. The window
   leaves out the repeated current price, range prices, clicked top buy and step
   size. Those prices are already on the chart. **Share of account %** sits in
-  this card beside Levels. The card shows what each buy spends and what the
-  whole grid costs.
+  this card beside Levels. The card shows the dollars of coin each buy controls,
+  the margin behind that buy, and the dollars of coin the whole grid controls.
   Every control works the moment the window opens, on the settings last used —
   the saved grid setup arrives with the page itself, in the same bootstrap
   call that carries the quick-order window's setup, so even the first
@@ -478,8 +478,12 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   second later. A late-arriving answer never replaces a choice just made in
   the window or moves its preview. The DCA window follows the same rule, and
   the full rule lives in `instant-first.md`.
-- **Advanced settings** holds Follow price up, Follow price down, Levels spread
-  and the liquidity guard. It has no following summary on its folded header.
+- **Advanced settings** holds Borrowing, Follow price up, Follow price down,
+  Levels spread and the liquidity guard. Borrowing starts at 1× and accepts
+  whole numbers up to the coin's exchange limit. A grid paired with a DCA
+  ladder shows the ladder's borrowing and does not let the grid choose a second
+  number. A position already held by hand fixes the field in the same way. The
+  card has no following summary on its folded header.
   Each follow setting keeps its explanation in the tooltip beside its tick box.
   The window does not repeat that explanation underneath the switch. The Levels
   spread tooltip compares its two choices with prices. Dollar spacing can put
@@ -500,9 +504,13 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   server's own words. If a level is too small for the market, the window names
   it and asks for fewer levels or a bigger account share.
 
-The window that edits a running grid has a **Following** card between Slices and
-Stop loss. Its upward switch says that the fixed End Grid line stays in place,
-and the card says how many times the range has moved so far.
+The gear beside UPPER PRICE opens the window that edits a running grid. Slices
+includes Borrowing beside Levels and Share of account. Borrowing is editable
+while the grid holds no coin and still has buys waiting. Borrowing locks while
+the grid holds coin or shares the position with a DCA ladder. The **End Grid**
+card can switch the line on or off and change its percentage. The **Following**
+card says that the fixed End Grid line stays in place and shows how many times
+the range has moved so far.
 
 ### A placed grid is on the chart at once
 

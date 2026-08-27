@@ -40,6 +40,10 @@ app now does that like this:
   handoff line. A stop riding the 4h base can move down later, below the
   ladder's first buy, which would break the ordering after the fact. Percent
   and fixed stops only ever rise, so those are fine.
+- **Different borrowing.** The exchange gives the shared coin position one
+  borrowing setting. The grid window uses the ladder's number when the ladder
+  is already working. Either placement is refused if the two saved plans do
+  not match.
 - **A second of the same kind, or anything involving a signal trade.** Only
   the grid-plus-ladder pair is allowed, one of each.
 
@@ -50,11 +54,12 @@ below the ladder's first buy, or vanish.
 ## What still cannot be split
 
 The two strategies are separate in the app but one position to the exchange.
-They share one pot of margin and one liquidation price, so a ladder deep
-underwater can get the whole position force-closed, grid coins included. No
-stop ordering prevents that, and both placement windows say so before the
-pairing is placed. The exchange also reports one average entry price for the
-blob, so profit per strategy is the app's own count from each order's fills.
+They share one pot of margin, one borrowing setting and one liquidation price,
+so a ladder far below its buys can get the whole position force-closed, grid
+coins included. No stop ordering prevents that, and both placement windows say
+so before the pairing is placed. The exchange also reports one average entry
+price for the combined position, so profit per strategy is the app's own count
+from each order's fills.
 
 ## What appears in Smart orders
 
