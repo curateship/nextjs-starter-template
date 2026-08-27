@@ -155,22 +155,6 @@ async function onlyGrid() {
   return { ...rows[0], plan: rows[0].plan as GridPlan }
 }
 
-/** Moves a followed top level past its one-minute reset without making tests wait. */
-async function finishMovedTopReset(buyPx?: number) {
-  const grid = await onlyGrid()
-  const level =
-    buyPx === undefined
-      ? grid.plan.levels.at(-1)
-      : grid.plan.levels.find((one) => one.buyPx === buyPx)
-  expect(level?.rebuyAfter).toBeTypeOf("number")
-  if (!level) throw new Error("GRID_LEVEL")
-  level.rebuyAfter = Date.now() - 1
-  await database
-    .update(tradeSmartLadders)
-    .set({ plan: grid.plan })
-    .where(eq(tradeSmartLadders.id, grid.id))
-}
-
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
@@ -913,16 +897,19 @@ describe("following price up", () => {
     expect(await positions()).toHaveLength(0)
 
     // Another engine pass at the same price must not buy the moved top rung.
-    // Price has to climb above that rung, then return to it.
+    // Price has to reach the next rung above it, then return.
     await settle()
     expect(await positions()).toHaveLength(0)
-    await finishMovedTopReset()
-    await priceTo(121)
+    await priceTo(130)
+    await priceTo(129)
     await priceTo(120)
-    expect((await onlyGrid()).plan.levels.at(-1)?.status).toBe("holding")
+    expect(
+      (await onlyGrid()).plan.levels.find((level) => level.buyPx === 120)
+        ?.status
+    ).toBe("holding")
   })
 
-  it("waits one minute before watching the moved top buy again", async () => {
+  it("waits for a full rung above the sold price before buying there again", async () => {
     await priceTo(100)
     await place({ follow: true })
     await priceTo(111)
@@ -935,29 +922,29 @@ describe("following price up", () => {
     expect(grid.plan.shifts).toBe(1)
     expect(grid.plan.levels.at(-1)).toMatchObject({
       buyPx: 120,
+      sellPx: 130,
       status: "waiting",
       armed: false,
+      rebuyAbove: 130,
     })
-    const rebuyAfter = grid.plan.levels.at(-1)?.rebuyAfter
-    expect(rebuyAfter).toBeGreaterThanOrEqual(Date.now() + 59_000)
-    expect(rebuyAfter).toBeLessThanOrEqual(Date.now() + 60_000)
 
-    // CHIP did this whole move in nine seconds. Every price seen inside the
-    // minute is ignored, so several quick crossings still spend nothing.
+    // CHIP sold near $0.04331 and bought near $0.04320 after 74 seconds. Any
+    // amount of time and any tiny wobble below the next rung still spends
+    // nothing.
     await priceTo(120)
-    await priceTo(121)
+    await priceTo(129)
     await priceTo(120)
     expect(await positions()).toHaveLength(0)
 
-    // Once the minute ends, an old crossing still does not count. Price must
-    // be seen above the buy again, then return on a later pass.
-    await finishMovedTopReset()
-    await priceTo(120)
-    expect(await positions()).toHaveLength(0)
-    await priceTo(121)
+    // Reaching the next rung makes the sold line ready. Only a later return to
+    // the sold price may buy it again.
+    await priceTo(130)
+    await priceTo(129)
     await priceTo(120)
     grid = await onlyGrid()
-    expect(grid.plan.levels.at(-1)?.status).toBe("holding")
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
   })
 
   it("slides the range up a whole step once price clears the top", async () => {
@@ -978,28 +965,24 @@ describe("following price up", () => {
     expect(grid.plan.levels.every((one) => one.status === "waiting")).toBe(true)
   })
 
-  it("keeps the first sold price quiet through another fast upward move", async () => {
+  it("lets another upward move satisfy the sold price's full-rung requirement", async () => {
     await priceTo(100)
     await place({ follow: true })
     await priceTo(111)
     await priceTo(109)
     await priceTo(121)
 
-    // The $120 sold line gets its minute, then price races through the next
-    // top before that minute ends. The line is now one place lower, but its
-    // unfinished reset must move with it.
+    // The $120 sold line needs $130 before it may buy again. That rise also
+    // moves the range, but it still counts as the full move the line needed.
     await priceTo(130)
     let grid = await onlyGrid()
     expect(grid.plan.shifts).toBe(2)
-    expect(
-      grid.plan.levels.find((level) => level.buyPx === 120)?.rebuyAfter
-    ).toBeGreaterThan(Date.now())
+    const soldLine = grid.plan.levels.find((level) => level.buyPx === 120)
+    expect(soldLine?.armed).toBe(true)
+    expect(soldLine?.rebuyAbove).toBeUndefined()
     await priceTo(129)
-    await priceTo(120)
     expect(await positions()).toHaveLength(0)
 
-    await finishMovedTopReset(120)
-    await priceTo(121)
     await priceTo(120)
     grid = await onlyGrid()
     expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
@@ -1023,14 +1006,16 @@ describe("following price up", () => {
     await place({ follow: true })
     await priceTo(130)
     // The moved range is $90 to $130, so its top buy is $120.
-    // The move itself does not ready that new buy. After the one-minute reset,
-    // a later price above it does.
-    await finishMovedTopReset()
-    await priceTo(121)
+    // The move itself does not ready that new buy. Price must reach its $130
+    // sell first, then return.
+    await priceTo(130)
+    await priceTo(129)
     await priceTo(120)
 
     const grid = await onlyGrid()
-    expect(grid.plan.levels.at(-1)?.status).toBe("holding")
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
     expect((await positions())[0].szi).toBeGreaterThan(0)
   })
 

@@ -183,10 +183,11 @@ add up to.
   back above a grid buy, the rung stays waiting instead of buying at a price it
   never agreed to.
 - **Moving a grid up does not ready its new top buy.** The rise that sold the
-  old top rung has already done one job. The new top buy ignores every price
-  for one minute. After the minute, price must be seen above the buy on a fresh
-  pass and then return before that rung may buy. A quick wobble around the sold
-  price cannot sell and buy the same spot seconds apart.
+  old top rung has already done one job. The new top buy waits until price
+  reaches its own sell, one full rung above the sold price. Only a later return
+  may buy there again. Time does not ready the buy. CHIP waited 74 seconds and
+  still sold and bought around the same price, so the old one-minute delay did
+  not enforce the rule.
 - **Every rung always spends the same money it was given**, cycle after cycle. A
   rung that buys back cheaper does not get to spend more next time.
 - Tyler, 26 Aug 2026: **With both follow switches on, the grid moves forever in

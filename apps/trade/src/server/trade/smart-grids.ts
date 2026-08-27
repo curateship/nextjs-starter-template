@@ -65,9 +65,6 @@ export type GridRow = {
   paired?: boolean
 }
 
-/** A followed top sale gets one quiet minute before its shared buy is watched. */
-const FOLLOW_UP_REBUY_DELAY_MS = 60_000
-
 export async function advanceGrid(
   input: LadderAdvanceInput,
   deps: LadderEngineDeps,
@@ -222,7 +219,7 @@ export async function advanceGrid(
     // Still armed, and by definition: price just climbed to this level's sell,
     // which is above its buy. It can buy again the moment price comes back.
     level.armed = !carried
-    delete level.rebuyAfter
+    delete level.rebuyAbove
     level.cycles += 1
     plan.cycles += 1
     changed = true
@@ -269,18 +266,11 @@ export async function advanceGrid(
       })
       if (
         moved &&
-        followTheRangeUp(
-          plan,
-          moved,
-          mark,
-          now,
-          roundPx,
-          book.costs.takerFeeRate
-        )
+        followTheRangeUp(plan, moved, mark, roundPx, book.costs.takerFeeRate)
       ) {
         // The climb that sold the old top rung cannot also prepare the new top
-        // rung to buy. The moved top ignores a minute of noise, then needs a
-        // fresh look above it before a later fall may buy it.
+        // rung to buy. The moved top must reach its new sell price before a
+        // later return may buy at the sold price again.
         shiftedUpThisPass = true
         changed = true
       }
@@ -303,11 +293,12 @@ export async function advanceGrid(
   for (const level of shiftedUpThisPass ? [] : plan.levels) {
     if (level.status !== "waiting" || level.dead) continue
     if (mark === null) continue
-    if (level.rebuyAfter !== undefined) {
-      if (now < level.rebuyAfter) continue
-      // Movements inside the quiet minute do not count. Once the minute ends,
-      // this level starts over unready and needs a fresh above-then-back move.
-      delete level.rebuyAfter
+    if (level.rebuyAbove !== undefined) {
+      if (mark < level.rebuyAbove) continue
+      // A followed sale may only turn back into a buy after price reaches the
+      // next rung above it. Time and tiny wobbles around the sold price do not
+      // prepare it.
+      delete level.rebuyAbove
       changed = true
     }
     // Price is above this level, so from here on it is allowed to buy when
@@ -504,7 +495,6 @@ function followTheRangeUp(
   plan: GridPlan,
   moved: { topPx: number; bottomPx: number },
   mark: number,
-  now: number,
   roundPx: (px: number) => number,
   takerFeeRate: number
 ): boolean {
@@ -540,17 +530,13 @@ function followTheRangeUp(
   const bottom = roundPx(moved.bottomPx)
   if (!(top > bottom) || !(bottom > 0)) return false
 
-  // A quick second upward move must not shake the first move's minute off the
-  // sold price. Carry each unfinished reset by price as that price moves down
-  // one place in the newly drawn range.
-  const rebuyAfterByPx = new Map<number, number>()
+  // A second upward move must not shake the first sold price's next-rung
+  // requirement off. Carry each unfinished requirement by price as that price
+  // moves down one place in the newly drawn range.
+  const rebuyAboveByPx = new Map<number, number>()
   for (const level of plan.levels) {
-    if (
-      level.status === "waiting" &&
-      level.rebuyAfter !== undefined &&
-      level.rebuyAfter > now
-    ) {
-      rebuyAfterByPx.set(level.buyPx, level.rebuyAfter)
+    if (level.status === "waiting" && level.rebuyAbove !== undefined) {
+      rebuyAboveByPx.set(level.buyPx, level.rebuyAbove)
     }
   }
   plan.topPx = top
@@ -561,20 +547,22 @@ function followTheRangeUp(
     level.sz = sized[index].sz
     if (level.status === "waiting") {
       level.armed = false
-      const carriedReset = rebuyAfterByPx.get(level.buyPx)
-      if (carriedReset !== undefined) {
-        level.rebuyAfter = carriedReset
+      const carriedRequirement = rebuyAboveByPx.get(level.buyPx)
+      if (carriedRequirement !== undefined) {
+        if (mark >= carriedRequirement) {
+          level.armed = true
+          delete level.rebuyAbove
+        } else {
+          level.rebuyAbove = carriedRequirement
+        }
       } else {
-        delete level.rebuyAfter
+        delete level.rebuyAbove
       }
     }
   }
   const movedTop = plan.levels.at(-1)
   if (movedTop?.status === "waiting") {
-    movedTop.rebuyAfter = Math.max(
-      movedTop.rebuyAfter ?? 0,
-      now + FOLLOW_UP_REBUY_DELAY_MS
-    )
+    movedTop.rebuyAbove = Math.max(movedTop.rebuyAbove ?? 0, movedTop.sellPx)
   }
   plan.shifts += 1
   return true

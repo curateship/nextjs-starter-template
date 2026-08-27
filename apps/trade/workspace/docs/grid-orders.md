@@ -185,6 +185,11 @@ order is placed. The move puts price back inside the top step, at or above every
 level's buy price, so the grid buys nothing on the way and is simply ready for
 the next dip.
 
+The sold top price does not become a buy after a timer. Its new level must first
+reach the sell one full rung above it. Only a later return can buy the sold price
+again. CHIP showed why a clock cannot do this job: it waited 74 seconds, then
+sold and bought around $0.0433 after a tiny wobble around the same price.
+
 **Following down is a separate switch and starts off.** When the lowest rung
 buys at the bottom, the range moves down by one level on that engine pass. A
 fall through several whole ranges still introduces one new lower buy at a time,
