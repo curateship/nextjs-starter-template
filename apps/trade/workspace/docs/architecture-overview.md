@@ -269,8 +269,10 @@ bite:
   `trade_live_journal` (never a secret; notes are pre-scrubbed), and a partly
   accepted order — entry stood, protection refused — is reported exactly,
   never folded into a success.
-- **Market orders are capped**: sent as immediate-or-cancel limits 3% through
-  the price, so a thin book cannot fill one far from what was on screen.
+- **Market orders are capped**: sent as immediate-or-cancel limits no more
+  than 3% through the price, so a thin book cannot fill one far from what was
+  on screen. A venue's narrower live boundary wins; KuCoin reads that boundary
+  just before the signed order.
 
 Not yet: dragging a live resting order to a new price (`edit-open-orders.md`),
 the recovery view (`recovery-tools.md`), and automations trading real money.

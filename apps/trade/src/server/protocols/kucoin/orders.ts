@@ -26,7 +26,10 @@ import {
   parseKucoinCredential,
   type KucoinCredential,
 } from "@/server/protocols/kucoin/client"
-import { kucoinMarketRules } from "@/server/protocols/kucoin/markets"
+import {
+  kucoinMarketOrderLimit,
+  kucoinMarketRules,
+} from "@/server/protocols/kucoin/markets"
 import {
   dropIdleKucoinPrivateFeeds,
   kucoinQuietSince,
@@ -49,9 +52,10 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
  *   of `multiplier` coins each. Every size is floored to a legal lot, and an
  *   order that floors to nothing is refused out loud rather than sent as a
  *   surprise nothing.
- * - **A "market" order is a capped IOC limit**, sent 3% through the asked
- *   price, so a thin book cannot fill one far from what was on screen — the
- *   same rule as every other venue here.
+ * - **A "market" order is a capped IOC limit**, sent no more than 3% through
+ *   the asked price and kept inside KuCoin's live per-market boundary, so a
+ *   thin book cannot fill far away or reject a legal trigger because its
+ *   allowed band is narrower.
  * - **Protection is a separate order book.** A stop or a target is an
  *   untriggered order of its own, triggered on the mark price to match how
  *   the other venues trigger, and read back from `/stopOrders`.
@@ -67,6 +71,8 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
  */
 
 const MARKET_SLIPPAGE = 0.03
+/** Room for KuCoin's moving boundary between the public read and signed act. */
+const MARKET_LIMIT_HEADROOM = 0.001
 
 /** How a just-placed order's outcome is chased before the sweep tells it. */
 const PLACE_POLLS = 3
@@ -111,11 +117,31 @@ function decimalString(value: number): string {
 function cappedPx(
   side: "buy" | "sell",
   px: number,
-  tick: number | null
+  tick: number | null,
+  exchangeLimit: number
 ): number {
-  const capped =
+  const slippageCap =
     side === "buy" ? px * (1 + MARKET_SLIPPAGE) : px * (1 - MARKET_SLIPPAGE)
-  return snapToTick(capped, tick)
+  const safeExchangeLimit =
+    side === "buy"
+      ? exchangeLimit * (1 - MARKET_LIMIT_HEADROOM)
+      : exchangeLimit * (1 + MARKET_LIMIT_HEADROOM)
+  const capped =
+    side === "buy"
+      ? Math.min(slippageCap, safeExchangeLimit)
+      : Math.max(slippageCap, safeExchangeLimit)
+  const snapped = snapToTick(capped, tick)
+  if (tick === null || !(tick > 0)) return snapped
+  // A coarse tick can round the headroom back onto or through the boundary.
+  // Move one whole legal tick inward in that case instead of trusting the
+  // nearest-tick rounding KuCoin requires for ordinary prices.
+  if (side === "buy" && snapped >= exchangeLimit) {
+    return snapToTick(exchangeLimit - tick, tick)
+  }
+  if (side === "sell" && snapped <= exchangeLimit) {
+    return snapToTick(exchangeLimit + tick, tick)
+  }
+  return snapped
 }
 
 /**
@@ -410,10 +436,6 @@ export async function placeKucoinOrder(
   if (!(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
 
   const isMarket = params.kind === "market"
-  const px = isMarket
-    ? cappedPx(params.side, params.px, priceTick)
-    : snapToTick(params.px, priceTick)
-  if (!(px > 0)) throw new Error("LIVE_PRICE")
 
   // Before anything is ordered: on cross margin the order's own leverage is
   // ignored, so the account's setting is made to match what was asked. See
@@ -429,6 +451,36 @@ export async function placeKucoinOrder(
       params.leverage
     )
   }
+
+  // `sendOrder` also asks for margin mode. Do that read first so the live
+  // price boundary below is the final exchange read before the signed order;
+  // `sendOrder` then reuses the held answer rather than letting the boundary
+  // go stale during another round trip.
+  let exchangeLimit: number | null = null
+  if (isMarket) {
+    try {
+      await marginModeOf(network, credential, params.marketId)
+    } catch (error) {
+      throw refusedError(error)
+    }
+    try {
+      exchangeLimit = await kucoinMarketOrderLimit(
+        network,
+        params.marketId,
+        params.side
+      )
+    } catch (error) {
+      if (error instanceof Error && error.message === "LIVE_PRICE") throw error
+      // A public rule read failed before KuCoin saw an order. Calling that an
+      // order refusal would count it toward pausing the strategy after five.
+      throw exchangeError(error)
+    }
+  }
+  const px =
+    isMarket && exchangeLimit !== null
+      ? cappedPx(params.side, params.px, priceTick, exchangeLimit)
+      : snapToTick(params.px, priceTick)
+  if (!(px > 0)) throw new Error("LIVE_PRICE")
 
   const body: Record<string, unknown> = {
     symbol: params.marketId,

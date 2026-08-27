@@ -176,6 +176,10 @@ describe("placing", () => {
     stubExchange(
       [
         { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/contracts/XBTUSDTM",
+          answer: ok({ buyLimit: 80_000, sellLimit: 58_000 }),
+        },
         { path: "/api/v1/orders", answer: ok({ orderId: "ord-1" }) },
         {
           path: "/api/v1/orders/ord-1",
@@ -220,6 +224,109 @@ describe("placing", () => {
     // is the price it actually got.
     expect(outcome.filledSz).toBeCloseTo(0.012, 12)
     expect(outcome.avgPx).toBe(69_000)
+  })
+
+  it.each([
+    { side: "buy" as const, boundary: 40.8, expected: "40.7" },
+    { side: "sell" as const, boundary: 39.2, expected: "39.3" },
+  ])(
+    "keeps a $side market order inside a narrow live price band",
+    async ({ side, boundary, expected }) => {
+      process.env.TRADE_ENABLE_MAINNET = "true"
+      const orderId = `ord-narrow-${side}`
+      const sent: Sent[] = []
+      stubExchange(
+        [
+          { path: "/api/v1/contracts/active", answer: CONTRACTS },
+          {
+            path: "/api/v1/contracts/XBTUSDTM",
+            // STXX publishes a 2% band. These low prices also make its 10c
+            // fixture tick coarser than the headroom, proving rounding stays
+            // one whole tick inside the boundary on both sides.
+            answer: ok({ buyLimit: 40.8, sellLimit: 39.2 }),
+          },
+          { path: "/api/v1/orders", answer: ok({ orderId }) },
+          {
+            path: `/api/v1/orders/${orderId}`,
+            answer: ok({
+              id: orderId,
+              symbol: "XBTUSDTM",
+              status: "done",
+              isActive: false,
+              filledSize: 12,
+              filledValue: 828,
+            }),
+          },
+        ],
+        sent
+      )
+
+      await placeKucoinOrder("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        side,
+        kind: "market",
+        px: 40,
+        sz: 0.012,
+        reduceOnly: false,
+        leverage: null,
+        tpPx: null,
+        slPx: null,
+      })
+
+      const placed = sent.find(
+        (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+      )
+      const body = placed?.body as Record<string, unknown>
+      expect(body.price).toBe(expected)
+      if (side === "buy") expect(Number(body.price)).toBeLessThan(boundary)
+      else expect(Number(body.price)).toBeGreaterThan(boundary)
+
+      const marginAt = sent.findIndex(
+        (one) => one.url.pathname === "/api/v2/position/getMarginMode"
+      )
+      const limitAt = sent.findIndex(
+        (one) => one.url.pathname === "/api/v1/contracts/XBTUSDTM"
+      )
+      const orderAt = sent.findIndex(
+        (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+      )
+      expect(marginAt).toBeLessThan(limitAt)
+      expect(limitAt).toBeLessThan(orderAt)
+    }
+  )
+
+  it("does not count a failed price-boundary read as an order refusal", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v1/contracts/XBTUSDTM",
+          answer: { code: "500000", msg: "market data unavailable" },
+        },
+      ],
+      sent
+    )
+
+    await expect(
+      placeKucoinOrder("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        side: "buy",
+        kind: "market",
+        px: 69_000,
+        sz: 0.012,
+        reduceOnly: false,
+        leverage: null,
+        tpPx: null,
+        slPx: null,
+      })
+    ).rejects.toThrow(/^LIVE_EXCHANGE:/)
+    expect(
+      sent.some(
+        (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+      )
+    ).toBe(false)
   })
 
   it("makes the account's leverage match what was asked, on cross margin", async () => {

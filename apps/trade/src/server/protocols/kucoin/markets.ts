@@ -50,6 +50,11 @@ const contractSchema = z.object({
   fundingRateGranularity: z.union([z.string(), z.number()]).optional(),
 })
 
+const orderPriceLimitSchema = z.object({
+  buyLimit: z.union([z.string(), z.number()]),
+  sellLimit: z.union([z.string(), z.number()]),
+})
+
 type Contract = z.infer<typeof contractSchema>
 
 /** A dollar-settled contract anyone can trade today. */
@@ -131,6 +136,32 @@ export async function kucoinMarketRules(
     lot: { multiplier, lotSize: num(one.lotSize) ?? 1 },
     priceTick: num(one.tickSize),
   }
+}
+
+/**
+ * The furthest IOC price KuCoin allows right now.
+ *
+ * Unlike a tick or lot size, this boundary moves with the market and cannot
+ * come from the five-minute contract cache. Thin markets can publish a band
+ * narrower than this app's ordinary 3% market-order cap, so the order path
+ * reads the one live contract immediately before it sends an IOC.
+ */
+export async function kucoinMarketOrderLimit(
+  network: NetworkId,
+  marketId: string,
+  side: "buy" | "sell"
+): Promise<number> {
+  const answer = await kucoinPublic(
+    network,
+    `/api/v1/contracts/${encodeURIComponent(marketId)}`
+  )
+  const parsed = orderPriceLimitSchema.safeParse(answer)
+  if (!parsed.success) throw new Error("LIVE_PRICE")
+  const limit = num(
+    side === "buy" ? parsed.data.buyLimit : parsed.data.sellLimit
+  )
+  if (limit === null || !(limit > 0)) throw new Error("LIVE_PRICE")
+  return limit
 }
 
 /** How often this market settles funding — read from the contract, not assumed. */
