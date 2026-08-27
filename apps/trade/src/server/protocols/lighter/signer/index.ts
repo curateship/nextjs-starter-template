@@ -115,11 +115,14 @@ const GLUE_FILE = "wasm_exec.js"
 /**
  * Where the signer's two files are, which is not one fixed place.
  *
- * **A bundler compiles code and leaves data behind.** In development the app
- * runs from source and they sit beside this file; in a built worker they are
- * copied next to the bundle. Neither location can be assumed, so both are
- * looked for — and when neither has them the refusal SAYS the file is
- * missing.
+ * **A bundler compiles code and leaves data behind.** They live in `public/`
+ * because that is the one folder every build copies whole — the website gets
+ * them at `.output/public` without a single line of build configuration,
+ * which matters because this app may not edit the shared build files. The
+ * trading engine's own Dockerfile puts a copy beside its bundle.
+ *
+ * They are public bytes either way: Lighter publishes this binary openly, and
+ * nothing about it is a secret. Serving it is harmless; not having it is not.
  *
  * That last part is the whole reason this is a search and not a path. When
  * this shipped without the files, every Lighter read failed on a missing
@@ -133,10 +136,14 @@ function signerHome(): string {
   // so both files below fail to open.
   const beside = dirname(fileURLToPath(import.meta.url))
   const tried = [
+    // The web server, where Vite copies `public/` wholesale. Its working
+    // directory is the app's own folder.
+    join(process.cwd(), ".output", "public", "lighter-signer"),
+    // Running from source.
+    join(process.cwd(), "public", "lighter-signer"),
+    // The trading engine, whose Dockerfile puts them beside its bundle.
     beside,
-    join(beside, "signer"),
     join(process.cwd(), "worker", "dist"),
-    join(process.cwd(), "src", "server", "protocols", "lighter", "signer"),
   ]
   for (const home of tried) {
     if (existsSync(join(home, WASM_FILE)) && existsSync(join(home, GLUE_FILE))) {

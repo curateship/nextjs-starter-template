@@ -604,3 +604,44 @@ describe("a refused Lighter order says why", () => {
     })
   }, 60_000)
 })
+
+describe("a refusal before anything is sent still says why", () => {
+  it("badges a signer failure raised while closing", async () => {
+    /**
+     * **This is the one that reached a person.** A missing signer, a key that
+     * cannot be matched, a price that will not fit — all happen before the
+     * send, so badging only the send left exactly these arriving as "That did
+     * not go through. Try it again." with the real reason sitting unread in
+     * the Journal.
+     */
+    const { fetchLighterPrices } = await import(
+      "@/server/protocols/lighter/markets"
+    )
+    vi.mocked(fetchLighterPrices).mockResolvedValue(new Map([["BTC", 78_000]]))
+    facts.mockRejectedValue(
+      new Error(
+        "LIGHTER_SIGNER_MISSING:Lighter's signing files are not on this server."
+      )
+    )
+    await expect(
+      closeLighterPosition("mainnet", auth(), { marketId: "BTC", szi: 0.0006 })
+    ).rejects.toSatisfy((error: Error) => {
+      expect(error.message.startsWith("LIVE_EXCHANGE:")).toBe(true)
+      expect(error.message).toContain("signing files")
+      return true
+    })
+  }, 60_000)
+
+  it("badges the same failure while placing", async () => {
+    facts.mockRejectedValue(
+      new Error("KEY_NOT_APPROVED:Lighter has not registered that API key.")
+    )
+    await expect(
+      placeLighterOrder("mainnet", auth(), order())
+    ).rejects.toSatisfy((error: Error) => {
+      expect(error.message.startsWith("LIVE_EXCHANGE:")).toBe(true)
+      expect(error.message).toContain("registered")
+      return true
+    })
+  }, 60_000)
+})

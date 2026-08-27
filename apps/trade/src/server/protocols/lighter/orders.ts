@@ -135,9 +135,22 @@ async function send(
  * this app invented is not one of them: every Lighter refusal on the order
  * path arrived as "That did not go through. Try it again." — including the
  * country block, which no amount of trying again will fix, and a missing
- * signer, which is a server problem nobody could guess at. Re-badging as
- * `LIVE_EXCHANGE` is what puts the reason in front of the person.
+ * signer, which is a server problem nobody could guess at.
+ *
+ * It wraps the WHOLE operation, not just the sending. The refusals that
+ * matter most happen before anything is sent — a missing signer, a key that
+ * cannot be matched, a price that will not fit — and badging only the send
+ * left exactly those arriving as "try again", which is the complaint that
+ * found this.
  */
+async function saying<T>(work: () => Promise<T>): Promise<T> {
+  try {
+    return await work()
+  } catch (error) {
+    throw asLiveRefusal(error)
+  }
+}
+
 function asLiveRefusal(error: unknown): Error {
   const message = error instanceof Error ? error.message : String(error)
   // Already a code the screens know how to read.
@@ -153,6 +166,7 @@ export async function placeLighterOrder(
   auth: OrderAuth,
   params: PlaceOrderParams
 ): Promise<PlaceOrderOutcome> {
+  return saying(async () => {
   const where = await orderContext(network, auth, params.marketId)
   const price = scaleLighterPrice(params.px, where.priceDecimals)
   const size = scaleLighterSize(params.sz, where.sizeDecimals)
@@ -210,6 +224,7 @@ export async function placeLighterOrder(
         ? null
         : "Lighter takes a stop or target as its own order, so it goes on just after the position opens rather than with it.",
   }
+  })
 }
 
 export async function cancelLighterOrder(
@@ -217,6 +232,7 @@ export async function cancelLighterOrder(
   auth: OrderAuth,
   params: { marketId: string; orderId: string }
 ): Promise<void> {
+  return saying(async () => {
   const where = await orderContext(network, auth, params.marketId)
   const nonce = await nextLighterNonce(
     network,
@@ -230,6 +246,7 @@ export async function cancelLighterOrder(
     nonce,
   })
   await send(network, where, LIGHTER_TX_TYPE.cancelOrder, signed.txInfo)
+  })
 }
 
 /**
@@ -409,6 +426,7 @@ export async function closeLighterPosition(
   params: { marketId: string; szi: number }
 ): Promise<{ avgPx: number | null; filledSz: number | null }> {
   if (params.szi === 0) return { avgPx: null, filledSz: null }
+  return saying(async () => {
   const where = await orderContext(network, auth, params.marketId)
   const marks = await fetchLighterPrices(network, [params.marketId])
   const mark = marks.get(params.marketId)
@@ -462,6 +480,7 @@ export async function closeLighterPosition(
   // Lighter answers the send, not the fill. What actually filled arrives on
   // the trade history, so claiming a price here would be inventing one.
   return { avgPx: null, filledSz: null }
+  })
 }
 
 /**
@@ -495,6 +514,7 @@ export async function setLighterBrackets(
     slSz: number | null
   }
 ): Promise<{ slOrderId: string | null }> {
+  return saying(async () => {
   const where = await orderContext(network, auth, params.marketId)
   const held = Math.abs(params.position.szi)
   if (held === 0) throw new Error("LIVE_POSITION_GONE")
@@ -527,6 +547,7 @@ export async function setLighterBrackets(
     })
   }
   return { slOrderId }
+  })
 }
 
 /** One reduce-only leg that only exists once its trigger is reached. */

@@ -54,8 +54,7 @@ COPY --from=build /app/apps/trade/package.json ./package.json
 # price it has already reached without one word in the Journal. That is
 # exactly what happened on 26 Aug 2026. They land beside `trade.mjs` because
 # that is where the loader looks first.
-COPY --from=build /app/apps/trade/src/server/protocols/lighter/signer/lighter-signer.wasm ./worker/dist/
-COPY --from=build /app/apps/trade/src/server/protocols/lighter/signer/wasm_exec.js ./worker/dist/
+COPY --from=build /app/apps/trade/public/lighter-signer/ ./worker/dist/
 
 # No port and no health endpoint on purpose: it serves nothing. Whether it is
 # alive is answered by the lock — a copy that has died is not holding one.
