@@ -188,6 +188,45 @@ export function marketSymbol(key: string): string {
   return parseMarketKey(key)?.marketId ?? key
 }
 
+/**
+ * How much chart history an exchange is asked for on the first draw, and
+ * whether the chart then chases the whole lot behind it.
+ *
+ * **A table rather than a comparison in the chart**, so adding an exchange
+ * stays one folder and one entry — the fence test enforces exactly that.
+ *
+ * Only Lighter differs, because only Lighter cannot afford it: two years of
+ * four-hour bars is nine pages of five hundred, and the chase behind it is
+ * eight more, against an allowance of sixty requests a MINUTE for everything.
+ * Measured 27 Aug 2026 by clicking through its market list — the chart was
+ * refused after eight coins. Ninety days is one request, and scrolling back
+ * asks for the rest when somebody actually wants it.
+ */
+const TWO_YEARS_MS = 730 * 86_400_000
+const NINETY_DAYS_MS = 90 * 86_400_000
+
+const PROTOCOL_CHART_HISTORY: Record<
+  ProtocolId,
+  { firstPaintMs: number; chasesFullHistory: boolean }
+> = {
+  hyperliquid: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
+  binance: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
+  phemex: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
+  kucoin: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
+  aster: { firstPaintMs: TWO_YEARS_MS, chasesFullHistory: true },
+  lighter: { firstPaintMs: NINETY_DAYS_MS, chasesFullHistory: false },
+}
+
+/** What the first draw of a chart asks this exchange for. */
+export function protocolFirstPaintMs(id: ProtocolId): number {
+  return PROTOCOL_CHART_HISTORY[id].firstPaintMs
+}
+
+/** Whether the chart follows the first draw with this venue's whole history. */
+export function protocolChasesFullHistory(id: ProtocolId): boolean {
+  return PROTOCOL_CHART_HISTORY[id].chasesFullHistory
+}
+
 const PROTOCOL_DASHBOARD_PATHS: Partial<Record<ProtocolId, string>> = {
   hyperliquid: "/admin/hyper-liquid",
   phemex: "/admin/phemex",

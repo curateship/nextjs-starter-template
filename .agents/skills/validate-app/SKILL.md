@@ -104,6 +104,21 @@ proved the requested behavior.
 - **A green build, a clean type check and a `curl` returning 200 prove nothing.**
   Server-rendered HTML returns 200 while the client JavaScript crashes on
   hydration. Only a browser sees that.
+- **Use the change the way a person uses it, not the way that proves you
+  right.** A page opened once and left alone is not a test of anything a
+  person does. Click through a list, switch things, come back — the failure
+  Tyler reports is nearly always in the using, not the loading. On 27 Aug 2026
+  a rate-limit fix was measured on one idle tab, called fixed four separate
+  times, and failed on his screen every time; clicking through twenty-five
+  markets reproduced it on the first attempt and named the cause in one line.
+  **Reproduce the reported failure BEFORE changing anything**, so there is a
+  before-and-after and not a theory.
+- **Never say "fixed" about the deployed site from a local run.** Local and
+  deployed differ in ways that matter: the website and the trading engine are
+  one process locally and two in production, each with its own memory and its
+  own share of a venue's request allowance. If the report is about the
+  deployed app, check the deployed app — and if there is no way in from here,
+  say that plainly and ask, rather than reporting a local pass as a fix.
 - **Bundling changes can only be proven in a production build**, since dev does
   not chunk. Chunk counts and file sizes from a dev server are not evidence. Ask
   before running a production build locally, and check the deployed URL's

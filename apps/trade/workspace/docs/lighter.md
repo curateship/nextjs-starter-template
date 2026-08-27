@@ -285,6 +285,35 @@ share:
 So idle polling can spend twenty-four and be refused, and the chart still has
 ten in hand. Orders are never refused before either of them.
 
+### What the chart asks for, and why Lighter asks for less
+
+**None of the above was what kept refusing the chart.** Measured 27 Aug 2026
+by clicking through Lighter's market list, which is what a person actually
+does: the refusal came after eight coins, and eighteen of twenty-five clicks
+were refused. The count in the message said `34 read, 0 socket` — not one
+socket frame, so the feed, the polling and the split were all working. It was
+the chart.
+
+Every other venue's four-hour chart draws two years first and then chases the
+whole history behind it. That is nine pages of five hundred bars, then eight
+more: **seventeen requests for one coin.** Fine on Hyperliquid. On Lighter it
+is a quarter of the minute for a coin somebody glanced at.
+
+So Lighter, and only Lighter:
+
+- **The first draw asks for ninety days**, not two years. One request.
+- **It does not chase the full history.** Scrolling back asks for more on its
+  own, which is when somebody has actually said they want it.
+
+| clicking through 25 markets | before | after |
+| --- | ---: | ---: |
+| first refusal | after 8 coins | after 20 |
+| clicks refused | 18 of 25 | 4 of 25 |
+| at a normal clicking pace | — | **0 of 14** |
+
+The cost is that a Lighter coin opens on three months of history rather than
+two years. Scroll back and the rest arrives.
+
 **The two programs take different shares, forty and twenty.** Splitting the
 sixty down the middle was the first attempt and it caused the very thing it
 was meant to stop: the website's ceiling halved, and a chart somebody had just

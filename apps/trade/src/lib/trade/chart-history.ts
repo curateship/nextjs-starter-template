@@ -30,6 +30,7 @@ export function wantsFullHistory(interval: CandleInterval): boolean {
 /** What the chart draws while the rest of the history is still coming. */
 export const FIRST_PAINT_MS = 730 * 86_400_000
 
+
 /** How long one bar of each timeframe lasts. One table, read everywhere. */
 const INTERVAL_MS: Record<CandleInterval, number> = {
   "1m": 60_000,

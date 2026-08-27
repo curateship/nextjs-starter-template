@@ -52,13 +52,14 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
-  FIRST_PAINT_MS,
   intervalMs,
   wantsFullHistory,
 } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
   parseMarketKey,
+  protocolChasesFullHistory,
+  protocolFirstPaintMs,
   CANDLE_INTERVALS,
   type CandleBar,
   type CandleInterval,
@@ -895,15 +896,31 @@ export function ChartPanel({
         // for two seconds reads as a chart that is broken; two years arrives in
         // well under one. Nothing flickers on the swap — the newer bars are the
         // same bars, and the chart keeps its own zoom.
+        /**
+         * How much history is worth asking for depends on the exchange. On
+         * Lighter, which allows sixty requests a minute for everything, the
+         * two-year paint plus the full-history chase came to seventeen pages
+         * for one coin — so clicking through its market list ran the minute
+         * out after eight coins and the chart said so. It asks for ninety
+         * days and does not chase; scrolling back asks for more on its own.
+         */
+        const venue = parseMarketKey(selectedKey)?.protocol
         const staged = wantsFullHistory(interval)
-        const first = staged
-          ? loadCandles(selectedKey, interval, Date.now() - FIRST_PAINT_MS)
-          : loadCandles(selectedKey, interval)
+        const chases =
+          staged && venue !== undefined && protocolChasesFullHistory(venue)
+        const first =
+          staged && venue !== undefined
+            ? loadCandles(
+                selectedKey,
+                interval,
+                Date.now() - protocolFirstPaintMs(venue)
+              )
+            : loadCandles(selectedKey, interval)
 
         first
           .then(({ candles }) => {
             draw(candles)
-            if (!staged || stale) return
+            if (!chases || stale) return
             // The deeper read is a bonus, not the answer: it is already drawn
             // without it, so a refusal here changes nothing on screen and must
             // not put an error card over bars that are perfectly good.
