@@ -391,15 +391,21 @@ describe("gridShares", () => {
   })
 })
 
-describe("new grid sizing", () => {
-  it("accepts even sizing and refuses the removed doubled choice", () => {
-    expect(
-      placeGridParamsSchema.safeParse(defaultGridParams()).success
-    ).toBe(true)
+describe("new grid requirements", () => {
+  it("accepts even sizing with a stop and refuses removed choices", () => {
+    expect(placeGridParamsSchema.safeParse(defaultGridParams()).success).toBe(
+      true
+    )
     expect(
       placeGridParamsSchema.safeParse({
         ...defaultGridParams(),
         sizing: "double",
+      }).success
+    ).toBe(false)
+    expect(
+      placeGridParamsSchema.safeParse({
+        ...defaultGridParams(),
+        stopLoss: null,
       }).success
     ).toBe(false)
   })

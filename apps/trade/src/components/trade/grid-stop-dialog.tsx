@@ -36,7 +36,7 @@ import {
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
-  type GridParams,
+  type GridStop,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -63,10 +63,7 @@ export function GridStopDialog({
 }: {
   grid: SmartGrid | null
   busy: boolean
-  onSave: (
-    grid: SmartGrid,
-    stopLoss: GridParams["stopLoss"]
-  ) => Promise<boolean>
+  onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
@@ -111,10 +108,7 @@ function StopForm({
 }: {
   grid: SmartGrid
   busy: boolean
-  onSave: (
-    grid: SmartGrid,
-    stopLoss: GridParams["stopLoss"]
-  ) => Promise<boolean>
+  onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number }
@@ -132,7 +126,6 @@ function StopForm({
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
   const [followOn, setFollowOn] = React.useState(plan.follow)
   const [followDownOn, setFollowDownOn] = React.useState(plan.followDown)
-  const [slOn, setSlOn] = React.useState(plan.stopLoss !== null)
   const [underPct, setUnderPct] = React.useState(
     String(plan.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT)
   )
@@ -169,24 +162,21 @@ function StopForm({
   const followChanged =
     followOn !== plan.follow || followDownOn !== plan.followDown
   const parsedUnder = Number(underPct)
-  const badUnder =
-    slOn &&
-    !(
-      Number.isFinite(parsedUnder) &&
-      parsedUnder >= 0 &&
-      parsedUnder <= MAX_GRID_STOP_UNDER_PCT
-    )
+  const badUnder = !(
+    Number.isFinite(parsedUnder) &&
+    parsedUnder >= 0 &&
+    parsedUnder <= MAX_GRID_STOP_UNDER_PCT
+  )
   const parsedBaseUnder = Number(baseUnderPct)
   const parsedDays = Number(baseReclaimDays)
   // The same two rules the base fields themselves outline, asked one box at a
   // time so the refusal below can name which of them is the problem.
-  const badBaseUnder = slOn && baseOn && badBaseUnderPct(baseUnderPct)
-  const badBaseDays = slOn && baseOn && badBaseReclaimDays(baseReclaimDays)
+  const badBaseUnder = baseOn && badBaseUnderPct(baseUnderPct)
+  const badBaseDays = baseOn && badBaseReclaimDays(baseReclaimDays)
   const badBase = badBaseUnder || badBaseDays
   const stopChanged =
-    slOn !== (plan.stopLoss !== null) ||
-    (slOn &&
-      plan.stopLoss !== null &&
+    plan.stopLoss === null ||
+    (plan.stopLoss !== null &&
       (parsedUnder !== plan.stopLoss.underPct ||
         baseOn !== (plan.stopLoss.base !== null) ||
         (baseOn &&
@@ -196,12 +186,11 @@ function StopForm({
 
   // Where it would rest, shown as a price. A percent below a percent is a
   // number nobody can check; the price it lands on is one anybody can.
-  const restsAt =
-    slOn && !badUnder
-      ? plan.stopLoss?.mode === "fixed" && !stopChanged
-        ? plan.stopLoss.px
-        : gridStopUnder(plan.bottomPx, parsedUnder)
-      : null
+  const restsAt = !badUnder
+    ? plan.stopLoss?.mode === "fixed" && !stopChanged
+      ? plan.stopLoss.px
+      : gridStopUnder(plan.bottomPx, parsedUnder)
+    : null
 
   // Every reason this window would refuse, said above the button so nobody
   // presses Save to find out. Same order as the cards on screen.
@@ -243,17 +232,12 @@ function StopForm({
       if (!followed) return
     }
     const saved = stopChanged
-      ? await onSave(
-          grid,
-          slOn
-            ? {
-                underPct: parsedUnder,
-                base: baseOn
-                  ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
-                  : null,
-              }
-            : null
-        )
+      ? await onSave(grid, {
+          underPct: parsedUnder,
+          base: baseOn
+            ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
+            : null,
+        })
       : true
     if (saved) onClose()
   }
@@ -383,69 +367,50 @@ function StopForm({
             <CardTitle>Stop loss</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="grid-stop-on"
-                checked={slOn}
-                disabled={busy}
-                onCheckedChange={(next) => {
-                  setShowValidation(false)
-                  setSlOn(next === true)
-                }}
-              />
-              <FieldLabel
-                htmlFor="grid-stop-on"
-                hint="Below the bottom of the range, and it stays there. If the stop hits, everything held is sold and the grid is over. It deliberately does not follow your average buy price — that average falls as the grid recycles, which would drag the stop up into the range and sell the grid on an ordinary dip."
-              >
-                Stop loss on
-              </FieldLabel>
-            </div>
-            {slOn ? (
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="grid-stop-pct">Below the bottom %</Label>
-                  <Input
-                    id="grid-stop-pct"
-                    inputMode="decimal"
-                    value={underPct}
-                    aria-invalid={showValidation && badUnder}
-                    disabled={busy}
-                    onChange={(event) => {
-                      setShowValidation(false)
-                      setUnderPct(event.target.value)
-                    }}
-                    onBlur={() => setShowValidation(true)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {restsAt === null
-                      ? "The bottom of the range is " +
-                        formatPrice(plan.bottomPx) +
-                        "."
-                      : `Rests at ${formatPrice(restsAt)}, under the range's bottom of ${formatPrice(plan.bottomPx)}.`}
-                  </p>
-                </div>
-                <BaseStopFields
-                  on={baseOn}
-                  underPct={baseUnderPct}
-                  reclaimDays={baseReclaimDays}
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="grid-stop-pct">Below the bottom %</Label>
+                <Input
+                  id="grid-stop-pct"
+                  inputMode="decimal"
+                  value={underPct}
+                  aria-invalid={showValidation && badUnder}
                   disabled={busy}
-                  showErrors={showValidation}
-                  onOn={(next) => {
+                  onChange={(event) => {
                     setShowValidation(false)
-                    setBaseOn(next)
-                  }}
-                  onUnderPct={(next) => {
-                    setShowValidation(false)
-                    setBaseUnderPct(next)
-                  }}
-                  onReclaimDays={(next) => {
-                    setShowValidation(false)
-                    setBaseReclaimDays(next)
+                    setUnderPct(event.target.value)
                   }}
                   onBlur={() => setShowValidation(true)}
                 />
+                <p className="text-xs text-muted-foreground">
+                  {restsAt === null
+                    ? "The bottom of the range is " +
+                      formatPrice(plan.bottomPx) +
+                      "."
+                    : `Rests at ${formatPrice(restsAt)}, under the range's bottom of ${formatPrice(plan.bottomPx)}.`}
+                </p>
               </div>
-            ) : null}
+              <BaseStopFields
+                on={baseOn}
+                underPct={baseUnderPct}
+                reclaimDays={baseReclaimDays}
+                disabled={busy}
+                showErrors={showValidation}
+                onOn={(next) => {
+                  setShowValidation(false)
+                  setBaseOn(next)
+                }}
+                onUnderPct={(next) => {
+                  setShowValidation(false)
+                  setBaseUnderPct(next)
+                }}
+                onReclaimDays={(next) => {
+                  setShowValidation(false)
+                  setBaseReclaimDays(next)
+                }}
+                onBlur={() => setShowValidation(true)}
+              />
+            </div>
           </CardContent>
         </Card>
       </DialogBody>

@@ -8,7 +8,6 @@ import {
   type DcaParams,
 } from "@/lib/trade/dca"
 import {
-  gridParamsSchema,
   placeGridParamsSchema,
   MAX_GRID_LEVELS,
   MIN_GRID_LEVELS,
@@ -508,10 +507,10 @@ const gridSchema = z.object({
   gridId: z.string().max(36),
 })
 
-const gridStopSchema = z.object({
+const gridStopUpdateSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
-  stopLoss: gridParamsSchema.shape.stopLoss,
+  stopLoss: placeGridParamsSchema.shape.stopLoss,
 })
 
 const placeGridOrderFn = createServerFn({ method: "POST" })
@@ -611,7 +610,7 @@ const moveGridExitFn = createServerFn({ method: "POST" })
 
 const updateGridStopFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(gridStopSchema)
+  .inputValidator(gridStopUpdateSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
     if (wallet.kind === "live") {
@@ -673,7 +672,7 @@ export function moveGridExit(input: z.infer<typeof moveGridExitSchema>) {
   return moveGridExitFn({ data: input })
 }
 
-export function updateGridStop(input: z.infer<typeof gridStopSchema>) {
+export function updateGridStop(input: z.infer<typeof gridStopUpdateSchema>) {
   return updateGridStopFn({ data: input })
 }
 

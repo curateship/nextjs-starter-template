@@ -17,6 +17,7 @@ import {
   type GridLevelState,
   type GridParams,
   type GridPlan,
+  type GridStop,
 } from "@/lib/trade/grid"
 import { paperAccountFigures } from "@/lib/trade/paper"
 import { readSmartPlan, type SmartGrid } from "@/lib/trade/smart-plan"
@@ -551,7 +552,7 @@ export async function cancelGridRest(
 export async function updateGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridParams["stopLoss"] }
+  input: { gridId: string; stopLoss: GridStop }
 ): Promise<void> {
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
@@ -561,16 +562,14 @@ export async function updateGridStop(
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
-  plan.stopLoss = input.stopLoss
-    ? {
-        mode: plan.followDown ? "fixed" : "percent",
-        underPct: input.stopLoss.underPct,
-        px: plan.followDown
-          ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
-          : null,
-        base: input.stopLoss.base,
-      }
-    : null
+  plan.stopLoss = {
+    mode: plan.followDown ? "fixed" : "percent",
+    underPct: input.stopLoss.underPct,
+    px: plan.followDown
+      ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+      : null,
+    base: input.stopLoss.base,
+  }
 
   // Write the new stop onto the position right now, and remember exactly what
   // was written — anything else there later means a hand moved it.

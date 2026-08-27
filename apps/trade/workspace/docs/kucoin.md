@@ -2,11 +2,22 @@
 
 ## Open orders
 
-KuCoin can return finished stop-order history from `/api/v1/stopOrders` when
-Trade asks for the protection and orders the account still holds. Trade drops
-every row KuCoin marks `isActive: false` or `status: done` before drawing the
-portfolio. A finished stop cannot appear as current position protection or as
-an order with a cancel button.
+KuCoin returns finished stop-order history by default from
+`/api/v1/stopOrders`. Trade asks for `status=active`, then also drops any row
+KuCoin marks `isActive: false` or `status: done` before drawing the portfolio.
+A finished stop cannot appear as current position protection or as an order
+with a cancel button.
+
+Trade sends protection added to an open KuCoin position with the exact number
+of contracts held at that moment. KuCoin accepted the more general
+`closeOrder` form and returned an order id, but the exchange marked those stops
+finished immediately without triggering them. A grid replaces the sized stop
+whenever its held amount changes.
+
+An order id does not prove that a stop is working. Trade reads the new stop
+back from KuCoin and requires it to be active before recording success or
+removing the old protection. A stop that is already finished, or cannot be
+found after three reads, is reported as refused.
 
 ## Refusals
 

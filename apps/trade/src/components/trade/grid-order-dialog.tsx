@@ -40,7 +40,7 @@ import {
   defaultGridParams,
   gridEndPx,
   gridOrderPlan,
-  gridParamsSchema,
+  placeGridParamsSchema,
   gridRangeFromClick,
   gridStopUnder,
   GRID_ANCHOR_HINTS,
@@ -53,7 +53,7 @@ import {
   MAX_GRID_LEVELS,
   MIN_GRID_LEVELS,
   type GridAnchor,
-  type GridParams,
+  type PlaceGridParams,
   type GridSpacing,
 } from "@/lib/trade/grid"
 
@@ -132,7 +132,7 @@ export function GridOrderDialog({
   onPlace: (input: {
     topPx: number
     bottomPx: number
-    params: GridParams
+    params: PlaceGridParams
   }) => Promise<boolean>
   onClose: () => void
 }) {
@@ -201,9 +201,6 @@ export function GridOrderDialog({
         DEFAULT_GRID_TAKE_PROFIT_PCT
     )
   )
-  const [slOn, setSlOn] = React.useState(
-    seeded ? seeded.stopLoss !== null : true
-  )
   const [slUnderPct, setSlUnderPct] = React.useState(
     String(
       seeded?.stopLoss?.underPct ?? defaultGridParams().stopLoss?.underPct ?? 5
@@ -239,7 +236,6 @@ export function GridOrderDialog({
       setBelowPct(String(params.rangePct))
       setTpOn(params.takeProfitPct !== null)
       if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
-      setSlOn(params.stopLoss !== null)
       if (params.stopLoss) {
         setSlUnderPct(String(params.stopLoss.underPct))
         setBaseOn(params.stopLoss.base !== null)
@@ -288,8 +284,8 @@ export function GridOrderDialog({
   const top = range?.topPx ?? null
   const bottom = range?.bottomPx ?? null
 
-  const params = React.useMemo((): GridParams | null => {
-    const candidate: GridParams = {
+  const params = React.useMemo((): PlaceGridParams | null => {
+    const candidate: PlaceGridParams = {
       levels: parsed(levels) ?? -1,
       potPct: parsed(potPct) ?? -1,
       // A grid placed by hand is sized once, off the account right now.
@@ -311,19 +307,17 @@ export function GridOrderDialog({
       rangePct: below ?? -1,
       baseDetection: baseStopDetection(),
       takeProfitPct: tpOn ? (parsed(tpPct) ?? -1) : null,
-      stopLoss: slOn
-        ? {
-            underPct: parsed(slUnderPct) ?? -1,
-            base: baseOn
-              ? {
-                  underPct: parsed(baseUnderPct) ?? -1,
-                  reclaimDays: parsed(baseReclaimDays) ?? -1,
-                }
-              : null,
-          }
-        : null,
+      stopLoss: {
+        underPct: parsed(slUnderPct) ?? -1,
+        base: baseOn
+          ? {
+              underPct: parsed(baseUnderPct) ?? -1,
+              reclaimDays: parsed(baseReclaimDays) ?? -1,
+            }
+          : null,
+      },
     }
-    const checked = gridParamsSchema.safeParse(candidate)
+    const checked = placeGridParamsSchema.safeParse(candidate)
     return checked.success ? checked.data : null
   }, [
     levels,
@@ -337,7 +331,6 @@ export function GridOrderDialog({
     below,
     tpOn,
     tpPct,
-    slOn,
     slUnderPct,
     baseOn,
     baseUnderPct,
@@ -379,7 +372,7 @@ export function GridOrderDialog({
       : null
 
   const stopPx =
-    slOn && bottom !== null && bottom > 0
+    bottom !== null && bottom > 0
       ? gridStopUnder(bottom, parsed(slUnderPct) ?? 0)
       : null
 
@@ -670,62 +663,48 @@ export function GridOrderDialog({
           <OptionCard
             id="grid-sl-on"
             title="Stop loss"
-            summary={
-              slOn
-                ? parsed(slUnderPct) === null
-                  ? "—"
-                  : `−${slUnderPct}%`
-                : null
-            }
+            summary={parsed(slUnderPct) === null ? "—" : `−${slUnderPct}%`}
             hint="A stop below the bottom of the range. If price cuts through it, everything held is sold and the grid is over. It hangs off the range, not off your average buy price — an average that moves as the grid recycles would drag the stop up into the range."
-            foldWhenOff={false}
-            toggle={{
-              checked: slOn,
-              disabled: busy,
-              onChange: touched(setSlOn),
-            }}
           >
-            {slOn ? (
-              <>
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="grid-sl-pct"
-                    hint="How far under the bottom of the range the stop rests. Zero sits it on the bottom itself."
-                  >
-                    Below the bottom %
-                  </FieldLabel>
-                  <Input
-                    id="grid-sl-pct"
-                    inputMode="decimal"
-                    value={slUnderPct}
-                    disabled={busy}
-                    aria-invalid={showValidation && parsed(slUnderPct) === null}
-                    onChange={(event) =>
-                      touched(setSlUnderPct)(event.target.value)
-                    }
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
-                </div>
-                <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
-                  <span>Stop sits at</span>
-                  <span className="tabular-nums">
-                    {stopPx === null ? "—" : formatPrice(stopPx)}
-                  </span>
-                </div>
-                <BaseStopFields
-                  on={baseOn}
-                  underPct={baseUnderPct}
-                  reclaimDays={baseReclaimDays}
+            <>
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="grid-sl-pct"
+                  hint="How far under the bottom of the range the stop rests. Zero sits it on the bottom itself."
+                >
+                  Below the bottom %
+                </FieldLabel>
+                <Input
+                  id="grid-sl-pct"
+                  inputMode="decimal"
+                  value={slUnderPct}
                   disabled={busy}
-                  showErrors={showValidation}
-                  onOn={touched(setBaseOn)}
-                  onUnderPct={touched(setBaseUnderPct)}
-                  onReclaimDays={touched(setBaseReclaimDays)}
+                  aria-invalid={showValidation && parsed(slUnderPct) === null}
+                  onChange={(event) =>
+                    touched(setSlUnderPct)(event.target.value)
+                  }
                   onBlur={() => setShowValidation(true)}
+                  className="bg-background"
                 />
-              </>
-            ) : null}
+              </div>
+              <div className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
+                <span>Stop sits at</span>
+                <span className="tabular-nums">
+                  {stopPx === null ? "—" : formatPrice(stopPx)}
+                </span>
+              </div>
+              <BaseStopFields
+                on={baseOn}
+                underPct={baseUnderPct}
+                reclaimDays={baseReclaimDays}
+                disabled={busy}
+                showErrors={showValidation}
+                onOn={touched(setBaseOn)}
+                onUnderPct={touched(setBaseUnderPct)}
+                onReclaimDays={touched(setBaseReclaimDays)}
+                onBlur={() => setShowValidation(true)}
+              />
+            </>
           </OptionCard>
 
           <OptionCard
@@ -746,9 +725,8 @@ export function GridOrderDialog({
                 id="grid-follow"
                 checked={follow}
                 disabled={busy}
-                onCheckedChange={touched(
-                  (next: boolean | "indeterminate") =>
-                    setFollow(next === true)
+                onCheckedChange={touched((next: boolean | "indeterminate") =>
+                  setFollow(next === true)
                 )}
               />
               <FieldLabel
@@ -763,9 +741,8 @@ export function GridOrderDialog({
                 id="grid-follow-down"
                 checked={followDown}
                 disabled={busy}
-                onCheckedChange={touched(
-                  (next: boolean | "indeterminate") =>
-                    setFollowDown(next === true)
+                onCheckedChange={touched((next: boolean | "indeterminate") =>
+                  setFollowDown(next === true)
                 )}
               />
               <FieldLabel
@@ -776,10 +753,7 @@ export function GridOrderDialog({
               </FieldLabel>
             </div>
             <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-spacing"
-                hint={GRID_SPACING_HINT}
-              >
+              <FieldLabel htmlFor="grid-spacing" hint={GRID_SPACING_HINT}>
                 Levels spread
               </FieldLabel>
               <Select
@@ -833,11 +807,11 @@ export function GridOrderDialog({
       <div className="border-t p-3">
         {pairedWithLadder ? (
           <p className="pb-3 text-xs text-muted-foreground">
-            This coin already has a ladder. Placing this grid pairs the two:
-            the grid's stop must sit above the ladder's first buy, and on the
-            exchange they still share one position — one pot of margin and
-            one liquidation price. If the ladder falls far enough, the
-            exchange can close the grid's coins with it.
+            This coin already has a ladder. Placing this grid pairs the two: the
+            grid's stop must sit above the ladder's first buy, and on the
+            exchange they still share one position — one pot of margin and one
+            liquidation price. If the ladder falls far enough, the exchange can
+            close the grid's coins with it.
           </p>
         ) : null}
         <OrderRefusal id="grid-refusal" className="pb-3">

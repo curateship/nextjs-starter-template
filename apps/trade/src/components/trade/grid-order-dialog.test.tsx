@@ -74,9 +74,8 @@ describe("the grid window's saved settings", () => {
     onPlace: React.ComponentProps<
       typeof GridOrderDialog
     >["onPlace"] = async () => false,
-    onPreview: React.ComponentProps<
-      typeof GridOrderDialog
-    >["onPreview"] = () => undefined
+    onPreview: React.ComponentProps<typeof GridOrderDialog>["onPreview"] = () =>
+      undefined
   ) => {
     await act(async () => {
       root.render(
@@ -251,9 +250,7 @@ describe("the grid window's saved settings", () => {
     const previews = onPreview.mock.calls
       .map(([lines]) => lines)
       .filter((lines) => lines !== null)
-    const endGrid = previews
-      .at(-1)
-      ?.find((line) => line.kind === "takeProfit")
+    const endGrid = previews.at(-1)?.find((line) => line.kind === "takeProfit")
 
     expect(host.textContent).toContain("Above the higher price %")
     expect(endGrid?.px).toBeCloseTo(105, 9)
@@ -303,13 +300,38 @@ describe("the grid window's saved settings", () => {
     )
   })
 
-  it("removes the settings chevron when End Grid or Stop loss is off", async () => {
+  it("keeps stop loss on even when old saved settings had it off", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), stopLoss: null },
+    })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+    await act(async () => Promise.resolve())
+
+    expect(host.textContent).toContain("Stop loss")
+    expect(host.querySelector("#grid-sl-pct")).not.toBeNull()
+    expect(host.querySelector("#grid-sl-on")).toBeNull()
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          stopLoss: expect.objectContaining({ underPct: expect.any(Number) }),
+        }),
+      })
+    )
+  })
+
+  it("removes the settings chevron when End Grid is off", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     await renderDialog()
 
     await act(async () => {
       host.querySelector<HTMLButtonElement>("#grid-tp-on")?.click()
-      host.querySelector<HTMLButtonElement>("#grid-sl-on")?.click()
     })
 
     expect(
@@ -317,18 +339,9 @@ describe("the grid window's saved settings", () => {
         'button[aria-label="Show End Grid"], button[aria-label="Hide End Grid"]'
       )
     ).toBeNull()
-    expect(
-      host.querySelector(
-        'button[aria-label="Show Stop loss"], button[aria-label="Hide Stop loss"]'
-      )
-    ).toBeNull()
     const endCard = host
       .querySelector("#grid-tp-on")
       ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
-    const stopCard = host
-      .querySelector("#grid-sl-on")
-      ?.parentElement?.closest<HTMLDivElement>("div.rounded-lg")
     expect(endCard?.querySelectorAll("button")).toHaveLength(1)
-    expect(stopCard?.querySelectorAll("button")).toHaveLength(1)
   })
 })

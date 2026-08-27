@@ -235,9 +235,11 @@ export const gridParamsSchema = z.object({
 /** Settings accepted for a newly placed grid. New grids always split evenly. */
 export const placeGridParamsSchema = gridParamsSchema.extend({
   sizing: z.literal("even"),
+  stopLoss: gridStopSchema,
 })
 
 export type GridParams = z.infer<typeof gridParamsSchema>
+export type PlaceGridParams = z.infer<typeof placeGridParamsSchema>
 
 export function defaultGridParams(): GridParams {
   return {

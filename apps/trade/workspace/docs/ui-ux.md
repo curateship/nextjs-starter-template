@@ -493,9 +493,9 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   reads **END GRID**. When End Grid is unchecked, the checkbox is the card's
   only button. There is no help button or settings chevron to open. Checking it
   opens the settings and adds both controls.
-- **Stop loss** follows the same checkbox rule. When it is unchecked, the
-  checkbox is the card's only button. Checking it opens the stop settings and
-  adds the help button and settings chevron.
+- **Stop loss** is always on. Its card has no checkbox because a grid cannot be
+  placed or left running without a stop. The card sets the distance below the
+  range and the optional confirmed-base rule.
 - **Refusals** are said on the window before the button is pressed, in the
   server's own words. If a level is too small for the market, the window names
   it and asks for fewer levels or a bigger account share.

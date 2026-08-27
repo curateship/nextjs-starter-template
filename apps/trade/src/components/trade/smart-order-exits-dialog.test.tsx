@@ -146,7 +146,6 @@ describe.each([
       "grid-edit-levels",
       "grid-edit-pot",
       "grid-follow-on",
-      "grid-stop-on",
       "grid-stop-pct",
       "base-stop-on",
       "base-stop-under",
@@ -180,6 +179,46 @@ describe.each([
     for (const id of controlIds) expect(control(id).disabled).toBe(false)
     expect((control(changedId) as HTMLInputElement).value).toBe(changedValue)
   })
+})
+
+it("does not let a running grid remove its stop loss", async () => {
+  await draw("grid", false)
+
+  expect(document.getElementById("grid-stop-on")).toBeNull()
+  expect(document.body.textContent).toContain("Stop loss")
+  expect(control("grid-stop-pct").disabled).toBe(false)
+})
+
+it("adds a stop when an older running grid did not have one", async () => {
+  const oldGrid = {
+    ...grid,
+    plan: { ...grid.plan, stopLoss: null },
+  } as SmartGrid
+  const saveStop = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridStopDialog
+          grid={oldGrid}
+          busy={false}
+          onSave={saveStop}
+          onReshape={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(saveStop).toHaveBeenCalledWith(
+    oldGrid,
+    expect.objectContaining({ underPct: expect.any(Number) })
+  )
 })
 
 it("does not reset a fixed stop when only following changes", async () => {

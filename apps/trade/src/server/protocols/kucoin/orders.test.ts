@@ -57,6 +57,7 @@ const {
   fetchKucoinOrderFills,
   fetchKucoinPortfolio,
   placeKucoinOrder,
+  setKucoinBrackets,
   setKucoinLeverage,
   triggerDirection,
 } = await import("@/server/protocols/kucoin/orders")
@@ -650,6 +651,118 @@ describe("placing", () => {
 })
 
 describe("changing an open position", () => {
+  it("sizes a whole-position stop and proves KuCoin kept it active", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "new-stop" }) },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "new-stop",
+                symbol: "XBTUSDTM",
+                status: "open",
+                isActive: true,
+              },
+              {
+                id: "old-stop",
+                symbol: "XBTUSDTM",
+                status: "done",
+                isActive: false,
+              },
+            ],
+          }),
+        },
+        { path: "/api/v1/orders/old-stop", answer: ok(true) },
+      ],
+      sent
+    )
+
+    const outcome = await setKucoinBrackets("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      position: { szi: 0.01, protectionOrderIds: ["old-stop"] },
+      targets: [],
+      slPx: 65_000,
+      slSz: null,
+    })
+
+    const stop = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )?.body as Record<string, unknown>
+    expect(stop).toMatchObject({
+      reduceOnly: true,
+      size: 10,
+      stopPrice: "65000",
+    })
+    expect(stop.closeOrder).toBeUndefined()
+    expect(outcome.slOrderId).toBe("new-stop")
+    expect(
+      sent
+        .filter((one) => one.url.pathname === "/api/v1/stopOrders")
+        .every((one) => one.url.searchParams.get("status") === "active")
+    ).toBe(true)
+    expect(
+      sent.some(
+        (one) =>
+          one.method === "DELETE" &&
+          one.url.pathname === "/api/v1/orders/old-stop"
+      )
+    ).toBe(true)
+  })
+
+  it("refuses to record a KuCoin stop that finished immediately", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "failed-stop" }) },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "failed-stop",
+                symbol: "XBTUSDTM",
+                status: "done",
+                isActive: false,
+                stopTriggered: false,
+              },
+            ],
+          }),
+        },
+      ],
+      sent
+    )
+
+    await expect(
+      setKucoinBrackets("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        position: { szi: 0.01, protectionOrderIds: ["old-stop"] },
+        targets: [],
+        slPx: 65_000,
+        slSz: null,
+      })
+    ).rejects.toThrow(/did not keep the stop active/)
+    expect(sent.some((one) => one.method === "DELETE")).toBe(false)
+  })
+
   it("changes cross leverage through KuCoin's account setting", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []
@@ -816,6 +929,13 @@ describe("reading the account back", () => {
       "mainnet",
       "key-id",
       () => AUTH.agentKey
+    )
+
+    const stopRead = vi.mocked(fetch).mock.calls.find((call) =>
+      String(call[0]).includes("/api/v1/stopOrders")
+    )
+    expect(new URL(String(stopRead?.[0])).searchParams.get("status")).toBe(
+      "active"
     )
 
     expect(portfolio.orders).toEqual([
