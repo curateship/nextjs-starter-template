@@ -12,7 +12,11 @@ import {
 } from "recharts"
 
 import { TradeBadge } from "@/components/trade/trade-badge"
-import { Badge } from "@/components/ui/badge"
+import {
+  DashboardCardHeader,
+  DashboardCardHeaderIcon,
+  dashboardCardHeadingClassName,
+} from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
@@ -203,7 +207,6 @@ export function PnlGraphWidget({
     (wallet) => wallet.id === selectedWalletId
   )
   const activeSelectedWalletId = selectedWallet?.id ?? null
-  const activeWallets = visibleWallets(overview)
   const series = profitSeries(overview)
   const data = mergeTradingOverviewProfitSeries(series)
   const rangeDates = profitRangeDates(data, range)
@@ -216,59 +219,54 @@ export function PnlGraphWidget({
 
   return (
     <Card className={cn("min-h-0 gap-0 py-0", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-4">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <ChartNoAxesCombinedIcon className="size-4 shrink-0 text-muted-foreground" />
-            <h2 className="truncate font-semibold">PnL Graph</h2>
-            <Badge variant="outline">
-              {activeWallets.length.toLocaleString()}{" "}
-              {activeWallets.length === 1 ? "wallet" : "wallets"}
-            </Badge>
-            {missing ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    aria-label="About missing wallet figures"
-                    className="text-muted-foreground transition-colors hover:text-foreground"
-                  >
-                    <InfoIcon className="size-3.5" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent className="max-w-64">
-                  {overview.missingVenues.join(" and ")} did not answer. The
-                  total includes only the wallets that answered.
-                </TooltipContent>
-              </Tooltip>
-            ) : null}
-          </div>
-          <div className="mt-2 flex flex-wrap items-end gap-x-3 gap-y-1">
-            <div className="flex items-center gap-2">
-              <p
-                className={cn(
-                  "font-mono text-[1.8rem] leading-none font-semibold tracking-tight tabular-nums",
-                  moneyTone(madeOrLost)
-                )}
-              >
-                {formatSignedUsd(madeOrLost)}
-              </p>
-              {profitShare === null ? null : (
-                <TradeBadge
-                  tone={
-                    madeOrLost > 0
-                      ? "made"
-                      : madeOrLost < 0
-                        ? "lost"
-                        : "neutral"
-                  }
-                  className="font-mono text-[1.8rem] leading-none font-semibold tracking-tight tabular-nums"
-                >
-                  {formatChange(profitShare)}
-                </TradeBadge>
+      <DashboardCardHeader className="flex-wrap">
+        <div className="flex min-w-0 items-center gap-2">
+          <DashboardCardHeaderIcon>
+            <ChartNoAxesCombinedIcon className="size-4" />
+          </DashboardCardHeaderIcon>
+          <h2 className={cn("truncate", dashboardCardHeadingClassName)}>
+            PnL Graph
+          </h2>
+          <div
+            aria-label="Current made or lost"
+            className="flex items-center gap-1.5"
+          >
+            <p
+              className={cn(
+                "font-mono text-xl leading-none font-semibold tracking-tight tabular-nums",
+                moneyTone(madeOrLost)
               )}
-            </div>
+            >
+              {formatSignedUsd(madeOrLost)}
+            </p>
+            {profitShare === null ? null : (
+              <TradeBadge
+                tone={
+                  madeOrLost > 0 ? "made" : madeOrLost < 0 ? "lost" : "neutral"
+                }
+                className="font-mono text-xl leading-none font-semibold tracking-tight tabular-nums"
+              >
+                {formatChange(profitShare)}
+              </TradeBadge>
+            )}
           </div>
+          {missing ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="About missing wallet figures"
+                  className="text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <InfoIcon className="size-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-64">
+                {overview.missingVenues.join(" and ")} did not answer. The total
+                includes only the wallets that answered.
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
         <ProfitRangeControls
           data={data}
@@ -276,9 +274,9 @@ export function PnlGraphWidget({
           dates={rangeDates}
           onRange={setRange}
         />
-      </div>
+      </DashboardCardHeader>
 
-      <div className="grid min-h-0 flex-1 border-t lg:grid-cols-[minmax(18rem,32%)_1fr] lg:divide-x">
+      <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(18rem,32%)_1fr] lg:divide-x">
         <WalletList
           overview={overview}
           answered={answered}
@@ -537,10 +535,8 @@ function WalletResultRow({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "block w-full cursor-pointer border-r-2 border-b px-5 py-3 text-left transition-colors last:border-b-0 hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
-        selected
-          ? "border-r-foreground bg-muted/60 hover:bg-muted/60"
-          : "border-r-transparent"
+        "block w-full cursor-pointer border-r-2 border-b px-5 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset",
+        selected ? "border-r-muted-foreground/60" : "border-r-transparent"
       )}
     >
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
@@ -637,7 +633,7 @@ function WalletResultRow({
 
 function UnavailableWalletRow({ wallet }: { wallet: TradingOverviewWallet }) {
   return (
-    <div className="border-b px-5 py-4 text-muted-foreground last:border-b-0">
+    <div className="border-b px-5 py-4 text-muted-foreground">
       <div className="flex min-w-0 items-center gap-2">
         <span
           className="size-2 shrink-0 rounded-sm bg-muted"

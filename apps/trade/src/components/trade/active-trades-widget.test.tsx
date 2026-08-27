@@ -51,13 +51,32 @@ function overview(activeTrades: TradingOverviewActiveTrade[]): TradingOverview {
 }
 
 describe("the Active Trades footer", () => {
-  it("keeps the sticky header opaque while rows scroll underneath it", () => {
+  it("uses the light gray table heading", () => {
     const html = renderToStaticMarkup(
       <ActiveTradesWidget overview={overview([trade({})])} className="" />
     )
 
-    expect(html).toContain("[&amp;_thead_th]:bg-muted")
+    expect(html).toContain(
+      "[&amp;_thead_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
+    )
     expect(html).not.toContain("[&amp;_thead_th]:bg-muted/50")
+  })
+
+  it("labels pretend accounts without repeating Real on live trades", () => {
+    const html = renderToStaticMarkup(
+      <ActiveTradesWidget
+        overview={overview([
+          trade({ id: "real" }),
+          trade({ id: "testnet", accountType: "Testnet" }),
+          trade({ id: "practice", accountType: "Practice" }),
+        ])}
+        className=""
+      />
+    )
+
+    expect(html).not.toContain(">Real<")
+    expect(html).toContain(">Testnet<")
+    expect(html).toContain(">Practice<")
   })
 
   it("shows the total for the rows in the widget", () => {

@@ -92,10 +92,17 @@ describe("what the widgets say about when they started", () => {
     expect(shown).toContain("+$190.00+3.65%")
     expect(
       host.querySelector('[class*="bg-emerald-500/10"]')?.className
-    ).toContain("text-[1.8rem]")
-    expect(host.querySelector("p.font-mono")?.className).toContain(
-      "text-[1.8rem]"
+    ).toContain("text-xl")
+    expect(host.querySelector("p.font-mono")?.className).toContain("text-xl")
+    const chart = host.querySelector(
+      'section[aria-label="4 days ago profit history"]'
     )
+    const result = host.querySelector('[aria-label="Current made or lost"]')
+    const header = host.querySelector('[data-slot="dashboard-card-header"]')
+    expect(header).not.toBeNull()
+    expect(header?.contains(result)).toBe(true)
+    expect(chart?.contains(result)).toBe(false)
+    expect(shown).not.toContain("1 wallet")
     expect(shown).toContain(
       "4 days agobalance $5,200.00 · settled +$150.00 · open +$40.00 · fees $3.00"
     )
@@ -123,19 +130,21 @@ describe("what the widgets say about when they started", () => {
     expect(walletButtons).toHaveLength(2)
     expect(walletButtons[0].textContent).toContain("All wallets")
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("true")
-    expect(walletButtons[0].className).toContain("bg-muted/60")
-    expect(walletButtons[0].className).toContain("border-r-foreground")
+    expect(walletButtons[0].className).not.toContain("bg-muted/60")
+    expect(walletButtons[0].className).toContain("border-r-muted-foreground/60")
     expect(walletButtons[1].className).toContain("border-r-transparent")
     expect(walletButtons[1].className).toContain("cursor-pointer")
+    expect(walletButtons.at(-1)?.className).toContain("border-b")
+    expect(walletButtons.at(-1)?.className).not.toContain("last:border-b-0")
     expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
 
     act(() => walletButtons[1].click())
 
     expect(walletButtons[0].getAttribute("aria-pressed")).toBe("false")
     expect(walletButtons[1].getAttribute("aria-pressed")).toBe("true")
-    expect(walletButtons[1].className).toContain("bg-muted/60")
+    expect(walletButtons[1].className).not.toContain("bg-muted/60")
     expect(walletButtons[0].className).toContain("border-r-transparent")
-    expect(walletButtons[1].className).toContain("border-r-foreground")
+    expect(walletButtons[1].className).toContain("border-r-muted-foreground/60")
     expect(host.querySelector('[aria-label$="current breakdown"]')).toBeNull()
   })
 
@@ -237,10 +246,12 @@ describe("what the widgets say about when they started", () => {
 
     expect(shown).not.toContain("Off wallet")
     expect(shown).not.toContain("Switched off")
-    expect(shown).toContain("3 wallets")
+    expect(shown).not.toContain("3 wallets")
     expect(shown).not.toContain("4 wallets")
+    expect(shown).toContain("All wallets1 connected · 2 missing")
     expect(shown).toContain("Phemex did not answer")
     expect(shown).toContain("2 missing")
+    expect(host.innerHTML).not.toContain("last:border-b-0")
   })
 
   it("keeps the card useful before a real wallet has any trades", () => {
@@ -250,7 +261,8 @@ describe("what the widgets say about when they started", () => {
       profit: [],
     })
 
-    expect(shown).toContain("0 wallets")
+    expect(shown).toContain("All wallets0 connected")
+    expect(shown).not.toContain("0 wallets")
     expect(shown).toContain("No real trades have been recorded yet.")
   })
 

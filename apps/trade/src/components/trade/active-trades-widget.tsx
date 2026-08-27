@@ -135,7 +135,7 @@ export function ActiveTradesWidget({
         className="min-h-0 flex-1"
         viewportClassName="h-full min-h-24"
       >
-        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted">
+        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]">
           <TableHeader>
             <TableRow>
               <TableHead column="meta">{heading("market", "Market")}</TableHead>
@@ -277,7 +277,9 @@ function ActiveTradeRow({
           <TradeBadge tone={trade.side === "long" ? "made" : "lost"}>
             {trade.side === "long" ? "Long" : "Short"} {trade.leverage}×
           </TradeBadge>
-          <AccountTypeBadge type={trade.accountType} />
+          {trade.accountType === "Real" ? null : (
+            <AccountTypeBadge type={trade.accountType} />
+          )}
         </span>
       </TableCell>
       <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
@@ -326,14 +328,10 @@ function ActiveTradeRow({
 function AccountTypeBadge({
   type,
 }: {
-  type: TradingOverviewActiveTrade["accountType"]
+  type: Exclude<TradingOverviewActiveTrade["accountType"], "Real">
 }) {
   return (
-    <TradeBadge
-      tone={
-        type === "Real" ? "real" : type === "Testnet" ? "testnet" : "neutral"
-      }
-    >
+    <TradeBadge tone={type === "Testnet" ? "testnet" : "neutral"}>
       {type}
     </TradeBadge>
   )
