@@ -42,7 +42,9 @@ filled, then ended when the next account read found no position. ANSEM on Aster
 showed why a watched buy cannot be forced through after the fresh price leaves
 the rung: the grid sold its old top, moved upward, then bought the new top five
 seconds later at a higher price. A moved grid also starts its new top rung
-unready. It must see a later price above that rung before a return can buy it.
+unready and ignores that rung for one minute. Price movements inside the minute
+do not prepare it. Once the minute ends, the grid must see a fresh price above
+the rung before a later return can buy it.
 
 ## What watching costs
 

@@ -155,6 +155,22 @@ async function onlyGrid() {
   return { ...rows[0], plan: rows[0].plan as GridPlan }
 }
 
+/** Moves a followed top level past its one-minute reset without making tests wait. */
+async function finishMovedTopReset(buyPx?: number) {
+  const grid = await onlyGrid()
+  const level =
+    buyPx === undefined
+      ? grid.plan.levels.at(-1)
+      : grid.plan.levels.find((one) => one.buyPx === buyPx)
+  expect(level?.rebuyAfter).toBeTypeOf("number")
+  if (!level) throw new Error("GRID_LEVEL")
+  level.rebuyAfter = Date.now() - 1
+  await database
+    .update(tradeSmartLadders)
+    .set({ plan: grid.plan })
+    .where(eq(tradeSmartLadders.id, grid.id))
+}
+
 beforeEach(async () => {
   const testDb = await createTestDatabase()
   client = testDb.client
@@ -900,12 +916,13 @@ describe("following price up", () => {
     // Price has to climb above that rung, then return to it.
     await settle()
     expect(await positions()).toHaveLength(0)
+    await finishMovedTopReset()
     await priceTo(121)
     await priceTo(120)
     expect((await onlyGrid()).plan.levels.at(-1)?.status).toBe("holding")
   })
 
-  it("does not use the sell's own rise to ready the new top buy", async () => {
+  it("waits one minute before watching the moved top buy again", async () => {
     await priceTo(100)
     await place({ follow: true })
     await priceTo(111)
@@ -921,9 +938,20 @@ describe("following price up", () => {
       status: "waiting",
       armed: false,
     })
+    const rebuyAfter = grid.plan.levels.at(-1)?.rebuyAfter
+    expect(rebuyAfter).toBeGreaterThanOrEqual(Date.now() + 59_000)
+    expect(rebuyAfter).toBeLessThanOrEqual(Date.now() + 60_000)
 
-    // Coming straight back to the sale price spends nothing. A later look
-    // above the new buy readies it, and only then may a return buy the rung.
+    // CHIP did this whole move in nine seconds. Every price seen inside the
+    // minute is ignored, so several quick crossings still spend nothing.
+    await priceTo(120)
+    await priceTo(121)
+    await priceTo(120)
+    expect(await positions()).toHaveLength(0)
+
+    // Once the minute ends, an old crossing still does not count. Price must
+    // be seen above the buy again, then return on a later pass.
+    await finishMovedTopReset()
     await priceTo(120)
     expect(await positions()).toHaveLength(0)
     await priceTo(121)
@@ -950,6 +978,35 @@ describe("following price up", () => {
     expect(grid.plan.levels.every((one) => one.status === "waiting")).toBe(true)
   })
 
+  it("keeps the first sold price quiet through another fast upward move", async () => {
+    await priceTo(100)
+    await place({ follow: true })
+    await priceTo(111)
+    await priceTo(109)
+    await priceTo(121)
+
+    // The $120 sold line gets its minute, then price races through the next
+    // top before that minute ends. The line is now one place lower, but its
+    // unfinished reset must move with it.
+    await priceTo(130)
+    let grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(2)
+    expect(
+      grid.plan.levels.find((level) => level.buyPx === 120)?.rebuyAfter
+    ).toBeGreaterThan(Date.now())
+    await priceTo(129)
+    await priceTo(120)
+    expect(await positions()).toHaveLength(0)
+
+    await finishMovedTopReset(120)
+    await priceTo(121)
+    await priceTo(120)
+    grid = await onlyGrid()
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
+  })
+
   it("leaves every level under the price, so the move buys nothing", async () => {
     await priceTo(100)
     await place({ follow: true })
@@ -966,7 +1023,9 @@ describe("following price up", () => {
     await place({ follow: true })
     await priceTo(130)
     // The moved range is $90 to $130, so its top buy is $120.
-    // The move itself does not ready that new buy. A later price above it does.
+    // The move itself does not ready that new buy. After the one-minute reset,
+    // a later price above it does.
+    await finishMovedTopReset()
     await priceTo(121)
     await priceTo(120)
 

@@ -625,12 +625,15 @@ const gridLevelStateSchema = z.object({
    * and the account sat at its most long at the exact moment a grid is supposed
    * to be waiting. One big lump is not a grid, the same way it is not a ladder.
    *
-   * Set at placement for every level under the price, and set on any pass where
-   * price is above the level. A level price never visits simply never trades,
-   * which costs nothing. Grids saved before this existed read as armed, which
-   * is what they were.
+   * Set at placement for every level under the price, and normally set on any
+   * pass where price is above the level. A followed top sale first gives its
+   * shared buy line a one-minute reset; prices seen during that minute do not
+   * count. A level price never visits simply never trades, which costs nothing.
+   * Grids saved before this existed read as armed, which is what they were.
    */
   armed: z.boolean().default(true),
+  /** Earliest engine time that this sold price may start watching again. */
+  rebuyAfter: z.number().int().nonnegative().optional(),
   /**
    * The level sits at or below the stop, so its order was taken off the book —
    * price cannot reach it without ending the grid first. Still drawn, faded,
