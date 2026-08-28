@@ -71,8 +71,10 @@ export async function lighterPublic(
    * `"watched"` for a request somebody is sitting in front of — a chart they
    * just opened. It keeps a little of the minute back from the idle reads,
    * which ask first on every poll and would otherwise take the lot.
+   * `"order"` for a read needed to accept an order. It may use the requests
+   * deliberately kept back from both idle reads and charts.
    */
-  priority: "background" | "watched" = "background"
+  priority: "background" | "watched" | "order" = "background"
 ): Promise<unknown> {
   assertAvailable(network)
   if (!Number.isInteger(weight) || weight <= 0) {

@@ -228,7 +228,9 @@ async function placeLiveDcaLadderOnce(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("LIVE_MARKET")
   const mark = (
-    await protocol.markets.prices(wallet.network, [ref.marketId])
+    await protocol.markets.prices(wallet.network, [ref.marketId], {
+      forOrder: true,
+    })
   ).get(ref.marketId)
   if (mark === undefined || !(mark > 0)) {
     // Two different things arrive here as the same silence. "The exchange is
@@ -2154,6 +2156,42 @@ async function restoreLiveOrders(input: {
 
 // ----- The grid's live half ------------------------------------------------
 
+/**
+ * A current price needed to change an existing live grid.
+ *
+ * Changing levels, money or End Grid changes what the engine may trade next,
+ * so this read uses the requests kept back for order work. A refused read must
+ * also say that the requested change was not saved. The placement wording is
+ * wrong here because the grid already exists and keeps running.
+ */
+async function liveGridAdjustmentMark(
+  protocol: ReturnType<typeof getProtocol>,
+  wallet: TradeWallet,
+  marketId: string
+): Promise<number> {
+  let prices: Map<string, number>
+  try {
+    prices = await protocol.markets.prices(wallet.network, [marketId], {
+      forOrder: true,
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.includes("EXCHANGE_BUSY")) {
+      throw new Error("SMART_GRID_ADJUST_BUSY")
+    }
+    throw error
+  }
+
+  const mark = prices.get(marketId)
+  if (mark !== undefined && mark > 0) return mark
+  if (
+    protocol.markets.pricesWereRationed?.(wallet.network, marketId) ?? false
+  ) {
+    throw new Error("SMART_GRID_ADJUST_BUSY")
+  }
+  throw new Error("SMART_GRID_ADJUST_NO_PRICE")
+}
+
 /** Places the live exchange half of a grid order atomically. */
 export async function placeLiveGridOrder(
   userId: string,
@@ -2191,7 +2229,9 @@ async function placeLiveGridOrderOnce(
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
   if (!rules) throw new Error("LIVE_MARKET")
   const mark = (
-    await protocol.markets.prices(wallet.network, [ref.marketId])
+    await protocol.markets.prices(wallet.network, [ref.marketId], {
+      forOrder: true,
+    })
   ).get(ref.marketId)
   if (mark === undefined || !(mark > 0)) {
     // Two different things arrive here as the same silence. "The exchange is
@@ -2385,19 +2425,11 @@ export async function updateLiveGridEnd(
       const ref = parseMarketKey(grid.marketKey)
       if (!ref) throw new Error("LIVE_MARKET")
       const protocol = getProtocol(wallet.protocol)
-      const mark = (
-        await protocol.markets.prices(wallet.network, [ref.marketId])
-      ).get(ref.marketId)
-      if (mark === undefined || !(mark > 0)) {
-        throw new Error(
-          (protocol.markets.pricesWereRationed?.(
-            wallet.network,
-            ref.marketId
-          ) ?? false)
-            ? "EXCHANGE_BUSY"
-            : "LIVE_NO_PRICE"
-        )
-      }
+      const mark = await liveGridAdjustmentMark(
+        protocol,
+        wallet,
+        ref.marketId
+      )
       const target = protocol.markets.roundPx(
         gridEndPx(plan.topPx, mark, input.abovePct),
         plan.sizeDecimals,
@@ -2577,22 +2609,7 @@ export async function reshapeLiveGrid(
       ref.marketId
     )
     if (!rules) throw new Error("LIVE_MARKET")
-    const mark = (
-      await protocol.markets.prices(wallet.network, [ref.marketId])
-    ).get(ref.marketId)
-    if (mark === undefined || !(mark > 0)) {
-      // Two different things arrive here as the same silence. "The exchange is
-      // rationing us" clears on its own and is nobody's fault; "this market has
-      // no price" is permanent and worth looking at. Saying the second when it
-      // was the first sent somebody hunting for a delisted coin that was
-      // trading perfectly well.
-      throw new Error(
-        (protocol.markets.pricesWereRationed?.(wallet.network, ref.marketId) ??
-          false)
-          ? "EXCHANGE_BUSY"
-          : "LIVE_NO_PRICE"
-      )
-    }
+    const mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
     const roundPx = (px: number) =>
       protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
 

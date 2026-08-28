@@ -285,6 +285,15 @@ share:
 So idle polling can spend twenty-four and be refused, and the chart still has
 ten in hand. Orders are never refused before either of them.
 
+The fresh price needed to place or reshape a live grid, change End Grid, or
+place a DCA ladder counts as order work. The price used to count as an idle
+catalogue read, so a full background tier could refuse the change while sixteen
+requests were still being kept for orders. Those actions can now use the kept
+requests. A real firewall hold from Lighter still refuses a change until its
+minute clears. A refused adjustment says the changes were not saved and the
+existing grid is still running. It never uses the new-grid phrase "Nothing was
+placed."
+
 ### What the chart asks for, and why Lighter asks for less
 
 **None of the above was what kept refusing the chart.** Measured 27 Aug 2026

@@ -263,7 +263,11 @@ export type ProtocolEntry = {
      */
     prices(
       network: NetworkId,
-      marketIds: readonly string[]
+      marketIds: readonly string[],
+      options?: {
+        /** The price is needed to accept an order, not for an idle refresh. */
+        forOrder?: boolean
+      }
     ): Promise<Map<string, number>>
     /**
      * The nearest price this exchange would accept for an order. Every

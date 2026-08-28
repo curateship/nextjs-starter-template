@@ -104,6 +104,18 @@ describe("what the catalogue teaches", () => {
     expect([...prices.entries()]).toEqual([["BTC", 78_584.1]])
   })
 
+  it("uses the requests kept back for a price needed by an order", async () => {
+    await fetchLighterPrices("mainnet", ["BTC"], { forOrder: true })
+
+    expect(publicRead).toHaveBeenCalledWith(
+      "mainnet",
+      "/api/v1/orderBookDetails",
+      300,
+      { filter: "perp" },
+      "order"
+    )
+  })
+
   it("does not remember one network's markets for the other", async () => {
     await lighterMarketFacts("mainnet", "BTC")
     publicRead.mockResolvedValue({ code: 200, order_book_details: [] })

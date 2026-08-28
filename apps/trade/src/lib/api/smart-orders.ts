@@ -778,6 +778,10 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "That grid is not there any more — it may have finished or been cancelled.",
     SMART_GRID_LEVEL_DONE:
       "That level already bought or was already called off.",
+    SMART_GRID_ADJUST_BUSY:
+      "The exchange is asking Trade to slow down, so your grid changes were not saved. The existing grid is still running. Try again in a minute.",
+    SMART_GRID_ADJUST_NO_PRICE:
+      "The exchange would not give a current price, so your grid changes were not saved. The existing grid is still running.",
     SMART_GRID_TARGET_IN_RANGE:
       "The End Grid line has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
     SMART_GRID_STOP_IN_RANGE:

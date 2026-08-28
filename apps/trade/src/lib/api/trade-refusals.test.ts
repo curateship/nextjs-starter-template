@@ -164,4 +164,13 @@ describe("a refusal that carries its own figures", () => {
       getSmartOrderErrorMessage(new Error("PART_CLOSE_POSITION_GONE"))
     ).toContain("not there any more")
   })
+
+  it("says a refused grid adjustment left the existing grid running", () => {
+    const said = getSmartOrderErrorMessage(
+      new Error("SMART_GRID_ADJUST_BUSY")
+    )
+    expect(said).toContain("changes were not saved")
+    expect(said).toContain("still running")
+    expect(said).not.toContain("Nothing was placed")
+  })
 })

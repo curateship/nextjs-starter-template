@@ -23,6 +23,7 @@ import {
   cancelLiveLadderRest,
   cancelLiveSignalRest,
   placeLiveDcaLadder,
+  placeLiveGridOrder,
   reconcileLiveLadders,
   resetRefusalHolds,
   reshapeLiveGrid,
@@ -328,6 +329,32 @@ afterEach(async () => {
 })
 
 describe("live Smart orders", () => {
+  it("places a grid through the requests kept back after background reads are full", async () => {
+    prices.mockImplementationOnce(
+      async (
+        _network: string,
+        _marketIds: readonly string[],
+        options?: { forOrder?: boolean }
+      ) => {
+        if (!options?.forOrder) throw new Error("EXCHANGE_BUSY")
+        return new Map([["BTC", 100]])
+      }
+    )
+
+    await expect(
+      placeLiveGridOrder(userId, wallet, {
+        marketKey: MARKET,
+        topPx: 108,
+        bottomPx: 92,
+        params: defaultGridParams(),
+      })
+    ).resolves.toMatchObject({ levels: 12, grid: { status: "active" } })
+
+    expect(prices).toHaveBeenCalledWith(wallet.network, ["BTC"], {
+      forOrder: true,
+    })
+  })
+
   it("sends nothing to the exchange when placing — every rung is watched", async () => {
     const result = await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
@@ -344,6 +371,9 @@ describe("live Smart orders", () => {
     // Not one order. A resting rung ties up real margin for a buy that may
     // never happen; the engine sends the order when price reaches the rung.
     expect(place).not.toHaveBeenCalled()
+    expect(prices).toHaveBeenCalledWith(wallet.network, ["BTC"], {
+      forOrder: true,
+    })
     const plan = await ladder()
     expect(plan.rungs.map((rung) => rung.status)).toEqual([
       "waiting",
@@ -1305,15 +1335,32 @@ describe("changing a live grid while it is flat", () => {
 
   it("changes borrowing while every grid level is waiting", async () => {
     await restingGrid()
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    prices.mockImplementation(
+      async (
+        _network: string,
+        _marketIds: readonly string[],
+        options?: { forOrder?: boolean }
+      ) => {
+        if (!options?.forOrder) throw new Error("EXCHANGE_BUSY")
+        return new Map([["BTC", 100]])
+      }
+    )
 
-    await reshapeLiveGrid(userId, wallet, {
-      gridId: "grid-1",
-      leverage: 3,
-    })
-
+    try {
+      await reshapeLiveGrid(userId, wallet, {
+        gridId: "grid-1",
+        leverage: 3,
+      })
+    } finally {
+      logged.mockRestore()
+    }
     const plan = await gridPlan()
     expect(plan.leverage).toBe(3)
     expect(plan.levels[0].budget).toBeCloseTo(300, 0)
+    expect(prices).toHaveBeenCalledWith(wallet.network, ["BTC"], {
+      forOrder: true,
+    })
   })
 
   it("switches End Grid on and off", async () => {
@@ -1331,6 +1378,31 @@ describe("changing a live grid while it is flat", () => {
       abovePct: null,
     })
     expect(disabled.grid.plan.takeProfitPx).toBeNull()
+  })
+
+  it("keeps the grid running when its adjustment price is refused", async () => {
+    await restingGrid()
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+    prices.mockRejectedValue(
+      new Error("EXCHANGE_BUSY:spent 40 of 40 this minute")
+    )
+
+    try {
+      await expect(
+        updateLiveGridEnd(userId, wallet, {
+          gridId: "grid-1",
+          abovePct: 5,
+        })
+      ).rejects.toThrow("SMART_GRID_ADJUST_BUSY")
+    } finally {
+      logged.mockRestore()
+    }
+    expect((await gridPlan()).takeProfitPx).toBeNull()
+    const [grid] = await database
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    expect(grid.status).toBe("active")
   })
 
   it("saves a stop dragged while the grid holds nothing", async () => {

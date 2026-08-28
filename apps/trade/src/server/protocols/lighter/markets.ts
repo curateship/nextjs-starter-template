@@ -235,14 +235,18 @@ const CATALOG_HELD_MS = 10_000
 type HeldCatalog = { at: number; load: Promise<unknown> }
 const heldCatalogs = new Map<NetworkId, HeldCatalog>()
 
-async function orderBookDetails(network: NetworkId): Promise<unknown> {
+async function orderBookDetails(
+  network: NetworkId,
+  priority: "background" | "order" = "background"
+): Promise<unknown> {
   const held = heldCatalogs.get(network)
   if (held && Date.now() - held.at < CATALOG_HELD_MS) return held.load
   const load = lighterPublic(
     network,
     "/api/v1/orderBookDetails",
     UNLISTED_WEIGHT,
-    { filter: "perp" }
+    { filter: "perp" },
+    priority
   ).then((answer) => {
     rememberFacts(network, answer)
     return answer
@@ -316,9 +320,12 @@ export async function fetchLighterMarkets(
 /** Mark prices for only the markets requested by the practice engine. */
 export async function fetchLighterPrices(
   network: NetworkId,
-  marketIds: readonly string[]
+  marketIds: readonly string[],
+  options: { forOrder?: boolean } = {}
 ): Promise<Map<string, number>> {
-  const parsed = catalogSchema.safeParse(await orderBookDetails(network))
+  const parsed = catalogSchema.safeParse(
+    await orderBookDetails(network, options.forOrder ? "order" : "background")
+  )
   const prices = new Map<string, number>()
   if (!parsed.success) return prices
   const wanted = new Set(marketIds)
