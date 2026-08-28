@@ -32,6 +32,7 @@ import { db } from "@/server/db"
 import { credentialFor, walletCredentials } from "@/server/trade/wallet-auth"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
+import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
 import { openingMarginMode } from "@/server/protocols/order-settings"
 import { pairedStopRefs } from "@/server/trade/smart-pairing"
 import {
@@ -318,6 +319,7 @@ export async function placeLiveOrder(
       tpPx: input.tpPx,
       slPx: input.slPx,
     })
+    dropEngineExchangeReads(row)
 
     await journal(userId, row.id, input.marketKey, {
       action: outcome.status === "filled" ? "fill" : "placed",
@@ -389,6 +391,7 @@ export async function moveLiveOrder(
       sz: input.sz,
       reduceOnly: input.reduceOnly,
     })
+    dropEngineExchangeReads(row)
     await journal(userId, row.id, input.marketKey, {
       action: "placed",
       side: input.side,
@@ -425,6 +428,7 @@ export async function cancelLiveOrder(
       marketId: ref.marketId,
       orderId: input.orderId,
     })
+    dropEngineExchangeReads(row)
   } catch (error) {
     await recordRefusal(
       userId,
@@ -466,6 +470,7 @@ export async function rollbackLiveOrder(
       marketId: ref.marketId,
       orderId: input.orderId,
     })
+    dropEngineExchangeReads(row)
     await journal(userId, row.id, input.marketKey, {
       action: "cancelled",
       side,
@@ -519,6 +524,7 @@ export async function closeLivePosition(
       priceMultiplierUp: rules?.priceMultiplierUp ?? null,
       priceMultiplierDown: rules?.priceMultiplierDown ?? null,
     })
+    dropEngineExchangeReads(row)
     // The Journal row for this trade is built from the fill this close just
     // made, so the next read must not sit behind the idle wait.
     sweepSoon(userId, row.id)
@@ -621,6 +627,7 @@ export async function changeLiveLeverage(
       leverage: asked,
       szi: held.szi,
     })
+    dropEngineExchangeReads(row)
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side: held.szi > 0 ? "buy" : "sell",
@@ -716,6 +723,7 @@ export async function changeLiveMargin(
       szi: held.szi,
       dollars: input.dollars,
     })
+    dropEngineExchangeReads(row)
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side: held.szi > 0 ? "buy" : "sell",
@@ -966,6 +974,7 @@ export async function setLiveBrackets(
         slSz,
       }
     )
+    dropEngineExchangeReads(row)
     await journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,

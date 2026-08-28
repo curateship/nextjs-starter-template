@@ -107,8 +107,7 @@ cannot have changed (pace / don't ask).
   (`candles.ts`, `live-smart-orders.ts`, `paper.ts`)
 - **A flow paces itself and backs off.** It looks at 12 coins per pass
   (least-recently-looked first), and when the same refusal comes back three
-  times in a row it stops asking — 2 minutes for a rate limit, doubling to
-  30. When it comes back it retries **one** coin, so being wrong costs one
+  times in a row it stops asking — 2 minutes for a rate limit, doubling to 30. When it comes back it retries **one** coin, so being wrong costs one
   call. A 429 is named on screen ("the exchange is asking us to slow down")
   instead of masquerading as a missing price. (`flow-run.ts`,
   `flow-waiting.ts`, `prices.ts`)
@@ -174,9 +173,9 @@ positions and orders every four seconds; the account card asks for its figures
 every fifteen. The market catalogue is excluded — it is one pair of calls every
 ten minutes for the whole app.
 
-| One minute of watching | Before | After |
-| --- | --- | --- |
-| One wallet | 426 weight | 58 weight |
+| One minute of watching          | Before       | After      |
+| ------------------------------- | ------------ | ---------- |
+| One wallet                      | 426 weight   | 58 weight  |
 | Three wallets on three accounts | 1,278 weight | 174 weight |
 
 1,278 is more than the entire 1,200-a-minute budget, spent before a single
@@ -188,10 +187,10 @@ sitting there.
 network for two and a half minutes, the same wallets both times, and the third
 thirty-second window taken from each so the boot traffic is out of it:
 
-| Steady state, per minute | Before | After |
-| --- | --- | --- |
-| Real network | 1,088 weight | 221 weight |
-| Practice network | 285 weight | 56 weight |
+| Steady state, per minute | Before       | After      |
+| ------------------------ | ------------ | ---------- |
+| Real network             | 1,088 weight | 221 weight |
+| Practice network         | 285 weight   | 56 weight  |
 
 The before figure is over the cap. 1,088 of the 1,200 went on the real network
 alone, with the practice network on top of it, in ordinary running with nothing
@@ -230,6 +229,21 @@ goes in before the read is awaited, so the second wallet joins the first one's
 answer rather than paying for its own. Pinned by a test rather than left as a
 claim.
 
+The trading engine now applies that same address rule before it reaches any
+exchange adapter. One account answer and one portfolio answer stand for five
+seconds of one-second engine passes. A failed request removes itself, and the
+five seconds start when the request starts rather than when a slow answer
+finally lands. Placing, moving, cancelling or closing an order, changing its
+protection, leverage or margin clears both answers immediately.
+
+Counted in the engine test on 28 August 2026, three nearby passes across two
+wallet rows pointing at the same address made one account call and one portfolio
+call. The old path made six of each for the same work. The count stops at the
+adapter boundary, so it does not pretend to be a fresh live
+`TRADE_COUNT_EXCHANGE_CALLS` run. The live counter still has to be used after a
+server restart to measure the exact venue cost and confirm zero refusals on the
+wallets being tested.
+
 The five-second rule for wallet reads is untouched: a failed read is still
 never remembered, and a stale answer is still marked as a moment old rather
 than served as fresh. See `wallet-reads.md`.
@@ -259,7 +273,7 @@ then displayed.
   30-second call summaries. Count first, guess never — every wrong guess in
   this saga cost an hour.
 - A burst of 429s drops the price websocket, which used to cause its own
-  429s. If refusals climb *and* the price feed keeps reconnecting, suspect a
+  429s. If refusals climb _and_ the price feed keeps reconnecting, suspect a
   new burst source, not the connection.
 - Remember the per-address budget: a wallet that has never traded has
   10,000 requests for life. On testnet, trading pretend volume is how you

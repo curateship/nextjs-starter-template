@@ -33,6 +33,8 @@ import {
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
+import { dropEngineExchangeReads } from "@/server/trade/engine-exchange-reads"
+import { cancelLiveOrder, placeLiveOrder } from "@/server/trade/live-orders"
 import {
   tradeLiveJournal,
   tradeFlowRunOrders,
@@ -142,6 +144,52 @@ function params(over: Partial<DcaParams> = {}): DcaParams {
     anchor: "click",
     takeProfit: null,
     stopLoss: null,
+    ...over,
+  }
+}
+
+function gridState(over: Partial<GridPlan> = {}): GridPlan {
+  const levels = [80, 85].map((buyPx) => ({
+    buyPx,
+    sellPx: buyPx + 5,
+    sz: 1,
+    budget: buyPx,
+    heldSz: 0,
+    status: "waiting" as const,
+    armed: true,
+    dead: false,
+    cycles: 0,
+  }))
+  return {
+    direction: "long",
+    topPx: 90,
+    bottomPx: 80,
+    takeProfitPx: null,
+    spacing: "even",
+    sizing: "even",
+    potPct: 20,
+    maxOrderVolPct: 0,
+    startedAt: Date.now() - 60_000,
+    sizeDecimals: 3,
+    priceTick: null,
+    minOrderValueUsd: 10,
+    leverage: 1,
+    maxLeverage: 50,
+    levels,
+    carriedLevels: [],
+    stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
+    baseDetection: defaultGridParams().baseDetection,
+    baseWatch: null,
+    aimedSlPx: null,
+    pairedStop: null,
+    seenFillsTo: 0,
+    cycles: 0,
+    follow: false,
+    followDown: false,
+    entered: false,
+    shifts: 0,
+    downShifts: 0,
+    closedReason: null,
     ...over,
   }
 }
@@ -337,6 +385,7 @@ beforeEach(async () => {
     hasKey: true,
     keyValidUntil: null,
   }
+  dropEngineExchangeReads(wallet)
 })
 
 afterEach(async () => {
@@ -344,6 +393,118 @@ afterEach(async () => {
 })
 
 describe("live Smart orders", () => {
+  it("shares one account and portfolio read across nearby passes and wallets", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    const [saved] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    await database.insert(tradeWallets).values({
+      userId,
+      id: "live-2",
+      label: "Same account",
+      kind: "live",
+      status: "active",
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 1_000,
+      address: ADDRESS,
+      agentKeyEncrypted: encryptSecret(KEY),
+    })
+    await database.insert(tradeSmartLadders).values({
+      ...saved,
+      id: "ladder-2",
+      walletId: "live-2",
+    })
+    const sameAccount = { ...wallet, id: "live-2", label: "Same account" }
+    dropEngineExchangeReads(wallet)
+    account.mockClear()
+    portfolio.mockClear()
+
+    await reconcileLiveLadders(userId, wallet)
+    await reconcileLiveLadders(userId, sameAccount)
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(account).toHaveBeenCalledTimes(1)
+    expect(portfolio).toHaveBeenCalledTimes(1)
+  })
+
+  it("does not hold a failed account or portfolio read", async () => {
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    dropEngineExchangeReads(wallet)
+    account.mockClear()
+    portfolio.mockClear()
+    account.mockRejectedValueOnce(new Error("account refused"))
+    portfolio.mockRejectedValueOnce(new Error("portfolio refused"))
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    try {
+      await expect(reconcileLiveLadders(userId, wallet)).rejects.toThrow(
+        "portfolio refused"
+      )
+      await expect(
+        reconcileLiveLadders(userId, wallet)
+      ).resolves.toBeUndefined()
+    } finally {
+      logged.mockRestore()
+    }
+
+    expect(account).toHaveBeenCalledTimes(2)
+    expect(portfolio).toHaveBeenCalledTimes(2)
+  })
+
+  it("drops held reads after an order is placed or cancelled", async () => {
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    dropEngineExchangeReads(wallet)
+    account.mockClear()
+    portfolio.mockClear()
+
+    await reconcileLiveLadders(userId, wallet)
+    place.mockResolvedValue({
+      status: "resting",
+      orderId: "fresh-order",
+      avgPx: null,
+      filledSz: null,
+    })
+    await placeLiveOrder(userId, {
+      walletId: wallet.id,
+      marketKey: MARKET,
+      side: "buy",
+      px: 90,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      restingOnly: true,
+    })
+    await reconcileLiveLadders(userId, wallet)
+    await cancelLiveOrder(userId, {
+      walletId: wallet.id,
+      marketKey: MARKET,
+      orderId: "fresh-order",
+    })
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(account).toHaveBeenCalledTimes(3)
+    expect(portfolio).toHaveBeenCalledTimes(4)
+  })
+
   it("places a grid through the requests kept back after background reads are full", async () => {
     prices.mockImplementationOnce(
       async (
@@ -779,6 +940,96 @@ describe("live Smart orders", () => {
       wallet.address
     )
     expect(fills).not.toHaveBeenCalled()
+  })
+
+  it("keeps the ladder's stop when a grid shares the market", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ stopLoss: { pct: 20, base: null } }),
+    })
+    const [savedLadder] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    const ladderPlan = savedLadder.plan as LadderPlan
+    ladderPlan.rungs[0].status = "filled"
+    ladderPlan.aimedSlPx = 80
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: ladderPlan,
+        updatedAt: new Date(Date.now() - 3_000),
+      })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+
+    await database.insert(tradeSmartLadders).values({
+      userId,
+      id: "grid-paired",
+      walletId: wallet.id,
+      marketKey: MARKET,
+      kind: "grid",
+      status: "active",
+      plan: gridState({
+        pairedStop: {
+          orderId: "grid-stop",
+          px: 90,
+          sz: 1,
+          placedAt: Date.now(),
+        },
+      }),
+    })
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 2,
+          entryPx: 100,
+          leverage: 1,
+          marginUsed: 200,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: 90,
+          slOrderId: "grid-stop",
+          protectionOrderIds: ["grid-stop", "1", "2"],
+        },
+      ],
+      orders: [
+        {
+          orderId: "1",
+          marketId: "BTC",
+          side: "sell",
+          px: 70,
+          sz: 2,
+          reduceOnly: true,
+          trigger: true,
+        },
+        {
+          orderId: "2",
+          marketId: "BTC",
+          side: "sell",
+          px: 80,
+          sz: 2,
+          reduceOnly: true,
+          trigger: true,
+        },
+      ],
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    const [after] = await database
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    expect(after.plan).toMatchObject({
+      stopLoss: { mode: "percent", pct: 20 },
+      aimedSlPx: 80,
+    })
   })
 
   it("survives a smart order it cannot advance, and writes it down", async () => {
@@ -1294,48 +1545,7 @@ describe("changing a live grid while it is flat", () => {
     takeProfitPx: number | null = null,
     marketKey = MARKET
   ): Promise<void> {
-    const levels = [80, 85].map((buyPx) => ({
-      buyPx,
-      sellPx: buyPx + 5,
-      sz: 1,
-      budget: buyPx,
-      heldSz: 0,
-      status: "waiting" as const,
-      armed: true,
-      dead: false,
-      cycles: 0,
-    }))
-    const plan: GridPlan = {
-      direction: "long",
-      topPx: 90,
-      bottomPx: 80,
-      takeProfitPx,
-      spacing: "even",
-      sizing: "even",
-      potPct: 20,
-      maxOrderVolPct: 0,
-      startedAt: Date.now() - 60_000,
-      sizeDecimals: 3,
-      priceTick: null,
-      minOrderValueUsd: 10,
-      leverage: 1,
-      maxLeverage: 50,
-      levels,
-      carriedLevels: [],
-      stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
-      baseDetection: defaultGridParams().baseDetection,
-      baseWatch: null,
-      aimedSlPx: null,
-      pairedStop: null,
-      seenFillsTo: 0,
-      cycles: 0,
-      follow: false,
-      followDown: false,
-      entered: false,
-      shifts: 0,
-      downShifts: 0,
-      closedReason: null,
-    }
+    const plan = gridState({ takeProfitPx })
     await database.insert(tradeSmartLadders).values({
       userId,
       id: "grid-1",

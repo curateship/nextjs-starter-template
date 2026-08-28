@@ -80,6 +80,17 @@ the first.
 
 A stop that closed at a loss is `warning`; a target is `info`.
 
+The fill announcer reads the known stop and target rows for the whole fresh
+fill batch before it writes the notices. It asks in groups of 500 order ids, so
+a large catch-up cannot exceed the database's parameter limit. The same rule
+applies when the app has just learnt several old order types from the exchange:
+their recent fills are read together and then matched in memory.
+
+Measured in the database test on 28 August 2026, 501 closing fills used two
+trigger queries instead of 501 and still produced 1,002 notices, one fill notice
+and one stop notice each. Two newly learnt triggers used one fill query instead
+of two. An empty or old batch asks nothing.
+
 ## What keeps repeats out
 
 - The fill's row in `trade_live_fills` is the one source of truth. Whichever

@@ -188,9 +188,13 @@ seconds for a hundred seconds: **33 requests without the sockets and 13 with
 them**, and all thirteen were in the first twenty-five seconds while the lines
 were signing in. After that, nothing. `wallet-reads.md` has the safeguards.
 
-What is left is their positions and balances, which are still asked for every
-pass. That is a decision rather than an omission — see above — and it is the
-only exchange read on these two venues that still repeats.
+What is left is their positions and balances, which the engine still needs for
+every decision. One successful answer now covers five seconds of engine passes,
+shared by wallet rows pointing at the same exchange address. A failed answer is
+never kept, and any order or protection change clears the held answer before
+the next pass. The exchange adapters may save more calls through their own
+account sockets; this five-second hold is the common backstop before the engine
+reaches them.
 
 **Every thirty seconds: the flow looking for new coins.** One scan asks about
 twelve coins and each coin's base needs its 4h candles, about 28 weight each,
@@ -219,6 +223,18 @@ Measured on 22 August 2026, on the real wallets:
 
 A market that never ticks is never covered by a feed, however many lines are
 open, so the REST read stays as the honest fallback for those.
+
+The engine also keeps the active plans indexed by market for the lifetime of a
+pass. Looking up the plan for each held coin no longer starts at the beginning
+of the wallet's smart-order list each time. The index keeps every valid plan on
+a market in its database order, including the allowed grid-and-ladder pair,
+and ignores a stored row whose kind or plan cannot be read.
+
+On 28 August 2026, a local run with 454 active markets and 454 held coins took
+about 0.34 milliseconds per pass when each coin scanned the full list. Reading
+the market index took about 0.008 milliseconds per pass. The run repeated each
+version for 2,000 passes after warm-up. These numbers cover only the in-memory
+plan lookup, not exchange or database time.
 
 **The open dashboard also nudges the engine**, every four seconds, so a laptop
 with no engine running beside it still trades. That nudge takes the engine's

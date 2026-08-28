@@ -60,6 +60,10 @@ import {
 } from "@/lib/trade/paper"
 import { db } from "@/server/db"
 import { checkLiquidationWarnings } from "@/server/trade/liquidation-warning"
+import {
+  heldEngineAccount,
+  heldEnginePortfolio,
+} from "@/server/trade/engine-exchange-reads"
 import { writeTradeNotice } from "@/server/trade/notices"
 import {
   copySmartOrderPauseState,
@@ -146,66 +150,9 @@ export async function placeLiveDcaLadder(
   )
 }
 
-/**
- * How long an account read stands in for the next one, in ms.
- *
- * Matched to the price cache, and for the same reason: placing a ladder asks
- * the exchange what the account holds and what is open on it, and neither
- * answer is about the coin being placed. A flow walking a hundred coins asked
- * those two questions a hundred times over, per pass, and that is what spent
- * the account's request allowance until the exchange started refusing
- * everything with a 429.
- */
-const ACCOUNT_CACHE_MS = 2_000
-
-/** Inferred rather than named, so it cannot drift from what the adapter returns. */
-type AccountAnswer = Awaited<ReturnType<ReturnType<typeof accountOf>["fetch"]>>
-type OrdersAnswer = Awaited<
-  ReturnType<ReturnType<typeof ordersOf>["portfolio"]>
->
-
-type AccountSnapshot = {
-  at: number
-  answer: Promise<[AccountAnswer, OrdersAnswer]>
-}
-
-const accountCache = new Map<string, AccountSnapshot>()
-
 /** How often one candle feed may be read, across every wallet. */
 const CANDLE_FEED_EVERY_MS = 2_500
 let lastCandleFeedAt = 0
-
-/**
- * The account and what is open on it, shared between callers a moment apart.
- *
- * Safe to share this briefly because placing a ladder no longer spends
- * anything: rungs are prices the engine watches, and the engine re-checks the
- * cash at the moment a rung actually fires. The two seconds only pace how
- * often a flow walking many coins re-asks the same two questions.
- */
-async function accountAndOrders(
-  protocol: ReturnType<typeof getProtocol>,
-  network: TradeWallet["network"],
-  address: string,
-  credential: () => string | null
-): Promise<[AccountAnswer, OrdersAnswer]> {
-  const key = `${network}:${address.toLowerCase()}`
-  const cached = accountCache.get(key)
-  if (cached && Date.now() - cached.at < ACCOUNT_CACHE_MS) return cached.answer
-
-  const at = Date.now()
-  const answer = Promise.all([
-    accountOf(protocol).fetch(network, address, credential),
-    ordersOf(protocol).portfolio(network, address, credential),
-  ]) as Promise<[AccountAnswer, OrdersAnswer]>
-  // A failed read must not be remembered as an answer, or one 429 would be
-  // repeated to every caller for the next two seconds.
-  answer.catch(() => {
-    if (accountCache.get(key)?.at === at) accountCache.delete(key)
-  })
-  accountCache.set(key, { at, answer })
-  return answer
-}
 
 async function placeLiveDcaLadderOnce(
   userId: string,
@@ -252,12 +199,10 @@ async function placeLiveDcaLadderOnce(
   }
 
   const credential = await walletCredential(userId, wallet.id)
-  const [account, portfolio] = await accountAndOrders(
-    protocol,
-    wallet.network,
-    wallet.address,
-    credential
-  )
+  const [account, portfolio] = await Promise.all([
+    heldEngineAccount(wallet, credential),
+    heldEnginePortfolio(wallet, credential),
+  ])
   const held = portfolio.positions.find((one) => one.marketId === ref.marketId)
   if (held && held.szi < 0) throw new Error("SMART_SHORT_HELD")
 
@@ -972,36 +917,41 @@ async function reconcileLiveLaddersOnce(
     )
   if (rows.length === 0) return
 
-  // Parsed ONCE, by kind, and everything below reads from here.
+  // Parsed ONCE, indexed by row and market, and everything below reads here.
   //
   // A row whose plan cannot be read is dropped now rather than skipped in six
   // separate places later — a row that some of this function believes in and
   // the rest does not is how an order ends up resting on the exchange with
   // nothing advancing it.
   const parsed = new Map<string, SmartEntry>()
+  const parsedByMarket = new Map<string, SmartEntry[]>()
   for (const row of rows) {
     const kind = readSmartOrderKind(row.kind)
     if (!kind) continue
     const entry = readSmartEntry(kind, row.plan)
-    if (entry) parsed.set(row.id, entry)
+    if (!entry) continue
+    parsed.set(row.id, entry)
+    const marketEntries = parsedByMarket.get(row.marketKey)
+    if (marketEntries) marketEntries.push(entry)
+    else parsedByMarket.set(row.marketKey, [entry])
   }
   if (parsed.size === 0) return
 
   /** The plan for whichever smart order is working this coin, if any. */
-  const planFor = (marketKey: string) => {
-    const row = rows.find((one) => one.marketKey === marketKey)
-    return row ? (parsed.get(row.id) ?? null) : null
-  }
+  const planFor = (marketKey: string) =>
+    parsedByMarket.get(marketKey)?.[0] ?? null
 
   const protocol = getProtocol(wallet.protocol)
   const credential = await walletCredential(userId, wallet.id)
+  const accountAnswer = heldEngineAccount(wallet, credential).catch((error) => {
+    // **Not knowing what the account holds means not spending, not
+    // stopping.** Cash of zero fails the affordability check, so a buy waits
+    // for the next pass rather than going out on a guess.
+    console.error(`Account read failed for wallet ${wallet.id}`, error)
+    return null
+  })
   const portfolio =
-    currentPortfolio ??
-    (await ordersOf(protocol).portfolio(
-      wallet.network,
-      wallet.address,
-      credential
-    ))
+    currentPortfolio ?? (await heldEnginePortfolio(wallet, credential))
   // The fills record used to be kept only by the browser's poll, so a stop
   // that fired at three in the morning was written down — and its bell notice
   // sent — whenever somebody next opened the page. The engine is already here
@@ -1037,18 +987,15 @@ async function reconcileLiveLaddersOnce(
     if (!gridPlan.pairedStop) continue
     const marketId = parseMarketKey(row.marketKey)?.marketId
     if (!marketId) continue
-    const ladderRow = rows.find(
-      (one) => one.kind === "dca" && one.marketKey === row.marketKey
-    )
-    const ladderEntry = ladderRow ? parsed.get(ladderRow.id) : undefined
+    const ladderEntry = parsedByMarket
+      .get(row.marketKey)
+      ?.find((one) => one.kind === "dca")
     pairedRefs.set(marketId, {
       orderId: gridPlan.pairedStop.orderId,
       px: gridPlan.pairedStop.px,
       sz: gridPlan.pairedStop.sz,
       ladderAimedSlPx:
-        ladderEntry?.kind === "dca"
-          ? ((ladderEntry.plan as LadderPlan).aimedSlPx ?? null)
-          : null,
+        ladderEntry?.kind === "dca" ? ladderEntry.plan.aimedSlPx : null,
     })
   }
   const folio = reattributePairedStops(portfolio, pairedRefs)
@@ -1118,18 +1065,7 @@ async function reconcileLiveLaddersOnce(
   const shouldReadFills =
     orderApi.fillsNeedRecovery?.(wallet.network, wallet.address) !== false
   const [account, asked, fills] = await Promise.all([
-    accountOf(protocol)
-      .fetch(wallet.network, wallet.address, credential)
-      .catch((error) => {
-        // **Not knowing what the account holds means not spending, not
-        // stopping.** Cash of zero fails the affordability check, so a buy
-        // waits for the next pass rather than going out on a guess — while
-        // everything needing no cash carries on: levels are still watched,
-        // stops and targets are still set, exits still leave. Before this,
-        // one refused read stopped the whole wallet dead.
-        console.error(`Account read failed for wallet ${wallet.id}`, error)
-        return null
-      }),
+    accountAnswer,
     askFor.length === 0
       ? null
       : protocol.markets.prices(wallet.network, askFor).catch((error) => {

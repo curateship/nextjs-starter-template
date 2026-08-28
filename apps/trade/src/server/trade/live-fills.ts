@@ -164,6 +164,9 @@ const MAX_LOOKUPS = 8
  */
 const ANNOUNCED_IF_NEWER_MS = 15 * 60_000
 
+/** Keeps a catch-up batch below the database's parameter limit. */
+const NOTICE_LOOKUP_CHUNK = 500
+
 /** When each wallet was last asked, so a four-second poll does not. */
 const sweptAt = new Map<string, number>()
 
@@ -292,10 +295,11 @@ export async function recordLiveFills(
       // container and the engine both receive the same pushed fill, only the
       // one whose insert went in tells the person.
       .returning({ fillId: tradeLiveFills.fillId })
+    const insertedIds = new Set(inserted.map((row) => row.fillId))
     await announceFills(
       userId,
       wallet,
-      fills.filter((fill) => inserted.some((row) => row.fillId === fill.fillId))
+      fills.filter((fill) => insertedIds.has(fill.fillId))
     )
   } catch (error) {
     console.error("trade_live_fills write failed", error)
@@ -320,12 +324,20 @@ async function announceFills(
   fresh: readonly WalletOrderFill[]
 ): Promise<void> {
   const cutoff = Date.now() - ANNOUNCED_IF_NEWER_MS
-  for (const fill of fresh) {
-    // News, not history. A wallet's FIRST sweep writes months of old fills as
-    // brand-new rows, and every one of them would pass the "was it inserted"
-    // test — a bell with three hundred notices about last spring. Only a fill
-    // made just now is worth a notice.
-    if (fill.at < cutoff) continue
+  // News, not history. A wallet's FIRST sweep writes months of old fills as
+  // brand-new rows, and every one of them would pass the "was it inserted"
+  // test — a bell with three hundred notices about last spring. Only a fill
+  // made just now is worth a notice.
+  const recent = fresh.filter((fill) => fill.at >= cutoff)
+  const knownByOrder = await triggerRowsByOrder(
+    userId,
+    wallet.id,
+    recent.flatMap((fill) =>
+      fill.closedPnl !== 0 && !fill.liquidation ? [fill.orderId] : []
+    )
+  )
+
+  for (const fill of recent) {
     const key = marketKey({
       protocol: wallet.protocol,
       network: wallet.network,
@@ -349,17 +361,7 @@ async function announceFills(
         }),
       })
       if (fill.closedPnl === 0 || fill.liquidation) continue
-      const [known] = await db
-        .select({ kind: tradeLiveTriggers.kind, px: tradeLiveTriggers.px })
-        .from(tradeLiveTriggers)
-        .where(
-          and(
-            eq(tradeLiveTriggers.userId, userId),
-            eq(tradeLiveTriggers.walletId, wallet.id),
-            eq(tradeLiveTriggers.orderId, fill.orderId)
-          )
-        )
-        .limit(1)
+      const known = knownByOrder.get(fill.orderId)
       if (!known || (known.kind !== "stop" && known.kind !== "target")) continue
       await writeTradeNotice({
         userId,
@@ -379,6 +381,42 @@ async function announceFills(
       console.error("trade fill notice failed", error)
     }
   }
+}
+
+type TriggerNoticeRow = {
+  orderId: string
+  kind: LiveTriggerRecord
+}
+
+async function triggerRowsByOrder(
+  userId: string,
+  walletId: string,
+  orderIds: readonly string[]
+): Promise<Map<string, TriggerNoticeRow>> {
+  const unique = [...new Set(orderIds)]
+  const found = new Map<string, TriggerNoticeRow>()
+  for (let index = 0; index < unique.length; index += NOTICE_LOOKUP_CHUNK) {
+    const chunk = unique.slice(index, index + NOTICE_LOOKUP_CHUNK)
+    try {
+      const rows = await db
+        .select({
+          orderId: tradeLiveTriggers.orderId,
+          kind: tradeLiveTriggers.kind,
+        })
+        .from(tradeLiveTriggers)
+        .where(
+          and(
+            eq(tradeLiveTriggers.userId, userId),
+            eq(tradeLiveTriggers.walletId, walletId),
+            inArray(tradeLiveTriggers.orderId, chunk)
+          )
+        )
+      for (const row of rows) found.set(row.orderId, row)
+    } catch (error) {
+      console.error("trade fill trigger read failed", error)
+    }
+  }
+  return found
 }
 
 /**
@@ -473,31 +511,26 @@ async function resolveClosingOrders(
       kind: tradeLiveTriggers.kind,
     })
 
+  const learntNotices = learnt.filter(
+    (
+      one
+    ): one is typeof one & {
+      kind: "stop" | "target"
+    } => one.kind === "stop" || one.kind === "target"
+  )
+  const madeByOrder = await recentFillsByOrder(
+    userId,
+    wallet.id,
+    learntNotices.map((one) => one.orderId)
+  )
+
   // The fills these orders made were announced without the stop fact, because
   // it was not known yet. Now it is, the second notice goes out — only from
   // the process whose insert actually went in, so two processes learning the
   // same order cannot both say it.
-  for (const one of learnt) {
-    if (one.kind !== "stop" && one.kind !== "target") continue
+  for (const one of learntNotices) {
     try {
-      const made = await db
-        .select({
-          marketKey: tradeLiveFills.marketKey,
-          side: tradeLiveFills.side,
-          px: tradeLiveFills.px,
-          closedPnl: tradeLiveFills.closedPnl,
-        })
-        .from(tradeLiveFills)
-        .where(
-          and(
-            eq(tradeLiveFills.userId, userId),
-            eq(tradeLiveFills.walletId, wallet.id),
-            eq(tradeLiveFills.orderId, one.orderId),
-            // News, not history — this path also catches up on stops from
-            // months ago, and those belong in the Journal, not the bell.
-            gt(tradeLiveFills.at, Date.now() - ANNOUNCED_IF_NEWER_MS)
-          )
-        )
+      const made = madeByOrder.get(one.orderId) ?? []
       if (made.length === 0) continue
       await writeTradeNotice({
         userId,
@@ -519,6 +552,55 @@ async function resolveClosingOrders(
       console.error("trade trigger notice failed", error)
     }
   }
+}
+
+type RecentFillNoticeRow = {
+  orderId: string
+  marketKey: string
+  side: TradeSide
+  px: number
+  closedPnl: number
+}
+
+async function recentFillsByOrder(
+  userId: string,
+  walletId: string,
+  orderIds: readonly string[]
+): Promise<Map<string, RecentFillNoticeRow[]>> {
+  const unique = [...new Set(orderIds)]
+  const found = new Map<string, RecentFillNoticeRow[]>()
+  for (let index = 0; index < unique.length; index += NOTICE_LOOKUP_CHUNK) {
+    const chunk = unique.slice(index, index + NOTICE_LOOKUP_CHUNK)
+    try {
+      const rows = await db
+        .select({
+          orderId: tradeLiveFills.orderId,
+          marketKey: tradeLiveFills.marketKey,
+          side: tradeLiveFills.side,
+          px: tradeLiveFills.px,
+          closedPnl: tradeLiveFills.closedPnl,
+        })
+        .from(tradeLiveFills)
+        .where(
+          and(
+            eq(tradeLiveFills.userId, userId),
+            eq(tradeLiveFills.walletId, walletId),
+            inArray(tradeLiveFills.orderId, chunk),
+            // News, not history — this path also catches up on stops from
+            // months ago, and those belong in the Journal, not the bell.
+            gt(tradeLiveFills.at, Date.now() - ANNOUNCED_IF_NEWER_MS)
+          )
+        )
+      for (const row of rows) {
+        const orderFills = found.get(row.orderId)
+        if (orderFills) orderFills.push(row)
+        else found.set(row.orderId, [row])
+      }
+    } catch (error) {
+      console.error("trade trigger fill read failed", error)
+    }
+  }
+  return found
 }
 
 /**
