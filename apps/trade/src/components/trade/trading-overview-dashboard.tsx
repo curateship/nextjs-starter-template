@@ -39,6 +39,7 @@ import {
   formatDateTime,
 } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import {
   mergeTradingOverviewRefresh,
   type TradingOverview,
@@ -312,6 +313,7 @@ function TradesTable({
   return (
     <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
       <DashboardCardTitleHeader
+        className="border-b-0"
         icon={<ListIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">
@@ -344,7 +346,12 @@ function TradesTable({
         className="min-h-0 flex-1"
         viewportClassName="h-full min-h-24"
       >
-        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted">
+        <Table
+          containerClassName={cn(
+            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+            stickyPanelTableHeaderClassName
+          )}
+        >
           <TableHeader>
             <TableRow>
               <TableHead column="main">{heading("at", "Market")}</TableHead>

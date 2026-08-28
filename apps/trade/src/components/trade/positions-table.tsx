@@ -59,6 +59,7 @@ import {
   type TradePosition,
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
+import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 
 /**
  * The three tables the bottom panel shows: what is held, what is waiting, and
@@ -1026,7 +1027,7 @@ export function TradesTable({
       footer={
         settled && trades.length > 0 && onLoadOlder ? (
           <tfoot>
-            <tr className="border-t">
+            <tr className={panelSectionBarClassName}>
               <td
                 colSpan={TRADE_COLUMNS.length + 2}
                 className="px-5 py-3 text-center"

@@ -49,6 +49,7 @@ import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { walletProfitWindowLabel } from "@/lib/trade/wallets"
 import { useRememberedChoice } from "@/lib/remembered-choice"
+import { panelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
 const WALLET_COLORS = [
@@ -220,7 +221,7 @@ export function PnlGraphWidget({
 
   return (
     <Card className={cn("min-h-0 gap-0 py-0", className)}>
-      <DashboardCardHeader className="flex-wrap">
+      <DashboardCardHeader className="flex-wrap border-b-0">
         <div className="flex min-w-0 items-center gap-2">
           <DashboardCardHeaderIcon>
             <ChartNoAxesCombinedIcon className="size-4" />
@@ -442,7 +443,12 @@ function WalletList({
       aria-label="Wallets"
       className="flex min-h-0 flex-col border-b lg:border-b-0"
     >
-      <div className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 border-b bg-muted/50 px-5 text-xs font-medium text-muted-foreground">
+      <div
+        className={cn(
+          panelSectionBarClassName,
+          "grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 px-5 text-xs font-medium text-muted-foreground"
+        )}
+      >
         <TableSortButton
           active={sortKey === "wallet"}
           direction={sortDirection}
@@ -683,7 +689,12 @@ function ProfitChart({
       aria-label={`${startedLabel()} profit history`}
       className="flex min-h-72 min-w-0 flex-col px-5 py-4"
     >
-      <div className="-mx-5 -mt-4 mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2 border-b bg-muted/50 px-5 py-2">
+      <div
+        className={cn(
+          panelSectionBarClassName,
+          "-mx-5 -mt-4 mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2 px-5 py-2"
+        )}
+      >
         <p className="text-xs font-medium text-muted-foreground">
           {startedLabel()}
           <span aria-hidden="true"> · </span>

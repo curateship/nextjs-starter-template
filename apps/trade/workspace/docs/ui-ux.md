@@ -1276,6 +1276,14 @@ account and wallet figures. Dates outside recorded history show that no results
 fall inside the range. The graph does not carry the last known result into days
 the app has not read.
 
+Rows directly below a panel title and summary rows at the bottom use one panel
+bar treatment. The bar has the muted light-gray fill and one divider on its top
+and bottom. Both dividers take the Divider lines color from Styling. A panel
+title drops its own bottom divider when the subheader owns that edge, so the
+line never becomes two pixels thick. Sticky table headings use an opaque mix of
+the same muted gray and card background, which keeps scrolling numbers from
+showing through without changing the visible shade.
+
 Active Trades is the account-wide exception to the real-money totals. It lists
 every open position across every protocol and every wallet, including practice
 and testnet wallets. Practice and Testnet rows name their account type so

@@ -52,15 +52,19 @@ function overview(activeTrades: TradingOverviewActiveTrade[]): TradingOverview {
 }
 
 describe("the Active Trades footer", () => {
-  it("uses the light gray table heading", () => {
+  it("uses the standard panel bars for its heading and footer", () => {
     const html = renderToStaticMarkup(
       <ActiveTradesWidget overview={overview([trade({})])} className="" />
     )
+    const document = new DOMParser().parseFromString(html, "text/html")
+    const title = document.querySelector('[data-slot="dashboard-card-header"]')
+    const table = document.querySelector('[data-slot="table-container"]')
+    const footer = document.querySelector("tfoot tr")
 
-    expect(html).toContain(
-      "[&amp;_thead_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
-    )
-    expect(html).not.toContain("[&amp;_thead_th]:bg-muted/50")
+    expect(title?.className).toContain("border-b-0")
+    expect(table?.className).toContain("color-mix")
+    expect(footer?.className).toContain("border-y")
+    expect(footer?.className).toContain("color-mix")
   })
 
   it("labels pretend accounts without repeating Real on live trades", () => {

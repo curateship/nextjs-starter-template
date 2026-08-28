@@ -64,6 +64,20 @@ afterEach(async () => {
 })
 
 describe("the running bots widget", () => {
+  it("uses the standard light gray subheader without a doubled top line", () => {
+    const html = renderToStaticMarkup(
+      <RunningBotsWidget bots={bots} className="" />
+    )
+    const document = new DOMParser().parseFromString(html, "text/html")
+
+    expect(
+      document.querySelector('[data-slot="dashboard-card-header"]')?.className
+    ).toContain("border-b-0")
+    expect(
+      document.querySelector('[data-slot="table-container"]')?.className
+    ).toContain("color-mix")
+  })
+
   it("shows one table row per automation with its counts, status and money", () => {
     const html = renderToStaticMarkup(
       <RunningBotsWidget bots={bots} className="" />

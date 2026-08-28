@@ -530,6 +530,9 @@ describe("the Smart orders panel", () => {
     expect(host.querySelector("table")?.className).toContain(
       "[&_td:last-child]:pr-4"
     )
+    expect(
+      host.querySelector('[data-slot="table-container"]')?.className
+    ).toContain("color-mix")
     const rowTickers = () =>
       Array.from(host.querySelectorAll("tbody tr")).map((row) =>
         row.querySelector(".font-semibold")?.textContent?.trim()

@@ -74,6 +74,7 @@ import {
 } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
@@ -677,7 +678,10 @@ function SmartOrdersView({
         <ScrollArea className="min-h-0 flex-1">
           <Table
             className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
-            containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted/50"
+            containerClassName={cn(
+              "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+              stickyPanelTableHeaderClassName
+            )}
           >
             <TableHeader>
               <TableRow>

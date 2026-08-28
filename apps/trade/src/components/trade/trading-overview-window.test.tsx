@@ -124,10 +124,13 @@ describe("what the widgets say about when they started", () => {
       host.querySelector(
         'section[aria-label="4 days ago profit history"] > div'
       )?.className
-    ).toContain("min-h-10")
-    expect(
-      host.querySelector('section[aria-label="Wallets"] > div')?.className
-    ).toContain("min-h-10")
+    ).toContain("border-y bg-muted/50")
+    const walletSubheader = host.querySelector(
+      'section[aria-label="Wallets"] > div'
+    )
+    expect(walletSubheader?.className).toContain("min-h-10")
+    expect(walletSubheader?.className).toContain("border-y bg-muted/50")
+    expect(header?.className).toContain("border-b-0")
     expect(shown).not.toContain("since 4 days ago")
     expect(shown).not.toContain("made or lost ·")
     expect(shown).toContain("1W1M3M6MAll")
@@ -331,6 +334,12 @@ describe("what the widgets say about when they started", () => {
     expect(buy?.className).toContain("rounded-md")
     expect(sell?.className).toContain("bg-destructive/10")
     expect(sell?.className).toContain("rounded-md")
+    expect(
+      host.querySelector('[data-slot="dashboard-card-header"]')?.className
+    ).toContain("border-b-0")
+    expect(
+      host.querySelector('[data-slot="table-container"]')?.className
+    ).toContain("color-mix")
   })
 })
 

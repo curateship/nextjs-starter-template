@@ -17,6 +17,7 @@ import {
   TableSurface,
 } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
+import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import type {
   TradingOverviewBot,
   TradingOverviewBotState,
@@ -101,6 +102,7 @@ export function RunningBotsWidget({
   return (
     <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
       <DashboardCardTitleHeader
+        className="border-b-0"
         icon={<BotIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">
@@ -113,7 +115,12 @@ export function RunningBotsWidget({
         className="min-h-0 flex-1"
         viewportClassName="h-full min-h-24"
       >
-        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted/50">
+        <Table
+          containerClassName={cn(
+            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+            stickyPanelTableHeaderClassName
+          )}
+        >
           <TableHeader>
             <TableRow>
               <TableHead column="meta">

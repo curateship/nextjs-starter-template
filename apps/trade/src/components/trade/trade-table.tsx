@@ -1,24 +1,9 @@
 import * as React from "react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
-import {
-  TableSortButton,
-  type TableSortDirection,
-} from "@/components/ui/table"
+import { TableSortButton, type TableSortDirection } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-
-/**
- * The heading row's own background, and why it is a mix rather than a tint.
- *
- * A pinned heading has rows sliding underneath it, so it has to be opaque or
- * the numbers show through the words. `bg-muted/50` is a half-transparent
- * tint: it looked right only because the panel behind it is `bg-card`. So the
- * same two tokens are mixed here instead of layered, which gives the same
- * shade in light and in dark and survives a theme change, where a hardcoded
- * grey would not.
- */
-const HEADER_BACKGROUND =
-  "bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]"
+import { stickyPanelTableCellClassName } from "@/lib/layout/panel-section-bar"
 
 function HeaderCell({
   children,
@@ -40,7 +25,7 @@ function HeaderCell({
         // never end up under an empty strip. `z-10` because a focused row
         // paints an outline and would otherwise draw over the headings.
         "sticky top-0 z-10",
-        HEADER_BACKGROUND
+        stickyPanelTableCellClassName
       )}
     >
       <span className="flex items-center gap-1">

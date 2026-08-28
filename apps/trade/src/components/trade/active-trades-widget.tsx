@@ -26,6 +26,10 @@ import type {
 } from "@/lib/trade/dashboard/overview"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
+import {
+  stickyPanelSectionBarClassName,
+  stickyPanelTableHeaderClassName,
+} from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
 type ActiveTradeColumn = "market" | "protocol" | "wallet" | "value" | "profit"
@@ -105,6 +109,7 @@ export function ActiveTradesWidget({
   return (
     <TableSurface className={cn("flex min-h-0 flex-col", className)}>
       <DashboardCardTitleHeader
+        className="border-b-0"
         icon={<ListChecksIcon />}
         title={
           <span className="flex min-w-0 items-center gap-2">
@@ -130,7 +135,12 @@ export function ActiveTradesWidget({
         className="min-h-0 flex-1"
         viewportClassName="h-full min-h-24"
       >
-        <Table containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))]">
+        <Table
+          containerClassName={cn(
+            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+            stickyPanelTableHeaderClassName
+          )}
+        >
           <TableHeader>
             <TableRow>
               <TableHead column="meta">{heading("market", "Market")}</TableHead>
@@ -204,8 +214,8 @@ function completeTotal(values: readonly (number | null)[]) {
 
 function ActiveTradesFooter({ summary }: { summary: ActiveTradesSummary }) {
   return (
-    <tfoot className="sticky bottom-0 z-10 bg-muted">
-      <TableRow className="border-t">
+    <tfoot className="sticky bottom-0 z-10">
+      <TableRow className={stickyPanelSectionBarClassName}>
         <TableCell
           column="meta"
           className="py-2.5 text-xs font-medium text-muted-foreground"

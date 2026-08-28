@@ -260,6 +260,7 @@ describe("the bottom panel's tables say what they know", () => {
           onTickTrade={(id) => ticked.push(id)}
           onTickVisible={(ids) => tickedAll.push(ids)}
           tickAllState={() => false}
+          onLoadOlder={() => {}}
         />
       )
     })
@@ -279,6 +280,9 @@ describe("the bottom panel's tables say what they know", () => {
     expect(tickedAll).toEqual([["one", "two"]])
     // Ticking is never also a press on the row that draws it on the chart.
     expect(opened).toEqual([])
+    expect(host.querySelector("tfoot tr")?.className).toContain(
+      "border-y bg-muted/50"
+    )
     await act(async () => root.unmount())
   })
 
