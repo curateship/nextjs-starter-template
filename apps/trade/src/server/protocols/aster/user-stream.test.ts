@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { WalletPortfolio } from "@/lib/protocols/contracts"
-import { asterReconnectDelay } from "@/lib/protocols/aster/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import {
   clearAsterAccountCache,
   fetchAsterAccount,
@@ -104,15 +104,17 @@ beforeEach(() => {
   vi.setSystemTime(new Date("2026-08-24T12:00:00Z"))
   FakeSocket.latest = null
   signed.mockReset()
-  signed.mockImplementation(async (
-    _network: unknown,
-    _address: unknown,
-    _credential: unknown,
-    method: string
-  ) => {
-    if (method === "PUT") throw new Error("renewal failed")
-    return { listenKey: "listen-key" }
-  })
+  signed.mockImplementation(
+    async (
+      _network: unknown,
+      _address: unknown,
+      _credential: unknown,
+      method: string
+    ) => {
+      if (method === "PUT") throw new Error("renewal failed")
+      return { listenKey: "listen-key" }
+    }
+  )
   vi.stubGlobal("WebSocket", FakeSocket)
 })
 
@@ -341,32 +343,33 @@ describe("the Aster account stream", () => {
     })
 
     expect(
-      readAsterPushedPortfolio("mainnet", ACCOUNT)?.positions[0]
-        ?.liquidationPx
+      readAsterPushedPortfolio("mainnet", ACCOUNT)?.positions[0]?.liquidationPx
     ).toBeNull()
   })
 
   it("shares one recovery read between callers arriving together", async () => {
     markAsterSnapshotConnected("mainnet", ACCOUNT)
-    signed.mockImplementation(async (
-      _network: unknown,
-      _address: unknown,
-      _credential: unknown,
-      _method: string,
-      path: string
-    ) => {
-      if (path.endsWith("/accountWithJoinMargin")) {
-        return {
-          totalMarginBalance: "100",
-          totalUnrealizedProfit: "0",
-          availableBalance: "100",
-          positions: [],
-          assets: [{ asset: "USDT", walletBalance: "100" }],
+    signed.mockImplementation(
+      async (
+        _network: unknown,
+        _address: unknown,
+        _credential: unknown,
+        _method: string,
+        path: string
+      ) => {
+        if (path.endsWith("/accountWithJoinMargin")) {
+          return {
+            totalMarginBalance: "100",
+            totalUnrealizedProfit: "0",
+            availableBalance: "100",
+            positions: [],
+            assets: [{ asset: "USDT", walletBalance: "100" }],
+          }
         }
+        if (path.endsWith("/positionRisk")) return []
+        throw new Error(`unexpected Aster path: ${path}`)
       }
-      if (path.endsWith("/positionRisk")) return []
-      throw new Error(`unexpected Aster path: ${path}`)
-    })
+    )
 
     const first = fetchAsterAccount("mainnet", ACCOUNT, CREDENTIAL)
     const second = fetchAsterAccount("mainnet", ACCOUNT, CREDENTIAL)
@@ -379,9 +382,7 @@ describe("the Aster account stream", () => {
   })
 
   it("serves pushed fills after one recovery instead of asking again", async () => {
-    expect(
-      asterFillsFromStream("mainnet", ACCOUNT, 0, CREDENTIAL)
-    ).toBeNull()
+    expect(asterFillsFromStream("mainnet", ACCOUNT, 0, CREDENTIAL)).toBeNull()
     await vi.advanceTimersByTimeAsync(0)
     const socket = FakeSocket.latest
     if (!socket) throw new Error("expected a socket")
@@ -396,22 +397,16 @@ describe("the Aster account stream", () => {
     )
     socket.fire("message", trade())
 
-    expect(
-      asterFillsFromStream("mainnet", ACCOUNT, 0, CREDENTIAL)
-    ).toEqual([expect.objectContaining({ fillId: "88" })])
+    expect(asterFillsFromStream("mainnet", ACCOUNT, 0, CREDENTIAL)).toEqual([
+      expect.objectContaining({ fillId: "88" }),
+    ])
     expect(signed.mock.calls.filter((call) => call[3] === "POST")).toHaveLength(
       1
     )
   })
 
   it("marks the feed down when listen-key renewal fails", async () => {
-    watchAsterFills(
-      "mainnet",
-      ACCOUNT,
-      "test-listener",
-      CREDENTIAL,
-      () => {}
-    )
+    watchAsterFills("mainnet", ACCOUNT, "test-listener", CREDENTIAL, () => {})
     await vi.advanceTimersByTimeAsync(0)
     const socket = FakeSocket.latest
     if (!socket) throw new Error("expected a socket")
@@ -425,7 +420,7 @@ describe("the Aster account stream", () => {
   })
 
   it("caps reconnect backoff at thirty seconds", () => {
-    expect(asterReconnectDelay(0)).toBe(1_000)
-    expect(asterReconnectDelay(99)).toBe(30_000)
+    expect(reconnectDelay(0)).toBe(1_000)
+    expect(reconnectDelay(99)).toBe(30_000)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { snapToTick, stepToDecimals } from "@/lib/protocols/tick"
+import { roundToTick, snapToTick, stepToDecimals } from "@/lib/protocols/tick"
 
 /**
  * The sums shared by every exchange that publishes a step. Both are used on
@@ -29,6 +29,17 @@ describe("snapping a price to its tick", () => {
   it("leaves the price alone when there is no tick to snap to", () => {
     expect(snapToTick(123.456, null)).toBe(123.456)
     expect(snapToTick(123.456, 0)).toBe(123.456)
+  })
+
+  it("gives every tick-based exchange the same market adapter", () => {
+    for (const [price, tick, expected] of [
+      [97.38, 0.25, 97.5],
+      [8_583.3, 0.5, 8_583.5],
+      [78_584.13, 0.1, 78_584.1],
+      [12.3456, null, 12.3456],
+    ] as const) {
+      expect(roundToTick(price, 5, tick)).toBe(expected)
+    }
   })
 })
 

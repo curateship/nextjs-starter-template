@@ -7,7 +7,6 @@ import type {
 } from "@/lib/protocols/contracts"
 import { marketKey, protocolLabel } from "@/lib/protocols/contracts"
 import {
-  KUCOIN_DEFAULT_FUNDING_MS,
   num,
   sizeStepOf,
   toKucoinFigures,
@@ -162,14 +161,6 @@ export async function kucoinMarketOrderLimit(
   )
   if (limit === null || !(limit > 0)) throw new Error("LIVE_PRICE")
   return limit
-}
-
-/** How often this market settles funding — read from the contract, not assumed. */
-export async function kucoinFundingIntervalMs(
-  marketId: string
-): Promise<number> {
-  const one = (await contracts("mainnet")).get(marketId)
-  return num(one?.fundingRateGranularity) ?? KUCOIN_DEFAULT_FUNDING_MS
 }
 
 // ----- The catalogue --------------------------------------------------------

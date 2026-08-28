@@ -8,6 +8,7 @@ import {
   KUCOIN_GRANULARITIES,
   toKucoinPushedBar,
 } from "@/lib/protocols/kucoin/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 /**
  * KuCoin's live feed in the browser — the working bar under the chart.
@@ -34,8 +35,6 @@ import {
 
 const STALE_AFTER_MS = 90_000
 const WATCHDOG_EVERY_MS = 5_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
-
 type CandleListener = (bar: CandleBar) => void
 
 type Line = {
@@ -155,10 +154,7 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[
-      Math.min(line.attempts, RECONNECT_BACKOFF_MS.length - 1)
-    ]
+  const wait = reconnectDelay(line.attempts)
   line.attempts += 1
   line.reconnectAt = Date.now() + wait
 }

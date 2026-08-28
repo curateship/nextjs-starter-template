@@ -10,6 +10,7 @@ import {
   toPhemexBar,
   toPhemexFigures,
 } from "@/lib/protocols/phemex/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 /**
  * Phemex's live feed, in the browser — the working bar under the chart and
@@ -29,7 +30,6 @@ import {
 
 const STALE_AFTER_MS = 12_000
 const WATCHDOG_EVERY_MS = 4_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const PING_EVERY_MS = 5_000
 
 type FiguresListener = (updates: ReadonlyMap<string, LiveFigures>) => void
@@ -95,10 +95,7 @@ function subscribeAll(line: Line): void {
   }
   for (const key of line.candles.keys()) {
     const [marketId, interval] = splitCandleKey(key)
-    send(line, "kline_p.subscribe", [
-      marketId,
-      PHEMEX_RESOLUTIONS[interval],
-    ])
+    send(line, "kline_p.subscribe", [marketId, PHEMEX_RESOLUTIONS[interval]])
   }
 }
 
@@ -236,18 +233,13 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[
-      Math.min(line.attempts, RECONNECT_BACKOFF_MS.length - 1)
-    ]
+  const wait = reconnectDelay(line.attempts)
   line.attempts += 1
   line.reconnectAt = Date.now() + wait
 }
 
 function hasWatchers(line: Line): boolean {
-  return (
-    line.figures.size > 0 || line.candles.size > 0 || line.catchUp.size > 0
-  )
+  return line.figures.size > 0 || line.candles.size > 0 || line.catchUp.size > 0
 }
 
 function ensureOpen(line: Line): void {

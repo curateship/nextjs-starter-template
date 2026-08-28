@@ -1631,7 +1631,7 @@ export async function loadPaperPortfolio(
  * A short string that changes when the practice Journal would read
  * differently: a fill written, or one binned. One small aggregate.
  */
-export async function paperJournalStamp(
+async function paperJournalStamp(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string> {

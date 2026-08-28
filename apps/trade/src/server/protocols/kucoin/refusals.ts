@@ -68,7 +68,3 @@ export function kucoinRefusalError(reason: string): Error {
     `KuCoin refused the request for a reason Trade does not recognize (code ${exchangeCode}): ${safeReason}. Check KuCoin's status before trying again.`
   )
 }
-
-export function kucoinRefusalSentence(code: KucoinRefusal): string {
-  return SENTENCES[code]
-}

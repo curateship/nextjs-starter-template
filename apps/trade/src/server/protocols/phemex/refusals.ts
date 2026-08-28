@@ -75,7 +75,3 @@ export function phemexRefusalError(reason: string): Error {
     `Phemex refused the request for a reason Trade does not recognize: ${safeReason}. Check Phemex's status before trying again.`
   )
 }
-
-export function phemexRefusalSentence(code: PhemexRefusal): string {
-  return SENTENCES[code]
-}

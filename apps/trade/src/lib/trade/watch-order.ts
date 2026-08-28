@@ -20,7 +20,7 @@ import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
  * the way a signal trade does — see `signal-order.ts`, whose chase this shares.
  */
 
-export const WATCH_PHASES = [
+const WATCH_PHASES = [
   /** Nothing sent. Waiting for price to reach the level. */
   "waiting",
   /** The level was touched; a resting order is chasing the price. */
@@ -29,7 +29,7 @@ export const WATCH_PHASES = [
   "stopping",
 ] as const
 
-export const watchPlanSchema = z.object({
+const watchPlanSchema = z.object({
   ...smartOrderPauseFields,
   /** The price that starts it: the level that was clicked. */
   triggerPx: z.number().positive(),

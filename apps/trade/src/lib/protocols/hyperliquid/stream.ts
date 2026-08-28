@@ -11,6 +11,7 @@ import {
   toLiveFigures,
   type LiveFigures,
 } from "@/lib/protocols/hyperliquid/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 /**
  * Hyperliquid's live side, in the browser.
@@ -37,8 +38,6 @@ import {
 
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
-
 /**
  * How long the venue-and-market name map is trusted before it is asked for
  * again.
@@ -170,10 +169,7 @@ function teardown(hub: Hub) {
 
 function scheduleReconnect(hub: Hub) {
   if (hub.reconnectTimer || hub.disposed) return
-  const delay =
-    RECONNECT_BACKOFF_MS[
-      Math.min(hub.reconnectAttempt, RECONNECT_BACKOFF_MS.length - 1)
-    ]
+  const delay = reconnectDelay(hub.reconnectAttempt)
   hub.reconnectAttempt += 1
   hub.reconnectTimer = setTimeout(() => {
     hub.reconnectTimer = null

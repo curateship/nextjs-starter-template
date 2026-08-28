@@ -2,8 +2,9 @@ import { createHmac } from "node:crypto"
 
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { phemexWsUrl } from "@/lib/protocols/phemex/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import { parsePhemexCredential } from "@/server/protocols/phemex/client"
-import { phemexTouchedAt } from "@/server/protocols/phemex/touched"
+import { venueTouchedAt } from "@/server/protocols/touched"
 
 /**
  * One open line to Phemex per API key, whose whole job is to say when
@@ -58,7 +59,6 @@ const IDLE_MS = 10 * 60_000
 const PING_EVERY_MS = 5_000
 
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const STEADY_AFTER_MS = 30_000
 
 type Line = {
@@ -177,7 +177,7 @@ export function phemexQuietSince(
   if (line.watchingSince > at) return false
   // This app's own acts count as changes the instant they finish, without
   // waiting for the exchange to push them back — see `touched.ts`.
-  if (phemexTouchedAt() > at) return false
+  if (venueTouchedAt("phemex") > at) return false
   return line.changedAt <= at
 }
 
@@ -238,10 +238,7 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[
-      Math.min(line.attempts, RECONNECT_BACKOFF_MS.length - 1)
-    ]
+  const wait = reconnectDelay(line.attempts)
   line.attempts += 1
   line.reconnectAt = Date.now() + wait
 }

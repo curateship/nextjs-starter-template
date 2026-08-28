@@ -49,7 +49,3 @@ export function hyperliquidRefusalError(reason: string): Error {
     `Hyperliquid refused the request for a reason Trade does not recognize: ${safeReason}. Check Hyperliquid's status before trying again.`
   )
 }
-
-export function hyperliquidRefusalSentence(code: HyperliquidRefusal): string {
-  return SENTENCES[code]
-}

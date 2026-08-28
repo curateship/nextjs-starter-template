@@ -1,10 +1,10 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
 import {
   LIGHTER_KEEPALIVE_MS,
-  lighterReconnectDelay,
   lighterWsUrl,
   num,
 } from "@/lib/protocols/lighter/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import { countLighterSocketSend } from "@/server/protocols/lighter/budget"
 
 const STALE_AFTER_MS = 12_000
@@ -138,7 +138,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  hub.reconnectAt = Date.now() + lighterReconnectDelay(hub.attempts)
+  hub.reconnectAt = Date.now() + reconnectDelay(hub.attempts)
   hub.attempts += 1
 }
 

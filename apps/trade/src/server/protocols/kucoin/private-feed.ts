@@ -1,11 +1,12 @@
 import { z } from "zod"
 
 import type { NetworkId } from "@/lib/protocols/contracts"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import {
   kucoinSigned,
   parseKucoinCredential,
 } from "@/server/protocols/kucoin/client"
-import { kucoinTouchedAt } from "@/server/protocols/kucoin/touched"
+import { venueTouchedAt } from "@/server/protocols/touched"
 
 /**
  * One open line to KuCoin per API key, whose whole job is to say when
@@ -59,7 +60,6 @@ const TRUST_MS = 60_000
 const IDLE_MS = 10 * 60_000
 
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const STEADY_AFTER_MS = 30_000
 
 /**
@@ -203,7 +203,7 @@ export function kucoinQuietSince(
   if (line.watchingSince > at) return false
   // This app's own acts count as changes even before the exchange pushes them
   // back — see `touched.ts` for why that window matters.
-  if (kucoinTouchedAt() > at) return false
+  if (venueTouchedAt("kucoin") > at) return false
   return line.changedAt <= at
 }
 
@@ -251,10 +251,7 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[
-      Math.min(line.attempts, RECONNECT_BACKOFF_MS.length - 1)
-    ]
+  const wait = reconnectDelay(line.attempts)
   line.attempts += 1
   line.reconnectAt = Date.now() + wait
 }

@@ -1,5 +1,6 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { num, phemexWsUrl } from "@/lib/protocols/phemex/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 /**
  * An open line to Phemex, on the server: prices arrive here, they are not
@@ -24,7 +25,6 @@ import { num, phemexWsUrl } from "@/lib/protocols/phemex/translate"
 
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const STEADY_AFTER_MS = 30_000
 /** The exchange drops a silent socket; it asks for a heartbeat under 30s. */
 const PING_EVERY_MS = 5_000
@@ -137,8 +137,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[Math.min(hub.attempts, RECONNECT_BACKOFF_MS.length - 1)]
+  const wait = reconnectDelay(hub.attempts)
   hub.attempts += 1
   hub.reconnectAt = Date.now() + wait
 }
@@ -227,7 +226,9 @@ function connect(hub: Hub): void {
     )
     hub.pinger = setInterval(() => {
       try {
-        socket.send(JSON.stringify({ id: 2, method: "server.ping", params: [] }))
+        socket.send(
+          JSON.stringify({ id: 2, method: "server.ping", params: [] })
+        )
       } catch {
         // The watchdog handles a dead socket; the ping just must not throw.
       }

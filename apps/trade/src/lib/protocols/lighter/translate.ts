@@ -4,7 +4,6 @@ import type {
   LiveFigures,
   NetworkId,
 } from "@/lib/protocols/contracts"
-import { snapToTick } from "@/lib/protocols/tick"
 
 /**
  * Lighter's resolution names. All six app timeframes exist; Lighter also
@@ -19,8 +18,6 @@ export const LIGHTER_INTERVALS: Record<CandleInterval, string> = {
   "1d": "1d",
 }
 
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
-
 /**
  * Mainnet only, like the REST side. Lighter's testnet is deliberately not
  * carried; `client.ts` explains why.
@@ -30,12 +27,6 @@ export function lighterWsUrl(network: NetworkId): string {
   return "wss://mainnet.zklighter.elliot.ai/stream"
 }
 
-export function lighterReconnectDelay(attempt: number): number {
-  return RECONNECT_BACKOFF_MS[
-    Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1)
-  ]
-}
-
 /**
  * Lighter closes a socket that stays silent for two minutes, counting only
  * frames the CLIENT sends. Pushed data does not keep the line alive, so both
@@ -43,19 +34,6 @@ export function lighterReconnectDelay(attempt: number): number {
  * still spends one of the 200 client messages a socket may send in a minute.
  */
 export const LIGHTER_KEEPALIVE_MS = 50_000
-
-const INTERVAL_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
-
-export function lighterIntervalMs(interval: CandleInterval): number {
-  return INTERVAL_MS[interval]
-}
 
 /** A Lighter decimal — string or number — as a finite number, or null. */
 export function num(value: unknown): number | null {
@@ -131,15 +109,6 @@ export function unscaleLighterNumber(
   if (!Number.isFinite(value)) return null
   if (!Number.isInteger(decimals) || decimals < 0 || decimals > 18) return null
   return Number(`${value}e-${decimals}`)
-}
-
-/** The nearest price Lighter's stated decimal places allow. */
-export function roundLighterPx(
-  px: number,
-  _sizeDecimals: number | null,
-  priceTick: number | null
-): number {
-  return snapToTick(px, priceTick)
 }
 
 /**

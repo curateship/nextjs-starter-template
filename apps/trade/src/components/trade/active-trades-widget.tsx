@@ -1,17 +1,12 @@
 import * as React from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { ListChecksIcon, ListFilterIcon } from "lucide-react"
+import { ListChecksIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -140,7 +135,7 @@ export function ActiveTradesWidget({
             <TableRow>
               <TableHead column="meta">{heading("market", "Market")}</TableHead>
               <TableHead column="meta">
-                {heading("protocol", "Protocol")}
+                {heading("protocol", "Exchange")}
               </TableHead>
               <TableHead column="meta">{heading("wallet", "Wallet")}</TableHead>
               <TableHead column="meta">{heading("value", "Value")}</TableHead>
@@ -352,129 +347,25 @@ function ActiveTradeFilters({
   onWalletChange: (walletId: string | null) => void
   onClear: () => void
 }) {
-  const [open, setOpen] = React.useState(false)
-  const protocols = countedOptions(trades, (trade) => trade.protocol)
-  const wallets = countedOptions(trades, (trade) => trade.walletId).map(
-    (option) => ({
-      ...option,
-      label:
-        trades.find((trade) => trade.walletId === option.value)?.walletLabel ??
-        option.value,
-    })
-  )
-  const active = Number(Boolean(protocol)) + Number(Boolean(walletId))
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline">
-          <ListFilterIcon />
-          Filter{active ? ` (${active})` : ""}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 gap-2 p-0">
-        <FilterGroup
-          label="Protocol"
-          total={trades.length}
-          value={protocol}
-          options={protocols}
-          onChange={onProtocolChange}
-        />
-        <div className="border-t" />
-        <FilterGroup
-          label="Wallet"
-          total={trades.length}
-          value={walletId}
-          options={wallets}
-          onChange={onWalletChange}
-        />
-        <div className="flex items-center justify-between border-t p-2.5">
-          <Button type="button" variant="ghost" onClick={onClear}>
-            Clear all
-          </Button>
-          <Button type="button" onClick={() => setOpen(false)}>
-            Done
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <CountedFilterPopover
+      items={trades}
+      groups={[
+        {
+          label: "Exchange",
+          value: protocol,
+          valueOf: (trade) => trade.protocol,
+          onChange: onProtocolChange,
+        },
+        {
+          label: "Wallet",
+          value: walletId,
+          valueOf: (trade) => trade.walletId,
+          labelOf: (trade) => trade.walletLabel,
+          onChange: onWalletChange,
+        },
+      ]}
+      onClear={onClear}
+    />
   )
-}
-
-function FilterGroup({
-  label,
-  total,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  total: number
-  value: string | null
-  options: Array<{ value: string; label: string; count: number }>
-  onChange: (value: string | null) => void
-}) {
-  return (
-    <div className="grid gap-0.5 p-2.5">
-      <p className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      <FilterOption
-        label="All"
-        count={total}
-        selected={!value}
-        onClick={() => onChange(null)}
-      />
-      {options.map((option) => (
-        <FilterOption
-          key={option.value}
-          label={option.label}
-          count={option.count}
-          selected={value === option.value}
-          onClick={() => onChange(option.value)}
-        />
-      ))}
-    </div>
-  )
-}
-
-function FilterOption({
-  label,
-  count,
-  selected,
-  onClick,
-}: {
-  label: string
-  count: number
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="w-full justify-between"
-      aria-pressed={selected}
-      onClick={onClick}
-    >
-      <span className={cn(selected && "font-semibold")}>{label}</span>
-      <span className={selected ? "text-primary" : "text-muted-foreground"}>
-        {count.toLocaleString()}
-      </span>
-    </Button>
-  )
-}
-
-function countedOptions(
-  trades: TradingOverviewActiveTrade[],
-  valueOf: (trade: TradingOverviewActiveTrade) => string
-) {
-  const counts = new Map<string, number>()
-  for (const trade of trades) {
-    const value = valueOf(trade)
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
-  return [...counts]
-    .map(([value, count]) => ({ value, label: value, count }))
-    .sort((left, right) => left.label.localeCompare(right.label))
 }

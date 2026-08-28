@@ -6,12 +6,12 @@ import type {
 } from "@/lib/protocols/contracts"
 import {
   ASTER_INTERVALS,
-  asterReconnectDelay,
   asterWsUrl,
   num,
   toAsterPushedFigures,
   toAsterTickerFigures,
 } from "@/lib/protocols/aster/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 const STALE_AFTER_MS = 12_000
 const WATCHDOG_EVERY_MS = 4_000
@@ -72,7 +72,8 @@ function splitCandleKey(key: string): [string, CandleInterval] {
 }
 
 function subscribedStreams(line: Line): string[] {
-  const streams = line.figures.size > 0 ? ["!markPrice@arr@1s", "!ticker@arr"] : []
+  const streams =
+    line.figures.size > 0 ? ["!markPrice@arr@1s", "!ticker@arr"] : []
   for (const key of line.candles.keys()) {
     const [marketId, interval] = splitCandleKey(key)
     streams.push(`${marketId.toLowerCase()}@kline_${ASTER_INTERVALS[interval]}`)
@@ -80,7 +81,11 @@ function subscribedStreams(line: Line): string[] {
   return streams
 }
 
-function sendSubscription(line: Line, method: "SUBSCRIBE" | "UNSUBSCRIBE", params: string[]) {
+function sendSubscription(
+  line: Line,
+  method: "SUBSCRIBE" | "UNSUBSCRIBE",
+  params: string[]
+) {
   if (params.length === 0) return
   const socket = line.socket
   if (!socket || socket.readyState !== WebSocket.OPEN) return
@@ -114,7 +119,10 @@ function handleMessage(line: Line, packet: unknown): void {
       continue
     }
     if (kind === "markPriceUpdate" && typeof symbol === "string") {
-      const figures = toAsterPushedFigures(row.p, line.tickers.get(symbol) ?? null)
+      const figures = toAsterPushedFigures(
+        row.p,
+        line.tickers.get(symbol) ?? null
+      )
       if (figures) figureUpdates.set(symbol, figures)
       sawData = sawData || figures !== null
       continue
@@ -122,7 +130,9 @@ function handleMessage(line: Line, packet: unknown): void {
     if (kind === "kline" && typeof symbol === "string") {
       const kline = row.k as Record<string, unknown> | undefined
       if (!kline) continue
-      const interval = Object.entries(ASTER_INTERVALS).find(([, value]) => value === kline.i)?.[0] as CandleInterval | undefined
+      const interval = Object.entries(ASTER_INTERVALS).find(
+        ([, value]) => value === kline.i
+      )?.[0] as CandleInterval | undefined
       if (!interval) continue
       const bar = {
         openTime: num(kline.t),
@@ -132,9 +142,17 @@ function handleMessage(line: Line, packet: unknown): void {
         close: num(kline.c),
         volume: num(kline.v) ?? 0,
       }
-      if (bar.openTime === null || bar.open === null || bar.high === null || bar.low === null || bar.close === null) continue
+      if (
+        bar.openTime === null ||
+        bar.open === null ||
+        bar.high === null ||
+        bar.low === null ||
+        bar.close === null
+      )
+        continue
       const listeners = line.candles.get(candleKey(symbol, interval))
-      if (listeners) for (const listener of listeners) listener(bar as CandleBar)
+      if (listeners)
+        for (const listener of listeners) listener(bar as CandleBar)
       sawData = true
     }
   }
@@ -158,7 +176,7 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  line.reconnectAt = Date.now() + asterReconnectDelay(line.attempts)
+  line.reconnectAt = Date.now() + reconnectDelay(line.attempts)
   line.attempts += 1
 }
 
@@ -205,7 +223,11 @@ function connect(line: Line): void {
 
   if (!line.watchdog) {
     line.watchdog = setInterval(() => {
-      if (!hasWatchers(line) || (typeof document !== "undefined" && document.hidden)) return
+      if (
+        !hasWatchers(line) ||
+        (typeof document !== "undefined" && document.hidden)
+      )
+        return
       if (line.reconnectAt > 0 && Date.now() >= line.reconnectAt) {
         line.reconnectAt = 0
         connect(line)
@@ -264,20 +286,33 @@ if (typeof document !== "undefined") {
   document.addEventListener("visibilitychange", onVisibilityChange)
 }
 
-export function watchFigures(network: NetworkId, listener: FiguresListener): () => void {
+export function watchFigures(
+  network: NetworkId,
+  listener: FiguresListener
+): () => void {
   const line = lineFor(network)
   const first = line.figures.size === 0
   line.figures.add(listener)
   ensureOpen(line)
-  if (first) sendSubscription(line, "SUBSCRIBE", ["!markPrice@arr@1s", "!ticker@arr"])
+  if (first)
+    sendSubscription(line, "SUBSCRIBE", ["!markPrice@arr@1s", "!ticker@arr"])
   return () => {
     line.figures.delete(listener)
-    if (line.figures.size === 0) sendSubscription(line, "UNSUBSCRIBE", ["!markPrice@arr@1s", "!ticker@arr"])
+    if (line.figures.size === 0)
+      sendSubscription(line, "UNSUBSCRIBE", [
+        "!markPrice@arr@1s",
+        "!ticker@arr",
+      ])
     closeIfIdle(line)
   }
 }
 
-export function watchCandle(network: NetworkId, marketId: string, interval: CandleInterval, listener: CandleListener): () => void {
+export function watchCandle(
+  network: NetworkId,
+  marketId: string,
+  interval: CandleInterval,
+  listener: CandleListener
+): () => void {
   const line = lineFor(network)
   const key = candleKey(marketId, interval)
   const listeners = line.candles.get(key) ?? new Set<CandleListener>()
@@ -297,7 +332,10 @@ export function watchCandle(network: NetworkId, marketId: string, interval: Cand
   }
 }
 
-export function watchCatchUp(network: NetworkId, listener: () => void): () => void {
+export function watchCatchUp(
+  network: NetworkId,
+  listener: () => void
+): () => void {
   const line = lineFor(network)
   line.catchUp.add(listener)
   ensureOpen(line)

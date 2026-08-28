@@ -12,7 +12,7 @@ import {
   READ_TIMEOUT_MS,
   requestSignal,
 } from "@/server/protocols/request-timeout"
-import { phemexTouched } from "@/server/protocols/phemex/touched"
+import { venueTouched } from "@/server/protocols/touched"
 import { scrubSecrets } from "@/server/protocols/scrub"
 
 /**
@@ -232,7 +232,7 @@ export async function phemexSigned(
       }
     )
       .finally(() => {
-        if (acting) phemexTouched()
+        if (acting) venueTouched("phemex")
       })
       .catch(timedOut(path, acting))
     if (response.status === 429) {

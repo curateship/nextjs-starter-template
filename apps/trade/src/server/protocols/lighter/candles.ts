@@ -5,9 +5,9 @@ import type {
 } from "@/lib/protocols/contracts"
 import {
   LIGHTER_INTERVALS,
-  lighterIntervalMs,
   toLighterBar,
 } from "@/lib/protocols/lighter/translate"
+import { candleIntervalMs } from "@/lib/protocols/timing"
 import {
   MOST_BARS_A_CHART_ASKS_FOR,
   wantsFullHistory,
@@ -80,7 +80,7 @@ export async function fetchLighterCandles(
       marketId,
       interval,
       since,
-      Date.now() + lighterIntervalMs(interval)
+      Date.now() + candleIntervalMs(interval)
     )
   }
   if (wantsFullHistory(interval)) {
@@ -89,7 +89,7 @@ export async function fetchLighterCandles(
     )
   }
   const { id } = await lighterMarketFacts(network, marketId)
-  const barMs = lighterIntervalMs(interval)
+  const barMs = candleIntervalMs(interval)
   const to = Date.now() + barMs
   return candlePage(network, id, interval, to - ROWS_PER_PAGE * barMs, to)
 }
@@ -111,7 +111,7 @@ async function fetchLighterFullHistory(
   interval: CandleInterval
 ): Promise<CandleBar[]> {
   const { id, bornAt } = await lighterMarketFacts(network, marketId)
-  const barMs = lighterIntervalMs(interval)
+  const barMs = candleIntervalMs(interval)
   const bars = new Map<number, CandleBar>()
   // A market with no stated first day is walked until it runs out, which is
   // what every other venue here does.
@@ -160,7 +160,7 @@ export async function fetchLighterCandleHistory(
   const { id, bornAt } = await lighterMarketFacts(network, marketId)
   const start = bornAt === null ? from : Math.max(from, bornAt)
   if (!(to > start)) return []
-  const pageMs = ROWS_PER_PAGE * lighterIntervalMs(interval)
+  const pageMs = ROWS_PER_PAGE * candleIntervalMs(interval)
   const windows: [number, number][] = []
   for (let cursor = start; cursor < to; cursor += pageMs) {
     windows.push([cursor, Math.min(to, cursor + pageMs)])

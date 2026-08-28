@@ -1263,7 +1263,7 @@ chip. New dashboards put Active Trades under PnL Graph;
 an account with a saved arrangement finds it under Settings → Widgets until it
 is placed.
 
-The Active Trades table has five columns: market, protocol, wallet, current
+The Active Trades table has five columns: market, exchange, wallet, current
 position value, and current profit in dollars and as a share of the money the
 trade holds. Value is the absolute position size at the current market price,
 not the margin committed to the trade. The
@@ -1276,7 +1276,10 @@ visible. Trade rows use 10px of vertical padding, 2px more than the bottom
 Positions panel, to
 give the list a little more air without changing its type size. The table opens
 with the largest P/L first. Every heading sorts, and Filter narrows the rows by
-protocol, wallet, or both. A wallet that could not be read does not add an
+exchange, wallet, or both. Active Trades and Trades use the same counted Filter
+menu, including the All rows, Clear all, Done, and the number of filters in
+use. Each menu keeps its own open state when both widgets sit on screen. A
+wallet that could not be read does not add an
 orange warning row above the trades that did answer. When no trades answer, the
 empty wording still avoids claiming that every wallet was empty. A market whose
 current price could not be read shows a dash for both value and profit, never a
@@ -1357,8 +1360,8 @@ not close the position has no stated profit, so its Money cell is a dash. The
 Money column's header tooltip and the chart header say how many trades their
 total is short of. An unstated figure never becomes zero. Trade rows are grouped
 by day and keep market, side, time, exchange, wallet, money, size, and fee in a
-compact four-column table. The Filter menu narrows the table to one exchange,
-one wallet, or both, and Clear all restores every trade. A fill hidden from the
+compact four-column table. The shared Filter menu narrows the table to one
+exchange, one wallet, or both, and Clear all restores every trade. A fill hidden from the
 Journal stays hidden here too.
 Trade rows inherit the dashboard's Inter typeface, including market names and
 Money values. Their numbers keep tabular spacing without switching to a

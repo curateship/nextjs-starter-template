@@ -34,7 +34,7 @@ import {
   dropIdleKucoinPrivateFeeds,
   kucoinQuietSince,
 } from "@/server/protocols/kucoin/private-feed"
-import { clearKucoinTouched } from "@/server/protocols/kucoin/touched"
+import { clearVenueTouched } from "@/server/protocols/touched"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { kucoinRefusalError } from "@/server/protocols/kucoin/refusals"
 import { scrubbedMessage } from "@/server/protocols/scrub"
@@ -1037,7 +1037,7 @@ const fillsCache = new Map<
 export function clearKucoinOrderCaches(): void {
   orderBooksCache.clear()
   fillsCache.clear()
-  clearKucoinTouched()
+  clearVenueTouched("kucoin")
 }
 
 /**

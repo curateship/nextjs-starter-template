@@ -6,7 +6,7 @@ import {
   watchCandle,
   watchFigures,
 } from "@/lib/protocols/aster/stream"
-import { asterReconnectDelay } from "@/lib/protocols/aster/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 type Listener = (event: { data: string }) => void
 
@@ -29,8 +29,12 @@ class FakeSocket {
     listeners.push(listener)
     this.listeners.set(kind, listeners)
   }
-  send(text: string) { this.sent.push(text) }
-  close() { this.closed++ }
+  send(text: string) {
+    this.sent.push(text)
+  }
+  close() {
+    this.closed++
+  }
   fire(kind: string, data: unknown = "") {
     if (kind === "open") this.readyState = FakeSocket.OPEN
     for (const listener of this.listeners.get(kind) ?? []) {
@@ -76,12 +80,14 @@ describe("the Aster browser feed", () => {
       s: "BTCUSDT",
       k: { i: "1m", t: 1_000, o: "10", h: "12", l: "9", c: "11", v: "5" },
     })
-    expect(bars).toEqual([expect.objectContaining({ openTime: 1_000, close: 11 })])
+    expect(bars).toEqual([
+      expect.objectContaining({ openTime: 1_000, close: 11 }),
+    ])
   })
 
   it("caps reconnect waits at thirty seconds", () => {
-    expect(asterReconnectDelay(0)).toBe(1_000)
-    expect(asterReconnectDelay(20)).toBe(30_000)
+    expect(reconnectDelay(0)).toBe(1_000)
+    expect(reconnectDelay(20)).toBe(30_000)
   })
 
   it("tears down a socket whose data stays quiet", () => {

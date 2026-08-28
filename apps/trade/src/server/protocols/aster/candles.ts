@@ -3,11 +3,8 @@ import type {
   CandleInterval,
   NetworkId,
 } from "@/lib/protocols/contracts"
-import {
-  ASTER_INTERVALS,
-  asterIntervalMs,
-  toAsterBar,
-} from "@/lib/protocols/aster/translate"
+import { ASTER_INTERVALS, toAsterBar } from "@/lib/protocols/aster/translate"
+import { candleIntervalMs } from "@/lib/protocols/timing"
 import {
   MOST_BARS_A_CHART_ASKS_FOR,
   wantsFullHistory,
@@ -65,7 +62,7 @@ export async function fetchAsterCandles(
       marketId,
       interval,
       since,
-      Date.now() + asterIntervalMs(interval)
+      Date.now() + candleIntervalMs(interval)
     )
   }
   if (wantsFullHistory(interval)) {
@@ -88,7 +85,7 @@ async function fetchAsterFullHistory(
   marketId: string,
   interval: CandleInterval
 ): Promise<CandleBar[]> {
-  const barMs = asterIntervalMs(interval)
+  const barMs = candleIntervalMs(interval)
   const bars = new Map<number, CandleBar>()
   let to = Date.now() + barMs
 
@@ -124,7 +121,7 @@ export async function fetchAsterCandleHistory(
   to: number
 ): Promise<CandleBar[]> {
   if (!(to > from)) return []
-  const pageMs = ROWS_PER_PAGE * asterIntervalMs(interval)
+  const pageMs = ROWS_PER_PAGE * candleIntervalMs(interval)
   const windows: [number, number][] = []
   for (let cursor = from; cursor < to; cursor += pageMs) {
     windows.push([cursor, Math.min(to, cursor + pageMs)])

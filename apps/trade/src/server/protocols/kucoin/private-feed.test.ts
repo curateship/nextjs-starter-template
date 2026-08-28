@@ -19,8 +19,8 @@ vi.mock("@/server/protocols/kucoin/client", () => ({
 
 const { closeKucoinPrivateFeeds, kucoinQuietSince } =
   await import("@/server/protocols/kucoin/private-feed")
-const { kucoinTouched, clearKucoinTouched } =
-  await import("@/server/protocols/kucoin/touched")
+const { venueTouched, clearVenueTouched } =
+  await import("@/server/protocols/touched")
 
 const KEY_ID = "key-1"
 /**
@@ -91,7 +91,7 @@ async function comeUp(): Promise<FakeSocket> {
 beforeEach(() => {
   FakeSocket.latest = null
   FakeSocket.made = 0
-  clearKucoinTouched()
+  clearVenueTouched("kucoin")
   signed.mockReset()
   signed.mockResolvedValue({
     token: "t0ken",
@@ -186,7 +186,7 @@ describe("what the private line will and will not vouch for", () => {
     // The exchange will push this too, a moment from now. A moment is long
     // enough to be told the account is quiet and skip the read that would have
     // shown the order just placed.
-    kucoinTouched()
+    venueTouched("kucoin")
     expect(kucoinQuietSince("mainnet", KEY_ID, CREDENTIAL, readAt)).toBe(false)
   })
 

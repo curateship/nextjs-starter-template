@@ -42,14 +42,9 @@ import { smartOrderPauseFields } from "@/lib/trade/smart-order-pause"
  * pass do the cancelling reuses the same path a give-up already takes, rather
  * than writing a second copy of it somewhere that would have to be kept in step.
  */
-export const SIGNAL_PHASES = [
-  "buying",
-  "holding",
-  "selling",
-  "stopping",
-] as const
+const SIGNAL_PHASES = ["buying", "holding", "selling", "stopping"] as const
 
-export const signalPlanSchema = z.object({
+const signalPlanSchema = z.object({
   ...smartOrderPauseFields,
   /**
    * The price when the arrow fired, which is what the chase is measured from.
@@ -131,7 +126,7 @@ export function readSignalPlan(value: unknown): SignalPlan | null {
  * a bug to work around. Small enough to be first in the queue, big enough to
  * survive rounding to the market's own price step.
  */
-export const CHASE_OFFSET = 0.0002
+const CHASE_OFFSET = 0.0002
 
 /**
  * How far the wanted price must move before the order is worth moving.
@@ -139,7 +134,7 @@ export const CHASE_OFFSET = 0.0002
  * Without it, a price wobbling in its fourth decimal would cancel and re-place
  * an order every single pass, forever, for no better fill.
  */
-export const CHASE_DRIFT = 0.001
+const CHASE_DRIFT = 0.001
 
 /**
  * The soonest one wallet may move an order again — ten seconds.

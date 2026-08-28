@@ -2,23 +2,11 @@ import { describe, expect, it } from "vitest"
 
 import {
   ASTER_INTERVALS,
-  asterIntervalMs,
-  roundAsterPx,
   toAsterBar,
   toAsterPushedFigures,
   toAsterTickerFigures,
 } from "@/lib/protocols/aster/translate"
-
-describe("Aster price rules", () => {
-  it("snaps an odd tick without leaving float dust", () => {
-    expect(roundAsterPx(97.38, null, 0.25)).toBe(97.5)
-    expect(roundAsterPx(0.123456, null, 0.0001)).toBe(0.1235)
-  })
-
-  it("leaves the price alone when the market stated no tick", () => {
-    expect(roundAsterPx(12.3456, null, null)).toBe(12.3456)
-  })
-})
+import { candleIntervalMs } from "@/lib/protocols/timing"
 
 describe("Aster candles and pushed figures", () => {
   it("reads the documented kline row", () => {
@@ -79,7 +67,7 @@ describe("Aster timeframes", () => {
       "4h",
       "1d",
     ])
-    expect(asterIntervalMs("4h")).toBe(14_400_000)
-    expect(asterIntervalMs("1d")).toBe(86_400_000)
+    expect(candleIntervalMs("4h")).toBe(14_400_000)
+    expect(candleIntervalMs("1d")).toBe(86_400_000)
   })
 })

@@ -3,7 +3,6 @@ import type {
   CandleInterval,
   LiveFigures,
 } from "@/lib/protocols/contracts"
-import { snapToTick } from "@/lib/protocols/tick"
 
 /**
  * Pure translation between Phemex's words and the app's, shared by the
@@ -56,23 +55,6 @@ export function phemexIntervalMs(interval: CandleInterval): number {
   return PHEMEX_RESOLUTIONS[interval] * 1_000
 }
 
-/**
- * The nearest price Phemex would accept: snapped to the market's own tick.
- *
- * This is the whole rounding rule — Phemex states a tick per market and
- * nothing else, so there is no five-significant-figures logic here (that is
- * Hyperliquid's rule, in Hyperliquid's folder). A market whose tick was not
- * carried (an old plan row) falls back to leaving the price alone, which the
- * exchange will refuse out loud rather than fill somewhere surprising.
- */
-export function roundPhemexPx(
-  px: number,
-  _sizeDecimals: number | null,
-  priceTick: number | null
-): number {
-  return snapToTick(px, priceTick)
-}
-
 /** The symbol Phemex files a market's 8-hour funding history under. */
 export function phemexFundingSymbol(marketId: string): string {
   return `.${marketId}FR8H`
@@ -102,7 +84,9 @@ export function toPhemexFigures(row: {
     volume24hUsd: num(row.turnoverRv) ?? 0,
     // Phemex states the 8-hour rate; the app speaks hourly everywhere.
     fundingHourly:
-      funding === null ? null : funding / (PHEMEX_FUNDING_INTERVAL_MS / 3_600_000),
+      funding === null
+        ? null
+        : funding / (PHEMEX_FUNDING_INTERVAL_MS / 3_600_000),
     openInterestUsd: num(row.openInterestRv),
   }
 }

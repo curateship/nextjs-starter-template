@@ -515,31 +515,6 @@ export type LadderRowRecord = {
   plan: LadderPlan
 }
 
-export async function activeLadder(
-  userId: string,
-  walletId: string,
-  marketKey: string
-): Promise<LadderRowRecord | null> {
-  const rows = await db
-    .select()
-    .from(tradeSmartLadders)
-    .where(
-      and(
-        eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.walletId, walletId),
-        eq(tradeSmartLadders.marketKey, marketKey),
-        eq(tradeSmartLadders.status, "active")
-      )
-    )
-    .limit(1)
-  const row = rows[0]
-  if (!row || row.kind !== "dca") return null
-  const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
-  return plan
-    ? { id: row.id, marketKey: row.marketKey, status: row.status, plan }
-    : null
-}
-
 export async function ladderById(
   userId: string,
   walletId: string,

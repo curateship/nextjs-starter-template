@@ -23,7 +23,7 @@ import { gridStopPx, type GridPlan } from "./grid"
  * a real-exchange test answers that, a pairing there could sell the ladder's
  * coins on the grid's stop.
  */
-export const PAIRABLE_PROTOCOLS: ReadonlySet<string> = new Set([
+const PAIRABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   "hyperliquid",
   "aster",
   "kucoin",

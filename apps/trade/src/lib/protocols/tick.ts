@@ -29,6 +29,15 @@ export function snapToTick(px: number, tick: number | null): number {
   return Number((ticks * tick).toFixed(decimalsOf(tick)))
 }
 
+/** The shared market adapter for exchanges whose price rule is a tick. */
+export function roundToTick(
+  px: number,
+  _sizeDecimals: number | null,
+  priceTick: number | null
+): number {
+  return snapToTick(px, priceTick)
+}
+
 /** How many decimal places a step like 0.001 carries. Capped for safety. */
 function decimalsOf(step: number): number {
   // Exponent form ("1e-5") has no visible decimals to count, so the number is

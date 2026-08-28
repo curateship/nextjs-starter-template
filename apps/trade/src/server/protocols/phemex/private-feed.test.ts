@@ -4,10 +4,7 @@ import {
   closePhemexPrivateFeeds,
   phemexQuietSince,
 } from "@/server/protocols/phemex/private-feed"
-import {
-  clearPhemexTouched,
-  phemexTouched,
-} from "@/server/protocols/phemex/touched"
+import { clearVenueTouched, venueTouched } from "@/server/protocols/touched"
 
 /**
  * The line only ever says one thing — "nothing has happened since then" — and
@@ -73,7 +70,7 @@ beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(new Date("2026-08-22T12:00:00Z"))
   FakeSocket.latest = null
-  clearPhemexTouched()
+  clearVenueTouched("phemex")
   vi.stubGlobal("WebSocket", FakeSocket)
 })
 
@@ -169,7 +166,7 @@ describe("what the private line will and will not vouch for", () => {
     // The exchange will push this too, a moment from now. A moment is long
     // enough to be told the account is quiet and skip the read that would have
     // shown the order just placed.
-    phemexTouched()
+    venueTouched("phemex")
     expect(phemexQuietSince("mainnet", KEY_ID, CREDENTIAL, readAt)).toBe(false)
   })
 

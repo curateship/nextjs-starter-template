@@ -37,10 +37,10 @@ export const MAX_GRID_LEVELS = 20
 /** Fewer than this is not a grid: one level is a limit buy with a limit sell. */
 export const MIN_GRID_LEVELS = 2
 
-export const DEFAULT_GRID_LEVELS = 12
+const DEFAULT_GRID_LEVELS = 12
 
 /** Most of the account the whole grid may ever spend, in percent. */
-export const DEFAULT_GRID_POT_PCT = 20
+const DEFAULT_GRID_POT_PCT = 20
 
 /** How far under the bottom of the range the stop rests, in percent. */
 export const DEFAULT_GRID_STOP_UNDER_PCT = 5
@@ -237,11 +237,11 @@ export const GRID_SPACING_HINT =
  * New grids use even sizing. "double" remains here only so grids placed before
  * that choice was removed can keep their recorded budgets until they end.
  */
-export const GRID_SIZINGS = ["even", "double"] as const
-export type GridSizing = (typeof GRID_SIZINGS)[number]
+const GRID_SIZINGS = ["even", "double"] as const
+type GridSizing = (typeof GRID_SIZINGS)[number]
 
 /** How much bigger each level down is, when the pot is doubled. */
-export const GRID_DOUBLE_MULTIPLIER = 2
+const GRID_DOUBLE_MULTIPLIER = 2
 
 /**
  * Where the range is measured from.
@@ -326,7 +326,7 @@ export const MAX_GRID_STOP_UNDER_PCT = 50
  * sit INSIDE the range and close the whole grid on an ordinary swing, which is
  * the exact move the grid exists to trade.
  */
-export const gridStopSchema = z.object({
+const gridStopSchema = z.object({
   /**
    * Percent past the losing edge of the range. Zero rests it on the edge
    * itself.
@@ -467,7 +467,7 @@ export function defaultGridParams(): GridParams {
 
 // ----- Where the levels sit ------------------------------------------------
 
-export type GridLevelPrices = { buyPx: number; sellPx: number }
+type GridLevelPrices = { buyPx: number; sellPx: number }
 
 /**
  * Where every level opens and where it closes.
@@ -712,7 +712,7 @@ export function gridStepPct(levels: readonly GridLevelPrices[]): number {
 
 // ----- What each level spends ---------------------------------------------
 
-export type GridPlannedLevel = {
+type GridPlannedLevel = {
   buyPx: number
   sellPx: number
   /** What this level puts up, after the liquidity guard capped it. */
@@ -721,7 +721,7 @@ export type GridPlannedLevel = {
   sz: number
 }
 
-export type GridOrderPlan = {
+type GridOrderPlan = {
   levels: GridPlannedLevel[]
   /** Dollars of coin the whole grid controls if every level opens. */
   totalCost: number
@@ -846,7 +846,7 @@ export function gridOrderPlan(input: {
  * There are no order ids on a level either. Nothing rests on the book: a level
  * is a price the grid watches, so there is never an order to point at.
  */
-export const GRID_LEVEL_STATUSES = ["waiting", "holding", "cancelled"] as const
+const GRID_LEVEL_STATUSES = ["waiting", "holding", "cancelled"] as const
 export type GridLevelStatus = (typeof GRID_LEVEL_STATUSES)[number]
 
 /**
@@ -968,7 +968,7 @@ const gridPlanStopSchema = z.object({
  * placement. End Grid keeps its chosen percentage so a hand-moved range can
  * put the line the same distance above the higher of the range or market.
  */
-export const gridPlanSchema = z.object({
+const gridPlanSchema = z.object({
   ...smartOrderPauseFields,
   /**
    * Which way this grid runs, frozen at placement and never editable after it.

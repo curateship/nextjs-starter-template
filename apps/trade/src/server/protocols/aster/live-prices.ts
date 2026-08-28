@@ -1,9 +1,6 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
-import {
-  asterReconnectDelay,
-  asterWsUrl,
-  num,
-} from "@/lib/protocols/aster/translate"
+import { asterWsUrl, num } from "@/lib/protocols/aster/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 const STALE_AFTER_MS = 12_000
 const WATCHDOG_EVERY_MS = 4_000
@@ -103,7 +100,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  hub.reconnectAt = Date.now() + asterReconnectDelay(hub.attempts)
+  hub.reconnectAt = Date.now() + reconnectDelay(hub.attempts)
   hub.attempts += 1
 }
 
@@ -120,7 +117,13 @@ function connect(hub: Hub): void {
   hub.socket = socket
   socket.addEventListener("open", () => {
     if (generation !== hub.generation) return
-    socket.send(JSON.stringify({ method: "SUBSCRIBE", params: ["!markPrice@arr@1s"], id: 1 }))
+    socket.send(
+      JSON.stringify({
+        method: "SUBSCRIBE",
+        params: ["!markPrice@arr@1s"],
+        id: 1,
+      })
+    )
   })
   socket.addEventListener("message", (event) => {
     if (generation !== hub.generation) return

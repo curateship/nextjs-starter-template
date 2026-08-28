@@ -5,6 +5,7 @@ import {
   namespaceMarketId,
   toLiveFigures,
 } from "@/lib/protocols/hyperliquid/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import { infoClient } from "@/server/protocols/hyperliquid/client"
 
 /**
@@ -34,8 +35,6 @@ import { infoClient } from "@/server/protocols/hyperliquid/client"
 /** Quiet for longer than this and the feed is treated as down. */
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
-
 /**
  * How long the market layout is reused across reconnects.
  *
@@ -143,17 +142,6 @@ export function livePricesFresh(network: NetworkId): boolean {
   return livePrices(network).ageMs <= STALE_AFTER_MS
 }
 
-/** Shuts the line. Only the tests and a clean process exit need this. */
-export async function closeLivePrices(network: NetworkId): Promise<void> {
-  const hub = hubFor(network)
-  hub.generation += 1
-  teardown(hub)
-  if (hub.watchdog) {
-    clearInterval(hub.watchdog)
-    hub.watchdog = null
-  }
-}
-
 function teardown(hub: Hub): void {
   hub.unsubscribe?.()
   hub.unsubscribe = null
@@ -163,8 +151,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[Math.min(hub.attempts, RECONNECT_BACKOFF_MS.length - 1)]
+  const wait = reconnectDelay(hub.attempts)
   hub.attempts += 1
   hub.reconnectAt = Date.now() + wait
 }

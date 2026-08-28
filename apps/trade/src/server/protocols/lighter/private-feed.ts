@@ -1,9 +1,9 @@
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
 import {
   LIGHTER_KEEPALIVE_MS,
-  lighterReconnectDelay,
   lighterWsUrl,
 } from "@/lib/protocols/lighter/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import { countLighterSocketSend } from "@/server/protocols/lighter/budget"
 
 /**
@@ -247,8 +247,14 @@ function sendCounted(hub: Hub, frame: object): void {
  * signer, which costs positions and money nothing.
  */
 function subscribe(hub: Hub, account: Account): void {
-  sendCounted(hub, { type: "subscribe", channel: `account_all/${account.index}` })
-  sendCounted(hub, { type: "subscribe", channel: `user_stats/${account.index}` })
+  sendCounted(hub, {
+    type: "subscribe",
+    channel: `account_all/${account.index}`,
+  })
+  sendCounted(hub, {
+    type: "subscribe",
+    channel: `user_stats/${account.index}`,
+  })
   /**
    * **The token belongs to this account and to no other.** One socket carries
    * every Lighter wallet on this server, and they belong to different people.
@@ -425,7 +431,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  hub.reconnectAt = Date.now() + lighterReconnectDelay(hub.attempts)
+  hub.reconnectAt = Date.now() + reconnectDelay(hub.attempts)
   hub.attempts += 1
 }
 
@@ -550,7 +556,10 @@ export function openLighterPrivateFeed(
    * runs on every account read, which is exactly the clock a retry wants,
    * and it still respects the backoff that `scheduleReconnect` set.
    */
-  if (!isLive(hub) && (hub.reconnectAt === 0 || Date.now() >= hub.reconnectAt)) {
+  if (
+    !isLive(hub) &&
+    (hub.reconnectAt === 0 || Date.now() >= hub.reconnectAt)
+  ) {
     hub.reconnectAt = 0
     connect(hub)
     return

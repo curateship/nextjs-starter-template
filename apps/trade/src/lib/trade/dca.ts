@@ -22,7 +22,7 @@ import { defaultIndicatorParams } from "@/lib/trade/indicators/contract"
  */
 
 /** One rung of a DCA buy ladder — it carries only its drop depth. */
-export type DcaRung = {
+type DcaRung = {
   /**
    * How far below the PREVIOUS buy this rung rests, in percent (the first rung
    * is measured from the clicked price). So 5, 8 means: first buy 5% under the
@@ -70,13 +70,13 @@ export function nextDcaRung(rungs: readonly DcaRung[]): DcaRung {
 }
 
 /** Most of the account the whole ladder may ever spend, in percent. */
-export const DEFAULT_DCA_MAX_POSITION_PCT = 25
+const DEFAULT_DCA_MAX_POSITION_PCT = 25
 
 /**
  * How much bigger each buy is than the one above it. 1 = every buy equal; 2 =
  * each buy doubles the last, so far more is bought the deeper price drops.
  */
-export const DEFAULT_DCA_SIZE_MULTIPLIER = 2
+const DEFAULT_DCA_SIZE_MULTIPLIER = 2
 
 export const DEFAULT_DCA_TAKE_PROFIT_PCT = 2
 export const DEFAULT_DCA_STOP_LOSS_PCT = 1
@@ -135,7 +135,7 @@ export const dcaBaseStopSchema = z.object({
   reclaimDays: z.number().min(0).max(MAX_BASE_STOP_RECLAIM_DAYS),
 })
 
-export type DcaBaseStop = z.infer<typeof dcaBaseStopSchema>
+type DcaBaseStop = z.infer<typeof dcaBaseStopSchema>
 
 /**
  * What counts as a base: how far back to look for a low, and how long that low
@@ -234,7 +234,7 @@ const dcaRungSchema = z.object({
   deviation: z.number().positive().max(99),
 })
 
-export const dcaRungsSchema = z.array(dcaRungSchema).min(1).max(20)
+const dcaRungsSchema = z.array(dcaRungSchema).min(1).max(20)
 
 /**
  * How the ladder takes profit. "average" re-aims one target above the average
@@ -426,7 +426,7 @@ export function floorSize(sz: number, sizeDecimals: number | null): number {
   return Math.floor(sz * factor) / factor
 }
 
-export type DcaPlannedRung = {
+type DcaPlannedRung = {
   px: number
   /** What this buy spends, after the liquidity guard capped it. */
   dollars: number
@@ -488,7 +488,7 @@ export function sizeOneOrder(input: {
   }
 }
 
-export type DcaLadderPlan = {
+type DcaLadderPlan = {
   rungs: DcaPlannedRung[]
   /** What the whole ladder costs if every rung buys, at 1× — dollars. */
   totalCost: number
@@ -562,7 +562,7 @@ export function dcaLadderPlan(input: {
  * lost its order without buying — cancelled by hand or unaffordable when its
  * turn came; `cancelled` was called off with the rest of the ladder.
  */
-export const LADDER_RUNG_STATUSES = [
+const LADDER_RUNG_STATUSES = [
   "waiting",
   "filled",
   "sold",
@@ -628,7 +628,7 @@ const ladderBaseStopSchema = z.object({
   reclaimDays: z.number().min(0).max(90),
 })
 
-export type LadderBaseStop = z.infer<typeof ladderBaseStopSchema>
+type LadderBaseStop = z.infer<typeof ladderBaseStopSchema>
 
 const ladderStopLossSchema = z.object({
   /** "percent" follows the average; "fixed" is wherever it was put by hand. */

@@ -353,7 +353,7 @@ export function coinWorstDip(trades: readonly BacktestTrade[]): number {
  * column would be zeros pretending to be a measurement. It comes back the day
  * a strategy can short.
  */
-export const sideStatsSchema = z.object({
+const sideStatsSchema = z.object({
   trades: z.number(),
   wins: z.number(),
   losses: z.number(),
@@ -381,7 +381,7 @@ export const sideStatsSchema = z.object({
   fees: z.number(),
 })
 
-export type SideStats = z.infer<typeof sideStatsSchema>
+type SideStats = z.infer<typeof sideStatsSchema>
 
 /** The measurements above, off a coin's round trips. */
 export function sideStatsFromTrades(
@@ -432,7 +432,7 @@ export function sideStatsFromTrades(
 }
 
 /** The few numbers a list row and a per-coin table row print. */
-export const backtestCoinSummarySchema = z.object({
+const backtestCoinSummarySchema = z.object({
   marketKey: z.string(),
   symbol: z.string(),
   /**
@@ -610,7 +610,7 @@ export function stoppedEarly(
 }
 
 /** A coin that could not be tested, and the plain reason. */
-export const backtestSkipSchema = z.object({
+const backtestSkipSchema = z.object({
   marketKey: z.string(),
   symbol: z.string(),
   reason: z.string(),
@@ -761,7 +761,7 @@ export type BacktestResult = z.infer<typeof backtestResultSchema>
  * before there were two strategies were rewritten into the `dca` shape by
  * migration 0126, so there is one shape here rather than two forever.
  */
-export const backtestStrategySnapshotSchema = z.discriminatedUnion("kind", [
+const backtestStrategySnapshotSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("dca"),
     /** The ladder settings, exactly as the step held them. */

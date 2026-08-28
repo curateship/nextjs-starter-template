@@ -1,11 +1,6 @@
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
-import {
-  InfoIcon,
-  LayoutDashboardIcon,
-  ListIcon,
-  ListFilterIcon,
-} from "lucide-react"
+import { InfoIcon, LayoutDashboardIcon, ListIcon } from "lucide-react"
 
 import { DashboardTablePagination } from "@/components/shared/dashboard-table"
 import {
@@ -14,17 +9,13 @@ import {
 } from "@/components/shared/dashboard/dashboard-panels"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
+import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import { TradeBadge } from "@/components/trade/trade-badge"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
   Table,
@@ -416,131 +407,27 @@ function TradeFilters({
   onWalletChange: (walletId: string | null) => void
   onClear: () => void
 }) {
-  const [open, setOpen] = React.useState(false)
-  const venues = countedOptions(fills, (fill) => fill.venue)
-  const wallets = countedOptions(fills, (fill) => fill.walletId).map(
-    (option) => ({
-      ...option,
-      label:
-        fills.find((fill) => fill.walletId === option.value)?.walletLabel ??
-        option.value,
-    })
-  )
-  const active = Number(Boolean(venue)) + Number(Boolean(walletId))
-
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline">
-          <ListFilterIcon />
-          Filter{active ? ` (${active})` : ""}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 gap-2 p-0">
-        <FilterGroup
-          label="Exchange"
-          total={fills.length}
-          value={venue}
-          options={venues}
-          onChange={onVenueChange}
-        />
-        <div className="border-t" />
-        <FilterGroup
-          label="Wallet"
-          total={fills.length}
-          value={walletId}
-          options={wallets}
-          onChange={onWalletChange}
-        />
-        <div className="flex items-center justify-between border-t p-2.5">
-          <Button type="button" variant="ghost" onClick={onClear}>
-            Clear all
-          </Button>
-          <Button type="button" onClick={() => setOpen(false)}>
-            Done
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
+    <CountedFilterPopover
+      items={fills}
+      groups={[
+        {
+          label: "Exchange",
+          value: venue,
+          valueOf: (fill) => fill.venue,
+          onChange: onVenueChange,
+        },
+        {
+          label: "Wallet",
+          value: walletId,
+          valueOf: (fill) => fill.walletId,
+          labelOf: (fill) => fill.walletLabel,
+          onChange: onWalletChange,
+        },
+      ]}
+      onClear={onClear}
+    />
   )
-}
-
-function FilterGroup({
-  label,
-  total,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  total: number
-  value: string | null
-  options: Array<{ value: string; label: string; count: number }>
-  onChange: (value: string | null) => void
-}) {
-  return (
-    <div className="grid gap-0.5 p-2.5">
-      <p className="px-2 pb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </p>
-      <FilterOption
-        label="All"
-        count={total}
-        selected={!value}
-        onClick={() => onChange(null)}
-      />
-      {options.map((option) => (
-        <FilterOption
-          key={option.value}
-          label={option.label}
-          count={option.count}
-          selected={value === option.value}
-          onClick={() => onChange(option.value)}
-        />
-      ))}
-    </div>
-  )
-}
-
-function FilterOption({
-  label,
-  count,
-  selected,
-  onClick,
-}: {
-  label: string
-  count: number
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="w-full justify-between"
-      aria-pressed={selected}
-      onClick={onClick}
-    >
-      <span className={cn(selected && "font-semibold")}>{label}</span>
-      <span className={selected ? "text-primary" : "text-muted-foreground"}>
-        {count.toLocaleString()}
-      </span>
-    </Button>
-  )
-}
-
-function countedOptions(
-  fills: TradingOverviewFill[],
-  valueOf: (fill: TradingOverviewFill) => string
-) {
-  const counts = new Map<string, number>()
-  for (const fill of fills) {
-    const value = valueOf(fill)
-    counts.set(value, (counts.get(value) ?? 0) + 1)
-  }
-  return [...counts]
-    .map(([value, count]) => ({ value, label: value, count }))
-    .sort((left, right) => left.label.localeCompare(right.label))
 }
 
 function tradeDayKey(at: number) {

@@ -13,7 +13,8 @@ import type {
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
-import { num, roundPhemexPx } from "@/lib/protocols/phemex/translate"
+import { num } from "@/lib/protocols/phemex/translate"
+import { snapToTick } from "@/lib/protocols/tick"
 import {
   clearPhemexAccountCache,
   phemexAccountPositions,
@@ -161,7 +162,7 @@ function cappedPx(
 ): number {
   const capped =
     side === "buy" ? px * (1 + MARKET_SLIPPAGE) : px * (1 - MARKET_SLIPPAGE)
-  return roundPhemexPx(capped, null, tick)
+  return snapToTick(capped, tick)
 }
 
 // ----- Position mode -------------------------------------------------------
@@ -282,7 +283,7 @@ async function posModeOf(
  * buys and closing sells belong to the Long; opening sells and closing buys
  * belong to the Short.
  */
-export function posSideFor(
+function posSideFor(
   mode: PosMode,
   side: "buy" | "sell",
   reduceOnly: boolean
@@ -498,7 +499,7 @@ export async function placePhemexOrder(
   const isMarket = params.kind === "market"
   const px = isMarket
     ? cappedPx(params.side, params.px, rules.tickSize)
-    : roundPhemexPx(params.px, null, rules.tickSize)
+    : snapToTick(params.px, rules.tickSize)
   if (!(px > 0)) throw new Error("LIVE_PRICE")
 
   const query: Record<string, string | number | boolean> = {
@@ -521,15 +522,11 @@ export async function placePhemexOrder(
   // target with the position, so a partly-accepted pair cannot happen — the
   // whole order stands or the whole order is refused.
   if (params.tpPx !== null) {
-    query.takeProfitRp = decimalString(
-      roundPhemexPx(params.tpPx, null, rules.tickSize)
-    )
+    query.takeProfitRp = decimalString(snapToTick(params.tpPx, rules.tickSize))
     query.tpTrigger = "ByMarkPrice"
   }
   if (params.slPx !== null) {
-    query.stopLossRp = decimalString(
-      roundPhemexPx(params.slPx, null, rules.tickSize)
-    )
+    query.stopLossRp = decimalString(snapToTick(params.slPx, rules.tickSize))
     query.slTrigger = "ByMarkPrice"
   }
 
@@ -680,7 +677,7 @@ export async function modifyPhemexOrder(
     await phemexSigned(network, auth(orderAuth), "PUT", "/g-orders/replace", {
       symbol: params.marketId,
       orderID: params.orderId,
-      priceRp: decimalString(roundPhemexPx(params.px, null, rules.tickSize)),
+      priceRp: decimalString(snapToTick(params.px, rules.tickSize)),
       orderQtyRq: decimalString(sz),
       posSide: posSideFor(
         await posModeOf(network, "", orderAuth.agentKey, params.marketId),
@@ -894,9 +891,7 @@ export async function setPhemexBrackets(
       side: exitSide,
       posSide: legPosSide,
       ordType: leg.ordType,
-      stopPxRp: decimalString(
-        roundPhemexPx(leg.triggerPx, null, rules.tickSize)
-      ),
+      stopPxRp: decimalString(snapToTick(leg.triggerPx, rules.tickSize)),
       orderQtyRq: decimalString(floorToStep(leg.sz, rules.qtyStepSize)),
       triggerType: "ByMarkPrice",
       timeInForce: "ImmediateOrCancel",

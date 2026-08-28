@@ -2,15 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import {
   LIGHTER_INTERVALS,
-  lighterIntervalMs,
   lighterTickFromDecimals,
-  roundLighterPx,
   scaleLighterPrice,
   scaleLighterSize,
   toLighterBar,
   toLighterStatsFigures,
   unscaleLighterNumber,
 } from "@/lib/protocols/lighter/translate"
+import { candleIntervalMs } from "@/lib/protocols/timing"
 
 describe("Lighter's whole numbers", () => {
   it("scales a price and a size by the market's own decimals", () => {
@@ -75,7 +74,7 @@ describe("Lighter translation", () => {
       "4h",
       "1d",
     ])
-    expect(lighterIntervalMs("4h")).toBe(14_400_000)
+    expect(candleIntervalMs("4h")).toBe(14_400_000)
   })
 
   it("turns stated price decimals into the tick the chart snaps to", () => {
@@ -84,12 +83,6 @@ describe("Lighter translation", () => {
     expect(lighterTickFromDecimals(0)).toBe(1)
     expect(lighterTickFromDecimals(-1)).toBeNull()
     expect(lighterTickFromDecimals("nonsense")).toBeNull()
-  })
-
-  it("snaps a dragged price to the market's stated decimals", () => {
-    // BTC states one decimal place, so $78,584.13 is between legal steps.
-    expect(roundLighterPx(78_584.13, 5, 0.1)).toBe(78_584.1)
-    expect(roundLighterPx(78_584.13, 5, null)).toBe(78_584.13)
   })
 
   it("reads one candle row and keeps the coin volume", () => {

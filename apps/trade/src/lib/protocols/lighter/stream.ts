@@ -7,11 +7,11 @@ import type {
 import {
   LIGHTER_INTERVALS,
   LIGHTER_KEEPALIVE_MS,
-  lighterReconnectDelay,
   lighterWsUrl,
   toLighterBar,
   toLighterStatsFigures,
 } from "@/lib/protocols/lighter/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 
 const STALE_AFTER_MS = 12_000
 const WATCHDOG_EVERY_MS = 4_000
@@ -185,14 +185,12 @@ function teardown(line: Line): void {
 }
 
 function scheduleReconnect(line: Line): void {
-  line.reconnectAt = Date.now() + lighterReconnectDelay(line.attempts)
+  line.reconnectAt = Date.now() + reconnectDelay(line.attempts)
   line.attempts += 1
 }
 
 function hasWatchers(line: Line): boolean {
-  return (
-    line.figures.size > 0 || line.candles.size > 0 || line.catchUp.size > 0
-  )
+  return line.figures.size > 0 || line.candles.size > 0 || line.catchUp.size > 0
 }
 
 function connect(line: Line): void {

@@ -39,7 +39,7 @@ const ONLINE_WINDOW_MS = 30_000
 /** How long a stopped copy's last beat is kept, so "when did it last run" has an answer. */
 const HEARTBEAT_KEEP_MS = 3 * 24 * 60 * 60_000
 
-export async function listWorkerControls(database: CustomShellDb = db) {
+async function listWorkerControls(database: CustomShellDb = db) {
   return database.select().from(tradeWorkerControls)
 }
 

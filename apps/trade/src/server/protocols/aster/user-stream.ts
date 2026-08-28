@@ -1,11 +1,8 @@
 import { z } from "zod"
 
 import type { NetworkId, WalletOrderFill } from "@/lib/protocols/contracts"
-import {
-  asterReconnectDelay,
-  asterWsUrl,
-  num,
-} from "@/lib/protocols/aster/translate"
+import { asterWsUrl, num } from "@/lib/protocols/aster/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import {
   asterSigned,
   parseAsterCredential,
@@ -74,7 +71,7 @@ function schedule(line: Line): void {
   line.healthy = false
   line.needsRecovery = true
   line.recoveryVersion += 1
-  line.reconnectAt = Date.now() + asterReconnectDelay(line.attempts)
+  line.reconnectAt = Date.now() + reconnectDelay(line.attempts)
   line.attempts += 1
   markAsterSnapshotDisconnected(line.network, line.address)
 }
@@ -254,9 +251,7 @@ async function connect(line: Line): Promise<void> {
         (eventName === "ORDER_TRADE_UPDATE" ||
           eventName === "ACCOUNT_UPDATE" ||
           eventName === "ACCOUNT_CONFIG_UPDATE")) ||
-      (eventName === "ORDER_TRADE_UPDATE" &&
-        execution === "TRADE" &&
-        !fill)
+      (eventName === "ORDER_TRADE_UPDATE" && execution === "TRADE" && !fill)
     ) {
       markAsterSnapshotNeedsRecovery(line.network, line.address)
       line.needsRecovery = true
@@ -385,8 +380,7 @@ export function markAsterFillsRecovered(
   const line = lines().get(keyFor(network, address))
   if (
     !line?.healthy ||
-    (recoveryVersion !== undefined &&
-      recoveryVersion !== line.recoveryVersion)
+    (recoveryVersion !== undefined && recoveryVersion !== line.recoveryVersion)
   ) {
     return
   }
@@ -409,13 +403,15 @@ export function asterFillsFromStream(
   since: number,
   credential: () => string | null
 ): WalletOrderFill[] | null {
-  watchAsterFills(network, address, "__aster_fill_cache__", credential, () => {})
+  watchAsterFills(
+    network,
+    address,
+    "__aster_fill_cache__",
+    credential,
+    () => {}
+  )
   const line = lines().get(keyFor(network, address))
-  if (
-    !line?.healthy ||
-    line.needsRecovery ||
-    since < line.coveredFrom
-  ) {
+  if (!line?.healthy || line.needsRecovery || since < line.coveredFrom) {
     return null
   }
   return [...line.fills.values()]

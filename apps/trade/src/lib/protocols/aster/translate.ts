@@ -4,7 +4,6 @@ import type {
   LiveFigures,
   NetworkId,
 } from "@/lib/protocols/contracts"
-import { snapToTick } from "@/lib/protocols/tick"
 
 /** Aster uses Binance-style interval names, and all six app intervals exist. */
 export const ASTER_INTERVALS: Record<CandleInterval, string> = {
@@ -16,29 +15,10 @@ export const ASTER_INTERVALS: Record<CandleInterval, string> = {
   "1d": "1d",
 }
 
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
-
 export function asterWsUrl(network: NetworkId): string {
   return network === "testnet"
     ? "wss://fstream5.asterdex-testnet.com/ws"
     : "wss://fstream.asterdex.com/ws"
-}
-
-export function asterReconnectDelay(attempt: number): number {
-  return RECONNECT_BACKOFF_MS[Math.min(attempt, RECONNECT_BACKOFF_MS.length - 1)]
-}
-
-const INTERVAL_MS: Record<CandleInterval, number> = {
-  "1m": 60_000,
-  "5m": 300_000,
-  "15m": 900_000,
-  "1h": 3_600_000,
-  "4h": 14_400_000,
-  "1d": 86_400_000,
-}
-
-export function asterIntervalMs(interval: CandleInterval): number {
-  return INTERVAL_MS[interval]
 }
 
 /** An Aster decimal as a finite number, or null when it cannot be trusted. */
@@ -47,15 +27,6 @@ export function num(value: unknown): number | null {
   if (typeof value !== "string" || value.trim() === "") return null
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
-}
-
-/** The nearest price allowed by the market's PRICE_FILTER. */
-export function roundAsterPx(
-  px: number,
-  _sizeDecimals: number | null,
-  priceTick: number | null
-): number {
-  return snapToTick(px, priceTick)
 }
 
 /**

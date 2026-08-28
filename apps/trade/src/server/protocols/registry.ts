@@ -17,6 +17,8 @@ import type {
   WalletPosition,
 } from "@/lib/protocols/contracts"
 import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
+import { candleIntervalMs as standardCandleIntervalMs } from "@/lib/protocols/timing"
+import { roundToTick } from "@/lib/protocols/tick"
 import { fetchHyperliquidAccount } from "@/server/protocols/hyperliquid/account"
 import { verifyHyperliquidAgentKey } from "@/server/protocols/hyperliquid/agent"
 import {
@@ -51,10 +53,7 @@ import {
   binanceFundingIntervalMs,
   fetchBinanceFunding,
 } from "@/server/protocols/binance/funding"
-import {
-  phemexIntervalMs,
-  roundPhemexPx,
-} from "@/lib/protocols/phemex/translate"
+import { phemexIntervalMs } from "@/lib/protocols/phemex/translate"
 import { fetchPhemexAccount } from "@/server/protocols/phemex/account"
 import { verifyPhemexAgentKey } from "@/server/protocols/phemex/agent"
 import {
@@ -124,7 +123,6 @@ import {
   KUCOIN_DEFAULT_FUNDING_MS,
   kucoinIntervalMs,
 } from "@/lib/protocols/kucoin/translate"
-import { asterIntervalMs, roundAsterPx } from "@/lib/protocols/aster/translate"
 import {
   fetchAsterAccount,
   fetchAsterPortfolio,
@@ -185,10 +183,6 @@ import {
   openLighterLivePrices,
   readLighterLivePrices,
 } from "@/server/protocols/lighter/live-prices"
-import {
-  lighterIntervalMs,
-  roundLighterPx,
-} from "@/lib/protocols/lighter/translate"
 import {
   fetchLighterAccount,
   fetchLighterPortfolio,
@@ -675,7 +669,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       history: fetchPhemexCandleHistory,
       intervalMs: phemexIntervalMs,
       prices: fetchPhemexPrices,
-      roundPx: roundPhemexPx,
+      roundPx: roundToTick,
       pricesWereRationed: phemexPricesWereRationed,
     },
     livePrices: {
@@ -836,9 +830,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       candles: fetchAsterCandles,
       history: fetchAsterCandleHistory,
       historyBatchBars: ASTER_HISTORY_BATCH_BARS,
-      intervalMs: asterIntervalMs,
+      intervalMs: standardCandleIntervalMs,
       prices: fetchAsterPrices,
-      roundPx: roundAsterPx,
+      roundPx: roundToTick,
       pricesWereRationed: asterPricesWereRationed,
     },
     livePrices: {
@@ -929,9 +923,9 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       candles: fetchLighterCandles,
       history: fetchLighterCandleHistory,
       historyBatchBars: LIGHTER_HISTORY_BATCH_BARS,
-      intervalMs: lighterIntervalMs,
+      intervalMs: standardCandleIntervalMs,
       prices: fetchLighterPrices,
-      roundPx: roundLighterPx,
+      roundPx: roundToTick,
       pricesWereRationed: lighterPricesWereRationed,
     },
     livePrices: {

@@ -12,7 +12,7 @@ import {
   READ_TIMEOUT_MS,
   requestSignal,
 } from "@/server/protocols/request-timeout"
-import { kucoinTouched } from "@/server/protocols/kucoin/touched"
+import { venueTouched } from "@/server/protocols/touched"
 import { scrubSecrets } from "@/server/protocols/scrub"
 
 /**
@@ -233,7 +233,7 @@ export async function kucoinSigned(
       ...(bodyText ? { body: bodyText } : {}),
     })
       .finally(() => {
-        if (ringsBell) kucoinTouched()
+        if (ringsBell) venueTouched("kucoin")
       })
       .catch(timedOut(path, acting))
 

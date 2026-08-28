@@ -1,5 +1,6 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { num } from "@/lib/protocols/kucoin/translate"
+import { reconnectDelay } from "@/lib/protocols/timing"
 import { kucoinLiveTicket } from "@/server/protocols/kucoin/live-ticket"
 
 /**
@@ -63,7 +64,6 @@ const MAX_SOCKETS = 8
 
 const STALE_AFTER_MS = 8_000
 const WATCHDOG_EVERY_MS = 3_000
-const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000, 30_000]
 const STEADY_AFTER_MS = 30_000
 
 type Hub = {
@@ -242,8 +242,7 @@ function teardown(hub: Hub): void {
 }
 
 function scheduleReconnect(hub: Hub): void {
-  const wait =
-    RECONNECT_BACKOFF_MS[Math.min(hub.attempts, RECONNECT_BACKOFF_MS.length - 1)]
+  const wait = reconnectDelay(hub.attempts)
   hub.attempts += 1
   hub.reconnectAt = Date.now() + wait
 }

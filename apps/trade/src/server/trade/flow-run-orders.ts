@@ -69,24 +69,6 @@ export async function rememberFlowRunOrders(
   }
 }
 
-/** Every order id one run has sent. */
-export async function flowRunOrderIds(
-  userId: string,
-  flowRunId: string,
-  database: CustomShellDb = db
-): Promise<Set<string>> {
-  const rows = await database
-    .select({ orderId: tradeFlowRunOrders.orderId })
-    .from(tradeFlowRunOrders)
-    .where(
-      and(
-        eq(tradeFlowRunOrders.userId, userId),
-        eq(tradeFlowRunOrders.flowRunId, flowRunId)
-      )
-    )
-  return new Set(rows.map((row) => row.orderId))
-}
-
 /** Every order id recorded for one ladder, including ids its plan has forgotten. */
 export async function flowLadderOrderIds(
   userId: string,

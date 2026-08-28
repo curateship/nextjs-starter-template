@@ -53,6 +53,13 @@ The one idea: **screens never know which exchange they are talking to.**
   dashboard and serves backtests. The real-money gate and the secret
   scrubbers live beside it (`real-money.ts`, `scrub.ts`) — policy shared by
   every exchange, above the per-exchange folders.
+- Socket reconnect waits and ordinary candle lengths live once in
+  `src/lib/protocols/timing.ts`. Exchanges use the shared answers unless an
+  exchange supplies its own reconnect schedule. Exchanges whose legal price
+  rule is a market tick also share the adapter in `src/lib/protocols/tick.ts`.
+- Phemex and KuCoin account-change marks live in
+  `src/server/protocols/touched.ts`, keyed by exchange on `globalThis`. A module
+  reload keeps both marks, while clearing one in a test leaves the other alone.
 - **The rule is a test, not a hope.** `src/server/protocols/fence.test.ts`
   fails the suite if the exchange package is imported anywhere else, or if
   shared code compares against a protocol id.
