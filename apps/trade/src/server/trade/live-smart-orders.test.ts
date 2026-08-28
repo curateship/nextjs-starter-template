@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { WalletPosition } from "@/lib/protocols/contracts"
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -46,6 +47,7 @@ const fills = vi.fn()
 const fillsNeedRecovery = vi.fn()
 const place = vi.fn()
 const cancel = vi.fn()
+const close = vi.fn()
 const setBrackets = vi.fn()
 let marketFloor: number | null = null
 let marketMaxLeverage = 50
@@ -54,10 +56,15 @@ let marketMaxLeverage = 50
 // itself, because `ordersOf` and its siblings live here too — a mock that
 // listed just this one left them undefined, and every live test died on a
 // call to nothing.
-vi.mock("@/server/protocols/registry", async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  getProtocol: () => ({
+vi.mock("@/server/protocols/registry", async (importOriginal) => {
+  const gridStops: Record<string, "exchange" | "watched"> = {
+    lighter: "watched",
+  }
+  return {
+    ...(await importOriginal<object>()),
+    getProtocol: (id: string) => ({
     label: "Hyperliquid",
+    capabilities: { gridStop: gridStops[id] ?? "exchange" },
     markets: {
       fetch: async () => ({
         protocol: "hyperliquid",
@@ -95,13 +102,15 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
       fillsNeedRecovery,
       place,
       cancel,
-      close: vi.fn(),
+      close,
       setBrackets,
     },
-  }),
-}))
+    }),
+  }
+})
 
 const MARKET = "hyperliquid:testnet:BTC"
+const LIGHTER_MARKET = "lighter:mainnet:BTC"
 const ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 const KEY = "ab".repeat(32)
 
@@ -284,6 +293,7 @@ beforeEach(async () => {
     fillsNeedRecovery,
     place,
     cancel,
+    close,
     setBrackets,
   ]) {
     mock.mockReset()
@@ -299,6 +309,7 @@ beforeEach(async () => {
   fills.mockResolvedValue([])
   fillsNeedRecovery.mockReturnValue(true)
   cancel.mockResolvedValue(undefined)
+  close.mockResolvedValue({ avgPx: null, filledSz: null })
   setBrackets.mockResolvedValue({ slOrderId: null })
 
   userId = (await insertUser(database)).id
@@ -1278,7 +1289,10 @@ describe("changing a live grid while it is flat", () => {
    * waiting and nothing is held. That is a grid's ordinary state between one
    * cycle and the next, not a broken one.
    */
-  async function restingGrid(takeProfitPx: number | null = null): Promise<void> {
+  async function restingGrid(
+    takeProfitPx: number | null = null,
+    marketKey = MARKET
+  ): Promise<void> {
     const levels = [80, 85].map((buyPx) => ({
       buyPx,
       sellPx: buyPx + 5,
@@ -1324,7 +1338,7 @@ describe("changing a live grid while it is flat", () => {
       userId,
       id: "grid-1",
       walletId: "live-1",
-      marketKey: MARKET,
+      marketKey,
       kind: "grid",
       status: "active",
       plan,
@@ -1340,6 +1354,32 @@ describe("changing a live grid while it is flat", () => {
       .where(eq(tradeSmartLadders.id, "grid-1"))
     expect(rows).toHaveLength(1)
     return rows[0].plan as GridPlan
+  }
+
+  async function useLighterWallet(): Promise<void> {
+    await database
+      .update(tradeWallets)
+      .set({ protocol: "lighter", network: "mainnet" })
+      .where(eq(tradeWallets.id, wallet.id))
+    wallet = { ...wallet, protocol: "lighter", network: "mainnet" }
+  }
+
+  function lighterPosition(): WalletPosition {
+    return {
+      marketId: "BTC",
+      szi: 1,
+      entryPx: 85,
+      leverage: 1,
+      marginUsed: 85,
+      liquidationPx: null,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      tpOrderId: null,
+      slPx: null,
+      slOrderId: null,
+      protectionOrderIds: [],
+    }
   }
 
   it("keeps End Grid when upward following is switched on", async () => {
@@ -1478,6 +1518,97 @@ describe("changing a live grid while it is flat", () => {
 
     expect(setBrackets).toHaveBeenCalled()
     expect(await gridPlan()).toMatchObject({ aimedSlPx: 70 })
+  })
+
+  it("keeps a Lighter grid stop in Trade instead of sending a bracket", async () => {
+    await useLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    portfolio.mockResolvedValue({
+      positions: [lighterPosition()],
+      orders: [],
+    })
+
+    await moveLiveGridExit(userId, wallet, {
+      gridId: "grid-1",
+      which: "stopLoss",
+      px: 70,
+    })
+
+    expect(await gridPlan()).toMatchObject({
+      stopLoss: { mode: "fixed", px: 70 },
+      aimedSlPx: null,
+    })
+    expect(setBrackets).not.toHaveBeenCalled()
+  })
+
+  it("does not erase a Lighter grid's watched stop above its price", async () => {
+    await useLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    const plan = await gridPlan()
+    plan.levels[0] = {
+      ...plan.levels[0],
+      status: "holding",
+      heldSz: 1,
+    }
+    plan.levels[1] = { ...plan.levels[1], status: "cancelled" }
+    plan.stopLoss = { mode: "fixed", underPct: 5, px: 70, base: null }
+    plan.aimedSlPx = 70
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    prices.mockResolvedValue(new Map([["BTC", 75]]))
+    const currentPortfolio = {
+      positions: [lighterPosition()],
+      orders: [],
+    }
+
+    await reconcileLiveLadders(userId, wallet, currentPortfolio)
+
+    expect(await gridPlan()).toMatchObject({
+      stopLoss: { mode: "fixed", px: 70 },
+      aimedSlPx: null,
+    })
+    expect(setBrackets).not.toHaveBeenCalled()
+    expect(close).not.toHaveBeenCalled()
+  })
+
+  it("closes a Lighter position when price reaches its watched grid stop", async () => {
+    await useLighterWallet()
+    await restingGrid(null, LIGHTER_MARKET)
+    const plan = await gridPlan()
+    plan.levels[0] = {
+      ...plan.levels[0],
+      status: "holding",
+      heldSz: 1,
+    }
+    plan.stopLoss = { mode: "fixed", underPct: 5, px: 70, base: null }
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan })
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    prices.mockResolvedValue(new Map([["BTC", 70]]))
+    const currentPortfolio = {
+      positions: [lighterPosition()],
+      orders: [],
+    }
+    portfolio.mockResolvedValue(currentPortfolio)
+
+    await reconcileLiveLadders(userId, wallet, currentPortfolio)
+
+    expect(close).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ marketId: "BTC", szi: 1 })
+    )
+    expect(place).not.toHaveBeenCalled()
+    expect(setBrackets).not.toHaveBeenCalled()
+    expect(await gridPlan()).toMatchObject({ closedReason: "stop" })
+    const [row] = await database
+      .select({ status: tradeSmartLadders.status })
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    expect(row.status).toBe("done")
   })
 })
 

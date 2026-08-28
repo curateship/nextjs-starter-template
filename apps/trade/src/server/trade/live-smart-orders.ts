@@ -73,6 +73,7 @@ import { accountOf, getProtocol, ordersOf } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import {
   cancelLiveOrder,
+  closeLivePosition,
   placeLiveOrder,
   rollbackLiveOrder,
   setLiveBrackets,
@@ -1649,6 +1650,18 @@ async function reconcileLiveLaddersOnce(
               marketActionStarted = true
               const mark = marks.get(input.marketKey)
               try {
+                if (
+                  protocol.capabilities.gridStop === "watched" &&
+                  input.closePosition
+                ) {
+                  await closeLivePosition(userId, {
+                    walletId: wallet.id,
+                    marketKey: input.marketKey,
+                  })
+                  recordSmartOrderSendSuccess(entry.plan)
+                  refusalHolds.delete(holdKey)
+                  continue
+                }
                 const outcome = await placeLiveOrder(userId, {
                   walletId: wallet.id,
                   marketKey: input.marketKey,
@@ -1785,6 +1798,13 @@ async function reconcileLiveLaddersOnce(
               originalBrackets?.slPx != null)
           if (
             entry.kind !== "signal" &&
+            // Lighter grid stops stay in Trade as watched prices. Sending this
+            // position through the bracket path both creates the wrong order
+            // and makes the next Lighter read erase the watched price.
+            !(
+              entry.kind === "grid" &&
+              protocol.capabilities.gridStop === "watched"
+            ) &&
             // A paired grid owns no position protection at all — the
             // position's stop and target belong to the ladder beneath it,
             // and the grid's own fixed-size stop is reconciled separately
@@ -2557,7 +2577,10 @@ export async function updateLiveGridStop(
       wanted === null
         ? null
         : protocol.markets.roundPx(wanted, plan.sizeDecimals, plan.priceTick)
-    if (ladder) {
+    if (protocol.capabilities.gridStop === "watched") {
+      // The price stays in the plan. Nothing is placed on Lighter.
+      plan.aimedSlPx = null
+    } else if (ladder) {
       // Paired, the grid's stop is its own order — the position's stop
       // belongs to the ladder and is not touched.
       plan.aimedSlPx = null
@@ -2759,6 +2782,9 @@ export async function moveLiveGridExit(
         // the ladder's and stays where the ladder put it.
         plan.aimedSlPx = null
         await movePairedGridStop(userId, wallet.id, grid.marketKey, plan, px)
+      } else if (protocol.capabilities.gridStop === "watched") {
+        // Lighter grid stops are watched here, not sent to the exchange.
+        plan.aimedSlPx = null
       } else if ((await heldOnExchange(userId, wallet, grid.marketKey)) > 0) {
         // See `updateLiveGridStop`: a grid with nothing open has no brackets
         // to set, and asking anyway threw the drag away along with the new

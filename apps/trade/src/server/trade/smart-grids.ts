@@ -94,8 +94,9 @@ export async function advanceGrid(
   const { book, now } = input
   const plan = row.plan
   if (plan.paused) return
+  const protocol = getProtocol(book.wallet.protocol)
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(
+    protocol.markets.roundPx(
       px,
       plan.sizeDecimals,
       plan.priceTick
@@ -119,7 +120,10 @@ export async function advanceGrid(
     }
   }
 
-  // ----- 2. The fixed End Grid line closes the grid -----------------------
+  // ----- 2. Watched exits close the grid ----------------------------------
+  //
+  // Lighter carries no grid stop on its book. Trade watches the saved stop
+  // price and sends one reduce-only close when price reaches it.
   //
   // Not the top of the range. Price above the TOP just means the grid has sold
   // everything it had up there and is waiting for price to come back down into
@@ -127,9 +131,19 @@ export async function advanceGrid(
   // the fixed ceiling where the grid stops following and closes.
 
   const held = book.positions.get(row.marketKey) ?? null
+  const watchedStop =
+    protocol.capabilities.gridStop === "watched" ? gridStopPx(plan) : null
+  let closedBelow = false
+  if (mark !== null && watchedStop !== null && mark <= watchedStop) {
+    sellEverything(plan, book, deps, row.marketKey, held, mark, now)
+    plan.closedReason = "stop"
+    closedBelow = true
+    changed = true
+  }
+
   const target = gridTakeProfitPx(plan)
   let closedAbove = false
-  if (mark !== null && target !== null && mark >= target) {
+  if (!closedBelow && mark !== null && target !== null && mark >= target) {
     // Paired with a ladder, the position is not all the grid's to sell. A
     // jump past the End Grid line sells what the GRID holds and no more — the
     // ladder's coins stay, still covered by the ladder's own stop.
@@ -159,6 +173,7 @@ export async function advanceGrid(
   const anyWaiting = plan.levels.some((level) => level.status === "waiting")
 
   const over =
+    closedBelow ||
     closedAbove ||
     // Turned into a short by hand: a buy grid has no business adding to it.
     (position !== null && position.szi < 0) ||
@@ -444,7 +459,16 @@ export async function advanceGrid(
   // reason.
 
   const after = book.positions.get(row.marketKey) ?? null
-  if (row.paired) {
+  if (protocol.capabilities.gridStop === "watched") {
+    // The watched price is the plan's `stopLoss`. `aimedSlPx` means a stop was
+    // sent to the exchange, so Lighter must always leave it empty. Comparing
+    // Lighter's null `slPx` with this field used to rewrite the saved stop to
+    // null, which is how ENA lost its protection.
+    if (plan.aimedSlPx !== null) {
+      plan.aimedSlPx = null
+      changed = true
+    }
+  } else if (row.paired) {
     // The position's one stop belongs to the ladder beneath this grid, so
     // nothing here may aim it — and nothing may be remembered as aimed, or
     // the hand-moved test would read the ladder's stop as a drag. The grid's
@@ -733,6 +757,7 @@ function sellEverything(
     leverage: held.leverage,
     maxLeverage: plan.maxLeverage,
     reduceOnly: true,
+    closePosition: true,
     reason: "order",
     at: now,
   })

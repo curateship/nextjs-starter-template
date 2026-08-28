@@ -214,6 +214,10 @@ add up to.
   move a grid exists to trade.
 - Tyler, 27 Aug 2026: **A grid smart order always has a stop loss.** The stop
   cannot be switched off when the grid is placed or while it is running.
+- Tyler, 27 Aug 2026: **"There is no such stop on Lighter. Even a stop is a
+  watched order."** A Lighter grid keeps its stop price inside Trade. Lighter
+  receives no stop order when the stop is set or moved. When price reaches the
+  saved line, Trade sends one reduce-only close and ends the grid.
 
 ## Money
 

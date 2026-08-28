@@ -2,9 +2,8 @@
 
 Trade reads Lighter's perpetual markets, charts and funding at
 `/admin/lighter`, on mainnet only, holds a connected Lighter wallet, shows what
-it holds, and places, moves, cancels and closes orders on it with a stop and
-targets. This file records only behaviour the app runs today or a live response
-proved.
+it holds, and places, moves, cancels and closes orders on it. This file records
+only behaviour the app runs today or a live response proved.
 
 Every figure below was measured against Lighter's live API on 26 August 2026,
 between 14:05 and 14:55 UTC. They are dated readings, not numbers the app
@@ -563,24 +562,17 @@ useful thing the app can say about real money and, for the country block, an
 instruction that can never work. The order path now badges them so the reason
 survives to the screen.
 
-## Stops and targets
+## Grid stops
 
-- **Every order this app sends Lighter is a limit with a price on it**, stops
-  included. Lighter has a plain stop-loss that fills at whatever the market is
-  when it triggers, and it is never used. The stop-loss LIMIT and take-profit
-  LIMIT kinds are, with the limit priced three percent through the trigger on
-  the side the order will cross to — so a stop that fires actually gets out
-  instead of resting above a market that has already fallen past it.
-- Every protective leg is reduce-only, so it can only ever shrink the position
-  it guards and can never open one the other way.
-- **Lighter has no "whatever the position holds" flag**, so a leg names a
-  number of coins. When the position grows or shrinks, the old legs come off
-  and fresh ones go on at the new size. The cancels go first: a leg left
-  behind sells the position a second time.
-- An entry asked for with a stop reports its protection as "partial", because
-  Lighter cannot carry one on the entry itself — the legs go on just after the
-  position opens. Reporting "ok" for legs that were not sent with it would be
-  the worst kind of lie here.
+A Lighter grid stop is a watched price inside Trade. Setting or moving one
+saves the price and sends no bracket order to Lighter. A Lighter position
+therefore reports no stop, and that empty exchange field must never erase the
+price saved on the grid.
+
+When Lighter's live price reaches the saved stop, Trade closes the whole grid
+with the same reduce-only immediate-or-cancel order used by Close. The order is
+priced three percent through the mark and expires immediately, so it can shrink
+the position but cannot open a short if the position has already changed.
 
 ## Leverage, and the cash behind a position
 

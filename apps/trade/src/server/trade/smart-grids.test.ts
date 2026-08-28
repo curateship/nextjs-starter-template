@@ -44,6 +44,7 @@ let candles: CandleBar[] = []
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    capabilities: { gridStop: "exchange" },
     markets: {
       fetch: async () => ({
         protocol: "hyperliquid",

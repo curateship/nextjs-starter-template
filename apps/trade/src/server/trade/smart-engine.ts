@@ -28,6 +28,8 @@ export type LadderOrderInput = {
   leverage: number
   maxLeverage: number
   reduceOnly: boolean
+  /** This watched action closes the whole position rather than one slice. */
+  closePosition?: boolean
   now: number
   /**
    * The watched price that allowed this market action to fire.
@@ -82,6 +84,8 @@ export type LadderEngineDeps = {
        * as the only thing that ever came through here was a buy.
        */
       reduceOnly: boolean
+      /** This watched action closes the whole position rather than one slice. */
+      closePosition?: boolean
       reason: "order"
       at: number
       /** The watched price that this fill must still have reached live. */

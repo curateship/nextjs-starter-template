@@ -74,6 +74,8 @@ export type ProtocolCapabilities = {
   accounts: boolean
   /** Can sign and place real orders for a live wallet. */
   orders: boolean
+  /** Where a grid stop waits until its price is reached. */
+  gridStop: "exchange" | "watched"
   /** Can change the leverage on a position that is already open. */
   changeLeverage: ProtocolAbility
   /** Can add or take back the cash behind an isolated position. */

@@ -567,6 +567,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
+      gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
     },
@@ -664,6 +665,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
+      gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
     },
@@ -743,6 +745,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
+      gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
     },
@@ -824,6 +827,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
+      gridStop: "exchange",
       changeLeverage: { can: true },
       adjustMargin: { can: true },
     },
@@ -908,6 +912,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: true,
       orders: true,
+      gridStop: "watched",
       changeLeverage: {
         can: false,
         because:
@@ -1022,6 +1027,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       markets: true,
       accounts: false,
       orders: false,
+      gridStop: "exchange",
       changeLeverage: {
         can: false,
         because:

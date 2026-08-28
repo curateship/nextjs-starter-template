@@ -308,17 +308,17 @@ including why the grid's stop must sit above the ladder's first buy.
 **The stop can be moved whenever you like, including while the grid holds
 nothing.** That is the ordinary state between one cycle and the next, and the
 stop is then a plan for later rather than protection on something open. It is
-written to the exchange the moment a level buys, not before. On a live wallet
-this used to be refused with "That position is not on the exchange any more",
-which threw the drag away along with the stop you had just moved.
+written to exchanges that carry grid protection the moment a level buys, not
+before. On Lighter the stop always stays inside Trade as a watched price. When
+Lighter's live price reaches the line, Trade sends one reduce-only close and
+ends the grid. Setting or moving the line sends no stop order to Lighter.
 
 **The stop is one line on the chart, never two.** The grid draws its own red
-STOP LOSS line, and the untriggered leg the exchange is holding at that same
-price is not drawn at all. Every other order type already worked this way. The
-grid was the one that showed both, so a grey pill carrying the same price sat
-right behind the red one and read as some second thing at that level. The leg
-is matched by its price rather than by its order id, so a leg the exchange
-re-made under a new id, or one left over from an earlier stop, is hidden too.
+STOP LOSS line. On Lighter that line is the whole order until its price is
+reached. On exchanges that hold the stop, the untriggered leg at the same price
+is not drawn. The grid was the one that showed both, so a grey pill carrying
+the same price sat right behind the red one and read as some second thing at
+that level.
 
 ## No line on the chart carries its own price
 
