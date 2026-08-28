@@ -95,6 +95,16 @@ export const customShellUsers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
+    index("ix_users_email").on(table.email),
+    index("ix_users_current_workspace").on(table.currentWorkspaceId),
+    index("ix_users_deleted_at")
+      .on(table.deletedAt)
+      .where(sql`${table.status} = 'pending_deletion'`),
+    index("ix_users_verification_reminder_due")
+      .on(table.createdAt)
+      .where(
+        sql`${table.status} = 'active' and ${table.passwordHash} is not null and ${table.emailVerifiedAt} is null and ${table.verificationReminderSentAt} is null`
+      ),
     check("users_role_check", sql`${table.role} in ('admin', 'member')`),
     check(
       "users_status_check",
@@ -717,6 +727,15 @@ export const customShellPlans = pgTable(
     ),
     check("plans_trial_days_check", sql`${table.trialDays} >= 0`),
     index("ix_plans_sort_order").on(table.sortOrder),
+    uniqueIndex("ux_plans_single_default")
+      .on(table.isDefault)
+      .where(sql`${table.isDefault}`),
+    uniqueIndex("ux_plans_stripe_price_monthly")
+      .on(table.stripePriceIdMonthly)
+      .where(sql`${table.stripePriceIdMonthly} is not null`),
+    uniqueIndex("ux_plans_stripe_price_yearly")
+      .on(table.stripePriceIdYearly)
+      .where(sql`${table.stripePriceIdYearly} is not null`),
     uniqueIndex("ux_plans_single_highlight")
       .on(sql`(true)`)
       .where(sql`${table.highlightBadgeText} is not null`),
@@ -904,6 +923,9 @@ export const customShellAutomations = pgTable(
     index("ix_automations_next_run")
       .on(table.nextRunAt)
       .where(sql`${table.nextRunAt} is not null`),
+    index("ix_automations_enabled")
+      .on(table.enabled)
+      .where(sql`${table.enabled}`),
   ]
 )
 
@@ -1096,6 +1118,10 @@ export const customShellAutomationRuns = pgTable(
       sql`${table.testRun} = (${table.testRecipientEmail} is not null) and (${table.testRun} = false or ${table.subjectUserId} is not null)`
     ),
     index("ix_automation_runs_status_wake").on(table.status, table.wakeAt),
+    index("ix_automation_runs_approval_deadline")
+      .on(table.approvalDeadlineAt)
+      .where(sql`${table.status} = 'waiting_approval'`),
+    index("ix_automation_runs_workspace").on(table.workspaceId),
     index("ix_automation_runs_workspace_started").on(
       table.workspaceId,
       table.startedAt
@@ -1933,6 +1959,9 @@ export const customShellDeliveries = pgTable(
       table.createdAt
     ),
     index("ix_deliveries_broadcast").on(table.broadcastId),
+    index("ix_deliveries_broadcast_bounced")
+      .on(table.broadcastId)
+      .where(sql`${table.bouncedAt} is not null`),
     uniqueIndex("ux_deliveries_broadcast_contact")
       .on(table.broadcastId, table.contactId)
       .where(sql`${table.broadcastId} is not null`),

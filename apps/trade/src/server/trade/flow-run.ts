@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { and, asc, eq, inArray } from "drizzle-orm"
+import { and, asc, eq, inArray, sql } from "drizzle-orm"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
@@ -54,7 +54,7 @@ import {
   tradeSmartLadders,
   tradeWallets,
 } from "@/server/trade/schema"
-import { findWallet } from "@/server/trade/wallets"
+import { findWallet, walletMapKey } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
 
 /**
@@ -460,6 +460,33 @@ export async function stopFlowRun(
 }
 
 type FlowRunRow = typeof tradeFlowRuns.$inferSelect
+export type StoppingFlowPassRow = Pick<
+  FlowRunRow,
+  | "userId"
+  | "id"
+  | "walletId"
+  | "automationId"
+  | "status"
+  | "waiting"
+  | "stoppedReason"
+>
+export type RemovedFlowPassRow = Pick<
+  FlowRunRow,
+  "userId" | "id" | "walletId" | "automationId" | "marketCancels"
+>
+
+async function walletFromPass(
+  passWallets: ReadonlyMap<string, TradeWallet | null> | undefined,
+  userId: string,
+  walletId: string
+): Promise<TradeWallet | null> {
+  if (!passWallets) return await findWallet(userId, walletId)
+  const key = walletMapKey(userId, walletId)
+  return passWallets.has(key)
+    ? (passWallets.get(key) ?? null)
+    : await findWallet(userId, walletId)
+}
+
 type StopRow = Pick<
   typeof tradeSmartLadders.$inferSelect,
   "id" | "walletId" | "marketKey" | "kind" | "plan" | "updatedAt"
@@ -536,7 +563,7 @@ export async function flowStopCounts(
 }
 
 async function finishStoppingFlow(
-  run: FlowRunRow,
+  run: StoppingFlowPassRow,
   now: number,
   database: CustomShellDb
 ): Promise<void> {
@@ -572,9 +599,10 @@ async function finishStoppingFlow(
 
 /** Cancels at most three waiting ladders, then gives the engine back its turn. */
 async function advanceStoppingFlow(
-  run: FlowRunRow,
+  run: StoppingFlowPassRow,
   now: number,
-  database: CustomShellDb
+  database: CustomShellDb,
+  passWallets?: ReadonlyMap<string, TradeWallet | null>
 ): Promise<void> {
   const rows = await flowStopRows(run.userId, run.automationId, database)
   const wallets = new Map<string, TradeWallet | null>()
@@ -607,7 +635,10 @@ async function advanceStoppingFlow(
     if (kind === "held" || attempted >= 3) continue
 
     if (!wallets.has(row.walletId)) {
-      wallets.set(row.walletId, await findWallet(run.userId, row.walletId))
+      wallets.set(
+        row.walletId,
+        await walletFromPass(passWallets, run.userId, row.walletId)
+      )
     }
     const wallet = wallets.get(row.walletId) ?? null
     attempted += 1
@@ -696,20 +727,34 @@ async function advanceStoppingFlow(
 /** One short pass over every flow whose waiting ladders are being called off. */
 export async function advanceStoppingFlows(
   now: number = Date.now(),
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  pass?: {
+    runs?: readonly StoppingFlowPassRow[]
+    wallets: ReadonlyMap<string, TradeWallet | null>
+  }
 ): Promise<void> {
-  const runs = await database
-    .select()
-    .from(tradeFlowRuns)
-    .where(eq(tradeFlowRuns.status, "stopping"))
+  const runs =
+    pass?.runs ??
+    (await database
+      .select({
+        userId: tradeFlowRuns.userId,
+        id: tradeFlowRuns.id,
+        walletId: tradeFlowRuns.walletId,
+        automationId: tradeFlowRuns.automationId,
+        status: tradeFlowRuns.status,
+        waiting: tradeFlowRuns.waiting,
+        stoppedReason: tradeFlowRuns.stoppedReason,
+      })
+      .from(tradeFlowRuns)
+      .where(eq(tradeFlowRuns.status, "stopping")))
 
   for (const run of runs) {
-    await advanceStoppingFlow(run, now, database)
+    await advanceStoppingFlow(run, now, database, pass?.wallets)
   }
 }
 
 async function markRemovedMarketCancelFailed(
-  run: FlowRunRow,
+  run: RemovedFlowPassRow,
   marketKey: string,
   token: string,
   now: number,
@@ -763,7 +808,7 @@ async function markRemovedMarketCancelFailed(
 }
 
 async function finishRemovedMarketCancel(
-  run: FlowRunRow,
+  run: RemovedFlowPassRow,
   marketKey: string,
   token: string,
   now: number,
@@ -818,12 +863,29 @@ async function finishRemovedMarketCancel(
 /** Calls off every waiting rung owned by a coin removed from a running folder. */
 export async function advanceRemovedFlowLadders(
   now: number = Date.now(),
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  pass?: {
+    runs?: readonly RemovedFlowPassRow[]
+    wallets: ReadonlyMap<string, TradeWallet | null>
+  }
 ): Promise<void> {
-  const runs = await database
-    .select()
-    .from(tradeFlowRuns)
-    .where(eq(tradeFlowRuns.status, "running"))
+  const runs =
+    pass?.runs ??
+    (await database
+      .select({
+        userId: tradeFlowRuns.userId,
+        id: tradeFlowRuns.id,
+        walletId: tradeFlowRuns.walletId,
+        automationId: tradeFlowRuns.automationId,
+        marketCancels: tradeFlowRuns.marketCancels,
+      })
+      .from(tradeFlowRuns)
+      .where(
+        and(
+          eq(tradeFlowRuns.status, "running"),
+          sql`${tradeFlowRuns.marketCancels} <> '{}'::jsonb`
+        )
+      ))
 
   for (const run of runs) {
     for (const [marketKey, token] of Object.entries(run.marketCancels)) {
@@ -840,7 +902,9 @@ export async function advanceRemovedFlowLadders(
           )
         )
       const wallet =
-        rows.length > 0 ? await findWallet(run.userId, run.walletId) : null
+        rows.length === 0
+          ? null
+          : await walletFromPass(pass?.wallets, run.userId, run.walletId)
       let complete = rows.length === 0
       let failed = rows.length > 0 && wallet === null
       if (wallet) {
@@ -912,7 +976,8 @@ export async function advanceRemovedFlowLadders(
  */
 export async function advanceRunningFlows(
   now: number = Date.now(),
-  database: CustomShellDb = db
+  database: CustomShellDb = db,
+  passWallets?: ReadonlyMap<string, TradeWallet | null>
 ): Promise<void> {
   const runs = await database
     .select()
@@ -920,7 +985,11 @@ export async function advanceRunningFlows(
     .where(eq(tradeFlowRuns.status, "running"))
 
   for (const run of runs) {
-    const wallet = await findWallet(run.userId, run.walletId)
+    const wallet = await walletFromPass(
+      passWallets,
+      run.userId,
+      run.walletId
+    )
     // A wallet deleted or switched off stops the flow rather than leaving it
     // trying every second. The same rule the ladder worker follows.
     if (!wallet || wallet.status !== "active") {

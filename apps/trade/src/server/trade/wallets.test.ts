@@ -2,13 +2,14 @@ import { PGlite } from "@electric-sql/pglite"
 import { and, eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { type CustomShellDb } from "@/server/db"
+import { setDbForTests, type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
 import { walletProfitWindowStart } from "@/lib/trade/wallets"
 import {
   createWallet,
   deleteWallet,
+  findWallets,
   findTradingWallet,
   listWallets,
   loadWalletSummaries,
@@ -104,6 +105,35 @@ function liveInput(label = "Live") {
     agentKey: KEY,
   }
 }
+
+describe("the engine's wallet batch", () => {
+  it("uses one wallet query for twenty keys and none for an empty pass", async () => {
+    let selects = 0
+    const queryDb = {
+      select: () => {
+        selects += 1
+        return {
+          from: () => ({ where: async () => [] }),
+        }
+      },
+    } as unknown as CustomShellDb
+    setDbForTests(queryDb)
+    try {
+      await findWallets([])
+      expect(selects).toBe(0)
+
+      await findWallets(
+        Array.from({ length: 20 }, (_, index) => ({
+          userId: `u${index}`,
+          walletId: `w${index}`,
+        }))
+      )
+      expect(selects).toBe(1)
+    } finally {
+      setDbForTests(database)
+    }
+  })
+})
 
 describe("adding wallets", () => {
   it("saves a practice wallet with its starting cash and no key", async () => {

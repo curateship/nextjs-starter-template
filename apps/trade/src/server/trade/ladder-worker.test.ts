@@ -8,6 +8,14 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
 const walletRows = vi.hoisted(() => ({
   value: [] as Array<{ userId: string; walletId: string }>,
 }))
+const flowRows = vi.hoisted(() => ({
+  value: [] as Array<{
+    userId: string
+    walletId: string
+    status: "running" | "stopping"
+    hasMarketCancels: boolean
+  }>,
+}))
 const settled = vi.hoisted(() => ({
   count: 0,
   /** Wallets whose turn throws, so a failing wallet can be staged. */
@@ -28,29 +36,47 @@ const control = vi.hoisted(() => ({
   scanCleared: 0,
 }))
 const flowWork = vi.hoisted(() => ({ scans: 0, stops: 0, removals: 0 }))
+const walletReads = vi.hoisted(() => ({ calls: 0, keys: 0 }))
 
 vi.mock("@/server/db", () => ({
   db: {
     selectDistinct: () => ({
       from: () => ({ where: async () => walletRows.value }),
     }),
+    select: () => ({
+      from: () => ({ where: async () => flowRows.value }),
+    }),
   },
 }))
 
 vi.mock("@/server/trade/wallets", () => ({
-  findWallet: async (userId: string, id: string) => ({
-    id,
-    label: id,
-    kind: "paper" as const,
-    status: "active" as const,
-    protocol: "hyperliquid" as const,
-    network: "mainnet" as const,
-    startingBalance: 1_000,
-    address: null,
-    hasKey: false,
-    keyValidUntil: null,
-    userId,
-  }),
+  walletMapKey: (userId: string, id: string) => `${userId}\0${id}`,
+  findWallets: async (
+    keys: ReadonlyArray<{ userId: string; walletId: string }>
+  ) => {
+    walletReads.calls += 1
+    const unique = new Map(
+      keys.map((key) => [`${key.userId}\0${key.walletId}`, key])
+    )
+    walletReads.keys = unique.size
+    return new Map(
+      [...unique.values()].map(({ userId, walletId: id }) => [
+        `${userId}\0${id}`,
+        {
+          id,
+          label: id,
+          kind: "paper" as const,
+          status: "active" as const,
+          protocol: "hyperliquid" as const,
+          network: "mainnet" as const,
+          startingBalance: 1_000,
+          address: null,
+          hasKey: false,
+          keyValidUntil: null,
+        },
+      ])
+    )
+  },
 }))
 
 vi.mock("@/server/trade/workers", () => ({
@@ -123,9 +149,25 @@ describe("the server's ladder job", () => {
     flowWork.scans = 0
     flowWork.stops = 0
     flowWork.removals = 0
+    walletReads.calls = 0
+    walletReads.keys = 0
     control.scanCleared = 0
     control.value = { enabled: true, paused: false }
     walletRows.value = [{ userId: "u1", walletId: "w1" }]
+    flowRows.value = [
+      {
+        userId: "u1",
+        walletId: "w1",
+        status: "stopping",
+        hasMarketCancels: false,
+      },
+      {
+        userId: "u1",
+        walletId: "w1",
+        status: "running",
+        hasMarketCancels: true,
+      },
+    ]
   })
   afterEach(() => {
     vi.useRealTimers()
@@ -138,6 +180,19 @@ describe("the server's ladder job", () => {
     ]
     await advanceWorkingLadders()
     expect(settled.count).toBe(2)
+  })
+
+  it("reads twenty wallets in one batch", async () => {
+    walletRows.value = Array.from({ length: 20 }, (_, index) => ({
+      userId: `u${index}`,
+      walletId: `w${index}`,
+    }))
+
+    await advanceWorkingLadders()
+
+    expect(walletReads.calls).toBe(1)
+    expect(walletReads.keys).toBe(20)
+    expect(settled.count).toBe(20)
   })
 
   it("works stops every pass without speeding up the coin hunt", async () => {
@@ -163,8 +218,10 @@ describe("the server's ladder job", () => {
 
   it("leaves a wallet with nothing running alone", async () => {
     walletRows.value = []
+    flowRows.value = []
     await advanceWorkingLadders()
     expect(settled.count).toBe(0)
+    expect(walletReads.keys).toBe(0)
   })
 
   it("never runs two passes at once", async () => {

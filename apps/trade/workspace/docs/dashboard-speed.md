@@ -148,9 +148,45 @@ The chart now subscribes to ticks itself (`liveBars` on `PriceChart`, backed
 by `watchLiveCandle`) and applies each one to its last candle directly. A
 tick re-renders nothing.
 
+The all-market feed sends one message containing hundreds of prices. The live
+store writes those prices at once, then wakes each interested screen once on
+the next animation frame. A screen watching all 450 prices used to receive 450
+callbacks for one message. The store test now measures one callback and one
+render. Two messages inside the same frame still cause one callback, with the
+newer price in the map. A tab that becomes hidden flushes the waiting batch
+instead of leaving it until animation frames resume.
+
+`useLiveMarks` keeps its last map between callbacks. React may ask for the
+current value while checking an unrelated update, and that check now returns
+the same map instead of building and comparing a replacement. A subscriber
+added while a batch is waiting reads the prices already in memory immediately.
+The chart does not use this batch and its candle callback remains immediate.
+
 The market rows and the picked market are memoised in the workspace, so the
 market picker no longer re-sorts every market on every poll while it is
 closed. The Journal's sort is memoised too.
+
+## The engine pass, every second
+
+The engine first asks for the wallet keys used by active smart orders and by
+running or stopping flows. It then reads all matching wallet rows in one query
+and keeps the resulting map only for that pass. A flow can therefore use a
+wallet that has no ladder yet, and a deleted or inactive wallet still gets the
+same handling as before. The order placement path keeps its own locked check;
+the one-pass map does not replace that safety check.
+
+Measured with 20 active ladder wallets and no flow cleanup waiting, the old
+pass setup made 23 database trips: one ladder-key query, 20 wallet queries, and
+two full flow cleanup queries. The new setup makes three: ladder keys and the
+small flow-status probe leave together, followed by one wallet query. The
+wallet table therefore falls from 20 reads to one. With no ladder or flow
+wallets, the batch wallet reader makes no query.
+
+The flow-status probe also says whether cleanup has anything to do. When no
+flow is stopping and no running flow has a removed market, neither cleanup
+query runs. When cleanup is needed, its first read names only the columns that
+the cancel path uses instead of pulling every saved strategy and coin-history
+object back from PostgreSQL.
 
 ## Measured on 23 August 2026
 

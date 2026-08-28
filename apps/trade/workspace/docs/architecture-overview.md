@@ -234,6 +234,14 @@ but a testnet run is not required before using the mainnet connector.
   under 00xx and the runner applies the folder in filename order, so the gap
   means a shell merge can never collide with an app migration or run after one
   it should have preceded.
+- **An index is declared beside its table as well as created by its migration.**
+  Partial indexes keep the same condition in both places. The current audit
+  applies every migration to a fresh PostgreSQL-compatible database and then
+  compares the surviving migration index names with the schema declarations.
+  The shell owns 97 migration-created indexes and Trade owns 23; both lists
+  now match with nothing missing or declared only in code. Shell declarations
+  change in Custom Shell first, while Trade's own declarations stay in
+  `src/server/trade/schema.ts`.
 - **The practice engine settles when it is read, not on a clock.** Its four
   tables (`trade_paper_positions`, `trade_paper_orders`, `trade_paper_journal`
   and a per-wallet watermark) hold only facts. A wallet's cash is its starting

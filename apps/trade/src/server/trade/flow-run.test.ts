@@ -71,6 +71,7 @@ const paperPlace = vi.hoisted(() =>
 
 vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
+  walletMapKey: (userId: string, id: string) => `${userId}\0${id}`,
 }))
 
 vi.mock("@/server/protocols/hyperliquid/user-markets", () => ({
@@ -485,6 +486,34 @@ describe("switching one on", () => {
         db
       )
     ).rejects.toThrow("FLOW_WALLET_BUSY")
+  })
+
+  it("reads a flow wallet that appeared after the pass map was built", async () => {
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+
+    await advanceRunningFlows(NOW + 1, db, new Map())
+
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("running")
+  })
+
+  it("trusts a missing wallet recorded by the current pass", async () => {
+    await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: nodes(), now: NOW },
+      db
+    )
+
+    await advanceRunningFlows(
+      NOW + 1,
+      db,
+      new Map([[`${userId}\0w1`, null]])
+    )
+
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
   })
 })
 

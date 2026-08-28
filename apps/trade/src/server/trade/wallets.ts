@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, asc, eq, gte, inArray } from "drizzle-orm"
+import { and, asc, eq, gte, inArray, or, sql } from "drizzle-orm"
 
 import type {
   NetworkId,
@@ -84,6 +84,48 @@ function toWallet(row: WalletFields): TradeWallet {
   }
 }
 
+const publicWalletSelection = {
+  userId: tradeWallets.userId,
+  id: tradeWallets.id,
+  label: tradeWallets.label,
+  kind: tradeWallets.kind,
+  status: tradeWallets.status,
+  protocol: tradeWallets.protocol,
+  network: tradeWallets.network,
+  startingBalance: tradeWallets.startingBalance,
+  address: tradeWallets.address,
+  hasKey: sql<boolean>`${tradeWallets.agentKeyEncrypted} is not null`,
+  keyValidUntil: tradeWallets.agentValidUntil,
+}
+
+function selectedWallet(
+  row: {
+    id: string
+    label: string
+    kind: TradeWallet["kind"]
+    status: TradeWallet["status"]
+    protocol: TradeWallet["protocol"]
+    network: TradeWallet["network"]
+    startingBalance: number
+    address: string | null
+    hasKey: boolean
+    keyValidUntil: Date | null
+  }
+): TradeWallet {
+  return {
+    id: row.id,
+    label: row.label,
+    kind: row.kind,
+    status: row.status,
+    protocol: row.protocol,
+    network: row.network,
+    startingBalance: row.startingBalance,
+    address: row.address,
+    hasKey: row.hasKey,
+    keyValidUntil: row.keyValidUntil?.getTime() ?? null,
+  }
+}
+
 /** This person's wallets, oldest first — the order the All tab lists them. */
 export async function listWallets(userId: string): Promise<TradeWallet[]> {
   return (await listWalletsWithCredentials(userId)).wallets
@@ -120,11 +162,50 @@ export async function findWallet(
   id: string
 ): Promise<TradeWallet | null> {
   const rows = await db
-    .select()
+    .select(publicWalletSelection)
     .from(tradeWallets)
     .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, id)))
     .limit(1)
-  return rows[0] ? toWallet(rows[0]) : null
+  return rows[0] ? selectedWallet(rows[0]) : null
+}
+
+/** The composite database key used by one engine pass's wallet map. */
+export function walletMapKey(userId: string, id: string): string {
+  return `${userId}\0${id}`
+}
+
+/**
+ * Reads all wallets needed by one engine pass in one database round trip.
+ * Empty input deliberately makes no query at all.
+ */
+export async function findWallets(
+  keys: ReadonlyArray<{ userId: string; walletId: string }>
+): Promise<ReadonlyMap<string, TradeWallet | null>> {
+  const unique = new Map(
+    keys.map((key) => [walletMapKey(key.userId, key.walletId), key])
+  )
+  if (unique.size === 0) return new Map()
+
+  const rows = await db
+    .select(publicWalletSelection)
+    .from(tradeWallets)
+    .where(
+      or(
+        ...[...unique.values()].map((key) =>
+          and(
+            eq(tradeWallets.userId, key.userId),
+            eq(tradeWallets.id, key.walletId)
+          )
+        )
+      )
+    )
+  const found = new Map<string, TradeWallet | null>(
+    [...unique.keys()].map((key) => [key, null])
+  )
+  for (const row of rows) {
+    found.set(walletMapKey(row.userId, row.id), selectedWallet(row))
+  }
+  return found
 }
 
 /** A wallet that may receive a new order. Inactive wallets remain readable. */

@@ -771,6 +771,11 @@ export const tradeSmartLadders = pgTable(
       table.status
     ),
     index("trade_smart_ladders_flow_idx").on(table.userId, table.flowRunId),
+    // The worker asks for active rows every second. Keep the condition here as
+    // well as in 0119, or a generated migration would offer to drop it.
+    index("trade_smart_ladders_active_idx")
+      .on(table.status)
+      .where(sql`${table.status} = 'active'`),
     foreignKey({
       columns: [table.userId, table.walletId],
       foreignColumns: [tradeWallets.userId, tradeWallets.id],
@@ -1240,6 +1245,14 @@ export const tradeFlowRuns = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.userId, table.id] }),
+    // Both partial indexes are the database's last defence against two live
+    // copies placing orders for the same flow or wallet.
+    uniqueIndex("trade_flow_runs_one_per_flow")
+      .on(table.userId, table.automationId)
+      .where(sql`${table.status} = 'running'`),
+    uniqueIndex("trade_flow_runs_one_per_wallet")
+      .on(table.userId, table.walletId)
+      .where(sql`${table.status} = 'running'`),
     index("trade_flow_runs_running_idx").on(table.status, table.updatedAt),
     foreignKey({
       columns: [table.userId, table.walletId],

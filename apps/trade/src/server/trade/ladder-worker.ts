@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm"
+import { eq, inArray, sql } from "drizzle-orm"
 
 import type { TradePosition } from "@/lib/trade/paper"
+import type { TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
-import { tradeSmartLadders } from "@/server/trade/schema"
-import { findWallet } from "@/server/trade/wallets"
+import { tradeFlowRuns, tradeSmartLadders } from "@/server/trade/schema"
+import { findWallets, walletMapKey } from "@/server/trade/wallets"
 
 /**
  * The trading engine's own loop: every working ladder, looked at every second,
@@ -196,27 +197,73 @@ async function yieldLockIfDue(): Promise<boolean> {
  * Nothing here reads the plan, which is what lets a new kind of smart order be
  * picked up without this job changing at all.
  */
-export async function walletsWithWork(): Promise<
-  Array<{ userId: string; wallet: TradeWallet }>
-> {
-  const rows = await db
+type WalletKey = { userId: string; walletId: string }
+
+async function activeSmartWalletKeys(): Promise<WalletKey[]> {
+  return await db
     .selectDistinct({
       userId: tradeSmartLadders.userId,
       walletId: tradeSmartLadders.walletId,
     })
     .from(tradeSmartLadders)
     .where(eq(tradeSmartLadders.status, "active"))
+}
 
+type FlowPassRef = WalletKey & {
+  status: TradeFlowRunStatus
+  hasMarketCancels: boolean
+}
+
+async function flowPassRefs(): Promise<FlowPassRef[]> {
+  return await db
+    .select({
+      userId: tradeFlowRuns.userId,
+      walletId: tradeFlowRuns.walletId,
+      status: tradeFlowRuns.status,
+      hasMarketCancels: sql<boolean>`${tradeFlowRuns.marketCancels} <> '{}'::jsonb`,
+    })
+    .from(tradeFlowRuns)
+    .where(inArray(tradeFlowRuns.status, ["running", "stopping"]))
+}
+
+function workFromWallets(
+  keys: readonly WalletKey[],
+  wallets: ReadonlyMap<string, TradeWallet | null>
+): Array<{ userId: string; wallet: TradeWallet }> {
   const out: Array<{ userId: string; wallet: TradeWallet }> = []
-  for (const row of rows) {
-    const wallet = await findWallet(row.userId, row.walletId)
+  for (const row of keys) {
+    const wallet = wallets.get(walletMapKey(row.userId, row.walletId)) ?? null
     // A ladder whose wallet has been deleted is not this job's problem; it
     // simply has nothing to be advanced against. Nor is an inactive one: a
     // wallet somebody switched off should stop trading, not carry on.
-    if (wallet && wallet.status === "active")
-      out.push({ userId: row.userId, wallet })
+    if (wallet?.status === "active") out.push({ userId: row.userId, wallet })
   }
   return out
+}
+
+export async function walletsWithWork(): Promise<
+  Array<{ userId: string; wallet: TradeWallet }>
+> {
+  const keys = await activeSmartWalletKeys()
+  return workFromWallets(keys, await findWallets(keys))
+}
+
+async function enginePassInputs(): Promise<{
+  work: Array<{ userId: string; wallet: TradeWallet }>
+  flowRefs: FlowPassRef[]
+  wallets: ReadonlyMap<string, TradeWallet | null>
+}> {
+  const [ladderKeys, flowRefs] = await Promise.all([
+    activeSmartWalletKeys(),
+    flowPassRefs(),
+  ])
+  const wallets = await findWallets([...ladderKeys, ...flowRefs])
+
+  return {
+    work: workFromWallets(ladderKeys, wallets),
+    flowRefs,
+    wallets,
+  }
 }
 
 /**
@@ -419,10 +466,28 @@ export async function advanceWorkingLadders(): Promise<void> {
     // asked to call them off.
     const { advanceRemovedFlowLadders, advanceStoppingFlows } =
       await import("@/server/trade/flow-run")
-    if (!cleaningFlows) {
+    const pass = await enginePassInputs()
+    const hasStoppingFlows = pass.flowRefs.some(
+      (run) => run.status === "stopping"
+    )
+    const hasRemovedMarkets = pass.flowRefs.some(
+      (run) => run.status === "running" && run.hasMarketCancels
+    )
+    if (!cleaningFlows && (hasStoppingFlows || hasRemovedMarkets)) {
       cleaningFlows = true
+      const cleanup: Promise<void>[] = []
+      if (hasStoppingFlows) {
+        cleanup.push(
+          advanceStoppingFlows(Date.now(), db, { wallets: pass.wallets })
+        )
+      }
+      if (hasRemovedMarkets) {
+        cleanup.push(
+          advanceRemovedFlowLadders(Date.now(), db, { wallets: pass.wallets })
+        )
+      }
       started.push(
-        Promise.all([advanceStoppingFlows(), advanceRemovedFlowLadders()])
+        Promise.all(cleanup)
           .catch((error) => {
             console.error("Flow cleanup pass failed", error)
             lastPass.error =
@@ -489,7 +554,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       flowScanStartedAt = Date.now()
       lastFlowScanAt = Date.now()
       started.push(
-        advanceRunningFlows()
+        advanceRunningFlows(Date.now(), db, pass.wallets)
           .catch((error) => {
             console.error("Flow pass failed", error)
             lastPass.error =
@@ -501,7 +566,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       )
     }
 
-    const work = await walletsWithWork()
+    const work = pass.work
     lastPass.wallets = work.length
     lastPass.activity =
       work.length === 0

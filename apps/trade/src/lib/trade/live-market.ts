@@ -26,10 +26,56 @@ import { getLiveAdapter } from "@/lib/protocols/live-registry"
 const figures = new Map<string, LiveFigures>()
 const keyListeners = new Map<string, Set<() => void>>()
 const catchUpListeners = new Set<() => void>()
+const pendingKeys = new Set<string>()
+let pendingFrame: number | null = null
+let pendingTimer: ReturnType<typeof setTimeout> | null = null
+let watchingVisibility = false
 
-function notifyKey(key: string) {
-  const listeners = keyListeners.get(key)
-  if (listeners) for (const listener of listeners) listener()
+function flushFigureNotifications() {
+  pendingFrame = null
+  if (pendingTimer !== null) {
+    clearTimeout(pendingTimer)
+    pendingTimer = null
+  }
+  const listeners = new Set<() => void>()
+  for (const key of pendingKeys) {
+    for (const listener of keyListeners.get(key) ?? []) listeners.add(listener)
+  }
+  pendingKeys.clear()
+  for (const listener of listeners) listener()
+}
+
+function flushOnVisibilityChange() {
+  if (pendingKeys.size === 0) return
+  if (pendingFrame !== null && typeof cancelAnimationFrame === "function") {
+    cancelAnimationFrame(pendingFrame)
+    pendingFrame = null
+  }
+  flushFigureNotifications()
+}
+
+function scheduleFigureNotifications() {
+  if (
+    typeof document !== "undefined" &&
+    !watchingVisibility
+  ) {
+    document.addEventListener("visibilitychange", flushOnVisibilityChange)
+    watchingVisibility = true
+  }
+  const hidden =
+    typeof document !== "undefined" && document.visibilityState === "hidden"
+  if (hidden || typeof requestAnimationFrame !== "function") {
+    if (pendingTimer === null) pendingTimer = setTimeout(flushFigureNotifications, 0)
+    return
+  }
+  if (pendingFrame === null) {
+    pendingFrame = requestAnimationFrame(flushFigureNotifications)
+  }
+}
+
+function notifyKeys(keys: Iterable<string>) {
+  for (const key of keys) pendingKeys.add(key)
+  if (pendingKeys.size > 0) scheduleFigureNotifications()
 }
 
 /**
@@ -53,6 +99,7 @@ export function startLiveMarketData(
       // figures watch; its rows draw from the catalogue and redraw when the
       // page does.
       adapter.watchFigures?.(catalog.network, (updates) => {
+        const changed: string[] = []
         for (const [marketId, next] of updates) {
           const key = marketKey({
             protocol: catalog.protocol,
@@ -60,8 +107,9 @@ export function startLiveMarketData(
             marketId,
           })
           figures.set(key, next)
-          notifyKey(key)
+          changed.push(key)
         }
+        notifyKeys(changed)
       }),
       adapter.watchCatchUp(catalog.network, () => {
         onCatchUp()
@@ -150,21 +198,30 @@ export function useLiveMarks(
     () => (joined === "" ? [] : joined.split("|")),
     [joined]
   )
+  // `getSnapshot` is called during ordinary React checks too. Keep the last
+  // object until one of this hook's own keys is in a flushed batch.
+  const snapshot = React.useRef<ReadonlyMap<string, number>>(new Map())
+  const snapshotKeys = React.useRef<string | null>(null)
+  const dirty = React.useRef(true)
 
   const subscribe = React.useCallback(
     (onChange: () => void) => {
+      const listener = () => {
+        dirty.current = true
+        onChange()
+      }
       const added = wanted.map((key) => {
         let listeners = keyListeners.get(key)
         if (!listeners) {
           listeners = new Set()
           keyListeners.set(key, listeners)
         }
-        listeners.add(onChange)
+        listeners.add(listener)
         return { key, listeners }
       })
       return () => {
         for (const { key, listeners } of added) {
-          listeners.delete(onChange)
+          listeners.delete(listener)
           if (listeners.size === 0) keyListeners.delete(key)
         }
       }
@@ -172,29 +229,19 @@ export function useLiveMarks(
     [wanted]
   )
 
-  // Rebuilt only when a price this caller actually watches has moved, so the
-  // snapshot stays the same object between ticks that changed nothing here.
-  const snapshot = React.useRef<ReadonlyMap<string, number>>(new Map())
   const read = React.useCallback(() => {
+    if (snapshotKeys.current !== joined) dirty.current = true
+    if (!dirty.current) return snapshot.current
     const next = new Map<string, number>()
     for (const key of wanted) {
       const price = figures.get(key)?.price
       if (price !== undefined) next.set(key, price)
     }
-    const previous = snapshot.current
-    if (previous.size === next.size) {
-      let same = true
-      for (const [key, price] of next) {
-        if (previous.get(key) !== price) {
-          same = false
-          break
-        }
-      }
-      if (same) return previous
-    }
     snapshot.current = next
+    snapshotKeys.current = joined
+    dirty.current = false
     return next
-  }, [wanted])
+  }, [joined, wanted])
 
   return React.useSyncExternalStore(subscribe, read, () => snapshot.current)
 }
