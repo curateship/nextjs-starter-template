@@ -310,10 +310,10 @@ export type Trading = {
    * having nothing. Whatever is about to say "there is nothing here" waits for
    * this instead.
    *
-   * A half that REFUSED has not landed and does not count. It leaves its
-   * answer null, exactly as it did before it was ever asked, and a half that
-   * was never seen is the one thing that must not pass as "none". Both
-   * refusing is `failed`, which has its own wording.
+   * A half that REFUSED has answered even though it brought no rows. It leaves
+   * its answer null and makes `failed` true, so the panels show their failed
+   * wording and Try again instead of reading forever. A half that has not
+   * answered is the one thing that must not pass as "none".
    */
   settled: boolean
   /** The first read failed and there is nothing to fall back on. */
@@ -643,10 +643,11 @@ export function useTrading(
       current = false
     }
   }, [historyScope])
-  // The whole read came back with nothing — both halves refused. With rows
-  // already on screen the next tick is the retry and nothing is said; this
-  // only ever surfaces while there is nothing to fall back on.
-  const [failed, setFailed] = React.useState(false)
+  // A refusal is still an answer. Keep the two halves separate because one can
+  // land while the other refuses; without these facts that mixed result is
+  // indistinguishable from a read still on its way and the panels spin forever.
+  const [paperFailed, setPaperFailed] = React.useState(false)
+  const [liveFailed, setLiveFailed] = React.useState(false)
   // Counted, not a flag: two actions can overlap, and the first to finish
   // must not re-enable the buttons while the second is still running.
   const [pending, setPending] = React.useState(0)
@@ -829,10 +830,13 @@ export function useTrading(
         setPaperAnswer((was) =>
           scopedToProtocol(carryOver(value, was), protocol)
         )
-        setFailed(false)
+        setPaperFailed(false)
         return true
       },
-      () => false
+      () => {
+        if (mine()) setPaperFailed(true)
+        return false
+      }
     )
     const live = loadLiveTrading(liveScope).then(
       (value) => {
@@ -857,17 +861,17 @@ export function useTrading(
             scopedToProtocol(carryOver(value, was), protocol)
           )
         )
-        setFailed(false)
+        setLiveFailed(false)
         return true
       },
-      () => false
+      () => {
+        if (mine()) setLiveFailed(true)
+        return false
+      }
     )
 
     const [paperLanded, liveLanded] = await Promise.all([paper, live, nudge])
     if (!mine()) return false
-    // Only when BOTH refused is there nothing to show. One half failing keeps
-    // its last good answer, which is what it has always done.
-    setFailed(!paperLanded && !liveLanded)
     return paperLanded && liveLanded
   }, [protocol])
 
@@ -2435,13 +2439,21 @@ export function useTrading(
     busy: pending > 0,
     // Never both: an answered half is something to show, a failure with rows
     // still up stays quiet, and only a screen with nothing yet says either.
-    loading: paperAnswer === null && liveAnswer === null && !failed,
+    loading:
+      paperAnswer === null &&
+      liveAnswer === null &&
+      !paperFailed &&
+      !liveFailed,
     // Read off the two answers rather than kept beside them: a flag set when
     // the reads finish would be one more thing that can disagree with what
     // they actually hold, and a half that refused leaves its answer null,
     // which is already the fact this is asking about.
-    settled: paperAnswer !== null && liveAnswer !== null,
-    failed: failed && paperAnswer === null && liveAnswer === null,
+    settled:
+      (paperAnswer !== null || paperFailed) &&
+      (liveAnswer !== null || liveFailed),
+    failed:
+      (paperAnswer === null && paperFailed) ||
+      (liveAnswer === null && liveFailed),
     retry: () => void refresh(),
     place,
     watchOrders,

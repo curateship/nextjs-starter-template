@@ -43,6 +43,7 @@ const prices = vi.fn()
 const account = vi.fn()
 const portfolio = vi.fn()
 const fills = vi.fn()
+const fillsNeedRecovery = vi.fn()
 const place = vi.fn()
 const cancel = vi.fn()
 const setBrackets = vi.fn()
@@ -91,6 +92,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
     orders: {
       portfolio,
       fills,
+      fillsNeedRecovery,
       place,
       cancel,
       close: vi.fn(),
@@ -279,6 +281,7 @@ beforeEach(async () => {
     account,
     portfolio,
     fills,
+    fillsNeedRecovery,
     place,
     cancel,
     setBrackets,
@@ -294,6 +297,7 @@ beforeEach(async () => {
   })
   portfolio.mockResolvedValue({ positions: [], orders: [] })
   fills.mockResolvedValue([])
+  fillsNeedRecovery.mockReturnValue(true)
   cancel.mockResolvedValue(undefined)
   setBrackets.mockResolvedValue({ slOrderId: null })
 
@@ -745,6 +749,25 @@ describe("live Smart orders", () => {
     await reconcileLiveLadders(userId, wallet)
 
     expect(fills.mock.calls[0][2]).toBe(started - 60_000)
+  })
+
+  it("skips fill history while the pushed feed says it is current", async () => {
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    fillsNeedRecovery.mockReturnValue(false)
+    fills.mockClear()
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(fillsNeedRecovery).toHaveBeenCalledWith(
+      wallet.network,
+      wallet.address
+    )
+    expect(fills).not.toHaveBeenCalled()
   })
 
   it("survives a smart order it cannot advance, and writes it down", async () => {

@@ -153,6 +153,26 @@ afterEach(async () => {
   vi.useRealTimers()
 })
 
+async function finishFirstRead() {
+  await act(async () => root.render(<Harness />))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0)
+    await Promise.resolve()
+  })
+}
+
+describe("the first portfolio read", () => {
+  it("ends the loading state when the live half refuses", async () => {
+    api.loadLiveTrading.mockRejectedValue(new Error("offline"))
+
+    await finishFirstRead()
+
+    expect(latest?.settled).toBe(true)
+    expect(latest?.failed).toBe(true)
+    expect(latest?.loading).toBe(false)
+  })
+})
+
 describe("the line for an order being sent", () => {
   it("disappears as soon as the exchange refuses the order", async () => {
     let refuse!: (error: Error) => void

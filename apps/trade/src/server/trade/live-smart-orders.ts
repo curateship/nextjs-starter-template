@@ -1109,6 +1109,9 @@ async function reconcileLiveLaddersOnce(
     const ref = parseMarketKey(key)
     return ref ? [ref.marketId] : []
   })
+  const orderApi = ordersOf(protocol)
+  const shouldReadFills =
+    orderApi.fillsNeedRecovery?.(wallet.network, wallet.address) !== false
   const [account, asked, fills] = await Promise.all([
     accountOf(protocol)
       .fetch(wallet.network, wallet.address, credential)
@@ -1132,44 +1135,46 @@ async function reconcileLiveLaddersOnce(
           console.error(`Price read failed for wallet ${wallet.id}`, error)
           return null
         }),
-    ordersOf(protocol)
-      .fills(
-        wallet.network,
-        wallet.address,
-        // How far back the fill feed is read.
-        //
-        // From where each order has already read to, not from when it was
-        // placed. A ladder makes perhaps forty fills in its whole life, so
-        // re-reading everything since placement cost nothing; a grid
-        // recycling ten times a day makes hundreds, and re-reading all of
-        // them every second is a bill that grows for as long as the grid
-        // is winning. The minute of overlap is deliberate — a fill that
-        // lands between two reads must not fall down the gap.
-        Math.min(
-          ...rows.map((row) => {
-            const seen = parsed.get(row.id)?.plan
-            const to =
-              seen && "seenFillsTo" in seen && seen.seenFillsTo > 0
-                ? seen.seenFillsTo
-                : row.createdAt.getTime()
-            return to
+    shouldReadFills
+      ? orderApi
+          .fills(
+            wallet.network,
+            wallet.address,
+            // How far back the fill feed is read.
+            //
+            // From where each order has already read to, not from when it was
+            // placed. A ladder makes perhaps forty fills in its whole life, so
+            // re-reading everything since placement cost nothing; a grid
+            // recycling ten times a day makes hundreds, and re-reading all of
+            // them every second is a bill that grows for as long as the grid
+            // is winning. The minute of overlap is deliberate — a fill that
+            // lands between two reads must not fall down the gap.
+            Math.min(
+              ...rows.map((row) => {
+                const seen = parsed.get(row.id)?.plan
+                const to =
+                  seen && "seenFillsTo" in seen && seen.seenFillsTo > 0
+                    ? seen.seenFillsTo
+                    : row.createdAt.getTime()
+                return to
+              })
+            ) - 60_000,
+            credential
+          )
+          .catch((error) => {
+            // **A fill feed that will not answer must not stop the trading.**
+            // Fills are the record of what already happened — they fill the
+            // Journal and move the watermark, and a pass that misses them
+            // catches up on the next one. Letting the failure through killed
+            // the whole wallet's pass instead, so a level was never compared
+            // against the price and nothing fired. Phemex refused this exact
+            // read all day on 20 Aug 2026 with a plain 400, while KuCoin's
+            // answered and KuCoin's watches fired all day — which is what
+            // pinned it to this read.
+            console.error(`Fills read failed for wallet ${wallet.id}`, error)
+            return []
           })
-        ) - 60_000,
-        credential
-      )
-      .catch((error) => {
-        // **A fill feed that will not answer must not stop the trading.**
-        // Fills are the record of what already happened — they fill the
-        // Journal and move the watermark, and a pass that misses them
-        // catches up on the next one. Letting the failure through killed
-        // the whole wallet's pass instead, so a level was never compared
-        // against the price and nothing fired. Phemex refused this exact
-        // read all day on 20 Aug 2026 with a plain 400, while KuCoin's
-        // answered and KuCoin's watches fired all day — which is what
-        // pinned it to this read.
-        console.error(`Fills read failed for wallet ${wallet.id}`, error)
-        return []
-      }),
+      : Promise.resolve([]),
   ])
   // The open line first, then whatever had to be asked for. The line already
   // speaks in market keys; the ask answers per market id and has to be

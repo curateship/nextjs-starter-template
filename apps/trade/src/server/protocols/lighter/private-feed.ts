@@ -135,6 +135,7 @@ type Hub = {
 const scope = globalThis as {
   __tradeLighterPrivateHubs?: Map<NetworkId, Hub>
   __tradeLighterAccountIndexes?: Map<string, number>
+  __tradeLighterFillAttempts?: Map<string, number>
   __tradeLighterRecoveredAt?: Map<string, number>
 }
 
@@ -166,6 +167,10 @@ function indexes(): Map<string, number> {
  */
 function recoveredAt(): Map<string, number> {
   return (scope.__tradeLighterRecoveredAt ??= new Map())
+}
+
+function fillAttempts(): Map<string, number> {
+  return (scope.__tradeLighterFillAttempts ??= new Map())
 }
 
 function addressKey(network: NetworkId, address: string): string {
@@ -623,7 +628,8 @@ function isLive(hub: Hub): boolean {
  */
 export function lighterFillsNeedRecovery(
   network: NetworkId,
-  address: string
+  address: string,
+  now = Date.now()
 ): boolean {
   /**
    * **Never ask more often than the poll this replaced.** Saying "recover"
@@ -634,14 +640,26 @@ export function lighterFillsNeedRecovery(
    * became 10. This floor is checked before anything else, so it holds even
    * for a wallet whose account number is not known yet.
    */
-  const last = recoveredAt().get(addressKey(network, address)) ?? 0
-  if (Date.now() - last < SWEEP_FLOOR_MS) return false
+  const key = addressKey(network, address)
+  const lastAttempt = fillAttempts().get(key) ?? 0
+  if (now - lastAttempt < SWEEP_FLOOR_MS) return false
+  const last = recoveredAt().get(key) ?? 0
+  if (now - last < SWEEP_FLOOR_MS) return false
   const index = indexForAddress(network, address)
   if (index === undefined) return true
   const held = hubs().get(network)?.accounts.get(index)
   if (!held) return true
   if (held.needsRecovery) return true
-  return Date.now() - last >= RECONCILE_EVERY_MS
+  return now - last >= RECONCILE_EVERY_MS
+}
+
+/** Start the floor even when Lighter refuses the read. */
+export function markLighterFillsAttempted(
+  network: NetworkId,
+  address: string,
+  now = Date.now()
+): void {
+  fillAttempts().set(addressKey(network, address), now)
 }
 
 /** Said by the fills sweep once it has read Lighter's history successfully. */
@@ -756,6 +774,7 @@ export function forgetLighterHeldReads(
 
 export function closeLighterPrivateFeeds(): void {
   held.clear()
+  fillAttempts().clear()
   for (const hub of hubs().values()) {
     hub.generation += 1
     teardown(hub)

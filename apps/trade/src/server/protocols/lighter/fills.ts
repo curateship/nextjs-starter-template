@@ -9,7 +9,10 @@ import { num, unscaleLighterNumber } from "@/lib/protocols/lighter/translate"
 import { lighterAccountFacts } from "@/server/protocols/lighter/agent"
 import { lighterPrivate } from "@/server/protocols/lighter/client"
 import { lighterMarketByIndex } from "@/server/protocols/lighter/markets"
-import { markLighterFillsReconciled } from "@/server/protocols/lighter/private-feed"
+import {
+  markLighterFillsAttempted,
+  markLighterFillsReconciled,
+} from "@/server/protocols/lighter/private-feed"
 import { lighterAuthToken } from "@/server/protocols/lighter/signer"
 
 /**
@@ -169,6 +172,7 @@ export async function fetchLighterOrderFills(
   since: number,
   credential: () => string | null
 ): Promise<WalletOrderFill[]> {
+  markLighterFillsAttempted(network, address)
   const facts = await lighterAccountFacts(network, address, credential)
   const token = await lighterAuthToken(facts)
 

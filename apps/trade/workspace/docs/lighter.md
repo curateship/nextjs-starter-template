@@ -253,6 +253,11 @@ another tab bought nothing and cost a trade-history read every thirty seconds
 forever. A wallet that has just filled is still read whatever tab is open, so
 the bell notice and the row never disagree.
 
+The engine also follows the Journal's one-minute floor. A refused trade-history
+read now starts that wait instead of being tried again on every one-second
+engine pass. Prices, positions, and resting orders keep moving during the wait,
+and the Journal catches up on the next allowed read.
+
 Measured on one idle tab, nobody clicking:
 
 | | requests a minute | refused |

@@ -1,6 +1,22 @@
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { toLighterFill } from "@/server/protocols/lighter/fills"
+import {
+  fetchLighterOrderFills,
+  toLighterFill,
+} from "@/server/protocols/lighter/fills"
+import {
+  closeLighterPrivateFeeds,
+  lighterFillsNeedRecovery,
+} from "@/server/protocols/lighter/private-feed"
+
+const lighterAccountFacts = vi.hoisted(() => vi.fn())
+
+vi.mock("@/server/protocols/lighter/agent", () => ({ lighterAccountFacts }))
+
+afterEach(() => {
+  lighterAccountFacts.mockReset()
+  closeLighterPrivateFeeds()
+})
 
 /**
  * A real Lighter trade, trimmed, read from its own history on 26 Aug 2026.
@@ -95,5 +111,18 @@ describe("reading one Lighter trade as this wallet's fill", () => {
   it("refuses a row it cannot read rather than inventing one", () => {
     expect(toLighterFill(null, 270_812, "BTC")).toBeNull()
     expect(toLighterFill({ ...TRADE, price: "nonsense" }, 270_812, "BTC")).toBeNull()
+  })
+})
+
+describe("a refused Lighter trade-history read", () => {
+  it("starts the one-minute wait before the account lookup can fail", async () => {
+    const address = "0x0000000000000000000000000000000000000006"
+    lighterAccountFacts.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+
+    await expect(
+      fetchLighterOrderFills("mainnet", address, 0, () => null)
+    ).rejects.toThrow("EXCHANGE_BUSY")
+
+    expect(lighterFillsNeedRecovery("mainnet", address)).toBe(false)
   })
 })

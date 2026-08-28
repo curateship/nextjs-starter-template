@@ -1038,10 +1038,12 @@ written by an older build still uses the reading state below.
   their own jobs. A status without a run id shows the same summary without a
   link. The run chart does not repeat the old notice that more orders may
   appear while the run is switched on.
-- **Both halves have to land.** The trading read comes back in two pieces,
+- **Both halves have to finish.** The trading read comes back in two pieces,
   practice and real, and either may be first. A person whose ladders are all on
   real wallets holds an empty practice half for a second or two, and that half
-  is not an answer. Every panel waits on `settled`, never on `loading`.
+  is not the whole answer. Every panel waits on `settled`, never on `loading`.
+  A refusal counts as finished and switches the panel to its failed words with
+  Try again. A refusal never leaves the spinner running forever.
 - **The market list has no waiting state and does not need one.** Its markets
   arrive with the page rather than being fetched by the panel, so there is no
   moment where the list is on screen and its markets are not. A retry after a

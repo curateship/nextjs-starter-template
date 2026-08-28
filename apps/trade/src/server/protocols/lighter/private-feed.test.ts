@@ -10,6 +10,7 @@ import {
   lighterFillsNeedRecovery,
   lighterPositionsFromFrame,
   lighterStatsFromFrame,
+  markLighterFillsAttempted,
   markLighterFillsReconciled,
 } from "@/server/protocols/lighter/private-feed"
 import { lighterMarginFraction } from "@/server/protocols/lighter/signer"
@@ -167,7 +168,10 @@ describe("the Journal's safety net", () => {
     // "no recovery needed" about an account nothing knows would leave the
     // Journal permanently short of the fills it missed.
     expect(
-      lighterFillsNeedRecovery("mainnet", "0x0000000000000000000000000000000000000001")
+      lighterFillsNeedRecovery(
+        "mainnet",
+        "0x0000000000000000000000000000000000000001"
+      )
     ).toBe(true)
   })
 
@@ -181,6 +185,16 @@ describe("the Journal's safety net", () => {
     expect(lighterFillsNeedRecovery("mainnet", address)).toBe(true)
     markLighterFillsReconciled("mainnet", address)
     expect(lighterFillsNeedRecovery("mainnet", address)).toBe(false)
+  })
+
+  it("waits a minute after a refused read before trying again", () => {
+    const address = "0x0000000000000000000000000000000000000005"
+    const other = "0x0000000000000000000000000000000000000006"
+    markLighterFillsAttempted("mainnet", address, 1_000)
+
+    expect(lighterFillsNeedRecovery("mainnet", address, 60_999)).toBe(false)
+    expect(lighterFillsNeedRecovery("mainnet", other, 60_999)).toBe(true)
+    expect(lighterFillsNeedRecovery("mainnet", address, 61_000)).toBe(true)
   })
 
   it("keeps one wallet's answer away from another's", () => {
