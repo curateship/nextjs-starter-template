@@ -9,6 +9,7 @@ import {
   gridStepPct,
   gridStopPx,
   gridTakeProfitPx,
+  GRID_REBUY_CLEARANCE_PCT,
   GRID_STEP_FEE_MULTIPLE,
   type GridPlan,
 } from "@/lib/trade/grid"
@@ -63,6 +64,26 @@ export type GridRow = {
    * pairing at placement.
    */
   paired?: boolean
+}
+
+/**
+ * A sale and a nearby buy cannot trade the same small price wobble. The buy
+ * must first see price at least one percent above its own line, then return.
+ */
+function holdNearbyBuysAfterSell(plan: GridPlan, sellPx: number): void {
+  const clearance = GRID_REBUY_CLEARANCE_PCT / 100
+  const nearbyDistance = sellPx * clearance
+
+  for (const level of plan.levels) {
+    if (level.status !== "waiting") continue
+    if (Math.abs(level.buyPx - sellPx) > nearbyDistance) continue
+
+    level.armed = false
+    level.rebuyAbove = Math.max(
+      level.rebuyAbove ?? 0,
+      level.buyPx * (1 + clearance)
+    )
+  }
 }
 
 export async function advanceGrid(
@@ -211,17 +232,15 @@ export async function advanceGrid(
       at: now,
     })
     // ----- THE RECYCLE ----------------------------------------------------
-    // Back to watching, holding nothing. Step 6 buys again the moment price
-    // comes back down to this level. There is no queue and no re-arm flag: the
-    // loop is this one status change.
+    // Back to watching, holding nothing. A nearby buy waits for a one percent
+    // rise before a later return may buy it. Deeper levels keep cycling.
     level.status = carried ? "cancelled" : "waiting"
     level.heldSz = 0
-    // Still armed, and by definition: price just climbed to this level's sell,
-    // which is above its buy. It can buy again the moment price comes back.
     level.armed = !carried
     delete level.rebuyAbove
     level.cycles += 1
     plan.cycles += 1
+    holdNearbyBuysAfterSell(plan, level.sellPx)
     changed = true
     if (carried) soldCarried.add(level)
   }
@@ -312,9 +331,9 @@ export async function advanceGrid(
     if (mark === null) continue
     if (level.rebuyAbove !== undefined) {
       if (mark < level.rebuyAbove) continue
-      // A followed sale may only turn back into a buy after price reaches the
-      // next rung above it. Time and tiny wobbles around the sold price do not
-      // prepare it.
+      // A buy near a sale may only turn on after price reaches the required
+      // clearance above it. Time and small wobbles around the sold price do not
+      // prepare it. Following the range can require a full rung instead.
       delete level.rebuyAbove
       changed = true
     }

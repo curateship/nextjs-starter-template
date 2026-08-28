@@ -2,10 +2,10 @@
 
 A grid is a range of prices and a count. It puts a buy at every level in that
 range, and each buy has its own sell one step above it. When that sell fills the
-buy goes straight back on at the same price, and the level starts again. The
-recycling is the whole thing, and it is what the DCA ladder cannot do: a ladder
-buys one fall and is then finished, while a grid earns a little on every bounce
-for as long as price keeps crossing back and forth.
+level goes back to watching its buy price. A nearby buy cannot take the same
+small wobble as the sale. Price must first rise 1% above that buy and return to
+it. The recycling is what the DCA ladder cannot do: a ladder buys one fall and
+is then finished, while a grid can earn on repeated crossings.
 
 Nothing rests on the exchange. A level is a price the grid is watching, and when
 price reaches it the grid buys there and then. That is the app-wide rule and
@@ -75,6 +75,19 @@ cannot be dragged. That level bought at its own price and sells one step above
 it, so sliding the range under it would leave it selling coins it never paid
 that price for. A grid holds nothing for most of its life, so most of the time
 the range moves freely.
+
+## A sale needs space before a nearby buy
+
+Grid rungs share boundaries. One rung can sell at the same price where the next
+rung buys. BSB exposed the problem: the grid sold around $0.1061, then bought
+the next rung around $0.10635 less than a minute later. Price had only wobbled
+around the shared boundary.
+
+After any sale, every waiting buy within 1% of that sale stays waiting. Price
+must first reach at least 1% above the buy, then come back down to it. A buy at
+$0.1062 therefore waits for at least $0.107262 before a later return to $0.1062
+can buy. Reaching $0.107262 does not buy anything. Buys more than 1% away from
+the sale keep working normally.
 
 ## How the money is split
 

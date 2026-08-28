@@ -497,6 +497,42 @@ describe("the recycle", () => {
     expect(grid.plan.levels[3].sz).toBeCloseTo(before / 110, 3)
   })
 
+  it("waits for a 1% rise before buying near a sale", async () => {
+    marks.set("BTC", 100)
+    await place()
+
+    // The $100 rung buys, then sells at the $110 boundary it shares with the
+    // next rung's buy. A small wobble around $110 must not sell one rung and
+    // buy the other at nearly the same price.
+    await priceTo(101)
+    await priceTo(99)
+    await priceTo(110)
+    await priceTo(110.5)
+    await priceTo(110)
+
+    let grid = await onlyGrid()
+    expect(grid.plan.levels[3]).toMatchObject({
+      buyPx: 110,
+      status: "waiting",
+      armed: false,
+      rebuyAbove: 111.1,
+    })
+
+    // A rise just short of 1% is not enough.
+    await priceTo(111.09)
+    await priceTo(110)
+    expect((await onlyGrid()).plan.levels[3].status).toBe("waiting")
+
+    // Once price has reached exactly 1% above the buy, a later return may buy
+    // it. The rise prepares the buy; it does not buy on the way up.
+    await priceTo(111.1)
+    expect((await onlyGrid()).plan.levels[3].status).toBe("waiting")
+    await priceTo(110)
+
+    grid = await onlyGrid()
+    expect(grid.plan.levels[3].status).toBe("holding")
+  })
+
   it("arms every level a fast fall passed, not just one", async () => {
     await place()
     // Straight through all four in one move.

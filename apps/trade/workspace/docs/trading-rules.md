@@ -182,6 +182,11 @@ add up to.
   exchange price is read again immediately before the order. If it has moved
   back above a grid buy, the rung stays waiting instead of buying at a price it
   never agreed to.
+- Tyler, 27 Aug 2026: **"A buy cannot happen around the same price as the sell
+  until it comes down to it from a minimum of 1%."** After a grid sells, every
+  waiting buy within 1% of that sale stays waiting. Price must first rise at
+  least 1% above that buy, then return to it. Buys farther from the sale keep
+  working normally.
 - **Moving a grid up does not ready its new top buy.** The rise that sold the
   old top rung has already done one job. The new top buy waits until price
   reaches its own sell, one full rung above the sold price. Only a later return

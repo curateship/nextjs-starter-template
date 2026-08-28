@@ -18,9 +18,10 @@ import {
  * than a branch inside it.
  *
  * A grid is a range and a count. Buys sit evenly spaced below the price, each
- * with its own sell one step above it, and **when that sell fills the buy goes
- * straight back on at the same price**. That recycling is the whole difference
- * from a ladder, whose rungs each have one moment and are then finished.
+ * with its own sell one step above it. When a sell fills, its buy goes back to
+ * watching. A buy near that sale first waits for price to rise one percent
+ * above it and return. That recycling is the whole difference from a ladder,
+ * whose rungs each have one moment and are then finished.
  *
  * The window that places one and the server that stores one both read their
  * numbers from `gridOrderPlan`, so what is shown is what is placed — the same
@@ -43,6 +44,9 @@ export const DEFAULT_GRID_STOP_UNDER_PCT = 5
 
 /** How far over the higher of price or range the fixed End Grid line sits. */
 export const DEFAULT_GRID_TAKE_PROFIT_PCT = 5
+
+/** Rise required before a buy near a sale may watch for the return. */
+export const GRID_REBUY_CLEARANCE_PCT = 1
 
 /**
  * How far above and below the price the range opens at, in percent.
@@ -620,13 +624,14 @@ const gridLevelStateSchema = z.object({
    * to be waiting. One big lump is not a grid, the same way it is not a ladder.
    *
    * Set at placement for every level under the price, and normally set on any
-   * pass where price is above the level. A followed top sale makes its shared
-   * buy line wait until price reaches the next rung above it. A level price
-   * never visits simply never trades, which costs nothing. Grids saved before
-   * this existed read as armed, which is what they were.
+   * pass where price is above the level. A buy near any sale must first see
+   * price climb one percent above its own line. A followed top sale can require
+   * a larger climb to the next rung. A level price never visits simply never
+   * trades, which costs nothing. Grids saved before this existed read as armed,
+   * which is what they were.
    */
   armed: z.boolean().default(true),
-  /** Price the market must reach before this sold line may watch for a return. */
+  /** Price the market must reach before this buy may watch for a return. */
   rebuyAbove: z.number().positive().optional(),
   /**
    * The level sits at or below the stop, so its order was taken off the book —
