@@ -83,7 +83,9 @@ describe("the base indicator", () => {
       CHART
     )
 
-    expect(paint.marks).toEqual([{ time: 5 * HOUR, price: -90.5, side: "down" }])
+    expect(paint.marks).toEqual([
+      { time: 5 * HOUR, price: -90.5, side: "down" },
+    ])
     expect(paint.dashes).toEqual([
       { fromTime: 2 * HOUR, toTime: 6 * HOUR, price: 10, side: "down" },
     ])
@@ -118,7 +120,11 @@ describe("the base indicator", () => {
   it("never lets two arrows land closer together than the spacing", () => {
     const candles = bars(TWO_BASES)
     // The two arrows are 6 candles apart, so 10 is more than they can clear.
-    const spaced = baseIndicator.compute(candles, settings({ minBarsApart: 10 }), CHART)
+    const spaced = baseIndicator.compute(
+      candles,
+      settings({ minBarsApart: 10 }),
+      CHART
+    )
     expect(spaced.marks.map((mark) => mark.time)).toEqual([5 * HOUR])
     // Spacing thins the arrows and never the dashes.
     expect(spaced.dashes).toHaveLength(2)
@@ -231,7 +237,10 @@ describe("the base in force", () => {
   it("answers the same level the chart draws a dash at", () => {
     const candles = bars(ONE_BASE)
     const paint = baseIndicator.compute(candles, settings(), CHART)
-    expect(baseInForce(candles, settings())).toBeCloseTo(paint.dashes[0].price, 9)
+    expect(baseInForce(candles, settings())).toBeCloseTo(
+      paint.dashes[0].price,
+      9
+    )
   })
 })
 
@@ -302,12 +311,7 @@ describe("the chart and the ladder mean the same thing by a base", () => {
   // A long, uneven walk so bases confirm often, some higher than the last and
   // some lower, and some only a few candles apart.
   const walk = Array.from({ length: 400 }, (_, i) =>
-    Math.round(
-      100 +
-        Math.sin(i / 5) * 6 +
-        Math.sin(i / 23) * 14 -
-        i * 0.05
-    )
+    Math.round(100 + Math.sin(i / 5) * 6 + Math.sin(i / 23) * 14 - i * 0.05)
   )
 
   for (const withTrendOnly of [true, false]) {
@@ -502,5 +506,62 @@ describe("an arrow and a signal are the same event", () => {
 
   it("answers an empty list rather than throwing on no candles", () => {
     expect(baseIndicator.signals?.([], settings())).toEqual([])
+  })
+})
+
+/**
+ * Ceilings, for the selling grid's stop.
+ *
+ * The same rule mirrored, in the same pass, so a selling grid's stop can ride
+ * a confirmed ceiling above its range from day one.
+ */
+describe("the same rule read for ceilings", () => {
+  const lows = [
+    50, 48, 46, 44, 42, 40, 41, 43, 45, 44, 42, 39, 38, 40, 41, 42, 43, 41, 37,
+    36, 38, 39, 40, 42, 44, 43, 41, 39, 45, 47, 49, 46, 44, 42, 40, 38,
+  ]
+  // Mirrored highs, so a ceiling really does confirm on this shape.
+  const highs = lows.map((low) => 200 - low)
+  const params = settings({ searchBars: 5, holdBars: 2 })
+
+  /**
+   * **The easiest bug in the whole feature to ship without noticing.**
+   *
+   * `baseLevelsInForce` remembers its answer against the candle array, and the
+   * key it remembers under used to be the four settings alone. So a chart
+   * asked for floors and then for ceilings — which is exactly what a coin
+   * running both a buying grid and a selling grid does — was handed the
+   * floors back the second time, and the selling grid rested its stop on a
+   * level from the wrong side of the price.
+   */
+  it("does not hand back the cached floors when the ceilings are asked for", () => {
+    const candles = bars(lows, highs)
+
+    const floors = baseLevelsInForce(candles, params, "up")
+    const ceilings = baseLevelsInForce(candles, params, "down")
+
+    // Both found something, or the comparison below proves nothing.
+    expect(floors.some((one) => one !== null)).toBe(true)
+    expect(ceilings.some((one) => one !== null)).toBe(true)
+    expect(ceilings).not.toEqual(floors)
+    // And the second answer is the same one a fresh array gives, which is what
+    // "not out of the cache" means.
+    expect(ceilings).toEqual(
+      baseLevelsInForce(bars(lows, highs), params, "down")
+    )
+  })
+
+  it("finds a level among the highs, above the price, not below it", () => {
+    const candles = bars(lows, highs)
+    const ceiling = baseInForce(candles, params, "down")
+    expect(ceiling).not.toBeNull()
+    expect(ceiling).toBeGreaterThan(Math.max(...lows))
+  })
+
+  it("still defaults to floors when nobody says which side", () => {
+    const candles = bars(lows, highs)
+    expect(baseLevelsInForce(candles, params)).toEqual(
+      baseLevelsInForce(candles, params, "up")
+    )
   })
 })

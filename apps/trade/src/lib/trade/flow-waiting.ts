@@ -142,6 +142,8 @@ const JUST_WAITING: Record<string, string> = {
   SMART_PAIR_GRID_STOP_BASE: "A grid with a base-riding stop holds this coin",
   SMART_PAIR_STOP_BELOW_BASE:
     "The grid's stop sits below where this ladder would start",
+  SMART_PAIR_SHORT_GRID:
+    "A selling grid holds this coin, and a ladder buys — they cannot share it",
   // The signals flow's own. All three are the strategy working, and all three
   // are about ONE coin — so none of them count towards the back-off, for the
   // same reason "no base yet" does not.
@@ -155,6 +157,10 @@ const NEEDS_A_PERSON: Record<string, string> = {
     "The rungs come out too small to be orders — use fewer rungs or more money",
   SMART_SHORT_HELD:
     "The wallet is short this coin, so buying would only shrink the short",
+  SMART_LONG_HELD:
+    "The wallet holds this coin, so selling would only shrink what it holds",
+  SMART_GRID_STOP_PAST_LIQUIDATION:
+    "The exchange would close this short out before the stop was reached — use a tighter stop, less borrowing, or a smaller share",
   PAPER_ORDER_LIMIT: "The wallet has too many orders open already",
   // A practice wallet and a real one refuse for the same reasons down two
   // different paths, so both sets of codes are answered. A practice flow that

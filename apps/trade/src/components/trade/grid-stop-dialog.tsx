@@ -33,9 +33,13 @@ import { formatPrice } from "@/lib/trade/format"
 import {
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   DEFAULT_GRID_STOP_UNDER_PCT,
+  entrySide,
+  exitSide,
   gridEndPx,
   gridRangeMovable,
-  gridStopUnder,
+  gridStopBeyond,
+  lossEdge,
+  GRID_DIRECTION_LABELS,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
@@ -226,7 +230,7 @@ function StopForm({
       (endOn && parsedEnd !== plan.takeProfitPct))
   const endAt =
     endOn && !badEnd && mark !== null
-      ? gridEndPx(plan.topPx, mark, parsedEnd)
+      ? gridEndPx(plan.direction, plan, mark, parsedEnd)
       : endOn
         ? plan.takeProfitPx
         : null
@@ -258,8 +262,15 @@ function StopForm({
   const restsAt = !badUnder
     ? plan.stopLoss?.mode === "fixed" && !stopChanged
       ? plan.stopLoss.px
-      : gridStopUnder(plan.bottomPx, parsedUnder)
+      : gridStopBeyond(plan.direction, plan, parsedUnder)
     : null
+
+  // The end of the range the stop hangs off, and the word for it. The bottom
+  // on a buying grid, the top on a selling one.
+  const lossPx = lossEdge(plan.direction, plan)
+  const edgeWord = plan.direction === "long" ? "bottom" : "top"
+  const stopFieldLabel =
+    plan.direction === "long" ? "Below the bottom %" : "Above the top %"
 
   // Every reason this window would refuse, said above the button so nobody
   // presses Save to find out. Same order as the cards on screen.
@@ -324,10 +335,16 @@ function StopForm({
     <>
       <DialogHeader>
         <DialogTitle>The {symbol} grid</DialogTitle>
+        {/* Which way round it runs is stated, never offered. The prices are
+            frozen and they belong to one side, so turning a live grid round
+            would leave every level closing at a price it never opened at. */}
         <DialogDescription>
-          Working between {formatPrice(plan.bottomPx)} and{" "}
-          {formatPrice(plan.topPx)} — drag those two lines on the chart to move
-          the range itself.
+          {GRID_DIRECTION_LABELS[plan.direction]}, working between{" "}
+          {formatPrice(plan.bottomPx)} and {formatPrice(plan.topPx)}. Each level{" "}
+          {entrySide(plan.direction)}s at its own price and{" "}
+          {exitSide(plan.direction)}s one step{" "}
+          {plan.direction === "long" ? "above" : "below"} it. Drag the two blue
+          lines on the chart to move the range itself.
         </DialogDescription>
       </DialogHeader>
 
@@ -438,9 +455,11 @@ function StopForm({
               />
               <FieldLabel
                 htmlFor="grid-end-on"
-                hint="Reaching End Grid closes the grid and sells any coin it still holds."
+                hint={`Reaching End Grid closes the grid and ${exitSide(plan.direction)}s back anything it still holds.`}
               >
-                End the grid at an upper price
+                {plan.direction === "long"
+                  ? "End the grid at an upper price"
+                  : "End the grid at a lower price"}
               </FieldLabel>
             </div>
             {endOn ? (
@@ -494,7 +513,11 @@ function StopForm({
               />
               <FieldLabel
                 htmlFor="grid-follow-on"
-                hint="When price climbs past the top of the range, the whole range slides up behind it and the grid carries on instead of waiting above its range. It costs nothing, because by the time price is up there every level has already sold. The stop under the range slides up with it. The End Grid line stays fixed and closes the grid when price reaches it."
+                hint={
+                  plan.direction === "long"
+                    ? "When price climbs past the top of the range, the whole range slides up behind it and the grid carries on instead of waiting above its range. It costs nothing, because by the time price is up there every level has already sold. The stop under the range slides up with it. The End Grid line stays fixed and closes the grid when price reaches it."
+                    : "Careful: this walks a selling grid towards its loss. When price climbs past the top, the range adds one new higher sell per pass. Levels already sold keep their original buy-back prices, and the stop stays where it is."
+                }
               >
                 Follow price up
               </FieldLabel>
@@ -511,7 +534,11 @@ function StopForm({
               />
               <FieldLabel
                 htmlFor="grid-follow-down-on"
-                hint="When price falls through the bottom, the range adds one new lower buy per pass. Filled levels above it keep their original sell prices."
+                hint={
+                  plan.direction === "long"
+                    ? "Careful: this walks a buying grid towards its loss. When price falls through the bottom, the range adds one new lower buy per pass. Filled levels above it keep their original sell prices, and the stop stays where it is."
+                    : "When price falls past the bottom of the range, the whole range slides down behind it and the grid carries on instead of waiting below its range. It costs nothing, because by the time price is down there every level has already bought back. The stop above the range slides down with it. The End Grid line stays fixed and closes the grid when price reaches it."
+                }
               >
                 Follow price down
               </FieldLabel>
@@ -531,7 +558,7 @@ function StopForm({
           <CardContent className="grid gap-4">
             <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="grid-stop-pct">Below the bottom %</Label>
+                <Label htmlFor="grid-stop-pct">{stopFieldLabel}</Label>
                 <Input
                   id="grid-stop-pct"
                   inputMode="decimal"
@@ -546,10 +573,8 @@ function StopForm({
                 />
                 <p className="text-xs text-muted-foreground">
                   {restsAt === null
-                    ? "The bottom of the range is " +
-                      formatPrice(plan.bottomPx) +
-                      "."
-                    : `Rests at ${formatPrice(restsAt)}, under the range's bottom of ${formatPrice(plan.bottomPx)}.`}
+                    ? `The ${edgeWord} of the range is ${formatPrice(lossPx)}.`
+                    : `Rests at ${formatPrice(restsAt)}, ${plan.direction === "long" ? "under" : "over"} the range's ${edgeWord} of ${formatPrice(lossPx)}.`}
                 </p>
               </div>
               <BaseStopFields
@@ -558,6 +583,7 @@ function StopForm({
                 reclaimDays={baseReclaimDays}
                 disabled={busy}
                 showErrors={showValidation}
+                direction={plan.direction}
                 onOn={(next) => {
                   setShowValidation(false)
                   setBaseOn(next)

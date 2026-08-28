@@ -34,8 +34,11 @@ function gridStop(input: {
   mode: "percent" | "fixed"
   px?: number | null
   base?: { underPct: number; reclaimDays: number } | null
+  direction?: "long" | "short"
 }) {
   return {
+    direction: input.direction ?? ("long" as const),
+    topPx: 120,
     stopLoss: {
       mode: input.mode,
       underPct: 5,
@@ -99,13 +102,31 @@ describe("the pairing rules", () => {
     ).toBe("SMART_PAIR_PROTOCOL")
   })
 
+  it("refuses a SELLING grid before anything else it checks", () => {
+    // The ladder buys and the grid sells, and the exchange holds one position
+    // for the coin, so the ladder's rungs would close the grid's short instead
+    // of building anything. Checked first: nothing below it can rescue that.
+    expect(
+      gridLadderPairingRefusal({
+        // A live wallet on a pairable exchange with a perfectly good stop —
+        // every other rule passes, and it is still refused.
+        walletKind: "live",
+        protocol: "hyperliquid",
+        grid: gridStop({ mode: "fixed", px: 99, direction: "short" }),
+        ladder,
+      })
+    ).toBe("SMART_PAIR_SHORT_GRID")
+  })
+
   it("refuses a grid without a stop", () => {
     expect(
       gridLadderPairingRefusal({
         walletKind: "live",
         protocol: "hyperliquid",
         grid: {
+          direction: "long",
           stopLoss: null,
+          topPx: 120,
           bottomPx: 95,
           baseWatch: null,
           leverage: 1,
@@ -116,9 +137,11 @@ describe("the pairing rules", () => {
   })
 
   it("refuses a stop that rides the 4h base", () => {
-    expect(gridStopRidesBase(gridStop({ mode: "percent", base: { underPct: 2, reclaimDays: 1 } }))).toBe(
-      true
-    )
+    expect(
+      gridStopRidesBase(
+        gridStop({ mode: "percent", base: { underPct: 2, reclaimDays: 1 } })
+      )
+    ).toBe(true)
     expect(
       gridLadderPairingRefusal({
         walletKind: "live",
@@ -188,7 +211,9 @@ describe("the pairing rules", () => {
         walletKind: "live",
         protocol: "aster",
         grid: {
+          direction: "long",
           stopLoss: null,
+          topPx: 120,
           bottomPx: 95,
           baseWatch: null,
           leverage: 1,

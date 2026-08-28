@@ -752,8 +752,14 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "A stop riding the 4h base can move down later, below where the ladder starts buying. Give the grid a plain percent or fixed stop to pair it with a ladder.",
     SMART_PAIR_STOP_BELOW_BASE:
       "The grid's stop must sit above the price where the ladder starts buying — that ordering is what makes the pairing safe, so it is refused, not warned about.",
+    SMART_PAIR_SHORT_GRID:
+      "A selling grid and a DCA ladder cannot share a coin. The ladder buys and the grid sells, and the exchange holds one position for the coin, so the ladder's buys would close the grid's short instead of building anything.",
     SMART_SHORT_HELD:
       "This wallet is short this market, and a buy ladder would just shrink the short. Close it first.",
+    SMART_LONG_HELD:
+      "This wallet holds this coin, and a selling grid would just shrink what you hold. Close it first, or place a buying grid instead.",
+    SMART_GRID_STOP_PAST_LIQUIDATION:
+      "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels.",
     SMART_RUNG_TOO_SMALL:
       "A rung is too small to be an order at this market's size step — nothing was placed. Use fewer rungs, a gentler ramp, or a bigger share.",
     SMART_RUNG_DOLLAR_FLOOR:

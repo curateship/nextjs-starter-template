@@ -550,6 +550,41 @@ describe("the Smart orders panel", () => {
     host.remove()
   })
 
+  it("says a selling grid is holding to BUY BACK, not to sell", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    const short = {
+      ...grid,
+      plan: { ...grid.plan, direction: "short" as const },
+    }
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[short]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    await act(async () => {
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Open XMR smart order details"]'
+        )
+        ?.click()
+    })
+
+    expect(document.body.textContent).toContain("Held to buy back$70.00")
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
   it("shows why a strategy paused and lets its owner resume it", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

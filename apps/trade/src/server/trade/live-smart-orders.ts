@@ -27,7 +27,11 @@ import {
   gridHeldSz,
   gridRangeMovable,
   gridStopPx,
-  gridStopUnder,
+  gridStopBeyond,
+  lossEdge,
+  reachedExit,
+  readyWhen,
+  winEdge,
   type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
@@ -2210,7 +2214,8 @@ async function liveGridAdjustmentMark(
   const mark = prices.get(marketId)
   if (mark !== undefined && mark > 0) return mark
   if (
-    protocol.markets.pricesWereRationed?.(wallet.network, marketId) ?? false
+    protocol.markets.pricesWereRationed?.(wallet.network, marketId) ??
+    false
   ) {
     throw new Error("SMART_GRID_ADJUST_BUSY")
   }
@@ -2450,18 +2455,18 @@ export async function updateLiveGridEnd(
       const ref = parseMarketKey(grid.marketKey)
       if (!ref) throw new Error("LIVE_MARKET")
       const protocol = getProtocol(wallet.protocol)
-      const mark = await liveGridAdjustmentMark(
-        protocol,
-        wallet,
-        ref.marketId
-      )
+      const mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
       const target = protocol.markets.roundPx(
-        gridEndPx(plan.topPx, mark, input.abovePct),
+        gridEndPx(plan.direction, plan, mark, input.abovePct),
         plan.sizeDecimals,
         plan.priceTick
       )
-      if (target <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
-      if (target <= mark) throw new Error("SMART_GRID_TARGET_PASSED")
+      if (!readyWhen(plan.direction, target, winEdge(plan.direction, plan))) {
+        throw new Error("SMART_GRID_TARGET_IN_RANGE")
+      }
+      if (reachedExit(plan.direction, mark, target)) {
+        throw new Error("SMART_GRID_TARGET_PASSED")
+      }
       plan.takeProfitPx = target
       plan.takeProfitPct = input.abovePct
     }
@@ -2549,11 +2554,15 @@ export async function updateLiveGridStop(
     const protocol = getProtocol(wallet.protocol)
     const plan = grid.plan
 
+    // The follow that walks INTO the loss freezes the stop where it stands:
+    // following down on a buying grid, following up on a selling one.
+    const followsIntoLoss =
+      plan.direction === "long" ? plan.followDown : plan.follow
     plan.stopLoss = {
-      mode: plan.followDown ? "fixed" : "percent",
+      mode: followsIntoLoss ? "fixed" : "percent",
       underPct: input.stopLoss.underPct,
-      px: plan.followDown
-        ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+      px: followsIntoLoss
+        ? gridStopBeyond(plan.direction, plan, input.stopLoss.underPct)
         : null,
       base: input.stopLoss.base,
     }
@@ -2659,6 +2668,8 @@ export async function reshapeLiveGrid(
     const draft = draftGridOrder({
       marketKey: grid.marketKey,
       params: {
+        // Frozen at placement — a re-shape redraws prices, never the side.
+        direction: plan.direction,
         levels: input.levels ?? plan.levels.length,
         potPct: input.potPct ?? plan.potPct,
         compound: true,
@@ -2703,7 +2714,7 @@ export async function reshapeLiveGrid(
       ...draft.plan,
       stopLoss: plan.stopLoss,
       takeProfitPx: (() => {
-        const px = gridEndAfterRangeMove(plan, draft.plan.topPx, mark)
+        const px = gridEndAfterRangeMove(plan, draft.plan, mark)
         return px === null ? null : roundPx(px)
       })(),
       takeProfitPct: plan.takeProfitPct,
@@ -2756,11 +2767,15 @@ export async function moveLiveGridExit(
     if (!(px > 0)) throw new Error("LIVE_PRICE")
 
     if (input.which === "takeProfit") {
-      if (px <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
+      if (!readyWhen(plan.direction, px, winEdge(plan.direction, plan))) {
+        throw new Error("SMART_GRID_TARGET_IN_RANGE")
+      }
       plan.takeProfitPx = px
       plan.takeProfitPct = undefined
     } else {
-      if (px >= plan.bottomPx) throw new Error("SMART_GRID_STOP_IN_RANGE")
+      if (!readyWhen(plan.direction, lossEdge(plan.direction, plan), px)) {
+        throw new Error("SMART_GRID_STOP_IN_RANGE")
+      }
       plan.stopLoss = {
         mode: "fixed",
         underPct: plan.stopLoss?.underPct ?? 0,

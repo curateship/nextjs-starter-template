@@ -208,12 +208,40 @@ add up to.
 - Tyler, 27 Aug 2026: **The End Grid line automatically starts above the
   current price.** Trade measures its distance from the current price or the
   top of the range, whichever is higher, so the line starts above both.
-- **The stop hangs off the bottom of the range, never off the average buy
-  price.** The average falls as the grid recycles, so a stop following it would
-  drift into the range and sell the grid on an ordinary dip, which is the exact
-  move a grid exists to trade.
+- **The stop hangs off the losing end of the range, never off the average
+  price the grid paid.** Below the bottom on a buying grid, above the top on a
+  selling one. The average moves as the grid recycles, so a stop following it
+  would drift into the range and close the grid on an ordinary swing, which is
+  the exact move a grid exists to trade.
 - Tyler, 27 Aug 2026: **A grid smart order always has a stop loss.** The stop
   cannot be switched off when the grid is placed or while it is running.
+- **A selling grid whose stop sits past the exchange's close-out price is
+  refused.** A coin you bought at $100 can only fall to zero, so a buying
+  grid's worst case is bounded. A coin you sold at $100 has no ceiling, and
+  with borrowing the exchange closes the position out before a far-away stop
+  can fire. A stop the exchange gets to first is not a stop, so the grid is
+  refused before anything is placed and the window says what to change: a
+  tighter stop, less borrowing, a smaller share of the account, or fewer
+  levels. Worked out on the worst case, every level filled.
+- **A selling grid is only placed once the engine is running code that knows
+  about selling grids.** The app and the engine share one database, and an
+  engine on older code drops the direction when it saves the plan back, then
+  manages the short as a long. Deploy the engine with the app or before it,
+  never the app alone; a rollback is the same hazard in reverse.
+  `grid-orders.md` has the detail.
+- **A field inside a saved smart order is never renamed.** The deployed engine
+  and a developer's local copy read and write the same records at the same
+  time. New code can be taught to read an old record; an old copy can never be
+  taught to read a new one — it fails to read the row and then skips it in
+  silence on every pass, so the order stops trading, stops stopping out and
+  never closes, with no error anywhere. On 28 Aug 2026 renaming a grid level's
+  `buyPx` to `entryPx` took two live grids off the engine this way. Adding a
+  field is safe; an older copy ignores what it does not know.
+- Tyler, 28 Aug 2026: **Both range choices exist for a selling grid, the same
+  as for a buying one.** In his words: "Why is this an option? long has both
+  option I can choose. The same should be for shorting". A selling grid can
+  open around today's price or hang above a price you right-click, exactly
+  mirroring the buying grid that hangs below one.
 - Tyler, 27 Aug 2026: **"There is no such stop on Lighter. Even a stop is a
   watched order."** A Lighter grid keeps its stop price inside Trade. Lighter
   receives no stop order when the stop is set or moved. When price reaches the

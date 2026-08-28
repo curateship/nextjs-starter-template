@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest"
 import {
   defaultGridParams,
   gridEndPx,
-  gridFollowDownShift,
-  gridFollowShift,
+  gridShiftInto,
+  gridShiftAway,
   gridLevels,
   gridLevelSize,
   gridOrderPlan,
@@ -12,13 +12,15 @@ import {
   gridRangeFromClick,
   gridShares,
   gridStepPct,
+  gridLiquidationPx,
+  readGridPlan,
   gridRangeMovable,
   gridStopLegPrices,
   gridStopPx,
   isGridStopLeg,
   type GridLevelState,
   type GridPlan,
-  gridStopUnder,
+  gridStopBeyond,
   gridTakeProfitPx,
 } from "./grid"
 import { readSmartPlan } from "./smart-plan"
@@ -26,6 +28,7 @@ import { readSmartPlan } from "./smart-plan"
 describe("gridLevels", () => {
   it("puts the deepest buy on the bottom and the shallowest sell on the top", () => {
     const levels = gridLevels({
+      direction: "long",
       topPx: 120,
       bottomPx: 80,
       levels: 4,
@@ -39,6 +42,7 @@ describe("gridLevels", () => {
 
   it("puts the same dollars between every level when spread evenly", () => {
     const levels = gridLevels({
+      direction: "long",
       topPx: 120,
       bottomPx: 80,
       levels: 4,
@@ -53,6 +57,7 @@ describe("gridLevels", () => {
 
   it("sells one step above its own buy, never above the level above it", () => {
     const levels = gridLevels({
+      direction: "long",
       topPx: 120,
       bottomPx: 80,
       levels: 4,
@@ -68,6 +73,7 @@ describe("gridLevels", () => {
 
   it("puts the same percent between every level when spread by percent", () => {
     const levels = gridLevels({
+      direction: "long",
       topPx: 160,
       bottomPx: 10,
       levels: 4,
@@ -81,15 +87,28 @@ describe("gridLevels", () => {
 
   it("draws nothing when the range is upside down or worthless", () => {
     expect(
-      gridLevels({ topPx: 80, bottomPx: 120, levels: 4, spacing: "even" })
+      gridLevels({
+        direction: "long",
+        topPx: 80,
+        bottomPx: 120,
+        levels: 4,
+        spacing: "even",
+      })
     ).toEqual([])
     expect(
-      gridLevels({ topPx: 120, bottomPx: 0, levels: 4, spacing: "even" })
+      gridLevels({
+        direction: "long",
+        topPx: 120,
+        bottomPx: 0,
+        levels: 4,
+        spacing: "even",
+      })
     ).toEqual([])
   })
 
   it("measures the step at the top of the range, where it is thinnest", () => {
     const levels = gridLevels({
+      direction: "long",
       topPx: 120,
       bottomPx: 80,
       levels: 4,
@@ -192,7 +211,12 @@ describe("a level's money", () => {
 describe("gridStopPx", () => {
   const base = (
     over: Partial<GridPlan> = {}
-  ): Pick<GridPlan, "stopLoss" | "bottomPx" | "baseWatch"> => ({
+  ): Pick<
+    GridPlan,
+    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch"
+  > => ({
+    direction: "long",
+    topPx: 120,
     bottomPx: 80,
     stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
     baseWatch: null,
@@ -252,6 +276,7 @@ describe("gridStopPx", () => {
 
 describe("reading a stored grid back", () => {
   const plan: GridPlan = {
+    direction: "long",
     topPx: 120,
     bottomPx: 80,
     takeProfitPx: null,
@@ -360,24 +385,45 @@ describe("reading a stored grid back", () => {
  *
  * Both decide where real money leaves a trade, and neither had a test.
  */
-describe("where a grid's stop sits under its range", () => {
-  it("is that percent below the bottom rung", () => {
-    expect(gridStopUnder(100, 5)).toBeCloseTo(95, 9)
-    expect(gridStopUnder(0.004, 10)).toBeCloseTo(0.0036, 12)
+describe("where a grid's stop sits past its range", () => {
+  const range = { topPx: 200, bottomPx: 100 }
+
+  it("is that percent below the bottom rung on a buying grid", () => {
+    expect(gridStopBeyond("long", range, 5)).toBeCloseTo(95, 9)
+    expect(
+      gridStopBeyond("long", { topPx: 0.01, bottomPx: 0.004 }, 10)
+    ).toBeCloseTo(0.0036, 12)
   })
 
-  it("sits ON the bottom rung at zero, rather than nowhere", () => {
-    expect(gridStopUnder(100, 0)).toBe(100)
+  it("is that percent ABOVE the top rung on a selling grid", () => {
+    expect(gridStopBeyond("short", range, 5)).toBeCloseTo(210, 9)
+    expect(
+      gridStopBeyond("short", { topPx: 0.004, bottomPx: 0.001 }, 10)
+    ).toBeCloseTo(0.0044, 12)
+  })
+
+  it("sits ON the losing rung at zero, rather than nowhere", () => {
+    expect(gridStopBeyond("long", range, 0)).toBe(100)
+    expect(gridStopBeyond("short", range, 0)).toBe(200)
   })
 })
 
 describe("a grid's End Grid line", () => {
+  const range = { topPx: 120, bottomPx: 80 }
+
   it("starts above the market when the whole range sits below it", () => {
-    expect(gridEndPx(120, 200, 5)).toBeCloseTo(210, 9)
+    expect(gridEndPx("long", range, 200, 5)).toBeCloseTo(210, 9)
   })
 
   it("starts above the range when its top is already higher than the market", () => {
-    expect(gridEndPx(120, 100, 5)).toBeCloseTo(126, 9)
+    expect(gridEndPx("long", range, 100, 5)).toBeCloseTo(126, 9)
+  })
+
+  it("starts BELOW both on a selling grid", () => {
+    // Below the market when the whole range sits above it.
+    expect(gridEndPx("short", range, 50, 5)).toBeCloseTo(47.5, 9)
+    // Below the range when its bottom is already lower than the market.
+    expect(gridEndPx("short", range, 100, 5)).toBeCloseTo(76, 9)
   })
 
   it("stays fixed when a following range reaches it", () => {
@@ -485,13 +531,19 @@ describe("gridRangeFromClick", () => {
     for (const levels of [2, 6, 12, 20]) {
       it(`puts the click on the top buy — ${spacing}, ${levels} levels`, () => {
         const range = gridRangeFromClick({
+          direction: "long",
           clickPx: 95,
           rangePct: 15,
           levels,
           spacing,
         })
         expect(range).not.toBeNull()
-        const drawn = gridLevels({ ...range!, levels, spacing })
+        const drawn = gridLevels({
+          direction: "long",
+          ...range!,
+          levels,
+          spacing,
+        })
         expect(drawn.at(-1)!.buyPx).toBeCloseTo(95, 9)
         expect(range!.bottomPx).toBeCloseTo(80.75, 9)
         expect(range!.topPx).toBeGreaterThan(95)
@@ -506,14 +558,38 @@ describe("gridRangeFromClick", () => {
       levels: 6,
       spacing: "even" as const,
     }
-    expect(gridRangeFromClick({ ...ok, clickPx: 0 })).toBeNull()
-    expect(gridRangeFromClick({ ...ok, rangePct: 0 })).toBeNull()
-    expect(gridRangeFromClick({ ...ok, rangePct: 100 })).toBeNull()
-    expect(gridRangeFromClick({ ...ok, levels: 1 })).toBeNull()
+    expect(
+      gridRangeFromClick({
+        direction: "long",
+        ...ok,
+        clickPx: 0,
+      })
+    ).toBeNull()
+    expect(
+      gridRangeFromClick({
+        direction: "long",
+        ...ok,
+        rangePct: 0,
+      })
+    ).toBeNull()
+    expect(
+      gridRangeFromClick({
+        direction: "long",
+        ...ok,
+        rangePct: 100,
+      })
+    ).toBeNull()
+    expect(
+      gridRangeFromClick({
+        direction: "long",
+        ...ok,
+        levels: 1,
+      })
+    ).toBeNull()
   })
 })
 
-describe("gridFollowShift", () => {
+describe("gridShiftAway", () => {
   const range = {
     topPx: 120,
     bottomPx: 80,
@@ -522,7 +598,11 @@ describe("gridFollowShift", () => {
   }
 
   it("moves whole steps, just far enough to clear the price", () => {
-    const moved = gridFollowShift({ ...range, mark: 131 })
+    const moved = gridShiftAway({
+      direction: "long",
+      ...range,
+      mark: 131,
+    })
     // A step is (120 − 80) / 12 = 3.333, and 131 is 3.3 steps over the top.
     expect(moved?.steps).toBe(4)
     expect(moved?.topPx).toBeCloseTo(133.333, 3)
@@ -531,15 +611,30 @@ describe("gridFollowShift", () => {
 
   it("leaves every level below the price, so nothing buys on the way", () => {
     for (const mark of [120.01, 125, 131, 200]) {
-      const moved = gridFollowShift({ ...range, mark })
-      const drawn = gridLevels({ ...range, ...moved!, levels: range.levels })
+      const moved = gridShiftAway({
+        direction: "long",
+        ...range,
+        mark,
+      })
+      const drawn = gridLevels({
+        direction: "long",
+        ...range,
+        ...moved!,
+        levels: range.levels,
+      })
       expect(drawn.at(-1)!.buyPx).toBeLessThan(mark)
       expect(moved!.topPx).toBeGreaterThanOrEqual(mark)
     }
   })
 
   it("moves one step when price reaches the top", () => {
-    expect(gridFollowShift({ ...range, mark: 120 })).toEqual({
+    expect(
+      gridShiftAway({
+        direction: "long",
+        ...range,
+        mark: 120,
+      })
+    ).toEqual({
       topPx: 120 + 40 / 12,
       bottomPx: 80 + 40 / 12,
       steps: 1,
@@ -547,16 +642,39 @@ describe("gridFollowShift", () => {
   })
 
   it("does not move while price is still inside the range", () => {
-    expect(gridFollowShift({ ...range, mark: 100 })).toBeNull()
-    expect(gridFollowShift({ ...range, mark: 79 })).toBeNull()
+    expect(
+      gridShiftAway({
+        direction: "long",
+        ...range,
+        mark: 100,
+      })
+    ).toBeNull()
+    expect(
+      gridShiftAway({
+        direction: "long",
+        ...range,
+        mark: 79,
+      })
+    ).toBeNull()
   })
 
   it("keeps the same percent between levels when they are spread that way", () => {
-    const percent = { ...range, spacing: "compounding" as const }
+    const percent = {
+      ...range,
+      spacing: "compounding" as const,
+      direction: "long" as const,
+    }
     const before = gridStepPct(gridLevels(percent))
-    const moved = gridFollowShift({ ...percent, mark: 140 })
+    const moved = gridShiftAway({
+      ...percent,
+      mark: 140,
+    })
     const after = gridStepPct(
-      gridLevels({ ...percent, ...moved!, levels: percent.levels })
+      gridLevels({
+        ...percent,
+        ...moved!,
+        levels: percent.levels,
+      })
     )
     // Which is exactly why a percent-spread grid can follow forever: the fee
     // check reads this number, and moving up never thins it.
@@ -564,7 +682,7 @@ describe("gridFollowShift", () => {
   })
 })
 
-describe("gridFollowDownShift", () => {
+describe("gridShiftInto", () => {
   const range = {
     topPx: 120,
     bottomPx: 80,
@@ -573,15 +691,33 @@ describe("gridFollowDownShift", () => {
   }
 
   it("moves exactly one level per pass however far price fell", () => {
-    expect(gridFollowDownShift({ ...range, mark: 80 })).toEqual({
+    expect(
+      gridShiftInto({
+        direction: "long",
+        ...range,
+        mark: 80,
+      })
+    ).toEqual({
       topPx: 110,
       bottomPx: 70,
     })
-    expect(gridFollowDownShift({ ...range, mark: 79 })).toEqual({
+    expect(
+      gridShiftInto({
+        direction: "long",
+        ...range,
+        mark: 79,
+      })
+    ).toEqual({
       topPx: 110,
       bottomPx: 70,
     })
-    expect(gridFollowDownShift({ ...range, mark: 5 })).toEqual({
+    expect(
+      gridShiftInto({
+        direction: "long",
+        ...range,
+        mark: 5,
+      })
+    ).toEqual({
       topPx: 110,
       bottomPx: 70,
     })
@@ -589,7 +725,8 @@ describe("gridFollowDownShift", () => {
 
   it("does not move inside the range or below the market's lowest price", () => {
     expect(
-      gridFollowDownShift({
+      gridShiftInto({
+        direction: "long",
         topPx: 15,
         bottomPx: 5,
         levels: 1,
@@ -600,18 +737,33 @@ describe("gridFollowDownShift", () => {
   })
 
   it("keeps the same percent spacing", () => {
-    const percent = { ...range, spacing: "compounding" as const }
+    const percent = {
+      ...range,
+      spacing: "compounding" as const,
+      direction: "long" as const,
+    }
     const before = gridStepPct(gridLevels(percent))
-    const moved = gridFollowDownShift({ ...percent, mark: 79 })
+    const moved = gridShiftInto({
+      ...percent,
+      mark: 79,
+    })
     expect(
-      gridStepPct(gridLevels({ ...percent, ...moved!, levels: percent.levels }))
+      gridStepPct(
+        gridLevels({
+          ...percent,
+          ...moved!,
+          levels: percent.levels,
+        })
+      )
     ).toBeCloseTo(before, 9)
   })
 })
 
 describe("the exchange's own copy of a grid's stop", () => {
   const plan = {
+    direction: "long" as const,
     stopLoss: { mode: "fixed" as const, px: 73.298, base: null, underPct: 5 },
+    topPx: 84.5,
     bottomPx: 78.787,
     baseWatch: null,
   }
@@ -649,5 +801,253 @@ describe("the exchange's own copy of a grid's stop", () => {
     expect(isGridStopLeg({ ...leg, marketKey: "hl:ETH" }, prices)).toBe(false)
     // Another wallet's stop at the same price.
     expect(isGridStopLeg({ ...leg, walletId: "w2" }, prices)).toBe(false)
+  })
+})
+
+/**
+ * The selling grid: the same grid with every price comparison mirrored.
+ *
+ * The buying grid's tests above are the proof the direction helpers changed
+ * nothing. These are the proof the mirror is a mirror.
+ */
+describe("a grid that sells first", () => {
+  it("puts the deepest sell on the top and the shallowest buy-back on the bottom", () => {
+    const levels = gridLevels({
+      direction: "short",
+      topPx: 120,
+      bottomPx: 80,
+      levels: 4,
+      spacing: "even",
+    })
+    expect(levels).toHaveLength(4)
+    // Sells at 90, 100, 110 and 120, each buying back ten dollars lower.
+    expect(levels.map((one) => one.buyPx)).toEqual([90, 100, 110, 120])
+    expect(levels.map((one) => one.sellPx)).toEqual([80, 90, 100, 110])
+    // The range still means exactly what it says at both ends.
+    expect(levels[3].buyPx).toBeCloseTo(120, 9)
+    expect(levels[0].sellPx).toBeCloseTo(80, 9)
+  })
+
+  it("keeps the same percent between levels when spread that way", () => {
+    const levels = gridLevels({
+      direction: "short",
+      topPx: 160,
+      bottomPx: 10,
+      levels: 4,
+      spacing: "compounding",
+    })
+    const steps = levels.map((one) => one.buyPx / one.sellPx)
+    for (const step of steps) expect(step).toBeCloseTo(steps[0], 9)
+    expect(levels[3].buyPx).toBeCloseTo(160, 9)
+    expect(levels[0].sellPx).toBeCloseTo(10, 9)
+  })
+
+  it("measures the step at the top of the range, where it is thinnest", () => {
+    const levels = gridLevels({
+      direction: "short",
+      topPx: 120,
+      bottomPx: 80,
+      levels: 4,
+      spacing: "even",
+    })
+    // 10 on a sell of 120, not 10 on a sell of 90.
+    expect(gridStepPct(levels)).toBeCloseTo(10 / 120, 9)
+  })
+
+  it("hangs the range ABOVE a clicked price, with the click as the lowest sell", () => {
+    // The exact mirror of the buying grid, which hangs below the click.
+    const range = gridRangeFromClick({
+      direction: "short",
+      clickPx: 105,
+      rangePct: 100 / 7,
+      levels: 6,
+      spacing: "even",
+    })
+    expect(range).not.toBeNull()
+    expect(range!.topPx).toBeCloseTo(120, 9)
+    expect(range!.bottomPx).toBeCloseTo(102, 9)
+
+    const levels = gridLevels({
+      direction: "short",
+      ...range!,
+      levels: 6,
+      spacing: "even",
+    })
+    // The clicked price got its own sell, at the bottom of the stack.
+    expect(levels[0].buyPx).toBeCloseTo(105, 9)
+  })
+
+  it("slides the range DOWN when price leaves through the bottom", () => {
+    const range = {
+      topPx: 120,
+      bottomPx: 80,
+      levels: 4,
+      spacing: "even" as const,
+      direction: "short" as const,
+    }
+    // Down is the free move for a selling grid: it has bought everything back.
+    const moved = gridShiftAway({ ...range, mark: 65 })
+    expect(moved).not.toBeNull()
+    expect(moved!.steps).toBe(2)
+    expect(moved!.bottomPx).toBeCloseTo(60, 9)
+    expect(moved!.topPx).toBeCloseTo(100, 9)
+    // And never on a price still inside the range, or above it.
+    expect(gridShiftAway({ ...range, mark: 100 })).toBeNull()
+    expect(gridShiftAway({ ...range, mark: 121 })).toBeNull()
+  })
+
+  it("adds one level UP when price leaves through the top", () => {
+    const range = {
+      topPx: 120,
+      bottomPx: 80,
+      levels: 4,
+      spacing: "even" as const,
+      direction: "short" as const,
+    }
+    // Up is the dangerous move: it walks a selling grid towards its loss, one
+    // level per pass so one fast candle cannot send a pile of sells together.
+    const moved = gridShiftInto({ ...range, mark: 130 })
+    expect(moved).toEqual({ topPx: 130, bottomPx: 90 })
+    expect(gridShiftInto({ ...range, mark: 100 })).toBeNull()
+  })
+
+  it("rests its stop above the top and its End Grid below the bottom", () => {
+    const range = { topPx: 120, bottomPx: 80 }
+    expect(gridStopBeyond("short", range, 5)).toBeCloseTo(126, 9)
+    expect(gridEndPx("short", range, 100, 5)).toBeCloseTo(76, 9)
+  })
+
+  it("rides a ceiling that has confirmed ABOVE the range, and ignores one inside it", () => {
+    const plan = (levelPx: number) => ({
+      direction: "short" as const,
+      topPx: 120,
+      bottomPx: 80,
+      stopLoss: {
+        mode: "percent" as const,
+        underPct: 5,
+        px: null,
+        base: { underPct: 2, reclaimDays: 1 },
+      },
+      baseWatch: { levelPx, seenTo: 0 },
+    })
+    // A ceiling at 130 carries the stop to 2% above it.
+    expect(gridStopPx(plan(130))).toBeCloseTo(132.6, 9)
+    // A ceiling at 100 is inside the range — a price the grid means to sell
+    // at, not one to give up at — so the plain percent above the top stands.
+    expect(gridStopPx(plan(100))).toBeCloseTo(126, 9)
+  })
+})
+
+describe("the price the exchange would close a grid out at", () => {
+  const levels = [
+    { buyPx: 100, sz: 1 },
+    { buyPx: 110, sz: 1 },
+  ]
+
+  it("sits ABOVE a short's average sell, because a short has no ceiling", () => {
+    const px = gridLiquidationPx({
+      direction: "short",
+      levels,
+      leverage: 5,
+      maxLeverage: 50,
+    })
+    // Average sell 105; the isolated buffer is 1/5 − 1/100 = 0.19.
+    expect(px).toBeCloseTo(105 * 1.19, 9)
+  })
+
+  it("sits below a long's average buy", () => {
+    const px = gridLiquidationPx({
+      direction: "long",
+      levels,
+      leverage: 5,
+      maxLeverage: 50,
+    })
+    expect(px).toBeCloseTo(105 * 0.81, 9)
+  })
+
+  it("answers nothing when the exchange never stated a leverage limit", () => {
+    // `?? 1` means "the exchange did not say", not "this market caps at 1x" —
+    // a refusal built on that guess would be worse than no refusal.
+    expect(
+      gridLiquidationPx({
+        direction: "short",
+        levels,
+        leverage: 1,
+        maxLeverage: 1,
+      })
+    ).toBeNull()
+    expect(
+      gridLiquidationPx({
+        direction: "short",
+        levels: [],
+        leverage: 5,
+        maxLeverage: 50,
+      })
+    ).toBeNull()
+  })
+})
+
+describe("a grid stored under the old field names", () => {
+  it("reads back as a working buying grid, with no migration", () => {
+    // Exactly what is sitting in the database today: `buyPx`, `sellPx` and
+    // `rebuyAbove`, and no `direction` at all.
+    const stored = {
+      topPx: 120,
+      bottomPx: 80,
+      takeProfitPx: null,
+      spacing: "even",
+      sizing: "even",
+      potPct: 20,
+      maxOrderVolPct: 0,
+      startedAt: 1,
+      sizeDecimals: 3,
+      priceTick: null,
+      minOrderValueUsd: 10,
+      leverage: 1,
+      maxLeverage: 50,
+      levels: [
+        {
+          buyPx: 80,
+          sellPx: 90,
+          sz: 6.25,
+          budget: 500,
+          heldSz: 0,
+          status: "waiting",
+          armed: true,
+          dead: false,
+          cycles: 0,
+          rebuyAbove: 80.8,
+        },
+        {
+          buyPx: 90,
+          sellPx: 100,
+          sz: 5.55,
+          budget: 500,
+          heldSz: 5.55,
+          status: "holding",
+          armed: true,
+          dead: false,
+          cycles: 2,
+        },
+      ],
+      carriedLevels: [],
+      stopLoss: null,
+      aimedSlPx: null,
+      seenFillsTo: 0,
+      cycles: 2,
+      closedReason: null,
+    }
+
+    const plan = readGridPlan(stored)
+    expect(plan).not.toBeNull()
+    // A grid with no direction stored is a buying grid, which is what they
+    // all were.
+    expect(plan!.direction).toBe("long")
+    expect(plan!.levels.map((one) => one.buyPx)).toEqual([80, 90])
+    expect(plan!.levels.map((one) => one.sellPx)).toEqual([90, 100])
+    expect(plan!.levels[0].rebuyAbove).toBeCloseTo(80.8, 9)
+    // And it still works: the same budget, at the same price, still holding.
+    expect(plan!.levels[1].heldSz).toBeCloseTo(5.55, 9)
+    expect(gridLevelSize(plan!.levels[0], 3)).toBeCloseTo(6.25, 2)
   })
 })

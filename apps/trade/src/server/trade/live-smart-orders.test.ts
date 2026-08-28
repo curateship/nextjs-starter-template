@@ -63,48 +63,48 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
   return {
     ...(await importOriginal<object>()),
     getProtocol: (id: string) => ({
-    label: "Hyperliquid",
-    capabilities: { gridStop: gridStops[id] ?? "exchange" },
-    markets: {
-      fetch: async () => ({
-        protocol: "hyperliquid",
-        protocolLabel: "Hyperliquid",
-        network: "testnet",
-        networkLabel: "Testnet",
-        rows: [
-          {
-            key: "hyperliquid:testnet:BTC",
-            marketId: "BTC",
-            symbol: "BTC",
-            subExchange: null,
-            category: "crypto",
-            sizeDecimals: 3,
-            minOrderValueUsd: marketFloor,
-            maxLeverage: marketMaxLeverage,
-            isolatedOnly: false,
-            iconUrl: null,
-            price: 100,
-            change24h: null,
-            volume24hUsd: 0,
-            fundingHourly: null,
-            openInterestUsd: null,
-          },
-        ],
-      }),
-      prices,
-      candles: async () => [],
-      roundPx: (px: number) => px,
-    },
-    account: { fetch: account },
-    orders: {
-      portfolio,
-      fills,
-      fillsNeedRecovery,
-      place,
-      cancel,
-      close,
-      setBrackets,
-    },
+      label: "Hyperliquid",
+      capabilities: { gridStop: gridStops[id] ?? "exchange" },
+      markets: {
+        fetch: async () => ({
+          protocol: "hyperliquid",
+          protocolLabel: "Hyperliquid",
+          network: "testnet",
+          networkLabel: "Testnet",
+          rows: [
+            {
+              key: "hyperliquid:testnet:BTC",
+              marketId: "BTC",
+              symbol: "BTC",
+              subExchange: null,
+              category: "crypto",
+              sizeDecimals: 3,
+              minOrderValueUsd: marketFloor,
+              maxLeverage: marketMaxLeverage,
+              isolatedOnly: false,
+              iconUrl: null,
+              price: 100,
+              change24h: null,
+              volume24hUsd: 0,
+              fundingHourly: null,
+              openInterestUsd: null,
+            },
+          ],
+        }),
+        prices,
+        candles: async () => [],
+        roundPx: (px: number) => px,
+      },
+      account: { fetch: account },
+      orders: {
+        portfolio,
+        fills,
+        fillsNeedRecovery,
+        place,
+        cancel,
+        close,
+        setBrackets,
+      },
     }),
   }
 })
@@ -933,6 +933,7 @@ describe("live Smart orders", () => {
 
   it("leaves a reached grid level waiting when the fresh quote moved above it", async () => {
     const plan: GridPlan = {
+      direction: "long",
       topPx: 100,
       bottomPx: 90,
       takeProfitPx: null,
@@ -1305,6 +1306,7 @@ describe("changing a live grid while it is flat", () => {
       cycles: 0,
     }))
     const plan: GridPlan = {
+      direction: "long",
       topPx: 90,
       bottomPx: 80,
       takeProfitPx,
@@ -1502,7 +1504,7 @@ describe("changing a live grid while it is flat", () => {
         {
           marketId: "BTC",
           szi: 1,
-          entryPx: 85,
+          buyPx: 85,
           leverage: 1,
           protectionOrderIds: [],
         },

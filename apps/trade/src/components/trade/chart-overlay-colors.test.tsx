@@ -57,12 +57,15 @@ describe("theme colours on chart overlays", () => {
         marketKey="market"
         currentPx={100}
         grids={[]}
-        preview={[
-          { px: 130, kind: "upper" },
-          { px: 120, kind: "level" },
-          { px: 110, kind: "takeProfit" },
-          { px: 100, kind: "stopLoss" },
-        ]}
+        preview={{
+          direction: "long",
+          lines: [
+            { px: 130, kind: "upper" },
+            { px: 120, kind: "level" },
+            { px: 110, kind: "takeProfit" },
+            { px: 100, kind: "stopLoss" },
+          ],
+        }}
         tool={null}
         walletName={() => "Wallet"}
         onCancelLevel={() => undefined}

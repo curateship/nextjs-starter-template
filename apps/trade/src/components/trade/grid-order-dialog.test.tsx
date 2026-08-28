@@ -14,7 +14,7 @@ vi.mock("@/lib/layout/wide-screen", () => ({
 
 import {
   GridOrderDialog,
-  type GridPreviewLine,
+  type GridPreview,
 } from "@/components/trade/grid-order-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadSmartGridParams } from "@/lib/api/smart-orders"
@@ -200,6 +200,79 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).not.toContain("Follows down")
   })
 
+  /** The checkbox at the top of the Range card. Off is the buying grid. */
+  const directionBox = () =>
+    host.querySelector<HTMLButtonElement>("#grid-direction")
+
+  const sellTheRallies = async () => {
+    await act(async () => directionBox()?.click())
+  }
+
+  it("offers both ways round, and buying is the one it opens on", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    const box = directionBox()
+    expect(box).not.toBeNull()
+    expect(host.textContent).toContain("Sell the rallies")
+    // Unchecked is the buying grid, which is what every grid was.
+    expect(box?.getAttribute("data-state")).toBe("unchecked")
+    expect(host.textContent).toContain("Below the bottom %")
+    expect(host.textContent).toContain("Stop under the base")
+  })
+
+  it("rewrites the Range, Stop loss and End Grid wording for a selling grid", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    await sellTheRallies()
+
+    // The stop moves above the range and End Grid below it.
+    expect(host.textContent).toContain("Above the top %")
+    expect(host.textContent).not.toContain("Below the bottom %")
+    expect(host.textContent).toContain("Below the lower price %")
+    expect(host.textContent).not.toContain("Above the higher price %")
+    // And the 4h level the stop can ride is a ceiling, not a floor.
+    expect(host.textContent).toContain("Stop above resistance")
+    expect(host.textContent).not.toContain("Stop under the base")
+    // And the button says what it will actually do.
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    expect(place?.textContent).toContain("sells")
+  })
+
+  it("sends the chosen direction with the grid", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+
+    await sellTheRallies()
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ direction: "short" }),
+      })
+    )
+  })
+
+  it("asks how far ABOVE a click a selling grid reaches", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({
+      params: { ...defaultGridParams(), anchor: "click" },
+    })
+    await renderDialog()
+    await act(async () => Promise.resolve())
+
+    expect(host.textContent).toContain("How far below %")
+    await sellTheRallies()
+    expect(host.textContent).toContain("How far above %")
+    expect(host.textContent).not.toContain("How far below %")
+  })
+
   it("keeps borrowing in Advanced settings and sends it with the grid", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     const onPlace = vi.fn(async () => false)
@@ -277,17 +350,17 @@ describe("the grid window's saved settings", () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({
       params: { ...defaultGridParams(), anchor: "click", takeProfitPct: 5 },
     })
-    const onPreview = vi.fn(
-      (_lines: readonly GridPreviewLine[] | null) => undefined
-    )
+    const onPreview = vi.fn((_preview: GridPreview | null) => undefined)
 
     await renderDialog(async () => false, onPreview)
     await act(async () => Promise.resolve())
 
     const previews = onPreview.mock.calls
-      .map(([lines]) => lines)
-      .filter((lines) => lines !== null)
-    const endGrid = previews.at(-1)?.find((line) => line.kind === "takeProfit")
+      .map(([preview]) => preview)
+      .filter((preview) => preview !== null)
+    const endGrid = previews
+      .at(-1)
+      ?.lines.find((line) => line.kind === "takeProfit")
 
     expect(host.textContent).toContain("Above the higher price %")
     expect(endGrid?.px).toBeCloseTo(105, 9)

@@ -33,8 +33,9 @@ Two files outrank the rest, and outrank the code:
 - `stopping-flow-ladders.md` — how Stop finds every ladder a flow owns, cancels
   real exchange orders, blocks a coin hunt already in flight, and reports a
   coin the exchange would not cancel.
-- `grid-orders.md` — how a grid recycles, where its range sits, how the money is
-  split between levels, what a sell is worth, and what following price up does.
+- `grid-orders.md` — how a grid recycles, whether it buys the dips or sells the
+  rallies, where its range sits, how the money is split between levels, what a
+  sell is worth, and what following price up and down does.
 - `grid-above-ladder.md` — the one allowed pairing of two smart orders on a
   coin: a grid working a range above a DCA ladder, the grid's own fixed-size
   stop, and every reason the pairing is refused.

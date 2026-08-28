@@ -9,10 +9,18 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
   gridEndPx,
+  gridLiquidationPx,
   gridOrderPlan,
   gridRangeMovable,
+  gridStopBeyond,
   gridStopPx,
-  gridStopUnder,
+  heldWrongWay,
+  holdsEntry,
+  lossEdge,
+  reachedEntry,
+  reachedExit,
+  readyWhen,
+  winEdge,
   GRID_STEP_FEE_MULTIPLE,
   type GridLevelState,
   type GridParams,
@@ -119,15 +127,17 @@ export type GridDraft = {
  */
 export function draftGridOrder(input: GridDraftInput): GridDraft {
   const { params, rules, roundPx, mark } = input
+  const direction = params.direction
 
   const topPx = roundPx(input.topPx)
   const bottomPx = roundPx(input.bottomPx)
   if (!(topPx > 0) || !(bottomPx > 0) || !(topPx > bottomPx)) {
     throw new Error("SMART_GRID_RANGE")
   }
+  const range = { topPx, bottomPx }
 
-  // A grid STRADDLES the price. That is the whole shape of it: the levels above
-  // are sells of what it holds, the ones below are buys waiting for a dip, and
+  // A grid STRADDLES the price. That is the whole shape of it: the levels on
+  // one side close what it holds, the ones on the other wait for a move, and
   // it earns from price crossing back and forth between them.
   //
   // This used to refuse a range with the price inside it, which is a DCA
@@ -135,16 +145,24 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   // grid it forced the whole range under the price, where the top half could
   // never do anything until price fell into it, and it made every grid you
   // placed sit off the bottom of the chart.
-  if (input.held !== null && input.held.szi < 0) {
-    throw new Error("SMART_SHORT_HELD")
+  //
+  // A grid the wrong way round on top of a hand-held position is refused: a
+  // buying grid on a short would only shrink the short, and a selling grid on
+  // a long would only shrink the long. Either way the levels would trade
+  // against the position instead of building one.
+  if (input.held !== null && heldWrongWay(direction, input.held.szi)) {
+    throw new Error(
+      direction === "long" ? "SMART_SHORT_HELD" : "SMART_LONG_HELD"
+    )
   }
 
   const maxLeverage = rules.maxLeverage ?? 1
   // One exchange position has one borrowing setting. A grid added beside a
-  // hand-held long must size and report itself with the number already fixed
-  // on that position, because later buys cannot change it.
+  // hand-held position on the same side must size and report itself with the
+  // number already fixed on that position, because later trades cannot change
+  // it.
   const leverage =
-    input.held !== null && input.held.szi > 0
+    input.held !== null && holdsEntry(direction, input.held.szi)
       ? input.held.leverage
       : rules.maxLeverage === null
         ? params.leverage
@@ -178,7 +196,8 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     const sz = level.sz
     if (
       !(buyPx > 0) ||
-      !(sellPx > buyPx) ||
+      !(sellPx > 0) ||
+      !readyWhen(direction, sellPx, buyPx) ||
       sz <= 0 ||
       buyPx * sz < orderFloor
     ) {
@@ -188,41 +207,75 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     return { buyPx, sellPx, sz }
   })
 
-  // End Grid starts above both the market and the range. A range can sit below
-  // today's price, so measuring from its top alone would put the ending behind
-  // the market and close the grid on the pass that placed it.
+  // End Grid starts past both the market and the range, on the winning side. A
+  // range can sit on the far side of today's price, so measuring from its own
+  // edge alone would put the ending behind the market and close the grid on
+  // the pass that placed it.
   const targetPx =
     params.takeProfitPct === null
       ? null
-      : roundPx(gridEndPx(topPx, mark, params.takeProfitPct))
-  if (targetPx !== null && mark >= targetPx) {
+      : roundPx(gridEndPx(direction, range, mark, params.takeProfitPct))
+  if (targetPx !== null && reachedExit(direction, mark, targetPx)) {
     throw new Error("SMART_GRID_TARGET_PASSED")
   }
 
-  // **Placing a grid buys nothing.** Every level waits its turn, wherever the
+  // **The refusal a selling grid turns on.**
+  //
+  // A coin bought at $100 can only fall to zero, so a buying grid's worst case
+  // is bounded and its stop can always be reached. A coin sold at $100 has no
+  // ceiling — at $300 you owe $200 for every $100 you sold — and with
+  // borrowing the exchange closes the position out before the stop ever fires.
+  // A stop the exchange gets to first is not a stop.
+  //
+  // Worked out on the worst case: every level filled. Refused before anything
+  // is placed, never warned about.
+  const plannedStopPx =
+    params.stopLoss === null
+      ? null
+      : roundPx(gridStopBeyond(direction, range, params.stopLoss.underPct))
+  // Which of the two switches walks this grid towards its loss. Named here
+  // because the frozen stop below and the engine both turn on it.
+  const followsIntoLoss =
+    direction === "long" ? params.followDown : params.follow
+  if (direction === "short" && plannedStopPx !== null) {
+    const liq = gridLiquidationPx({
+      direction,
+      levels: priced,
+      leverage,
+      maxLeverage,
+    })
+    // The stop sitting at or past the close-out price, read the same way a
+    // level being reached is read: price arriving from the winning side.
+    if (liq !== null && reachedEntry(direction, plannedStopPx, liq)) {
+      throw new Error("SMART_GRID_STOP_PAST_LIQUIDATION")
+    }
+  }
+
+  // **Placing a grid trades nothing.** Every level waits its turn, wherever the
   // price is and whatever the range straddles.
   //
-  // A level above the price used to start out holding, with the coins for every
-  // one of them bought in a single market order at whatever the price happened
-  // to be. That gave the top level a round trip out of a price it had never
-  // paid, and left the account at its most long at the exact moment a grid is
-  // supposed to be sitting on its hands. One big lump is not a grid, the same
-  // way one big lump is not a ladder.
+  // A level on the far side of the price used to start out holding, with every
+  // one of them opened in a single market order at whatever the price happened
+  // to be. That gave the furthest level a round trip out of a price it had
+  // never traded, and left the account at its biggest at the exact moment a
+  // grid is supposed to be sitting on its hands. One big lump is not a grid,
+  // the same way one big lump is not a ladder.
   //
-  // `armed` is what replaces it: a level under the price may buy the moment
-  // price reaches it, and a level above the price waits for price to climb past
-  // it and come back down. Then it buys at ITS OWN price, like every other one.
+  // `armed` is what replaces it: a level price has already passed may open the
+  // moment price reaches it, and a level price has not passed waits for price
+  // to go by and come back. Then it opens at ITS OWN price, like every other
+  // one.
   const levels: GridLevelState[] = priced.map((level) => ({
     buyPx: level.buyPx,
     sellPx: level.sellPx,
     sz: level.sz,
     // Frozen here and never recalculated. This is the ceiling every future
-    // cycle is held to — a grid level buys back forever, so a level allowed
+    // cycle is held to — a grid level recycles forever, so a level allowed
     // to carry a cheap round's leftover would compound on every round trip.
     budget: level.buyPx * level.sz,
     heldSz: 0,
     status: "waiting" as const,
-    armed: level.buyPx < mark,
+    armed: readyWhen(direction, mark, level.buyPx),
     dead: false,
     cycles: 0,
   }))
@@ -234,6 +287,7 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   // level that cannot be afforded when its turn comes waits for the next pass.
 
   const plan: GridPlan = {
+    direction,
     topPx,
     bottomPx,
     takeProfitPx: targetPx,
@@ -251,13 +305,13 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     carriedLevels: [],
     stopLoss: params.stopLoss
       ? {
-          // A downward-following grid must not lower its loss limit as the
-          // range moves. Freeze the stop where placement put it.
-          mode: params.followDown ? "fixed" : "percent",
+          // A grid that follows price INTO its loss must not move its loss
+          // limit along with it. Freeze the stop where placement put it. That
+          // is the "follow down" switch on a buying grid and the "follow up"
+          // switch on a selling one.
+          mode: followsIntoLoss ? "fixed" : "percent",
           underPct: params.stopLoss.underPct,
-          px: params.followDown
-            ? gridStopUnder(bottomPx, params.stopLoss.underPct)
-            : null,
+          px: followsIntoLoss ? plannedStopPx : null,
           base: params.stopLoss.base,
         }
       : null,
@@ -271,9 +325,9 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     follow: params.follow,
     followDown: params.followDown,
     // Whether the range is in play from the start. A straddling grid is; one
-    // hung entirely below the price is waiting for a fall, and follow must
-    // not touch it until price actually comes down to it — see the schema.
-    entered: mark <= topPx,
+    // hung entirely clear of the price is waiting for a move, and follow must
+    // not touch it until price actually comes to it — see the schema.
+    entered: reachedEntry(direction, mark, winEdge(direction, range)),
     shifts: 0,
     downShifts: 0,
     closedReason: null,
@@ -571,11 +625,13 @@ export async function updateGridStop(
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
+  const followsIntoLoss =
+    plan.direction === "long" ? plan.followDown : plan.follow
   plan.stopLoss = {
-    mode: plan.followDown ? "fixed" : "percent",
+    mode: followsIntoLoss ? "fixed" : "percent",
     underPct: input.stopLoss.underPct,
-    px: plan.followDown
-      ? gridStopUnder(plan.bottomPx, input.stopLoss.underPct)
+    px: followsIntoLoss
+      ? gridStopBeyond(plan.direction, plan, input.stopLoss.underPct)
       : null,
     base: input.stopLoss.base,
   }
@@ -584,7 +640,7 @@ export async function updateGridStop(
   // was written — anything else there later means a hand moved it.
   const position = book.positions.get(grid.marketKey) ?? null
   let slPx: number | null = null
-  if (position && position.szi > 0) {
+  if (position && holdsEntry(plan.direction, position.szi)) {
     const wanted = gridStopPx(plan)
     slPx = wanted === null ? null : roundPx(wanted)
     await db
@@ -629,8 +685,14 @@ export async function setGridFollow(
   // replaced — and the switch silently springs back.
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
-  const turnDownOn = input.followDown === true && !grid.plan.followDown
-  if (turnDownOn && grid.plan.stopLoss?.mode === "percent") {
+  // Switching on the follow that walks INTO the loss freezes the stop where it
+  // stands. On a buying grid that is following down; on a selling grid it is
+  // following up.
+  const turnIntoLossOn =
+    grid.plan.direction === "long"
+      ? input.followDown === true && !grid.plan.followDown
+      : input.follow && !grid.plan.follow
+  if (turnIntoLossOn && grid.plan.stopLoss?.mode === "percent") {
     grid.plan.stopLoss = {
       ...grid.plan.stopLoss,
       mode: "fixed",
@@ -639,7 +701,9 @@ export async function setGridFollow(
   }
   grid.plan.follow = input.follow
   if (input.followDown !== undefined) grid.plan.followDown = input.followDown
-  if (input.follow) {
+  const turnedAwayOn =
+    grid.plan.direction === "long" ? input.follow : input.followDown === true
+  if (turnedAwayOn) {
     // Switching following on BY HAND is a direct instruction, so the range
     // counts as in play from this moment — a range already past its top
     // catches up straight away. Only a follow choice remembered onto a NEW
@@ -670,12 +734,17 @@ export async function updateGridEnd(
     if (mark === undefined || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
     const protocol = getProtocol(wallet.protocol)
     const target = protocol.markets.roundPx(
-      gridEndPx(plan.topPx, mark, input.abovePct),
+      gridEndPx(plan.direction, plan, mark, input.abovePct),
       plan.sizeDecimals,
       plan.priceTick
     )
-    if (target <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
-    if (target <= mark) throw new Error("SMART_GRID_TARGET_PASSED")
+    // Past the winning edge, and not already reached.
+    if (!readyWhen(plan.direction, target, winEdge(plan.direction, plan))) {
+      throw new Error("SMART_GRID_TARGET_IN_RANGE")
+    }
+    if (reachedExit(plan.direction, mark, target)) {
+      throw new Error("SMART_GRID_TARGET_PASSED")
+    }
     plan.takeProfitPx = target
     plan.takeProfitPct = input.abovePct
   }
@@ -747,6 +816,9 @@ export async function reshapeGrid(
   const draft = draftGridOrder({
     marketKey: grid.marketKey,
     params: {
+      // Frozen at placement. A re-shape redraws the prices; it never turns the
+      // grid round, because the levels belong to one side.
+      direction: plan.direction,
       levels: input.levels ?? plan.levels.length,
       potPct: input.potPct ?? plan.potPct,
       compound: true,
@@ -782,10 +854,10 @@ export async function reshapeGrid(
   const next: GridPlan = {
     ...draft.plan,
     stopLoss: plan.stopLoss,
-    // Keep the chosen distance above whichever is higher now: the moved range
-    // or today's price.
+    // Keep the chosen distance past whichever is already further into a win:
+    // the moved range or today's price.
     takeProfitPx: (() => {
-      const px = gridEndAfterRangeMove(plan, draft.plan.topPx, mark)
+      const px = gridEndAfterRangeMove(plan, draft.plan, mark)
       return px === null ? null : roundPx(px)
     })(),
     takeProfitPct: plan.takeProfitPct,
@@ -856,17 +928,22 @@ export async function moveGridExit(
   )
   if (!(px > 0)) throw new Error("PAPER_PRICE")
 
+  const direction = plan.direction
   if (input.which === "takeProfit") {
-    // Above the range, always. Inside it is where the grid is working, so a
-    // target in there would close the grid on an ordinary swing.
-    if (px <= plan.topPx) throw new Error("SMART_GRID_TARGET_IN_RANGE")
+    // Past the winning edge, always. Inside the range is where the grid is
+    // working, so a target in there would close the grid on an ordinary swing.
+    if (!readyWhen(direction, px, winEdge(direction, plan))) {
+      throw new Error("SMART_GRID_TARGET_IN_RANGE")
+    }
     plan.takeProfitPx = px
     // A hand-set line replaces the placement percentage. A later range move
     // carries its distance from the range instead of restoring the old setting.
     plan.takeProfitPct = undefined
   } else {
-    // Below the range, for the mirror of the same reason.
-    if (px >= plan.bottomPx) throw new Error("SMART_GRID_STOP_IN_RANGE")
+    // Past the losing edge, for the mirror of the same reason.
+    if (!readyWhen(direction, lossEdge(direction, plan), px)) {
+      throw new Error("SMART_GRID_STOP_IN_RANGE")
+    }
     plan.stopLoss = {
       mode: "fixed",
       underPct: plan.stopLoss?.underPct ?? 0,
@@ -874,7 +951,7 @@ export async function moveGridExit(
       base: null,
     }
     const position = book.positions.get(grid.marketKey) ?? null
-    if (position && position.szi > 0) {
+    if (position && holdsEntry(direction, position.szi)) {
       await db
         .update(tradePaperPositions)
         .set({ slPx: px, updatedAt: new Date() })

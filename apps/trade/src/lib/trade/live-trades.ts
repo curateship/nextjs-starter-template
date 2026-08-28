@@ -256,7 +256,8 @@ function finish(
   const first = building.fills[0]
   const last = building.fills[building.fills.length - 1]
   const entryPx = building.openSz > 0 ? building.openCost / building.openSz : 0
-  const exitPx = building.closeSz > 0 ? building.closeCost / building.closeSz : 0
+  const exitPx =
+    building.closeSz > 0 ? building.closeCost / building.closeSz : 0
   const amountUsd = entryPx * building.openSz
 
   // What the LAST fill was, because that is what ended it. A trade half closed
@@ -322,22 +323,26 @@ export type GridRoundTrip = { money: number }
  * the Journal is left alone: it is the whole trade, and the whole trade is the
  * same number either way. Only the money written on one arrow changes.
  *
- * **Last in, first out, because that is the order a grid really sells in.**
- * The lowest level holding is always the one bought most recently, since price
- * fell through the levels on its way down, and the lowest level is also the
- * first to reach its sell. So popping the newest lot is not an accounting
- * convention here. It is the level that actually sold.
+ * **Last in, first out, because that is the order a grid really closes in.**
+ * On a buying grid the lowest level holding is always the one bought most
+ * recently, since price fell through the levels on its way down, and the
+ * lowest level is also the first to reach its sell. A selling grid is the
+ * mirror: the highest level open is the one sold most recently, and it is the
+ * first to reach its buy-back. So popping the newest lot is not an accounting
+ * convention here. It is the level that actually closed.
  *
  * A ladder is deliberately left out. Its exits take a share off one blended
  * position, so the average IS its story and last-in-first-out would tell a
  * different one. Only fills stamped `grid` get an answer.
  *
- * A sell the lots cannot cover belongs to a position older than the fills on
- * hand, so it gets no answer at all and keeps the venue's figure. Half an
- * answer would be worse than the one it replaced.
+ * A closing fill the lots cannot cover belongs to a position older than the
+ * fills on hand, so it gets no answer at all and keeps the venue's figure.
+ * Half an answer would be worse than the one it replaced.
  */
 export function gridRoundTrips(
-  fills: readonly LiveFill[]
+  fills: readonly LiveFill[],
+  /** Which way the grid ran. A selling grid opens with a sell and closes with a buy. */
+  direction: "long" | "short" = "long"
 ): Map<string, GridRoundTrip> {
   const out = new Map<string, GridRoundTrip>()
   const stacks = new Map<string, { px: number; sz: number; fee: number }[]>()
@@ -356,7 +361,8 @@ export function gridRoundTrips(
       stacks.set(key, stack)
     }
 
-    if (fill.side === "buy") {
+    const opens = direction === "long" ? "buy" : "sell"
+    if (fill.side === opens) {
       stack.push({ px: fill.px, sz: fill.sz, fee: fill.fee })
       continue
     }
@@ -371,7 +377,9 @@ export function gridRoundTrips(
       const lot = stack[stack.length - 1]
       const part = Math.min(left, lot.sz)
       const share = lot.sz > 0 ? part / lot.sz : 0
-      money += part * (fill.px - lot.px) - lot.fee * share
+      // A buying level makes the rise; a selling level makes the fall.
+      const moved = direction === "long" ? fill.px - lot.px : lot.px - fill.px
+      money += part * moved - lot.fee * share
       lot.fee -= lot.fee * share
       lot.sz -= part
       if (lot.sz <= DUST) stack.pop()
@@ -410,7 +418,7 @@ export function gridRoundTrips(
 export function tradeFillMarks(trade: LiveTrade): LiveFillMark[] {
   const grouped = groupFills(trade.fills)
   const last = grouped[grouped.length - 1]
-  const levels = gridRoundTrips(grouped)
+  const levels = gridRoundTrips(grouped, trade.direction)
   let held = 0
   return grouped.map((fill) => {
     const opening =
@@ -492,8 +500,7 @@ export function openFillMarks(fills: readonly LiveFill[]): LiveFillMark[] {
     const key = `${fill.walletId} ${fill.marketKey}`
     const previous = heldByPosition.get(key)
     const held =
-      (previous?.amount ?? 0) +
-      (fill.side === "buy" ? fill.sz : -fill.sz)
+      (previous?.amount ?? 0) + (fill.side === "buy" ? fill.sz : -fill.sz)
     const holdingKnown = previous?.known === true || !closed
     heldByPosition.set(key, { amount: held, known: holdingKnown })
     const amount = money$(fill.px * fill.sz)
@@ -582,9 +589,8 @@ export function journalTradePageCursor(
 ): number | null {
   if (trades.length === 0) return null
   return (
-    Math.min(
-      ...trades.flatMap((trade) => trade.fills.map((fill) => fill.at))
-    ) + 1
+    Math.min(...trades.flatMap((trade) => trade.fills.map((fill) => fill.at))) +
+    1
   )
 }
 

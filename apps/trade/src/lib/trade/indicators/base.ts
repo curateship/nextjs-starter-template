@@ -232,9 +232,10 @@ function levelsOf(
  */
 export function baseInForce(
   candles: readonly IndicatorCandle[],
-  params: IndicatorParams
+  params: IndicatorParams,
+  side: IndicatorSide = "up"
 ): number | null {
-  return baseLevelsInForce(candles, params).at(-1) ?? null
+  return baseLevelsInForce(candles, params, side).at(-1) ?? null
 }
 
 /**
@@ -257,26 +258,29 @@ export function baseInForce(
  *
  * All FOUR settings are read, not just the two that find a low. Which levels
  * count is as much a part of what a base is as where they are.
+ *
+ * **`side` is part of the key, not just part of the question.** The same rule
+ * mirrored finds ceilings instead of floors, and a selling grid's stop rides a
+ * ceiling. Left out of the stamp, a chart that had been asked for floors would
+ * hand its cached floors straight back to whoever asked for ceilings, and the
+ * grid would rest its stop on a level from the wrong side of the price.
  */
 const inForce = new WeakMap<object, Map<string, ReadonlyArray<number | null>>>()
 
 export function baseLevelsInForce(
   candles: readonly IndicatorCandle[],
-  params: IndicatorParams
+  params: IndicatorParams,
+  /** "up" finds floors, the base a buying grid rests under. "down" finds ceilings. */
+  side: IndicatorSide = "up"
 ): ReadonlyArray<number | null> {
   const settings = baseSettings(params)
-  const stamp = `${settings.searchBars}:${settings.holdBars}:${settings.withTrendOnly}:${settings.minBarsApart}`
+  const stamp = `${side}:${settings.searchBars}:${settings.holdBars}:${settings.withTrendOnly}:${settings.minBarsApart}`
   const known = inForce.get(candles) ?? new Map()
   inForce.set(candles, known)
   const seen = known.get(stamp)
   if (seen) return seen
 
-  const found = levelsOf(
-    candles,
-    settings.searchBars,
-    settings.holdBars,
-    "up"
-  )
+  const found = levelsOf(candles, settings.searchBars, settings.holdBars, side)
 
   // **The same test `marksOf` uses, because it has to be the same base.**
   //
@@ -295,7 +299,10 @@ export function baseLevelsInForce(
       const level = found.level[i]
       // Against the level immediately before, counted or not — that is what
       // makes it the textbook higher low, and it is `marksOf`'s rule too.
-      const withTrend = !Number.isFinite(previous) || level > previous
+      // Mirrored for ceilings: a lower high is the with-trend one there.
+      const withTrend =
+        !Number.isFinite(previous) ||
+        (side === "up" ? level > previous : level < previous)
       previous = level
       if (
         (!settings.withTrendOnly || withTrend) &&
@@ -410,7 +417,8 @@ function marksOf(
     // lower. Compared against the level before it whether that one was marked
     // or not, which is what makes it the textbook higher low.
     const withTrend =
-      !Number.isFinite(previous) || (floor ? level > previous : level < previous)
+      !Number.isFinite(previous) ||
+      (floor ? level > previous : level < previous)
     previous = level
     if (settings.withTrendOnly && !withTrend) continue
     if (i - markedAt < settings.minBarsApart) continue
@@ -442,7 +450,12 @@ function basePaint(
   for (const side of ["up", "down"] as const) {
     const shown = side === "up" ? settings.showBases : settings.showCeilings
     if (!shown) continue
-    const found = levelsOf(candles, settings.searchBars, settings.holdBars, side)
+    const found = levelsOf(
+      candles,
+      settings.searchBars,
+      settings.holdBars,
+      side
+    )
     dashes.push(...dashesOf(found.dash, candles, side))
     marks.push(...marksOf(found, candles, settings, side))
   }
@@ -521,7 +534,9 @@ export const baseIndicator: IndicatorModule = {
    */
   warmupBars: (params) => {
     const settings = baseSettings(params)
-    return settings.searchBars + cappedHold(settings.searchBars, settings.holdBars)
+    return (
+      settings.searchBars + cappedHold(settings.searchBars, settings.holdBars)
+    )
   },
   /**
    * Every arrow, read as an instruction: a confirmed base is a buy and a

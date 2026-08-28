@@ -1,7 +1,4 @@
-import type {
-  WalletOpenOrder,
-  WalletPosition,
-} from "@/lib/protocols/contracts"
+import type { WalletOpenOrder, WalletPosition } from "@/lib/protocols/contracts"
 
 import type { LadderPlan } from "./dca"
 import { gridStopPx, type GridPlan } from "./grid"
@@ -55,11 +52,12 @@ export function ladderBaseRungPx(
  * percent stop only ever rises (the range follows price up, never down while
  * the stop follows it), which keeps the ordering for good.
  */
-export function gridStopRidesBase(
-  plan: Pick<GridPlan, "stopLoss">
-): boolean {
-  return plan.stopLoss !== null && plan.stopLoss.mode === "percent" &&
+export function gridStopRidesBase(plan: Pick<GridPlan, "stopLoss">): boolean {
+  return (
+    plan.stopLoss !== null &&
+    plan.stopLoss.mode === "percent" &&
     plan.stopLoss.base !== null
+  )
 }
 
 /**
@@ -75,10 +73,18 @@ export function gridLadderPairingRefusal(input: {
   protocol: string
   grid: Pick<
     GridPlan,
-    "stopLoss" | "bottomPx" | "baseWatch" | "leverage"
+    "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch" | "leverage"
   > | null
   ladder: Pick<LadderPlan, "rungs" | "leverage"> | null
 }): string | null {
+  // A selling grid and a ladder can never share a coin, and this is checked
+  // before anything else. The ladder is a buying plan and the grid a selling
+  // one, and one exchange position cannot be both — the ladder's rungs would
+  // close the grid's short instead of building a long. Nothing below this can
+  // rescue that, so nothing below it is asked.
+  if (input.grid && input.grid.direction === "short") {
+    return "SMART_PAIR_SHORT_GRID"
+  }
   // A practice wallet's book holds one stop per position and cannot hold the
   // grid's second one, so the handoff cannot be simulated honestly there.
   if (input.walletKind !== "live") return "SMART_PAIR_LIVE_ONLY"
@@ -144,11 +150,7 @@ export function reattributePairedStops(
   let orders = portfolio.orders
   const positions = portfolio.positions.map((position) => {
     const paired = pairedByMarketId.get(position.marketId)
-    if (
-      !paired ||
-      position.slOrderId !== paired.orderId ||
-      position.szi <= 0
-    ) {
+    if (!paired || position.slOrderId !== paired.orderId || position.szi <= 0) {
       return position
     }
     const near = (a: number, b: number | null) =>

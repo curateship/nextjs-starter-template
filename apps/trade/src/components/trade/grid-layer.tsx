@@ -1,17 +1,22 @@
 import * as React from "react"
 import { GripVerticalIcon, SettingsIcon, XIcon } from "lucide-react"
 
-import type { GridPreviewLine } from "@/components/trade/grid-order-dialog"
+import type { GridPreview } from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import {
+  entrySide,
+  exitSide,
   gridEndAfterRangeMove,
   gridLevels,
   gridRangeMovable,
+  gridStopBeyond,
   gridStopPx,
-  gridStopUnder,
   gridTakeProfitPx,
+  lossEdge,
+  GRID_DIRECTION_LABELS,
+  type GridDirection,
 } from "@/lib/trade/grid"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { cn } from "@/lib/utils"
@@ -53,7 +58,7 @@ export const GridLayer = React.memo(function GridLayer({
   /** Every live grid, whichever wallet holds it; this market's are drawn. */
   grids: readonly SmartGrid[]
   /** The placement window's levels as edited, or null when it is shut. */
-  preview: readonly GridPreviewLine[] | null
+  preview: GridPreview | null
   /** A paint tool in hand takes the pointer; these controls step aside. */
   tool: string | null
   walletName: (walletId: string) => string
@@ -96,8 +101,8 @@ export const GridLayer = React.memo(function GridLayer({
 
   // The preview's own band: from its highest line to its lowest.
   const previewBand = (() => {
-    if (!preview || preview.length === 0) return null
-    const inRange = preview.filter(
+    if (!preview || preview.lines.length === 0) return null
+    const inRange = preview.lines.filter(
       (one) =>
         one.kind === "upper" || one.kind === "lower" || one.kind === "level"
     )
@@ -133,10 +138,10 @@ export const GridLayer = React.memo(function GridLayer({
           }}
         />
       ) : null}
-      {preview?.map((line, index) => {
+      {preview?.lines.map((line, index) => {
         const y = yFor(line.px)
         if (y === null) return null
-        const look = lineLook(line.kind, colors)
+        const look = lineLook(line.kind, colors, preview.direction)
         return (
           <ChartLine
             key={`grid-preview-${index}`}
@@ -181,18 +186,18 @@ export const GridLayer = React.memo(function GridLayer({
 /**
  * What rests at one price, and which level it belongs to.
  *
- * A price is a place, not a level. On an evenly spread grid a level's SELL
- * price is the next level's BUY price, so drawing a line for each of them puts
- * two lines and two labels on top of each other at every price in the middle of
- * the range. Worse, both really can be resting at once — the level below is
- * holding and selling here, the level above is waiting and buying here — so it
- * is not a duplicate to hide, it is two orders at one price that have to be
- * said in one label.
+ * A price is a place, not a level. On an evenly spread grid a level's EXIT
+ * price is the next level's ENTRY price, so drawing a line for each of them
+ * puts two lines and two labels on top of each other at every price in the
+ * middle of the range. Worse, both really can be resting at once — one level
+ * holding and closing here, the next waiting and opening here — so it is not a
+ * duplicate to hide, it is two orders at one price that have to be said in one
+ * label.
  */
 type AtPrice = {
   px: number
-  buy: number | null
-  sell: number | null
+  /** The waiting level that opens here, by index, or null. */
+  entry: number | null
   holding: number | null
   carried: boolean
   dead: boolean
@@ -213,6 +218,55 @@ function priceKey(px: number): string {
   return px.toPrecision(12)
 }
 
+/**
+ * What one end of the range says on hover.
+ *
+ * One of the two ends carries the deepest level's own price and the other is
+ * only where that level's way out sits. Which is which depends on the
+ * direction, so the sentence has to as well.
+ */
+function edgeTitle(
+  direction: GridDirection,
+  end: "top" | "bottom",
+  level: AtPrice | null,
+  movable: boolean
+): string {
+  const where = end === "top" ? "top" : "bottom"
+  if (level === null) {
+    return movable
+      ? `Drag to move the ${where} of the range. Only until the grid opens something.`
+      : `The ${where} of the range. It is fixed now the grid has started trading.`
+  }
+  if (level.holding !== null) {
+    return `The ${where} of the range, and the deepest thing it holds.`
+  }
+  return `The ${where} of the range, and its deepest ${entrySide(direction)}. Drag to move it.`
+}
+
+/** What one level line says on hover, in the words of the grid it belongs to. */
+function levelTitle(
+  direction: GridDirection,
+  at: AtPrice,
+  holding: boolean
+): string {
+  const price = formatPrice(at.px)
+  const opens = entrySide(direction)
+  const closes = exitSide(direction)
+  // Where this level's way out sits: one step up on a buying grid, one step
+  // down on a selling one.
+  const exitWay = direction === "long" ? "above" : "below"
+  if (at.dead) {
+    return `Past your stop — it cannot ${opens} without the stop firing first. It wakes up if the stop moves clear of it.`
+  }
+  if (at.carried) {
+    return `This level belongs to an older range. It keeps its original ${closes} and finishes when that trade fills.`
+  }
+  if (holding) {
+    return `Opened at ${price}. When its ${closes} one step ${exitWay} fills, a ${opens} goes back on here.`
+  }
+  return `Waiting to ${opens} ${price}. When it fills, a ${closes} goes on one step ${exitWay} — and when THAT fills, this ${opens} comes back at ${price}.`
+}
+
 function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
   const at = new Map<string, AtPrice>()
   const slot = (px: number): AtPrice => {
@@ -221,8 +275,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (found) return found
     const made: AtPrice = {
       px,
-      buy: null,
-      sell: null,
+      entry: null,
       holding: null,
       carried: false,
       dead: false,
@@ -238,7 +291,7 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     if (level.status === "cancelled") continue
     if (level.status === "waiting") {
       const one = slot(level.buyPx)
-      one.buy = index
+      one.entry = index
       one.usd = level.buyPx * level.sz
       if (level.dead) one.dead = true
     } else {
@@ -254,10 +307,11 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
     one.carried = true
     one.usd += level.buyPx * level.heldSz
   }
-  // The ends of the range are not separate things to draw. The bottom IS the
-  // deepest buy and the top IS the shallowest sell — that is what makes the
-  // range mean what it says — so they name the line already at that price
-  // rather than adding a second one beside it.
+  // The ends of the range are not separate things to draw. One of them IS the
+  // deepest level's own price — the bottom on a buying grid, the top on a
+  // selling one — and that is what makes the range mean what it says. So they
+  // name the line already at that price rather than adding a second one beside
+  // it.
   const bottom = at.get(priceKey(plan.bottomPx))
   if (bottom) bottom.edge = "bottom"
   const top = at.get(priceKey(plan.topPx))
@@ -312,6 +366,12 @@ function GridLines({
   priceFrom: (clientY: number, top: number) => number | null
 }) {
   const plan = grid.plan
+  const direction = plan.direction
+  // Green where the grid buys, red where it sells — whichever half of the
+  // round trip that is. A buying grid's waiting levels are green and its held
+  // ones red; a selling grid is the other way round.
+  const sideColour = (side: "buy" | "sell") =>
+    side === "buy" ? colors.up : colors.down
   const waiting = plan.levels.filter(
     (level) => level.status === "waiting"
   ).length
@@ -471,12 +531,13 @@ function GridLines({
    * `gridLevels` the server uses, so what is drawn while dragging is what will
    * be saved.
    */
+  const shownRange = { topPx: shownTop, bottomPx: shownBottom }
   const movingLevels = rangeMoved
     ? gridLevels({
-        topPx: shownTop,
-        bottomPx: shownBottom,
+        ...shownRange,
         levels: plan.levels.length,
         spacing: plan.spacing,
+        direction,
       })
     : null
 
@@ -484,10 +545,10 @@ function GridLines({
   // arithmetic the server does when it saves.
   const movedStop =
     rangeMoved && plan.stopLoss?.mode === "percent" && !plan.stopLoss.base
-      ? gridStopUnder(shownBottom, plan.stopLoss.underPct)
+      ? gridStopBeyond(direction, shownRange, plan.stopLoss.underPct)
       : null
   const movedTarget = rangeMoved
-    ? gridEndAfterRangeMove(plan, shownTop, currentPx ?? plan.topPx)
+    ? gridEndAfterRangeMove(plan, shownRange, currentPx ?? plan.topPx)
     : null
 
   const shownTarget =
@@ -498,15 +559,19 @@ function GridLines({
     shownStop !== null ? yFor(shownStop) : stop === null ? null : yFor(stop)
   const prices = pricesOf(plan)
   /**
-   * The level sitting exactly on the bottom of the range, if any.
+   * The level sitting exactly on the losing end of the range, if any.
    *
-   * There always is one: the deepest buy IS the bottom, which is what makes the
-   * range mean what it says. So it is drawn ONCE, as the LOWER PRICE line
-   * carrying that level's own price and its ×, rather than as a range line and
-   * a level line stacked on the same pixel with two price badges.
+   * There always is one: the deepest level's own price IS that end — the
+   * bottom on a buying grid, the top on a selling one — which is what makes
+   * the range mean what it says. So it is drawn ONCE, as that named line
+   * carrying the level's money and its ×, rather than as a range line and a
+   * level line stacked on the same pixel with two badges.
    */
-  const bottomLevel =
-    prices.find((at) => priceKey(at.px) === priceKey(plan.bottomPx)) ?? null
+  const deepPx = lossEdge(direction, plan)
+  const deepLevel =
+    prices.find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
+  const bottomLevel = direction === "long" ? deepLevel : null
+  const topLevel = direction === "long" ? null : deepLevel
   const target = gridTakeProfitPx(plan)
   const targetY =
     shownTarget !== null
@@ -539,8 +604,8 @@ function GridLines({
       ) : null}
 
       {/* The levels between the ends: a thin line and a price, nothing more.
-          Red where the grid is selling, green where it is waiting to buy —
-          the two things you actually want to tell apart at a glance. */}
+          Green where the grid buys, red where it sells — the two things you
+          actually want to tell apart at a glance. */}
       {/* While the range is moving, the levels it WOULD have — plain lines with
           a price, since they are not yet anything to cancel. */}
       {movingLevels?.map((level, index) => {
@@ -550,7 +615,7 @@ function GridLines({
           <ChartLine
             key={`moving-${index}`}
             y={y}
-            colour={colors.up}
+            colour={sideColour(entrySide(direction))}
             name={null}
             dashed={false}
             faded
@@ -559,38 +624,32 @@ function GridLines({
       })}
 
       {(movingLevels ? [] : prices)
-        .filter((at) => at !== bottomLevel)
+        .filter((at) => at !== deepLevel)
         .map((at) => {
           const y = yFor(at.px)
           if (y === null) return null
-          const selling = at.sell !== null || at.holding !== null
+          const holding = at.holding !== null
           return (
             <ChartLine
               key={priceKey(at.px)}
               y={y}
               usd={at.usd}
-              colour={selling ? colors.down : colors.up}
+              colour={sideColour(
+                holding ? exitSide(direction) : entrySide(direction)
+              )}
               name={null}
               dashed={at.dead}
               faded={at.dead}
-              title={
-                at.dead
-                  ? "Below your stop — it cannot buy without the stop firing first. It wakes up if the stop moves down."
-                  : at.carried
-                    ? `This level belongs to an older range. It keeps its original sell and finishes when that sale fills.`
-                    : selling
-                      ? `Selling here. When it fills, a buy goes back on at ${formatPrice(at.px)} one step down.`
-                      : `Waiting to buy ${formatPrice(at.px)}. When it fills, a sell goes on one step above — and when THAT fills, this buy comes back.`
-              }
+              title={levelTitle(direction, at, holding)}
               action={
-                at.buy !== null ? (
+                at.entry !== null ? (
                   <button
                     type="button"
-                    aria-label={`Cancel the buy at ${formatPrice(at.px)}`}
+                    aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(at.px)}`}
                     className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     style={{ pointerEvents: controls }}
                     onClick={() =>
-                      onCancelLevel(grid.walletId, grid.id, at.buy as number)
+                      onCancelLevel(grid.walletId, grid.id, at.entry as number)
                     }
                   >
                     <XIcon className="size-3" />
@@ -607,31 +666,29 @@ function GridLines({
       {pinBottom ? (
         <ChartLine
           y={pinBottom.y}
-          // The bottom of the range IS the deepest buy, so it carries that
-          // level's money like every other level line.
+          // On a buying grid the bottom of the range IS the deepest buy, so it
+          // carries that level's money like every other level line. On a
+          // selling grid the bottom is only where the lowest sell buys back,
+          // and nothing opens there.
           usd={bottomLevel?.usd}
           colour={colors.primary}
           name="LOWER PRICE"
           dashed={pinBottom.off !== null}
           grip={movable && grippable}
           onGripDown={movable ? startDrag("bottom", plan.bottomPx) : undefined}
-          title={
-            bottomLevel?.holding !== null && bottomLevel !== null
-              ? "The bottom of the range, and the deepest thing it holds."
-              : "The bottom of the range, and its deepest buy. Drag to move it."
-          }
+          title={edgeTitle(direction, "bottom", bottomLevel, movable)}
           action={
-            bottomLevel?.buy != null ? (
+            bottomLevel?.entry != null ? (
               <button
                 type="button"
-                aria-label={`Cancel the buy at ${formatPrice(plan.bottomPx)}`}
+                aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(plan.bottomPx)}`}
                 className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                 style={{ pointerEvents: controls }}
                 onClick={() =>
                   onCancelLevel(
                     grid.walletId,
                     grid.id,
-                    bottomLevel.buy as number
+                    bottomLevel.entry as number
                   )
                 }
               >
@@ -644,51 +701,69 @@ function GridLines({
       {pinTop ? (
         <ChartLine
           y={pinTop.y}
+          usd={topLevel?.usd}
           colour={colors.primary}
           name="UPPER PRICE"
           dashed={pinTop.off !== null}
           grip={movable && grippable}
           onGripDown={movable ? startDrag("top", plan.topPx) : undefined}
-          title={
-            movable
-              ? "Drag to move the top of the range. Only until the grid buys something."
-              : "The top of the range. It is fixed now the grid has started buying."
-          }
+          title={edgeTitle(direction, "top", topLevel, movable)}
           action={
-            <span
-              className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs font-semibold"
-              style={{
-                backgroundColor: colors.primary,
-                color: colors.badgeText,
-                pointerEvents: controls,
-              }}
-              title={`${walletName(grid.walletId)} — ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
-            >
-              {waiting}/{plan.levels.length}
-              <button
-                type="button"
-                aria-label="Change the grid's exits"
-                className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-                onClick={() => onEditStop(grid)}
-              >
-                <SettingsIcon className="size-3" />
-              </button>
-              {waiting > 0 ? (
+            <>
+              {topLevel?.entry != null ? (
                 <button
                   type="button"
-                  aria-label="Stop the grid buying — cancel every waiting level"
-                  className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-                  onClick={() => onCancelGrid(grid)}
+                  aria-label={`Cancel the ${entrySide(direction)} at ${formatPrice(plan.topPx)}`}
+                  className="rounded p-0.5 text-muted-foreground hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+                  style={{ pointerEvents: controls }}
+                  onClick={() =>
+                    onCancelLevel(
+                      grid.walletId,
+                      grid.id,
+                      topLevel.entry as number
+                    )
+                  }
                 >
                   <XIcon className="size-3" />
                 </button>
               ) : null}
-            </span>
+              <span
+                className="flex items-center gap-0.5 rounded-sm px-1 py-0.5 text-xs font-semibold"
+                style={{
+                  backgroundColor: colors.primary,
+                  color: colors.badgeText,
+                  pointerEvents: controls,
+                }}
+                // Says what the grid is doing rather than assuming a buy.
+                title={`${walletName(grid.walletId)} — ${GRID_DIRECTION_LABELS[direction].toLowerCase()}. ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
+              >
+                {waiting}/{plan.levels.length}
+                <button
+                  type="button"
+                  aria-label="Change the grid's exits"
+                  className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
+                  onClick={() => onEditStop(grid)}
+                >
+                  <SettingsIcon className="size-3" />
+                </button>
+                {waiting > 0 ? (
+                  <button
+                    type="button"
+                    aria-label={`Stop the grid trading — cancel every waiting ${entrySide(direction)}`}
+                    className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
+                    onClick={() => onCancelGrid(grid)}
+                  >
+                    <XIcon className="size-3" />
+                  </button>
+                ) : null}
+              </span>
+            </>
           }
         />
       ) : null}
 
-      {/* The two ways out. */}
+      {/* The two ways out. Green is money made and red is the loss limit,
+          whichever side of the range each one sits. */}
       {targetY !== null && target !== null ? (
         <ChartLine
           y={targetY}
@@ -697,7 +772,7 @@ function GridLines({
           dashed={false}
           grip
           onGripDown={startDrag("takeProfit", target)}
-          title="Reaching this sells everything the grid holds and ends it. Drag it anywhere above the range."
+          title={`Reaching this closes everything the grid holds and ends it. Drag it anywhere ${direction === "long" ? "above" : "below"} the range.`}
         />
       ) : null}
       {stopY !== null && stop !== null ? (
@@ -708,7 +783,7 @@ function GridLines({
           dashed={false}
           grip
           onGripDown={startDrag("stopLoss", stop)}
-          title="Price cutting through this sells everything and ends the grid. Drag it anywhere below the range."
+          title={`Price cutting through this closes everything and ends the grid. Drag it anywhere ${direction === "long" ? "below" : "above"} the range.`}
         />
       ) : null}
     </>
@@ -717,8 +792,9 @@ function GridLines({
 
 /** What each kind of line looks like and what it is called. */
 function lineLook(
-  kind: GridPreviewLine["kind"],
-  colors: ChartColors
+  kind: GridPreview["lines"][number]["kind"],
+  colors: ChartColors,
+  direction: GridDirection
 ): { colour: string; name: string | null; dashed: boolean } {
   if (kind === "upper") {
     return { colour: colors.primary, name: "UPPER PRICE", dashed: false }
@@ -732,7 +808,12 @@ function lineLook(
   if (kind === "stopLoss") {
     return { colour: colors.down, name: "STOP LOSS", dashed: false }
   }
-  return { colour: colors.down, name: null, dashed: false }
+  // A level, in the colour of the trade it would open with.
+  return {
+    colour: entrySide(direction) === "buy" ? colors.up : colors.down,
+    name: null,
+    dashed: false,
+  }
 }
 
 /**

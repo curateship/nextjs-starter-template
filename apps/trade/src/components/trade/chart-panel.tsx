@@ -26,7 +26,7 @@ import { GridLayer } from "@/components/trade/grid-layer"
 import {
   GridOrderDialog,
   type GridOrderState,
-  type GridPreviewLine,
+  type GridPreview,
 } from "@/components/trade/grid-order-dialog"
 import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
 import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
@@ -51,10 +51,7 @@ import {
 import { ErrorBanner } from "@/components/ui/error-banner"
 import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
 import { useWideScreen } from "@/lib/layout/wide-screen"
-import {
-  intervalMs,
-  wantsFullHistory,
-} from "@/lib/trade/chart-history"
+import { intervalMs, wantsFullHistory } from "@/lib/trade/chart-history"
 import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
 import {
   parseMarketKey,
@@ -327,9 +324,7 @@ export function ChartPanel({
   // The grid's half of the same right-click: its window, its preview lines,
   // and the two things a placed grid can be asked to do.
   const [grid, setGrid] = React.useState<GridOrderState | null>(null)
-  const [gridPreview, setGridPreview] = React.useState<
-    GridPreviewLine[] | null
-  >(null)
+  const [gridPreview, setGridPreview] = React.useState<GridPreview | null>(null)
   const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
   // The position whose × on the Entry line was pressed. Closing costs real
   // money, so it asks first — the same question the Positions table asks.

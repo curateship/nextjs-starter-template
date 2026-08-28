@@ -1,6 +1,7 @@
 import type { CandleBar, CandleInterval } from "@/lib/protocols/contracts"
 import type { DcaBaseDetection } from "@/lib/trade/dca"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
+import type { IndicatorSide } from "@/lib/trade/indicators/contract"
 import { ascending, lastClosedIndex } from "@/lib/trade/candle-window"
 import type { TradeSide } from "@/lib/trade/paper"
 import type { SmartPlan } from "@/lib/trade/smart-plan"
@@ -302,7 +303,12 @@ export function readBaseWatch(
   feed: LadderFeed | undefined,
   detection: DcaBaseDetection,
   now: number,
-  lastLevelPx: number | null
+  lastLevelPx: number | null,
+  /**
+   * Which side of price to read. Floors by default, which is what a ladder and
+   * a buying grid rest under; a selling grid asks for ceilings instead.
+   */
+  side: IndicatorSide = "up"
 ): {
   watch: { levelPx: number | null; seenTo: number }
   /** The closed bars, and which one the level was read at. For the clocks. */
@@ -328,7 +334,7 @@ export function readBaseWatch(
 
   return {
     watch: {
-      levelPx: baseLevelsInForce(bars, detection)[cut] ?? null,
+      levelPx: baseLevelsInForce(bars, detection, side)[cut] ?? null,
       seenTo: bars[cut].openTime + feed.barMs,
     },
     bars,

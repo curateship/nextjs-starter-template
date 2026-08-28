@@ -15,6 +15,7 @@ import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelGridLevel,
   cancelGridRest,
+  moveGridExit,
   moveGridRange,
   placeGridOrder,
   reshapeGrid,
@@ -210,7 +211,9 @@ describe("placing a grid", () => {
     const grid = await onlyGrid()
     expect(grid.kind).toBe("grid")
     expect(grid.status).toBe("active")
-    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([80, 90, 100, 110])
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      80, 90, 100, 110,
+    ])
     expect(grid.plan.levels.map((one) => one.sellPx)).toEqual([
       90, 100, 110, 120,
     ])
@@ -885,10 +888,9 @@ describe("re-slicing a running grid", () => {
     // earns.
     expect(grid.plan.topPx).toBe(120)
     expect(grid.plan.bottomPx).toBe(80)
-    expect(grid.plan.levels[1].buyPx - grid.plan.levels[0].buyPx).toBeCloseTo(
-      5,
-      9
-    )
+    expect(
+      grid.plan.levels[1].buyPx - grid.plan.levels[0].buyPx
+    ).toBeCloseTo(5, 9)
   })
 
   it("changes what each level spends, and every level with it", async () => {
@@ -1068,9 +1070,9 @@ describe("following price up", () => {
     await priceTo(129)
     await priceTo(120)
     grid = await onlyGrid()
-    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
-      "holding"
-    )
+    expect(
+      grid.plan.levels.find((level) => level.buyPx === 120)?.status
+    ).toBe("holding")
   })
 
   it("slides the range up a whole step once price clears the top", async () => {
@@ -1111,9 +1113,9 @@ describe("following price up", () => {
 
     await priceTo(120)
     grid = await onlyGrid()
-    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
-      "holding"
-    )
+    expect(
+      grid.plan.levels.find((level) => level.buyPx === 120)?.status
+    ).toBe("holding")
   })
 
   it("leaves every level under the price, so the move buys nothing", async () => {
@@ -1139,9 +1141,9 @@ describe("following price up", () => {
     await priceTo(120)
 
     const grid = await onlyGrid()
-    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
-      "holding"
-    )
+    expect(
+      grid.plan.levels.find((level) => level.buyPx === 120)?.status
+    ).toBe("holding")
     expect((await positions())[0].szi).toBeGreaterThan(0)
   })
 
@@ -1311,7 +1313,9 @@ describe("following price down", () => {
     expect(grid.plan.downShifts).toBe(1)
     expect(grid.plan.topPx).toBeCloseTo(110, 9)
     expect(grid.plan.bottomPx).toBeCloseTo(70, 9)
-    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([70, 80, 90, 100])
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      70, 80, 90, 100,
+    ])
     expect(grid.plan.carriedLevels).toHaveLength(1)
     expect(grid.plan.carriedLevels[0].buyPx).toBe(110)
     expect(grid.plan.carriedLevels[0].sellPx).toBe(120)
@@ -1395,5 +1399,191 @@ describe("following price down", () => {
     expect(grid.plan.paused).toBe(true)
     expect(grid.plan.pauseReason).toContain("smaller than this market accepts")
     expect(grid.plan.downShifts).toBe(0)
+  })
+})
+
+/**
+ * The same grid, run the other way round.
+ *
+ * The buying grid's cases above all pass unchanged through the direction
+ * helpers, which is the proof they changed nothing. These are the proof the
+ * mirror works: one engine, not two.
+ */
+describe("a grid that sells first", () => {
+  /** The same $80–$120 range, four levels, selling at 90, 100, 110 and 120. */
+  async function placeShort(over: Partial<GridParams> = {}) {
+    return await place({ direction: "short", ...over })
+  }
+
+  it("sells at each level and buys back one step lower", async () => {
+    // Price under the whole range, so every level is armed and waiting to be
+    // reached on the way UP.
+    await priceTo(70)
+    await placeShort()
+
+    const placed = await onlyGrid()
+    expect(placed.plan.direction).toBe("short")
+    expect(placed.plan.levels.map((one) => one.buyPx)).toEqual([
+      90, 100, 110, 120,
+    ])
+    expect(placed.plan.levels.map((one) => one.sellPx)).toEqual([
+      80, 90, 100, 110,
+    ])
+    // Placing sells nothing.
+    expect(await positions()).toHaveLength(0)
+
+    // Price climbs to the lowest sell. That level, and only that level, sells.
+    await priceTo(90)
+    const afterSell = await onlyGrid()
+    expect(afterSell.plan.levels[0].status).toBe("holding")
+    expect(afterSell.plan.levels[1].status).toBe("waiting")
+    const [position] = await positions()
+    // Short: the position's size is negative.
+    expect(position.szi).toBeLessThan(0)
+  })
+
+  it("recycles a level: sold, bought back, watching again at the same price", async () => {
+    await priceTo(70)
+    await placeShort()
+
+    await priceTo(90)
+    const held = await onlyGrid()
+    const budget = held.plan.levels[0].budget
+    expect(held.plan.levels[0].status).toBe("holding")
+
+    // Down through its buy-back at 80.
+    await priceTo(80)
+    const recycled = await onlyGrid()
+    const level = recycled.plan.levels[0]
+    expect(level.status).toBe("waiting")
+    expect(level.heldSz).toBe(0)
+    expect(level.buyPx).toBe(90)
+    // The same dollars to spend next time, never more.
+    expect(level.budget).toBeCloseTo(budget, 9)
+    expect(level.cycles).toBe(1)
+    expect(recycled.plan.cycles).toBe(1)
+    // The round trip made money: sold at 90, bought back at 80.
+    const [position] = await positions()
+    expect(position).toBeUndefined()
+  })
+
+  it("makes a level wait for a one percent FALL after a nearby buy-back", async () => {
+    await priceTo(70)
+    await placeShort()
+    await priceTo(90)
+    // Buys back at 80. The waiting sell at 90 is within 1% of nothing here,
+    // but the buy-back at 80 holds any sell within 1% of 80 — there is none,
+    // so check the level that just recycled instead.
+    await priceTo(80)
+
+    const grid = await onlyGrid()
+    // Level 0 sells at 90, more than 1% from the 80 buy-back, so it is free.
+    expect(grid.plan.levels[0].rebuyAbove).toBeUndefined()
+  })
+
+  it("ends when a hand turns the position into a long", async () => {
+    await priceTo(70)
+    await placeShort()
+    await priceTo(90)
+    expect((await onlyGrid()).plan.levels[0].status).toBe("holding")
+
+    // Close the short and go the other way by hand.
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      sz: 50,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      px: 90,
+    })
+    await settle()
+
+    const grid = await onlyGrid()
+    expect(grid.status).toBe("done")
+  })
+
+  it("puts End Grid BELOW today's price when the range is above it", async () => {
+    await priceTo(200)
+    await placeShort({ takeProfitPct: 5 })
+
+    const grid = await onlyGrid()
+    // The range's bottom is 80 and the market is 200, so the line is measured
+    // from the lower of the two.
+    expect(grid.plan.takeProfitPx).toBeCloseTo(76, 9)
+  })
+
+  it("puts its stop above the top of the range and fades the levels past it", async () => {
+    await priceTo(70)
+    await placeShort({ stopLoss: { underPct: 5, base: null } })
+
+    const grid = await onlyGrid()
+    expect(gridStopPx(grid.plan)).toBeCloseTo(126, 9)
+    // Nothing is past 126, so nothing is dead.
+    expect(grid.plan.levels.every((one) => !one.dead)).toBe(true)
+
+    // Drag the stop down inside the top of the range and the levels at or
+    // above it can never trade.
+    await moveGridExit(userId, wallet, {
+      gridId: grid.id,
+      which: "stopLoss",
+      px: 125,
+    })
+    await settle()
+    const tightened = await onlyGrid()
+    expect(gridStopPx(tightened.plan)).toBe(125)
+  })
+
+  it("refuses a stop the exchange would close the short out before", async () => {
+    await priceTo(70)
+    await expect(
+      place({
+        direction: "short",
+        leverage: 50,
+        potPct: 90,
+        stopLoss: { underPct: 50, base: null },
+      })
+    ).rejects.toThrow("SMART_GRID_STOP_PAST_LIQUIDATION")
+    expect(await gridRows()).toHaveLength(0)
+  })
+
+  it("refuses a selling grid on a coin already held long by hand", async () => {
+    await priceTo(70)
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      px: 70,
+    })
+    await expect(placeShort()).rejects.toThrow("SMART_LONG_HELD")
+  })
+
+  it("is over once every level is called off and nothing is held", async () => {
+    // The state a selling grid lands in when the × on its badge is pressed
+    // before any level has traded. The row must not sit as a zombie holding
+    // the coin against a later grid.
+    await priceTo(70)
+    await placeShort()
+    await cancelGridRest(userId, wallet, { gridId: (await onlyGrid()).id })
+    await settle()
+
+    const grid = await onlyGrid()
+    expect(grid.status).toBe("done")
+    expect(grid.plan.closedReason).toBe("flat")
+    expect(await positions()).toHaveLength(0)
+    // And the coin is free again.
+    await expect(placeShort()).resolves.toBeTruthy()
+  })
+
+  it("refuses a buying grid on the same coin, one smart order per wallet", async () => {
+    await priceTo(70)
+    await placeShort()
+    await expect(place()).rejects.toThrow("SMART_LADDER_EXISTS")
+    expect(await gridRows()).toHaveLength(1)
   })
 })

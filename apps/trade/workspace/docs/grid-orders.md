@@ -1,30 +1,114 @@
 # Grid orders
 
-A grid is a range of prices and a count. It puts a buy at every level in that
-range, and each buy has its own sell one step above it. When that sell fills the
-level goes back to watching its buy price. A nearby buy cannot take the same
-small wobble as the sale. Price must first rise 1% above that buy and return to
-it. The recycling is what the DCA ladder cannot do: a ladder buys one fall and
-is then finished, while a grid can earn on repeated crossings.
+A grid is a range of prices and a count. It puts an order at every level in that
+range, and each level has its own way out one step away. When that way out fills
+the level goes back to watching its own price. A nearby level cannot take the
+same small wobble as the trade that just happened. Price must first move 1% past
+it and return. The recycling is what the DCA ladder cannot do: a ladder buys one
+fall and is then finished, while a grid can earn on repeated crossings.
 
 Nothing rests on the exchange. A level is a price the grid is watching, and when
-price reaches it the grid buys there and then. That is the app-wide rule and
+price reaches it the grid trades there and then. That is the app-wide rule and
 `smart-orders-never-rest.md` covers why.
+
+## Buy the dips, or sell the rallies
+
+A **Sell the rallies** checkbox sits at the top of the Range card, and it is
+the first thing the window asks because every label under it changes with the
+answer.
+
+**Off** is the buying grid, which is what every grid was. It buys at each level
+and sells one step above it, and earns while a coin chops sideways or drifts
+up.
+
+**On**, the grid sells at each level and buys back one step below it. It earns
+while a coin chops sideways or drifts down. Selling a coin you do not own means
+borrowing it from the exchange, selling it, and buying it back later. You keep
+the difference if it got cheaper.
+
+A coin that has run up and is now chopping under a ceiling is the case for
+selling the rallies. A buying grid there keeps buying dips in something that is
+slowly bleeding; a selling grid earns on the same chop with the drift going its
+way.
+
+**Everything else is the same grid with every price comparison turned upside
+down.** The range, the levels, the recycling, the 1% clearance, the two follow
+switches, the stop, End Grid, the background program that trades when nobody is
+watching. One engine runs both.
+
+**The direction cannot be changed once the grid is placed.** The prices are
+frozen and they belong to one side. The running-grid window says which way the
+grid runs and does not offer to turn it round.
+
+**The one thing that is genuinely more dangerous.** A coin you bought at $100
+can only fall to zero, so the most it costs you is $100. A coin you sold at
+$100 has no ceiling: at $300 you owe $200 for every $100 you sold, and with
+borrowing the exchange closes you out long before that. So a selling grid whose
+stop sits at or past the exchange's close-out price is refused before anything
+is placed, with a sentence saying what to change. `trading-rules.md` holds that
+rule.
+
+A worked example on a $10,000 account, coin at $100:
+
+```
+Range $80 to $120, 12 levels, step $3.33.
+Pot 20% = $2,000, so $166 a level.
+Stop $126 (5% above the top). End Grid $76.
+
+  $126.00  STOP      buy the lot back, grid over
+  $120.00  SELL $166  live   -> buys back at $116.67
+  $116.67  SELL $166  live   -> buys back at $113.33
+   ...
+  $103.33  SELL $166  live   -> buys back at $100.00
+   ---- price is here ----
+   $96.67  SELL $166  waiting for price to go under it and come back
+   ...
+   $83.33  SELL $166  waiting for price to go under it and come back
+   $80.00  bottom of the range
+   $76.00  END GRID  you have made enough, close it
+```
+
+The levels above the price are live because price is already below them, and
+they sell when price climbs to them. The levels below the price are dormant
+until price drops under them and comes back up. That is the same rule the
+buying grid keeps, read in a mirror.
+
+**A selling grid needs the engine to know about selling grids.** The app and
+the background engine that manages every order are two programs sharing one
+database. An engine running older code does not know which way a grid runs, and
+a field it does not know is dropped when it saves the plan back — so the
+selling grid is read as a buying one, its End Grid ends up below the price, and
+it closes seconds after being placed. If it were holding a short, its stop
+would be written on the wrong side of it.
+
+So the engine and the app are deployed together, or the engine first, never the
+app alone. A rollback has the same problem in reverse. Buying grids are
+unaffected either way, because every stored plan stays in the shape every
+version reads. `trading-rules.md` carries the rule this comes from.
+
+**Funding is not modelled.** On a real exchange a short usually collects a
+small payment every few hours from the people who are long. Nothing in the
+practice engine models that, so a practice selling grid reads slightly worse
+than the real one would.
 
 ## Where the range sits
 
-Two choices, on the Range card of the window that opens when you right-click the
-chart and pick Grid.
+Two choices, on the Range card, and both exist for either direction.
 
 **Around today's price.** The range opens a percentage above and a percentage
-below the price, so it straddles. Levels below the price can buy as soon as
-price reaches them. Levels above the price wait for price to climb past them and
-come back down.
+below the price, so it straddles. Levels price has already passed can trade as
+soon as price reaches them. Levels on the far side wait for price to go by and
+come back.
 
-**Below the price you clicked.** The price you clicked becomes the **top buy**,
-and the whole grid hangs under it, so every level is live from the start.
+**Below the price you clicked**, on a buying grid. The price you clicked becomes
+the **top buy**, and the whole grid hangs under it, so every level is live from
+the start.
 
-Either way, **placing a grid buys nothing.**
+**Above the price you clicked**, on a selling grid. The exact mirror: the price
+you clicked becomes the **lowest sell**, and the whole grid sits above it. That
+is how you hang a selling grid under a ceiling you can see on the chart.
+
+Either way, **placing a grid trades nothing.**
 
 In the second mode the top edge of the range sits one step above your click.
 That edge is where your top buy sells, and it is not a price the grid ever buys
@@ -45,7 +129,11 @@ Coin at $100, you right-click at $95, 6 levels, 15% deep
    $80   BUY   bottom of the range
 ```
 
-## A rung buys at its own price, or it does not buy
+## A rung trades at its own price, or it does not trade
+
+Written below for a buying grid. A selling grid is the mirror: a level may only
+sell once price has been **below** it, and the levels below the price at
+placement are the dormant ones.
 
 This is the rule the whole order type rests on, and it used to be broken.
 
@@ -76,7 +164,11 @@ it, so sliding the range under it would leave it selling coins it never paid
 that price for. A grid holds nothing for most of its life, so most of the time
 the range moves freely.
 
-## A sale needs space before a nearby buy
+## A trade needs space before a nearby level
+
+Written below for a buying grid. On a selling grid the clearance inverts: a
+waiting sell within 1% of a buy-back stays waiting until price falls at least
+1% below it and returns.
 
 Grid rungs share boundaries. One rung can sell at the same price where the next
 rung buys. BSB exposed the problem: the grid sold around $0.1061, then bought
@@ -122,6 +214,10 @@ grid level buys back forever, so leftover carried forward would compound on
 every round trip and turn a fixed pot into a much larger one.
 
 ## What a sell is worth
+
+On a selling grid it is the buy-back that is worth what its own level made, on
+the sell that level opened with. Same arithmetic, mirrored: the newest sell
+still open is the one that bought back.
 
 A grid sell is worth what **that level** made on **its own buy**. It is not
 worth what the exchange says it made, and for most of a grid's life the two are
@@ -172,6 +268,22 @@ and the panel had to leave them blank. A level's round trip is worked out from
 the fills, so KuCoin's grids now get a figure like everybody else's.
 
 ## Following price up and down
+
+The two switches keep their names on either grid, and **which one is the safe
+one swaps**.
+
+- On a **buying** grid, following **up** is the free move and following **down**
+  is the dangerous one.
+- On a **selling** grid, following **down** is the free move and following **up**
+  is the dangerous one.
+
+The free move is free because price has left through the winning end of the
+range, so the grid has already closed every level and holds nothing: no position
+to settle means not one order is placed. The dangerous one walks the range
+towards the loss, one level per pass, without moving the agreed loss limit away.
+The window carries a "Careful" line beside whichever switch that is.
+
+Everything below describes a buying grid. A selling grid is the same, mirrored.
 
 Switched on, the range slides up behind price. When the highest rung sells at
 the top, the whole range moves up at once. Every rung moves with it and the new
@@ -249,6 +361,9 @@ spread the same percent apart never thin, so those follow without that limit.
 
 ## Ending the grid
 
+On a selling grid End Grid sits **below** the range instead of above it, and
+the same sentences hold with up and down swapped.
+
 The line above the range used to be called Take profit, which was wrong. It
 takes no profit. By the time price is up there every level has already sold and
 the grid holds nothing, so reaching that line sells nothing at all. What it does
@@ -286,6 +401,17 @@ Every grid has a stop. The placement window asks where it sits, but has no
 switch that can remove it. The running grid window can move or change the stop,
 but cannot remove it either.
 
+The stop hangs off the **losing end of the range** — below the bottom on a
+buying grid, above the top on a selling one.
+
+It can rest on a confirmed 4h level instead, and that level has two sides. A
+buying grid rests under a confirmed floor, and the card is called **Stop under
+the base**. A selling grid rests above a confirmed ceiling, and the same card
+reads **Stop above resistance**. One indicator, one pass, one set of settings,
+mirrored.
+
+Everything below describes a buying grid.
+
 The stop hangs off the **bottom of the range**, never off the average buy price.
 As levels recycle that average ratchets downward, so a stop following it drifts
 further away on every cycle, and after a run of shallow cycles it would sit
@@ -304,6 +430,11 @@ When a DCA ladder shares the coin, the position's ordinary stop belongs to the
 ladder and the grid carries its own fixed-size stop instead, sized to exactly
 what the grid holds. `grid-above-ladder.md` is the rulebook for that pairing,
 including why the grid's stop must sit above the ladder's first buy.
+
+**A selling grid and a DCA ladder can never share a coin.** The ladder is a
+buying plan and the exchange holds one position for the coin, so the ladder's
+rungs would close the grid's short instead of building anything. That is
+refused before every other pairing rule is even looked at.
 
 **The stop can be moved whenever you like, including while the grid holds
 nothing.** That is the ordinary state between one cycle and the next, and the
@@ -343,8 +474,8 @@ sense yet.
 
 ## What is remembered between grids
 
-The window remembers shape, not prices: how deep, how many levels, how the money
-is split, the chosen borrowing, where the range sits, and whether it follows up
-or down. A percentage means the same thing on the next coin you open and a
+The window remembers shape, not prices: which way round the grid runs, how deep,
+how many levels, how the money is split, the chosen borrowing, where the range
+sits, and whether it follows up or down. A percentage means the same thing on the next coin you open and a
 price does not, so nothing about one coin's range is carried onto another
 chart.

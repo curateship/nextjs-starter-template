@@ -752,7 +752,15 @@ function SmartOrderDetailsPopover({
                 : whereItHasGot(order, position)}
           </DetailRow>
           {order.kind === "grid" ? (
-            <DetailRow label="Held to sell">
+            <DetailRow
+              // A selling grid buys its position back; everything else,
+              // including any plan too old to carry a direction, sells.
+              label={
+                order.plan.direction === "short"
+                  ? "Held to buy back"
+                  : "Held to sell"
+              }
+            >
               <span className="tabular-nums">
                 {formatUsd(gridHeldToSell(order))}
               </span>
@@ -903,7 +911,11 @@ function whereItHasGot(
   return position ? `Holding from ${formatPrice(position.entryPx)}` : "Holding"
 }
 
-/** Dollars paid for the coins a grid has not sold yet. */
+/**
+ * Dollars a grid's open levels put up, and have not closed yet — coins a
+ * buying grid still has to sell, or a short a selling grid still has to buy
+ * back.
+ */
 function gridHeldToSell(order: Extract<SmartOrder, { kind: "grid" }>): number {
   return [...order.plan.levels, ...order.plan.carriedLevels].reduce(
     (total, level) => total + level.heldSz * level.buyPx,
@@ -972,9 +984,12 @@ export function bankedBy(
     at >= order.createdAt
 
   // Over every fill, not only this order's: a level's round trip is paid out
-  // of the buy that level made, and that buy has to still be in the list for
-  // the sale to be worth anything.
-  const levels = gridRoundTrips(fills)
+  // of the trade that level opened with, and that trade has to still be in the
+  // list for the closing one to be worth anything.
+  const levels = gridRoundTrips(
+    fills,
+    order.kind === "grid" ? order.plan.direction : "long"
+  )
 
   const sales: Sale[] = []
   for (const fill of fills) {
