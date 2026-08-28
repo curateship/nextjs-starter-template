@@ -34,9 +34,19 @@ screen if that ask fails.
 The Bots tab gets its first list from that same opening call. Pressing the tab
 asks again at once, so the figures do not wait up to six seconds for the first
 timer. While the tab is open it checks every six seconds, because a bot can
-stop without a click on the dashboard. Leaving the tab stops those checks. A
-failed refresh keeps the last list rather than replacing it with an empty
-answer. The richer rows reuse the stored run report and never ask an exchange.
+stop without a click on the dashboard. Leaving the tab stops those checks.
+Hiding the whole browser page stops them too. The old timer made 50 server
+calls during five hidden minutes. It now makes none, and asks once as soon as
+the page is visible again. A failed refresh keeps the last list rather than
+replacing it with an empty answer.
+
+The server reads only the active order rows placed by the runs in the list.
+Fill history and permanent order ownership are limited to the wallets and
+coins those runs use, including coins they placed and later removed from their
+settings. Ownership from an older run on the same wallet and coin stays in the
+answer because a position can outlive the run that opened it. The visible
+money, finished trades and coins held therefore keep the same attribution
+without pulling unrelated wallet history into every six-second refresh.
 
 The bot count does not bring each smart order's plan back from the database.
 PostgreSQL checks whether a DCA plan contains a waiting rung and returns one

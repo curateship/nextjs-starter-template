@@ -44,7 +44,9 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=build /app/apps/trade/worker/dist ./worker/dist
+# Source maps stay in the build stage for local crash debugging. The running
+# image gets only the three programs Node opens, never their debugging files.
+COPY --from=build /app/apps/trade/worker/dist/*.mjs ./worker/dist/
 COPY --from=build /app/apps/trade/package.json ./package.json
 
 # **Lighter's signer is two files, not code, so the bundler leaves them

@@ -727,13 +727,16 @@ export async function loadLiveHistoryIfChanged(
 export async function loadLiveHistory(
   userId: string,
   walletIds: readonly string[],
-  before?: number
+  before?: number,
+  marketKeys?: readonly string[]
 ): Promise<{
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
 }> {
-  if (walletIds.length === 0) return { fills: [], trades: [], nextBefore: null }
+  if (walletIds.length === 0 || marketKeys?.length === 0) {
+    return { fills: [], trades: [], nextBefore: null }
+  }
 
   const [fillRows, triggerRows] = await Promise.all([
     db
@@ -743,6 +746,9 @@ export async function loadLiveHistory(
         and(
           eq(tradeLiveFills.userId, userId),
           inArray(tradeLiveFills.walletId, [...walletIds]),
+          marketKeys
+            ? inArray(tradeLiveFills.marketKey, [...marketKeys])
+            : undefined,
           eq(tradeLiveFills.hidden, false),
           before === undefined ? undefined : lt(tradeLiveFills.at, before)
         )
@@ -755,7 +761,10 @@ export async function loadLiveHistory(
       .where(
         and(
           eq(tradeLiveTriggers.userId, userId),
-          inArray(tradeLiveTriggers.walletId, [...walletIds])
+          inArray(tradeLiveTriggers.walletId, [...walletIds]),
+          marketKeys
+            ? inArray(tradeLiveTriggers.marketKey, [...marketKeys])
+            : undefined
         )
       ),
   ])

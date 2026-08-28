@@ -1463,13 +1463,16 @@ function toTradeFill(row: JournalRow): LiveFill {
 export async function loadPaperHistory(
   userId: string,
   walletIds: readonly string[],
-  before?: number
+  before?: number,
+  marketKeys?: readonly string[]
 ): Promise<{
   fills: LiveFill[]
   trades: LiveTrade[]
   nextBefore: number | null
 }> {
-  if (walletIds.length === 0) return { fills: [], trades: [], nextBefore: null }
+  if (walletIds.length === 0 || marketKeys?.length === 0) {
+    return { fills: [], trades: [], nextBefore: null }
+  }
   const rows = await db
     .select()
     .from(tradePaperJournal)
@@ -1477,6 +1480,9 @@ export async function loadPaperHistory(
       and(
         eq(tradePaperJournal.userId, userId),
         inArray(tradePaperJournal.walletId, [...walletIds]),
+        marketKeys
+          ? inArray(tradePaperJournal.marketKey, [...marketKeys])
+          : undefined,
         eq(tradePaperJournal.hidden, false),
         before === undefined
           ? undefined

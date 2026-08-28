@@ -142,7 +142,7 @@ export function SmartOrdersPanel({
   const botsKnownRef = React.useRef(initialBotsError === null)
 
   const refreshBots = React.useCallback(async () => {
-    if (botsReading.current) return
+    if (document.hidden || botsReading.current) return
     botsReading.current = true
     const wasKnown = botsKnownRef.current
     if (!wasKnown) setBotsBusy(true)
@@ -161,8 +161,13 @@ export function SmartOrdersPanel({
 
   React.useEffect(() => {
     if (tab !== "bots") return
-    const timer = window.setInterval(() => void refreshBots(), BOTS_REFRESH_MS)
-    return () => window.clearInterval(timer)
+    const refreshWhenVisible = () => void refreshBots()
+    const timer = window.setInterval(refreshWhenVisible, BOTS_REFRESH_MS)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
+    return () => {
+      window.clearInterval(timer)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
+    }
   }, [refreshBots, tab])
 
   return (

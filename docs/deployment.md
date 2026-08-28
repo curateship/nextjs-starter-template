@@ -128,6 +128,12 @@ Neither prints the database address, the connection string, or the underlying
 error. Container health output is widely readable. The real error goes to the
 container's own log.
 
+The worker build writes external JavaScript source maps for local debugging.
+Those maps contain file names and line mappings, but not `sourcesContent`, so
+they never contain a readable copy of the server source. Each app's Dockerfile
+decides whether the map itself belongs in its running image. Trade copies only
+the three `.mjs` programs and leaves every map in the build stage.
+
 ## Rolling back
 
 1. Redeploy the previous commit's web resource.

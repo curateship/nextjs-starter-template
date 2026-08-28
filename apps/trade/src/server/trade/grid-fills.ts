@@ -33,6 +33,7 @@ export async function stampGridFills(
   fills: LiveFill[]
 ): Promise<LiveFill[]> {
   if (walletIds.length === 0 || fills.length === 0) return fills
+  const marketKeys = [...new Set(fills.map((fill) => fill.marketKey))]
 
   const rows = await db
     .select({
@@ -47,6 +48,7 @@ export async function stampGridFills(
       and(
         eq(tradeSmartLadders.userId, userId),
         inArray(tradeSmartLadders.walletId, [...walletIds]),
+        inArray(tradeSmartLadders.marketKey, marketKeys),
         eq(tradeSmartLadders.kind, "grid")
       )
     )

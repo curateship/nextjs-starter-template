@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
-import { recordLiveFills, sweepWaitMs } from "@/server/trade/live-fills"
+import {
+  loadLiveHistory,
+  recordLiveFills,
+  sweepWaitMs,
+} from "@/server/trade/live-fills"
 import { tradeLiveFills, tradeWallets } from "@/server/trade/schema"
 
 let client: PGlite
@@ -86,5 +90,67 @@ describe("live fill storage", () => {
       .where(eq(tradeLiveFills.userId, user.id))
     expect(rows).toHaveLength(1)
     expect(rows[0].fillId).toBe("88")
+  })
+
+  it("reads only the markets requested for a run list", async () => {
+    const user = await insertUser(database)
+    const walletId = crypto.randomUUID()
+    const btc = "hyperliquid:mainnet:BTC"
+    const eth = "hyperliquid:mainnet:ETH"
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: walletId,
+      label: "Main",
+      kind: "live",
+      status: "active",
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+    })
+    await database.insert(tradeLiveFills).values(
+      [btc, eth].flatMap((marketKey, index) => [
+        {
+          userId: user.id,
+          walletId,
+          fillId: `open-${index}`,
+          orderId: `open-order-${index}`,
+          marketKey,
+          side: "buy" as const,
+          px: 100,
+          sz: 1,
+          at: index * 10 + 1,
+          closedPnl: 0,
+          fee: 0,
+          dir: "Open Long",
+          liquidation: false,
+        },
+        {
+          userId: user.id,
+          walletId,
+          fillId: `close-${index}`,
+          orderId: `close-order-${index}`,
+          marketKey,
+          side: "sell" as const,
+          px: 110,
+          sz: 1,
+          at: index * 10 + 2,
+          closedPnl: 10,
+          fee: 0,
+          dir: "Close Long",
+          liquidation: false,
+        },
+      ])
+    )
+
+    const history = await loadLiveHistory(
+      user.id,
+      [walletId],
+      undefined,
+      [btc]
+    )
+
+    expect(history.trades).toHaveLength(1)
+    expect(history.trades[0].marketKey).toBe(btc)
   })
 })

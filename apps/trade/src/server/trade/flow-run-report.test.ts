@@ -661,6 +661,21 @@ describe("listFlowRuns", () => {
       at: NOW + 600_000,
       pnl: 500,
     })
+    await db.insert(tradeFlowRunOrders).values({
+      userId,
+      walletId: "w1",
+      orderId: "old-off-list-open",
+      flowRunId: "run-1",
+      ladderId: "old-off-list-ladder",
+      marketKey: OTHER,
+    })
+    await roundTrip({
+      marketKey: OTHER,
+      openOrderId: "old-off-list-open",
+      closeOrderId: "old-off-list-close",
+      at: NOW + 1_200_000,
+      pnl: 1_000,
+    })
 
     const rows = await listFlowRuns(userId, NOW + 7_200_000)
     expect(rows).toHaveLength(1)

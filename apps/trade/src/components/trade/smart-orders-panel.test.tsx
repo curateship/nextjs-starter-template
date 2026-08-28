@@ -305,6 +305,48 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
+  it("rests while the browser tab is hidden and refreshes when it returns", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    vi.useFakeTimers()
+    let hidden = false
+    const hiddenSpy = vi
+      .spyOn(document, "hidden", "get")
+      .mockImplementation(() => hidden)
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[]}
+          settled
+          failed={false}
+        />
+      )
+    })
+    await openBots(host)
+    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(1)
+
+    hidden = true
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+      await vi.advanceTimersByTimeAsync(300_000)
+    })
+    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(1)
+
+    hidden = false
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(flowRunsApi.loadRunningBots).toHaveBeenCalledTimes(2)
+
+    await act(async () => root.unmount())
+    hiddenSpy.mockRestore()
+  })
+
   it("shows the bot figures and confirms Stop before acting", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }

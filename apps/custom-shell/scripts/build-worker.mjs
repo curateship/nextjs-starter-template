@@ -42,6 +42,7 @@ await build({
   target: "node22",
   format: "esm",
   sourcemap: true,
+  sourcesContent: false,
   packages: "external",
   alias: {
     "@": path.join(root, "src"),

@@ -59,6 +59,8 @@ Two files outrank the rest, and outrank the code:
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.
+- `worker-image.md` explains why local worker builds keep source maps, why
+  those maps contain no server source, and which files enter the running image.
 - `liquidation-warning.md` — where the warning is set, how distance is measured,
   and why one crossing sends one notice.
 - `trade-notices.md` — the bell notices: one per fill, a second when a stop or

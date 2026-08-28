@@ -190,9 +190,10 @@ export type FlowRunReport = {
 /** Which run each of a wallet's orders belongs to. */
 async function orderOwners(
   userId: string,
-  walletIds: readonly string[]
+  walletIds: readonly string[],
+  marketKeys?: readonly string[]
 ): Promise<FlowRunOrderOwners> {
-  if (walletIds.length === 0) return new Map()
+  if (walletIds.length === 0 || marketKeys?.length === 0) return new Map()
   const rows = await db
     .select({
       orderId: tradeFlowRunOrders.orderId,
@@ -202,7 +203,10 @@ async function orderOwners(
     .where(
       and(
         eq(tradeFlowRunOrders.userId, userId),
-        inArray(tradeFlowRunOrders.walletId, [...walletIds])
+        inArray(tradeFlowRunOrders.walletId, [...walletIds]),
+        marketKeys
+          ? inArray(tradeFlowRunOrders.marketKey, [...marketKeys])
+          : undefined
       )
     )
   return new Map(rows.map((row) => [row.orderId, row.flowRunId]))
@@ -345,18 +349,23 @@ function runHeadline(
 /** One wallet's finished trades and open fills, from rows already written. */
 async function historyOf(
   userId: string,
-  wallets: readonly TradeWallet[]
+  wallets: readonly TradeWallet[],
+  marketKeys?: readonly string[]
 ): Promise<{ fills: LiveFill[]; trades: LiveTrade[] }> {
   const live = wallets.filter((wallet) => wallet.kind === "live")
   const paper = wallets.filter((wallet) => wallet.kind === "paper")
   const [fromLive, fromPaper] = await Promise.all([
     loadLiveHistory(
       userId,
-      live.map((wallet) => wallet.id)
+      live.map((wallet) => wallet.id),
+      undefined,
+      marketKeys
     ),
     loadPaperHistory(
       userId,
-      paper.map((wallet) => wallet.id)
+      paper.map((wallet) => wallet.id),
+      undefined,
+      marketKeys
     ),
   ])
   return {
@@ -386,8 +395,14 @@ export async function listFlowRuns(
   if (rows.length === 0) return []
 
   const wallets = await listWallets(userId)
+  const runIds = rows.map((row) => row.id)
   const walletIds = [...new Set(rows.map((row) => row.walletId))]
   const involved = wallets.filter((wallet) => walletIds.includes(wallet.id))
+  const marketKeys = [
+    ...new Set(
+      rows.flatMap((row) => [...row.spec.marketKeys, ...row.placed])
+    ),
+  ]
 
   const [names, ladders, owners, history] = await Promise.all([
     db
@@ -405,8 +420,8 @@ export async function listFlowRuns(
           )
         )
       ),
-    // Every active row on these wallets is read once. PostgreSQL sends one
-    // small fact about the plan rather than sending the plan itself.
+    // Only active rows placed by the runs on this page are read. PostgreSQL
+    // sends one small fact about the plan rather than the plan itself.
     db
       .select({
         marketKey: tradeSmartLadders.marketKey,
@@ -418,12 +433,14 @@ export async function listFlowRuns(
       .where(
         and(
           eq(tradeSmartLadders.userId, userId),
-          inArray(tradeSmartLadders.walletId, walletIds),
+          inArray(tradeSmartLadders.flowRunId, runIds),
           eq(tradeSmartLadders.status, "active")
         )
       ),
-    orderOwners(userId, walletIds),
-    historyOf(userId, involved),
+    // Owners from other runs on the same wallet and coin stay in the answer.
+    // A position can outlive its run, and its earliest owner must still win.
+    orderOwners(userId, walletIds, marketKeys),
+    historyOf(userId, involved, marketKeys),
   ])
 
   const nameOf = new Map(names.map((one) => [one.id, one.name]))
