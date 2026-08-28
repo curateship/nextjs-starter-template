@@ -13,18 +13,23 @@ price reaches it the grid trades there and then. That is the app-wide rule and
 
 ## Buy the dips, or sell the rallies
 
-A **Sell the rallies** checkbox sits at the top of the Range card, and it is
-the first thing the window asks because every label under it changes with the
-answer.
+Two boxes, **Long** and **Short**, sit side by side at the top of the Range
+card. They are the first thing the window asks, because every label under them
+changes with the answer. Exactly one is ever ticked: clicking the one already
+on does nothing, so a grid can never be left with no direction at all.
 
-**Off** is the buying grid, which is what every grid was. It buys at each level
-and sells one step above it, and earns while a coin chops sideways or drifts
-up.
+**Long** is the buying grid, which is what every grid was, and it is the one
+the window opens on. It buys at each level and sells one step above it, and
+earns while a coin chops sideways or drifts up.
 
-**On**, the grid sells at each level and buys back one step below it. It earns
-while a coin chops sideways or drifts down. Selling a coin you do not own means
+**Short** sells at each level and buys back one step below it. It earns while a
+coin chops sideways or drifts down. Selling a coin you do not own means
 borrowing it from the exchange, selling it, and buying it back later. You keep
 the difference if it got cheaper.
+
+Elsewhere the two are called **Buy the dips** and **Sell the rallies** — on the
+chart's badge and in the running grid's window, which are explaining rather
+than asking, and have room for the phrase.
 
 A coin that has run up and is now chopping under a ceiling is the case for
 selling the rallies. A buying grid there keeps buying dips in something that is
@@ -82,7 +87,8 @@ it closes seconds after being placed. If it were holding a short, its stop
 would be written on the wrong side of it.
 
 So the engine and the app are deployed together, or the engine first, never the
-app alone. A rollback has the same problem in reverse. Buying grids are
+app alone. That happened on 28 Aug 2026, and selling grids have worked since. A
+rollback has the same problem in reverse. Buying grids are
 unaffected either way, because every stored plan stays in the shape every
 version reads. `trading-rules.md` carries the rule this comes from.
 

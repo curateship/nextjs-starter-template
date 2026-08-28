@@ -50,7 +50,9 @@ import {
   GRID_ANCHOR_HINTS,
   GRID_ANCHOR_LABELS,
   GRID_ANCHORS,
-  GRID_DIRECTION_LABELS,
+  GRID_DIRECTION_HINTS,
+  GRID_DIRECTION_PICKER_LABELS,
+  GRID_DIRECTIONS,
   GRID_SPACING_HINT,
   GRID_SPACING_LABELS,
   GRID_SPACINGS,
@@ -432,9 +434,8 @@ export function GridOrderDialog({
   // Levels price has not passed yet. They trade nothing now: each one waits for
   // price to go by and come back, and then opens at its own price.
   const dormant =
-    plan?.levels.filter(
-      (one) => !readyWhen(direction, market.price, one.buyPx)
-    ).length ?? 0
+    plan?.levels.filter((one) => !readyWhen(direction, market.price, one.buyPx))
+      .length ?? 0
 
   const takeProfitPct = parsed(tpPct)
   const takeProfitPx =
@@ -589,23 +590,30 @@ export function GridOrderDialog({
             }
           >
             {/* Which way round the grid runs. The first thing the card asks,
-                because every label under it changes with the answer. Off is
-                the buying grid, which is what every grid was. */}
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="grid-direction"
-                checked={direction === "short"}
-                disabled={busy}
-                onCheckedChange={touched((next: boolean | "indeterminate") =>
-                  setDirection(next === true ? "short" : "long")
-                )}
-              />
-              <FieldLabel
-                htmlFor="grid-direction"
-                hint="Off, the grid buys at each level and sells one step above it, so it earns while a coin chops sideways or drifts up. On, it sells at each level and buys back one step below it, so it earns while a coin chops sideways or drifts down. Selling a coin you do not own means borrowing it from the exchange and buying it back later."
-              >
-                {GRID_DIRECTION_LABELS.short}
-              </FieldLabel>
+                because every label under it changes with the answer.
+
+                Two boxes side by side rather than one, because "Long" and
+                "Short" are the words for the two things and neither reads as
+                the absence of the other. Exactly one is always ticked:
+                clicking the one already on does nothing, so the grid can never
+                be left with no direction at all. */}
+            <div className="flex items-center gap-6">
+              {GRID_DIRECTIONS.map((one) => (
+                <div key={one} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`grid-direction-${one}`}
+                    checked={direction === one}
+                    disabled={busy}
+                    onCheckedChange={touched(() => setDirection(one))}
+                  />
+                  <FieldLabel
+                    htmlFor={`grid-direction-${one}`}
+                    hint={GRID_DIRECTION_HINTS[one]}
+                  >
+                    {GRID_DIRECTION_PICKER_LABELS[one]}
+                  </FieldLabel>
+                </div>
+              ))}
             </div>
             <div className="grid gap-2">
               <FieldLabel

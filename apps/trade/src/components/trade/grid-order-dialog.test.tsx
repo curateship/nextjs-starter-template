@@ -200,25 +200,46 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).not.toContain("Follows down")
   })
 
-  /** The checkbox at the top of the Range card. Off is the buying grid. */
-  const directionBox = () =>
-    host.querySelector<HTMLButtonElement>("#grid-direction")
+  /** The two boxes at the top of the Range card. Exactly one is always on. */
+  const directionBox = (which: "long" | "short") =>
+    host.querySelector<HTMLButtonElement>(`#grid-direction-${which}`)
 
   const sellTheRallies = async () => {
-    await act(async () => directionBox()?.click())
+    await act(async () => directionBox("short")?.click())
   }
 
   it("offers both ways round, and buying is the one it opens on", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     await renderDialog()
 
-    const box = directionBox()
-    expect(box).not.toBeNull()
-    expect(host.textContent).toContain("Sell the rallies")
-    // Unchecked is the buying grid, which is what every grid was.
-    expect(box?.getAttribute("data-state")).toBe("unchecked")
+    expect(directionBox("long")).not.toBeNull()
+    expect(directionBox("short")).not.toBeNull()
+    expect(host.textContent).toContain("Long")
+    expect(host.textContent).toContain("Short")
+    // Buying is the one it opens on, and exactly one is ever ticked.
+    expect(directionBox("long")?.getAttribute("data-state")).toBe("checked")
+    expect(directionBox("short")?.getAttribute("data-state")).toBe("unchecked")
     expect(host.textContent).toContain("Below the bottom %")
     expect(host.textContent).toContain("Stop under the base")
+  })
+
+  it("never leaves the grid with no direction at all", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    await renderDialog()
+
+    // Clicking the box that is already on is a no-op, not an untick.
+    await act(async () => directionBox("long")?.click())
+    expect(directionBox("long")?.getAttribute("data-state")).toBe("checked")
+    expect(host.textContent).toMatch(/Place \d+ buys/)
+
+    // And picking one always releases the other.
+    await sellTheRallies()
+    expect(directionBox("long")?.getAttribute("data-state")).toBe("unchecked")
+    expect(directionBox("short")?.getAttribute("data-state")).toBe("checked")
+
+    await act(async () => directionBox("long")?.click())
+    expect(directionBox("long")?.getAttribute("data-state")).toBe("checked")
+    expect(directionBox("short")?.getAttribute("data-state")).toBe("unchecked")
   })
 
   it("rewrites the Range, Stop loss and End Grid wording for a selling grid", async () => {

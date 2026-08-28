@@ -76,12 +76,34 @@ export const DEFAULT_GRID_BELOW_PCT = DEFAULT_GRID_ABOVE_PCT
  * Every stored grid without this field is a buying grid, which is what they
  * all were.
  */
-const GRID_DIRECTIONS = ["long", "short"] as const
+export const GRID_DIRECTIONS = ["long", "short"] as const
 export type GridDirection = (typeof GRID_DIRECTIONS)[number]
 
+/**
+ * What each direction is called in a sentence — the chart's badge, and the
+ * running grid's window. A phrase, because those places are explaining rather
+ * than asking.
+ */
 export const GRID_DIRECTION_LABELS: Record<GridDirection, string> = {
   long: "Buy the dips",
   short: "Sell the rallies",
+}
+
+/**
+ * What each direction is called on the control that picks it. One word,
+ * because a pair of choices side by side reads as a pair only when both are
+ * the same shape, and "Long" against "Sell the rallies" is not a pair.
+ */
+export const GRID_DIRECTION_PICKER_LABELS: Record<GridDirection, string> = {
+  long: "Long",
+  short: "Short",
+}
+
+/** What each direction means, for the tooltip beside the control. */
+export const GRID_DIRECTION_HINTS: Record<GridDirection, string> = {
+  long: "Buy the dips. The grid buys at each level and sells one step above it, so it earns while a coin chops sideways or drifts up.",
+  short:
+    "Sell the rallies. The grid sells at each level and buys back one step below it, so it earns while a coin chops sideways or drifts down. Selling a coin you do not own means borrowing it from the exchange and buying it back later, and keeping the difference if it got cheaper.",
 }
 
 /**
