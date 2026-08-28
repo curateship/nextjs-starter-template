@@ -189,6 +189,8 @@ function chart(key: string) {
         selectedKey={key}
         interval="15m"
         initialChartView={null}
+        initialChart={null}
+        initialDrawings={{ marketKey: null, rows: [], error: null }}
         initialQuickOrder={DEFAULT_QUICK_ORDER}
         options={DEFAULT_CHART_OPTIONS}
         indicators={{}}
@@ -207,6 +209,54 @@ function chart(key: string) {
 }
 
 describe("the chart candle request", () => {
+  it("draws the opening candles and asks only for the deeper history", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const key = "hyperliquid:mainnet:BTC"
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey={key}
+          interval="4h"
+          initialChartView={null}
+          initialChart={{
+            key: `${key}@4h`,
+            interval: "4h",
+            candles: [
+              {
+                openTime: 0,
+                open: 100,
+                high: 110,
+                low: 90,
+                close: 105,
+                volume: 10,
+              },
+            ],
+            error: null,
+          }}
+          initialDrawings={{ marketKey: key, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={null}
+          trading={trading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+
+    expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
+    expect(loadCandles).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTime(0))
+    expect(loadCandles).toHaveBeenCalledOnce()
+    expect(loadCandles).toHaveBeenCalledWith(key, "4h")
+  })
+
   it("asks at once on a cold load and settles rapid later choices", async () => {
     vi.useFakeTimers()
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
@@ -251,6 +301,8 @@ describe("the chart paint tools", () => {
           selectedKey="hyperliquid:BTC"
           interval="15m"
           initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
           initialQuickOrder={DEFAULT_QUICK_ORDER}
           options={DEFAULT_CHART_OPTIONS}
           indicators={{}}
@@ -372,6 +424,8 @@ describe("the chart stop-loss shortcut", () => {
           selectedKey="hyperliquid:BTC"
           interval="15m"
           initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
           initialQuickOrder={DEFAULT_QUICK_ORDER}
           options={DEFAULT_CHART_OPTIONS}
           indicators={{}}
@@ -452,6 +506,8 @@ describe("the chart take-profit shortcut", () => {
           selectedKey="hyperliquid:BTC"
           interval="15m"
           initialChartView={null}
+          initialChart={null}
+          initialDrawings={{ marketKey: null, rows: [], error: null }}
           initialQuickOrder={DEFAULT_QUICK_ORDER}
           options={DEFAULT_CHART_OPTIONS}
           indicators={{}}

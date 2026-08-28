@@ -22,8 +22,8 @@ Two files outrank the rest, and outrank the code:
   open position has cost in fees.
 - `chart-timezone.md` — the one clock the chart is on, where it is set, and why
   it is stored as a place rather than as an offset.
-- `chart-loading.md` — when the first candle request leaves, why later market
-  choices wait briefly, and how a live run refreshes rungs that just landed.
+- `chart-loading.md` explains which candles arrive with a dashboard, when a
+  chart asks on its own, and why later market choices wait briefly.
 - `opening-range-indicator.md` — what the opening range is, its settings, and
   the rules it follows about breaks, gaps and the session in progress.
 - `ema-indicator.md` — the three EMA lines and the 50 / 200 crossover rule.
@@ -83,10 +83,9 @@ Two files outrank the rest, and outrank the code:
   the coins.
 - `backtest-minute-zoom.md` — how a backtest reads a candle, and why saved
   results from before 18 Aug 2026 are too kind.
-- `dashboard-speed.md` — what one database trip costs, why the page opens with
-  one server call, how the Bots tab stays current, what the four-second poll
-  does now, and why the Journal and the smart orders only travel when they
-  changed.
+- `dashboard-speed.md` explains what one database trip costs, what the opening
+  answer carries, how market lists are shared for a minute, and what the
+  four-second poll still asks for.
 - `browser-tab-titles.md` — how each Trade screen names its browser tab, and
   how chart tabs include their market and exchange.
 - `running-tests-fast.md` — `npm run test:app`, the everyday test command: what

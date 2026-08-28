@@ -29,6 +29,38 @@ let rememberedSetting: boolean | undefined
 let settingLoad: Promise<boolean> | null = null
 const settingListeners = new Set<() => void>()
 
+export type TradeSoundBootstrap = {
+  enabled: boolean
+  events: TradeSoundEvent[]
+  cursor: TradeSoundCursor
+  error: string | null
+}
+
+let openingSoundAnswer: TradeSoundBootstrap | null = null
+let seededSoundAnswer: TradeSoundBootstrap | null = null
+
+/**
+ * Fill the browser copy from a dashboard answer without replacing a newer
+ * setting changed in this tab. The listener reads the cursor to avoid asking
+ * for the same opening slice again when its event stream connects.
+ */
+export function seedTradeSounds(answer: TradeSoundBootstrap) {
+  if (seededSoundAnswer === answer) return
+  seededSoundAnswer = answer
+  openingSoundAnswer = answer
+  if (answer.error === null && rememberedSetting === undefined) {
+    rememberTradeSoundSetting(answer.enabled)
+  }
+}
+
+export function readTradeSoundBootstrap() {
+  return openingSoundAnswer
+}
+
+export function consumeTradeSoundBootstrap(answer: TradeSoundBootstrap) {
+  if (openingSoundAnswer === answer) openingSoundAnswer = null
+}
+
 /** The account switch is read once, then reused while this signed-in app stays open. */
 export function readRememberedTradeSoundSetting() {
   return rememberedSetting
@@ -105,11 +137,7 @@ export function createTradeSoundPlayer({
     if (!interacted) return false
     const at = now()
     const last = lastPlayedAt[kind]
-    if (
-      collapse &&
-      last !== undefined &&
-      at - last < TRADE_SOUND_COLLAPSE_MS
-    ) {
+    if (collapse && last !== undefined && at - last < TRADE_SOUND_COLLAPSE_MS) {
       return false
     }
     lastPlayedAt[kind] = at

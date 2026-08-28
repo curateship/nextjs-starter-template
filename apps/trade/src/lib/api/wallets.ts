@@ -20,6 +20,7 @@ import {
 } from "@/server/trade/wallets"
 
 import { createErrorMessage } from "./error-message"
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 
 /**
  * Wallets and their figures. One read serves the whole account panel — the
@@ -50,11 +51,7 @@ const createWalletSchema = z
     kind: z.enum(["paper", "live"]),
     protocol: z.enum(KNOWN_PROTOCOLS),
     network: z.enum(["mainnet", "testnet"]),
-    startingBalance: z
-      .number()
-      .positive()
-      .max(MAX_STARTING_BALANCE)
-      .optional(),
+    startingBalance: z.number().positive().max(MAX_STARTING_BALANCE).optional(),
     address: z.string().trim().min(1).max(64).optional(),
     agentKey: credentialFieldSchema.optional(),
     secret: credentialFieldSchema.optional(),
@@ -151,25 +148,34 @@ export function loadWalletAccounts(protocol?: ProtocolId) {
   return loadWalletAccountsFn({ data: { protocol } })
 }
 
-export function createWallet(input: z.infer<typeof createWalletSchema>) {
-  return createWalletFn({ data: input })
+export async function createWallet(input: z.infer<typeof createWalletSchema>) {
+  const answer = await createWalletFn({ data: input })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
-export function updateWallet(input: z.infer<typeof updateWalletSchema>) {
-  return updateWalletFn({ data: input })
+export async function updateWallet(input: z.infer<typeof updateWalletSchema>) {
+  const answer = await updateWalletFn({ data: input })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
-export function deleteWallet(id: string) {
-  return deleteWalletFn({ data: { id } })
+export async function deleteWallet(id: string) {
+  const answer = await deleteWalletFn({ data: { id } })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
-export function pickWallet(id: string) {
-  return pickWalletFn({ data: { id } })
+export async function pickWallet(id: string) {
+  const answer = await pickWalletFn({ data: { id } })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
 const baseWalletErrorMessage = createErrorMessage(
   {
-    WALLET_LIMIT: "Twenty wallets is the cap — delete one before adding another.",
+    WALLET_LIMIT:
+      "Twenty wallets is the cap — delete one before adding another.",
     WALLET_BALANCE_REQUIRED: "Enter the cash a practice wallet starts with.",
     WALLET_CREDENTIALS_REQUIRED:
       "A live wallet needs its address and its trading key.",
@@ -191,8 +197,7 @@ const baseWalletErrorMessage = createErrorMessage(
     // account sends its own reason after the code, and that reason says what
     // to do; a second generic sentence here would sit between the two and
     // push the useful one out of sight.
-    KEY_NOT_APPROVED:
-      "The exchange does not accept that key for this account.",
+    KEY_NOT_APPROVED: "The exchange does not accept that key for this account.",
     KEY_EXPIRED:
       "That key's approval has run out. Create a fresh API key on the exchange and paste it.",
     KEY_CHECK_UNAVAILABLE:
@@ -208,7 +213,8 @@ const baseWalletErrorMessage = createErrorMessage(
     WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     WALLET_INACTIVE: "Make this wallet active before trading with it.",
-    WALLET_BALANCE_KIND: "Only a practice wallet's starting cash can be changed.",
+    WALLET_BALANCE_KIND:
+      "Only a practice wallet's starting cash can be changed.",
     WALLET_KEY_KIND: "Only a live wallet has a trading key.",
     ENCRYPTION_NOT_CONFIGURED:
       "Secret storage is not set up on this server, so a trading key cannot be saved. Set CUSTOM_SHELL_SECRET_ENCRYPTION_KEY first.",

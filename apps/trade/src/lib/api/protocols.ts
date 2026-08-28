@@ -1,24 +1,11 @@
-import { createServerFn } from "@tanstack/react-start"
-
 import type {
   CredentialForm,
   NetworkId,
   ProtocolCapabilities,
   ProtocolId,
 } from "@/lib/protocols/contracts"
-import { userGet } from "@/server/guards"
-import { listProtocols } from "@/server/protocols/registry"
 
-/**
- * The exchanges this build ships, as data a screen can draw.
- *
- * The wallet dialog is the customer: it needs to offer "which exchange is
- * this wallet on?" and then draw that exchange's own sign-in fields — labels,
- * a passphrase where one is demanded, help copy — without ever comparing a
- * protocol id, which the fence forbids. So the registry's descriptions travel
- * to the browser as plain data. No secrets live anywhere near this: the form
- * says what to ASK for, never what anyone answered.
- */
+/** The public, browser-safe part of one exchange adapter. */
 export type ProtocolDescription = {
   id: ProtocolId
   label: string
@@ -29,41 +16,209 @@ export type ProtocolDescription = {
   credentialForm: CredentialForm | null
 }
 
-const loadProtocolsFn = createServerFn({ method: "GET" })
-  .middleware([userGet])
-  .handler(async (): Promise<{ protocols: ProtocolDescription[] }> => {
-    return {
-      protocols: listProtocols().map((entry) => ({
-        id: entry.id,
-        label: entry.label,
-        networks: entry.networks,
-        defaultNetwork: entry.defaultNetwork,
-        capabilities: entry.capabilities,
-        credentialForm: entry.credentials?.form ?? null,
-      })),
-    }
-  })
+/**
+ * The exchanges this build ships, as data a screen can draw.
+ *
+ * This is build-time data, not account data. Keeping it in the browser bundle
+ * means the wallet dialog and capability gates no longer pay a session check
+ * to ask the server which code was compiled into the same build.
+ */
+export const PROTOCOL_DESCRIPTIONS = [
+  {
+    id: "hyperliquid",
+    label: "Hyperliquid",
+    networks: ["mainnet", "testnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      gridStop: "exchange",
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
+    },
+    credentialForm: {
+      addressLabel: "Account address",
+      addressHint: "0x…",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "Trading key (agent key)",
+      needsPassphrase: false,
+      secretIsAgentKey: true,
+      keyHelp:
+        "An agent key made on the exchange's API page — approved to trade " +
+        "for this account and nothing more. Never the account's own key, " +
+        "which can move money out and is refused here.",
+    },
+  },
+  {
+    id: "phemex",
+    label: "Phemex",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      gridStop: "exchange",
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
+    },
+    credentialForm: {
+      addressLabel: "API key ID",
+      addressHint: "The key's ID from Phemex's API Management page",
+      // Phemex issues UUID-shaped ids. This checks shape, while the signed
+      // exchange request is what proves the credential.
+      addressPattern: "^[0-9A-Za-z-]{16,42}$",
+      secretLabel: "API secret",
+      needsPassphrase: false,
+      secretIsAgentKey: false,
+      keyHelp:
+        "Made on Phemex under API Management — give it trade permission, " +
+        "and copy both the ID and the secret while they are shown.",
+    },
+  },
+  {
+    id: "kucoin",
+    label: "KuCoin",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      gridStop: "exchange",
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
+    },
+    credentialForm: {
+      addressLabel: "API key",
+      addressHint: "The key from KuCoin's API Management page",
+      // KuCoin currently issues 24-character hex ids. The tolerant shape
+      // check leaves proof to the signed exchange request.
+      addressPattern: "^[0-9A-Za-z]{16,42}$",
+      secretLabel: "API secret",
+      needsPassphrase: true,
+      secretIsAgentKey: false,
+      keyHelp:
+        "Made on KuCoin under API Management, with Futures trading " +
+        "permission. Copy all three — the key, the secret and the " +
+        "passphrase you chose — while they are shown. If the key is " +
+        "restricted to certain addresses, this server's address must be " +
+        "on that list.",
+    },
+  },
+  {
+    id: "aster",
+    label: "Aster",
+    networks: ["mainnet", "testnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      gridStop: "exchange",
+      changeLeverage: { can: true },
+      adjustMargin: { can: true },
+    },
+    credentialForm: {
+      addressLabel: "Main Aster wallet address",
+      addressHint: "0x…",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "API wallet key",
+      needsPassphrase: false,
+      secretIsAgentKey: true,
+      keyHelp:
+        "Make a separate Pro API wallet on Aster's API Wallet page and give it perpetual trading permission. The first field takes your main Aster login wallet. Paste the generated API wallet private key here. Trade derives the generated API wallet address, so you do not paste that address.",
+    },
+  },
+  {
+    id: "lighter",
+    label: "Lighter",
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: true,
+      orders: true,
+      gridStop: "watched",
+      changeLeverage: {
+        can: false,
+        because:
+          "Changing a Lighter position's leverage is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Moving the cash behind a Lighter position is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
+      },
+    },
+    credentialForm: {
+      addressLabel: "Lighter account address",
+      addressHint: "0x…",
+      addressPattern: "^0x[0-9a-fA-F]{40}$",
+      secretLabel: "API private key",
+      needsPassphrase: false,
+      // Lighter keys are 40 bytes, not 32-byte EVM agent keys. Turning this on
+      // would reject every real Lighter key before its own signer sees it.
+      secretIsAgentKey: false,
+      keyHelp:
+        "Make an API key on Lighter's own site and paste the private key it " +
+        "shows you. The first field takes the wallet address you trade with " +
+        "on Lighter. Trade finds your account number and which key slot it " +
+        "sits in by itself, and never asks for the wallet's own Ethereum " +
+        "key.",
+    },
+  },
+  {
+    id: "binance",
+    label: "Binance",
+    // Binance has a testnet, but Trade uses this adapter for mainnet candles.
+    networks: ["mainnet"],
+    defaultNetwork: "mainnet",
+    capabilities: {
+      markets: true,
+      accounts: false,
+      orders: false,
+      gridStop: "exchange",
+      changeLeverage: {
+        can: false,
+        because:
+          "Binance is here for its candles only — no wallet trades on it.",
+      },
+      adjustMargin: {
+        can: false,
+        because:
+          "Binance is here for its candles only — no wallet trades on it.",
+      },
+    },
+    credentialForm: null,
+  },
+] as const satisfies readonly ProtocolDescription[]
 
-export function loadProtocols() {
-  return loadProtocolsFn()
+const byId = new Map(
+  PROTOCOL_DESCRIPTIONS.map((description) => [description.id, description])
+)
+
+export function protocolDescription(id: ProtocolId): ProtocolDescription {
+  return byId.get(id) as ProtocolDescription
 }
 
-/**
- * The same list, asked for once per page load.
- *
- * The list is fixed at build time, so a second screen opening should not ask
- * again. Module-level rather than per component for that reason. A failed read
- * clears the memory instead of sticking as an empty list forever, which is the
- * one way a cache here could do harm.
- */
-let once: Promise<{ protocols: ProtocolDescription[] }> | null = null
+export function protocolCore(
+  id: ProtocolId
+): Omit<ProtocolDescription, "credentialForm"> {
+  const { credentialForm: _credentialForm, ...core } = protocolDescription(id)
+  return core
+}
 
-export function loadProtocolsOnce(): Promise<{
-  protocols: ProtocolDescription[]
+const answer = { protocols: PROTOCOL_DESCRIPTIONS }
+
+export function loadProtocols(): Promise<{
+  protocols: readonly ProtocolDescription[]
 }> {
-  once ??= loadProtocols().catch((error: unknown) => {
-    once = null
-    throw error
-  })
-  return once
+  return Promise.resolve(answer)
+}
+
+/** Kept as the shared entry point for callers that already ask once. */
+export function loadProtocolsOnce() {
+  return loadProtocols()
 }

@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
+import type { DashboardBootstrap } from "@/lib/api/dashboard"
 import {
   WalletDetailsDialog,
   WalletManagement,
@@ -120,9 +121,7 @@ type SideSheet = {
 }
 
 type WorkspaceMarketSelection =
-  | MarketSelection
-  | { kind: "none" }
-  | { kind: "missing"; marketId: string }
+  MarketSelection | { kind: "none" } | { kind: "missing"; marketId: string }
 
 /**
  * What the picked key means against the full exchange answer and the visible
@@ -173,11 +172,14 @@ export function TradeWorkspace({
   initialFolders,
   initialPanelRows,
   initialChartView,
+  initialChart,
+  initialDrawings,
   initialChartOptions,
   initialIndicators,
   initialCardFolds,
   initialQuickOrder,
   initialRunningBots,
+  initialWallets,
   selectedKey,
   onSelectMarket,
   onRetryMarkets,
@@ -197,6 +199,10 @@ export function TradeWorkspace({
   initialPanelRows: MarketPanelRows
   /** The zoom and scroll this account left the chart at. */
   initialChartView: ChartView | null
+  /** The remembered chart's opening bars, carried by the route answer. */
+  initialChart: DashboardBootstrap["initialChart"]
+  /** The remembered chart's lines, carried by the route answer. */
+  initialDrawings: DashboardBootstrap["drawings"]
   /** Which supporting parts of the chart this account has visible. */
   initialChartOptions: ChartOptions
   /** Which indicators this account has on, and what each is set to. */
@@ -207,6 +213,8 @@ export function TradeWorkspace({
   initialQuickOrder: QuickOrderPrefs
   /** The Bots tab's first answer from the dashboard's one opening call. */
   initialRunningBots: { rows: RunningBot[]; error: string | null }
+  /** The account panel's first answer from the same opening call. */
+  initialWallets: DashboardBootstrap["wallets"]
   /** The picked market's key, carried in the address bar. */
   selectedKey: string | null
   onSelectMarket: (key: string) => void
@@ -321,7 +329,7 @@ export function TradeWorkspace({
 
   // ----- Wallets: one owner, shared by the desktop column and the sheet ----
   const dashboardCacheScope = `${user.id}:${protocol}`
-  const account = useTradeAccount(protocol, dashboardCacheScope)
+  const account = useTradeAccount(protocol, dashboardCacheScope, initialWallets)
   // What this exchange allows beyond placing an order — read from the server's
   // own table rather than decided here, which the protocol fence forbids.
   const abilities = useProtocolAbilities(protocol)
@@ -357,8 +365,7 @@ export function TradeWorkspace({
    * panel draws it, and the poll uses it to decide whether the Journal's
    * trade history is worth asking the exchange for at all.
    */
-  const [activityTab, setActivityTab] =
-    React.useState<ActivityTab>("positions")
+  const [activityTab, setActivityTab] = React.useState<ActivityTab>("positions")
   const trading = useTrading(
     account.activeWallet,
     protocol,
@@ -387,8 +394,10 @@ export function TradeWorkspace({
   // request — a render can run twice or be thrown away, and a request must not.
   const tradingBusy = trading.busy
   const refreshAccount = account.refresh
+  const wasTradingBusy = React.useRef(tradingBusy)
   React.useEffect(() => {
-    if (!tradingBusy) void refreshAccount()
+    if (wasTradingBusy.current && !tradingBusy) void refreshAccount()
+    wasTradingBusy.current = tradingBusy
   }, [tradingBusy, refreshAccount])
 
   // A divider dragged with the mouse keeps keyboard focus, and its arrow keys
@@ -733,6 +742,8 @@ export function TradeWorkspace({
             selectedKey={selectedKey}
             interval={interval}
             initialChartView={initialChartView}
+            initialChart={initialChart}
+            initialDrawings={initialDrawings}
             initialQuickOrder={initialQuickOrder}
             options={chartOptions.options}
             indicators={indicators.settings}

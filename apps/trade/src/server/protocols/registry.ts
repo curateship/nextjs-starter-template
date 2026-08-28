@@ -16,6 +16,7 @@ import type {
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
+import { protocolCore, protocolDescription } from "@/lib/api/protocols"
 import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { candleIntervalMs as standardCandleIntervalMs } from "@/lib/protocols/timing"
 import { roundToTick } from "@/lib/protocols/tick"
@@ -553,18 +554,7 @@ import {
 
 const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
   hyperliquid: {
-    id: "hyperliquid",
-    label: "Hyperliquid",
-    networks: ["mainnet", "testnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: true,
-      orders: true,
-      gridStop: "exchange",
-      changeLeverage: { can: true },
-      adjustMargin: { can: true },
-    },
+    ...protocolCore("hyperliquid"),
     markets: {
       fetch: fetchHyperliquidMarkets,
       candles: fetchHyperliquidCandles,
@@ -591,18 +581,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       verify: verifyHyperliquidAgentKey,
     },
     credentials: {
-      form: {
-        addressLabel: "Account address",
-        addressHint: "0x…",
-        addressPattern: "^0x[0-9a-fA-F]{40}$",
-        secretLabel: "Trading key (agent key)",
-        needsPassphrase: false,
-        secretIsAgentKey: true,
-        keyHelp:
-          "An agent key made on the exchange's API page — approved to trade " +
-          "for this account and nothing more. Never the account's own key, " +
-          "which can move money out and is refused here.",
-      },
+      form: protocolDescription("hyperliquid").credentialForm!,
       // The blob IS the agent key: one hex string, stored as-is. The shape
       // and never-your-main-key checks run in `verify` before anything is
       // stored, so pack only refuses emptiness.
@@ -651,18 +630,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * real-money switches.
    */
   phemex: {
-    id: "phemex",
-    label: "Phemex",
-    networks: ["mainnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: true,
-      orders: true,
-      gridStop: "exchange",
-      changeLeverage: { can: true },
-      adjustMargin: { can: true },
-    },
+    ...protocolCore("phemex"),
     markets: {
       fetch: fetchPhemexMarkets,
       candles: fetchPhemexCandles,
@@ -689,19 +657,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       verify: verifyPhemexAgentKey,
     },
     credentials: {
-      form: {
-        addressLabel: "API key ID",
-        addressHint: "The key's ID from Phemex's API Management page",
-        // Phemex issues UUID-shaped ids; kept tolerant on purpose — shape,
-        // not truth. The verify call is what proves the credential.
-        addressPattern: "^[0-9A-Za-z-]{16,42}$",
-        secretLabel: "API secret",
-        needsPassphrase: false,
-        secretIsAgentKey: false,
-        keyHelp:
-          "Made on Phemex under API Management — give it trade permission, " +
-          "and copy both the ID and the secret while they are shown.",
-      },
+      form: protocolDescription("phemex").credentialForm!,
       pack: packPhemexCredential,
     },
     orders: {
@@ -731,18 +687,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * so it is subscribed per market rather than to everything.
    */
   kucoin: {
-    id: "kucoin",
-    label: "KuCoin",
-    networks: ["mainnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: true,
-      orders: true,
-      gridStop: "exchange",
-      changeLeverage: { can: true },
-      adjustMargin: { can: true },
-    },
+    ...protocolCore("kucoin"),
     markets: {
       fetch: fetchKucoinMarkets,
       candles: fetchKucoinCandles,
@@ -778,22 +723,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       verify: verifyKucoinAgentKey,
     },
     credentials: {
-      form: {
-        addressLabel: "API key",
-        addressHint: "The key from KuCoin's API Management page",
-        // KuCoin issues 24-character hex ids; kept tolerant on purpose —
-        // shape, not truth. The verify call proves the credential.
-        addressPattern: "^[0-9A-Za-z]{16,42}$",
-        secretLabel: "API secret",
-        needsPassphrase: true,
-        secretIsAgentKey: false,
-        keyHelp:
-          "Made on KuCoin under API Management, with Futures trading " +
-          "permission. Copy all three — the key, the secret and the " +
-          "passphrase you chose — while they are shown. If the key is " +
-          "restricted to certain addresses, this server's address must be " +
-          "on that list.",
-      },
+      form: protocolDescription("kucoin").credentialForm!,
       pack: packKucoinCredential,
     },
     orders: {
@@ -813,18 +743,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * Aster V3 market data, accounts and orders on both networks.
    */
   aster: {
-    id: "aster",
-    label: "Aster",
-    networks: ["mainnet", "testnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: true,
-      orders: true,
-      gridStop: "exchange",
-      changeLeverage: { can: true },
-      adjustMargin: { can: true },
-    },
+    ...protocolCore("aster"),
     markets: {
       fetch: fetchAsterMarkets,
       candles: fetchAsterCandles,
@@ -851,16 +770,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
     },
     agent: { verify: verifyAsterAgentKey },
     credentials: {
-      form: {
-        addressLabel: "Main Aster wallet address",
-        addressHint: "0x…",
-        addressPattern: "^0x[0-9a-fA-F]{40}$",
-        secretLabel: "API wallet key",
-        needsPassphrase: false,
-        secretIsAgentKey: true,
-        keyHelp:
-          "Make a separate Pro API wallet on Aster's API Wallet page and give it perpetual trading permission. The first field takes your main Aster login wallet. Paste the generated API wallet private key here. Trade derives the generated API wallet address, so you do not paste that address.",
-      },
+      form: protocolDescription("aster").credentialForm!,
       pack: packAsterCredential,
     },
     orders: {
@@ -898,26 +808,7 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
    * real order behind both real-money switches.
    */
   lighter: {
-    id: "lighter",
-    label: "Lighter",
-    networks: ["mainnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: true,
-      orders: true,
-      gridStop: "watched",
-      changeLeverage: {
-        can: false,
-        because:
-          "Changing a Lighter position's leverage is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Moving the cash behind a Lighter position is not built yet. Lighter takes it as its own kind of transaction, which is the next thing after stops.",
-      },
-    },
+    ...protocolCore("lighter"),
     markets: {
       fetch: fetchLighterMarkets,
       candles: fetchLighterCandles,
@@ -979,60 +870,12 @@ const PROTOCOLS: Record<ProtocolId, ProtocolEntry> = {
       fillsNeedRecovery: lighterFillsNeedRecovery,
     },
     credentials: {
-      form: {
-        addressLabel: "Lighter account address",
-        addressHint: "0x…",
-        addressPattern: "^0x[0-9a-fA-F]{40}$",
-        secretLabel: "API private key",
-        needsPassphrase: false,
-        /**
-         * False, though this task's own notes asked for true.
-         *
-         * That flag turns on the dialog's EVM agent-key checks, and those
-         * insist a key is 32 bytes. Lighter's are 40 — its own signer
-         * refuses anything else, naming the length — so the dialog refused
-         * every real Lighter key with "a key is exactly 64 characters"
-         * before one could be saved. The warning that comes with the flag
-         * does not fit either: a Lighter API key is not an Ethereum key at
-         * all, so "never your main key" is about the wrong thing.
-         *
-         * The length rule still exists; it lives in `packLighterCredential`,
-         * where the right number is.
-         */
-        secretIsAgentKey: false,
-        keyHelp:
-          "Make an API key on Lighter's own site and paste the private key it " +
-          "shows you. The first field takes the wallet address you trade with " +
-          "on Lighter. Trade finds your account number and which key slot it " +
-          "sits in by itself, and never asks for the wallet's own Ethereum " +
-          "key.",
-      },
+      form: protocolDescription("lighter").credentialForm!,
       pack: packLighterCredential,
     },
   },
   binance: {
-    id: "binance",
-    label: "Binance",
-    // Mainnet only. Binance runs a testnet, but it is not what this app's
-    // practice wallets pretend against.
-    networks: ["mainnet"],
-    defaultNetwork: "mainnet",
-    capabilities: {
-      markets: true,
-      accounts: false,
-      orders: false,
-      gridStop: "exchange",
-      changeLeverage: {
-        can: false,
-        because:
-          "Binance is here for its candles only — no wallet trades on it.",
-      },
-      adjustMargin: {
-        can: false,
-        because:
-          "Binance is here for its candles only — no wallet trades on it.",
-      },
-    },
+    ...protocolCore("binance"),
     markets: {
       fetch: fetchBinanceMarkets,
       candles: fetchBinanceCandles,

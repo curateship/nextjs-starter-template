@@ -7,9 +7,8 @@ import {
   type CandleBar,
   type CandleInterval,
 } from "@/lib/protocols/contracts"
-import { earliestAskable } from "@/lib/trade/chart-history"
 import { userGet } from "@/server/guards"
-import { getProtocol } from "@/server/protocols/registry"
+import { loadProtocolCandles } from "@/server/trade/candles"
 
 import { createErrorMessage } from "./error-message"
 
@@ -46,40 +45,12 @@ const loadCandlesFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(candlesInputSchema)
   .handler(async ({ data }): Promise<{ candles: CandleBar[] }> => {
-    // The validator proved this parses; asserting keeps the types honest.
-    const ref = parseMarketKey(data.marketKey)
-    if (!ref) throw new Error("Not a market key.")
-    const protocol = getProtocol(ref.protocol)
-    try {
-      return {
-        candles: await protocol.markets.candles(
-          ref.network,
-          ref.marketId,
-          data.interval,
-          data.since === undefined
-            ? undefined
-            : earliestAskable(data.interval, data.since)
-        ),
-      }
-    } catch (error) {
-      /**
-       * **Say WHICH exchange refused.** `EXCHANGE_BUSY` is thrown by three of
-       * them, and Aster throws it for a plain timeout, where nothing is
-       * rationed at all. A message that named a cause it could not know sent
-       * two people hunting the wrong exchange for a day — so the venue's own
-       * name rides along, and the sentence stops claiming to know why.
-       */
-      const said = error instanceof Error ? error.message : String(error)
-      if (said.includes("EXCHANGE_BUSY")) {
-        // Keep whatever the venue said after the code — the budget puts its
-        // own count there, and that count is the only evidence of what spent
-        // the minute.
-        const detail = /EXCHANGE_BUSY:(.+)$/.exec(said)?.[1]?.trim() ?? ""
-        throw new Error(
-          `EXCHANGE_BUSY:${protocol.label}${detail ? ` — ${detail}` : ""}`
-        )
-      }
-      throw error
+    return {
+      candles: await loadProtocolCandles(
+        data.marketKey,
+        data.interval,
+        data.since
+      ),
     }
   })
 

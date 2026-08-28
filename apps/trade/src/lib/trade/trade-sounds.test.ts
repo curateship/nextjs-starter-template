@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from "vitest"
 
 import {
+  consumeTradeSoundBootstrap,
   createTradeSoundPlayer,
   ensureTradeSoundSetting,
+  readTradeSoundBootstrap,
   readRememberedTradeSoundSetting,
   rememberTradeSoundSetting,
+  seedTradeSounds,
   TRADE_SOUND_FILES,
 } from "@/lib/trade/trade-sounds"
 
@@ -100,6 +103,25 @@ describe("trade sound playback", () => {
 })
 
 describe("the remembered sound setting", () => {
+  it("offers one cached dashboard answer to one screen mount", () => {
+    const answer = {
+      enabled: true,
+      events: [{ id: "fill-1", kind: "fill" as const, createdAt: 1_000 }],
+      cursor: { afterAt: 1_000, afterId: "fill-1" },
+      error: null,
+    }
+
+    seedTradeSounds(answer)
+    expect(readTradeSoundBootstrap()).toBe(answer)
+    consumeTradeSoundBootstrap(answer)
+    expect(readTradeSoundBootstrap()).toBeNull()
+
+    // A route-cache rerender hands back the same object. Its event must not be
+    // offered to a later screen mount and played a second time.
+    seedTradeSounds(answer)
+    expect(readTradeSoundBootstrap()).toBeNull()
+  })
+
   it("keeps a newer tab update when the first database read finishes", async () => {
     rememberTradeSoundSetting(undefined)
     let finishLoad: ((answer: { enabled: boolean }) => void) | undefined

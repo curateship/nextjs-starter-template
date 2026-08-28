@@ -3,8 +3,10 @@ import * as React from "react"
 import { loadTradeSoundEvents } from "@/lib/api/notice-links"
 import { loadTradeSoundSettings } from "@/lib/api/trade-sound-settings"
 import {
+  consumeTradeSoundBootstrap,
   ensureTradeSoundSetting,
   playTradeSound,
+  readTradeSoundBootstrap,
   readRememberedTradeSoundSetting,
   rememberTradeSoundSetting,
   subscribeToTradeSoundSetting,
@@ -26,9 +28,13 @@ export function useRememberedTradeSoundSetting() {
 
 /** Fill and stop sounds for one open Trade screen. */
 export function useTradeSounds() {
+  const [opening] = React.useState(readTradeSoundBootstrap)
   const rememberedSetting = useRememberedTradeSoundSetting()
   const enabled = rememberedSetting ?? false
-  const cursor = React.useRef<TradeSoundCursor | null>(null)
+  const cursor = React.useRef<TradeSoundCursor | null>(
+    opening?.error === null ? opening.cursor : null
+  )
+  const playedOpeningEvents = React.useRef(false)
   const reading = React.useRef(false)
   const interacted = React.useRef(
     typeof navigator !== "undefined" &&
@@ -36,11 +42,24 @@ export function useTradeSounds() {
   )
 
   React.useEffect(() => {
-    cursor.current = { afterAt: Date.now(), afterId: "" }
-    void ensureTradeSoundSetting(loadTradeSoundSettings).catch(() => {
-      // Off is the safe answer when the preference read fails.
-    })
-  }, [])
+    if (opening) consumeTradeSoundBootstrap(opening)
+    cursor.current ??= { afterAt: Date.now(), afterId: "" }
+    if (rememberedSetting === undefined) {
+      void ensureTradeSoundSetting(loadTradeSoundSettings).catch(() => {
+        // Off is the safe answer when the preference read fails.
+      })
+    }
+    if (
+      !playedOpeningEvents.current &&
+      opening?.error === null &&
+      opening.enabled
+    ) {
+      playedOpeningEvents.current = true
+      for (const event of opening.events) {
+        void playTradeSound(event.kind, interacted.current)
+      }
+    }
+  }, [opening, rememberedSetting])
 
   React.useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return
@@ -96,6 +115,9 @@ export function useTradeSounds() {
       }, NUDGE_DEBOUNCE_MS)
     }
 
+    // The bootstrap query finishes before this stream subscribes. Catch the
+    // narrow gap once on open; this stream does not replay a notice that
+    // landed before its subscription existed.
     source.onopen = ask
     source.onmessage = ask
     const poll = window.setInterval(ask, FALLBACK_POLL_MS)
@@ -104,5 +126,5 @@ export function useTradeSounds() {
       window.clearInterval(poll)
       if (debounce) clearTimeout(debounce)
     }
-  }, [enabled, sync])
+  }, [enabled, opening, sync])
 }

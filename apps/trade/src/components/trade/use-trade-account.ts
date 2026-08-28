@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import type { DashboardBootstrap } from "@/lib/api/dashboard"
 import type { ProtocolId } from "@/lib/protocols/contracts"
 import { loadWalletAccounts, pickWallet } from "@/lib/api/wallets"
 import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
@@ -46,17 +47,32 @@ export type TradeAccount = {
 
 export function useTradeAccount(
   protocol: ProtocolId,
-  cacheScope: string
+  cacheScope: string,
+  initial: DashboardBootstrap["wallets"]
 ): TradeAccount {
-  const [wallets, setWallets] = React.useState<TradeWallet[] | null>(null)
+  const seeded = React.useMemo(() => {
+    const wallets = initial.rows.filter((one) => one.protocol === protocol)
+    return {
+      wallets,
+      summaries: new Map(
+        initial.summaries.map((summary) => [summary.walletId, summary])
+      ),
+      lastWalletId: initial.lastWalletIds[protocol] ?? null,
+    }
+  }, [initial, protocol])
+  const [wallets, setWallets] = React.useState<TradeWallet[] | null>(() =>
+    initial.error === null ? seeded.wallets : null
+  )
   const [summaries, setSummaries] = React.useState<
     ReadonlyMap<string, WalletAccountSummary>
-  >(new Map())
-  const [lastWalletId, setLastWalletId] = React.useState<string | null>(null)
+  >(() => seeded.summaries)
+  const [lastWalletId, setLastWalletId] = React.useState<string | null>(
+    seeded.lastWalletId
+  )
   const [chosenWalletId, setChosenWalletId] = React.useState<string | null>(
     null
   )
-  const [failed, setFailed] = React.useState(false)
+  const [failed, setFailed] = React.useState(initial.error !== null)
 
   // Only the newest request may write state — an old answer landing after a
   // newer one would put stale figures over fresh ones.
@@ -65,7 +81,7 @@ export function useTradeAccount(
   // held in refs so the merge below stays a plain calculation rather than
   // something that counts twice when React runs an updater twice.
   const summariesRef = React.useRef<ReadonlyMap<string, WalletAccountSummary>>(
-    new Map()
+    seeded.summaries
   )
   const missesRef = React.useRef<ReadonlyMap<string, number>>(new Map())
 
@@ -129,27 +145,37 @@ export function useTradeAccount(
   // The same guard for every caller. A dialog's save or a finished trade
   // wants fresh figures, but if a read is already on its way, that read is
   // the answer — starting a second one is how the connection pool once
-  // drained. This is also what makes mounting cost one request: the
-  // workspace's after-a-trade effect fires on mount, and the poll's first
-  // turn then finds a read already running and skips.
+  // drained. A successful dashboard answer makes mounting cost no request;
+  // the first timed refresh is fifteen seconds later. A failed opening answer
+  // retries at once through this same path.
   const refresh = React.useCallback(
     () => inFlightRef.current ?? begin(),
     [begin]
   )
 
   React.useEffect(() => {
+    if (initial.error === null) {
+      writeWalletPanelCache(cacheScope, {
+        wallets: seeded.wallets,
+        summaries: [...seeded.summaries.values()],
+        lastWalletId: seeded.lastWalletId,
+      })
+    }
+  }, [cacheScope, initial.error, seeded])
+
+  React.useEffect(() => {
     // The first read is scheduled rather than called in the effect body, so
     // mounting never sets state mid-render pass — same shape as the poll.
-    const firstRead = window.setTimeout(poll, 0)
+    const firstRead = initial.error === null ? null : window.setTimeout(poll, 0)
     const timer = window.setInterval(poll, REFRESH_MS)
     const onVisible = () => poll()
     document.addEventListener("visibilitychange", onVisible)
     return () => {
-      window.clearTimeout(firstRead)
+      if (firstRead !== null) window.clearTimeout(firstRead)
       window.clearInterval(timer)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [poll])
+  }, [initial.error, poll])
 
   const switchWallet = React.useCallback((walletId: string) => {
     setChosenWalletId(walletId)

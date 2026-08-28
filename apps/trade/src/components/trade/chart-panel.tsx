@@ -82,6 +82,7 @@ import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import type { Drawing } from "@/lib/trade/drawings"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import {
@@ -174,6 +175,8 @@ export function ChartPanel({
   selectedKey,
   interval,
   initialChartView,
+  initialChart,
+  initialDrawings,
   initialQuickOrder,
   options,
   indicators,
@@ -192,6 +195,19 @@ export function ChartPanel({
    * loader — so the first chart drawn is already at it.
    */
   initialChartView: ChartView | null
+  /** First-paint bars that arrived with the route's opening answer. */
+  initialChart: {
+    key: string
+    interval: CandleInterval
+    candles: CandleBar[]
+    error: string | null
+  } | null
+  /** Saved lines for the remembered market, from that same answer. */
+  initialDrawings: {
+    marketKey: string | null
+    rows: Drawing[]
+    error: string | null
+  }
   /**
    * How the right-click order window was last set up, from the same loader.
    * The window opens on a click, so anything read after it is on screen would
@@ -240,7 +256,16 @@ export function ChartPanel({
     key: string
     candles: CandleBar[]
     error: string | null
-  } | null>(null)
+  } | null>(() => {
+    const wanted = selectedKey ? `${selectedKey}@${interval}` : null
+    return wanted && initialChart?.key === wanted
+      ? {
+          key: wanted,
+          candles: initialChart.candles,
+          error: initialChart.error,
+        }
+      : null
+  })
   // Bumped by the retry button; the fetch effect depends on it.
   const [attempt, setAttempt] = React.useState(0)
   const [orbAnswer, setOrbAnswer] = React.useState<{
@@ -250,6 +275,7 @@ export function ChartPanel({
   } | null>(null)
   const [orbAttempt, setOrbAttempt] = React.useState(0)
   const hasStartedCandleLoad = React.useRef(false)
+  const handledInitialChart = React.useRef(false)
 
   const wanted = selectedKey ? `${selectedKey}@${interval}` : null
   const needsOrbSource =
@@ -279,7 +305,7 @@ export function ChartPanel({
 
   // The lines drawn on this market. They belong to the market, not to the
   // timeframe, so switching between 4h and 1d leaves them where they are.
-  const paint = useChartDrawings(selectedKey)
+  const paint = useChartDrawings(selectedKey, initialDrawings)
   const setPaintTool = paint.setTool
   const setSelectedDrawing = paint.setSelectedId
   const paintTool = options.drawings ? paint.tool : null
@@ -903,6 +929,23 @@ export function ChartPanel({
         const staged = wantsFullHistory(interval)
         const chases =
           staged && venue !== undefined && protocolChasesFullHistory(venue)
+
+        if (
+          !handledInitialChart.current &&
+          attempt === 0 &&
+          initialChart?.key === wanted
+        ) {
+          handledInitialChart.current = true
+          if (!initialChart.error && chases) {
+            loadCandles(selectedKey, interval)
+              .then(({ candles: deeper }) => {
+                if (deeper.length > initialChart.candles.length) draw(deeper)
+              })
+              .catch(() => {})
+          }
+          return
+        }
+
         const first =
           staged && venue !== undefined
             ? loadCandles(
@@ -938,13 +981,19 @@ export function ChartPanel({
             })
           })
       },
-      hasStartedCandleLoad.current ? CANDLE_LOAD_SETTLE_MS : 0
+      !handledInitialChart.current &&
+        attempt === 0 &&
+        initialChart?.key === wanted
+        ? 0
+        : hasStartedCandleLoad.current
+          ? CANDLE_LOAD_SETTLE_MS
+          : 0
     )
     return () => {
       stale = true
       clearTimeout(timeout)
     }
-  }, [selectedKey, interval, wanted, attempt])
+  }, [selectedKey, interval, wanted, attempt, initialChart])
 
   // Refresh when a bar of this timeframe closes, so the chart appends it by
   // itself instead of waiting for a click. On the 1m chart that is the

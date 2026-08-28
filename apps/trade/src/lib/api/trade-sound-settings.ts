@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { createErrorMessage } from "@/lib/api/error-message"
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 import { userGet, userPost } from "@/server/guards"
 import {
   loadTradeSoundsEnabled,
@@ -25,8 +26,10 @@ export function loadTradeSoundSettings() {
   return loadTradeSoundSettingsFn()
 }
 
-export function saveTradeSoundSettings(enabled: boolean) {
-  return saveTradeSoundSettingsFn({ data: enabled })
+export async function saveTradeSoundSettings(enabled: boolean) {
+  const answer = await saveTradeSoundSettingsFn({ data: enabled })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
 export const getTradeSoundSettingsLoadErrorMessage = createErrorMessage(

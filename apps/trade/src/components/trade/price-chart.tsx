@@ -266,6 +266,7 @@ export function PriceChart({
   const readViewRef = React.useRef(readView)
   const onViewChangeRef = React.useRef(onViewChange)
   const reportedViewRef = React.useRef<ChartView | null>(null)
+  const currentViewRef = React.useRef<() => ChartView | null>(() => null)
   // While the chart is being framed by this component, the range changes it
   // reports are this component's own doing and are not somebody's view to
   // remember. Cleared a beat later, because the library reports them after
@@ -342,6 +343,11 @@ export function PriceChart({
     // A short window rather than one frame: the price scale settles over a
     // repaint or two, and nobody's gesture starts and finishes inside it.
     setTimeout(() => {
+      // The library rounds the requested range and margins to its own pixels.
+      // That settled frame is still our opening move, not the person's, so it
+      // becomes the comparison point before reporting is switched back on.
+      const settled = currentViewRef.current()
+      if (settled) reportedViewRef.current = settled
       framingRef.current = false
     }, 200)
   }, [])
@@ -401,6 +407,9 @@ export function PriceChart({
       low: extent.low,
     })
   }, [])
+  React.useEffect(() => {
+    currentViewRef.current = currentView
+  }, [currentView])
 
   /** Tell the app the view moved, unless it was this component that moved it. */
   const reportView = React.useCallback(() => {

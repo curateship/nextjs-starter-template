@@ -12,19 +12,58 @@ many trips each one makes after the check.
 
 ## Opening the page
 
-The page opens with **one server call**, `loadDashboardBootstrap` in
-`src/lib/api/dashboard.ts`. It reads the preference row once, asks the
-exchange for the market list once, reads the stars once, and reads the running
-bots for that exchange, all together.
+The page's account-specific opening data arrives through one authenticated
+answer, `loadDashboardBootstrap` in `src/lib/api/dashboard.ts`. It reads the
+preference row once, including the sound switch, and starts the independent
+reads together. That answer now carries the market list, folders, running bots,
+wallet figures, chart drawings, the opening sound cursor and the first chart
+candles.
 
 Before this the page fired eight calls at once: the market list, the stars,
 and six preferences. Seven of them read the same preference row. Each call
 paid its own sign-in check, so opening the page was 24 to 32 trips for one row
-and one list. Now it is about four.
+and one list. The sections in the opening answer still do their own necessary
+database and exchange work, but they run together behind one sign-in check.
 
-The page's answer is good for a minute. A market click, or coming back to
-the tab inside that minute, paints at once. Saving a new volume cutoff in
-Settings throws the answer away, so the next visit reads the list again.
+The page's answer is good for a minute. A market click, or coming back to the
+tab inside that minute, paints at once. Saving the volume cutoff, a sound
+choice, a wallet or a drawing changes the cache version, so the next dashboard
+navigation reads a fresh opening answer.
+
+The raw exchange market list has its own one-minute server copy, keyed by
+exchange and network. Two accounts opening the same exchange share that raw
+answer, including when both opens overlap. Each account's dollar-volume cutoff
+is applied after the shared read. A failed exchange read is removed at once, so
+the next open asks again.
+
+The protocol descriptions used by wallet forms and capability checks now ship
+with the browser code. The list describes code compiled into this build, so it
+does not need an authenticated server function. The server adapter registry
+reads the same descriptions, and a test checks the registry's public answer.
+
+The first 4-hour chart slice rides with the opening answer for the remembered
+market. Hyperliquid and the other unrestricted exchanges ask for the same
+two-year first slice as before, then the browser chases deeper history after it
+has painted. Lighter keeps its 90-day first slice and does not chase. The chart
+timeframe lives in this browser's local storage, which the server cannot read.
+If that remembered choice is not 4h, the browser ignores the carried 4h slice
+and makes the normal request for the chosen timeframe.
+
+The wallet panel also starts from the opening answer. Its first timed refresh
+is fifteen seconds later. If the wallet part of the opening answer failed, the
+panel shows its existing error and retries at once instead.
+
+The opening answer also carries the trade-sound setting and an event cursor.
+When sounds are enabled, the live notification stream makes one small catch-up
+read as it connects. The bootstrap query necessarily finishes before the
+stream subscribes, and the stream cannot replay a notice from that gap; keeping
+the catch-up means a fill sound is immediate rather than delayed until the next
+notice or the one-minute fallback poll.
+
+Opening the chart no longer writes its view back to the database. The charting
+library rounds the saved range to pixels while it frames the first draw. Trade
+now records that settled frame as its own work before it starts listening for
+the person's pan or zoom.
 
 The live feed catching up after a gap used to run the whole loader again,
 preferences and all, every time the connection blinked. It now asks for the
@@ -214,6 +253,15 @@ Journal rows. The server runs against the same database production uses.
 
 What is left in each call is mostly the sign-in check (two or three round
 trips, shell code) and one exchange request.
+
+The opening path was measured again in a fresh signed-in browser on 28 August
+2026 after restarting the local server. With trade sounds enabled it made seven
+calls instead of the original twelve: the document/bootstrap, the deeper candle
+chase, the ladder nudge, the practice and live portfolio reads, the
+unread-notification count and the sound stream's gap-closing read. Panels
+appeared in 1.28 seconds and the chart in 1.59 seconds. The separate protocol,
+sound-setting, drawing, wallet and opening-candle calls were absent, and opening
+the chart did not save its view.
 
 ## Still to do
 

@@ -3,6 +3,10 @@ import { z } from "zod"
 
 import {
   KNOWN_PROTOCOLS,
+  parseMarketKey,
+  protocolFirstPaintMs,
+  type CandleBar,
+  type CandleInterval,
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
@@ -17,17 +21,30 @@ import {
 import type { DcaParams } from "@/lib/trade/dca"
 import type { GridParams } from "@/lib/trade/grid"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
+import type { Drawing } from "@/lib/trade/drawings"
 import {
   RUNNING_BOTS_READ_ERROR,
   type RunningBot,
 } from "@/lib/trade/running-bots"
 import type { MarketFolder, MarketPanelRows } from "@/lib/trade/market-folders"
+import type {
+  TradeSoundCursor,
+  TradeSoundEvent,
+} from "@/lib/trade/trade-sounds"
+import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 import { userGet } from "@/server/guards"
+import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
 import { getProtocol } from "@/server/protocols/registry"
+import { loadProtocolCandles } from "@/server/trade/candles"
+import { loadChartDrawings } from "@/server/trade/drawings"
 import { loadMarketFolders } from "@/server/trade/market-folders"
-import { loadDashboardPrefs } from "@/server/trade/prefs"
+import { tradeSoundEventsAfter } from "@/server/trade/notice-links"
+import { loadDashboardPrefs, loadLastWalletIds } from "@/server/trade/prefs"
 import { listRunningBots } from "@/server/trade/running-bots"
+import { loadWalletSummaries } from "@/server/trade/wallets"
 
+import { getCandlesErrorMessage } from "./candles"
 import { getMarketsErrorMessage } from "./markets"
 
 /**
@@ -63,6 +80,33 @@ export type DashboardBootstrap = {
   smartGrid: GridParams | null
   /** The Bots tab's first answer, carried with the rest of the dashboard. */
   runningBots: { rows: RunningBot[]; error: string | null }
+  /** The remembered market's first paint; deeper history still follows. */
+  initialChart: {
+    key: string
+    interval: CandleInterval
+    candles: CandleBar[]
+    error: string | null
+  } | null
+  /** The remembered market's saved lines, read without another session check. */
+  drawings: {
+    marketKey: string | null
+    rows: Drawing[]
+    error: string | null
+  }
+  /** The account switch and the opening cursor for fill and stop sounds. */
+  tradeSounds: {
+    enabled: boolean
+    events: TradeSoundEvent[]
+    cursor: TradeSoundCursor
+    error: string | null
+  }
+  /** The account panel's first answer; its 15-second refresh remains. */
+  wallets: {
+    rows: TradeWallet[]
+    summaries: WalletAccountSummary[]
+    lastWalletIds: Record<string, string>
+    error: string | null
+  }
 }
 
 const bootstrapSchema = z.object({
@@ -80,17 +124,74 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
     if (!protocol.networks.includes(data.network)) {
       throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
     }
-    const [catalog, prefs, folders, runningBots] = await Promise.all([
+    const openedAt = Date.now()
+    const soundCursor: TradeSoundCursor = { afterAt: openedAt, afterId: "" }
+    const prefsPromise = loadDashboardPrefs(context.user.id, data)
+    const drawingsPromise = prefsPromise.then(async (prefs) => {
+      const marketKey = marketOnDashboard(
+        prefs.lastMarketKey,
+        data.protocol,
+        data.network
+      )
+      if (!marketKey) {
+        return { marketKey: null, rows: [], error: null }
+      }
+      return loadChartDrawings(context.user.id, marketKey).then(
+        (rows) => ({ marketKey, rows, error: null as string | null }),
+        () => ({
+          marketKey,
+          rows: [] as Drawing[],
+          error: "Your drawings for this market could not be loaded.",
+        })
+      )
+    })
+    const initialChartPromise = prefsPromise.then(async (prefs) => {
+      const marketKey = marketOnDashboard(
+        prefs.lastMarketKey,
+        data.protocol,
+        data.network
+      )
+      if (!marketKey) return null
+      const interval = DEFAULT_CHART_INTERVAL
+      return loadProtocolCandles(
+        marketKey,
+        interval,
+        openedAt - protocolFirstPaintMs(data.protocol)
+      ).then(
+        (candles) => ({
+          key: `${marketKey}@${interval}`,
+          interval,
+          candles,
+          error: null as string | null,
+        }),
+        (error: unknown) => ({
+          key: `${marketKey}@${interval}`,
+          interval,
+          candles: [] as CandleBar[],
+          error: getCandlesErrorMessage(error),
+        })
+      )
+    })
+    const [
+      catalog,
+      prefs,
+      folders,
+      runningBots,
+      drawings,
+      initialChart,
+      tradeSounds,
+      wallets,
+    ] = await Promise.all([
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
-      protocol.markets.fetch(data.network).then(
+      loadRawMarketCatalog(data.protocol, data.network).then(
         (value) => ({ catalog: value, error: null as string | null }),
         (error: unknown) => ({
           catalog: null,
           error: getMarketsErrorMessage(error),
         })
       ),
-      loadDashboardPrefs(context.user.id, data),
+      prefsPromise,
       // Losing folders must not keep the rest of the dashboard from opening.
       loadMarketFolders(context.user.id, data.protocol, data.network).catch(
         () => [] as MarketFolder[]
@@ -102,6 +203,41 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
         () => ({
           rows: [] as RunningBot[],
           error: RUNNING_BOTS_READ_ERROR,
+        })
+      ),
+      drawingsPromise,
+      initialChartPromise,
+      Promise.all([
+        prefsPromise,
+        tradeSoundEventsAfter(context.user.id, soundCursor),
+      ]).then(
+        ([soundPrefs, soundEvents]) => ({
+          enabled: soundPrefs.tradeSoundsEnabled,
+          ...soundEvents,
+          error: null as string | null,
+        }),
+        () => ({
+          enabled: false,
+          events: [] as TradeSoundEvent[],
+          cursor: soundCursor,
+          error: "Trade sounds could not be read.",
+        })
+      ),
+      Promise.all([
+        loadWalletSummaries(context.user.id, data.protocol),
+        loadLastWalletIds(context.user.id),
+      ]).then(
+        ([answer, lastWalletIds]) => ({
+          rows: answer.wallets,
+          summaries: answer.summaries,
+          lastWalletIds,
+          error: null as string | null,
+        }),
+        () => ({
+          rows: [] as TradeWallet[],
+          summaries: [] as WalletAccountSummary[],
+          lastWalletIds: {},
+          error: "The wallets could not be loaded.",
         })
       ),
     ])
@@ -128,8 +264,24 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
       smartDca: prefs.smartDca,
       smartGrid: prefs.smartGrid,
       runningBots,
+      initialChart,
+      drawings,
+      tradeSounds,
+      wallets,
     }
   })
+
+function marketOnDashboard(
+  marketKey: string | null,
+  protocol: ProtocolId,
+  network: NetworkId
+): string | null {
+  if (!marketKey) return null
+  const ref = parseMarketKey(marketKey)
+  return ref?.protocol === protocol && ref.network === network
+    ? marketKey
+    : null
+}
 
 export function loadDashboardBootstrap(
   protocol: ProtocolId,

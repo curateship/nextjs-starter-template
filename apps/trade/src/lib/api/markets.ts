@@ -12,6 +12,7 @@ import {
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import { userGet, userPost } from "@/server/guards"
+import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
 import { getProtocol } from "@/server/protocols/registry"
 import {
   loadLastMarketKey,
@@ -60,7 +61,7 @@ const loadMarketsFn = createServerFn({ method: "GET" })
         throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
       }
       const [catalog, minimumVolumeUsd] = await Promise.all([
-        protocol.markets.fetch(data.network),
+        loadRawMarketCatalog(data.protocol, data.network),
         loadMinimumMarketVolume(context.user.id),
       ])
       return {

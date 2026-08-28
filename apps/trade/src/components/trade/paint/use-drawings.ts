@@ -30,21 +30,49 @@ const NONE: Drawing[] = []
  * a line appears the instant it is drawn, and a save that does not land takes
  * it back rather than leaving a line that is not really there.
  */
-export function useChartDrawings(marketKey: string | null) {
+export function useChartDrawings(
+  marketKey: string | null,
+  initial?: {
+    marketKey: string | null
+    rows: Drawing[]
+    error: string | null
+  }
+) {
   // Tagged with the market it belongs to, so an answer that lands after
   // another market was picked is dropped rather than drawn on the wrong chart.
   const [answer, setAnswer] = React.useState<{
     key: string
     drawings: Drawing[]
-  } | null>(null)
+  } | null>(() =>
+    marketKey && initial?.marketKey === marketKey
+      ? { key: marketKey, drawings: initial.rows }
+      : null
+  )
   const [attempt, setAttempt] = React.useState(0)
   const [tool, setTool] = React.useState<PaintTool | null>(null)
   const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const showedInitialError = React.useRef(false)
+  const handledInitial = React.useRef(false)
 
   const drawings = answer && answer.key === marketKey ? answer.drawings : NONE
 
   React.useEffect(() => {
     if (!marketKey) return
+    if (
+      !handledInitial.current &&
+      attempt === 0 &&
+      initial?.marketKey === marketKey
+    ) {
+      handledInitial.current = true
+      if (initial.error && !showedInitialError.current) {
+        showedInitialError.current = true
+        showErrorToast(initial.error, {
+          label: "Try again",
+          onClick: () => setAttempt((count) => count + 1),
+        })
+      }
+      return
+    }
     let stale = false
     loadDrawings(marketKey)
       .then((result) => {
@@ -60,7 +88,10 @@ export function useChartDrawings(marketKey: string | null) {
                     !result.drawings.some((saved) => saved.id === candidate.id)
                 )
               : []
-          return { key: marketKey, drawings: [...result.drawings, ...drawnMeanwhile] }
+          return {
+            key: marketKey,
+            drawings: [...result.drawings, ...drawnMeanwhile],
+          }
         })
       })
       .catch((error: unknown) => {
@@ -77,7 +108,7 @@ export function useChartDrawings(marketKey: string | null) {
     return () => {
       stale = true
     }
-  }, [marketKey, attempt])
+  }, [marketKey, attempt, initial])
 
   // A tool in hand and a picked line both belong to the market on screen.
   // Cleared during the render that brings the new market in, so the toolbar

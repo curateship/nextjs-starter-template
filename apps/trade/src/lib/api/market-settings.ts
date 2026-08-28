@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start"
 
 import { createErrorMessage } from "@/lib/api/error-message"
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 import { minimumMarketVolumeSchema } from "@/lib/trade/market-volume"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -25,8 +26,10 @@ export function loadMarketSettings() {
   return loadMarketSettingsFn()
 }
 
-export function saveMarketSettings(minimumVolumeUsd: number) {
-  return saveMarketSettingsFn({ data: minimumVolumeUsd })
+export async function saveMarketSettings(minimumVolumeUsd: number) {
+  const answer = await saveMarketSettingsFn({ data: minimumVolumeUsd })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
 export const getMarketSettingsLoadErrorMessage = createErrorMessage(

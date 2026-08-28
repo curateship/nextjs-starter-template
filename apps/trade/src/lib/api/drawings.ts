@@ -18,6 +18,7 @@ import {
 } from "@/server/trade/drawings"
 
 import { createErrorMessage } from "./error-message"
+import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 
 /**
  * The lines somebody has drawn on a market's chart.
@@ -84,28 +85,36 @@ const clearChartDrawingsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(marketSchema)
   .handler(async ({ data, context }): Promise<{ deleted: number }> => {
-    return { deleted: await clearChartDrawings(context.user.id, data.marketKey) }
+    return {
+      deleted: await clearChartDrawings(context.user.id, data.marketKey),
+    }
   })
 
 export function loadDrawings(marketKey: string) {
   return loadChartDrawingsFn({ data: { marketKey } })
 }
 
-export function saveDrawing(
+export async function saveDrawing(
   marketKey: string,
   drawing: { id: string; shape: DrawingShape }
 ) {
-  return saveChartDrawingFn({
+  const answer = await saveChartDrawingFn({
     data: { marketKey, id: drawing.id, shape: drawing.shape },
   })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
-export function deleteDrawing(id: string) {
-  return deleteChartDrawingFn({ data: { id } })
+export async function deleteDrawing(id: string) {
+  const answer = await deleteChartDrawingFn({ data: { id } })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
-export function clearDrawings(marketKey: string) {
-  return clearChartDrawingsFn({ data: { marketKey } })
+export async function clearDrawings(marketKey: string) {
+  const answer = await clearChartDrawingsFn({ data: { marketKey } })
+  invalidateDashboardBootstrap()
+  return answer
 }
 
 export const getDrawingsErrorMessage = createErrorMessage(

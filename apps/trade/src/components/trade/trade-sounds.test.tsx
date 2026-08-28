@@ -17,7 +17,10 @@ vi.mock("@/lib/api/trade-sound-settings", () => ({
 }))
 
 import { useTradeSounds } from "@/components/trade/trade-sounds"
-import { rememberTradeSoundSetting } from "@/lib/trade/trade-sounds"
+import {
+  rememberTradeSoundSetting,
+  seedTradeSounds,
+} from "@/lib/trade/trade-sounds"
 
 class FakeEventSource {
   static instances: FakeEventSource[] = []
@@ -50,6 +53,12 @@ function Harness() {
 
 beforeEach(() => {
   rememberTradeSoundSetting(undefined)
+  seedTradeSounds({
+    enabled: false,
+    events: [],
+    cursor: { afterAt: 0, afterId: "" },
+    error: "No dashboard answer in this test.",
+  })
   api.loadEvents.mockReset()
   api.loadSettings.mockReset()
   FakeEventSource.instances = []
@@ -64,6 +73,36 @@ afterEach(() => {
 })
 
 describe("the open Trade screen's sound listener", () => {
+  it("starts from the dashboard answer and closes the stream connection gap", async () => {
+    vi.useFakeTimers()
+    seedTradeSounds({
+      enabled: true,
+      events: [],
+      cursor: { afterAt: 10_000, afterId: "notice-0" },
+      error: null,
+    })
+    api.loadEvents.mockResolvedValue({
+      events: [],
+      cursor: { afterAt: 10_000, afterId: "notice-0" },
+    })
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      FakeEventSource.instances[0].onopen?.()
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(api.loadSettings).not.toHaveBeenCalled()
+    expect(api.loadEvents).toHaveBeenCalledOnce()
+    expect(api.loadEvents).toHaveBeenCalledWith({
+      afterAt: 10_000,
+      afterId: "notice-0",
+    })
+    await act(async () => root.unmount())
+  })
+
   it("opens no connection while the account switch is off", async () => {
     api.loadSettings.mockResolvedValue({ enabled: false })
     const host = document.createElement("div")

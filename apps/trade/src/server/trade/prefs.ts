@@ -6,10 +6,7 @@ import {
   type ProtocolId,
 } from "@/lib/protocols/contracts"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
-import {
-  readChartOptions,
-  type ChartOptions,
-} from "@/lib/trade/chart-options"
+import { readChartOptions, type ChartOptions } from "@/lib/trade/chart-options"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
 import { dcaParamsSchema, type DcaParams } from "@/lib/trade/dca"
 import { gridParamsSchema, type GridParams } from "@/lib/trade/grid"
@@ -25,10 +22,7 @@ import {
   readIndicatorSettings,
   type IndicatorSettings,
 } from "@/lib/trade/indicators/registry"
-import {
-  readOrderStyle,
-  type OrderStyle,
-} from "@/lib/trade/order-style"
+import { readOrderStyle, type OrderStyle } from "@/lib/trade/order-style"
 import {
   minimumMarketVolumeSchema,
   readMinimumMarketVolume,
@@ -49,6 +43,7 @@ import { tradePrefs } from "@/server/trade/schema"
 export type DashboardPrefs = {
   lastMarketKey: string | null
   minimumMarketVolumeUsd: number
+  tradeSoundsEnabled: boolean
   chartView: ChartView | null
   chartOptions: ChartOptions
   indicators: IndicatorSettings
@@ -87,6 +82,7 @@ export async function loadDashboardPrefs(
     .select({
       lastMarketKeys: tradePrefs.lastMarketKeys,
       minimumMarketVolumeUsd: tradePrefs.minimumMarketVolumeUsd,
+      tradeSoundsEnabled: tradePrefs.tradeSoundsEnabled,
       chartView: tradePrefs.chartView,
       chartOptions: tradePrefs.chartOptions,
       indicators: tradePrefs.indicators,
@@ -108,6 +104,7 @@ export async function loadDashboardPrefs(
     minimumMarketVolumeUsd: readMinimumMarketVolume(
       found?.minimumMarketVolumeUsd
     ),
+    tradeSoundsEnabled: found?.tradeSoundsEnabled ?? false,
     chartView: readChartView(found?.chartView ?? null),
     chartOptions: readChartOptions(found?.chartOptions ?? null),
     indicators: readIndicatorSettings(found?.indicators ?? null),
@@ -507,7 +504,9 @@ export async function saveCardFolds(
  * different things, and each is validated by its own schema on the way in and
  * out, so junk from an older build falls back to that window's defaults alone.
  */
-export async function loadSmartGrid(userId: string): Promise<GridParams | null> {
+export async function loadSmartGrid(
+  userId: string
+): Promise<GridParams | null> {
   const row = await db
     .select({ smartGrid: tradePrefs.smartGrid })
     .from(tradePrefs)
@@ -536,9 +535,7 @@ export async function saveSmartGrid(
  * and a row this build cannot read both come back as the plain defaults, which
  * is a working window either way.
  */
-export async function loadQuickOrder(
-  userId: string
-): Promise<QuickOrderPrefs> {
+export async function loadQuickOrder(userId: string): Promise<QuickOrderPrefs> {
   const row = await db
     .select({ quickOrder: tradePrefs.quickOrder })
     .from(tradePrefs)

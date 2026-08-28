@@ -19,6 +19,8 @@ import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
 import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
+import { dashboardBootstrapVersion } from "@/lib/trade/dashboard-bootstrap-cache"
+import { seedTradeSounds } from "@/lib/trade/trade-sounds"
 import {
   marketKeyOnDashboard,
   readMarketSearch,
@@ -78,6 +80,20 @@ function exchangeLoader(protocol: ProtocolId) {
           rows: [],
           error: RUNNING_BOTS_READ_ERROR,
         },
+        initialChart: null,
+        drawings: { marketKey: null, rows: [], error: null },
+        tradeSounds: {
+          enabled: false,
+          events: [],
+          cursor: { afterAt: Date.now(), afterId: "" },
+          error: "Trade sounds could not be read.",
+        },
+        wallets: {
+          rows: [],
+          summaries: [],
+          lastWalletIds: {},
+          error: "The wallets could not be loaded.",
+        },
       })
     )
     return { ...boot, network: deps.network }
@@ -120,6 +136,7 @@ export function practiceExchangeRoute(page: ExchangePage) {
     validateSearch: readTradeSearch,
     loaderDeps: ({ search }: { search: TradeSearch }) => ({
       network: resolveTradeNetwork(search.market, search.network),
+      bootstrapVersion: dashboardBootstrapVersion(),
     }),
     ...sharedOptions(page),
   }
@@ -143,6 +160,7 @@ export function mainnetExchangeRoute(page: ExchangePage) {
     },
     loaderDeps: () => ({
       network: "mainnet" as const,
+      bootstrapVersion: dashboardBootstrapVersion(),
     }),
     ...sharedOptions(page),
   }
@@ -166,12 +184,17 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
     smartDca,
     smartGrid,
     runningBots,
+    initialChart,
+    drawings,
+    tradeSounds,
+    wallets,
   } = useLoaderData({ strict: false }) as ExchangeLoaderData
   // The smart-order windows' saved settings arrived with the page; hand them
   // to the browser-side copy so the first right-click opens on them with
   // nothing left to fetch. Fills empty slots only — a placement made since
   // the loader's answer was cached must not be overwritten by it.
   seedSmartPrefs(smartDca, smartGrid)
+  seedTradeSounds(tradeSounds)
   const { market } = useSearch({ strict: false }) as TradeSearch
   const navigate = useNavigate()
   // A retry fetches the market list alone — never the whole loader. Stable
@@ -215,11 +238,14 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialFolders={folders}
       initialPanelRows={panelRows}
       initialChartView={chartView}
+      initialChart={initialChart}
+      initialDrawings={drawings}
       initialChartOptions={chartOptions}
       initialIndicators={indicators}
       initialCardFolds={cardFolds}
       initialQuickOrder={quickOrder}
       initialRunningBots={runningBots}
+      initialWallets={wallets}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>
         void navigate({
