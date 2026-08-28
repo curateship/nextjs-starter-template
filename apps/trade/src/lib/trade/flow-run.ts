@@ -90,6 +90,31 @@ export type TradeFlowRunRow = {
   working: number
 }
 
+/** Whether a stored DCA plan still has a rung waiting to buy. */
+export function hasWaitingDcaRung(kind: string, value: unknown): boolean {
+  if (kind !== "dca") return false
+  if (!value || typeof value !== "object" || !("rungs" in value)) return false
+  const rungs = value.rungs
+  return (
+    Array.isArray(rungs) &&
+    rungs.some(
+      (rung) =>
+        rung !== null &&
+        typeof rung === "object" &&
+        "status" in rung &&
+        rung.status === "waiting"
+    )
+  )
+}
+
+/** The one rule for whether a flow-owned smart order counts as working. */
+export function isWorkingFlowOrder(
+  kind: string,
+  hasWaitingRung: boolean
+): boolean {
+  return kind === "signal" || (kind === "dca" && hasWaitingRung)
+}
+
 /**
  * What stopping a flow did, said the way it will be read.
  *

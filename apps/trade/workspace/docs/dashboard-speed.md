@@ -38,6 +38,19 @@ stop without a click on the dashboard. Leaving the tab stops those checks. A
 failed refresh keeps the last list rather than replacing it with an empty
 answer. The richer rows reuse the stored run report and never ask an exchange.
 
+The bot count does not bring each smart order's plan back from the database.
+PostgreSQL checks whether a DCA plan contains a waiting rung and returns one
+yes-or-no value beside the order kind. The shared `isWorkingFlowOrder` rule
+then counts signals and DCA ladders exactly as before. Grid and watched orders
+do not count. If rung status ever moves somewhere else in a plan, the database
+path and the browser-safe reader in `flow-run.ts` change together.
+
+Measured with the database driver on 28 August 2026, one list read over 100
+active DCA ladders with 20 rungs each returned 268,791 bytes when it selected
+the plans. The same rows return 8,991 bytes with the small database answer.
+The measurement JSON-encoded the rows the driver handed to `listFlowRuns`; it
+does not include the other queries in that call, whose shapes did not change.
+
 ## The screen is built once
 
 The three resizable panel groups remember their divider positions in the

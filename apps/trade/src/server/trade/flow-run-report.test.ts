@@ -3,7 +3,11 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { defaultDcaParams } from "@/lib/trade/dca"
-import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
+import {
+  hasWaitingDcaRung,
+  isWorkingFlowOrder,
+  type TradeFlowRunSpec,
+} from "@/lib/trade/flow-run"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
 import {
@@ -467,6 +471,49 @@ describe("deleting a run", () => {
 })
 
 describe("listFlowRuns", () => {
+  it.each([
+    ["dca", LADDER_PLAN],
+    ["grid", { levels: [{ status: "waiting" }] }],
+    ["signal", { phase: "buying" }],
+    ["watch", { phase: "waiting" }],
+  ] as const)(
+    "matches the shared working rule for a %s plan",
+    async (kind, plan) => {
+      await db
+        .update(tradeFlowRuns)
+        .set({ status: "running", stoppedAt: null })
+        .where(eq(tradeFlowRuns.id, "run-1"))
+      await db
+        .update(tradeSmartLadders)
+        .set({ kind, status: "active", plan: plan as never })
+        .where(eq(tradeSmartLadders.id, "ladder-1"))
+
+      const rows = await listFlowRuns(userId, NOW + 7_200_000)
+      const expected = isWorkingFlowOrder(kind, hasWaitingDcaRung(kind, plan))
+
+      expect(rows[0].working).toBe(Number(expected))
+    }
+  )
+
+  it("keeps an active DCA row with no waiting rung at zero", async () => {
+    await db
+      .update(tradeFlowRuns)
+      .set({ status: "running", stoppedAt: null })
+      .where(eq(tradeFlowRuns.id, "run-1"))
+    await db
+      .update(tradeSmartLadders)
+      .set({
+        status: "active",
+        plan: { rungs: [{ status: "filled" }] } as never,
+      })
+      .where(eq(tradeSmartLadders.id, "ladder-1"))
+
+    const rows = await listFlowRuns(userId, NOW + 7_200_000)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].working).toBe(0)
+  })
+
   it("counts only the running run's own waiting ladders", async () => {
     await db
       .update(tradeFlowRuns)

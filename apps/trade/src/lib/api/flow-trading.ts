@@ -7,9 +7,11 @@ import {
   tradeMarketsSettingsSchema,
 } from "@/lib/automations/nodes/trade-markets"
 import { chosenWallet } from "@/lib/automations/nodes/trade-wallet"
-import { describeFlowStop, type TradeFlowRunSpec } from "@/lib/trade/flow-run"
-import type { LadderPlan } from "@/lib/trade/dca"
-import { readSmartPlan } from "@/lib/trade/smart-plan"
+import {
+  describeFlowStop,
+  isWorkingFlowOrder,
+  type TradeFlowRunSpec,
+} from "@/lib/trade/flow-run"
 import {
   describeFlowWait,
   flowHeadline,
@@ -25,6 +27,7 @@ import { venueLabel } from "@/lib/trade/wallets"
 import { getWorkspaceAutomation } from "@/server/automations/flows"
 import { adminGet, adminPost } from "@/server/guards"
 import { flowNodesOf } from "@/server/trade/flow-start"
+import { hasWaitingDcaRungSql } from "@/server/trade/flow-order-working"
 import {
   flowStopCounts,
   pauseFlowRun,
@@ -401,7 +404,7 @@ async function countWorkingLadders(
   const rows = await db
     .select({
       kind: tradeSmartLadders.kind,
-      plan: tradeSmartLadders.plan,
+      hasWaitingDcaRung: hasWaitingDcaRungSql,
     })
     .from(tradeSmartLadders)
     .where(
@@ -412,12 +415,9 @@ async function countWorkingLadders(
         inArray(tradeSmartLadders.marketKey, marketKeys)
       )
     )
-  return rows.filter((row) => {
-    if (row.kind === "signal") return true
-    if (row.kind !== "dca") return false
-    const plan = readSmartPlan("dca", row.plan) as LadderPlan | null
-    return plan?.rungs.some((rung) => rung.status === "waiting") ?? false
-  }).length
+  return rows.filter((row) =>
+    isWorkingFlowOrder(row.kind, row.hasWaitingDcaRung)
+  ).length
 }
 
 /** The saved drawing's three trade steps, for switching on. */

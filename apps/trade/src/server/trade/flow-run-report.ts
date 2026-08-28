@@ -1,13 +1,17 @@
 import { and, desc, eq, inArray } from "drizzle-orm"
 
 import {
+  isWorkingFlowOrder,
+  type TradeFlowRunSpec,
+  type TradeFlowRunStatus,
+} from "@/lib/trade/flow-run"
+import {
   describeFlowWait,
   flowHeadline,
   flowWaitIsRetired,
   STRIKES_BEFORE_HOLD,
   type FlowWaiting,
 } from "@/lib/trade/flow-waiting"
-import type { TradeFlowRunSpec, TradeFlowRunStatus } from "@/lib/trade/flow-run"
 import {
   openPositionIsRunning,
   splitRunTrades,
@@ -29,6 +33,7 @@ import { customShellAutomations } from "@/server/schema"
 import { loadLiveHistory } from "@/server/trade/live-fills"
 import { loadLivePortfolio } from "@/server/trade/live-orders"
 import { flowStopCounts } from "@/server/trade/flow-run"
+import { hasWaitingDcaRungSql } from "@/server/trade/flow-order-working"
 import {
   loadPaperHistory,
   loadPaperPortfolio,
@@ -203,13 +208,6 @@ async function orderOwners(
   return new Map(rows.map((row) => [row.orderId, row.flowRunId]))
 }
 
-function isWorkingFlowOrder(kind: string, value: unknown): boolean {
-  if (kind === "signal") return true
-  if (kind !== "dca") return false
-  const plan = readSmartPlan("dca", value) as LadderPlan | null
-  return plan?.rungs.some((rung) => rung.status === "waiting") ?? false
-}
-
 /** The exact ladders this run still has waiting, ready for the chart. */
 async function waitingRunLadders(
   userId: string,
@@ -260,7 +258,7 @@ async function workingMarkets(
     .select({
       marketKey: tradeSmartLadders.marketKey,
       kind: tradeSmartLadders.kind,
-      plan: tradeSmartLadders.plan,
+      hasWaitingDcaRung: hasWaitingDcaRungSql,
     })
     .from(tradeSmartLadders)
     .where(
@@ -273,7 +271,7 @@ async function workingMarkets(
     )
   return new Set(
     rows
-      .filter((row) => isWorkingFlowOrder(row.kind, row.plan))
+      .filter((row) => isWorkingFlowOrder(row.kind, row.hasWaitingDcaRung))
       .map((row) => row.marketKey)
   )
 }
@@ -407,15 +405,14 @@ export async function listFlowRuns(
           )
         )
       ),
-    // Every active row on these wallets is read once. Ownership and whether a
-    // visible rung remains are checked below for each run.
+    // Every active row on these wallets is read once. PostgreSQL sends one
+    // small fact about the plan rather than sending the plan itself.
     db
       .select({
-        walletId: tradeSmartLadders.walletId,
         marketKey: tradeSmartLadders.marketKey,
         flowRunId: tradeSmartLadders.flowRunId,
         kind: tradeSmartLadders.kind,
-        plan: tradeSmartLadders.plan,
+        hasWaitingDcaRung: hasWaitingDcaRungSql,
       })
       .from(tradeSmartLadders)
       .where(
@@ -440,7 +437,7 @@ export async function listFlowRuns(
           (one) =>
             one.flowRunId === run.id &&
             run.spec.marketKeys.includes(one.marketKey) &&
-            isWorkingFlowOrder(one.kind, one.plan)
+            isWorkingFlowOrder(one.kind, one.hasWaitingDcaRung)
         ).length
 
   const stoppingCounts = new Map(
