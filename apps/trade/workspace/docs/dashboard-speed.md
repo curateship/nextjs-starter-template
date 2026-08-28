@@ -36,6 +36,13 @@ answer, including when both opens overlap. Each account's dollar-volume cutoff
 is applied after the shared read. A failed exchange read is removed at once, so
 the next open asks again.
 
+The filtered answer carries every market row once. Rows below the account's
+volume cutoff stay available for a saved link, position, order or open chart,
+but the browser now reads their keys from those rows instead of receiving a
+second key list. On 28 August 2026, two consecutive reads of the same 326-market
+Hyperliquid catalogue sent 145,002 bytes before this change and 139,416 bytes
+after it. Both answers kept 131 visible markets and 195 hidden markets.
+
 The protocol descriptions used by wallet forms and capability checks now ship
 with the browser code. The list describes code compiled into this build, so it
 does not need an authenticated server function. The server adapter registry

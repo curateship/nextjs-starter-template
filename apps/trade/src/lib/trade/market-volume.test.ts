@@ -63,8 +63,8 @@ describe("the market volume cutoff", () => {
 
     const filtered = filterMarketsByVolume(catalog, 5_000_000)
     expect(filtered.rows).toEqual([rows[1]])
-    expect(filtered.hiddenByVolumeKeys).toEqual(["thin"])
     expect(filtered.hiddenByVolumeRows).toEqual([rows[0]])
+    expect(filtered).not.toHaveProperty("hiddenByVolumeKeys")
     expect(allCatalogMarketRows(filtered)).toEqual([rows[1], rows[0]])
     expect(catalogMarketRow(filtered, "thin")).toBe(rows[0])
     expect(catalogMarketRow(filtered, "kept")).toBe(rows[1])

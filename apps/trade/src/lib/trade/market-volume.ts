@@ -3,7 +3,6 @@ import { z } from "zod"
 import type { MarketCatalog, MarketRow } from "@/lib/protocols/contracts"
 
 export type FilteredMarketCatalog = MarketCatalog & {
-  hiddenByVolumeKeys: string[]
   /**
    * Full rows for markets omitted from the lists.
    *
@@ -45,7 +44,6 @@ export function filterMarketsByVolume(
   )
   return {
     ...catalog,
-    hiddenByVolumeKeys: hiddenByVolumeRows.map((row) => row.key),
     hiddenByVolumeRows,
     rows: catalog.rows.filter((row) =>
       marketMeetsVolumeCutoff(row.volume24hUsd, minimumVolumeUsd)

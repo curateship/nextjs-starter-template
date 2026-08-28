@@ -156,7 +156,12 @@ export function MarketFoldersPanel({
     [catalogs]
   )
   const hiddenByVolume = React.useMemo(
-    () => new Set(catalogs.flatMap((catalog) => catalog.hiddenByVolumeKeys)),
+    () =>
+      new Set(
+        catalogs.flatMap((catalog) =>
+          catalog.hiddenByVolumeRows.map((row) => row.key)
+        )
+      ),
     [catalogs]
   )
   const marketRows = React.useMemo(

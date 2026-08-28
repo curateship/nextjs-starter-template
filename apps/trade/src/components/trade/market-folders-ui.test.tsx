@@ -79,7 +79,6 @@ const catalogs = [
       openInterest: true,
     },
     rows: [btc],
-    hiddenByVolumeKeys: [],
     hiddenByVolumeRows: [],
   },
 ]
@@ -563,7 +562,6 @@ describe("the market folder controls", () => {
               {
                 ...catalogs[0],
                 rows: [],
-                hiddenByVolumeKeys: [btc.key],
                 hiddenByVolumeRows: [btc],
               },
             ]}

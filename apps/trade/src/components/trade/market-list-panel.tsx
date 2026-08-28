@@ -98,7 +98,7 @@ export function AllMarketsList({
     [catalogs]
   )
   const hasVolumeHiddenMarkets = catalogs.some(
-    (catalog) => catalog.hiddenByVolumeKeys.length > 0
+    (catalog) => catalog.hiddenByVolumeRows.length > 0
   )
 
   const visible = React.useMemo(() => {
