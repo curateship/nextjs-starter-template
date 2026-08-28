@@ -6,7 +6,6 @@ import {
   EllipsisVerticalIcon,
   Grid2x2Icon,
   PauseIcon,
-  PiggyBankIcon,
   PlayIcon,
   SquareIcon,
 } from "lucide-react"
@@ -28,6 +27,20 @@ import {
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableSortButton,
+} from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   getRunningBotsErrorMessage,
   loadRunningBots,
@@ -62,6 +75,7 @@ import {
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
   readSmartOrdersCache,
   writeSmartOrdersCache,
@@ -84,8 +98,8 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * yourself and turn this into a second, worse copy of the run's dashboard.
  * What a flow is doing belongs to that run's page.
  *
- * One row per smart order, naming its kind and wallet. Clicking a row charts
- * that coin; the three-dot button opens its progress and sales.
+ * One row per smart order. Clicking a row charts that coin; hovering or
+ * focusing its ticker icon shows the order's progress and sales.
  */
 
 const KIND_LABELS: Record<SmartOrderKind, string> = {
@@ -93,6 +107,14 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
   grid: "Grid",
   signal: "Signals",
   watch: "Watched price",
+}
+
+type SmartOrderColumn = "ticker" | "pnl" | "banked"
+
+function defaultSmartOrderDirection(column: SmartOrderColumn) {
+  return column === "pnl" || column === "banked"
+    ? ("desc" as const)
+    : ("asc" as const)
 }
 
 /** A running bot can stop on its own, so the open tab checks again. */
@@ -541,21 +563,94 @@ function SmartOrdersView({
     [wallets, readAt]
   )
 
-  // Holding first — that is where the money is — then by coin, so the list
-  // does not reshuffle every time a rung fills.
-  const rows = React.useMemo(
-    () =>
-      [...mine].sort((left, right) => {
-        const holdingFirst = (order: SmartOrder) =>
-          held.has(`${order.walletId}:${order.marketKey}`) ? 0 : 1
-        return (
-          holdingFirst(left) - holdingFirst(right) ||
-          marketSymbol(left.marketKey).localeCompare(
-            marketSymbol(right.marketKey)
-          )
+  const { sort, direction, toggleSort } = useTableSort<SmartOrderColumn>(
+    "pnl",
+    "desc",
+    defaultSmartOrderDirection
+  )
+  const rows = React.useMemo(() => {
+    const unsorted = mine.map((order) => {
+      const position = held.get(`${order.walletId}:${order.marketKey}`) ?? null
+      const mark =
+        marks.get(order.marketKey) ??
+        markets.get(order.marketKey)?.price ??
+        null
+      const openProfit =
+        position && mark !== null
+          ? (mark - position.entryPx) * position.szi - position.feesPaid
+          : null
+      const banked = bankedBy(order, fills, trades)
+      const bankedValue =
+        banked.sells.length > 0 && banked.unpriced === banked.sells.length
+          ? null
+          : banked.total
+      return {
+        order,
+        position,
+        openProfit,
+        banked,
+        bankedValue,
+        keyExpired: expiredWallets.has(order.walletId),
+      }
+    })
+    const compared = (
+      left: (typeof unsorted)[number],
+      right: (typeof unsorted)[number]
+    ) => {
+      if (sort === "ticker") {
+        return marketSymbol(left.order.marketKey).localeCompare(
+          marketSymbol(right.order.marketKey)
         )
-      }),
-    [mine, held]
+      }
+      const leftValue = sort === "pnl" ? left.openProfit : left.bankedValue
+      const rightValue = sort === "pnl" ? right.openProfit : right.bankedValue
+      if (leftValue === null || rightValue === null) return 0
+      return leftValue - rightValue
+    }
+    return unsorted.sort((left, right) => {
+      if (sort === "pnl" || sort === "banked") {
+        const leftValue = sort === "pnl" ? left.openProfit : left.bankedValue
+        const rightValue = sort === "pnl" ? right.openProfit : right.bankedValue
+        if (leftValue === null) return rightValue === null ? 0 : 1
+        if (rightValue === null) return -1
+      }
+      const result = compared(left, right)
+      if (result !== 0) return direction === "asc" ? result : -result
+      return marketSymbol(left.order.marketKey).localeCompare(
+        marketSymbol(right.order.marketKey)
+      )
+    })
+  }, [
+    direction,
+    expiredWallets,
+    fills,
+    held,
+    markets,
+    marks,
+    mine,
+    sort,
+    trades,
+  ])
+
+  const heading = (
+    column: SmartOrderColumn,
+    label: React.ReactNode,
+    align: "left" | "right" = "left",
+    labelAtEdge = false
+  ) => (
+    <TableSortButton
+      active={sort === column}
+      direction={direction}
+      onClick={() => toggleSort(column)}
+      className={cn(
+        "gap-0.5 whitespace-nowrap sm:text-xs",
+        align === "right" && "w-full justify-end",
+        labelAtEdge &&
+          "[&>span:first-child]:order-2 [&>span:last-child]:order-1"
+      )}
+    >
+      {label}
+    </TableSortButton>
   )
 
   return (
@@ -580,110 +675,120 @@ function SmartOrdersView({
         </p>
       ) : (
         <ScrollArea className="min-h-0 flex-1">
-          <div className="flex flex-col">
-            {rows.map((order) => {
-              const position = held.get(`${order.walletId}:${order.marketKey}`)
-              const mark =
-                marks.get(order.marketKey) ??
-                markets.get(order.marketKey)?.price ??
-                null
-              const open =
-                position && mark !== null
-                  ? (mark - position.entryPx) * position.szi - position.feesPaid
-                  : null
-              const banked = bankedBy(order, fills, trades)
-              const keyExpired = expiredWallets.has(order.walletId)
-              const selected = order.marketKey === selectedMarketKey
-              return (
-                <div key={order.id} className="border-b last:border-b-0">
-                  <div
-                    className={cn(
-                      "flex items-stretch transition-colors",
-                      selected
-                        ? "bg-muted/60 hover:bg-muted/60"
-                        : "hover:bg-muted/40"
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSelectMarket(order.marketKey)}
-                      className={cn(
-                        // `min-w-0` or nothing below it can truncate: a
-                        // no-wrap line's whole width is what a flex item
-                        // offers as its smallest size, hidden overflow or not,
-                        // so the row grew to fit the longest sentence in the
-                        // list and pushed its dollars off the panel's edge.
-                        "flex min-h-10 min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 pl-2 text-left",
-                        focusRing
-                      )}
+          <Table
+            className="table-fixed [&_tbody_tr:first-child_td]:pt-2 [&_tbody_tr:last-child_td]:pb-2 [&_td:first-child]:pl-4 [&_td:last-child]:pr-4 [&_th:first-child]:pl-4 [&_th:last-child]:pr-4"
+            containerClassName="overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted/50"
+          >
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[48%] px-1">
+                  {heading("ticker", "Ticker")}
+                </TableHead>
+                <TableHead className="w-[22%] px-1">
+                  {heading("pnl", "PnL", "right")}
+                </TableHead>
+                <TableHead className="w-[30%] px-1">
+                  {heading("banked", "Banked", "right", true)}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map(
+                ({
+                  order,
+                  position,
+                  openProfit,
+                  banked,
+                  bankedValue,
+                  keyExpired,
+                }) => {
+                  const selected = order.marketKey === selectedMarketKey
+                  return (
+                    <TableRow
+                      key={order.id}
+                      rowAction={() => onSelectMarket(order.marketKey)}
+                      data-state={selected ? "selected" : undefined}
                     >
-                      <MarketIcon
-                        symbol={marketSymbol(order.marketKey)}
-                        iconUrl={markets.get(order.marketKey)?.iconUrl ?? null}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="truncate text-sm font-semibold">
-                            {marketSymbol(order.marketKey)}
-                          </span>
-                          <span className="truncate text-xs text-muted-foreground">
-                            {KIND_LABELS[order.kind]} ·{" "}
-                            {walletName(order.walletId)}
-                          </span>
+                      <TableCell className="px-1 py-2">
+                        <div className="grid min-w-0 gap-1">
+                          <div className="flex min-w-0 items-center gap-1">
+                            <SmartOrderDetailsTooltip
+                              order={order}
+                              position={position}
+                              openProfit={openProfit}
+                              banked={banked}
+                              keyExpired={keyExpired}
+                              walletName={walletName(order.walletId)}
+                            >
+                              <MarketIcon
+                                symbol={marketSymbol(order.marketKey)}
+                                iconUrl={
+                                  markets.get(order.marketKey)?.iconUrl ?? null
+                                }
+                              />
+                            </SmartOrderDetailsTooltip>
+                            <button
+                              type="button"
+                              onClick={() => onSelectMarket(order.marketKey)}
+                              className={cn(
+                                "min-w-0 flex-1 rounded-sm text-left",
+                                focusRing
+                              )}
+                            >
+                              <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">
+                                {marketSymbol(order.marketKey)}
+                              </span>
+                            </button>
+                          </div>
+                          {order.plan.paused ? (
+                            <span
+                              className={cn(
+                                "flex items-center gap-1 pl-6 text-xs",
+                                WARNING
+                              )}
+                            >
+                              <span className="truncate">Paused</span>
+                              <ResumeSmartOrderButton
+                                order={order}
+                                onResume={onResumeSmartOrder}
+                              />
+                            </span>
+                          ) : keyExpired ? (
+                            <span
+                              className={cn(
+                                "block truncate pl-6 text-xs",
+                                LOST_MONEY
+                              )}
+                            >
+                              Key expired
+                            </span>
+                          ) : null}
                         </div>
-                        {order.plan.paused ? (
-                          <p
-                            className={cn(
-                              "truncate text-xs leading-4",
-                              WARNING
-                            )}
+                      </TableCell>
+                      <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
+                        {openProfit === null ? (
+                          <span className="text-muted-foreground">—</span>
+                        ) : (
+                          <span
+                            className={cn("font-medium", moneyTone(openProfit))}
                           >
-                            Paused.{" "}
-                            {order.plan.pauseReason ?? "Check the refusal."}
-                          </p>
-                        ) : keyExpired ? (
-                          <p
-                            className={cn(
-                              "truncate text-xs leading-4",
-                              LOST_MONEY
-                            )}
-                          >
-                            Trading key expired. This{" "}
-                            {order.kind === "grid" ? "grid" : "ladder"} will not
-                            act.
-                          </p>
-                        ) : null}
-                      </div>
-                      <div className="flex shrink-0 items-baseline gap-2 text-right font-mono text-xs whitespace-nowrap tabular-nums">
-                        {open === null ? null : (
-                          <span className={cn("font-medium", moneyTone(open))}>
-                            {formatSignedUsd(open)}
+                            {formatSignedUsd(openProfit)}
                           </span>
                         )}
-                        <span className="inline-flex items-center gap-1 text-muted-foreground">
-                          {banked.sells.length > 0 &&
-                          banked.unpriced === banked.sells.length
+                      </TableCell>
+                      <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
+                        <span className="text-muted-foreground">
+                          {bankedValue === null
                             ? "—"
-                            : formatSignedUsd(banked.total)}
-                          <PiggyBankIcon className="size-3.5" aria-hidden />
-                          <span className="sr-only"> banked</span>
+                            : formatSignedUsd(bankedValue)}
                         </span>
-                      </div>
-                    </button>
-                    <SmartOrderDetailsPopover
-                      order={order}
-                      position={position ?? null}
-                      openProfit={open}
-                      banked={banked}
-                      keyExpired={keyExpired}
-                      walletName={walletName(order.walletId)}
-                      onResume={() => onResumeSmartOrder(order)}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                      </TableCell>
+                    </TableRow>
+                  )
+                }
+              )}
+            </TableBody>
+          </Table>
         </ScrollArea>
       )}
     </>
@@ -698,21 +803,46 @@ function DetailRow({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="text-right">{children}</span>
+    <div className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-2 text-xs">
+      <span className="whitespace-nowrap opacity-70">{label}</span>
+      <span className="min-w-0 text-right break-words">{children}</span>
     </div>
   )
 }
 
-function SmartOrderDetailsPopover({
+function ResumeSmartOrderButton({
+  order,
+  onResume,
+}: {
+  order: SmartOrder
+  onResume: (order: SmartOrder) => Promise<boolean>
+}) {
+  const [resuming, setResuming] = React.useState(false)
+  return (
+    <Button
+      type="button"
+      size="xs"
+      variant="outline"
+      disabled={resuming}
+      onClick={() => {
+        setResuming(true)
+        void onResume(order).finally(() => setResuming(false))
+      }}
+    >
+      <PlayIcon className="size-3" />
+      {resuming ? "Resuming" : "Resume"}
+    </Button>
+  )
+}
+
+function SmartOrderDetailsTooltip({
   order,
   position,
   openProfit,
   banked,
   keyExpired,
   walletName,
-  onResume,
+  children,
 }: {
   order: SmartOrder
   position: TradePosition | null
@@ -720,34 +850,36 @@ function SmartOrderDetailsPopover({
   banked: ReturnType<typeof bankedBy>
   keyExpired: boolean
   walletName: string
-  onResume: () => Promise<boolean>
+  children: React.ReactNode
 }) {
-  const [resuming, setResuming] = React.useState(false)
   const pausedReason =
     order.plan.pauseReason ?? "The exchange refused this smart order."
   return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
           type="button"
-          size="icon-sm"
-          variant="ghost"
-          className="mr-1 self-center"
-          aria-label={`Open ${marketSymbol(order.marketKey)} smart order details`}
+          className={cn("inline-flex shrink-0 rounded-full", focusRing)}
+          aria-label={`${marketSymbol(order.marketKey)} smart order details`}
         >
-          <EllipsisVerticalIcon className="size-4" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 gap-0 p-0">
-        <PopoverHeader className="border-b p-3">
-          <PopoverTitle>
+          {children}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="left"
+        sideOffset={8}
+        collisionPadding={8}
+        className="grid w-56 max-w-[calc(100vw-1rem)] items-stretch gap-0 overflow-hidden bg-popover p-0 text-popover-foreground shadow-md ring-1 ring-foreground/10 sm:w-64 [&>span:not([role])]:hidden"
+      >
+        <div className="border-b p-2.5">
+          <p className="font-medium">
             {marketSymbol(order.marketKey)} smart order
-          </PopoverTitle>
-          <p className="text-xs text-muted-foreground">
+          </p>
+          <p className="opacity-70">
             {KIND_LABELS[order.kind]} · {walletName}
           </p>
-        </PopoverHeader>
-        <div className="grid gap-2 p-3">
+        </div>
+        <div className="grid gap-1.5 p-2.5">
           <p className="text-xs font-medium">Progress</p>
           <DetailRow label="Status">
             {order.plan.paused
@@ -779,14 +911,14 @@ function SmartOrderDetailsPopover({
             </DetailRow>
           )}
         </div>
-        <div className="grid gap-2 border-t p-3">
+        <div className="grid gap-1.5 border-t p-2.5">
           <p className="text-xs font-medium">Sales</p>
           {banked.sells.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing sold yet.</p>
+            <p className="text-sm opacity-70">Nothing sold yet.</p>
           ) : (
             <>
               {banked.capped ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs opacity-70">
                   The {SHOW_AT_MOST} most recent are listed. The total counts
                   them all.
                 </p>
@@ -794,10 +926,10 @@ function SmartOrderDetailsPopover({
               {banked.sells.map((sell) => (
                 <div
                   key={sell.fillId}
-                  className="flex items-baseline justify-between gap-3 text-sm"
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 text-xs"
                 >
                   <span
-                    className="truncate text-muted-foreground"
+                    className="min-w-0 truncate opacity-70"
                     title={formatDateTime(new Date(sell.at))}
                   >
                     {formatTimeAgo(new Date(sell.at))} @{" "}
@@ -807,16 +939,14 @@ function SmartOrderDetailsPopover({
                   <span
                     className={cn(
                       "shrink-0 tabular-nums",
-                      sell.money === null
-                        ? "text-muted-foreground"
-                        : moneyTone(sell.money)
+                      sell.money === null ? "opacity-70" : moneyTone(sell.money)
                     )}
                   >
                     {sell.money === null ? "—" : formatSignedUsd(sell.money)}
                   </span>
                 </div>
               ))}
-              <div className="flex items-baseline justify-between gap-3 border-t pt-2 text-sm font-medium">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 border-t pt-2 text-xs font-medium">
                 <span>
                   {banked.sells.length}{" "}
                   {banked.sells.length === 1 ? "sale" : "sales"}
@@ -825,7 +955,7 @@ function SmartOrderDetailsPopover({
                   className={cn(
                     "tabular-nums",
                     banked.unpriced === banked.sells.length
-                      ? "text-muted-foreground"
+                      ? "opacity-70"
                       : moneyTone(banked.total)
                   )}
                 >
@@ -835,7 +965,7 @@ function SmartOrderDetailsPopover({
                 </span>
               </div>
               {banked.unpriced > 0 ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs opacity-70">
                   {banked.unpriced === 1
                     ? "The exchange has not said what that sale banked."
                     : `The exchange has not said what ${banked.unpriced} of these sales banked.`}
@@ -844,29 +974,13 @@ function SmartOrderDetailsPopover({
             </>
           )}
         </div>
-        {order.plan.paused ? (
-          <div className="border-t p-3">
-            <Button
-              type="button"
-              className="w-full"
-              disabled={resuming}
-              onClick={() => {
-                setResuming(true)
-                void onResume().finally(() => setResuming(false))
-              }}
-            >
-              <PlayIcon className="size-4" />
-              {resuming ? "Resuming" : "Resume"}
-            </Button>
-          </div>
-        ) : null}
-      </PopoverContent>
-    </Popover>
+      </TooltipContent>
+    </Tooltip>
   )
 }
 
 /**
- * Where one smart order has got to, shown in its detail popover.
+ * Where one smart order has got to, shown in its detail tooltip.
  *
  * Each kind is asked its own question, because the same words would be a lie
  * about the others: a ladder has rungs waiting, a grid has levels recycling,

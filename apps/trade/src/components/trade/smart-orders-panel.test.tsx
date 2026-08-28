@@ -5,6 +5,14 @@ import { createRoot } from "react-dom/client"
 import { renderToStaticMarkup } from "react-dom/server"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+})
+
 const flowRunsApi = vi.hoisted(() => ({
   loadRunningBots: vi.fn(),
   getRunningBotsErrorMessage: vi.fn(
@@ -36,10 +44,23 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }))
 
-import { SmartOrdersPanel } from "@/components/trade/smart-orders-panel"
+import { SmartOrdersPanel as SmartOrdersPanelContent } from "@/components/trade/smart-orders-panel"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { writeSmartOrdersCache } from "@/lib/trade/dashboard-cache"
 import { ladderPlanSchema } from "@/lib/trade/dca"
+import type { MarketRow } from "@/lib/protocols/contracts"
+import type { TradePosition } from "@/lib/trade/paper"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
+
+function SmartOrdersPanel(
+  props: ComponentProps<typeof SmartOrdersPanelContent>
+) {
+  return (
+    <TooltipProvider>
+      <SmartOrdersPanelContent {...props} />
+    </TooltipProvider>
+  )
+}
 
 /**
  * The Smart orders panel's three answers, told apart.
@@ -161,6 +182,48 @@ const grid = {
   },
 } as unknown as SmartOrder
 
+const bitcoin: SmartOrder = {
+  ...ladder,
+  id: "two",
+  marketKey: "hyperliquid:mainnet:BTC",
+}
+
+const pnlPositions: TradePosition[] = [
+  {
+    id: "xmr-position",
+    walletId: ladder.walletId,
+    marketKey: ladder.marketKey,
+    szi: 1,
+    entryPx: 100,
+    leverage: 1,
+    maxLeverage: 20,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: 1,
+  },
+  {
+    id: "btc-position",
+    walletId: bitcoin.walletId,
+    marketKey: bitcoin.marketKey,
+    szi: 1,
+    entryPx: 100,
+    leverage: 1,
+    maxLeverage: 20,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: 1,
+  },
+]
+
+const pnlMarkets = new Map([
+  [ladder.marketKey, { price: 120, iconUrl: null }],
+  [bitcoin.marketKey, { price: 110, iconUrl: null }],
+]) as unknown as Map<string, MarketRow>
+
 function draw(state: {
   smartOrders: readonly SmartOrder[]
   settled: boolean
@@ -177,6 +240,18 @@ async function openBots(host: HTMLElement) {
     trigger?.dispatchEvent(
       new MouseEvent("mousedown", { bubbles: true, button: 0 })
     )
+  })
+}
+
+async function openSmartOrderDetails(host: HTMLElement, symbol = "XMR") {
+  const trigger = host.querySelector<HTMLButtonElement>(
+    `button[aria-label="${symbol} smart order details"]`
+  )
+  await act(async () => {
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true })
+    )
+    trigger?.focus()
   })
 }
 
@@ -319,12 +394,7 @@ describe("the Smart orders panel", () => {
 
     await act(async () => {
       root.render(
-        <SmartOrdersPanel
-          {...shared}
-          smartOrders={[]}
-          settled
-          failed={false}
-        />
+        <SmartOrdersPanel {...shared} smartOrders={[]} settled failed={false} />
       )
     })
     await openBots(host)
@@ -425,7 +495,7 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
-  it("puts the three-dot detail button at the right of the market row", async () => {
+  it("draws three sortable columns and puts details on the ticker icon", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -437,32 +507,54 @@ describe("the Smart orders panel", () => {
       root.render(
         <SmartOrdersPanel
           {...shared}
-          smartOrders={[ladder]}
+          smartOrders={[ladder, bitcoin]}
+          positions={pnlPositions}
+          markets={pnlMarkets}
           settled
           failed={false}
         />
       )
     })
 
-    const details = host.querySelector(
-      'button[aria-label="Open XMR smart order details"]'
-    )
-    expect(details?.previousElementSibling?.textContent).toContain("XMR")
-    expect(details?.previousElementSibling?.className).toContain("min-h-10")
+    const headerButtons = Array.from(host.querySelectorAll("thead button"))
+    const headers = headerButtons.map((button) => button.textContent)
+    expect(headers).toEqual(["Ticker", "PnL", "Banked"])
     expect(
-      details?.previousElementSibling?.querySelector(".text-sm")?.textContent
-    ).toBe("XMR")
+      headerButtons
+        .slice(1)
+        .every((button) => button.className.includes("justify-end"))
+    ).toBe(true)
+    expect(headerButtons[2]?.className).toContain(
+      "[&>span:first-child]:order-2"
+    )
+    expect(host.querySelector("table")?.className).toContain(
+      "[&_td:last-child]:pr-4"
+    )
+    const rowTickers = () =>
+      Array.from(host.querySelectorAll("tbody tr")).map((row) =>
+        row.querySelector(".font-semibold")?.textContent?.trim()
+      )
+    expect(rowTickers()).toEqual(["XMR", "BTC"])
+    expect(headerButtons[1]?.querySelector(".lucide-arrow-down")).not.toBeNull()
+    const firstRowCells = host
+      .querySelectorAll("tbody tr")[0]
+      ?.querySelectorAll("td")
+    expect(firstRowCells?.[0]?.className).not.toContain("text-right")
+    expect(firstRowCells?.[1]?.className).toContain("text-right")
+    await act(async () => {
+      host.querySelector<HTMLButtonElement>("thead button")?.click()
+    })
+    expect(rowTickers()).toEqual(["BTC", "XMR"])
+    const details = host.querySelector(
+      'button[aria-label="XMR smart order details"]'
+    )
     expect(
       host.querySelector('[data-slot="dashboard-card-header"]')?.className
     ).toContain("min-h-[var(--dashboard-card-header-height)]")
-    expect(details?.querySelector(".lucide-ellipsis-vertical")).not.toBeNull()
-    expect(details?.previousElementSibling?.textContent).toContain(
-      "$0.00 banked"
-    )
-    expect(
-      details?.previousElementSibling?.querySelector(".lucide-piggy-bank")
-    ).not.toBeNull()
-    expect(details?.parentElement?.className).toContain("hover:bg-muted/40")
+    expect(details?.textContent).toBe("X")
+    expect(host.textContent).toContain("$0.00")
+    expect(host.querySelector(".lucide-piggy-bank")).toBeNull()
+    expect(host.querySelector(".lucide-ellipsis-vertical")).toBeNull()
     await act(async () => root.unmount())
     host.remove()
   })
@@ -505,13 +597,7 @@ describe("the Smart orders panel", () => {
       )
     })
 
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open XMR smart order details"]'
-        )
-        ?.click()
-    })
+    await openSmartOrderDetails(host)
 
     expect(document.body.textContent).toContain("2 days ago @ 6:09 PM · $64.36")
     expect(document.body.textContent).not.toContain("$0.032181")
@@ -544,20 +630,17 @@ describe("the Smart orders panel", () => {
     }
 
     await act(async () => root.render(<SelectedSmartOrder />))
-    const details = host.querySelector(
-      'button[aria-label="Open XMR smart order details"]'
-    )
-    await act(async () =>
-      (details?.previousElementSibling as HTMLButtonElement | null)?.click()
-    )
+    const ticker = Array.from(host.querySelectorAll("tbody .font-semibold"))
+      .find((label) => label.textContent?.trim() === "XMR")
+      ?.closest("button")
+    await act(async () => ticker?.click())
 
-    expect(details?.parentElement?.className).toContain("bg-muted/60")
-    expect(details?.parentElement?.className).toContain("hover:bg-muted/60")
+    expect(ticker?.closest("tr")?.dataset.state).toBe("selected")
     await act(async () => root.unmount())
     host.remove()
   })
 
-  it("moves grid progress and held funds into the popover", async () => {
+  it("moves grid progress and held funds into the ticker tooltip", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -578,16 +661,13 @@ describe("the Smart orders panel", () => {
     expect(host.textContent).not.toContain("3 waiting · 7 completed")
     expect(host.textContent).not.toContain("$70.00")
 
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open XMR smart order details"]'
-        )
-        ?.click()
-    })
+    await openSmartOrderDetails(host)
 
     expect(document.body.textContent).toContain("3 waiting · 7 completed")
     expect(document.body.textContent).toContain("Held to sell$70.00")
+    const tooltip = document.body.querySelector('[data-slot="tooltip-content"]')
+    expect(tooltip?.className).toContain("bg-popover")
+    expect(tooltip?.className).toContain("[&>span:not([role])]:hidden")
     await act(async () => root.unmount())
     host.remove()
   })
@@ -614,13 +694,7 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open XMR smart order details"]'
-        )
-        ?.click()
-    })
+    await openSmartOrderDetails(host)
 
     expect(document.body.textContent).toContain("Held to buy back$70.00")
     await act(async () => root.unmount())
@@ -656,17 +730,12 @@ describe("the Smart orders panel", () => {
         />
       )
     })
-    expect(host.textContent).toContain(
+    expect(host.textContent).toContain("Paused")
+    await openSmartOrderDetails(host)
+    expect(document.body.textContent).toContain(
       "Paused. The order is below the market minimum."
     )
 
-    await act(async () => {
-      host
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Open XMR smart order details"]'
-        )
-        ?.click()
-    })
     const resume = Array.from(document.body.querySelectorAll("button")).find(
       (button) => button.textContent?.trim() === "Resume"
     )
@@ -700,7 +769,7 @@ describe("the Smart orders panel", () => {
         failed={false}
       />
     )
-    expect(markup).toContain("Trading key expired. This ladder will not act.")
+    expect(markup).toContain("Key expired")
     expect(markup).not.toContain("1 rung waiting")
   })
 })

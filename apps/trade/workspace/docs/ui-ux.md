@@ -529,24 +529,38 @@ placed, and for the same reason.
 Opening a smart order in the right-hand panel lists what it has sold and what
 that banked. Each sale says how long ago it happened, its clock time, and the
 gross dollars sold. The exact date and time stays in the hover text. The market
-price no longer takes the sold amount's place. The vertical three-dot button at
-the row's right edge opens a small popover without blocking the chart. The whole
-row turns light gray under the pointer, including the three-dot area. Pressing
-the smart order opens its market on the chart and keeps the whole row light
-gray while that market is selected.
-The market favicon starts each row. The coin, order kind and wallet stay on one
-line beside it. Open profit and banked money sit together at the right, with
-open profit carrying the made-or-lost colour and banked money kept gray. A
-piggy-bank icon labels the banked amount instead of the word. Banked money stays
-visible at $0.00 before the first sale, so the amount does not appear and
-disappear as the order works. The existing favicon and type sizes do not change
-for this layout.
+price no longer takes the sold amount's place.
+
+The list is a sortable table with three columns: Ticker, PnL, and Banked. There
+is no Exchange or Type column; the order type remains in the details tooltip.
+The favicon stays beside the ticker. Ticker takes the spare width, while PnL
+and Banked align to the right edge of their columns. Banked puts its sort mark
+before the label so the word and figures end together. Cell content keeps a
+16px gutter from both panel edges while row backgrounds remain full width.
+PnL is the profit or loss on what the smart order still holds. Banked is the
+money from sales that have finished. Banked has no icon, and $0.00 stays visible
+before the first sale.
+
+Pointing at the ticker icon opens the smart order's details. Keyboard focus
+opens the same tooltip. The card is 224px wide on the phone sheet and 256px on
+larger screens. It stays centered beside the icon and keeps an 8px boundary
+from the viewport, so it does not take over the chart or clip. The details card
+uses the light popover surface and dark text, with no pointer arrow. The ticker
+name remains the control that opens its market on the chart. The tooltip names
+the wallet and shows progress, money still held, open profit, and the sale
+history. A grid says how many levels are
+waiting and completed and how many dollars it still holds to sell. A paused
+smart order keeps its reason in the tooltip and puts Resume beneath its ticker,
+so removing the old three-dot button and Type column does not remove the
+recovery action.
+
+Pressing a row opens its market on the chart and keeps the whole row light gray
+while that market is selected. Pressing a heading sorts that column. PnL is the
+opening sort, with the largest profit first. Ticker starts A to Z when pressed.
+Banked starts with the largest figure. Figures the exchange has not
+stated stay at the end in either direction.
 A long Smart orders list scrolls inside the panel beneath its tabs. The panel
 keeps its own height instead of growing the list past the bottom edge.
-A grid's waiting and completed counts live inside that popover, such as "3
-waiting · 7 completed", followed by how many dollars it still holds to sell.
-The old price-range line repeated what the chart already shows and did not say
-how far the grid had got.
 Two rules decide what appears in the opened sale list.
 
 - **A sell out of a long-only order is a sale**, whether or not the venue put a
