@@ -32,15 +32,17 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { loadTradingOverviewPage } from "@/lib/api/trading-overview"
 import {
   formatClockTime,
   formatDate,
   formatDateTime,
 } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import type {
-  TradingOverview,
-  TradingOverviewFill,
+import {
+  mergeTradingOverviewRefresh,
+  type TradingOverview,
+  type TradingOverviewFill,
 } from "@/lib/trade/dashboard/overview"
 import {
   findTradingDashboardWidget,
@@ -53,6 +55,9 @@ import { formatPrice, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { cn } from "@/lib/utils"
 
+/** Matches the wallet panel without adding another fast account reader. */
+const REFRESH_MS = 15_000
+
 export function TradingOverviewDashboard({
   overview,
   layout,
@@ -60,6 +65,8 @@ export function TradingOverviewDashboard({
   overview: TradingOverview
   layout: TradingDashboardWidgetLayout
 }) {
+  const current = useCurrentOverview(overview, layout)
+
   const blocksIn = (slot: TradingDashboardWidgetSlot): DashboardBlock[] =>
     layout[slot].flatMap((id) => {
       const widget = findTradingDashboardWidget(id)
@@ -70,7 +77,7 @@ export function TradingOverviewDashboard({
           size: widget.size,
           minSize: widget.minSize,
           stackedClassName: id === "running-bots" ? "h-72" : undefined,
-          render: (className: string) => renderWidget(id, overview, className),
+          render: (className: string) => renderWidget(id, current, className),
         },
       ]
     })
@@ -87,7 +94,7 @@ export function TradingOverviewDashboard({
         <React.Fragment key={id}>
           {renderWidget(
             id,
-            overview,
+            current,
             id === "equity"
               ? "min-h-[38rem] shrink-0 lg:h-[38rem]"
               : id === "active-trades"
@@ -103,6 +110,83 @@ export function TradingOverviewDashboard({
       ) : null}
     </>
   )
+}
+
+/**
+ * Keeps one complete answer on screen. A failed read only moves the age label;
+ * it never swaps good figures for an empty or partial response.
+ */
+function useCurrentOverview(
+  initial: TradingOverview,
+  layout: TradingDashboardWidgetLayout
+) {
+  const [read, setRead] = React.useState(() => ({
+    from: initial,
+    overview: initial,
+    checkedAt: initial.readAt,
+  }))
+  let current = read
+  if (read.from !== initial) {
+    current = { from: initial, overview: initial, checkedAt: initial.readAt }
+    setRead(current)
+  }
+  const hasWidgets = !isTradingDashboardEmpty(layout)
+
+  React.useEffect(() => {
+    if (!hasWidgets) return
+    let stopped = false
+    let timer: number | null = null
+    let inFlight: Promise<void> | null = null
+
+    const clearTimer = () => {
+      if (timer === null) return
+      window.clearTimeout(timer)
+      timer = null
+    }
+    const schedule = () => {
+      if (stopped || document.visibilityState !== "visible") return
+      clearTimer()
+      timer = window.setTimeout(run, REFRESH_MS)
+    }
+    const run = () => {
+      timer = null
+      if (stopped || document.visibilityState !== "visible" || inFlight) return
+      const request = loadTradingOverviewPage()
+        .then(({ overview: fresh }) => {
+          if (!stopped) {
+            setRead((was) => ({
+              ...was,
+              overview: mergeTradingOverviewRefresh(was.overview, fresh),
+              checkedAt: Date.now(),
+            }))
+          }
+        })
+        .catch(() => {
+          if (!stopped) {
+            setRead((was) => ({ ...was, checkedAt: Date.now() }))
+          }
+        })
+        .finally(() => {
+          if (inFlight === request) inFlight = null
+          schedule()
+        })
+      inFlight = request
+    }
+    const onVisibilityChange = () => {
+      clearTimer()
+      if (document.visibilityState === "visible" && !inFlight) run()
+    }
+
+    schedule()
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    return () => {
+      stopped = true
+      clearTimer()
+      document.removeEventListener("visibilitychange", onVisibilityChange)
+    }
+  }, [hasWidgets])
+
+  return current.overview
 }
 
 function renderWidget(

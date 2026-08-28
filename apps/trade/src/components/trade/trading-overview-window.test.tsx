@@ -4,8 +4,13 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+vi.mock("@/lib/api/trading-overview", () => ({
+  loadTradingOverviewPage: vi.fn(),
+}))
+
 import { TradingOverviewDashboard } from "@/components/trade/trading-overview-dashboard"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { loadTradingOverviewPage } from "@/lib/api/trading-overview"
 import type { TradingOverview } from "@/lib/trade/dashboard/overview"
 
 /**
@@ -19,6 +24,7 @@ import type { TradingOverview } from "@/lib/trade/dashboard/overview"
  */
 
 const overview: TradingOverview = {
+  readAt: new Date("2026-08-24T16:00:00.000Z").getTime(),
   wallets: [
     {
       id: "main",
@@ -73,6 +79,13 @@ function show(on: string, shownOverview = overview) {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  ;(
+    globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+  ).IS_REACT_ACT_ENVIRONMENT = true
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: "visible",
+  })
   window.localStorage.clear()
   host = document.createElement("div")
   document.body.append(host)
@@ -83,6 +96,7 @@ afterEach(() => {
   act(() => root.unmount())
   host.remove()
   vi.useRealTimers()
+  vi.clearAllMocks()
 })
 
 describe("what the widgets say about when they started", () => {
@@ -104,7 +118,7 @@ describe("what the widgets say about when they started", () => {
     expect(chart?.contains(result)).toBe(false)
     expect(shown).not.toContain("1 wallet")
     expect(shown).toContain(
-      "4 days agobalance $5,200.00 · settled +$150.00 · open +$40.00 · fees $3.00"
+      "4 days ago · last read just nowbalance $5,200.00 · settled +$150.00 · open +$40.00 · fees $3.00"
     )
     expect(
       host.querySelector(
@@ -317,5 +331,77 @@ describe("what the widgets say about when they started", () => {
     expect(buy?.className).toContain("rounded-md")
     expect(sell?.className).toContain("bg-destructive/10")
     expect(sell?.className).toContain("rounded-md")
+  })
+})
+
+describe("keeping the overview current", () => {
+  it("replaces the figures after one refresh", async () => {
+    const fresh: TradingOverview = {
+      ...overview,
+      readAt: new Date("2026-08-24T16:00:15.000Z").getTime(),
+      wallets: overview.wallets.map((wallet) => ({
+        ...wallet,
+        summary:
+          wallet.summary.state === "ok"
+            ? { ...wallet.summary, openProfit: 80 }
+            : wallet.summary,
+        performance: wallet.performance
+          ? { ...wallet.performance, open: 80, madeOrLost: 230 }
+          : null,
+      })),
+    }
+    vi.mocked(loadTradingOverviewPage).mockResolvedValue({
+      overview: fresh,
+      layout: { top: ["equity"], left: [], right: [] },
+    })
+    show("2026-08-24T16:00:00.000Z")
+
+    await act(async () => vi.advanceTimersByTimeAsync(15_000))
+
+    expect(loadTradingOverviewPage).toHaveBeenCalledTimes(1)
+    expect(host.textContent).toContain("+$230.00")
+    expect(host.textContent).toContain("open +$80.00")
+  })
+
+  it("keeps the last good figures when a refresh fails", async () => {
+    vi.mocked(loadTradingOverviewPage).mockRejectedValue(
+      new Error("exchange unavailable")
+    )
+    show("2026-08-24T16:00:00.000Z")
+
+    await act(async () => vi.advanceTimersByTimeAsync(15_000))
+
+    expect(host.textContent).toContain("+$190.00")
+    expect(host.textContent).toContain("open +$40.00")
+    expect(host.textContent).not.toContain("+$0.00")
+  })
+
+  it("pauses while hidden and makes one catch-up read when shown", async () => {
+    vi.mocked(loadTradingOverviewPage).mockResolvedValue({
+      overview,
+      layout: { top: ["equity"], left: [], right: [] },
+    })
+    show("2026-08-24T16:00:00.000Z")
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+
+    await act(async () => vi.advanceTimersByTimeAsync(60_000))
+    expect(loadTradingOverviewPage).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    })
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+      await Promise.resolve()
+    })
+
+    expect(loadTradingOverviewPage).toHaveBeenCalledTimes(1)
+    await act(async () => vi.advanceTimersByTimeAsync(1_000))
+    expect(loadTradingOverviewPage).toHaveBeenCalledTimes(1)
   })
 })

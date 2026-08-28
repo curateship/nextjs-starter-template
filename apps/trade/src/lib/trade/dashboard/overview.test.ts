@@ -5,6 +5,7 @@ import {
   buildTradingOverviewProfit,
   buildTradingOverviewActiveTrades,
   isTradingOverviewWallet,
+  mergeTradingOverviewRefresh,
   tradingOverviewWalletPerformance,
 } from "./overview"
 import {
@@ -326,5 +327,91 @@ describe("trading overview money", () => {
       { at: 103, money: 25.9 },
       { at: 104, money: 75.9 },
     ])
+  })
+})
+
+describe("a later overview read", () => {
+  const first: Parameters<typeof mergeTradingOverviewRefresh>[0] = {
+    readAt: 100,
+    wallets: [
+      {
+        id: "wallet-1",
+        label: "Main",
+        network: "mainnet",
+        venue: "Hyperliquid",
+        startingBalance: 1_000,
+        summary: {
+          walletId: "wallet-1",
+          state: "ok",
+          equity: 1_020,
+          free: 900,
+          inTrades: 120,
+          openProfit: 20,
+          madeOrLost: 20,
+          settled: 0,
+          unpricedFills: 0,
+        },
+        performance: { settled: 0, fees: 0, open: 20, madeOrLost: 20 },
+        profit: [{ at: 100, money: 20 }],
+      },
+    ],
+    fills: [],
+    activeTrades: [
+      {
+        id: "position-1",
+        walletId: "wallet-1",
+        walletLabel: "Main",
+        accountType: "Real",
+        protocol: "Hyperliquid",
+        marketKey: "hyperliquid:mainnet:BTC",
+        market: "BTC",
+        side: "long",
+        leverage: 5,
+        value: 500,
+        profit: 20,
+        profitShare: 0.2,
+      },
+    ],
+    activeTradesUnavailable: [],
+    bots: [],
+    profit: [{ at: 100, money: 20 }],
+    missingVenues: [],
+    unpricedFills: 0,
+  }
+
+  it("keeps good wallet and position figures through a partial failure", () => {
+    const merged = mergeTradingOverviewRefresh(first, {
+      ...first,
+      readAt: 200,
+      wallets: [
+        {
+          ...first.wallets[0]!,
+          summary: { walletId: "wallet-1", state: "unreachable" },
+          performance: null,
+          profit: null,
+        },
+      ],
+      activeTrades: [],
+      activeTradesUnavailable: ["wallet-1"],
+      profit: [],
+      missingVenues: ["Hyperliquid"],
+    })
+
+    expect(merged.wallets).toBe(first.wallets)
+    expect(merged.activeTrades).toEqual(first.activeTrades)
+    expect(merged.profit).toBe(first.profit)
+    expect(merged.readAt).toBe(100)
+  })
+
+  it("removes a closed position after a complete read", () => {
+    const merged = mergeTradingOverviewRefresh(first, {
+      ...first,
+      readAt: 200,
+      activeTrades: [],
+      activeTradesUnavailable: [],
+    })
+
+    expect(merged.activeTrades).toEqual([])
+    expect(merged.readAt).toBe(200)
   })
 })

@@ -39,6 +39,7 @@ function trade(
 
 function overview(activeTrades: TradingOverviewActiveTrade[]): TradingOverview {
   return {
+    readAt: 0,
     wallets: [],
     fills: [],
     activeTrades,

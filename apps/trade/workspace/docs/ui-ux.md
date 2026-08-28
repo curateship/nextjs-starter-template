@@ -1241,6 +1241,13 @@ The mini graph is a plain line and does not draw a filled block when it is
 clicked.
 The graph panel names the live age, such as "7 days ago", instead of the fixed
 "Money over time" label.
+The same line names when the whole overview last answered. The overview asks
+Trade's server again every fifteen seconds while the browser tab is visible.
+One answer updates every placed widget. Active Trades reads positions only
+when that widget is placed, and Running bots follows the same rule for bot
+runs. Hiding the tab stops the clock. Showing it makes one catch-up read and
+starts the clock again, without replaying missed turns. A failed read keeps the
+last answer and its older read time on screen.
 The Wallets and Made or lost headings sort the wallet rows in either direction.
 All wallets is an account summary and stays pinned first. Unavailable results
 stay at the bottom when sorting by money. The last sort is remembered in this

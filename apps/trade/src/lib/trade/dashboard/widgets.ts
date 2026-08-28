@@ -135,3 +135,16 @@ export function isTradingDashboardEmpty(layout: TradingDashboardWidgetLayout) {
     (slot) => layout[slot].length === 0
   )
 }
+
+/** The optional reads behind widgets that may not be on this dashboard. */
+export function tradingOverviewWidgetReads(
+  layout: TradingDashboardWidgetLayout
+) {
+  const placed = new Set(
+    TRADING_DASHBOARD_WIDGET_SLOTS.flatMap((slot) => layout[slot])
+  )
+  return {
+    includeActiveTrades: placed.has("active-trades"),
+    includeBots: placed.has("running-bots"),
+  }
+}

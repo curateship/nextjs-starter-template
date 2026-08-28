@@ -34,6 +34,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { formatDateTime, formatTimeAgo } from "@/lib/format/format-time"
 import type {
   TradingOverview,
   TradingOverviewPoint,
@@ -685,6 +686,10 @@ function ProfitChart({
       <div className="-mx-5 -mt-4 mb-3 flex min-h-10 flex-wrap items-center justify-between gap-2 border-b bg-muted/50 px-5 py-2">
         <p className="text-xs font-medium text-muted-foreground">
           {startedLabel()}
+          <span aria-hidden="true"> · </span>
+          <span title={formatDateTime(new Date(overview.readAt))}>
+            last read {formatTimeAgo(new Date(overview.readAt)).toLowerCase()}
+          </span>
         </p>
         <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <p className="text-right">

@@ -89,6 +89,7 @@ type TradingOverviewBotRun = {
 }
 
 export type TradingOverview = {
+  readAt: number
   wallets: TradingOverviewWallet[]
   fills: TradingOverviewFill[]
   activeTrades: TradingOverviewActiveTrade[]
@@ -97,6 +98,46 @@ export type TradingOverview = {
   profit: TradingOverviewPoint[]
   missingVenues: string[]
   unpricedFills: number
+}
+
+/**
+ * Replaces each part that answered and carries the last good figures for a
+ * wallet that did not. The one read time stays at the oldest carried answer.
+ */
+export function mergeTradingOverviewRefresh(
+  was: TradingOverview,
+  fresh: TradingOverview
+): TradingOverview {
+  const walletFiguresFailed = fresh.wallets.some((wallet) => {
+    if (wallet.summary.state !== "unreachable") return false
+    return was.wallets.some(
+      (before) => before.id === wallet.id && before.summary.state === "ok"
+    )
+  })
+  const unavailablePositionWallets = new Set(fresh.activeTradesUnavailable)
+  const freshActiveTradeIds = new Set(
+    fresh.activeTrades.map((trade) => trade.id)
+  )
+  const heldActiveTrades = was.activeTrades.filter(
+    (trade) =>
+      unavailablePositionWallets.has(trade.walletId) &&
+      !freshActiveTradeIds.has(trade.id)
+  )
+  const carried = walletFiguresFailed || unavailablePositionWallets.size > 0
+
+  return {
+    ...fresh,
+    readAt: carried ? Math.min(was.readAt, fresh.readAt) : fresh.readAt,
+    ...(walletFiguresFailed
+      ? {
+          wallets: was.wallets,
+          profit: was.profit,
+          missingVenues: was.missingVenues,
+          unpricedFills: was.unpricedFills,
+        }
+      : {}),
+    activeTrades: [...fresh.activeTrades, ...heldActiveTrades],
+  }
 }
 
 const BOT_STATE_ORDER: Record<TradingOverviewBotState, number> = {

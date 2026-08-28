@@ -150,6 +150,7 @@ export async function loadTradingOverview(
   )
 
   return {
+    readAt: now.getTime(),
     wallets,
     fills,
     activeTrades,
@@ -214,6 +215,6 @@ async function loadActiveTrades(
     activeTrades,
     activeTradesUnavailable: wallets
       .filter((wallet) => unavailableWalletIds.has(wallet.id))
-      .map((wallet) => wallet.label),
+      .map((wallet) => wallet.id),
   }
 }

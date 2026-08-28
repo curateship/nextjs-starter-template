@@ -2,7 +2,10 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import type { TradingOverview } from "@/lib/trade/dashboard/overview"
-import type { TradingDashboardWidgetLayout } from "@/lib/trade/dashboard/widgets"
+import {
+  tradingOverviewWidgetReads,
+  type TradingDashboardWidgetLayout,
+} from "@/lib/trade/dashboard/widgets"
 import { adminGet, adminPost } from "@/server/guards"
 import {
   loadTradingDashboardWidgets,
@@ -29,12 +32,8 @@ const loadPageFn = createServerFn({ method: "GET" })
       layout: TradingDashboardWidgetLayout
     }> => {
       const layout = await loadTradingDashboardWidgets(context.user.id)
-      const includeActiveTrades = Object.values(layout).some((ids) =>
-        ids.includes("active-trades")
-      )
-      const includeBots = Object.values(layout).some((ids) =>
-        ids.includes("running-bots")
-      )
+      const { includeActiveTrades, includeBots } =
+        tradingOverviewWidgetReads(layout)
       const overview = await loadTradingOverview(
         context.user.id,
         includeActiveTrades,
