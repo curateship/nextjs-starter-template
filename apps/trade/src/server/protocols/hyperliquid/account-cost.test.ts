@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
  * about.
  *
  * **This file is the "count first, guess never" runbook, written down.**
- * `workspace/docs/hyperliquid-rate-limits.md` records a day lost to guessing
+ * `workspace/docs/exchanges/hyperliquid-rate-limits.md` records a day lost to guessing
  * which call was spending the allowance, and its closing line is that the
  * arithmetic being reasonable is not the same as it being measured. The app's
  * live counter (`TRADE_COUNT_EXCHANGE_CALLS=true`) needs a real account and a

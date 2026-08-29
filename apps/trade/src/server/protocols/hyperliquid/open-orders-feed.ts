@@ -8,7 +8,7 @@ import { subscriptionClient } from "@/server/protocols/hyperliquid/client"
  * four seconds while a Trade tab is open — 300 of the 1,200 weight a minute
  * Hyperliquid allows, for one wallet, on a question whose answer is usually
  * the same as last time. Counted, not guessed: see
- * `account-cost.test.ts` and `workspace/docs/hyperliquid-rate-limits.md`.
+ * `account-cost.test.ts` and `workspace/docs/exchanges/hyperliquid-rate-limits.md`.
  * The socket sends the identical list, in full, for nothing.
  *
  * **This is a snapshot feed, not a stream of changes.** Every push carries the
