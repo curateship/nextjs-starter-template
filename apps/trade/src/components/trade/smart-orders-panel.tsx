@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 
 import { MarketIcon } from "@/components/trade/market-icon"
+import { TradeBadge } from "@/components/trade/trade-badge"
 import {
   DashboardCardTab,
   DashboardCardTabsHeader,
@@ -111,7 +112,13 @@ const KIND_LABELS: Record<SmartOrderKind, string> = {
   watch: "Watched price",
 }
 
-type SmartOrderColumn = "ticker" | "pnl" | "banked"
+type SmartOrderColumn = "ticker" | "type" | "pnl" | "banked"
+
+function smartOrderType(order: SmartOrder): "long" | "short" {
+  return order.kind === "grid" && order.plan.direction === "short"
+    ? "short"
+    : "long"
+}
 
 function defaultSmartOrderDirection(column: SmartOrderColumn) {
   return column === "pnl" || column === "banked"
@@ -580,6 +587,8 @@ function SmartOrdersView({
   const rows = React.useMemo(() => {
     const unsorted = mine.map((order) => {
       const position = held.get(`${order.walletId}:${order.marketKey}`) ?? null
+      const symbol =
+        markets.get(order.marketKey)?.symbol ?? marketSymbol(order.marketKey)
       const mark =
         marks.get(order.marketKey) ??
         markets.get(order.marketKey)?.price ??
@@ -595,6 +604,7 @@ function SmartOrdersView({
           : banked.total
       return {
         order,
+        symbol,
         position,
         openProfit,
         banked,
@@ -607,8 +617,11 @@ function SmartOrdersView({
       right: (typeof unsorted)[number]
     ) => {
       if (sort === "ticker") {
-        return marketSymbol(left.order.marketKey).localeCompare(
-          marketSymbol(right.order.marketKey)
+        return left.symbol.localeCompare(right.symbol)
+      }
+      if (sort === "type") {
+        return smartOrderType(left.order).localeCompare(
+          smartOrderType(right.order)
         )
       }
       const leftValue = sort === "pnl" ? left.openProfit : left.bankedValue
@@ -625,9 +638,7 @@ function SmartOrdersView({
       }
       const result = compared(left, right)
       if (result !== 0) return direction === "asc" ? result : -result
-      return marketSymbol(left.order.marketKey).localeCompare(
-        marketSymbol(right.order.marketKey)
-      )
+      return left.symbol.localeCompare(right.symbol)
     })
   }, [
     direction,
@@ -693,13 +704,16 @@ function SmartOrdersView({
           >
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[48%] px-1">
+                <TableHead className="w-[35%] px-1">
                   {heading("ticker", "Ticker")}
                 </TableHead>
-                <TableHead className="w-[22%] px-1">
+                <TableHead className="w-[20%] px-1">
+                  {heading("type", "Type")}
+                </TableHead>
+                <TableHead className="w-[20%] px-1">
                   {heading("pnl", "PnL", "right")}
                 </TableHead>
-                <TableHead className="w-[30%] px-1">
+                <TableHead className="w-[25%] px-1">
                   {heading("banked", "Banked", "right", true)}
                 </TableHead>
               </TableRow>
@@ -708,6 +722,7 @@ function SmartOrdersView({
               {rows.map(
                 ({
                   order,
+                  symbol,
                   position,
                   openProfit,
                   banked,
@@ -726,6 +741,7 @@ function SmartOrdersView({
                           <div className="flex min-w-0 items-center gap-1">
                             <SmartOrderDetailsTooltip
                               order={order}
+                              symbol={symbol}
                               position={position}
                               openProfit={openProfit}
                               banked={banked}
@@ -733,7 +749,7 @@ function SmartOrdersView({
                               walletName={walletName(order.walletId)}
                             >
                               <MarketIcon
-                                symbol={marketSymbol(order.marketKey)}
+                                symbol={symbol}
                                 iconUrl={
                                   markets.get(order.marketKey)?.iconUrl ?? null
                                 }
@@ -747,7 +763,7 @@ function SmartOrdersView({
                                 )}
                               >
                                 <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">
-                                  {marketSymbol(order.marketKey)}
+                                  {symbol}
                                 </span>
                               </button>
                             </SmartOrderDetailsTooltip>
@@ -776,6 +792,15 @@ function SmartOrdersView({
                             </span>
                           ) : null}
                         </div>
+                      </TableCell>
+                      <TableCell className="px-1 py-2">
+                        <TradeBadge
+                          tone={
+                            smartOrderType(order) === "long" ? "made" : "lost"
+                          }
+                        >
+                          {smartOrderType(order) === "long" ? "Long" : "Short"}
+                        </TradeBadge>
                       </TableCell>
                       <TableCell className="px-1 py-2 text-right font-mono text-xs tabular-nums">
                         {openProfit === null ? (
@@ -849,6 +874,7 @@ function ResumeSmartOrderButton({
 
 function SmartOrderDetailsTooltip({
   order,
+  symbol,
   position,
   openProfit,
   banked,
@@ -857,6 +883,7 @@ function SmartOrderDetailsTooltip({
   children,
 }: {
   order: SmartOrder
+  symbol: string
   position: SmartOrderPosition | null
   openProfit: number | null
   banked: ReturnType<typeof bankedBy>
@@ -874,7 +901,7 @@ function SmartOrderDetailsTooltip({
             keeps a tab stop so the details still open from the keyboard. */}
         <span
           tabIndex={0}
-          aria-label={`${marketSymbol(order.marketKey)} smart order details`}
+          aria-label={`${symbol} smart order details`}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-1 rounded-sm",
             focusRing
@@ -891,7 +918,7 @@ function SmartOrderDetailsTooltip({
       >
         <div className="border-b p-2.5">
           <p className="font-medium">
-            {marketSymbol(order.marketKey)} smart order
+            {symbol} smart order
           </p>
           <p className="opacity-70">
             {KIND_LABELS[order.kind]} · {walletName}

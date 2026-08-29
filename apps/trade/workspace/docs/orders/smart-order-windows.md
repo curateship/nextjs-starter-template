@@ -159,12 +159,17 @@ that banked. Each sale says how long ago it happened, its clock time, and the
 gross dollars sold. The exact date and time stays in the hover text. The market
 price no longer takes the sold amount's place.
 
-The list is a sortable table with three columns: Ticker, PnL, and Banked. There
-is no Exchange or Type column; the order type remains in the details tooltip.
-The favicon stays beside the ticker. Ticker takes the spare width, while PnL
-and Banked align to the right edge of their columns. Banked puts its sort mark
-before the label so the word and figures end together. Cell content keeps a
-16px gutter from both panel edges while row backgrounds remain full width.
+The list is a sortable table with four columns: Ticker, Type, PnL, and Banked.
+Type is Long or Short and uses the same green and red badge as Active Trades.
+Pressing Type sorts long and short smart orders. The strategy, such as a DCA
+ladder or grid, remains in the details tooltip. There is no Exchange column.
+The favicon stays beside the ticker. Ticker takes the spare width, using 35% of
+the table. Type and PnL each use 20%, and Banked uses 25%. PnL and Banked align
+to the right edge of their columns. Banked puts its sort mark before the label
+so the word and figures end together. Cell content keeps a 16px gutter from
+both panel edges while row backgrounds remain full width. The ticker is the
+coin name from the market list, not the exchange's contract ID. Aster drops
+USDT and KuCoin drops USDTM, while the full ID still opens the right chart.
 PnL is the profit or loss on what the smart order still holds. Banked is the
 money from sales that have finished. Banked has no icon, and $0.00 stays visible
 before the first sale.
@@ -180,8 +185,7 @@ the wallet and shows progress, money still held, open profit, and the sale
 history. A grid says how many levels are
 waiting and completed and how many dollars it still holds to sell. A paused
 smart order keeps its reason in the tooltip and puts Resume beneath its ticker,
-so removing the old three-dot button and Type column does not remove the
-recovery action.
+so removing the old three-dot button does not remove the recovery action.
 
 Pressing a row opens its market on the chart and keeps the whole row light gray
 while that market is selected. Pressing a heading sorts that column. PnL is the
@@ -201,4 +205,3 @@ Two rules decide what appears in the opened sale list.
   closed rather than per fill, and a grid selling part of what it holds never
   closes a position, so its sales arrive unpriced. The panel lists them, leaves
   the figure blank, and says underneath how many the total is short of.
-

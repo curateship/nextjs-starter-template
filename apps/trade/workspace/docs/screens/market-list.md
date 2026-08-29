@@ -30,7 +30,7 @@ line in the body, share the panel's one 12px gutter.
 - **On testnet, the amber strip sits at the panel's foot** with the Back to
   Mainnet link, exactly as it did on the old market list panel.
 - **Both side panels open at their smallest useful width.** Folders starts at
-  12% of the workspace and Smart orders starts at 17.5275rem. The chart takes
+  12% of the workspace and Smart orders starts at 18.5rem. The chart takes
   the space left between them. Either width is still yours to drag and is
   remembered per browser, so a width you have already dragged to wins over
   these starting sizes.
@@ -151,4 +151,3 @@ at a time on the chart, or mixed in with everything else under Open orders.
   over what is on screen.
 - **The exchange call failing does not take the page down.** The list shows
   the error and a retry; every other panel still works.
-

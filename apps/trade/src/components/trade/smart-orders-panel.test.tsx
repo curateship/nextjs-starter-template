@@ -500,7 +500,7 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
-  it("draws three sortable columns and puts details on the ticker icon and name", async () => {
+  it("draws four sortable columns and puts details on the ticker icon and name", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -523,13 +523,18 @@ describe("the Smart orders panel", () => {
 
     const headerButtons = Array.from(host.querySelectorAll("thead button"))
     const headers = headerButtons.map((button) => button.textContent)
-    expect(headers).toEqual(["Ticker", "PnL", "Banked"])
+    expect(headers).toEqual(["Ticker", "Type", "PnL", "Banked"])
+    expect(
+      Array.from(host.querySelectorAll("thead th")).map((heading) =>
+        heading.className.match(/w-\[\d+%\]/)?.[0]
+      )
+    ).toEqual(["w-[35%]", "w-[20%]", "w-[20%]", "w-[25%]"])
     expect(
       headerButtons
-        .slice(1)
+        .slice(2)
         .every((button) => button.className.includes("justify-end"))
     ).toBe(true)
-    expect(headerButtons[2]?.className).toContain(
+    expect(headerButtons[3]?.className).toContain(
       "[&>span:first-child]:order-2"
     )
     expect(host.querySelector("table")?.className).toContain(
@@ -543,12 +548,13 @@ describe("the Smart orders panel", () => {
         row.querySelector(".font-semibold")?.textContent?.trim()
       )
     expect(rowTickers()).toEqual(["XMR", "BTC"])
-    expect(headerButtons[1]?.querySelector(".lucide-arrow-down")).not.toBeNull()
+    expect(headerButtons[2]?.querySelector(".lucide-arrow-down")).not.toBeNull()
     const firstRowCells = host
       .querySelectorAll("tbody tr")[0]
       ?.querySelectorAll("td")
     expect(firstRowCells?.[0]?.className).not.toContain("text-right")
-    expect(firstRowCells?.[1]?.className).toContain("text-right")
+    expect(firstRowCells?.[1]?.textContent).toContain("Long")
+    expect(firstRowCells?.[2]?.className).toContain("text-right")
     await act(async () => {
       host.querySelector<HTMLButtonElement>("thead button")?.click()
     })
@@ -567,6 +573,89 @@ describe("the Smart orders panel", () => {
     expect(host.querySelector(".lucide-ellipsis-vertical")).toBeNull()
     await act(async () => root.unmount())
     host.remove()
+  })
+
+  it("shows and sorts long and short order types like Active Trades", async () => {
+    ;(
+      globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true
+    const short: SmartOrder = {
+      ...grid,
+      id: "short-grid",
+      marketKey: "hyperliquid:mainnet:BTC",
+      plan: { ...grid.plan, direction: "short" },
+    } as SmartOrder
+    const host = document.createElement("div")
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <SmartOrdersPanel
+          {...shared}
+          smartOrders={[ladder, short]}
+          settled
+          failed={false}
+        />
+      )
+    })
+
+    const rows = () => Array.from(host.querySelectorAll("tbody tr"))
+    expect(rows().map((row) => row.children[1]?.textContent)).toEqual([
+      "Long",
+      "Short",
+    ])
+    await act(async () => {
+      Array.from(host.querySelectorAll<HTMLButtonElement>("thead button"))
+        .find((button) => button.textContent === "Type")
+        ?.click()
+    })
+    expect(rows().map((row) => row.children[1]?.textContent)).toEqual([
+      "Long",
+      "Short",
+    ])
+    await act(async () => {
+      Array.from(host.querySelectorAll<HTMLButtonElement>("thead button"))
+        .find((button) => button.textContent === "Type")
+        ?.click()
+    })
+    expect(rows().map((row) => row.children[1]?.textContent)).toEqual([
+      "Short",
+      "Long",
+    ])
+
+    await act(async () => root.unmount())
+  })
+
+  it("uses the market name instead of Aster and KuCoin contract suffixes", () => {
+    const aster: SmartOrder = {
+      ...ladder,
+      id: "aster-hype",
+      marketKey: "aster:mainnet:HYPEUSDT",
+    }
+    const kucoin: SmartOrder = {
+      ...ladder,
+      id: "kucoin-sol",
+      marketKey: "kucoin:mainnet:SOLUSDTM",
+    }
+    const html = renderToStaticMarkup(
+      <SmartOrdersPanel
+        {...shared}
+        smartOrders={[aster, kucoin]}
+        settled
+        failed={false}
+        markets={
+          new Map([
+            [aster.marketKey, { symbol: "HYPE", iconUrl: null }],
+            [kucoin.marketKey, { symbol: "SOL", iconUrl: null }],
+          ]) as unknown as Map<string, MarketRow>
+        }
+      />
+    )
+
+    expect(html).toContain(">HYPE<")
+    expect(html).toContain(">SOL<")
+    expect(html).not.toContain("HYPEUSDT")
+    expect(html).not.toContain("SOLUSDTM")
   })
 
   it("shows when a sale happened and the dollars sold", async () => {
