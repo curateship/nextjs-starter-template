@@ -68,7 +68,16 @@ Only one of these actually stops the app. The other two fail quietly, which is
 worse, so what goes wrong is written next to each.
 
 - `CUSTOM_SHELL_DATABASE_URL` — this app's own database. **Nothing starts
-  without it**, on purpose.
+  without it**, on purpose. **The URL carries
+  `?uselibpqcompat=true&sslmode=require`** so every connection is encrypted.
+  Without the suffix, node-postgres sends everything — the password, session
+  tokens, stored keys — across the wire readable. A bare `sslmode=require` is
+  not the same thing: node-postgres treats it as full certificate
+  verification and refuses a self-signed server certificate, where the
+  `uselibpqcompat` form encrypts without verifying, which is what these
+  self-signed database servers need. The database server itself must have
+  `ssl = on` first; Trade's went on 29 Aug 2026
+  (`apps/trade/workspace/docs/app/database-link-encryption.md` records how).
 - `CUSTOM_SHELL_APP_URL` — the public address. Set it. Without it the app falls
   back to its local development address and starts perfectly happily, and then
   every link it emails — verify your email, reset your password, return from

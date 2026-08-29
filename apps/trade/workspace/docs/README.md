@@ -24,6 +24,9 @@ screen: anything not written there has not been agreed yet.
 - `running-tests-fast.md` — `npm run test:app`, the everyday test command: what
   it skips, how the saved database copy works, and when the full suite still
   runs.
+- `database-link-encryption.md` — the TLS on the database connection: what the
+  server presents, the exact connection-string suffix, why a bare
+  `sslmode=require` refuses, and how to check every connection is encrypted.
 
 ## screens/ — what each screen shows
 
