@@ -265,6 +265,13 @@ chooses the wallet used for an order or opens wallet settings. The fresh answer
 always replaces the saved one. A failed refresh keeps the figures already on
 screen under the same missed-read rules above.
 
+The opening figures arrive in the exchange-facing half of the dashboard's
+opening answer, which streams into the page after it has painted. Until that
+half lands the panel counts as loading and draws the saved browser copy; the
+waiting state never overwrites that copy. The streamed answer is adopted only
+while the panel still has nothing — a poll answer that beat it there is
+fresher and is kept.
+
 **Why the rule exists.** Drawn straight, one failed answer replaced the whole
 card with "Can't reach it" until the next tick fifteen seconds later put it
 back — so the card flickered all day on an account that was never actually

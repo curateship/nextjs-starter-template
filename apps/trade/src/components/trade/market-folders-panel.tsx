@@ -38,6 +38,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Dialog,
   DialogBody,
@@ -100,6 +101,7 @@ export function MarketFoldersPanel({
   network,
   catalogs,
   marketsError,
+  marketsPending,
   watchedOrders,
   walletName,
   selectedMarketKey,
@@ -116,6 +118,8 @@ export function MarketFoldersPanel({
   catalogs: readonly FilteredMarketCatalog[]
   /** The exchange call failed at load; the All markets row shows it. */
   marketsError: string | null
+  /** The list is still streaming in; rows show loading, not empty claims. */
+  marketsPending: boolean
   /** The prices being waited at, listed under the Watched row. */
   watchedOrders: {
     rows: readonly TradeOrder[]
@@ -235,6 +239,11 @@ export function MarketFoldersPanel({
                 />
               ))}
             </div>
+          ) : marketsPending && folder.marketKeys.length > 0 ? (
+            // The saved keys are real; their rows are still streaming in.
+            // Saying "not available" before the list has landed would read
+            // as a delisting.
+            <LoadingRow label="Loading markets" className="py-4" />
           ) : (
             <p className="px-3 py-4 text-center text-xs text-muted-foreground">
               {folder.marketKeys.some((key) => hiddenByVolume.has(key))
@@ -249,11 +258,13 @@ export function MarketFoldersPanel({
     {
       id: ALL_ROW,
       name: "All markets",
-      // Blank when the list could not be read — the body carries the error
-      // and the retry, and "0 markets" beside a failed read would be a claim.
-      count: marketsError
-        ? ""
-        : `${marketRows.length} ${marketRows.length === 1 ? "market" : "markets"}`,
+      // Blank when the list could not be read, and while it is still on its
+      // way — the body carries the error or the loading row, and "0 markets"
+      // beside either would be a claim the panel cannot make yet.
+      count:
+        marketsError || marketsPending
+          ? ""
+          : `${marketRows.length} ${marketRows.length === 1 ? "market" : "markets"}`,
       position: panelRows.all.position,
       hidden: panelRows.all.hidden,
       folder: null,
@@ -261,6 +272,7 @@ export function MarketFoldersPanel({
         <AllMarketsList
           catalogs={catalogs}
           marketsError={marketsError}
+          marketsPending={marketsPending}
           selectedKey={selectedMarketKey}
           onSelect={onSelectMarket}
           onRetry={onRetryMarkets}

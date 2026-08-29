@@ -1,10 +1,14 @@
 # When the chart asks for candles
 
 The remembered market's first 4-hour candles arrive inside the dashboard's
-opening answer. The chart paints those bars without making its own first server
-call. Exchanges that load deeper history ask for it on the next turn of the
-browser's event loop, after the first slice is already on screen. Lighter keeps
-its 90-day slice and makes no automatic deeper request.
+opening answer, in its exchange-facing half, which streams into the page
+after the panels have painted. While that slice is on its way the chart shows
+its loading state and sends nothing — the answer names the slice it carries,
+so asking again would fetch the same candles twice. The chart paints the
+streamed bars without making its own first server call. Exchanges that load
+deeper history ask for it on the next turn of the browser's event loop, after
+the first slice is already on screen. Lighter keeps its 90-day slice and
+makes no automatic deeper request.
 
 The timeframe is remembered in local storage, not on the server. A browser
 left on another timeframe ignores the carried 4-hour candles and sends the
@@ -29,6 +33,8 @@ the chart asks for the coin again and draws the new ladder. The status and chart
 therefore change together without requiring a second click.
 
 The chart panel test starts with carried 4-hour candles and sees one request,
-the deeper-history chase, with no duplicate first slice. The same test still
-changes market six times during the later 250 millisecond pause and sees one
-request for the sixth market.
+the deeper-history chase, with no duplicate first slice. A second test hands
+the chart the streaming marker first and the slice afterwards: no request
+leaves while the marker is up, the streamed bars draw, and only the deeper
+chase follows. The market-change test still switches six times during the
+later 250 millisecond pause and sees one request for the sixth market.

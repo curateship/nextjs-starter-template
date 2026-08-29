@@ -168,6 +168,7 @@ export function TradeWorkspace({
   protocol,
   catalogs,
   marketsError,
+  marketsPending,
   network,
   initialFolders,
   initialPanelRows,
@@ -193,6 +194,13 @@ export function TradeWorkspace({
   catalogs: FilteredMarketCatalog[]
   /** The exchange call failed at load; the list shows this instead of rows. */
   marketsError: string | null
+  /**
+   * The market list is still streaming in with the opening answer. The list
+   * shows a loading row, and nothing treats the empty catalogue as the
+   * exchange's answer — a picked market is not "missing" yet, and the
+   * narrow-screen market sheet does not open itself over the page.
+   */
+  marketsPending: boolean
   /** Which network the whole page is showing — resolved by the route. */
   network: NetworkId
   initialFolders: MarketFolder[]
@@ -237,14 +245,25 @@ export function TradeWorkspace({
     side: "markets",
     // With no substitute middle header, a narrow screen has no Markets
     // button. Open the sheet so a new account or stale link can choose one.
-    open: !desktop && selection.kind !== "market",
+    // Not while the list is still streaming in, though: the picked market is
+    // not missing yet, only unresolved.
+    open: !desktop && !marketsPending && selection.kind !== "market",
   })
-  const [sheetSelectionKind, setSheetSelectionKind] = React.useState(
-    selection.kind
-  )
-  if (sheetSelectionKind !== selection.kind) {
-    setSheetSelectionKind(selection.kind)
-    if (!desktop && selection.kind !== "market" && !sideSheet.open) {
+  const [sheetSeen, setSheetSeen] = React.useState({
+    kind: selection.kind,
+    marketsPending,
+  })
+  if (
+    sheetSeen.kind !== selection.kind ||
+    sheetSeen.marketsPending !== marketsPending
+  ) {
+    setSheetSeen({ kind: selection.kind, marketsPending })
+    if (
+      !desktop &&
+      !marketsPending &&
+      selection.kind !== "market" &&
+      !sideSheet.open
+    ) {
       setSideSheet({ side: "markets", open: true })
     }
   }
@@ -615,6 +634,7 @@ export function TradeWorkspace({
         network={network}
         catalogs={catalogs}
         marketsError={marketsError}
+        marketsPending={marketsPending}
         // The same list the chart draws its waiting lines from and the Open
         // orders tab lists, so the row can never disagree with either.
         watchedOrders={{

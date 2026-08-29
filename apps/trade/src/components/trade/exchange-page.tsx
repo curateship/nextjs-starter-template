@@ -9,10 +9,20 @@ import {
 
 import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
-import { useDashboardMarkets } from "@/components/trade/use-dashboard-markets"
+import {
+  useDashboardMarkets,
+  type DashboardMarkets,
+} from "@/components/trade/use-dashboard-markets"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
-import { loadDashboardBootstrap } from "@/lib/api/trade/dashboard"
+import {
+  loadDashboardCore,
+  loadDashboardExchange,
+  type DashboardBootstrap,
+  type DashboardCore,
+  type DashboardExchange,
+} from "@/lib/api/trade/dashboard"
 import { saveLastMarket } from "@/lib/api/trade/markets"
+import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
@@ -21,6 +31,7 @@ import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
 import { RUNNING_BOTS_READ_ERROR } from "@/lib/trade/running-bots"
 import { dashboardBootstrapVersion } from "@/lib/trade/dashboard-bootstrap-cache"
 import { seedTradeSounds } from "@/lib/trade/trade-sounds"
+import { useStreamed } from "@/lib/trade/use-streamed"
 import {
   marketKeyOnDashboard,
   readMarketSearch,
@@ -50,53 +61,70 @@ type ExchangePage = {
   label: string
 }
 
+/** What the exchange half answers when the server never answered at all. */
+function exchangeUnanswered(): DashboardExchange {
+  return {
+    markets: {
+      catalogs: [],
+      error:
+        "The server did not answer. Nothing is wrong on your side — try again in a moment.",
+    },
+    initialChart: null,
+    wallets: {
+      rows: [],
+      summaries: [],
+      error: "The wallets could not be loaded.",
+    },
+  }
+}
+
+/** Every preference at its default, for a server that never answered. */
+function coreUnanswered(): DashboardCore {
+  return {
+    folders: [],
+    panelRows: DEFAULT_MARKET_PANEL_ROWS,
+    lastMarketKey: null,
+    chartView: null,
+    chartOptions: DEFAULT_CHART_OPTIONS,
+    indicators: defaultIndicatorSettings(),
+    cardFolds: {},
+    quickOrder: DEFAULT_QUICK_ORDER,
+    smartDca: null,
+    smartGrid: null,
+    runningBots: {
+      rows: [],
+      error: RUNNING_BOTS_READ_ERROR,
+    },
+    drawings: { marketKey: null, rows: [], error: null },
+    tradeSounds: {
+      enabled: false,
+      events: [],
+      cursor: { afterAt: Date.now(), afterId: "" },
+      error: "Trade sounds could not be read.",
+    },
+    lastWalletIds: {},
+  }
+}
+
 /**
- * One server call for everything the page needs — see `@/lib/api/trade/dashboard`.
- * A dead exchange is answered inside it, with an empty list and a message. A
- * server that does not answer at all still opens the workspace: the list
- * explains itself and offers a retry, and every preference falls back to its
- * default.
+ * Two server calls that leave together — see `@/lib/api/trade/dashboard`.
+ *
+ * Only the database half is awaited, so the document goes out without
+ * waiting for the exchange. The exchange half rides along as a promise and
+ * streams its answer into the painted page. A dead exchange is answered
+ * inside that half, with an empty list and a message. A server that does not
+ * answer at all still opens the workspace: the list explains itself and
+ * offers a retry, and every preference falls back to its default.
  */
 function exchangeLoader(protocol: ProtocolId) {
   return async ({ deps }: { deps: { network: NetworkId } }) => {
-    const boot = await loadDashboardBootstrap(protocol, deps.network).catch(
-      () => ({
-        markets: {
-          catalogs: [],
-          error:
-            "The server did not answer. Nothing is wrong on your side — try again in a moment.",
-        },
-        folders: [],
-        panelRows: DEFAULT_MARKET_PANEL_ROWS,
-        lastMarketKey: null,
-        chartView: null,
-        chartOptions: DEFAULT_CHART_OPTIONS,
-        indicators: defaultIndicatorSettings(),
-        cardFolds: {},
-        quickOrder: DEFAULT_QUICK_ORDER,
-        smartDca: null,
-        smartGrid: null,
-        runningBots: {
-          rows: [],
-          error: RUNNING_BOTS_READ_ERROR,
-        },
-        initialChart: null,
-        drawings: { marketKey: null, rows: [], error: null },
-        tradeSounds: {
-          enabled: false,
-          events: [],
-          cursor: { afterAt: Date.now(), afterId: "" },
-          error: "Trade sounds could not be read.",
-        },
-        wallets: {
-          rows: [],
-          summaries: [],
-          lastWalletIds: {},
-          error: "The wallets could not be loaded.",
-        },
-      })
+    const exchange = loadDashboardExchange(protocol, deps.network).catch(
+      exchangeUnanswered
     )
-    return { ...boot, network: deps.network }
+    const core = await loadDashboardCore(protocol, deps.network).catch(
+      coreUnanswered
+    )
+    return { ...core, network: deps.network, exchange }
   }
 }
 
@@ -166,37 +194,37 @@ export function mainnetExchangeRoute(page: ExchangePage) {
   }
 }
 
+/** The market list before the exchange half of the opening answer lands. */
+const PENDING_MARKETS: DashboardMarkets = {
+  catalogs: [],
+  error: null,
+  pending: true,
+}
+
 function ExchangeDashboard({ protocol, label }: ExchangePage) {
   // Non-strict, because this one component serves every exchange route. The
   // shapes are guaranteed by the route options built above, which are the
   // only ones that render it.
-  const {
-    markets,
-    network,
-    folders,
-    panelRows,
-    lastMarketKey,
-    chartView,
-    chartOptions,
-    indicators,
-    cardFolds,
-    quickOrder,
-    smartDca,
-    smartGrid,
-    runningBots,
-    initialChart,
-    drawings,
-    tradeSounds,
-    wallets,
-  } = useLoaderData({ strict: false }) as ExchangeLoaderData
+  const { exchange, network, lastWalletIds, ...core } = useLoaderData({
+    strict: false,
+  }) as ExchangeLoaderData
+  // The exchange-facing half of the opening answer, null until it streams
+  // in. Everything below composes the two halves so the workspace paints its
+  // saved arrangement first and fills the exchange's answers into it.
+  const arrived = useStreamed(exchange)
   // The smart-order windows' saved settings arrived with the page; hand them
   // to the browser-side copy so the first right-click opens on them with
   // nothing left to fetch. Fills empty slots only — a placement made since
   // the loader's answer was cached must not be overwritten by it.
-  seedSmartPrefs(smartDca, smartGrid)
-  seedTradeSounds(tradeSounds)
+  seedSmartPrefs(core.smartDca, core.smartGrid)
+  seedTradeSounds(core.tradeSounds)
   const { market } = useSearch({ strict: false }) as TradeSearch
   const navigate = useNavigate()
+
+  const markets = React.useMemo<DashboardMarkets>(
+    () => (arrived ? { ...arrived.markets, pending: false } : PENDING_MARKETS),
+    [arrived]
+  )
   // A retry fetches the market list alone — never the whole loader. Stable
   // on purpose: the workspace keys its live-feed effect on it, and a fresh
   // closure per render would resubscribe the feed on every market click.
@@ -213,16 +241,53 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
   // them — is left alone rather than shown as missing: it should read as a
   // bare page here, not a delisting.
   const remembered =
-    lastMarketKey && marketKeyOnDashboard(lastMarketKey, protocol, network)
-      ? lastMarketKey
+    core.lastMarketKey &&
+    marketKeyOnDashboard(core.lastMarketKey, protocol, network)
+      ? core.lastMarketKey
       : null
   const selectedKey = market ?? remembered ?? null
   useMarketPageTitle(selectedKey, label)
 
+  // The chart's opening bars. Until the exchange half lands the remembered
+  // market carries a pending marker naming the slice on its way, so the
+  // chart shows its loading state instead of asking the server a second time
+  // for candles the stream already carries.
+  const initialChart = React.useMemo<DashboardBootstrap["initialChart"]>(() => {
+    if (arrived) {
+      return arrived.initialChart
+        ? { ...arrived.initialChart, pending: false }
+        : null
+    }
+    if (!remembered) return null
+    return {
+      key: `${remembered}@${DEFAULT_CHART_INTERVAL}`,
+      interval: DEFAULT_CHART_INTERVAL,
+      candles: [],
+      error: null,
+      pending: true,
+    }
+  }, [arrived, remembered])
+
+  // The account panel's first answer. While pending the panel shows its
+  // browser-cached copy of the wallets rather than an empty claim.
+  const wallets = React.useMemo<DashboardBootstrap["wallets"]>(
+    () =>
+      arrived
+        ? { ...arrived.wallets, lastWalletIds, pending: false }
+        : {
+            rows: [],
+            summaries: [],
+            lastWalletIds,
+            error: null,
+            pending: true,
+          },
+    [arrived, lastWalletIds]
+  )
+
   // Remember whichever market is on screen, so the next bare visit reopens
   // it. Best-effort and ref-guarded: the same market is never saved twice in
   // a row, and a failed save only loses the memory, not the view.
-  const lastSavedRef = React.useRef(lastMarketKey)
+  const lastSavedRef = React.useRef(core.lastMarketKey)
   React.useEffect(() => {
     if (!selectedKey || selectedKey === lastSavedRef.current) return
     lastSavedRef.current = selectedKey
@@ -234,17 +299,18 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       protocol={protocol}
       catalogs={shownMarkets.catalogs}
       marketsError={shownMarkets.error}
+      marketsPending={shownMarkets.pending}
       network={network}
-      initialFolders={folders}
-      initialPanelRows={panelRows}
-      initialChartView={chartView}
+      initialFolders={core.folders}
+      initialPanelRows={core.panelRows}
+      initialChartView={core.chartView}
       initialChart={initialChart}
-      initialDrawings={drawings}
-      initialChartOptions={chartOptions}
-      initialIndicators={indicators}
-      initialCardFolds={cardFolds}
-      initialQuickOrder={quickOrder}
-      initialRunningBots={runningBots}
+      initialDrawings={core.drawings}
+      initialChartOptions={core.chartOptions}
+      initialIndicators={core.indicators}
+      initialCardFolds={core.cardFolds}
+      initialQuickOrder={core.quickOrder}
+      initialRunningBots={core.runningBots}
       initialWallets={wallets}
       selectedKey={selectedKey}
       onSelectMarket={(key) =>

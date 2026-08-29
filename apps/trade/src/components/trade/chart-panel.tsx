@@ -188,6 +188,20 @@ export function IntervalPicker({
 }
 
 /**
+ * First-paint bars carried by the route's opening answer. `pending: true`
+ * means the exchange half of that answer is still streaming in: the slice it
+ * names is on its way, so the panel waits for it instead of asking the
+ * server a second time for the same candles.
+ */
+type InitialChart = {
+  key: string
+  interval: CandleInterval
+  candles: CandleBar[]
+  error: string | null
+  pending: boolean
+} | null
+
+/**
  * The middle of the middle panel: the picked market's price history.
  *
  * This panel owns the fetching and the honest states; `PriceChart` under it
@@ -220,12 +234,7 @@ export function ChartPanel({
    */
   initialChartView: ChartView | null
   /** First-paint bars that arrived with the route's opening answer. */
-  initialChart: {
-    key: string
-    interval: CandleInterval
-    candles: CandleBar[]
-    error: string | null
-  } | null
+  initialChart: InitialChart
   /** Saved lines for the remembered market, from that same answer. */
   initialDrawings: {
     marketKey: string | null
@@ -282,7 +291,9 @@ export function ChartPanel({
     error: string | null
   } | null>(() => {
     const wanted = selectedKey ? `${selectedKey}@${interval}` : null
-    return wanted && initialChart?.key === wanted
+    // A pending marker carries no bars yet; null here is the loading state
+    // the panel shows until the streamed slice lands.
+    return wanted && initialChart?.key === wanted && !initialChart.pending
       ? {
           key: wanted,
           candles: initialChart.candles,
@@ -300,6 +311,14 @@ export function ChartPanel({
   const [orbAttempt, setOrbAttempt] = React.useState(0)
   const hasStartedCandleLoad = React.useRef(false)
   const handledInitialChart = React.useRef(false)
+  // Whether the state initialiser above already put the carried bars on
+  // screen. False when the opening slice streams in after the first render —
+  // the fetch effect then draws it, which the initialiser can never redo.
+  const adoptedAtMount = React.useRef(
+    selectedKey !== null &&
+      initialChart?.key === `${selectedKey}@${interval}` &&
+      initialChart?.pending === false
+  )
 
   const wanted = selectedKey ? `${selectedKey}@${interval}` : null
   const needsOrbSource =
@@ -927,6 +946,17 @@ export function ChartPanel({
 
   React.useEffect(() => {
     if (!selectedKey || !wanted) return
+    // Exactly this slice is still streaming in with the opening answer. Wait
+    // for it instead of asking the server a second time — the marker becomes
+    // the real slice as one prop change, and that re-runs this effect.
+    if (
+      initialChart?.pending &&
+      initialChart.key === wanted &&
+      attempt === 0 &&
+      !handledInitialChart.current
+    ) {
+      return
+    }
     let stale = false
     // The first chart has no earlier choice to settle, so it asks on the next
     // turn of the event loop. Later market and timeframe changes wait long
@@ -963,9 +993,20 @@ export function ChartPanel({
         if (
           !handledInitialChart.current &&
           attempt === 0 &&
-          initialChart?.key === wanted
+          initialChart?.key === wanted &&
+          !initialChart.pending
         ) {
           handledInitialChart.current = true
+          // A slice that streamed in after the first render has not been
+          // drawn yet — the mount-time initialiser only sees an answer the
+          // document itself carried.
+          if (!adoptedAtMount.current) {
+            if (initialChart.error) {
+              setAnswer({ key: wanted, candles: [], error: initialChart.error })
+            } else {
+              draw(initialChart.candles)
+            }
+          }
           if (!initialChart.error && chases) {
             loadCandles(selectedKey, interval)
               .then(({ candles: deeper }) => {

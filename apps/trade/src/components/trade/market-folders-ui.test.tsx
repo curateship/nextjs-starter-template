@@ -88,6 +88,7 @@ const shared = {
   protocol: "hyperliquid" as const,
   network: "mainnet" as const,
   marketsError: null,
+  marketsPending: false,
   watchedOrders: {
     rows: [],
     cacheScope: "test",

@@ -61,7 +61,7 @@ export function useTradeAccount(
     }
   }, [initial, protocol])
   const [wallets, setWallets] = React.useState<TradeWallet[] | null>(() =>
-    initial.error === null ? seeded.wallets : null
+    !initial.pending && initial.error === null ? seeded.wallets : null
   )
   const [summaries, setSummaries] = React.useState<
     ReadonlyMap<string, WalletAccountSummary>
@@ -72,7 +72,9 @@ export function useTradeAccount(
   const [chosenWalletId, setChosenWalletId] = React.useState<string | null>(
     null
   )
-  const [failed, setFailed] = React.useState(initial.error !== null)
+  const [failed, setFailed] = React.useState(
+    !initial.pending && initial.error !== null
+  )
 
   // Only the newest request may write state — an old answer landing after a
   // newer one would put stale figures over fresh ones.
@@ -84,6 +86,31 @@ export function useTradeAccount(
     seeded.summaries
   )
   const missesRef = React.useRef<ReadonlyMap<string, number>>(new Map())
+
+  // The exchange half of the opening answer streams in after the page has
+  // painted; the loader hands this hook a pending marker first and the real
+  // answer as a prop change. Adopted during render, the way React's derived-
+  // state pattern does it — but only into a panel that still has nothing: a
+  // poll answer that beat the stream here is fresher and is kept. Later
+  // loader answers change nothing either; the 15-second poll owns freshness.
+  const [seenInitial, setSeenInitial] = React.useState(initial)
+  if (seenInitial !== initial) {
+    setSeenInitial(initial)
+    if (!initial.pending && wallets === null && !failed) {
+      setWallets(initial.error === null ? seeded.wallets : null)
+      setSummaries(seeded.summaries)
+      setLastWalletId(seeded.lastWalletId)
+      setFailed(initial.error !== null)
+    }
+  }
+
+  // The merge memory follows whatever is on screen, in one place, so the
+  // streamed adoption above and the poll below both feed it without either
+  // writing a ref mid-render. Effects run before any later read starts, so
+  // the next merge always sees the committed map.
+  React.useEffect(() => {
+    summariesRef.current = summaries
+  }, [summaries])
 
   // A read still on its way. The poll consults it and skips its turn rather
   // than starting a second one: on a slow or rate-limited exchange a read can
@@ -108,7 +135,6 @@ export function useTradeAccount(
         answer.summaries,
         missesRef.current
       )
-      summariesRef.current = merged.summaries
       missesRef.current = merged.misses
       setSummaries(merged.summaries)
       const lastWalletId = answer.lastWalletIds[protocol] ?? null
@@ -154,14 +180,16 @@ export function useTradeAccount(
   )
 
   React.useEffect(() => {
-    if (initial.error === null) {
+    // Never while pending: writing the empty pending marker here would wipe
+    // the cached copy the panel is drawing while the real answer streams in.
+    if (!initial.pending && initial.error === null) {
       writeWalletPanelCache(cacheScope, {
         wallets: seeded.wallets,
         summaries: [...seeded.summaries.values()],
         lastWalletId: seeded.lastWalletId,
       })
     }
-  }, [cacheScope, initial.error, seeded])
+  }, [cacheScope, initial.pending, initial.error, seeded])
 
   React.useEffect(() => {
     // The first read is scheduled rather than called in the effect body, so

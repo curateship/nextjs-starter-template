@@ -239,6 +239,7 @@ describe("the chart candle request", () => {
               },
             ],
             error: null,
+            pending: false,
           }}
           initialDrawings={{ marketKey: key, rows: [], error: null }}
           initialQuickOrder={DEFAULT_QUICK_ORDER}
@@ -258,6 +259,60 @@ describe("the chart candle request", () => {
     expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
     expect(loadCandles).not.toHaveBeenCalled()
     await act(async () => vi.advanceTimersByTime(0))
+    expect(loadCandles).toHaveBeenCalledOnce()
+    expect(loadCandles).toHaveBeenCalledWith(key, "4h")
+  })
+
+  it("waits for the streamed opening slice instead of asking twice", async () => {
+    vi.useFakeTimers()
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const key = "hyperliquid:mainnet:BTC"
+    const bar = {
+      openTime: 0,
+      open: 100,
+      high: 110,
+      low: 90,
+      close: 105,
+      volume: 10,
+    }
+    const at = (pending: boolean, candles: (typeof bar)[]) => (
+      <ChartPanel
+        selectedKey={key}
+        interval="4h"
+        initialChartView={null}
+        initialChart={{
+          key: `${key}@4h`,
+          interval: "4h",
+          candles,
+          error: null,
+          pending,
+        }}
+        initialDrawings={{ marketKey: key, rows: [], error: null }}
+        initialQuickOrder={DEFAULT_QUICK_ORDER}
+        options={DEFAULT_CHART_OPTIONS}
+        indicators={{}}
+        market={null}
+        trading={trading}
+        free={0}
+        equity={0}
+        shownTrade={null}
+        addTo={null}
+        onAddOpened={() => {}}
+      />
+    )
+
+    // The opening answer's exchange half has not landed: the slice named by
+    // the marker is on its way, so nothing is fetched and nothing is drawn.
+    await act(async () => root.render(at(true, [])))
+    await act(async () => vi.advanceTimersByTime(1_000))
+    expect(loadCandles).not.toHaveBeenCalled()
+    expect(host.querySelector('[data-testid="price-chart"]')).toBeNull()
+
+    // The slice lands as a prop change. The bars it carries are drawn, and
+    // the only request that leaves is the deeper-history chase.
+    await act(async () => root.render(at(false, [bar])))
+    await act(async () => vi.advanceTimersByTime(0))
+    expect(host.querySelector('[data-testid="price-chart"]')).not.toBeNull()
     expect(loadCandles).toHaveBeenCalledOnce()
     expect(loadCandles).toHaveBeenCalledWith(key, "4h")
   })

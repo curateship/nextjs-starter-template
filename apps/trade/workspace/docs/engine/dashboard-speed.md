@@ -12,18 +12,39 @@ many trips each one makes after the check.
 
 ## Opening the page
 
-The page's account-specific opening data arrives through one authenticated
-answer, `loadDashboardBootstrap` in `src/lib/api/trade/dashboard.ts`. It reads
-the preference row once, including the sound switch, and starts the independent
-reads together. That answer now carries the market list, folders, running bots,
-wallet figures, chart drawings, the opening sound cursor and the first chart
-candles.
+The page's account-specific opening data arrives through two authenticated
+calls that leave together, both in `src/lib/api/trade/dashboard.ts`. The
+first, `loadDashboardCore`, is database reads only: the preference row
+(including the sound switch), folders, running bots, chart drawings and the
+opening sound cursor. The route loader waits for that one alone, so the
+document goes out as soon as the database answers and the page paints in its
+saved arrangement. The second, `loadDashboardExchange`, is everything that
+asks the exchange over the internet: the market catalogue, the first chart
+slice and the per-wallet account figures. The loader starts it without
+waiting and hands its promise into the page, where the answer streams into
+panels that are already drawn. Until it lands the market list shows a loading
+row, the chart shows its loading state, and the account panel draws its
+browser-cached copy — none of them claims an empty answer.
 
-Before this the page fired eight calls at once: the market list, the stars,
-and six preferences. Seven of them read the same preference row. Each call
-paid its own sign-in check, so opening the page was 24 to 32 trips for one row
-and one list. The sections in the opening answer still do their own necessary
-database and exchange work, but they run together behind one sign-in check.
+Measured on 29 August 2026, a fresh signed-in open of the live site painted
+nothing until the exchange had answered everything: the document's first byte
+came at 1.9 seconds when the catalogue's one-minute server copy was cold and
+0.5 seconds when it was warm — the first byte tracked the exchange. After the
+split, on the dev server, the first byte stopped moving with the catalogue at
+all, and the page painted 0.4 to 0.5 seconds before its own document stream
+closed with the exchange's answer inside it.
+
+Before all of this the page fired eight calls at once: the market list, the
+stars, and six preferences. Seven of them read the same preference row. Each
+call paid its own sign-in check, so opening the page was 24 to 32 trips for
+one row and one list. The two opening calls each read the preference row once
+— the duplicate read is the price of letting the exchange half start without
+waiting for the core half.
+
+The daily cache sweep (`maybeCleanTradeCaches`) still starts off a real
+dashboard open, but the opening answer no longer waits for it. It logs its
+own failures, so a failed sweep is a logged error, never a failed or slower
+page — the first open of the day answers in the same time as the second.
 
 The page's answer is good for a minute. A market click, or coming back to the
 tab inside that minute, paints at once. Saving the volume cutoff, a sound
@@ -48,8 +69,10 @@ with the browser code. The list describes code compiled into this build, so it
 does not need an authenticated server function. The server adapter registry
 reads the same descriptions, and a test checks the registry's public answer.
 
-The first 4-hour chart slice rides with the opening answer for the remembered
-market. Hyperliquid and the other unrestricted exchanges ask for the same
+The first 4-hour chart slice rides with the exchange half of the opening
+answer for the remembered market. While that half is still streaming the
+chart shows its loading state rather than asking the server a second time for
+the same candles. Hyperliquid and the other unrestricted exchanges ask for the same
 two-year first slice as before, then the browser chases deeper history after it
 has painted. Lighter keeps its 90-day first slice and does not chase. The chart
 timeframe lives in this browser's local storage, which the server cannot read.

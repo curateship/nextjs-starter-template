@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router"
 import { focusRing } from "@/lib/layout/focus-ring"
 
 import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import { TableSortButton } from "@/components/ui/table"
 import { formatChange, formatCompactUsd } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
@@ -69,6 +70,7 @@ function tickerLabel(symbol: string) {
 export function AllMarketsList({
   catalogs,
   marketsError,
+  marketsPending,
   selectedKey,
   onSelect,
   onRetry,
@@ -76,6 +78,8 @@ export function AllMarketsList({
   catalogs: readonly FilteredMarketCatalog[]
   /** The exchange call failed at load; shown in place of rows. */
   marketsError: string | null
+  /** The list is still streaming in with the opening answer. */
+  marketsPending: boolean
   selectedKey: string | null
   onSelect: (key: string) => void
   onRetry: () => void
@@ -110,6 +114,12 @@ export function AllMarketsList({
       return (a.volume24hUsd - b.volume24hUsd) * direction
     })
   }, [rows, sort])
+
+  // Checked before the error and the empty copy: while the opening answer
+  // is still streaming in, neither claim would be true yet.
+  if (marketsPending) {
+    return <LoadingRow label="Loading markets" className="py-4" />
+  }
 
   if (marketsError) {
     return (

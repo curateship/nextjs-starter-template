@@ -49,21 +49,28 @@ import { getCandlesErrorMessage } from "./candles"
 import { getMarketsErrorMessage } from "./markets"
 
 /**
- * Everything a dashboard needs before it can paint, in ONE server call.
+ * Everything a dashboard needs before it can paint, in TWO server calls that
+ * leave together.
  *
- * A dashboard used to open with eight server functions fired together: the
- * market list, the stars, and six preferences. Every one of the eight paid
- * its own session lookup (two or three database round trips) before doing
- * anything, and six of them then read the same preference row. Against a
- * database 120 ms away that added up to two dozen round trips for one row
- * and one catalogue. This call pays the lookup once, reads the row once, and
- * asks the exchange once.
+ * The first, `loadDashboardCore`, is database reads only — preferences,
+ * folders, bots, drawings, the sound cursor. The route loader awaits it, so
+ * the document goes out as soon as the database answers and the page paints
+ * in its saved arrangement.
+ *
+ * The second, `loadDashboardExchange`, is everything that has to ask the
+ * exchange over the internet — the market catalogue, the first chart slice,
+ * and the per-wallet account figures. The loader starts it but does not wait:
+ * its answer streams into the already-painted page. Before this split the
+ * document's first byte waited on the slowest exchange answer, so a fresh
+ * open was a blank tab until Hyperliquid had answered everything.
+ *
+ * Both calls read the one preference row; that duplicate read is the price of
+ * letting the exchange half start without waiting for the core half.
  *
  * The single-purpose loaders in `markets.ts`, `chart-view.ts` and the rest
  * still exist for the screens that want one thing on its own.
  */
-export type DashboardBootstrap = {
-  markets: { catalogs: FilteredMarketCatalog[]; error: string | null }
+export type DashboardCore = {
   folders: MarketFolder[]
   /** Where the two rows that are not folders sit in the markets panel. */
   panelRows: MarketPanelRows
@@ -81,13 +88,6 @@ export type DashboardBootstrap = {
   smartGrid: GridParams | null
   /** The Bots tab's first answer, carried with the rest of the dashboard. */
   runningBots: { rows: RunningBot[]; error: string | null }
-  /** The remembered market's first paint; deeper history still follows. */
-  initialChart: {
-    key: string
-    interval: CandleInterval
-    candles: CandleBar[]
-    error: string | null
-  } | null
   /** The remembered market's saved lines, read without another session check. */
   drawings: {
     marketKey: string | null
@@ -101,12 +101,48 @@ export type DashboardBootstrap = {
     cursor: TradeSoundCursor
     error: string | null
   }
+  /** The wallet the account panel last had active on each exchange. */
+  lastWalletIds: Record<string, string>
+}
+
+/** The exchange-facing half, streamed into the page after it has painted. */
+export type DashboardExchange = {
+  markets: { catalogs: FilteredMarketCatalog[]; error: string | null }
+  /** The remembered market's first paint; deeper history still follows. */
+  initialChart: {
+    key: string
+    interval: CandleInterval
+    candles: CandleBar[]
+    error: string | null
+  } | null
   /** The account panel's first answer; its 15-second refresh remains. */
+  wallets: {
+    rows: TradeWallet[]
+    summaries: WalletAccountSummary[]
+    error: string | null
+  }
+}
+
+/**
+ * What the workspace is handed once the page has put the two halves
+ * together. `pending: true` means the exchange half has not landed yet; each
+ * surface shows a loading state instead of claiming an empty answer.
+ */
+export type DashboardBootstrap = Omit<DashboardCore, "lastWalletIds"> & {
+  markets: { catalogs: FilteredMarketCatalog[]; error: string | null }
+  initialChart: {
+    key: string
+    interval: CandleInterval
+    candles: CandleBar[]
+    error: string | null
+    pending: boolean
+  } | null
   wallets: {
     rows: TradeWallet[]
     summaries: WalletAccountSummary[]
     lastWalletIds: Record<string, string>
     error: string | null
+    pending: boolean
   }
 }
 
@@ -115,20 +151,41 @@ const bootstrapSchema = z.object({
   network: z.enum(["mainnet", "testnet"]),
 })
 
-const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
+/**
+ * A network the exchange does not run is refused, not answered with an empty
+ * list that reads as "no markets today".
+ */
+function requireNetwork(protocol: ProtocolId, network: NetworkId) {
+  if (!getProtocol(protocol).networks.includes(network)) {
+    throw new Error(`PROTOCOL_NO_NETWORK:${protocol}:${network}`)
+  }
+}
+
+function marketOnDashboard(
+  marketKey: string | null,
+  protocol: ProtocolId,
+  network: NetworkId
+): string | null {
+  if (!marketKey) return null
+  const ref = parseMarketKey(marketKey)
+  return ref?.protocol === protocol && ref.network === network
+    ? marketKey
+    : null
+}
+
+const loadDashboardCoreFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(bootstrapSchema)
-  .handler(async ({ data, context }): Promise<DashboardBootstrap> => {
-    const protocol = getProtocol(data.protocol)
-    // A network the exchange does not run is refused, not answered with an
-    // empty list that reads as "no markets today".
-    if (!protocol.networks.includes(data.network)) {
-      throw new Error(`PROTOCOL_NO_NETWORK:${data.protocol}:${data.network}`)
-    }
+  .handler(async ({ data, context }): Promise<DashboardCore> => {
+    requireNetwork(data.protocol, data.network)
     const openedAt = Date.now()
     const soundCursor: TradeSoundCursor = { afterAt: openedAt, afterId: "" }
+    // The daily cache sweep still rides a real dashboard open, but it no
+    // longer delays one: it is started and left to finish on its own. It
+    // catches and logs its own failures, so a failed sweep is a logged
+    // error, never a failed page.
+    void maybeCleanTradeCaches()
     const prefsPromise = loadDashboardPrefs(context.user.id, data)
-    const cleanupPromise = maybeCleanTradeCaches()
     const drawingsPromise = prefsPromise.then(async (prefs) => {
       const marketKey = marketOnDashboard(
         prefs.lastMarketKey,
@@ -147,43 +204,73 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
         })
       )
     })
-    const initialChartPromise = prefsPromise.then(async (prefs) => {
-      const marketKey = marketOnDashboard(
-        prefs.lastMarketKey,
-        data.protocol,
-        data.network
-      )
-      if (!marketKey) return null
-      const interval = DEFAULT_CHART_INTERVAL
-      return loadProtocolCandles(
-        marketKey,
-        interval,
-        openedAt - protocolFirstPaintMs(data.protocol)
-      ).then(
-        (candles) => ({
-          key: `${marketKey}@${interval}`,
-          interval,
-          candles,
-          error: null as string | null,
-        }),
-        (error: unknown) => ({
-          key: `${marketKey}@${interval}`,
-          interval,
-          candles: [] as CandleBar[],
-          error: getCandlesErrorMessage(error),
-        })
-      )
-    })
-    const [
-      catalog,
-      prefs,
+    const [prefs, folders, runningBots, drawings, tradeSounds, lastWalletIds] =
+      await Promise.all([
+        prefsPromise,
+        // Losing folders must not keep the rest of the dashboard from opening.
+        loadMarketFolders(context.user.id, data.protocol, data.network).catch(
+          () => [] as MarketFolder[]
+        ),
+        // The bot list must not take the trading screen down. Its own tab says
+        // when this read failed and can retry it without reloading the page.
+        listRunningBots(context.user.id, data.protocol).then(
+          (rows) => ({ rows, error: null as string | null }),
+          () => ({
+            rows: [] as RunningBot[],
+            error: RUNNING_BOTS_READ_ERROR,
+          })
+        ),
+        drawingsPromise,
+        Promise.all([
+          prefsPromise,
+          tradeSoundEventsAfter(context.user.id, soundCursor),
+        ]).then(
+          ([soundPrefs, soundEvents]) => ({
+            enabled: soundPrefs.tradeSoundsEnabled,
+            ...soundEvents,
+            error: null as string | null,
+          }),
+          () => ({
+            enabled: false,
+            events: [] as TradeSoundEvent[],
+            cursor: soundCursor,
+            error: "Trade sounds could not be read.",
+          })
+        ),
+        // Losing the remembered wallet choice only costs the memory.
+        loadLastWalletIds(context.user.id).catch(
+          () => ({}) as Record<string, string>
+        ),
+      ])
+    return {
       folders,
+      panelRows: prefs.marketPanelRows,
+      lastMarketKey: prefs.lastMarketKey,
+      chartView: prefs.chartView,
+      chartOptions: prefs.chartOptions,
+      indicators: prefs.indicators,
+      cardFolds: prefs.cardFolds,
+      quickOrder: prefs.quickOrder,
+      smartDca: prefs.smartDca,
+      smartGrid: prefs.smartGrid,
       runningBots,
       drawings,
-      initialChart,
       tradeSounds,
-      wallets,
-    ] = await Promise.all([
+      lastWalletIds,
+    }
+  })
+
+const loadDashboardExchangeFn = createServerFn({ method: "GET" })
+  .middleware([userGet])
+  .inputValidator(bootstrapSchema)
+  .handler(async ({ data, context }): Promise<DashboardExchange> => {
+    requireNetwork(data.protocol, data.network)
+    const openedAt = Date.now()
+    // Read again rather than passed in from the browser: the remembered
+    // market and the volume cutoff stay the server's own saved row, and the
+    // catalogue and wallet reads below do not wait for it.
+    const prefsPromise = loadDashboardPrefs(context.user.id, data)
+    const [catalog, prefs, initialChart, wallets] = await Promise.all([
       // A dead exchange must not take the page down with it: the workspace
       // still opens, and the list explains itself and offers a retry.
       loadRawMarketCatalog(data.protocol, data.network).then(
@@ -194,56 +281,46 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
         })
       ),
       prefsPromise,
-      // Losing folders must not keep the rest of the dashboard from opening.
-      loadMarketFolders(context.user.id, data.protocol, data.network).catch(
-        () => [] as MarketFolder[]
-      ),
-      // The bot list must not take the trading screen down. Its own tab says
-      // when this read failed and can retry it without reloading the page.
-      listRunningBots(context.user.id, data.protocol).then(
-        (rows) => ({ rows, error: null as string | null }),
-        () => ({
-          rows: [] as RunningBot[],
-          error: RUNNING_BOTS_READ_ERROR,
-        })
-      ),
-      drawingsPromise,
-      initialChartPromise,
-      Promise.all([
-        prefsPromise,
-        tradeSoundEventsAfter(context.user.id, soundCursor),
-      ]).then(
-        ([soundPrefs, soundEvents]) => ({
-          enabled: soundPrefs.tradeSoundsEnabled,
-          ...soundEvents,
-          error: null as string | null,
-        }),
-        () => ({
-          enabled: false,
-          events: [] as TradeSoundEvent[],
-          cursor: soundCursor,
-          error: "Trade sounds could not be read.",
-        })
-      ),
-      Promise.all([
-        loadWalletSummaries(context.user.id, data.protocol),
-        loadLastWalletIds(context.user.id),
-      ]).then(
-        ([answer, lastWalletIds]) => ({
+      prefsPromise.then(async (prefs) => {
+        const marketKey = marketOnDashboard(
+          prefs.lastMarketKey,
+          data.protocol,
+          data.network
+        )
+        if (!marketKey) return null
+        const interval = DEFAULT_CHART_INTERVAL
+        return loadProtocolCandles(
+          marketKey,
+          interval,
+          openedAt - protocolFirstPaintMs(data.protocol)
+        ).then(
+          (candles) => ({
+            key: `${marketKey}@${interval}`,
+            interval,
+            candles,
+            error: null as string | null,
+          }),
+          (error: unknown) => ({
+            key: `${marketKey}@${interval}`,
+            interval,
+            candles: [] as CandleBar[],
+            error: getCandlesErrorMessage(error),
+          })
+        )
+      }),
+      loadWalletSummaries(context.user.id, data.protocol).then(
+        (answer) => ({
           rows: answer.wallets,
           summaries: answer.summaries,
-          lastWalletIds,
           error: null as string | null,
         }),
         () => ({
           rows: [] as TradeWallet[],
           summaries: [] as WalletAccountSummary[],
-          lastWalletIds: {},
           error: "The wallets could not be loaded.",
         })
       ),
     ])
-    await cleanupPromise
     return {
       markets: catalog.catalog
         ? {
@@ -256,39 +333,21 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
             error: null,
           }
         : { catalogs: [], error: catalog.error },
-      folders,
-      panelRows: prefs.marketPanelRows,
-      lastMarketKey: prefs.lastMarketKey,
-      chartView: prefs.chartView,
-      chartOptions: prefs.chartOptions,
-      indicators: prefs.indicators,
-      cardFolds: prefs.cardFolds,
-      quickOrder: prefs.quickOrder,
-      smartDca: prefs.smartDca,
-      smartGrid: prefs.smartGrid,
-      runningBots,
       initialChart,
-      drawings,
-      tradeSounds,
       wallets,
     }
   })
 
-function marketOnDashboard(
-  marketKey: string | null,
+export function loadDashboardCore(
   protocol: ProtocolId,
   network: NetworkId
-): string | null {
-  if (!marketKey) return null
-  const ref = parseMarketKey(marketKey)
-  return ref?.protocol === protocol && ref.network === network
-    ? marketKey
-    : null
+): Promise<DashboardCore> {
+  return loadDashboardCoreFn({ data: { protocol, network } })
 }
 
-export function loadDashboardBootstrap(
+export function loadDashboardExchange(
   protocol: ProtocolId,
   network: NetworkId
-): Promise<DashboardBootstrap> {
-  return loadDashboardBootstrapFn({ data: { protocol, network } })
+): Promise<DashboardExchange> {
+  return loadDashboardExchangeFn({ data: { protocol, network } })
 }

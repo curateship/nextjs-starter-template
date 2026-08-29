@@ -151,3 +151,10 @@ at a time on the chart, or mixed in with everything else under Open orders.
   over what is on screen.
 - **The exchange call failing does not take the page down.** The list shows
   the error and a retry; every other panel still works.
+- **The rows stream in after the page paints.** The market catalogue is the
+  exchange's answer, and since 29 Aug 2026 the page stops waiting for the
+  exchange before painting. Until the catalogue lands, All markets shows the
+  shared loading row and its count says nothing, and a folder with saved
+  coins shows the same loading row rather than claiming its coins are not
+  available. A list already on screen stays up while a fresh one loads for
+  the same network; switching network shows loading, never the old floor.

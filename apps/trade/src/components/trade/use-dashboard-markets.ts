@@ -7,6 +7,11 @@ import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 export type DashboardMarkets = {
   catalogs: FilteredMarketCatalog[]
   error: string | null
+  /**
+   * The exchange half of the opening answer has not landed yet. The list
+   * shows a loading row rather than claiming the exchange lists nothing.
+   */
+  pending: boolean
 }
 
 /**
@@ -20,6 +25,11 @@ export type DashboardMarkets = {
  *
  * A retry that fails keeps the list already on screen. Only a list that was
  * empty to begin with shows the error.
+ *
+ * A fresh loader answer whose exchange half is still streaming keeps the
+ * list already on screen too — but only on the same network. Another
+ * network's markets are a different list, and holding the old one up while
+ * the new one loads would be showing the wrong exchange floor.
  */
 export function useDashboardMarkets(
   fromLoader: DashboardMarkets,
@@ -31,20 +41,29 @@ export function useDashboardMarkets(
   // after its data went stale) replaces whatever a retry put here. Kept in
   // state rather than a ref so the comparison happens in render, the way
   // React's own "derived state" pattern does it.
-  const [seenFromLoader, setSeenFromLoader] = React.useState(fromLoader)
-  if (seenFromLoader !== fromLoader) {
-    setSeenFromLoader(fromLoader)
-    setMarkets(fromLoader)
+  const [seen, setSeen] = React.useState({ fromLoader, network })
+  if (seen.fromLoader !== fromLoader || seen.network !== network) {
+    const keepShown =
+      fromLoader.pending &&
+      seen.network === network &&
+      markets.catalogs.length > 0
+    setSeen({ fromLoader, network })
+    if (!keepShown) setMarkets(fromLoader)
   }
 
   const retry = React.useCallback(() => {
     loadMarkets(protocol, network).then(
-      (result) => setMarkets({ catalogs: result.catalogs, error: null }),
+      (result) =>
+        setMarkets({ catalogs: result.catalogs, error: null, pending: false }),
       (error: unknown) =>
         setMarkets((was) =>
           was.catalogs.length > 0
             ? was
-            : { catalogs: [], error: getMarketsErrorMessage(error) }
+            : {
+                catalogs: [],
+                error: getMarketsErrorMessage(error),
+                pending: false,
+              }
         )
     )
   }, [protocol, network])
