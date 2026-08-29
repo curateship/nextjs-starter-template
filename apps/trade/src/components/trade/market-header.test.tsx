@@ -111,6 +111,17 @@ describe("the market header's star", () => {
     )
   })
 
+  it("uses the same light gray as the other header buttons", () => {
+    const host = document.createElement("div")
+    host.innerHTML = draw(market, [])
+    const picker = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Choose market"]'
+    )
+
+    expect(picker?.className.split(/\s+/)).not.toContain("bg-muted")
+    expect(picker?.parentElement?.className).toContain("bg-muted/60")
+  })
+
   it("states a market's smallest dollar order when the venue gives one", () => {
     expect(minimumOrderLabel({ ...row, minOrderValueUsd: 5 })).toBe(
       "Smallest order: $5"
