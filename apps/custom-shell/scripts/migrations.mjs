@@ -8,7 +8,7 @@ const { Client } = pg
  * Applying the files in `drizzle/`, once each, in order.
  *
  * Shared by the two commands that need it and owned by neither:
- * `setup-database.mjs` (local development, which also starts Docker and seeds)
+ * `setup-database.mjs` (development, which can start Docker and always seeds)
  * and `migrate-database.mjs` (production, which does neither). Splitting them
  * without splitting this is the point — there must be exactly one description
  * of what "the database is up to date" means, or the two drift and the one

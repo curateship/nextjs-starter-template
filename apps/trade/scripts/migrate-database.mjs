@@ -11,9 +11,10 @@ import { runMigrations } from "./migrations.mjs"
  * which is the point. A half-migrated database serving requests is worse than
  * a deploy that visibly refused.
  *
- * Deliberately *not* `db:setup`. That command starts Docker, creates the
- * database, loads the scaffold snapshot and seeds a known admin account with a
- * known password. Every one of those is right for a laptop and wrong for a
+ * Deliberately *not* `db:setup`. Without a configured database address, that
+ * command starts Docker and creates the database. It also loads the scaffold
+ * snapshot and seeds a known admin account with a known password on either
+ * database path. Every one of those is right for development and wrong for a
  * server, and the last one is a way in. So this command has none of them: it
  * connects to the database it was given, applies whatever files that database
  * has not run, and stops.

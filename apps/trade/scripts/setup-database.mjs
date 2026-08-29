@@ -8,13 +8,13 @@ import pg from "pg"
 import { quoteIdentifier, runMigrations } from "./migrations.mjs"
 
 /**
- * Getting a *development* database ready: start Docker's Postgres, create the
- * database if it is new, bring it up to date, and put something in it.
+ * Getting a *development* database ready: use the configured Postgres database
+ * or start a local one, bring it up to date, and put something in it.
  *
  * The bringing-up-to-date half lives in `migrations.mjs`, shared with the
  * production command in `migrate-database.mjs`. Everything else in this file —
- * Docker, the scaffold snapshot, the default admin — is development only and
- * deliberately has no production counterpart.
+ * Local Docker, the scaffold snapshot, and the default admin are development
+ * only and deliberately have no production counterpart.
  */
 
 const { Client } = pg
@@ -35,8 +35,9 @@ await loadEnv(envFile)
 const packageJson = JSON.parse(await readFile(packageFile, "utf8"))
 const databaseName = databaseNameFor(packageJson.name)
 const databasePort = process.env.CUSTOM_SHELL_POSTGRES_PORT || "54320"
+const configuredDatabaseUrl = process.env.CUSTOM_SHELL_DATABASE_URL
 const databaseUrl =
-  process.env.CUSTOM_SHELL_DATABASE_URL ||
+  configuredDatabaseUrl ||
   `postgresql://postgres:localdev@localhost:${databasePort}/${databaseName}`
 const target = new URL(databaseUrl)
 const targetDatabase = decodeURIComponent(target.pathname.replace(/^\/+/, "") || databaseName)
@@ -44,9 +45,11 @@ const composeProjectName = targetDatabase
 const maintenanceUrl = new URL(target)
 maintenanceUrl.pathname = "/postgres"
 
-startPostgres()
-await waitForDatabase(maintenanceUrl.toString())
-await ensureDatabase(maintenanceUrl.toString(), targetDatabase)
+if (!configuredDatabaseUrl) {
+  startPostgres()
+  await waitForDatabase(maintenanceUrl.toString())
+  await ensureDatabase(maintenanceUrl.toString(), targetDatabase)
+}
 await runMigrations(databaseUrl, root)
 if (!(await importScaffoldDatabase(databaseUrl))) {
   await seedAdminUser(databaseUrl)

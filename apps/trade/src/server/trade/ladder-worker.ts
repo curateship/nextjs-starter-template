@@ -295,6 +295,11 @@ export const lastPass = {
  * whatever a slow one on another exchange is doing.
  */
 const busyWallets = new Set<string>()
+const busyWalletStartedAt = new Map<
+  string,
+  { label: string; startedAt: number }
+>()
+let lastStuckWalletError: string | null = null
 let flowScanning = false
 let cleaningFlows = false
 let flowScanStartedAt = 0
@@ -309,10 +314,55 @@ let lastFlowScanAt = 0
  * not the delay.
  */
 const FLOW_SCAN_STUCK_MS = 2 * 60_000
+const WALLET_WORK_STUCK_MS = FLOW_SCAN_STUCK_MS
+
+function syncBusyWalletTimers(
+  work: ReadonlyArray<{ wallet: TradeWallet }>,
+  now: number
+): void {
+  const activeIds = new Set(work.map(({ wallet }) => wallet.id))
+  for (const walletId of busyWalletStartedAt.keys()) {
+    if (!activeIds.has(walletId)) busyWalletStartedAt.delete(walletId)
+  }
+  for (const { wallet } of work) {
+    if (busyWallets.has(wallet.id) && !busyWalletStartedAt.has(wallet.id)) {
+      busyWalletStartedAt.set(wallet.id, {
+        label: wallet.label || wallet.id,
+        startedAt: now,
+      })
+    }
+  }
+}
+
+function reportStuckWallets(now: number): boolean {
+  const stuck = [...busyWalletStartedAt.values()]
+    .filter(({ startedAt }) => now - startedAt >= WALLET_WORK_STUCK_MS)
+    .sort((left, right) => left.startedAt - right.startedAt)
+
+  const first = stuck[0]
+  const nextError = !first
+    ? null
+    : stuck.length === 1
+      ? `Wallet ${first.label} has been working for ${Math.round(
+          (now - first.startedAt) / 60_000
+        )} minutes and has not finished.`
+      : `${stuck.length} wallets have not finished their turn. The first is ${first.label}, working for ${Math.round(
+          (now - first.startedAt) / 60_000
+        )} minutes.`
+
+  if (nextError) lastPass.error = nextError
+  else if (lastStuckWalletError && lastPass.error === lastStuckWalletError) {
+    lastPass.error = null
+  }
+  lastStuckWalletError = nextError
+  return nextError !== null
+}
 
 /** Tests share this module; state left behind decides the next test's answer. */
 export function resetLadderPassState(): void {
   busyWallets.clear()
+  busyWalletStartedAt.clear()
+  lastStuckWalletError = null
   flowScanning = false
   cleaningFlows = false
   flowScanStartedAt = 0
@@ -467,6 +517,9 @@ export async function advanceWorkingLadders(): Promise<void> {
     const { advanceRemovedFlowLadders, advanceStoppingFlows } =
       await import("@/server/trade/flow-run")
     const pass = await enginePassInputs()
+    const work = pass.work
+    const checkedAt = Date.now()
+    syncBusyWalletTimers(work, checkedAt)
     const hasStoppingFlows = pass.flowRefs.some(
       (run) => run.status === "stopping"
     )
@@ -499,6 +552,7 @@ export async function advanceWorkingLadders(): Promise<void> {
       )
     }
     if (!control.enabled || control.paused) {
+      reportStuckWallets(checkedAt)
       lastPass.activity = control.enabled ? "Paused" : "Switched off"
       await Promise.all(started)
       return
@@ -565,8 +619,8 @@ export async function advanceWorkingLadders(): Promise<void> {
           })
       )
     }
+    reportStuckWallets(Date.now())
 
-    const work = pass.work
     lastPass.wallets = work.length
     lastPass.activity =
       work.length === 0
@@ -596,6 +650,10 @@ export async function advanceWorkingLadders(): Promise<void> {
       // is what put every wallet on the slowest one's clock.
       if (busyWallets.has(wallet.id)) continue
       busyWallets.add(wallet.id)
+      busyWalletStartedAt.set(wallet.id, {
+        label: wallet.label || wallet.id,
+        startedAt: Date.now(),
+      })
       started.push(
         workOneWallet(userId, wallet, {
           exposedMarketKeys,
@@ -604,6 +662,10 @@ export async function advanceWorkingLadders(): Promise<void> {
           pushedMarks,
           checkLiquidationWarnings,
         })
+          .finally(() => {
+            busyWallets.delete(wallet.id)
+            busyWalletStartedAt.delete(wallet.id)
+          })
           .then((worked) => {
             // **Cleared by a wallet that worked, never by the clock.** This
             // used to be wiped at the top of every pass, which was harmless
@@ -612,10 +674,9 @@ export async function advanceWorkingLadders(): Promise<void> {
             // before the next pass wiped it, and the Workers screen called the
             // engine healthy while a wallet was dead. It has done that before,
             // for twenty minutes, on 20 Aug 2026.
-            if (worked) lastPass.error = null
-          })
-          .finally(() => {
-            busyWallets.delete(wallet.id)
+            if (worked && !reportStuckWallets(Date.now())) {
+              lastPass.error = null
+            }
           })
       )
     }

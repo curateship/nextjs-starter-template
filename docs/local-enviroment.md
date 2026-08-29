@@ -41,6 +41,18 @@ down anywhere.
   them recreates the container on the wrong port and takes the database away
   from the server that was using it.
 
+## Local and configured databases
+
+`npm run db:setup` uses `CUSTOM_SHELL_DATABASE_URL` as written when the setting
+is present. It does not start Docker, rewrite the database name to `postgres`,
+or try to create a database. The configured account only needs access to the
+database named in the address.
+
+When `CUSTOM_SHELL_DATABASE_URL` is absent, the setup command starts the app's
+local Postgres container and creates the app database if needed. Both paths run
+the migrations and development seed. Production uses `npm run db:migrate`
+instead because that command never loads development data.
+
 ## Ports
 
 `local-apps.json` is the only place an app port is assigned.

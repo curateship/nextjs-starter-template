@@ -61,6 +61,8 @@ Two files outrank the rest, and outrank the code:
   the starting.
 - `worker-image.md` explains why local worker builds keep source maps, why
   those maps contain no server source, and which files enter the running image.
+- `stuck-wallet-warning.md` explains when a wallet turn is called stuck, what
+  the Workers screen says, and why the engine does not cancel the turn.
 - `liquidation-warning.md` — where the warning is set, how distance is measured,
   and why one crossing sends one notice.
 - `trade-notices.md` — the bell notices: one per fill, a second when a stop or

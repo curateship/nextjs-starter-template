@@ -20,6 +20,9 @@ const settled = vi.hoisted(() => ({
   count: 0,
   /** Wallets whose turn throws, so a failing wallet can be staged. */
   fail: new Set<string>(),
+  /** Wallets whose exchange never answers until the test lets it finish. */
+  hang: new Set<string>(),
+  finish: new Map<string, () => void>(),
   /** Which wallets have finished a turn, in the order they finished. */
   done: [] as string[],
   /** How long each wallet's turn takes, so a slow one can be staged. */
@@ -106,10 +109,15 @@ vi.mock("@/server/trade/live-marks", () => ({
 vi.mock("@/server/trade/paper", () => ({
   exposedMarketKeys: async () => [],
   settleWallet: async (_userId: string, wallet: { id: string }) => {
+    if (settled.hang.has(wallet.id)) {
+      await new Promise<void>((done) => settled.finish.set(wallet.id, done))
+    }
     // A pass slow enough that the timer would fire again mid-flight.
-    await new Promise((done) =>
-      setTimeout(done, settled.delays.get(wallet.id) ?? 1)
-    )
+    else {
+      await new Promise((done) =>
+        setTimeout(done, settled.delays.get(wallet.id) ?? 1)
+      )
+    }
     if (settled.fail.has(wallet.id)) throw new Error("this wallet is broken")
     settled.count += 1
     settled.done.push(wallet.id)
@@ -146,6 +154,8 @@ describe("the server's ladder job", () => {
     settled.done = []
     settled.delays = new Map()
     settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
     flowWork.scans = 0
     flowWork.stops = 0
     flowWork.removals = 0
@@ -316,6 +326,8 @@ describe("a slow wallet", () => {
     settled.done = []
     settled.delays = new Map()
     settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
     control.value = { enabled: true, paused: false }
   })
 
@@ -374,6 +386,8 @@ describe("a wallet that keeps failing", () => {
     settled.done = []
     settled.delays = new Map()
     settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
     control.value = { enabled: true, paused: false }
     lastPass.error = null
   })
@@ -399,5 +413,91 @@ describe("a wallet that keeps failing", () => {
     settled.fail = new Set()
     await advanceWorkingLadders()
     expect(lastPass.error).toBeNull()
+  })
+})
+
+describe("a wallet whose turn never finishes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-08-29T12:00:00Z"))
+    resetLadderPassState()
+    settled.count = 0
+    settled.done = []
+    settled.delays = new Map()
+    settled.fail = new Set()
+    settled.hang = new Set()
+    settled.finish = new Map()
+    control.value = { enabled: true, paused: false }
+    flowRows.value = []
+    lastPass.error = null
+  })
+
+  afterEach(() => {
+    for (const finish of settled.finish.values()) finish()
+    vi.useRealTimers()
+  })
+
+  it("names one stuck wallet after two minutes and clears the error when it finishes", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "stuck" },
+      { userId: "u2", walletId: "quick" },
+    ]
+    settled.hang.add("stuck")
+
+    const first = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(settled.finish.has("stuck")).toBe(true)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    const next = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(1)
+    await next
+    expect(lastPass.error).toBe(
+      "Wallet stuck has been working for 2 minutes and has not finished."
+    )
+
+    settled.hang.delete("stuck")
+    settled.finish.get("stuck")?.()
+    await first
+    expect(lastPass.error).toBeNull()
+  })
+
+  it("reports the count and first name when several wallets are stuck", async () => {
+    walletRows.value = [
+      { userId: "u1", walletId: "first" },
+      { userId: "u2", walletId: "second" },
+    ]
+    settled.hang = new Set(["first", "second"])
+
+    const firstPass = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(0)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBe(
+      "2 wallets have not finished their turn. The first is first, working for 2 minutes."
+    )
+
+    for (const finish of settled.finish.values()) finish()
+    await firstPass
+  })
+
+  it("forgets the timer when a stuck wallet is no longer active", async () => {
+    walletRows.value = [{ userId: "u1", walletId: "removed" }]
+    settled.hang.add("removed")
+
+    const first = advanceWorkingLadders()
+    await vi.advanceTimersByTimeAsync(0)
+
+    vi.setSystemTime(new Date("2026-08-29T12:02:00Z"))
+    await advanceWorkingLadders()
+    expect(lastPass.error).toContain("Wallet removed")
+
+    walletRows.value = []
+    await advanceWorkingLadders()
+    expect(lastPass.error).toBeNull()
+
+    settled.finish.get("removed")?.()
+    await first
   })
 })
