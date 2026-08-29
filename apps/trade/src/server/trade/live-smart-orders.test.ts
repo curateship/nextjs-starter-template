@@ -30,8 +30,10 @@ import {
   cancelLiveLadderRest,
   cancelLiveSignalRest,
   placeLiveDcaLadder,
+  noteRowFailure,
   reconcileLiveLadders,
   resetRefusalHolds,
+  resetRowFailureHolds,
 } from "@/server/trade/live-smart-orders"
 import { resetWatchChaseGate } from "@/server/trade/smart-watch"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
@@ -335,6 +337,7 @@ beforeEach(async () => {
   // Held per wallet and market in module state, so one test's refused buy
   // silently skipped the next test's.
   resetRefusalHolds()
+  resetRowFailureHolds()
   marketFloor = null
   marketMaxLeverage = 50
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
@@ -1070,6 +1073,104 @@ describe("live Smart orders", () => {
     expect(
       noted.some((row) => row.marketKey === MARKET && row.action === "refused")
     ).toBe(true)
+  })
+
+  it("counts one continuing row failure instead of writing it every pass", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+    const startedAt = new Date("2026-08-29T12:00:00.000Z").getTime()
+
+    try {
+      for (let pass = 0; pass < 10; pass += 1) {
+        vi.setSystemTime(startedAt + pass * 1_000)
+        await noteRowFailure(
+          userId,
+          wallet.id,
+          MARKET,
+          new TypeError(`price ${100 + pass}.25 could not be read`)
+        )
+      }
+
+      let notes = await database.select().from(tradeLiveJournal)
+      expect(notes).toHaveLength(1)
+      expect(notes.map((row) => row.note)).toContain(
+        "The engine could not work this order: price 100.25 could not be read"
+      )
+
+      vi.setSystemTime(startedAt + 10_000)
+      await noteRowFailure(
+        userId,
+        wallet.id,
+        MARKET,
+        new TypeError("the saved order has no size")
+      )
+      notes = await database.select().from(tradeLiveJournal)
+      expect(notes).toHaveLength(2)
+      expect(notes.map((row) => row.note)).toContain(
+        "The engine could not work this order: the saved order has no size"
+      )
+
+      await database.insert(tradeWallets).values({
+        userId,
+        id: "live-2",
+        label: "Second live test",
+        kind: "live",
+        status: "active",
+        protocol: "hyperliquid",
+        network: "testnet",
+        startingBalance: 1_000,
+        address: ADDRESS,
+        agentKeyEncrypted: encryptSecret(KEY),
+      })
+      await noteRowFailure(
+        userId,
+        "live-2",
+        MARKET,
+        new TypeError("price 110.25 could not be read")
+      )
+      notes = await database.select().from(tradeLiveJournal)
+      expect(notes).toHaveLength(3)
+      expect(notes.filter((row) => row.walletId === "live-2")).toHaveLength(1)
+
+      vi.setSystemTime(startedAt + 60_000)
+      await noteRowFailure(
+        userId,
+        wallet.id,
+        MARKET,
+        new TypeError("price 111.25 could not be read")
+      )
+      notes = await database.select().from(tradeLiveJournal)
+      expect(notes).toHaveLength(4)
+      expect(notes.map((row) => row.note)).toContain(
+        "The same engine failure has stopped this order 11 times in 1 minute."
+      )
+
+      vi.setSystemTime(startedAt + 61_000)
+      await noteRowFailure(
+        userId,
+        wallet.id,
+        MARKET,
+        new TypeError("price 112.25 could not be read")
+      )
+      expect(await database.select().from(tradeLiveJournal)).toHaveLength(4)
+
+      vi.setSystemTime(startedAt + 121_000)
+      await noteRowFailure(
+        userId,
+        wallet.id,
+        MARKET,
+        new TypeError("price 113.25 could not be read")
+      )
+      notes = await database.select().from(tradeLiveJournal)
+      expect(notes).toHaveLength(5)
+      expect(notes.map((row) => row.note)).toContain(
+        "The engine could not work this order: price 113.25 could not be read"
+      )
+      expect(consoleError).toHaveBeenCalledTimes(15)
+    } finally {
+      consoleError.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   it("voids the chase's replacement when the cancel did not cancel", async () => {

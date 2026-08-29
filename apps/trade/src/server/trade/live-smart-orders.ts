@@ -773,6 +773,40 @@ export function nothingStood(error: unknown): boolean {
  */
 const reconciling = new Set<string>()
 
+type RowFailureHold = {
+  failures: number
+  firstSeenAt: number
+  heldUntil: number
+  lastSeenAt: number
+}
+
+/**
+ * One continuing engine problem writes one useful row a minute. The full
+ * message stays in the first row and in the console, while changing figures
+ * such as a price do not turn every pass into a new problem.
+ *
+ * The holds belong to this process. A worker restart forgets them and writes
+ * the next failure immediately, which is safer than carrying a silent hold
+ * across a restart.
+ */
+const rowFailureHolds = new Map<string, RowFailureHold>()
+const ROW_FAILURE_HOLD_MS = 60_000
+let rowFailureCleanupAt = 0
+
+/** Test support: forgets every continuing row failure. */
+export function resetRowFailureHolds(): void {
+  rowFailureHolds.clear()
+  rowFailureCleanupAt = 0
+}
+
+function rowFailureKind(error: unknown, message: string): string {
+  const errorType = error instanceof Error ? error.name : typeof error
+  const stableMessage = message
+    .slice(0, 500)
+    .replace(/(?<![A-Za-z_])-?\d+(?:\.\d+)?(?![A-Za-z_])/g, "#")
+  return `${errorType}:${stableMessage}`
+}
+
 /**
  * A smart order that could not be advanced, said out loud.
  *
@@ -783,7 +817,7 @@ const reconciling = new Set<string>()
  * trace in the one place a person already looks when an order did not do what
  * it was meant to.
  */
-async function noteRowFailure(
+export async function noteRowFailure(
   userId: string,
   walletId: string,
   marketKey: string,
@@ -791,6 +825,44 @@ async function noteRowFailure(
 ): Promise<void> {
   const message = error instanceof Error ? error.message : String(error)
   console.error("trade engine: could not advance", marketKey, message)
+  const now = Date.now()
+  const holdKey = JSON.stringify([
+    userId,
+    walletId,
+    marketKey,
+    rowFailureKind(error, message),
+  ])
+  if (now >= rowFailureCleanupAt) {
+    for (const [key, hold] of rowFailureHolds) {
+      if (now - hold.lastSeenAt >= ROW_FAILURE_HOLD_MS) {
+        rowFailureHolds.delete(key)
+      }
+    }
+    rowFailureCleanupAt = now + ROW_FAILURE_HOLD_MS
+  }
+  const held = rowFailureHolds.get(holdKey)
+  let note: string
+
+  if (!held) {
+    rowFailureHolds.set(holdKey, {
+      failures: 1,
+      firstSeenAt: now,
+      heldUntil: now + ROW_FAILURE_HOLD_MS,
+      lastSeenAt: now,
+    })
+    note = `The engine could not work this order: ${message}`
+  } else {
+    held.failures += 1
+    held.lastSeenAt = now
+    if (now < held.heldUntil) return
+    held.heldUntil = now + ROW_FAILURE_HOLD_MS
+    const minutes = Math.max(
+      1,
+      Math.floor((now - held.firstSeenAt) / 60_000)
+    )
+    note = `The same engine failure has stopped this order ${held.failures} times in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`
+  }
+
   try {
     await db.insert(tradeLiveJournal).values({
       id: randomUUID(),
@@ -801,7 +873,7 @@ async function noteRowFailure(
       side: "buy",
       px: 0,
       sz: 0,
-      note: `The engine could not work this order: ${message}`.slice(0, 500),
+      note: note.slice(0, 500),
     })
   } catch {
     // A journal that will not take the row is not a reason to stop the pass;

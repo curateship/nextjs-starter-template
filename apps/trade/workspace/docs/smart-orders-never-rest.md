@@ -244,6 +244,26 @@ started. It now borrows one kept-warm connection, and an account with no live
 wallet that has a key never touches the lock at all. `dashboard-speed.md` has
 the numbers.
 
+## When one smart order keeps failing
+
+The engine writes the first failure to its permanent journal immediately and
+prints every failure to the console. A continuing problem does not add the same
+journal row every second. The engine counts repeats for the same wallet, market
+and kind of failure. A price or another number changing inside the message does
+not make a new kind of failure.
+
+After one minute, the next repeat adds a short row with the total count and how
+many minutes the problem has lasted. Later repeats add at most one counted row
+per minute. A different problem on the same order gets its own detailed row at
+once. Two wallets failing on the same market also get separate rows. A full
+minute without the same failure ends its count. If the problem returns later,
+the journal gets a fresh detailed row.
+
+The counts live in the running engine, not in the database. Restarting the
+engine forgets them, so the first failure after a restart writes one fresh
+detailed row. A journal write that fails still does not stop the engine pass.
+The console continues to carry every attempt.
+
 ## The DCA ladder
 
 The ladder has been on watched levels since 14 Aug 2026. Placing one sends
