@@ -475,7 +475,10 @@ describe("the Smart orders panel", () => {
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
     window.localStorage.clear()
-    writeSmartOrdersCache(shared.cacheScope, [ladder])
+    writeSmartOrdersCache(shared.cacheScope, {
+      orders: [ladder],
+      positions: [pnlPositions[0]],
+    })
     const host = document.createElement("div")
     const root = createRoot(host)
 
@@ -484,6 +487,7 @@ describe("the Smart orders panel", () => {
         <SmartOrdersPanel
           {...shared}
           smartOrders={[]}
+          markets={pnlMarkets}
           settled={false}
           failed={false}
         />
@@ -491,6 +495,7 @@ describe("the Smart orders panel", () => {
     })
 
     expect(host.textContent).toContain("XMR")
+    expect(host.textContent).toContain("+$20.00")
     expect(host.textContent).not.toContain(READING)
     await act(async () => root.unmount())
   })

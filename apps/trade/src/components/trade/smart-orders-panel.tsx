@@ -79,6 +79,7 @@ import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import {
   readSmartOrdersCache,
+  type SmartOrderPosition,
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
 import { cn } from "@/lib/utils"
@@ -518,16 +519,20 @@ function SmartOrdersView({
   onResumeSmartOrder,
   onSelectMarket,
 }: SmartOrdersViewProps) {
-  const [cached, setCached] = React.useState<readonly SmartOrder[] | null>(null)
+  const [cached, setCached] = React.useState<ReturnType<
+    typeof readSmartOrdersCache
+  >>(null)
   useEffectBeforePaint(() => {
     setCached(readSmartOrdersCache(cacheScope))
   }, [cacheScope])
   React.useEffect(() => {
     if (!settled || failed) return
-    writeSmartOrdersCache(cacheScope, smartOrders)
-  }, [cacheScope, failed, settled, smartOrders])
+    writeSmartOrdersCache(cacheScope, { orders: smartOrders, positions })
+  }, [cacheScope, failed, positions, settled, smartOrders])
   const shownOrders =
-    !settled && !failed && cached !== null ? cached : smartOrders
+    !settled && !failed && cached !== null ? cached.orders : smartOrders
+  const shownPositions: readonly SmartOrderPosition[] =
+    !settled && !failed && cached !== null ? cached.positions : positions
 
   const [readAt, setReadAt] = React.useState(Date.now)
   React.useEffect(() => {
@@ -546,9 +551,12 @@ function SmartOrdersView({
   const held = React.useMemo(
     () =>
       new Map(
-        positions.map((one) => [`${one.walletId}:${one.marketKey}`, one])
+        shownPositions.map((one) => [
+          `${one.walletId}:${one.marketKey}`,
+          one,
+        ])
       ),
-    [positions]
+    [shownPositions]
   )
   const expiredWallets = React.useMemo(
     () =>
@@ -849,7 +857,7 @@ function SmartOrderDetailsTooltip({
   children,
 }: {
   order: SmartOrder
-  position: TradePosition | null
+  position: SmartOrderPosition | null
   openProfit: number | null
   banked: ReturnType<typeof bankedBy>
   keyExpired: boolean
@@ -992,7 +1000,7 @@ function SmartOrderDetailsTooltip({
  */
 function whereItHasGot(
   order: SmartOrder,
-  position: TradePosition | null
+  position: SmartOrderPosition | null
 ): string {
   if (order.kind === "dca") {
     const waiting = order.plan.rungs.filter(

@@ -6,6 +6,7 @@ import {
   readSmartPlan,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
+import type { TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 
 const WALLET_KEY = "trade-wallet-panel"
@@ -69,6 +70,29 @@ const smartOrderSharedSchema = z.object({
   plan: z.unknown(),
 })
 
+const smartOrderPositionSchema = z.object({
+  walletId: z.string(),
+  marketKey: z.string(),
+  szi: z.number(),
+  entryPx: z.number(),
+  feesPaid: z.number(),
+})
+
+const smartOrdersCacheSchema = z.object({
+  orders: z.array(smartOrderSharedSchema),
+  positions: z.array(smartOrderPositionSchema),
+})
+
+export type SmartOrderPosition = Pick<
+  TradePosition,
+  "walletId" | "marketKey" | "szi" | "entryPx" | "feesPaid"
+>
+
+export type SmartOrdersCache = {
+  orders: SmartOrder[]
+  positions: SmartOrderPosition[]
+}
+
 function key(prefix: string, scope: string): string {
   return `${prefix}-${scope}`
 }
@@ -109,26 +133,45 @@ export function writeWalletPanelCache(
   })
 }
 
-export function readSmartOrdersCache(scope: string): SmartOrder[] | null {
-  const rows = z
-    .array(smartOrderSharedSchema)
-    .safeParse(readStored(key(SMART_KEY, scope)))
-  if (!rows.success) return null
+export function readSmartOrdersCache(scope: string): SmartOrdersCache | null {
+  const cached = smartOrdersCacheSchema.safeParse(
+    readStored(key(SMART_KEY, scope))
+  )
+  if (!cached.success) return null
 
   const orders: SmartOrder[] = []
-  for (const row of rows.data) {
+  for (const row of cached.data.orders) {
     const kind = readSmartOrderKind(row.kind)
     if (!kind) return null
     const plan = readSmartPlan(kind, row.plan)
     if (!plan) return null
     orders.push({ ...row, kind, plan } as SmartOrder)
   }
-  return orders
+  return { orders, positions: cached.data.positions }
 }
 
 export function writeSmartOrdersCache(
   scope: string,
-  orders: readonly SmartOrder[]
+  value: {
+    orders: readonly SmartOrder[]
+    positions: readonly TradePosition[]
+  }
 ): void {
-  writeStored(key(SMART_KEY, scope), orders)
+  const orderMarkets = new Set(
+    value.orders.map((order) => `${order.walletId}:${order.marketKey}`)
+  )
+  writeStored(key(SMART_KEY, scope), {
+    orders: value.orders,
+    positions: value.positions
+      .filter((position) =>
+        orderMarkets.has(`${position.walletId}:${position.marketKey}`)
+      )
+      .map(({ walletId, marketKey, szi, entryPx, feesPaid }) => ({
+        walletId,
+        marketKey,
+        szi,
+        entryPx,
+        feesPaid,
+      })),
+  })
 }

@@ -10,6 +10,7 @@ import {
   writeWalletPanelCache,
 } from "@/lib/trade/dashboard-cache"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
+import type { TradePosition } from "@/lib/trade/paper"
 
 const scope = "person:hyperliquid"
 
@@ -56,7 +57,7 @@ describe("the dashboard cache", () => {
     ).not.toContain("0xprivate-account-id")
   })
 
-  it("keeps smart orders with a plan that still passes the current reader", () => {
+  it("keeps valid smart orders with only the position fields their PnL needs", () => {
     const order: SmartOrder = {
       id: "one",
       walletId: "wallet",
@@ -91,9 +92,35 @@ describe("the dashboard cache", () => {
       }),
     }
 
-    writeSmartOrdersCache(scope, [order])
+    const position: TradePosition = {
+      id: "position",
+      walletId: "wallet",
+      marketKey: order.marketKey,
+      szi: 2,
+      entryPx: 90,
+      leverage: 2,
+      maxLeverage: 20,
+      targets: [],
+      tpPx: null,
+      slPx: null,
+      feesPaid: 0.25,
+      updatedAt: 2,
+    }
 
-    expect(readSmartOrdersCache(scope)).toEqual([order])
+    writeSmartOrdersCache(scope, { orders: [order], positions: [position] })
+
+    expect(readSmartOrdersCache(scope)).toEqual({
+      orders: [order],
+      positions: [
+        {
+          walletId: "wallet",
+          marketKey: order.marketKey,
+          szi: 2,
+          entryPx: 90,
+          feesPaid: 0.25,
+        },
+      ],
+    })
   })
 
   it("ignores stored data from an older or broken shape", () => {

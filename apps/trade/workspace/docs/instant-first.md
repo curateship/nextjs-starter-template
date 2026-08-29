@@ -77,6 +77,17 @@ job is to confirm it, not to unlock it.
   earlier build reported 163,070 bytes for that dependency, so no chart-library
   reduction is claimed. The proven saving is 15,848 bytes removed from the
   route file and four windows that are not parsed until opened.
+- **Smart Orders restores its PnL with its rows.** The browser cache keeps the
+  five position fields needed to calculate open profit beside each smart
+  order. The position copy adds no wallet address, margin, liquidation price
+  or protection-order ids. The cached PnL draws on the first row paint and
+  live prices can update it while the fresh wallet reads are still landing.
+
+  Measured in the same signed-in browser on 28 August 2026, the old cache drew
+  the nine Smart Orders rows at 1.97 seconds and left every PnL blank until
+  3.61 seconds. With the matching positions cached, the rows and their PnL
+  drew together at 1.73 seconds. The fresh answer landed later and replaced
+  the saved figures as before.
 
 ## How a background answer corrects the screen
 
