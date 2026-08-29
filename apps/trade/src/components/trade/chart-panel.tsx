@@ -23,7 +23,7 @@ import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
 import { prefetchChartEngine } from "@/components/trade/chart-engine"
-import { GridLayer } from "@/components/trade/grid-layer"
+import { GridLayer, gridLineObstacles } from "@/components/trade/grid-layer"
 import type {
   GridOrderState,
   GridPreview,
@@ -62,6 +62,7 @@ import {
   type CandleInterval,
   type MarketRow,
 } from "@/lib/protocols/contracts"
+import { formatPrice, formatUsd } from "@/lib/trade/format"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import {
@@ -69,7 +70,12 @@ import {
   DEFAULT_MARGIN_TOP,
   type ChartView,
 } from "@/lib/trade/chart-view"
-import { gridStopLegPrices, isGridStopLeg } from "@/lib/trade/grid"
+import {
+  gridStopLegPrices,
+  holdsEntry,
+  isGridStopLeg,
+  plannedGridReversal,
+} from "@/lib/trade/grid"
 import { prefetchLadderBase } from "@/lib/trade/ladder-base-cache"
 import { prefetchSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import {
@@ -374,6 +380,9 @@ export function ChartPanel({
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
     React.useState<TradePosition | null>(null)
+  const [reverseGridFor, setReverseGridFor] = React.useState<SmartGrid | null>(
+    null
+  )
   const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(
     null
   )
@@ -1047,6 +1056,35 @@ export function ChartPanel({
    * of re-rendering all seven on every letter.
    */
   const currentKey = current?.key ?? ""
+  /**
+   * Why this grid cannot be reversed right now, or null when it can. The
+   * greyed-out icon says the reason on hover, per
+   * `a-greyed-out-button-says-why.md` — the server refuses these too; saying
+   * it before the click beats saying it after.
+   */
+  const reverseDisabledReason = React.useCallback(
+    (grid: SmartGrid): string | null => {
+      if (grid.plan.takeProfitPx === null) {
+        return "This grid has no End Grid line, and the reversal makes the new stop from it. Switch End Grid on first."
+      }
+      if (
+        trading.ladders.some(
+          (one) =>
+            one.walletId === grid.walletId &&
+            one.marketKey === grid.marketKey &&
+            one.status === "active"
+        )
+      ) {
+        return "A DCA ladder is working this coin, and a reversed grid would fight it."
+      }
+      if (trading.failed) {
+        return "The last wallet read failed, so what the grid holds cannot be trusted. Wait for the next read."
+      }
+      return null
+    },
+    [trading.ladders, trading.failed]
+  )
+
   const gridsShown = trading.grids
   const currentMarketPx = market?.price ?? null
   const overlay = React.useCallback(
@@ -1069,10 +1107,54 @@ export function ChartPanel({
             onDelete={paint.remove}
           />
         ) : null}
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey={selectedKey}
+          ladders={tradingLadders}
+          preview={preview}
+          tool={paintTool}
+          walletName={walletNameOf}
+          onCancelRung={onCancelRung}
+          onCancelLadder={setCancelFor}
+          onEditExits={setExitsFor}
+        />
+        <GridLayer
+          surface={surface}
+          colors={colors}
+          marketKey={selectedKey}
+          currentPx={currentMarketPx}
+          grids={gridsShown}
+          preview={gridPreview}
+          tool={paintTool}
+          walletName={walletNameOf}
+          onReverseGrid={setReverseGridFor}
+          reverseDisabledReason={reverseDisabledReason}
+          onCancelLevel={onCancelGridLevel}
+          onCancelGrid={setCancelGridFor}
+          onEditStop={setStopFor}
+          onMoveRange={onMoveGridRange}
+          onMoveExit={onMoveGridExit}
+        />
+        {/* Over the orders and under the ruler: a finished trade is history,
+            so it must never hide a stop that is live right now, and
+            Shift-dragging across it still measures. */}
+        {/* AFTER the smart-order layers, so a position's pills paint over
+            their chips. A grid level at the entry price used to stamp its
+            money chip on top of the Entry pill's words — and the pills are
+            the lines that carry the ×, the gear and the drag, so they are
+            the ones a hand must always be able to find. */}
         <TradeLinesLayer
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
+          // The grid's chips as things the pills slide around, so an Entry
+          // pill at a level's own price sits BESIDE its money chip and both
+          // stay readable.
+          obstacles={gridLineObstacles(gridsShown, selectedKey, (px) => {
+            const y = surface.yOf(px)
+            return y === null || y < 0 || y > surface.height ? null : y
+          })}
           // This layer paints over the paint tools, so it has to know when
           // one is in hand and keep its hands off the pointer — otherwise
           // starting a line near a stop drags the stop.
@@ -1097,36 +1179,6 @@ export function ChartPanel({
           onSetBrackets={dragBrackets}
           onSurface={readSurface}
         />
-        <SmartLadderLayer
-          surface={surface}
-          colors={colors}
-          marketKey={selectedKey}
-          ladders={tradingLadders}
-          preview={preview}
-          tool={paintTool}
-          walletName={walletNameOf}
-          onCancelRung={onCancelRung}
-          onCancelLadder={setCancelFor}
-          onEditExits={setExitsFor}
-        />
-        <GridLayer
-          surface={surface}
-          colors={colors}
-          marketKey={selectedKey}
-          currentPx={currentMarketPx}
-          grids={gridsShown}
-          preview={gridPreview}
-          tool={paintTool}
-          walletName={walletNameOf}
-          onCancelLevel={onCancelGridLevel}
-          onCancelGrid={setCancelGridFor}
-          onEditStop={setStopFor}
-          onMoveRange={onMoveGridRange}
-          onMoveExit={onMoveGridExit}
-        />
-        {/* Over the orders and under the ruler: a finished trade is history,
-            so it must never hide a stop that is live right now, and
-            Shift-dragging across it still measures. */}
         <JournalMarksLayer
           surface={surface}
           trades={marketTrades}
@@ -1177,6 +1229,7 @@ export function ChartPanel({
       onCancelGridLevel,
       onMoveGridRange,
       onMoveGridExit,
+      reverseDisabledReason,
       marketTrades,
       marketFills,
       focusTrade,
@@ -1458,6 +1511,41 @@ export function ChartPanel({
           />
         </React.Suspense>
       ) : null}
+      <ConfirmDialog
+        open={reverseGridFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setReverseGridFor(null)
+        }}
+        title="Reverse this grid?"
+        description={(() => {
+          if (!reverseGridFor) return ""
+          const plan = reverseGridFor.plan
+          const reversal = plannedGridReversal(plan)
+          if (!reversal.ok) return reversal.reason
+          const held = trading.positions.find(
+            (one) =>
+              one.walletId === reverseGridFor.walletId &&
+              one.marketKey === reverseGridFor.marketKey &&
+              holdsEntry(plan.direction, one.szi)
+          )
+          const heldUsd =
+            held && currentMarketPx !== null
+              ? Math.abs(held.szi) * currentMarketPx
+              : null
+          const closes =
+            heldUsd !== null
+              ? `${plan.direction === "long" ? "Sells" : "Buys back"} about ${formatUsd(heldUsd)} at market, then places`
+              : "The grid holds nothing, so this just places"
+          return `${closes} a ${reversal.direction === "short" ? "selling" : "buying"} grid over the same range. Its stop goes on the old End Grid line at ${formatPrice(reversal.stopPx)}, and a new End Grid sits past the old stop. Both lines can be dragged afterwards. The new grid will not reverse again on its own.`
+        })()}
+        confirmLabel="Reverse the grid"
+        onConfirm={() => {
+          if (reverseGridFor) {
+            void trading.reverseGrid(reverseGridFor.walletId, reverseGridFor.id)
+          }
+          setReverseGridFor(null)
+        }}
+      />
       <GridStopDialog
         grid={stopFor}
         mark={
@@ -1484,8 +1572,13 @@ export function ChartPanel({
               )?.leverage ?? null)
             : null
         }
-        onSave={(one, stopLoss) =>
-          trading.setGridStop(one.walletId, one.id, stopLoss)
+        onSave={(one, stopLoss, reverseWhenStopped) =>
+          trading.setGridStop(
+            one.walletId,
+            one.id,
+            stopLoss,
+            reverseWhenStopped
+          )
         }
         onReshape={(one, shape) =>
           trading.reshapeGrid(one.walletId, one.id, shape)

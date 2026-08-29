@@ -186,6 +186,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   walletName,
   tool,
   entryBadge,
+  obstacles,
   onMoveOrder,
   onMoveOrderStop,
   onMoveOrderTarget,
@@ -211,6 +212,14 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   tool: string | null
   /** What a position's entry pill carries besides "Entry", if anything. */
   entryBadge?: (position: TradePosition) => EntryBadge | null
+  /**
+   * Right-edge furniture other layers have already put down — a grid level's
+   * money chip, a range line's name — so this layer's pills slide LEFT of
+   * them instead of painting over them or being painted over. Two things in
+   * one spot cannot be fixed by stacking; only by one of them moving, and
+   * the pills are the ones that already know how.
+   */
+  obstacles?: readonly { top: number; bottom: number; width: number }[]
   onMoveOrder: (walletId: string, orderId: string, price: number) => void
   /**
    * Dragging a waiting order's stop, which changes how much the order is for.
@@ -583,6 +592,15 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   // that lands on a pill already there moves LEFT of it. Never up or down: a
   // pill off its own line points at a price that is not its own.
   const pills: Array<{ top: number; bottom: number; x: number }> = []
+  // Other layers' chips go down first, as immovable neighbours: every pill
+  // laid below slides left of anything here it would touch.
+  for (const one of obstacles ?? []) {
+    pills.push({
+      top: one.top,
+      bottom: one.bottom,
+      x: surface.width - one.width,
+    })
+  }
   const badges: Array<{ top: number; bottom: number; text: string }> = []
   const drawn = lines.flatMap((line) => {
     const price = grab?.id === line.id ? grab.price : line.price

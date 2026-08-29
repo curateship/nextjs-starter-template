@@ -237,6 +237,16 @@ add up to.
   never closes, with no error anywhere. On 28 Aug 2026 renaming a grid level's
   `buyPx` to `entryPx` took two live grids off the engine this way. Adding a
   field is safe; an older copy ignores what it does not know.
+- Tyler, 28 Aug 2026, on whether a reversed grid may reverse again: **"Yes i
+  can."** Hand reversals chain freely, both ways round. Only the AUTOMATIC
+  reverse-when-stopped switch never carries onto the grid a reversal creates,
+  so an unattended market cannot ping-pong the account; switching it back on
+  is a person deciding.
+- Tyler, 28 Aug 2026, on the reversal itself: **"I can reverse the grid from
+  long to short. The end grid can then served as a stop loss for short and the
+  long's stop now changed to end grid. Whatever amount im holding will sell at
+  market price and the reverse grid begins."** The range never moves in a
+  reversal.
 - Tyler, 28 Aug 2026: **Both range choices exist for a selling grid, the same
   as for a buying one.** In his words: "Why is this an option? long has both
   option I can choose. The same should be for shorting". A selling grid can

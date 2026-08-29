@@ -12,6 +12,7 @@ import {
   gridRangeFromClick,
   gridShares,
   gridStepPct,
+  plannedGridReversal,
   gridLiquidationPx,
   readGridPlan,
   gridRangeMovable,
@@ -216,6 +217,9 @@ describe("gridStopPx", () => {
     "direction" | "stopLoss" | "topPx" | "bottomPx" | "baseWatch"
   > => ({
     direction: "long",
+    reverseWhenStopped: false,
+    reversedFrom: null,
+    reverseFailReason: null,
     topPx: 120,
     bottomPx: 80,
     stopLoss: { mode: "percent", underPct: 5, px: null, base: null },
@@ -277,6 +281,9 @@ describe("gridStopPx", () => {
 describe("reading a stored grid back", () => {
   const plan: GridPlan = {
     direction: "long",
+    reverseWhenStopped: false,
+    reversedFrom: null,
+    reverseFailReason: null,
     topPx: 120,
     bottomPx: 80,
     takeProfitPx: null,
@@ -1049,5 +1056,82 @@ describe("a grid stored under the old field names", () => {
     // And it still works: the same budget, at the same price, still holding.
     expect(plan!.levels[1].heldSz).toBeCloseTo(5.55, 9)
     expect(gridLevelSize(plan!.levels[0], 3)).toBeCloseTo(6.25, 2)
+  })
+})
+
+describe("what a reversal would place", () => {
+  const longPlan = (over: Partial<GridPlan> = {}) => ({
+    direction: "long" as const,
+    topPx: 120,
+    bottomPx: 80,
+    takeProfitPx: 126,
+    stopLoss: {
+      mode: "percent" as const,
+      underPct: 5,
+      px: null,
+      base: null,
+    },
+    baseWatch: null,
+    ...over,
+  })
+
+  it("turns a buying grid into a selling one over the same lines", () => {
+    const reversal = plannedGridReversal(longPlan())
+    expect(reversal.ok).toBe(true)
+    if (!reversal.ok) return
+    expect(reversal.direction).toBe("short")
+    // The new stop IS the old End Grid line.
+    expect(reversal.stopPx).toBe(126)
+    // 126 above a top of 120 is 5% past the new grid's losing edge.
+    expect(reversal.stopUnderPct).toBeCloseTo(5, 9)
+    // The old stop sat 5% under the bottom; the new End Grid keeps that
+    // distance, measured past the fired stop.
+    expect(reversal.endPct).toBeCloseTo(5, 9)
+  })
+
+  it("turns a selling grid back into a buying one — reversals chain", () => {
+    const reversal = plannedGridReversal({
+      direction: "short",
+      topPx: 120,
+      bottomPx: 80,
+      takeProfitPx: 72,
+      stopLoss: { mode: "fixed", underPct: 5, px: 126, base: null },
+      baseWatch: null,
+    })
+    expect(reversal.ok).toBe(true)
+    if (!reversal.ok) return
+    expect(reversal.direction).toBe("long")
+    expect(reversal.stopPx).toBe(72)
+    // 72 under a bottom of 80 is 10% past the new losing edge.
+    expect(reversal.stopUnderPct).toBeCloseTo(10, 9)
+    // The short's stop sat 5% over the top.
+    expect(reversal.endPct).toBeCloseTo(5, 9)
+  })
+
+  it("refuses a grid with no End Grid line, in words", () => {
+    const reversal = plannedGridReversal(longPlan({ takeProfitPx: null }))
+    expect(reversal.ok).toBe(false)
+    if (reversal.ok) return
+    expect(reversal.reason).toContain("End Grid")
+  })
+
+  it("refuses a stop sitting exactly on the range", () => {
+    const reversal = plannedGridReversal(
+      longPlan({
+        stopLoss: { mode: "percent", underPct: 0, px: null, base: null },
+      })
+    )
+    expect(reversal.ok).toBe(false)
+    if (reversal.ok) return
+    expect(reversal.reason).toContain("no distance")
+  })
+
+  it("refuses an End Grid too far past the range to make a stop from", () => {
+    // 200 above a top of 120 is 66% out — past the 50% cap a grid's stop
+    // schema holds.
+    const reversal = plannedGridReversal(longPlan({ takeProfitPx: 200 }))
+    expect(reversal.ok).toBe(false)
+    if (reversal.ok) return
+    expect(reversal.reason).toContain("50%")
   })
 })

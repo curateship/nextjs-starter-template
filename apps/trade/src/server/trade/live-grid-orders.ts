@@ -9,9 +9,11 @@ import {
   gridEndAfterRangeMove,
   gridRangeMovable,
   gridStopPx,
+  holdsEntry,
   type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
+import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { gridLadderPairingRefusal } from "@/lib/trade/pairing"
 import { defaultPaperCosts } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -26,7 +28,15 @@ import {
   type PlaceGridInput,
   type PlacedGrid,
 } from "@/server/trade/grid-orders"
-import { rollbackLiveOrder, setLiveBrackets } from "@/server/trade/live-orders"
+import {
+  buildReversedPlan,
+  insertReversedGrid,
+} from "@/server/trade/grid-reversal"
+import {
+  closeLivePosition,
+  rollbackLiveOrder,
+  setLiveBrackets,
+} from "@/server/trade/live-orders"
 import { reconcileLiveLaddersOnce } from "@/server/trade/live-smart-orders"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
 import { marketRules } from "@/server/trade/market-rules"
@@ -375,7 +385,7 @@ async function movePairedGridStop(
 export async function updateLiveGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop }
+  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean }
 ): Promise<void> {
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -385,7 +395,7 @@ export async function updateLiveGridStop(
 
     // The follow that walks INTO the loss freezes the stop where it stands:
     // following down on a buying grid, following up on a selling one.
-    updateGridStopPlan(plan, input.stopLoss)
+    updateGridStopPlan(plan, input.stopLoss, input.reverseWhenStopped)
 
     // While a ladder shares the coin, the stop is the handoff line: it must
     // exist and sit above the ladder's first buy, or the pairing's whole
@@ -508,6 +518,7 @@ export async function reshapeLiveGrid(
           ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
           : null,
         takeProfitPct: null,
+        reverseWhenStopped: plan.reverseWhenStopped,
       },
       topPx: input.topPx ?? plan.topPx,
       bottomPx: input.bottomPx ?? plan.bottomPx,
@@ -547,6 +558,10 @@ export async function reshapeLiveGrid(
       shifts: plan.shifts,
       downShifts: plan.downShifts,
       carriedLevels: plan.carriedLevels,
+      // A move re-prices levels; it does not forget which grid this one
+      // continues, nor a refusal already written on it.
+      reversedFrom: plan.reversedFrom,
+      reverseFailReason: plan.reverseFailReason,
     }
     // A percent-mode stop rides the bottom of the range, so moving the range
     // moves the stop — and while a ladder shares the coin the stop may not
@@ -635,4 +650,97 @@ export function moveLiveGridRange(
   input: { gridId: string; topPx: number; bottomPx: number }
 ): Promise<MovedGrid> {
   return reshapeLiveGrid(userId, wallet, input)
+}
+
+/**
+ * The hand reversal on a live wallet — the reverse icon's confirm.
+ *
+ * The same order of operations as the practice path, for the same reasons:
+ * every refusal is checked before a single coin moves, then the position is
+ * closed at market, then one transaction ends the old grid and writes the new
+ * one. See `reverseGridOrder` in `grid-reversal.ts`.
+ */
+export async function reverseLiveGrid(
+  userId: string,
+  wallet: TradeWallet,
+  input: { gridId: string }
+): Promise<{ reversed: true; grid: SmartGrid }> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    if (wallet.kind !== "live" || !wallet.address || !wallet.hasKey) {
+      throw new Error("LIVE_WALLET_KEY")
+    }
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const grid = await gridById(userId, wallet.id, input.gridId)
+    const plan = grid.plan
+    const ref = parseMarketKey(grid.marketKey)
+    if (!ref) throw new Error("LIVE_MARKET")
+
+    const protocol = getProtocol(wallet.protocol)
+    const mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
+    const credential = await walletCredential(userId, wallet.id)
+    const [account, portfolio] = await Promise.all([
+      accountOf(protocol).fetch(wallet.network, wallet.address!, credential),
+      ordersOf(protocol).portfolio(wallet.network, wallet.address!, credential),
+    ])
+
+    // Drawn and checked in full before anything is sold.
+    const reversed = buildReversedPlan({
+      oldId: grid.id,
+      plan,
+      marketKey: grid.marketKey,
+      mark,
+      equity: account.equity,
+      takerFeeRate: defaultPaperCosts().takerFeeRate,
+    })
+
+    // Close what the grid holds, at market, reduce-only.
+    const held = portfolio.positions.find(
+      (one) => one.marketId === ref.marketId
+    )
+    if (held && holdsEntry(plan.direction, held.szi)) {
+      await closeLivePosition(userId, {
+        walletId: wallet.id,
+        marketKey: grid.marketKey,
+      })
+    }
+
+    for (const level of plan.levels) {
+      if (level.status === "waiting") level.status = "cancelled"
+    }
+    for (const level of plan.levels) level.heldSz = 0
+    plan.closedReason = "cancelled"
+    const now = Date.now()
+    let placed: SmartGrid | null = null
+    await db.transaction(async (tx) => {
+      await tx
+        .select({ id: tradeWallets.id })
+        .from(tradeWallets)
+        .where(
+          and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
+        )
+        .for("update")
+      await tx
+        .update(tradeSmartLadders)
+        .set({ plan, status: "done", updatedAt: new Date(now) })
+        .where(
+          and(
+            eq(tradeSmartLadders.userId, userId),
+            eq(tradeSmartLadders.id, grid.id)
+          )
+        )
+      // A duplicate here is the automatic flip having won the race — that
+      // is success, and the grid that is really there is the answer.
+      const inserted = await insertReversedGrid(tx, {
+        userId,
+        wallet,
+        marketKey: grid.marketKey,
+        oldId: grid.id,
+        plan: reversed,
+        now,
+      })
+      placed = inserted.grid
+    })
+    if (!placed) throw new Error("SMART_GRID_NOT_FOUND")
+    return { reversed: true, grid: placed }
+  })
 }

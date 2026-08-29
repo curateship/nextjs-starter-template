@@ -80,7 +80,11 @@ export function GridStopDialog({
   pairedLeverage?: number | null
   /** A position already held in this wallet fixes the borrowing. */
   positionLeverage?: number | null
-  onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
+  onSave: (
+    grid: SmartGrid,
+    stopLoss: GridStop,
+    reverseWhenStopped?: boolean
+  ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number; leverage?: number }
@@ -137,7 +141,11 @@ function StopForm({
   busy: boolean
   pairedLeverage: number | null
   positionLeverage: number | null
-  onSave: (grid: SmartGrid, stopLoss: GridStop) => Promise<boolean>
+  onSave: (
+    grid: SmartGrid,
+    stopLoss: GridStop,
+    reverseWhenStopped?: boolean
+  ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
     shape: { levels?: number; potPct?: number; leverage?: number }
@@ -175,6 +183,9 @@ function StopForm({
     String(plan.stopLoss?.underPct ?? DEFAULT_GRID_STOP_UNDER_PCT)
   )
   const [baseOn, setBaseOn] = React.useState(plan.stopLoss?.base != null)
+  const [reverseOn, setReverseOn] = React.useState(
+    plan.reverseWhenStopped ?? false
+  )
   const [baseUnderPct, setBaseUnderPct] = React.useState(
     String(plan.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
   )
@@ -247,7 +258,9 @@ function StopForm({
   const badBaseUnder = baseOn && badBaseUnderPct(baseUnderPct)
   const badBaseDays = baseOn && badBaseReclaimDays(baseReclaimDays)
   const badBase = badBaseUnder || badBaseDays
+  const reverseChanged = reverseOn !== (plan.reverseWhenStopped ?? false)
   const stopChanged =
+    reverseChanged ||
     plan.stopLoss === null ||
     (plan.stopLoss !== null &&
       (parsedUnder !== plan.stopLoss.underPct ||
@@ -320,13 +333,19 @@ function StopForm({
       })
       if (!followed) return
     }
+    // The switch travels only when it changed — a hand that never touched it
+    // must not overwrite what the engine holds, and a two-argument call stays
+    // a two-argument call.
+    const nextStop = {
+      underPct: parsedUnder,
+      base: baseOn
+        ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
+        : null,
+    }
     const saved = stopChanged
-      ? await onSave(grid, {
-          underPct: parsedUnder,
-          base: baseOn
-            ? { underPct: parsedBaseUnder, reclaimDays: parsedDays }
-            : null,
-        })
+      ? reverseChanged
+        ? await onSave(grid, nextStop, reverseOn)
+        : await onSave(grid, nextStop)
       : true
     if (saved) onClose()
   }
@@ -576,6 +595,23 @@ function StopForm({
                     ? `The ${edgeWord} of the range is ${formatPrice(lossPx)}.`
                     : `Rests at ${formatPrice(restsAt)}, ${plan.direction === "long" ? "under" : "over"} the range's ${edgeWord} of ${formatPrice(lossPx)}.`}
                 </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="grid-stop-reverse"
+                  checked={reverseOn}
+                  disabled={busy}
+                  onCheckedChange={(next) => {
+                    setShowValidation(false)
+                    setReverseOn(next === true)
+                  }}
+                />
+                <FieldLabel
+                  htmlFor="grid-stop-reverse"
+                  hint="When the stop fires, a grid running the other way is placed over the same range: its stop on the End Grid line, its End Grid the same distance past the fired stop as the stop sits past the range. The new grid starts with this switch off. Needs End Grid switched on."
+                >
+                  Reverse when stopped
+                </FieldLabel>
               </div>
               <BaseStopFields
                 on={baseOn}

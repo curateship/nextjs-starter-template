@@ -433,6 +433,18 @@ export const gridParamsSchema = z.object({
    * into it.
    */
   takeProfitPct: z.number().positive().max(999).nullable().default(null),
+  /**
+   * When the stop fires, turn the grid around: everything held is already
+   * sold by the stop, and a grid running the OTHER way is placed over the
+   * same range, with its stop on the old End Grid line and a new End Grid
+   * the same distance past the fired stop as the old stop sat past the range.
+   *
+   * Off by default, and it never carries onto the grid a reversal creates —
+   * a whipsaw market must not ping-pong the account unattended. Switching it
+   * on again on the new grid is one click, and that click is a person
+   * deciding.
+   */
+  reverseWhenStopped: z.boolean().default(false),
 })
 
 /** Settings accepted for a newly placed grid. New grids always split evenly. */
@@ -462,6 +474,7 @@ export function defaultGridParams(): GridParams {
     baseDetection: baseStopDetection(),
     stopLoss: { underPct: DEFAULT_GRID_STOP_UNDER_PCT, base: null },
     takeProfitPct: DEFAULT_GRID_TAKE_PROFIT_PCT,
+    reverseWhenStopped: false,
   }
 }
 
@@ -1104,6 +1117,30 @@ const gridPlanSchema = z.object({
     .enum(["takeProfit", "aboveTop", "stop", "flat", "cancelled"])
     .nullable()
     .default(null),
+  /**
+   * Turn the grid around when the stop fires. See the field of the same name
+   * on `gridParamsSchema` for what that means and why it never carries onto
+   * the grid a reversal creates.
+   *
+   * All three reversal fields are ADDITIVE — an older reader strips fields it
+   * does not know and parses fine, which is the only safe kind of plan change
+   * (see the note on `gridLevelStateSchema`). An older ENGINE also strips
+   * them when it saves the plan back, so the engine ships with the app or
+   * before it, never the app alone.
+   */
+  reverseWhenStopped: z.boolean().default(false),
+  /**
+   * The id of the grid this one continues, when it came out of a reversal.
+   * The ONLY chain marker: the old grid's record is not touched beyond
+   * closing it, because its `closedReason` enum must not gain a value an
+   * older running copy cannot parse.
+   */
+  reversedFrom: z.string().nullable().default(null),
+  /**
+   * Why an automatic reversal was refused, in a plain sentence, written onto
+   * the grid that closed. Null when no reversal was tried or it succeeded.
+   */
+  reverseFailReason: z.string().nullable().default(null),
 })
 
 export type GridPlan = z.infer<typeof gridPlanSchema>
@@ -1391,4 +1428,102 @@ export function gridRangeMovable(
     !plan.levels.some((level) => level.status === "holding") &&
     !(plan.carriedLevels ?? []).some((level) => level.status === "holding")
   )
+}
+
+// ----- Turning a grid around -----------------------------------------------
+
+/**
+ * The reversal a grid describes, worked out before anything is touched — or
+ * the plain sentence for why it cannot be.
+ *
+ * A reversal keeps the range exactly where it is and swaps what the two outer
+ * lines mean: the old End Grid line becomes the new grid's stop, and the new
+ * End Grid sits past the old stop by the same distance the old stop sat past
+ * the range. The range never moves (Tyler, 28 Aug 2026), whichever way the
+ * reversal was triggered.
+ *
+ * Pure and browser-safe, so the confirmation the window shows and the numbers
+ * the server places are the same numbers. The percentages are handed back as
+ * well as the price, because `draftGridOrder` asks in percentages — deriving
+ * them here keeps every one of its refusals (step-versus-fee, level too
+ * small, stop past the close-out price, End Grid already passed) working on
+ * the reversed grid for free.
+ */
+export type GridReversal =
+  | {
+      ok: true
+      /** The new grid runs the other way round. */
+      direction: GridDirection
+      /** The new stop: the old End Grid line, exactly. */
+      stopPx: number
+      /** That stop as a percent past the new grid's losing edge, for the draft. */
+      stopUnderPct: number
+      /** The new End Grid's distance past the mark, for the draft. */
+      endPct: number
+    }
+  | { ok: false; reason: string }
+
+export function plannedGridReversal(
+  plan: Pick<
+    GridPlan,
+    | "direction"
+    | "topPx"
+    | "bottomPx"
+    | "takeProfitPx"
+    | "stopLoss"
+    | "baseWatch"
+  >
+): GridReversal {
+  const endPx = plan.takeProfitPx
+  if (endPx === null || !(endPx > 0)) {
+    return {
+      ok: false,
+      reason:
+        "This grid has no End Grid line, and the reversal makes the new stop from it. Switch End Grid on first.",
+    }
+  }
+  const stopPx = gridStopPx(plan)
+  if (stopPx === null || !(stopPx > 0)) {
+    return {
+      ok: false,
+      reason: "This grid has no stop, so there is nothing to reverse from.",
+    }
+  }
+
+  const direction: GridDirection = plan.direction === "long" ? "short" : "long"
+
+  // How far the old stop sat past the range, as a share of the edge it hung
+  // off. That same distance, measured past the fired stop, is where the new
+  // End Grid goes.
+  const oldEdge = lossEdge(plan.direction, plan)
+  const endPct = (Math.abs(oldEdge - stopPx) / oldEdge) * 100
+  if (!(endPct > 0)) {
+    return {
+      ok: false,
+      reason:
+        "This grid's stop sits exactly on its range, so there is no distance to measure the new End Grid from. Move the stop off the range first.",
+    }
+  }
+
+  // The old End Grid line as a percent past the NEW grid's losing edge. The
+  // draft's schema caps a stop at 50% past the range, and an End Grid that far
+  // out is refused in words rather than drafted into something the schema
+  // cannot hold.
+  const newEdge = lossEdge(direction, plan)
+  const stopUnderPct = (Math.abs(endPx - newEdge) / newEdge) * 100
+  if (!(stopUnderPct > 0)) {
+    return {
+      ok: false,
+      reason:
+        "The End Grid line sits exactly on the range, so the reversed grid's stop would sit inside its own levels.",
+    }
+  }
+  if (stopUnderPct > MAX_GRID_STOP_UNDER_PCT) {
+    return {
+      ok: false,
+      reason: `The End Grid line sits more than ${MAX_GRID_STOP_UNDER_PCT}% past the range, which is further than a grid's stop may go. Drag End Grid closer to the range first.`,
+    }
+  }
+
+  return { ok: true, direction, stopPx: endPx, stopUnderPct, endPct }
 }

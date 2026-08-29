@@ -365,6 +365,45 @@ a round trip would no longer clear the trading fee three times over, the grid
 parks instead of following price into trades that lose money slowly. Levels
 spread the same percent apart never thin, so those follow without that limit.
 
+## Reversing a grid
+
+A grid can turn around: everything it holds is closed at market, the grid ends,
+and a grid running the OTHER way appears over the same range in the same
+motion. The range never moves. The two outer lines swap meaning: the old End
+Grid line becomes the new grid's stop, and a new End Grid sits past the fired
+stop by the same distance the old stop sat past the range. Both new lines drag
+afterwards, like any grid's.
+
+Two ways to trigger it:
+
+- **By hand**, from the reverse icon on the grid's badge on the chart, beside
+  the cog. One click, and a confirmation that says in plain words what will be
+  sold at market and where the two new lines go. Hand reversals chain: a grid
+  that came out of a reversal reverses back the same way, as many times as you
+  like.
+- **On its own**, when the stop fires, if **Reverse when stopped** is ticked —
+  it sits in the Stop loss card of the placement window and of the running
+  grid's window, off by default. The switch never carries onto the grid a
+  reversal creates, so a whipsaw market cannot flip the account back and forth
+  unattended; ticking it again on the new grid is one click, and that click is
+  a person deciding.
+
+The automatic flip only happens when the stop demonstrably fired. A position
+that vanished with price still inside the range was closed by hand or
+liquidated, and neither reverses on its own.
+
+A reversal can be refused, and a refusal is never silent: the sentence lands in
+the bell and on the closed grid. The reasons are the ones every grid placement
+already checks — the step too thin to clear the fee, a level too small for the
+market, the new stop past the price the exchange would close the short out at,
+price already past where the new End Grid would sit — plus three of the
+reversal's own: no End Grid line to make the stop from, a stop sitting exactly
+on the range, and an End Grid more than 50% past the range. A grid paired with
+a DCA ladder never reverses; the selling grid would fight the ladder.
+
+The new grid's badge tooltip says it continues a reversed grid. The greyed-out
+reverse icon says why it is greyed, on hover.
+
 ## Ending the grid
 
 On a selling grid End Grid sits **below** the range instead of above it, and

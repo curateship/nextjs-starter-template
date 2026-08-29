@@ -14,10 +14,7 @@ import {
   rungBudget,
   type LadderPlan,
 } from "@/lib/trade/dca"
-import {
-  canOpenAnother,
-  type EntryLimit,
-} from "@/lib/trade/entry-limit"
+import { canOpenAnother, type EntryLimit } from "@/lib/trade/entry-limit"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { WatchPlan } from "@/lib/trade/watch-order"
@@ -37,6 +34,8 @@ import { db, type CustomShellDb } from "@/server/db"
 import { recordFlowRunOrders } from "@/server/trade/flow-run-orders"
 import { getProtocol } from "@/server/protocols/registry"
 import { tradePaperOrders, tradeSmartLadders } from "@/server/trade/schema"
+import { paperAccountFigures } from "@/lib/trade/paper"
+import { autoReverseStoppedGrid } from "@/server/trade/grid-reversal"
 import { advanceGrid, type GridRow } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
 import { advanceWatch } from "./smart-watch"
@@ -246,7 +245,8 @@ export async function advanceLadders(
   // with none is unchanged.
   for (const raw of rows) {
     const plan = readSmartPlan(readSmartOrderKind(raw.kind) ?? "dca", raw.plan)
-    const limit = (plan as { entryLimit?: EntryLimit | null } | null)?.entryLimit
+    const limit = (plan as { entryLimit?: EntryLimit | null } | null)
+      ?.entryLimit
     if (limit) {
       input.book.entryLimit = limit
       break
@@ -261,8 +261,7 @@ export async function advanceLadders(
     const cascade = (plan as { cascade?: CascadeSettings | null } | null)
       ?.cascade
     if (!cascade) continue
-    const cascading =
-      input.cascading ?? cascadingFromLadderBars(cascade, input)
+    const cascading = input.cascading ?? cascadingFromLadderBars(cascade, input)
     input.book.crashEntry = {
       cascading,
       leastLeverage: cascade.leastLeverage ?? null,
@@ -293,7 +292,44 @@ export async function advanceLadders(
         marketKey: raw.marketKey,
         plan: plan as GridPlan,
       }
-      await advanceGrid(input, withDatabase, row)
+      // The engine is pure and cannot reverse a grid itself. Watch what it
+      // writes: a grid that closes on this pass with its stop fired and the
+      // reverse switch on is turned around HERE, inside the same settle
+      // transaction — old grid done and new grid written together, so there
+      // is never a moment with two active smart orders on the coin.
+      const closedAs = { status: "active" as "active" | "done" }
+      await advanceGrid(
+        input,
+        {
+          ...withDatabase,
+          saveLadder: (savedRow, status, at) => {
+            closedAs.status = status
+            return withDatabase.saveLadder(savedRow, status, at)
+          },
+        },
+        row
+      )
+      if (closedAs.status === "done" && row.plan.reverseWhenStopped) {
+        const marks = input.marks
+        const figures = paperAccountFigures({
+          startingBalance: input.book.wallet.startingBalance,
+          realized: input.book.cash - input.book.wallet.startingBalance,
+          positions: [...input.book.positions.values()],
+          marks,
+        })
+        await autoReverseStoppedGrid({
+          tx: input.tx,
+          userId: input.userId,
+          wallet: input.book.wallet,
+          oldId: raw.id,
+          marketKey: raw.marketKey,
+          plan: row.plan,
+          mark: marks.get(raw.marketKey) ?? null,
+          equity: figures.equity,
+          takerFeeRate: input.book.costs.takerFeeRate,
+          now: input.now,
+        })
+      }
       continue
     }
     if (kind === "signal") {
@@ -343,7 +379,8 @@ function cascadingFromLadderBars(
   settings: CascadeSettings,
   input: LadderAdvanceInput
 ): boolean {
-  const memo = cascadeAnswers.get(input.ladderBars) ?? new Map<string, boolean>()
+  const memo =
+    cascadeAnswers.get(input.ladderBars) ?? new Map<string, boolean>()
   cascadeAnswers.set(input.ladderBars, memo)
   const stamp = `${input.now}:${settings.fallPct}:${settings.withinHours}:${settings.minCoins}`
   const seen = memo.get(stamp)
@@ -369,7 +406,11 @@ export async function advanceOne(
   const { book, now } = input
   const plan = row.plan
   const roundPx = (px: number) =>
-    getProtocol(book.wallet.protocol).markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+    getProtocol(book.wallet.protocol).markets.roundPx(
+      px,
+      plan.sizeDecimals,
+      plan.priceTick
+    )
   let changed = false
 
   // ----- Is the market falling off a cliff? ------------------------------
@@ -441,7 +482,10 @@ export async function advanceOne(
       // position it was to reduce is no longer there.
       const target = ladderExitLevels(plan)[plan.rungs.indexOf(rung)]
       rung.sellOrderId = null
-      if (rung.status === "filled" && fillFor("sell", roundPx(target), rung.sz)) {
+      if (
+        rung.status === "filled" &&
+        fillFor("sell", roundPx(target), rung.sz)
+      ) {
         rung.status = "sold"
       }
       changed = true
@@ -652,7 +696,12 @@ export async function advanceOne(
  */
 function aimBrackets(
   plan: LadderPlan,
-  position: { tpPx: number | null; slPx: number | null; entryPx: number; updatedAt: number },
+  position: {
+    tpPx: number | null
+    slPx: number | null
+    entryPx: number
+    updatedAt: number
+  },
   roundPx: (px: number) => number
 ): boolean {
   let changed = false
@@ -682,10 +731,15 @@ function aimBrackets(
     // The same rule the grid uses, from the one place it lives: follow the
     // stop until a hand moves it, then never touch it again.
     if (
-      aimStop(plan, position, wantedStopPx(plan, position.entryPx, roundPx), () => {
-        sl.mode = "fixed"
-        sl.pct = null
-      })
+      aimStop(
+        plan,
+        position,
+        wantedStopPx(plan, position.entryPx, roundPx),
+        () => {
+          sl.mode = "fixed"
+          sl.pct = null
+        }
+      )
     ) {
       changed = true
     }
@@ -817,7 +871,9 @@ async function reviveRungs(
     // rung WAITING, to try again when the rule lets go.
     if (mark !== null && mark <= rung.px) {
       if (input.midCandle) continue
-      if (!mayOpenCoin(input.book, row.marketKey, plan.maxLeverage, input.now)) {
+      if (
+        !mayOpenCoin(input.book, row.marketKey, plan.maxLeverage, input.now)
+      ) {
         continue
       }
       const px = slippedPx(mark, "buy", input.book.costs.slippageRate)
@@ -1401,7 +1457,10 @@ async function saveLadderRow(
     .update(tradeSmartLadders)
     .set({ plan: row.plan, status, updatedAt: new Date(now) })
     .where(
-      and(eq(tradeSmartLadders.userId, userId), eq(tradeSmartLadders.id, row.id))
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.id, row.id)
+      )
     )
 }
 

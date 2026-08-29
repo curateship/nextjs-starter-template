@@ -22,11 +22,13 @@ import {
   moveLiveGridExit,
   moveLiveGridRange,
   reshapeLiveGrid,
+  reverseLiveGrid,
   placeLiveGridOrder,
   setLiveGridFollow,
   updateLiveGridEnd,
   updateLiveGridStop,
 } from "@/server/trade/live-grid-orders"
+import { reverseGridOrder as reverseGridOrderRows } from "@/server/trade/grid-reversal"
 import {
   cancelLiveLadderRest,
   cancelLiveLadderRung,
@@ -515,6 +517,8 @@ const gridStopUpdateSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
   stopLoss: placeGridParamsSchema.shape.stopLoss,
+  /** The reverse-when-stopped switch, only when the window changed it. */
+  reverseWhenStopped: z.boolean().optional(),
 })
 
 const placeGridOrderFn = createServerFn({ method: "POST" })
@@ -558,6 +562,19 @@ const cancelGridRestFn = createServerFn({ method: "POST" })
     return wallet.kind === "live"
       ? await cancelLiveGridRest(context.user.id, wallet, data)
       : await cancelGridRestRows(context.user.id, wallet, data)
+  })
+
+const reverseGridFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(gridSchema)
+  .handler(async ({ data, context }): Promise<{ reversed: true }> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    if (wallet.kind === "live") {
+      await reverseLiveGrid(context.user.id, wallet, data)
+    } else {
+      await reverseGridOrderRows(context.user.id, wallet, data)
+    }
+    return { reversed: true }
   })
 
 const moveGridRangeSchema = z.object({
@@ -813,11 +830,19 @@ const baseSmartOrderErrorMessage = createErrorMessage(
   "That did not go through. Try it again."
 )
 
+export function reverseGridOrder(input: z.infer<typeof gridSchema>) {
+  return reverseGridFn({ data: input })
+}
+
 export function getSmartOrderErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "")
   // A part close smaller than the venue will take. It carries its whole
   // sentence because it names two figures — this market's floor and what the
   // piece came to — and a fixed sentence could say neither.
+  // A reversal refusal carries its whole sentence — it names lines and
+  // distances a fixed sentence could not.
+  const reversal = message.match(/SMART_GRID_REVERSE:(.*)$/s)
+  if (reversal) return reversal[1].trim()
   const tooSmall = message.match(/PART_CLOSE_TOO_SMALL:(.*)$/s)
   if (tooSmall) return tooSmall[1].trim()
   const floor = message.match(

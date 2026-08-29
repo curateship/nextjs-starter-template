@@ -40,6 +40,7 @@ import {
   updateGridEnd as updateGridEndApi,
   setGridFollow as setGridFollowApi,
   placeGridOrder,
+  reverseGridOrder,
   updateGridStop,
   getSmartOrderErrorMessage,
   placeDcaLadder,
@@ -471,8 +472,16 @@ export type Trading = {
   setGridStop: (
     walletId: string,
     gridId: string,
-    stopLoss: GridStop
+    stopLoss: GridStop,
+    reverseWhenStopped?: boolean
   ) => Promise<boolean>
+  /**
+   * Turn a running grid around: close what it holds at market, end it, and
+   * place a grid running the other way over the same range — its stop on the
+   * old End Grid line, its End Grid the same distance past the old stop as
+   * that stop sat past the range.
+   */
+  reverseGrid: (walletId: string, gridId: string) => Promise<boolean>
   /** Start or stop a grid following price up or down. */
   setGridFollow: (
     walletId: string,
@@ -1963,14 +1972,26 @@ export function useTrading(
   )
 
   const setGridStop: Trading["setGridStop"] = React.useCallback(
-    async (walletId, gridId, stopLoss) => {
+    async (walletId, gridId, stopLoss, reverseWhenStopped) => {
       return await runWith(
         getTradingSmartOrderError,
-        () => updateGridStop({ walletId, gridId, stopLoss }),
+        () =>
+          updateGridStop({ walletId, gridId, stopLoss, reverseWhenStopped }),
         "Stop changed."
       )
     },
     [runWith]
+  )
+
+  const reverseGrid: Trading["reverseGrid"] = React.useCallback(
+    async (walletId, gridId) => {
+      return await runWith(
+        getTradingSmartOrderError,
+        () => reverseGridOrder({ walletId, gridId }),
+        `Grid reversed in ${nameOf(walletId)} — it now trades the other way over the same range.`
+      )
+    },
+    [runWith, nameOf]
   )
 
   const setGridFollow: Trading["setGridFollow"] = React.useCallback(
@@ -2481,6 +2502,7 @@ export function useTrading(
     placeGrid,
     cancelGridLevel,
     cancelGrid,
+    reverseGrid,
     moveGridRange,
     moveGridExit,
     reshapeGrid,

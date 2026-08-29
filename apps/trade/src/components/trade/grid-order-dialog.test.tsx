@@ -294,6 +294,29 @@ describe("the grid window's saved settings", () => {
     expect(host.textContent).not.toContain("How far below %")
   })
 
+  it("sends the reverse-when-stopped switch with the grid", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => false)
+    await renderDialog(onPlace)
+
+    const box = host.querySelector<HTMLButtonElement>("#grid-reverse-on")
+    expect(box).not.toBeNull()
+    // Off by default: an automatic flip is opted into, never inherited.
+    expect(box?.getAttribute("data-state")).toBe("unchecked")
+    await act(async () => box?.click())
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.includes("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({ reverseWhenStopped: true }),
+      })
+    )
+  })
+
   it("keeps borrowing in Advanced settings and sends it with the grid", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
     const onPlace = vi.fn(async () => false)

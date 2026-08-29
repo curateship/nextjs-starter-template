@@ -84,6 +84,7 @@ import {
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
 import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
+import { autoReverseStoppedGrid } from "@/server/trade/grid-reversal"
 import { advanceGrid } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
 import { advanceWatch } from "./smart-watch"
@@ -1889,6 +1890,38 @@ export async function reconcileLiveLaddersOnce(
         // A grid has no orders on the exchange to match fills against: its
         // levels are watched prices and it buys when one is reached.
         await advanceRow(raw, entry, advanceGrid)
+        // A grid that closed on this pass with its stop fired and the reverse
+        // switch on is turned around here. The engine wrote the row as done
+        // already, so there is never a moment with two active smart orders on
+        // the coin; the duplicate check inside makes a repeated pass place
+        // nothing twice. A failure must not kill the pass for every other
+        // order on the wallet.
+        if (plan.closedReason === "stop" && plan.reverseWhenStopped) {
+          const equity = account?.equity ?? null
+          if (equity !== null && equity > 0) {
+            await db
+              .transaction((tx) =>
+                autoReverseStoppedGrid({
+                  tx,
+                  userId,
+                  wallet,
+                  oldId: raw.id,
+                  marketKey: raw.marketKey,
+                  plan,
+                  mark: marks.get(raw.marketKey) ?? null,
+                  equity,
+                  takerFeeRate: book.costs.takerFeeRate,
+                  now,
+                })
+              )
+              .catch((error) =>
+                console.error(
+                  `Grid reversal failed for ${raw.marketKey}`,
+                  error
+                )
+              )
+          }
+        }
         // A paired grid's stop is its own exchange order, kept in step with
         // what the grid actually holds — after the engine, so a level that
         // bought on this pass is covered on this pass. Also runs when the

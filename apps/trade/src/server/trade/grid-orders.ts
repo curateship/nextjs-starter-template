@@ -295,6 +295,9 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
 
   const plan: GridPlan = {
     direction,
+    reverseWhenStopped: params.reverseWhenStopped,
+    reversedFrom: null,
+    reverseFailReason: null,
     topPx,
     bottomPx,
     takeProfitPx: targetPx,
@@ -610,7 +613,7 @@ export async function cancelGridRest(
 export async function updateGridStop(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; stopLoss: GridStop }
+  input: { gridId: string; stopLoss: GridStop; reverseWhenStopped?: boolean }
 ): Promise<void> {
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
@@ -620,7 +623,7 @@ export async function updateGridStop(
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
-  updateGridStopPlan(plan, input.stopLoss)
+  updateGridStopPlan(plan, input.stopLoss, input.reverseWhenStopped)
 
   // Write the new stop onto the position right now, and remember exactly what
   // was written — anything else there later means a hand moved it.
@@ -788,6 +791,7 @@ export async function reshapeGrid(
         ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
         : null,
       takeProfitPct: null,
+      reverseWhenStopped: plan.reverseWhenStopped,
     },
     topPx: input.topPx ?? plan.topPx,
     bottomPx: input.bottomPx ?? plan.bottomPx,
@@ -820,6 +824,10 @@ export async function reshapeGrid(
     shifts: plan.shifts,
     downShifts: plan.downShifts,
     carriedLevels: plan.carriedLevels,
+    // A move re-prices levels; it does not forget which grid this one
+    // continues, nor a refusal already written on it.
+    reversedFrom: plan.reversedFrom,
+    reverseFailReason: plan.reverseFailReason,
   }
 
   // No orders to cancel, none to place, and no position to settle. Every

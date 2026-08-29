@@ -23,6 +23,10 @@ import {
   updateGridEnd,
   updateGridStop,
 } from "@/server/trade/grid-orders"
+import {
+  insertReversedGrid,
+  reverseGridOrder,
+} from "@/server/trade/grid-reversal"
 import { clearMarketRulesCache } from "@/server/trade/market-rules"
 import { loadPaperPortfolio, placePaperOrder } from "@/server/trade/paper"
 import { placeDcaLadder } from "@/server/trade/smart-orders"
@@ -211,9 +215,7 @@ describe("placing a grid", () => {
     const grid = await onlyGrid()
     expect(grid.kind).toBe("grid")
     expect(grid.status).toBe("active")
-    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
-      80, 90, 100, 110,
-    ])
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([80, 90, 100, 110])
     expect(grid.plan.levels.map((one) => one.sellPx)).toEqual([
       90, 100, 110, 120,
     ])
@@ -888,9 +890,10 @@ describe("re-slicing a running grid", () => {
     // earns.
     expect(grid.plan.topPx).toBe(120)
     expect(grid.plan.bottomPx).toBe(80)
-    expect(
-      grid.plan.levels[1].buyPx - grid.plan.levels[0].buyPx
-    ).toBeCloseTo(5, 9)
+    expect(grid.plan.levels[1].buyPx - grid.plan.levels[0].buyPx).toBeCloseTo(
+      5,
+      9
+    )
   })
 
   it("changes what each level spends, and every level with it", async () => {
@@ -1070,9 +1073,9 @@ describe("following price up", () => {
     await priceTo(129)
     await priceTo(120)
     grid = await onlyGrid()
-    expect(
-      grid.plan.levels.find((level) => level.buyPx === 120)?.status
-    ).toBe("holding")
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
   })
 
   it("slides the range up a whole step once price clears the top", async () => {
@@ -1113,9 +1116,9 @@ describe("following price up", () => {
 
     await priceTo(120)
     grid = await onlyGrid()
-    expect(
-      grid.plan.levels.find((level) => level.buyPx === 120)?.status
-    ).toBe("holding")
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
   })
 
   it("leaves every level under the price, so the move buys nothing", async () => {
@@ -1141,9 +1144,9 @@ describe("following price up", () => {
     await priceTo(120)
 
     const grid = await onlyGrid()
-    expect(
-      grid.plan.levels.find((level) => level.buyPx === 120)?.status
-    ).toBe("holding")
+    expect(grid.plan.levels.find((level) => level.buyPx === 120)?.status).toBe(
+      "holding"
+    )
     expect((await positions())[0].szi).toBeGreaterThan(0)
   })
 
@@ -1313,9 +1316,7 @@ describe("following price down", () => {
     expect(grid.plan.downShifts).toBe(1)
     expect(grid.plan.topPx).toBeCloseTo(110, 9)
     expect(grid.plan.bottomPx).toBeCloseTo(70, 9)
-    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
-      70, 80, 90, 100,
-    ])
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([70, 80, 90, 100])
     expect(grid.plan.carriedLevels).toHaveLength(1)
     expect(grid.plan.carriedLevels[0].buyPx).toBe(110)
     expect(grid.plan.carriedLevels[0].sellPx).toBe(120)
@@ -1585,5 +1586,170 @@ describe("a grid that sells first", () => {
     await placeShort()
     await expect(place()).rejects.toThrow("SMART_LADDER_EXISTS")
     expect(await gridRows()).toHaveLength(1)
+  })
+})
+
+/**
+ * Turning a grid around when its stop fires — and by hand.
+ *
+ * Driven through real settles like everything above, because the flip lives
+ * where the settle writes: the old grid done and the new one inserted in the
+ * same transaction.
+ */
+describe("reversing a grid", () => {
+  /**
+   * A grid whose numbers survive the reversal's own checks: placed with the
+   * mark below the top so End Grid lands 5% over the range, which keeps the
+   * derived stop inside the 50% cap.
+   */
+  async function placeReversible(over: Partial<GridParams> = {}) {
+    await priceTo(110)
+    return await place({
+      stopLoss: { underPct: 5, base: null },
+      takeProfitPct: 5,
+      reverseWhenStopped: true,
+      ...over,
+    })
+  }
+
+  it("flips into a selling grid over the same range when the stop fires", async () => {
+    await placeReversible()
+    // A level buys, so the stop has something to fire on.
+    await priceTo(100)
+    expect((await positions()).length).toBe(1)
+
+    // Straight through the stop at 76 (5% under the bottom of 80).
+    await priceTo(76)
+
+    const rows = await gridRows()
+    expect(rows).toHaveLength(2)
+    const old = rows.find((row) => row.status === "done")
+    const fresh = rows.find((row) => row.status === "active")
+    expect(old).toBeDefined()
+    expect(fresh).toBeDefined()
+    const oldPlan = old!.plan as GridPlan
+    const freshPlan = fresh!.plan as GridPlan
+    expect(oldPlan.closedReason).toBe("stop")
+
+    // The same range, the other way round.
+    expect(freshPlan.direction).toBe("short")
+    expect(freshPlan.topPx).toBe(120)
+    expect(freshPlan.bottomPx).toBe(80)
+    expect(freshPlan.levels).toHaveLength(4)
+    // Its stop IS the old End Grid line, fixed.
+    expect(freshPlan.stopLoss?.mode).toBe("fixed")
+    expect(freshPlan.stopLoss?.px).toBeCloseTo(oldPlan.takeProfitPx!, 9)
+    // Its End Grid sits the old stop's distance below the fired stop.
+    expect(freshPlan.takeProfitPx).toBeCloseTo(76 * 0.95, 6)
+    // The chain marker, and the switch NOT carried — autos never ping-pong.
+    expect(freshPlan.reversedFrom).toBe(old!.id)
+    expect(freshPlan.reverseWhenStopped).toBe(false)
+    // The stop sold everything; the new grid holds nothing.
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("does it once, however many passes look at the closed grid", async () => {
+    await placeReversible()
+    await priceTo(100)
+    await priceTo(76)
+    for (let pass = 0; pass < 4; pass += 1) await settle()
+    expect(await gridRows()).toHaveLength(2)
+  })
+
+  it("answers a racing second flip with the grid that is really there", async () => {
+    // The stop fires with the switch on at the same moment the icon is
+    // clicked: whichever write loses the race must come back with the grid
+    // the winner placed — never \"not found\" about a reversal that happened.
+    await placeReversible()
+    await priceTo(100)
+    await priceTo(76)
+    const rows = await gridRows()
+    const old = rows.find((row) => row.status === "done")!
+    const fresh = rows.find((row) => row.status === "active")!
+
+    const second = await insertReversedGrid(database, {
+      userId,
+      wallet,
+      marketKey: BTC,
+      oldId: old.id,
+      plan: fresh.plan as GridPlan,
+      now: Date.now(),
+    })
+    expect(second.existing).toBe(true)
+    expect(second.grid.id).toBe(fresh.id)
+    expect(await gridRows()).toHaveLength(2)
+  })
+
+  it("does nothing with the switch off — today's behaviour unchanged", async () => {
+    await placeReversible({ reverseWhenStopped: false })
+    await priceTo(100)
+    await priceTo(76)
+    const rows = await gridRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe("done")
+  })
+
+  it("does not reverse a grid whose position was closed by hand", async () => {
+    await placeReversible()
+    await priceTo(100)
+    // The hand closes the position with price still INSIDE the range: the
+    // engine writes "stop" for any vanished position, and only the mark being
+    // past the stop line says the stop is what did it.
+    const [held] = await positions()
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "sell",
+      sz: held.szi,
+      leverage: 1,
+      reduceOnly: true,
+      tpPx: null,
+      slPx: null,
+      px: 100,
+    })
+    await settle()
+
+    const rows = await gridRows()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].status).toBe("done")
+  })
+
+  it("writes the reason on the closed grid when the flip is refused", async () => {
+    // No End Grid line: the one thing the new stop is made from.
+    await placeReversible({ takeProfitPct: null })
+    await priceTo(100)
+    await priceTo(76)
+
+    const rows = await gridRows()
+    expect(rows).toHaveLength(1)
+    const plan = rows[0].plan as GridPlan
+    expect(plan.closedReason).toBe("stop")
+    expect(plan.reverseFailReason).toContain("End Grid")
+  })
+
+  it("reverses by hand: sells what it holds, and the flip can chain back", async () => {
+    await placeReversible({ reverseWhenStopped: false })
+    await priceTo(100)
+    expect((await positions()).length).toBe(1)
+
+    const first = await onlyGrid()
+    await reverseGridOrder(userId, wallet, { gridId: first.id })
+
+    let rows = await gridRows()
+    expect(rows).toHaveLength(2)
+    const old = rows.find((row) => row.status === "done")
+    const short = rows.find((row) => row.status === "active")
+    expect((old!.plan as GridPlan).closedReason).toBe("cancelled")
+    expect((short!.plan as GridPlan).direction).toBe("short")
+    // What it held sold at market on the way.
+    expect(await positions()).toHaveLength(0)
+
+    // And a reversed grid reverses AGAIN by hand — Tyler, 28 Aug 2026:
+    // "Yes i can".
+    await reverseGridOrder(userId, wallet, { gridId: short!.id })
+    rows = await gridRows()
+    expect(rows).toHaveLength(3)
+    const chained = rows.find((row) => row.status === "active")
+    expect((chained!.plan as GridPlan).direction).toBe("long")
+    expect((chained!.plan as GridPlan).reversedFrom).toBe(short!.id)
   })
 })

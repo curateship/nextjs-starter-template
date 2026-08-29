@@ -70,6 +70,8 @@ describe("theme colours on chart overlays", () => {
         walletName={() => "Wallet"}
         onCancelLevel={() => undefined}
         onCancelGrid={() => undefined}
+        onReverseGrid={() => undefined}
+        reverseDisabledReason={() => null}
         onEditStop={() => undefined}
         onMoveRange={async () => true}
         onMoveExit={async () => true}

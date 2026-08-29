@@ -249,6 +249,46 @@ describe("chart bracket lines", () => {
     }
   })
 
+  it("slides a pill left of another layer's chip instead of covering it", () => {
+    // A grid level's money chip and a position's Entry pill share a height
+    // whenever the grid just bought — the grid IS the position then. The chip
+    // cannot move (it belongs to another layer), so the pill must.
+    const held = position("stop")
+    held.slPx = null
+    const chipWidth = 60
+    const html = renderToStaticMarkup(
+      <TradeLinesLayer
+        surface={surface}
+        colors={colors}
+        marketKey={MARKET}
+        positions={[held]}
+        orders={[]}
+        walletName={() => "Wallet"}
+        tool={null}
+        onMoveOrder={() => undefined}
+        onCancelOrder={() => undefined}
+        onSetBrackets={() => undefined}
+        // A chip hugging the right edge at the entry's own height.
+        obstacles={[
+          {
+            top: surface.yOf(held.entryPx)! - 11,
+            bottom: surface.yOf(held.entryPx)! + 11,
+            width: chipWidth,
+          },
+        ]}
+      />
+    )
+    const boxes = pillBoxes(html)
+    const entry = boxes.find(
+      (box) => Math.abs(box.top + box.height / 2 - surface.yOf(100)!) < 2
+    )
+    expect(entry).toBeDefined()
+    // The whole pill sits clear, left of where the chip begins.
+    expect(entry!.left + entry!.width).toBeLessThanOrEqual(
+      surface.width - chipWidth
+    )
+  })
+
   it("prints one price badge when two lines sit on the same price", () => {
     const held = position("stop")
     held.slPx = 60

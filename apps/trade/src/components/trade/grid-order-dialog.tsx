@@ -232,6 +232,9 @@ export function GridOrderDialog({
   const [baseOn, setBaseOn] = React.useState(
     seeded ? seeded.stopLoss?.base != null : false
   )
+  const [reverseOn, setReverseOn] = React.useState(
+    seeded?.reverseWhenStopped ?? false
+  )
   const [baseUnderPct, setBaseUnderPct] = React.useState(
     String(seeded?.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
   )
@@ -260,6 +263,7 @@ export function GridOrderDialog({
       setAbovePct(String(params.abovePct))
       setBelowPct(String(params.rangePct))
       setTpOn(params.takeProfitPct !== null)
+      setReverseOn(params.reverseWhenStopped)
       if (params.takeProfitPct !== null) setTpPct(String(params.takeProfitPct))
       if (params.stopLoss) {
         setSlUnderPct(String(params.stopLoss.underPct))
@@ -363,6 +367,7 @@ export function GridOrderDialog({
           : (below ?? -1),
       baseDetection: baseStopDetection(),
       takeProfitPct: tpOn ? (parsed(tpPct) ?? -1) : null,
+      reverseWhenStopped: reverseOn,
       stopLoss: {
         underPct: parsed(slUnderPct) ?? -1,
         base: baseOn
@@ -389,6 +394,7 @@ export function GridOrderDialog({
     below,
     tpOn,
     tpPct,
+    reverseOn,
     slUnderPct,
     baseOn,
     baseUnderPct,
@@ -871,6 +877,22 @@ export function GridOrderDialog({
                 <span className="tabular-nums">
                   {stopPx === null ? "—" : formatPrice(stopPx)}
                 </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="grid-reverse-on"
+                  checked={reverseOn}
+                  disabled={busy}
+                  onCheckedChange={touched((next: boolean | "indeterminate") =>
+                    setReverseOn(next === true)
+                  )}
+                />
+                <FieldLabel
+                  htmlFor="grid-reverse-on"
+                  hint="When the stop fires, everything it sold stays sold, and a grid running the other way is placed over the same range: its stop on the End Grid line, its End Grid the same distance past the fired stop as this stop sits past the range. The new grid starts with this switch off, so one bad afternoon cannot flip the account back and forth on its own. Needs End Grid switched on."
+                >
+                  Reverse when stopped
+                </FieldLabel>
               </div>
               <BaseStopFields
                 on={baseOn}

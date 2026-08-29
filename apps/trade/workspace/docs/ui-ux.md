@@ -694,6 +694,21 @@ behind it.
   lender to renegotiate with, and the window says that instead of drawing boxes
   that would pretend otherwise. See `position-margin.md`.
 
+## Which chart line wins an overlap
+
+Nothing wins — they move apart. A grid level at the entry price used to stamp
+its money chip on top of the Entry pill's words, and whichever layer painted
+last hid the other; two things in one spot cannot be fixed by stacking. So the
+grid hands the trade-lines layer a map of its right-edge chips
+(`gridLineObstacles`), and a position's pills slide LEFT of them the same way
+they already slide left of each other. Both stay readable, and the pill keeps
+its ×, gear and drag reachable.
+
+The render order is the backstop for anything the map does not cover:
+indicators, then paint tools, then ladders and grids, then the position's own
+lines, then journal marks — so a residual overlap still leaves the pills, the
+lines a hand acts on, on top.
+
 ## The market list
 
 The left column is **one Folders panel** (decided 23 Aug 2026; the separate

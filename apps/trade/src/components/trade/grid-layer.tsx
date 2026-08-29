@@ -1,5 +1,10 @@
 import * as React from "react"
-import { GripVerticalIcon, SettingsIcon, XIcon } from "lucide-react"
+import {
+  ArrowUpDownIcon,
+  GripVerticalIcon,
+  SettingsIcon,
+  XIcon,
+} from "lucide-react"
 
 import type { GridPreview } from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
@@ -47,6 +52,8 @@ export const GridLayer = React.memo(function GridLayer({
   onCancelLevel,
   onCancelGrid,
   onEditStop,
+  onReverseGrid,
+  reverseDisabledReason,
   onMoveRange,
   onMoveExit,
 }: {
@@ -65,6 +72,10 @@ export const GridLayer = React.memo(function GridLayer({
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
   onEditStop: (grid: SmartGrid) => void
+  /** Opens the reversal confirmation for this grid. */
+  onReverseGrid: (grid: SmartGrid) => void
+  /** Why this grid cannot be reversed right now, or null when it can. */
+  reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (
     grid: SmartGrid,
     range: { topPx: number; bottomPx: number }
@@ -167,6 +178,8 @@ export const GridLayer = React.memo(function GridLayer({
           onCancelLevel={onCancelLevel}
           onCancelGrid={onCancelGrid}
           onEditStop={onEditStop}
+          onReverseGrid={onReverseGrid}
+          reverseDisabledReason={reverseDisabledReason}
           onMoveRange={onMoveRange}
           onMoveExit={onMoveExit}
           // Split in two so a drag measures the layer's box ONCE, when it
@@ -334,6 +347,8 @@ function GridLines({
   onCancelLevel,
   onCancelGrid,
   onEditStop,
+  onReverseGrid,
+  reverseDisabledReason,
   onMoveRange,
   onMoveExit,
   measureTop,
@@ -351,6 +366,10 @@ function GridLines({
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
   onEditStop: (grid: SmartGrid) => void
+  /** Opens the reversal confirmation for this grid. */
+  onReverseGrid: (grid: SmartGrid) => void
+  /** Why this grid cannot be reversed right now, or null when it can. */
+  reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (
     grid: SmartGrid,
     range: { topPx: number; bottomPx: number }
@@ -735,9 +754,36 @@ function GridLines({
                   pointerEvents: controls,
                 }}
                 // Says what the grid is doing rather than assuming a buy.
-                title={`${walletName(grid.walletId)} — ${GRID_DIRECTION_LABELS[direction].toLowerCase()}. ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
+                title={`${walletName(grid.walletId)} — ${GRID_DIRECTION_LABELS[direction].toLowerCase()}${plan.reversedFrom ? ", continuing a reversed grid on this range" : ""}. ${waiting} waiting, ${holding} holding${plan.cycles > 0 ? `, ${plan.cycles} round trips` : ""}.`}
               >
                 {waiting}/{plan.levels.length}
+                {(() => {
+                  const why = reverseDisabledReason(grid)
+                  return (
+                    <button
+                      type="button"
+                      aria-label="Reverse the grid"
+                      aria-disabled={why !== null}
+                      className={cn(
+                        "rounded p-0.5 focus-visible:bg-current/20 focus-visible:outline-none",
+                        why === null
+                          ? "hover:bg-current/20"
+                          : "cursor-not-allowed opacity-50"
+                      )}
+                      // A greyed-out button says why, on hover — never a
+                      // button that is simply missing.
+                      title={
+                        why ??
+                        "Reverse the grid: close what it holds at market and work the same range the other way round."
+                      }
+                      onClick={() => {
+                        if (why === null) onReverseGrid(grid)
+                      }}
+                    >
+                      <ArrowUpDownIcon className="size-3" />
+                    </button>
+                  )
+                })()}
                 <button
                   type="button"
                   aria-label="Change the grid's exits"
@@ -899,4 +945,99 @@ function ChartLine({
       </div>
     </div>
   )
+}
+
+// ----- Telling the position's pills where our chips are ---------------------
+
+/** A stretch of the right edge a grid line's chips occupy. */
+export type GridLineObstacle = {
+  top: number
+  bottom: number
+  /** How far left of the plot's right edge the chips reach, in pixels. */
+  width: number
+}
+
+/** The estimates the obstacle widths are built from. Generous on purpose:
+ * a pill that slides a few pixels further left costs nothing, one that stops
+ * a few pixels short sits on the chip — the exact bug this exists to fix. */
+const OBSTACLE_CHAR = 6.6
+const OBSTACLE_ICON = 20
+const OBSTACLE_GRIP = 14
+const OBSTACLE_HEIGHT = 22
+
+/**
+ * Where every drawn grid line's right-edge furniture sits, so the trade-lines
+ * layer can lay its pills down around them.
+ *
+ * A position's Entry pill and a grid level's money chip often share a height —
+ * a grid that just bought IS the position, at that level's own price — and
+ * whichever painted last hid the other. Stacking cannot fix two things in one
+ * spot; only sliding can, and the trade-lines layer already slides its own
+ * pills left of each other. This hands it our chips as things to slide
+ * around, worked out from the same `pricesOf` the drawing reads, so the
+ * obstacles are the chips and not a guess at them.
+ */
+export function gridLineObstacles(
+  grids: readonly SmartGrid[],
+  marketKey: string | null,
+  yFor: (price: number) => number | null
+): GridLineObstacle[] {
+  const obstacles: GridLineObstacle[] = []
+  const add = (px: number, width: number) => {
+    const y = yFor(px)
+    if (y === null || !(width > 0)) return
+    obstacles.push({
+      top: y - OBSTACLE_HEIGHT / 2,
+      bottom: y + OBSTACLE_HEIGHT / 2,
+      width: width + 8,
+    })
+  }
+  const nameWidth = (name: string, grip: boolean) =>
+    name.length * OBSTACLE_CHAR + 12 + (grip ? OBSTACLE_GRIP : 0)
+  const usdWidth = (usd: number) =>
+    usd > 0 ? formatUsdRounded(usd).length * OBSTACLE_CHAR + 8 + 4 : 0
+
+  for (const grid of grids) {
+    if (grid.marketKey !== marketKey) continue
+    const plan = grid.plan
+    const movable = gridRangeMovable(plan)
+    const deepPx = lossEdge(plan.direction, plan)
+
+    for (const at of pricesOf(plan)) {
+      const cancel = at.entry !== null ? OBSTACLE_ICON + 4 : 0
+      if (priceKey(at.px) === priceKey(deepPx)) continue
+      if (priceKey(at.px) === priceKey(plan.topPx)) continue
+      add(at.px, cancel + usdWidth(at.usd))
+    }
+
+    // The named lines. The top carries the badge cluster: the count, the
+    // reverse icon, the gear and sometimes an ×.
+    const deepLevel =
+      pricesOf(plan).find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
+    add(
+      plan.bottomPx,
+      nameWidth("LOWER PRICE", movable) +
+        (plan.direction === "long" && deepLevel
+          ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
+            usdWidth(deepLevel.usd)
+          : 0)
+    )
+    add(
+      plan.topPx,
+      nameWidth("UPPER PRICE", movable) +
+        (plan.direction === "short" && deepLevel
+          ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
+            usdWidth(deepLevel.usd)
+          : 0) +
+        // The badge cluster: "n/m", reverse, gear, ×.
+        5 * OBSTACLE_CHAR +
+        3 * OBSTACLE_ICON +
+        14
+    )
+    const target = gridTakeProfitPx(plan)
+    if (target !== null) add(target, nameWidth("END GRID", true))
+    const stop = gridStopPx(plan)
+    if (stop !== null) add(stop, nameWidth("STOP LOSS", true))
+  }
+  return obstacles
 }

@@ -32,7 +32,15 @@ export function cancelGridRestPlan(plan: GridPlan): number {
   return cancelled
 }
 
-export function updateGridStopPlan(plan: GridPlan, stopLoss: GridStop): void {
+export function updateGridStopPlan(
+  plan: GridPlan,
+  stopLoss: GridStop,
+  /** The reverse-when-stopped switch, when the window sent it. */
+  reverseWhenStopped?: boolean
+): void {
+  if (reverseWhenStopped !== undefined) {
+    plan.reverseWhenStopped = reverseWhenStopped
+  }
   const followsIntoLoss =
     plan.direction === "long" ? plan.followDown : plan.follow
   plan.stopLoss = {
