@@ -626,7 +626,7 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
-  it("uses the market name instead of Aster and KuCoin contract suffixes", () => {
+  it("uses the coin name instead of exchange contract affixes", () => {
     const aster: SmartOrder = {
       ...ladder,
       id: "aster-hype",
@@ -637,16 +637,22 @@ describe("the Smart orders panel", () => {
       id: "kucoin-sol",
       marketKey: "kucoin:mainnet:SOLUSDTM",
     }
+    const hyperliquid: SmartOrder = {
+      ...ladder,
+      id: "hyperliquid-tsla",
+      marketKey: "hyperliquid:mainnet:xyz:TSLA",
+    }
     const html = renderToStaticMarkup(
       <SmartOrdersPanel
         {...shared}
-        smartOrders={[aster, kucoin]}
+        smartOrders={[aster, kucoin, hyperliquid]}
         settled
         failed={false}
         markets={
           new Map([
             [aster.marketKey, { symbol: "HYPE", iconUrl: null }],
             [kucoin.marketKey, { symbol: "SOL", iconUrl: null }],
+            [hyperliquid.marketKey, { symbol: "xyz:TSLA", iconUrl: null }],
           ]) as unknown as Map<string, MarketRow>
         }
       />
@@ -654,8 +660,10 @@ describe("the Smart orders panel", () => {
 
     expect(html).toContain(">HYPE<")
     expect(html).toContain(">SOL<")
+    expect(html).toContain(">TSLA<")
     expect(html).not.toContain("HYPEUSDT")
     expect(html).not.toContain("SOLUSDTM")
+    expect(html).not.toContain("xyz:TSLA")
   })
 
   it("shows when a sale happened and the dollars sold", async () => {

@@ -23,10 +23,13 @@ line in the body, share the panel's one 12px gutter.
   An empty folder points at the star in the market header.
 - **Searching lives in the market picker** — the market name at the top of
   the chart opens the whole catalogue with its own search. The panel has no
-  search box of its own. The picker window is exactly as wide as its table's
-  columns, capped by the screen, and the list scrolls in a `ScrollArea` with
-  the thin themed thumb — never the browser's own scrollbar — while the
-  heading row stays put.
+  search box of its own. The picker window is 51.25rem wide (about 10% narrower
+  than its former rendered width), capped by the screen. Its table keeps a
+  matching minimum so a narrow viewport scrolls the columns instead of
+  crushing them. The list scrolls in a `ScrollArea` with the thin themed thumb
+  — never the browser's own scrollbar — while the heading row stays put.
+  The five number columns use compact fixed widths; Market takes the room they
+  leave instead of spacing every column evenly.
 - **On testnet, the amber strip sits at the panel's foot** with the Back to
   Mainnet link, exactly as it did on the old market list panel.
 - **Both side panels open at their smallest useful width.** Folders starts at

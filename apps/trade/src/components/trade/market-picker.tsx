@@ -264,9 +264,9 @@ export function MarketPicker({
           // for. Drifted over it: leave the keyboard where it was.
           if (!openedByHover.current) searchRef.current?.focus()
         }}
-        // `w-max` hugs the table's own width — the columns say how wide the
-        // window is, capped only by the viewport.
-        className="flex h-[min(72vh,640px)] w-max max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
+        // Keep the catalogue compact on a desktop while still capping it to
+        // the viewport on a narrow screen.
+        className="flex h-[min(72vh,640px)] w-[51.25rem] max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
       >
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="relative">
@@ -330,7 +330,7 @@ export function MarketPicker({
         >
         <Table
           containerClassName="overflow-visible"
-          className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
+          className="min-w-[51.25rem] table-fixed text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
         >
           {/* Opaque, because rows now slide underneath it: the muted tint is
               half-transparent and only read correctly while nothing was behind
@@ -424,8 +424,18 @@ function PickerTableHead({
   onSort: (key: MarketPickerSortKey) => void
 }) {
   return (
-    <TableHead className="h-9 px-3 text-xs text-muted-foreground">
+    <TableHead
+      className={cn(
+        "h-9 px-2 text-xs text-muted-foreground",
+        sortKey === "price" && "w-[6.75rem]",
+        sortKey === "change" && "w-28",
+        sortKey === "funding" && "w-26",
+        sortKey === "volume" && "w-24",
+        sortKey === "openInterest" && "w-28"
+      )}
+    >
       <TableSortButton
+        className="gap-0"
         active={sort.key === sortKey}
         direction={sort.dir}
         onClick={() => onSort(sortKey)}
@@ -469,8 +479,8 @@ function MarketPickerRow({
         onSelect()
       }}
     >
-      <TableCell className="py-2 pl-3">
-        <div className="flex items-center gap-2">
+      <TableCell className="overflow-hidden py-2 pl-3">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden">
           <MarketFolderStar
             compact
             symbol={row.symbol}
@@ -483,7 +493,7 @@ function MarketPickerRow({
             }
             onCreate={(name) => folderActions.create(row.key, name)}
           />
-          <span className="font-semibold">
+          <span className="min-w-0 truncate font-semibold">
             {displaySymbol(row.symbol)}-{row.quoteAsset}
           </span>
           {row.maxLeverage !== null ? (

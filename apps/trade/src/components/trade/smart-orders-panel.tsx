@@ -48,6 +48,7 @@ import {
 } from "@/lib/api/trade/flow-runs"
 import {
   marketSymbol,
+  parseMarketKey,
   type MarketRow,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
@@ -587,8 +588,13 @@ function SmartOrdersView({
   const rows = React.useMemo(() => {
     const unsorted = mine.map((order) => {
       const position = held.get(`${order.walletId}:${order.marketKey}`) ?? null
-      const symbol =
+      const catalogueSymbol =
         markets.get(order.marketKey)?.symbol ?? marketSymbol(order.marketKey)
+      const symbol =
+        parseMarketKey(order.marketKey)?.protocol === "hyperliquid" &&
+        catalogueSymbol.startsWith("xyz:")
+          ? catalogueSymbol.slice(4)
+          : catalogueSymbol
       const mark =
         marks.get(order.marketKey) ??
         markets.get(order.marketKey)?.price ??

@@ -169,7 +169,8 @@ to the right edge of their columns. Banked puts its sort mark before the label
 so the word and figures end together. Cell content keeps a 16px gutter from
 both panel edges while row backgrounds remain full width. The ticker is the
 coin name from the market list, not the exchange's contract ID. Aster drops
-USDT and KuCoin drops USDTM, while the full ID still opens the right chart.
+USDT, KuCoin drops USDTM, and Hyperliquid drops the xyz: prefix. The full ID
+still opens the right chart.
 PnL is the profit or loss on what the smart order still holds. Banked is the
 money from sales that have finished. Banked has no icon, and $0.00 stays visible
 before the first sale.
