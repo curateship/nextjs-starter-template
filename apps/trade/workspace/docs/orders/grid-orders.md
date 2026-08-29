@@ -430,8 +430,12 @@ level's own sell, one round trip at a time.
 
 ## Changing a running grid
 
-The gear beside UPPER PRICE opens the running grid window. The window can
-change Levels, Share of account, Borrowing, End Grid, following and the stop.
+The gear beside UPPER PRICE opens Grid settings to the left of the gear,
+vertically centred on it. The settings use the same draggable chart window,
+folding option cards and fixed bottom button as the right-click Grid order
+form. It can change Levels, Share of account, Borrowing, End Grid, following
+and the stop. The first thing inside is the Slices card, with no description
+above it. Clicking outside or pressing Escape closes it.
 End Grid can be switched on or off, and its percentage is measured above
 today's price or the top of the range just like placement.
 

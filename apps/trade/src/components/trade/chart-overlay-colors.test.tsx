@@ -72,7 +72,7 @@ describe("theme colours on chart overlays", () => {
         onCancelGrid={() => undefined}
         onReverseGrid={() => undefined}
         reverseDisabledReason={() => null}
-        onEditStop={() => undefined}
+        onOpenSettings={() => undefined}
         onMoveRange={async () => true}
         onMoveExit={async () => true}
       />

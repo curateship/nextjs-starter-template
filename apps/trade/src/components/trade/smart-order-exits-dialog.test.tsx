@@ -4,7 +4,7 @@ import { act, useState } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
+import { GridSettingsWindow } from "@/components/trade/grid-settings-window"
 import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { SmartGrid, SmartLadder } from "@/lib/trade/smart-plan"
@@ -100,8 +100,9 @@ async function draw(kind: "ladder" | "grid", busy: boolean) {
             onClose={() => undefined}
           />
         ) : (
-          <GridStopDialog
+          <GridSettingsWindow
             grid={grid}
+            wallet="Test wallet"
             mark={100}
             busy={busy}
             onSave={async () => true}
@@ -180,7 +181,8 @@ describe.each([
     ].find((button) => button.textContent?.trim() === "Cancel")
     expect(save?.disabled).toBe(true)
     expect(save?.querySelector(".animate-spin")).not.toBeNull()
-    expect(cancel?.disabled).toBe(true)
+    if (kind === "ladder") expect(cancel?.disabled).toBe(true)
+    else expect(cancel).toBeUndefined()
 
     await draw(kind, false)
     for (const id of controlIds) expect(control(id).disabled).toBe(false)
@@ -194,6 +196,51 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(document.getElementById("grid-stop-on")).toBeNull()
   expect(document.body.textContent).toContain("Stop loss")
   expect(control("grid-stop-pct").disabled).toBe(false)
+})
+
+it("opens grid settings beside the cog with the Grid order UI", async () => {
+  const cog = document.createElement("button")
+  cog.getBoundingClientRect = () =>
+    ({
+      x: 700,
+      y: 400,
+      left: 700,
+      top: 400,
+      right: 716,
+      bottom: 416,
+      width: 16,
+      height: 16,
+      toJSON: () => ({}),
+    }) as DOMRect
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={grid}
+          anchor={cog}
+          mark={100}
+          busy={false}
+          wallet="HL1"
+          onSave={async () => true}
+          onReshape={async () => true}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  const settings = document.querySelector<HTMLElement>(
+    '[role="dialog"][aria-label="Settings for the BTC grid"]'
+  )
+  expect(settings?.style.left).toBe("388px")
+  expect(settings?.style.top).toBe("128px")
+  expect(
+    settings?.querySelector("[data-slot=collapsible]")?.textContent
+  ).toContain("Slices")
+  expect(settings?.textContent).not.toContain("working between")
 })
 
 it("keeps four-decimal fixed exits when the ladder window opens twice", async () => {
@@ -243,8 +290,9 @@ it("edits borrowing and End Grid from the grid gear window", async () => {
   await act(async () => {
     root.render(
       <TooltipProvider>
-        <GridStopDialog
+        <GridSettingsWindow
           grid={grid}
+          wallet="Test wallet"
           mark={100}
           busy={false}
           onSave={async () => true}
@@ -285,8 +333,9 @@ it("adds a stop when an older running grid did not have one", async () => {
   await act(async () => {
     root.render(
       <TooltipProvider>
-        <GridStopDialog
+        <GridSettingsWindow
           grid={oldGrid}
+          wallet="Test wallet"
           mark={100}
           busy={false}
           onSave={saveStop}
@@ -330,8 +379,9 @@ it("does not reset a fixed stop when only following changes", async () => {
   await act(async () => {
     root.render(
       <TooltipProvider>
-        <GridStopDialog
+        <GridSettingsWindow
           grid={fixed}
+          wallet="Test wallet"
           mark={100}
           busy={false}
           onSave={saveStop}

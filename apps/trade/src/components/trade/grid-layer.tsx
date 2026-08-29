@@ -51,7 +51,7 @@ export const GridLayer = React.memo(function GridLayer({
   walletName,
   onCancelLevel,
   onCancelGrid,
-  onEditStop,
+  onOpenSettings,
   onReverseGrid,
   reverseDisabledReason,
   onMoveRange,
@@ -71,7 +71,7 @@ export const GridLayer = React.memo(function GridLayer({
   walletName: (walletId: string) => string
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
-  onEditStop: (grid: SmartGrid) => void
+  onOpenSettings: (grid: SmartGrid, anchor: HTMLElement) => void
   /** Opens the reversal confirmation for this grid. */
   onReverseGrid: (grid: SmartGrid) => void
   /** Why this grid cannot be reversed right now, or null when it can. */
@@ -177,7 +177,7 @@ export const GridLayer = React.memo(function GridLayer({
           walletName={walletName}
           onCancelLevel={onCancelLevel}
           onCancelGrid={onCancelGrid}
-          onEditStop={onEditStop}
+          onOpenSettings={onOpenSettings}
           onReverseGrid={onReverseGrid}
           reverseDisabledReason={reverseDisabledReason}
           onMoveRange={onMoveRange}
@@ -346,7 +346,7 @@ function GridLines({
   walletName,
   onCancelLevel,
   onCancelGrid,
-  onEditStop,
+  onOpenSettings,
   onReverseGrid,
   reverseDisabledReason,
   onMoveRange,
@@ -365,7 +365,7 @@ function GridLines({
   walletName: (walletId: string) => string
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
-  onEditStop: (grid: SmartGrid) => void
+  onOpenSettings: (grid: SmartGrid, anchor: HTMLElement) => void
   /** Opens the reversal confirmation for this grid. */
   onReverseGrid: (grid: SmartGrid) => void
   /** Why this grid cannot be reversed right now, or null when it can. */
@@ -788,7 +788,7 @@ function GridLines({
                   type="button"
                   aria-label="Change the grid's exits"
                   className="rounded p-0.5 hover:bg-current/20 focus-visible:bg-current/20 focus-visible:outline-none"
-                  onClick={() => onEditStop(grid)}
+                  onClick={(event) => onOpenSettings(grid, event.currentTarget)}
                 >
                   <SettingsIcon className="size-3" />
                 </button>

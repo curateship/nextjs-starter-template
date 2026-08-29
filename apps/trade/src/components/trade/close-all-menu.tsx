@@ -112,7 +112,7 @@ export function CloseAllMenu({
         <Button
           type="button"
           variant="outline"
-          className="bg-muted/60 dark:bg-muted/60"
+          className="bg-muted"
           disabled={busy}
         >
           <XIcon className="size-4" />

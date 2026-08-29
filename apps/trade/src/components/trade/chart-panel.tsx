@@ -28,7 +28,7 @@ import type {
   GridOrderState,
   GridPreview,
 } from "@/components/trade/grid-order-dialog"
-import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
+import { GridSettingsWindow } from "@/components/trade/grid-settings-window"
 import {
   LazyDialogFallback,
   LazyOrderWindowFallback,
@@ -375,7 +375,9 @@ export function ChartPanel({
   // and the two things a placed grid can be asked to do.
   const [grid, setGrid] = React.useState<GridOrderState | null>(null)
   const [gridPreview, setGridPreview] = React.useState<GridPreview | null>(null)
-  const [stopFor, setStopFor] = React.useState<SmartGrid | null>(null)
+  const [settingsFor, setSettingsFor] = React.useState<SmartGrid | null>(null)
+  const [settingsAnchor, setSettingsAnchor] =
+    React.useState<HTMLElement | null>(null)
   // The position whose × on the Entry line was pressed. Closing costs real
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
@@ -415,7 +417,8 @@ export function ChartPanel({
     setExitsFor(null)
     setGrid(null)
     setGridPreview(null)
-    setStopFor(null)
+    setSettingsFor(null)
+    setSettingsAnchor(null)
     setCancelFor(null)
     setEditing(null)
   }
@@ -1087,6 +1090,13 @@ export function ChartPanel({
 
   const gridsShown = trading.grids
   const currentMarketPx = market?.price ?? null
+  const openGridSettings = React.useCallback(
+    (one: SmartGrid, anchor: HTMLElement) => {
+      setSettingsFor(one)
+      setSettingsAnchor(anchor)
+    },
+    []
+  )
   const overlay = React.useCallback(
     (surface: ChartSurface, colors: ChartColors) => (
       <>
@@ -1132,7 +1142,7 @@ export function ChartPanel({
           reverseDisabledReason={reverseDisabledReason}
           onCancelLevel={onCancelGridLevel}
           onCancelGrid={setCancelGridFor}
-          onEditStop={setStopFor}
+          onOpenSettings={openGridSettings}
           onMoveRange={onMoveGridRange}
           onMoveExit={onMoveGridExit}
         />
@@ -1230,6 +1240,7 @@ export function ChartPanel({
       onCancelGridLevel,
       onMoveGridRange,
       onMoveGridExit,
+      openGridSettings,
       reverseDisabledReason,
       marketTrades,
       marketFills,
@@ -1547,28 +1558,38 @@ export function ChartPanel({
           setReverseGridFor(null)
         }}
       />
-      <GridStopDialog
-        grid={stopFor}
+      <GridSettingsWindow
+        grid={settingsFor}
+        anchor={settingsAnchor}
+        wide={wide}
+        wallet={
+          settingsFor
+            ? (trading.walletNames.get(settingsFor.walletId) ??
+              "Another wallet")
+            : ""
+        }
         mark={
-          stopFor && market?.key === stopFor.marketKey ? market.price : null
+          settingsFor && market?.key === settingsFor.marketKey
+            ? market.price
+            : null
         }
         busy={trading.busy}
         pairedLeverage={
-          stopFor
+          settingsFor
             ? (trading.ladders.find(
                 (one) =>
-                  one.walletId === stopFor.walletId &&
-                  one.marketKey === stopFor.marketKey &&
+                  one.walletId === settingsFor.walletId &&
+                  one.marketKey === settingsFor.marketKey &&
                   one.status === "active"
               )?.plan.leverage ?? null)
             : null
         }
         positionLeverage={
-          stopFor
+          settingsFor
             ? (trading.positions.find(
                 (one) =>
-                  one.walletId === stopFor.walletId &&
-                  one.marketKey === stopFor.marketKey &&
+                  one.walletId === settingsFor.walletId &&
+                  one.marketKey === settingsFor.marketKey &&
                   one.szi > 0
               )?.leverage ?? null)
             : null
@@ -1590,7 +1611,10 @@ export function ChartPanel({
         onSetFollow={(one, following) =>
           trading.setGridFollow(one.walletId, one.id, following)
         }
-        onClose={() => setStopFor(null)}
+        onClose={() => {
+          setSettingsFor(null)
+          setSettingsAnchor(null)
+        }}
       />
       <ConfirmDialog
         open={closingPosition !== null}

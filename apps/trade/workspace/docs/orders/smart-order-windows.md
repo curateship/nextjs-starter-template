@@ -129,8 +129,11 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   server's own words. If a level is too small for the market, the window names
   it and asks for fewer levels or a bigger account share.
 
-The gear beside UPPER PRICE opens the window that edits a running grid. Slices
-includes Borrowing beside Levels and Share of account. Borrowing is editable
+The gear beside UPPER PRICE opens the running grid settings to the left of the
+gear, vertically centred on it. The settings use the same draggable chart
+window, folding option cards and fixed bottom button as the right-click Grid
+order form. Slices includes Borrowing beside Levels and Share of account.
+The Slices card is first, with no description above it. Borrowing is editable
 while the grid holds no coin and still has buys waiting. Borrowing locks while
 the grid holds coin or shares the position with a DCA ladder. The **End Grid**
 card can switch the line on or off and change its percentage. The **Following**

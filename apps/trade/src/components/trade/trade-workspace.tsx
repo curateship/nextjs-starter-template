@@ -827,8 +827,8 @@ export function TradeWorkspace({
         // Keep reset and first-open width at the smallest usable size, just
         // like the market list. Omitting the chart default lets it fill the
         // exact remainder instead of stretching both side panels.
-        defaultSize="20.5rem"
-        minSize="20.5rem"
+        defaultSize="17.5275rem"
+        minSize="17.5275rem"
         maxSize="42%"
         // Same rule as the market list: the chart absorbs a window shrink.
         groupResizeBehavior="preserve-pixel-size"

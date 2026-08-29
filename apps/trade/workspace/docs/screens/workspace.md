@@ -26,6 +26,7 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   default), the indicator button and the view button. The indicator button's
   small count says how many indicators are on. Each control uses the muted gray
   inside its border, while the rest of the header keeps the card background.
+  The market dropdown uses the same light gray as the other header buttons.
   The star is amber and filled when the market is in any folder and a hollow
   outline when it is not, so the two do not differ by colour alone. An empty
   star names the Fav action. A
@@ -175,8 +176,9 @@ right rather than in this tab.
 
 ### Close all, and the list it opens
 
-**Close all** is the bottom panel's emergency button. It sits in the tab row and
-is only there while there is something for it to take off. Pressing it opens a
+**Close all** is the bottom panel's emergency button. It sits in the tab row,
+uses the same light gray as the market dropdown, and is only there while
+there is something for it to take off. Pressing it opens a
 list rather than doing anything, and the list has three ticks, all ticked
 already (decided 24 Aug 2026):
 

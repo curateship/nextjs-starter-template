@@ -2,22 +2,20 @@ import * as React from "react"
 import { Loader2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
+import {
+  MIN_ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_WIDTH,
+} from "@/components/trade/order-window-form"
+import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { marketSymbol } from "@/lib/protocols/contracts"
 import {
   BASE_STOP_DAYS_REFUSAL,
@@ -33,13 +31,11 @@ import { formatPrice } from "@/lib/trade/format"
 import {
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   DEFAULT_GRID_STOP_UNDER_PCT,
-  entrySide,
   exitSide,
   gridEndPx,
   gridRangeMovable,
   gridStopBeyond,
   lossEdge,
-  GRID_DIRECTION_LABELS,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
@@ -60,8 +56,11 @@ import { showErrorToast } from "@/lib/toast/error-toast"
  * which is eight hundred lines and asks about three things a grid does not
  * have.
  */
-export function GridStopDialog({
+export function GridSettingsWindow({
   grid,
+  anchor = null,
+  wide = true,
+  wallet,
   mark,
   busy,
   pairedLeverage = null,
@@ -73,6 +72,10 @@ export function GridStopDialog({
   onClose,
 }: {
   grid: SmartGrid | null
+  /** The chart cog this floating dropdown sits beside. */
+  anchor?: HTMLElement | null
+  wide?: boolean
+  wallet: string
   /** Today's price, used to preview End Grid at the same place as the server. */
   mark: number | null
   busy: boolean
@@ -96,31 +99,40 @@ export function GridStopDialog({
   ) => Promise<boolean>
   onClose: () => void
 }) {
+  if (!grid) return null
+  const at = anchor?.getBoundingClientRect()
+
   return (
-    <Dialog
-      open={grid !== null}
-      onOpenChange={(open) => {
-        if (!open && !busy) onClose()
+    <FloatingOrderWindow
+      label={`Settings for the ${marketSymbol(grid.marketKey)} grid`}
+      wide={wide}
+      openedAt={{
+        x: at ? at.left - ORDER_WINDOW_WIDTH - 8 : 8,
+        y: at ? at.top + at.height / 2 - ORDER_WINDOW_HEIGHT / 2 : 8,
+      }}
+      width={ORDER_WINDOW_WIDTH}
+      height={ORDER_WINDOW_HEIGHT}
+      minimumHeight={MIN_ORDER_WINDOW_HEIGHT}
+      title="Grid settings"
+      wallet={wallet}
+      onClose={() => {
+        if (!busy) onClose()
       }}
     >
-      <DialogContent variant="admin" className="sm:max-w-lg">
-        {grid ? (
-          <StopForm
-            key={grid.id}
-            grid={grid}
-            mark={mark}
-            busy={busy}
-            pairedLeverage={pairedLeverage}
-            positionLeverage={positionLeverage}
-            onSave={onSave}
-            onReshape={onReshape}
-            onSetEnd={onSetEnd}
-            onSetFollow={onSetFollow}
-            onClose={onClose}
-          />
-        ) : null}
-      </DialogContent>
-    </Dialog>
+      <StopForm
+        key={grid.id}
+        grid={grid}
+        mark={mark}
+        busy={busy}
+        pairedLeverage={pairedLeverage}
+        positionLeverage={positionLeverage}
+        onSave={onSave}
+        onReshape={onReshape}
+        onSetEnd={onSetEnd}
+        onSetFollow={onSetFollow}
+        onClose={onClose}
+      />
+    </FloatingOrderWindow>
   )
 }
 
@@ -158,8 +170,6 @@ function StopForm({
   onClose: () => void
 }) {
   const plan = grid.plan
-  const symbol = marketSymbol(grid.marketKey)
-
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
   const [leverage, setLeverage] = React.useState(String(plan.leverage))
@@ -352,27 +362,14 @@ function StopForm({
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>The {symbol} grid</DialogTitle>
-        {/* Which way round it runs is stated, never offered. The prices are
-            frozen and they belong to one side, so turning a live grid round
-            would leave every level closing at a price it never opened at. */}
-        <DialogDescription>
-          {GRID_DIRECTION_LABELS[plan.direction]}, working between{" "}
-          {formatPrice(plan.bottomPx)} and {formatPrice(plan.topPx)}. Each level{" "}
-          {entrySide(plan.direction)}s at its own price and{" "}
-          {exitSide(plan.direction)}s one step{" "}
-          {plan.direction === "long" ? "above" : "below"} it. Drag the two blue
-          lines on the chart to move the range itself.
-        </DialogDescription>
-      </DialogHeader>
-
-      <DialogBody>
-        <Card>
-          <CardHeader>
-            <CardTitle>Slices</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+      <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
+        <div className="grid gap-4 p-3">
+          <OptionCard
+            id="grid-edit-slices"
+            title="Slices"
+            hint="How many slices the range uses, how much of the account they share, and how much coin each dollar controls."
+            summary={`${levels} levels`}
+          >
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-edit-levels"
@@ -391,6 +388,7 @@ function StopForm({
                   setLevels(event.target.value)
                 }}
                 onBlur={() => setShowValidation(true)}
+                className="bg-background"
               />
               {step !== null ? (
                 <p className="text-xs text-muted-foreground">
@@ -417,6 +415,7 @@ function StopForm({
                   setPotPct(event.target.value)
                 }}
                 onBlur={() => setShowValidation(true)}
+                className="bg-background"
               />
             </div>
             <div className="grid gap-2">
@@ -445,6 +444,7 @@ function StopForm({
                   setLeverage(event.target.value)
                 }}
                 onBlur={() => setShowValidation(true)}
+                className="bg-background"
               />
             </div>
             {resliced ? (
@@ -453,34 +453,28 @@ function StopForm({
                 reaches a level.
               </p>
             ) : null}
-          </CardContent>
-        </Card>
+          </OptionCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>End Grid</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="grid-end-on"
-                checked={endOn}
-                disabled={busy}
-                onCheckedChange={(next) => {
-                  setShowValidation(false)
-                  setEndTouched(true)
-                  setEndOn(next === true)
-                }}
-              />
-              <FieldLabel
-                htmlFor="grid-end-on"
-                hint={`Reaching End Grid closes the grid and ${exitSide(plan.direction)}s back anything it still holds.`}
-              >
-                {plan.direction === "long"
-                  ? "End the grid at an upper price"
-                  : "End the grid at a lower price"}
-              </FieldLabel>
-            </div>
+          <OptionCard
+            id="grid-end-on"
+            title="End Grid"
+            hint={`Reaching End Grid closes the grid and ${exitSide(plan.direction)}s back anything it still holds.`}
+            summary={
+              endOn
+                ? `${plan.direction === "long" ? "+" : "−"}${endPct}%`
+                : null
+            }
+            foldWhenOff={false}
+            toggle={{
+              checked: endOn,
+              disabled: busy,
+              onChange: (next) => {
+                setShowValidation(false)
+                setEndTouched(true)
+                setEndOn(next)
+              },
+            }}
+          >
             {endOn ? (
               <>
                 <div className="grid gap-2">
@@ -502,6 +496,7 @@ function StopForm({
                       setEndPct(event.target.value)
                     }}
                     onBlur={() => setShowValidation(true)}
+                    className="bg-background"
                   />
                 </div>
                 <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -512,14 +507,17 @@ function StopForm({
                 </div>
               </>
             ) : null}
-          </CardContent>
-        </Card>
+          </OptionCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Following</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+          <OptionCard
+            id="grid-edit-following"
+            title="Following"
+            summary={
+              plan.shifts === 0 && plan.downShifts === 0
+                ? "Not moved"
+                : `${plan.shifts} up · ${plan.downShifts} down`
+            }
+          >
             <div className="flex items-center gap-2">
               <Checkbox
                 id="grid-follow-on"
@@ -567,14 +565,14 @@ function StopForm({
                 ? "The range has not moved yet."
                 : `Moved up ${plan.shifts} time${plan.shifts === 1 ? "" : "s"} and down ${plan.downShifts} time${plan.downShifts === 1 ? "" : "s"}.`}
             </p>
-          </CardContent>
-        </Card>
+          </OptionCard>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Stop loss</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+          <OptionCard
+            id="grid-edit-stop"
+            title="Stop loss"
+            hint="The stop stays beyond the losing end of the range and ends the grid if price reaches it."
+            summary={`${plan.direction === "long" ? "−" : "+"}${underPct}%`}
+          >
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="grid-stop-pct">{stopFieldLabel}</Label>
@@ -589,6 +587,7 @@ function StopForm({
                     setUnderPct(event.target.value)
                   }}
                   onBlur={() => setShowValidation(true)}
+                  className="bg-background"
                 />
                 <p className="text-xs text-muted-foreground">
                   {restsAt === null
@@ -635,29 +634,19 @@ function StopForm({
                 onBlur={() => setShowValidation(true)}
               />
             </div>
-          </CardContent>
-        </Card>
-      </DialogBody>
+          </OptionCard>
+        </div>
+      </ScrollArea>
 
-      <DialogFooter>
-        {/* Left of the buttons rather than under the fields: the body scrolls,
-            and a refusal that scrolls away is one the button can be pressed
-            without ever seeing. */}
-        <OrderRefusal id="grid-stop-refusal" className="mr-auto min-w-0 flex-1">
+      {/* Below the scroll like the right-click Grid order window, so a long
+          form never moves the refusal or Save button off screen. */}
+      <div className="border-t p-3">
+        <OrderRefusal id="grid-stop-refusal" className="pb-3">
           {showValidation ? refusal : null}
         </OrderRefusal>
         <Button
           type="button"
-          variant="outline"
-          className="shrink-0"
-          disabled={busy}
-          onClick={onClose}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          className="shrink-0"
+          className="w-full"
           aria-describedby={
             showValidation && refusal ? "grid-stop-refusal" : undefined
           }
@@ -667,7 +656,7 @@ function StopForm({
           {busy ? <Loader2Icon className="size-4 animate-spin" /> : null}
           Save changes
         </Button>
-      </DialogFooter>
+      </div>
     </>
   )
 }

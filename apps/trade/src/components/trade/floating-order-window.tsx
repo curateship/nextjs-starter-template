@@ -49,7 +49,7 @@ export function FloatingOrderWindow({
   title: string
   titleClassName?: string
   wallet: string
-  free: number
+  free?: number
   onClose: () => void
   children: React.ReactNode
 }) {
@@ -149,9 +149,11 @@ export function FloatingOrderWindow({
           <span className="min-w-0 truncate font-medium text-foreground">
             {wallet}
           </span>
-          <span className="shrink-0 tabular-nums">
-            · {formatUsd(free)} free
-          </span>
+          {free === undefined ? null : (
+            <span className="shrink-0 tabular-nums">
+              · {formatUsd(free)} free
+            </span>
+          )}
         </span>
       </div>
 
