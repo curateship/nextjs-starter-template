@@ -28,7 +28,7 @@ tried again.
 ## Each position is sold as a maker, not at the market
 
 Every close goes through the same chased reduce-only post-only limit a part
-close uses — see `part-close.md`. It rests just off the price, follows it, and
+close uses — see `../orders/part-close.md`. It rests just off the price, follows it, and
 never crosses the book.
 
 **That is a real difference from "Close all", and it is deliberate.** Close all
@@ -64,12 +64,12 @@ A wallet holding nothing says so instead of counting zero.
 ## Calling one off after the press
 
 The resting orders show under Open orders like any other. The × on one stops
-that coin's close rather than taking the order back — see `part-close.md`.
+that coin's close rather than taking the order back — see `../orders/part-close.md`.
 
 ## What is not covered
 
 The all-wallets "Close all" keeps its own behaviour: it sells at the market to
 be out this second, and it works across every wallet rather than one. See
-`ui-ux.md` for the list it opens. Plain watched orders are not cancelled by
+`../screens/workspace.md` for the list it opens. Plain watched orders are not cancelled by
 emptying a wallet; they are a hand-placed level rather than a strategy, and each
 has its own × on the chart and in Open orders. Close all can take them off.

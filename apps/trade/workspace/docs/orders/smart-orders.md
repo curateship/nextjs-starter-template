@@ -5,7 +5,7 @@ the chart is a price the app is watching. When the market gets there, and only
 then, an order is sent. Nothing sits on the exchange's book waiting.
 
 This holds for every smart order, now and in future. It is a rule, not a
-preference, and `trading-rules.md` outranks this file if the two ever disagree.
+preference, and `../rules/trading-rules.md` outranks this file if the two ever disagree.
 Plain orders are a separate story with a setting of their own, told in
 `watched-orders.md`.
 
@@ -136,7 +136,7 @@ line, then no repeated price requests while the socket is healthy.
 Looking every second is only safe if a look is nearly free. Hyperliquid allows
 1,200 request-weight a minute per machine and answers `429` to everything once
 that is gone, which took the app down for a full day on 13 August 2026.
-`hyperliquid-rate-limits.md` has the whole budget.
+`../exchanges/hyperliquid-rate-limits.md` has the whole budget.
 
 **Every second, because these decide whether a level fires:** the price, what
 the wallet holds, and what is resting on the exchange. Prices already arrive on
@@ -186,7 +186,7 @@ sweep that was always there runs only when the answer is yes. Measured against
 both live exchanges on 22 August 2026, both accounts quiet, asking every four
 seconds for a hundred seconds: **33 requests without the sockets and 13 with
 them**, and all thirteen were in the first twenty-five seconds while the lines
-were signing in. After that, nothing. `wallet-reads.md` has the safeguards.
+were signing in. After that, nothing. `../wallets/wallet-reads.md` has the safeguards.
 
 What is left is their positions and balances, which the engine still needs for
 every decision. One successful answer now covers five seconds of engine passes,
@@ -241,7 +241,7 @@ with no engine running beside it still trades. That nudge takes the engine's
 lock for one pass and lets it go. It used to open a brand-new database
 connection to do so, which cost half a second each time before any work
 started. It now borrows one kept-warm connection, and an account with no live
-wallet that has a key never touches the lock at all. `dashboard-speed.md` has
+wallet that has a key never touches the lock at all. `../engine/dashboard-speed.md` has
 the numbers.
 
 ## When one smart order keeps failing

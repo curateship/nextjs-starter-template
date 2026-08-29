@@ -47,7 +47,7 @@ export function InspectorCard({
       open={open}
       onOpenChange={setOpen}
       className={cn(
-        "group/card rounded-lg border border-foreground/5 bg-muted/40 p-4",
+        "group/card rounded-lg border bg-muted/40 p-4",
         // Fields sit on the page background rather than the transparent the
         // shared Input defaults to. On a grey card, transparent means the card
         // shows through and a box you type into looks like a box you cannot.
@@ -180,7 +180,7 @@ export function ColorField({
               "size-9 rounded-lg border transition-[box-shadow,border-color] disabled:opacity-50",
               normalized === swatch.value
                 ? "border-foreground ring-2 ring-foreground/20"
-                : "border-foreground/10 hover:border-foreground/25"
+                : "hover:border-foreground/25"
             )}
             style={{ backgroundColor: swatch.value }}
           />
@@ -192,7 +192,7 @@ export function ColorField({
             "relative size-9 cursor-pointer overflow-hidden rounded-lg border transition-colors",
             custom
               ? "border-foreground ring-2 ring-foreground/20"
-              : "border-foreground/10 hover:border-foreground/25",
+              : "hover:border-foreground/25",
             disabled && "pointer-events-none opacity-50"
           )}
           style={{ backgroundColor: custom ? value : undefined }}

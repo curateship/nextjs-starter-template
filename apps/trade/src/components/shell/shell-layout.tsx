@@ -22,11 +22,13 @@ import {
   canSeeShellEntry,
   createDefaultShellConfig,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
+  getBorderStyleVars,
   getModalStyleVars,
   isActiveShellHref,
   isShellEntryNamed,
   isShellEntryVisible,
   isShellItem,
+  BORDER_STYLE_VAR_NAMES,
   MODAL_STYLE_VAR_NAMES,
   normalizeAutomationPause,
   normalizeMaintenance,
@@ -40,6 +42,7 @@ import {
   type ShellItem,
   type ShellMaintenance,
   type ShellModalStyling,
+  type ShellStyling,
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
@@ -184,6 +187,7 @@ export function ShellLayout({
   useShellDocumentTitle(config.appName)
   useShellFavicon(config.favicon)
   useModalStyleVars(config.styling.modal)
+  useBorderStyleVars(config.styling)
 
   React.useEffect(() => {
     if (lastSettingsRef.current === settings) {
@@ -697,6 +701,29 @@ function useModalStyleVars(modal: ShellModalStyling) {
       }
     }
   }, [modal])
+}
+
+// Popovers, dropdown menus, selects, sheets, and toasts also portal to
+// document.body, so the border settings are applied the same way: as CSS
+// variables on the document root, where the portaled layers can see them.
+function useBorderStyleVars(styling: ShellStyling) {
+  React.useEffect(() => {
+    const root = document.documentElement
+    const vars = getBorderStyleVars(styling)
+    for (const name of BORDER_STYLE_VAR_NAMES) {
+      const value = vars[name]
+      if (value === undefined) {
+        root.style.removeProperty(name)
+      } else {
+        root.style.setProperty(name, value)
+      }
+    }
+    return () => {
+      for (const name of BORDER_STYLE_VAR_NAMES) {
+        root.style.removeProperty(name)
+      }
+    }
+  }, [styling])
 }
 
 // The root route puts the saved app name in the tab title when the page loads.

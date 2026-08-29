@@ -419,7 +419,7 @@ function BracketsForm({
  * app has been given, and the words say that. Where the count starts is part
  * of the answer for the same reason: a total that begins after the position
  * opened is a smaller number than the truth, and printing it plain would be
- * the made-up figure `ui-ux.md` exists to prevent.
+ * the made-up figure `workspace/docs/screens/reading-the-figures.md` exists to prevent.
  *
  * A practice position is different in one way only: the engine charged the
  * fees itself, so it has the whole figure and nothing to qualify.

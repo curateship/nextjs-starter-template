@@ -881,7 +881,7 @@ function SmartOrderDetailsTooltip({
         side="left"
         sideOffset={8}
         collisionPadding={8}
-        className="grid w-56 max-w-[calc(100vw-1rem)] items-stretch gap-0 overflow-hidden bg-popover p-0 text-popover-foreground shadow-md ring-1 ring-foreground/10 sm:w-64 [&>span:not([role])]:hidden"
+        className="grid w-56 max-w-[calc(100vw-1rem)] items-stretch gap-0 overflow-hidden bg-popover p-0 text-popover-foreground shadow-md ring-1 ring-border sm:w-64 [&>span:not([role])]:hidden"
       >
         <div className="border-b p-2.5">
           <p className="font-medium">

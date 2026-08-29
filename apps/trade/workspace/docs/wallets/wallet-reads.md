@@ -29,8 +29,8 @@ unpriced; a zero from one that sets it true is a sale that genuinely broke
 even, and its fee is still a real loss.
 
 The rules this machinery must add up to are stated once, in
-`trading-rules.md` — that file outranks both this doc and the code. The
-request budget this all has to live inside is `hyperliquid-rate-limits.md`.
+`../rules/trading-rules.md` — that file outranks both this doc and the code. The
+request budget this all has to live inside is `../exchanges/hyperliquid-rate-limits.md`.
 
 The code lives in `src/server/trade/wallets.ts` (`loadWalletSummaries`, the
 sweep), each exchange folder's `account.ts`,
@@ -161,7 +161,7 @@ one exchange, and the poll says which. The wallet list still comes back whole,
 but the exchange figures are read only for wallets on that exchange. Before
 this, the Hyperliquid page asked Phemex, KuCoin and Aster about their wallets
 every fifteen seconds and threw the answers away. The same scope applies to
-the positions poll; `dashboard-speed.md` has the full account.
+the positions poll; `../engine/dashboard-speed.md` has the full account.
 
 **Inactive is not a failure and must never be drawn as one.** The card says
 "Not switched on" and the picker says "Inactive". Both look identical to
@@ -200,7 +200,7 @@ Two more are asked for, and neither on every read:
   them**, so only those accounts pay for them. A classic account used to read
   them on every poll and throw the answer away.
 
-`hyperliquid-rate-limits.md` has the before-and-after figures, counted.
+`../exchanges/hyperliquid-rate-limits.md` has the before-and-after figures, counted.
 
 A practice wallet costs nothing per wallet. The engine settles them together
 and asks the exchange once for every market they are collectively in — see

@@ -65,11 +65,22 @@ in `src/lib/custom-shell.tsx` and are applied by
   `src/components/shared/dashboard-card-header.tsx`. The component owns the
   57px height, 12px padding and bottom divider. Title, tab and custom
   header rows compose it instead of repeating those values.
-- Divider and frame lines are a plain `border`, `border-b`, or `border-t` with
-  no color class. They then take `--border`, which is what the Divider lines
-  setting writes. Naming a shade — `border-foreground/10`, `border-black/10` —
-  looks right at the default and then never moves when the setting changes.
+- **Every border follows the border settings in Settings → Styling. No
+  component draws its own.** Divider and frame lines are a plain `border`,
+  `border-b`, or `border-t` with no color class. They then take `--border`,
+  which is what the Divider lines setting writes. Naming a shade —
+  `border-foreground/10`, `border-foreground/5`, `border-black/10` — looks
+  right at the default and then never moves when the setting changes.
   `src/components/shared/dashboard-card-header.tsx` is the reference.
+- **Dividers run edge to edge.** A divider inside a padded container stops
+  short of the surface's edges and reads as a broken line. Pull it out to the
+  edges with negative margins matching the container's padding (`-mx-3` inside
+  `p-3`) and restore the content inset on the section itself (`px-3`). — popovers, dropdown menus,
+  selects, sheets, toasts — get the settings from CSS variables that
+  ShellLayout writes on the document root (`useBorderStyleVars`), and theme.css
+  redraws the popover and dropdown hairline from the card border settings the
+  way it already does for modals. Do not restate a ring or border on their
+  content, and do not copy computed styles across the portal by hand.
 - Selected-state outlines and deliberate drawings, such as a measuring overlay
   or an annotation on a chart, keep their own color. Everything meant to read as
   a dividing line does not.

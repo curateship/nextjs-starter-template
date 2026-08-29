@@ -246,7 +246,7 @@ wallets being tested.
 
 The five-second rule for wallet reads is untouched: a failed read is still
 never remembered, and a stale answer is still marked as a moment old rather
-than served as fresh. See `wallet-reads.md`.
+than served as fresh. See `../wallets/wallet-reads.md`.
 
 ## The result, measured
 
@@ -262,7 +262,7 @@ than served as fresh. See `wallet-reads.md`.
 ## Where the wallet panel fits
 
 The account cards are their own spender and have their own doc:
-`wallet-reads.md`. Three calls per live wallet, every fifteen seconds, shared
+`../wallets/wallet-reads.md`. Three calls per live wallet, every fifteen seconds, shared
 through a five-second cache, and **only for wallets that are switched on** —
 reading wallets nobody was trading with was itself a cause of the refusals it
 then displayed.

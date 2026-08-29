@@ -1,0 +1,139 @@
+# Orders on the chart
+
+An order is placed by right-clicking the candles at the price you want, and
+from then on it lives on the chart as its own line with a coloured bar at the
+right-hand end.
+
+With a position open, the same menu offers Take profit when the clicked price
+is on the winning side of the entry and Stop loss when it is on the losing
+side. Stop loss draws at the clicked price as soon as it is picked, while the
+wallet saves and refreshes in the background. Take profit opens a small window
+at the clicked level, matching the limit-order window. It chooses how much of
+the still-unassigned position comes off and shows the profit at that price, so
+100% always means everything left after earlier targets. The full Stop and
+target window can hold up to three rows, with a running figure showing how much
+of the position they cover. The chart draws one labelled line for every target
+while the wallet saves in the background. The Take profit shortcut stays in
+the menu until the position has three targets. A stop already set keeps the
+Stop loss shortcut out because its chart line is the place to change it.
+
+A live take-profit or stop-loss order appears once, as its coloured target or
+stop bar. Each target label states the dollars sold and the profit at its
+price. This includes a grid's own STOP LOSS line. The chart does not draw the
+exchange's copy of that order as a second gray Sell bar.
+
+The Entry line, border and name are chart blue. Its current dollar profit is
+green and its loss is red; exactly zero stays blue. The figure updates with the
+market price and stays out until a price has arrived, rather than showing a
+made-up zero. The bar does not borrow the account accent, so changing the theme
+cannot turn the entry into the colour of some other kind of line.
+
+A position's stop can be dragged past its entry after price moves in the
+trade's favour. This trailing stop protects profit. It must remain below the
+current price for a long, or above the current price for a short, so setting it
+does not close the position immediately.
+
+- **A waiting order shows its stop and its target too**, in the same green and
+  red as a position's but in a finer dash — they are where the trade will get
+  out once the order fills, which is a plan rather than a fact. The bar says
+  what each would pay in dollars if it got there. Neither can be dragged: they
+  hang off the order's price, so the order's own window is where they change.
+- **Pressing a waiting order's bar opens that window** — how much the order is
+  for, and where it gets out. Not its price: the price is the line, and you
+  drag it. The window shows what the size costs in dollars and how much of your
+  own cash is behind it, and the same window is what the ⚙ on the bar means.
+- **Placing an order does not wait for the exchange.** The window shuts on the
+  press and the order is drawn on the chart at once, labelled "sending" until
+  the answer lands — a second or two later. A "sending" line has no × and
+  cannot be dragged; there is nothing on the server yet to change.
+- **Nothing is announced when it works.** No toast for placing an order and
+  none for cancelling one: the line appearing and the line disappearing is the
+  answer, and a toast on every click of a trading screen is noise. Refusals
+  still speak up, and so does the one case that must never pass quietly — a
+  real order that went on without the protection asked for.
+
+### Buying more of what a position holds
+
+Every position row carries a **+** button beside its cog, labelled "Add to the
+BTC position". One press does what used to take five: it charts that coin,
+switches the traded wallet to that row's wallet, and opens the same order window
+a right-click opens, over today's price, on that position's side. The size box
+is the only thing left to fill in, and it starts empty and focused.
+
+- **The chart and the wallet both move before the window opens.** Two wallets
+  can hold the same coin, and a window that opened before the switch landed
+  would put the order on the wallet you were looking at rather than the one you
+  pressed — which is the mistake this button exists to remove. The window also
+  names the wallet inside itself, so a wrong one is readable before the press.
+- **Adding never changes leverage.** The window shows the position's own
+  leverage as a line and offers no slider. `placeLiveOrder` sends null for
+  leverage and margin mode whenever a position already exists, and the exchange
+  keeps what it has, so a slider here would be a promise the order cannot keep.
+- **The window says what it is adding to, and what the position becomes**:
+  "Adding to $500 long in Main wallet, at 3× leverage. After this order: $750 at
+  an average of $98." Both figures are what was paid, never what it is worth
+  today, so $500 plus $250 reads as $750 and the average is a number anybody can
+  check. It re-reads itself as the size is typed.
+- **A position that closes under the window takes the window with it.** The
+  window is looking at what that position IS, resolved live, not at a copy of
+  what it was when the button was pressed.
+- **It refuses out loud rather than doing nothing.** A wallet that is switched
+  off, a live wallet with no trading key, and a market the exchange has stopped
+  listing each say so and nothing moves.
+- **Nothing about the order path changes.** It is placed exactly as the
+  right-click window places one: a watched trigger by default, resting only if
+  Settings say so, chasing as a maker when price reaches it. There is
+  deliberately no "double it" press that skips the window — the window is where
+  the size is chosen and where the real-money check happens.
+
+### Selling part of a position
+
+The bin on a position row opens a window asking how much comes off, in dollars
+or in coins, with 25%, 50% and All of it as presses that fill the box. It starts
+on all of it, so the old one-press behaviour needs nothing filled in.
+
+- **All of it and part of it are sold differently, and the window says which.**
+  All of it is a market order. A part is a reduce-only limit that follows the
+  price and never pays the spread, which is what the trading rules ask of a
+  close.
+- **It says what happens to the rest**, in dollars, including where its stop
+  is. A refused amount says why above the button, with the box outlined.
+- **An amount leaving less than the exchange's smallest order sells all of it.**
+  A scrap under the floor could never be closed again. See `../orders/part-close.md`.
+
+### Leverage and the cash behind a position
+
+Every position row also carries a gauge button, labelled "Change the BTC
+leverage and margin". It opens a window with two boxes, each with its own
+button: the leverage the position runs on, and how much of your own cash is
+behind it.
+
+- **The button is hidden where the exchange allows neither**, and the window
+  says the exchange's own reason for the half it cannot do. Hyperliquid allows
+  both today; Aster allows leverage but will not lower it while a position is
+  open; Phemex and KuCoin allow neither yet.
+- **The liquidation figure on the window is this app's estimate and says so.**
+  What the row shows afterwards is the exchange's own figure, read back —
+  nothing about the change is written down here.
+- **Taking margin out is refused when it would bring liquidation inside the
+  stop**, with both prices in the sentence. Already being inside is not the
+  same as being brought inside, and only the second is refused.
+- **A practice wallet is refused rather than faked.** The practice engine has no
+  lender to renegotiate with, and the window says that instead of drawing boxes
+  that would pretend otherwise. See `../wallets/position-margin.md`.
+
+## Which chart line wins an overlap
+
+Nothing wins — they move apart. A grid level at the entry price used to stamp
+its money chip on top of the Entry pill's words, and whichever layer painted
+last hid the other; two things in one spot cannot be fixed by stacking. So the
+grid hands the trade-lines layer a map of its right-edge chips
+(`gridLineObstacles`), and a position's pills slide LEFT of them the same way
+they already slide left of each other. Both stay readable, and the pill keeps
+its ×, gear and drag reachable.
+
+The render order is the backstop for anything the map does not cover:
+indicators, then paint tools, then ladders and grids, then the position's own
+lines, then journal marks — so a residual overlap still leaves the pills, the
+lines a hand acts on, on top.
+

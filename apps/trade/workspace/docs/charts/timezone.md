@@ -6,8 +6,9 @@ a trading session starts.
 
 ## Where it is set
 
-The eye beside the Indicators menu — **View options** — has a **Timezone**
-picker under the show-and-hide boxes. Nine zones: UTC, New York, Chicago,
+The eye beside the Indicators menu — the **View options** dropdown — has a
+**Timezone** picker under the show-and-hide boxes, and the choice lands as soon
+as it is picked. Nine zones: UTC, New York, Chicago,
 London, Frankfurt, Dubai, Hong Kong, Tokyo, Sydney. UTC to begin with.
 
 The choice is saved against the account, not the browser, so the chart opens on

@@ -6,7 +6,7 @@ start placing anything. This doc says how that works, what dragging does for
 each kind of order, and what the trade-offs are.
 
 The rules this machinery must add up to are stated once, in
-`trading-rules.md` — that file outranks both this doc and the code.
+`../rules/trading-rules.md` — that file outranks both this doc and the code.
 
 The code lives in `src/lib/trade/order-style.ts` (the setting),
 `src/lib/trade/watch-order.ts` (what a watched level is),
@@ -123,7 +123,7 @@ message says why.
     and only a straight answer that the old order has gone buys silence. An
     exchange that will not say is not an exchange saying no.
 
-  `trading-rules.md` states what the doubled moment can cost in dollars. It
+  `../rules/trading-rules.md` states what the doubled moment can cost in dollars. It
   used to be the other way round — cancel first, place second — and the moment
   in the middle was a level with nothing on it, which is the moment a fall can
   reach it.
@@ -144,7 +144,7 @@ built in `use-trading.ts`, so they can never disagree.
   is the only one of the three that answers "what am I waiting on across all my
   coins" without changing market. Each market appears once. When several
   orders wait on the same market, the row shows the order nearest today's
-  price. `ui-ux.md` has the rest of its rules.
+  price. `../screens/rules-everywhere.md` has the rest of its rules.
 
 It is deliberately NOT in the Smart orders panel beside the wallets. That panel
 is for strategies being worked — a ladder, a grid — and a plain order waiting

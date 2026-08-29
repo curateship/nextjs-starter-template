@@ -13,7 +13,7 @@ This is the part worth understanding, because it is not a detail.
   for.
 - **A part is a limit order that follows the price.** It rests just off the
   market, never crosses it, and moves as the price moves until it fills. That
-  is what `trading-rules.md` asks of a close, and taking some profit off a
+  is what `../rules/trading-rules.md` asks of a close, and taking some profit off a
   winner is exactly the case where it matters: the trade is going your way,
   there is no hurry, and the spread is money.
 

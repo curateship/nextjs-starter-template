@@ -60,7 +60,7 @@ panel and the bottom panel — the chart is the odd one out.
 
 ## Rules
 
-- Follow Ui Ux design at workspace/docs/ui-ux.md
+- Follow Ui Ux design at workspace/docs/charts/
 - Use .agents/skills/audit-change to follow coding standards
 - Don't make assumptions. If not clear, use @.agents/skills/interview-me
 - For big changes use skill @.agents/skills/validate-live

@@ -81,5 +81,5 @@ absolute: never start a dev server, and never call browser work done without
 opening it in a real browser through the `validate-app` skill.
 
 For tests, `npm run test:app` is the suite for audits and pre-commit checks in
-this app. `workspace/docs/running-tests-fast.md` says what it skips and when
+this app. `workspace/docs/app/running-tests-fast.md` says what it skips and when
 the full `npm run test` still runs.

@@ -235,7 +235,7 @@ function PaletteCard({
           // has to survive a screen that cannot draw the grey.
           selected
             ? "border-primary/50 bg-muted/40"
-            : "border-foreground/5",
+            : "border-border",
           onAction && "pr-10"
         )}
       >
@@ -401,7 +401,7 @@ function TemplatesTab({
         </div>
       </ScrollArea>
 
-      <div className="shrink-0 border-t border-foreground/10 p-3">
+      <div className="shrink-0 border-t p-3">
         <DisabledReason
           disabled={!hasBlocks}
           reason="Add something to the email first — there is nothing to save yet."

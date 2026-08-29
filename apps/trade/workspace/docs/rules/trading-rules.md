@@ -8,8 +8,8 @@ so a change to the mechanism cannot quietly change the rule.
 
 Most of these were learned the hard way on 18 Aug 2026, when several of them
 turned out to live nowhere but in timing, comments, or nobody's head. The
-mechanism docs — `watched-orders.md`, `backtest-minute-zoom.md` and
-`wallet-reads.md` — say how the machinery works; this file says what it must
+mechanism docs — `orders/watched-orders.md`, `backtests/minute-zoom.md` and
+`wallets/wallet-reads.md` — say how the machinery works; this file says what it must
 add up to.
 
 ## Exchange connections
@@ -90,7 +90,7 @@ add up to.
   target list is shortened to what will be left before the close is placed.
   The nearest targets stay first, and the last kept target is brought down when
   needed. Closing the WHOLE position keeps its own behaviour and is still a
-  market order. See `part-close.md`.
+  market order. See `orders/part-close.md`.
 - **A remainder too small to be an order is not a remainder.** An amount that
   would leave less than the exchange's smallest order sells the whole position
   instead, because a scrap under the floor can never be closed again.
@@ -99,7 +99,7 @@ add up to.
   the coin that was just closed. A cancel that is refused stops the whole
   thing: nothing is sold while something is still able to buy back in. Each
   position is then sold with the same chased maker order a part close uses —
-  see `flatten-wallet.md`.
+  see `wallets/flatten-wallet.md`.
 - **Leverage and margin on an open position come from the exchange, never from
   a copy.** Changing either asks the venue and writes nothing here; the row's
   leverage, margin and liquidation price all come from the next portfolio read,
@@ -108,13 +108,13 @@ add up to.
   inside the stop.** The stop is the worst case that was agreed to, and a
   liquidation inside it replaces that worst case with a bigger one quietly.
   Already being inside is not the same as being brought inside, and only the
-  second is refused — see `position-margin.md`.
+  second is refused — see `wallets/position-margin.md`.
 - **A position never carries a stop the app cannot see.** Replacing a stop or a
   target cancels every protection order the exchange is holding on that market,
   not the two the app happens to show. A leg it cannot see is a leg it can
   never cancel, and two live stops sell the position twice: the first closes
   it, the second opens a new one the other way round. See
-  `position-protection.md`.
+  `orders/position-protection.md`.
 - **Dragging is instant on screen.** The line stays where the hand let go; the
   saving happens behind it, and a refusal puts the line back with a reason.
 - **Placing asks no second press.** The order goes on the first press and is
@@ -228,7 +228,7 @@ add up to.
   engine on older code drops the direction when it saves the plan back, then
   manages the short as a long. Deploy the engine with the app or before it,
   never the app alone; a rollback is the same hazard in reverse.
-  `grid-orders.md` has the detail.
+  `orders/grid-orders.md` has the detail.
 - **A field inside a saved smart order is never renamed.** The deployed engine
   and a developer's local copy read and write the same records at the same
   time. New code can be taught to read an old record; an old copy can never be
@@ -287,7 +287,7 @@ add up to.
 - **A read that failed is never drawn as an empty wallet.** The figures that
   last landed stay, marked as a moment old, until enough reads in a row have
   missed to say plainly that the exchange cannot be reached. The same holds
-  for positions and orders. See `wallet-reads.md`.
+  for positions and orders. See `wallets/wallet-reads.md`.
 - **The widgets start on 20 August 2026 and never move.** Tyler's words: the
   stats start from that day, so the screen said two days ago, then three, then
   four, and it keeps counting up. It is a start date, never "the last two

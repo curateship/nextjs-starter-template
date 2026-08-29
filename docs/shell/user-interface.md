@@ -5,6 +5,25 @@
 - If a required shadcn component does not exist in `src/components/ui/`, add it there first, then use it in the page/component.
 - All custom Ui changes will be in global.css and not in the Ui Component
 
+## Borders
+
+- **Every border comes from the border settings in Settings → Styling.** No
+  component names its own border shade. Divider and frame lines are a plain
+  `border` / `border-b` / `border-t` with no color class, so they take
+  `--border`, the variable the Divider lines setting writes. Card and surface
+  hairlines come from the card border width and color settings.
+- **Dividers run edge to edge.** A divider inside a padded container pulls
+  itself out to the surface's edges with negative margins matching the
+  padding, and puts the inset back on its own content, so the line never
+  floats short of the sides.
+- Floating layers that render outside the page — popovers, dropdown menus,
+  selects, sheets, toasts — used to miss those settings because the variables
+  only lived inside the page. ShellLayout now also writes them on the document
+  root (`useBorderStyleVars` in `src/components/shell/shell-layout.tsx`), and
+  `src/theme.css` redraws the popover and dropdown hairline from the card
+  border settings the same way it does for modals. A component never copies a
+  computed border across by hand.
+
 ## Workspace panels
 
 - Every panel header renders through `DashboardCardHeader` in

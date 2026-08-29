@@ -132,7 +132,7 @@ function WorkspacePanel({
         // clipping the background to the padding box lets the page background
         // show through the border strip, so the line renders exactly like
         // Card/TableSurface borders do.
-        "h-full min-h-0 overflow-hidden rounded-xl border border-foreground/10 bg-card bg-clip-padding",
+        "h-full min-h-0 overflow-hidden rounded-xl border bg-card bg-clip-padding",
         className
       )}
       {...props}
@@ -162,7 +162,7 @@ function PanelReopenTab({
       title={label}
       onClick={onClick}
       className={cn(
-        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border border-foreground/10 bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+        "absolute top-1/2 z-10 flex h-14 w-5 -translate-y-1/2 items-center justify-center border bg-card text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         side === "left"
           ? "left-0 rounded-r-lg border-l-0"
           : "right-0 rounded-l-lg border-r-0"

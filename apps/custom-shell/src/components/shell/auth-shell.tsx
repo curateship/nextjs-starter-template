@@ -53,12 +53,12 @@ export function AuthShell({
       {onSubmit ? (
         <form
           onSubmit={onSubmit}
-          className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6 shadow-sm"
+          className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm"
         >
           {body}
         </form>
       ) : (
-        <div className="w-full max-w-sm rounded-xl border border-foreground/5 bg-card p-6 shadow-sm">
+        <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-sm">
           {body}
         </div>
       )}

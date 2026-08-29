@@ -218,7 +218,7 @@ export function BroadcastStatusPanel({
               {deliveries.map((delivery) => (
                 <div
                   key={delivery.id}
-                  className="flex items-center gap-2 rounded-md border border-foreground/5 px-2 py-1.5 text-sm"
+                  className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm"
                 >
                   <span
                     className={cn(

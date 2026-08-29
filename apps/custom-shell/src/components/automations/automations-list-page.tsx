@@ -837,7 +837,7 @@ function TemplateChoiceCard({
         focusRing,
         selected
           ? "border-primary ring-3 ring-primary/15"
-          : "border-foreground/10"
+          : "border-border"
       )}
     >
       <span className="mb-1.5 flex size-7 items-center justify-center rounded-lg bg-muted text-muted-foreground">

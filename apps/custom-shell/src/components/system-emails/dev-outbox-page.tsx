@@ -140,7 +140,7 @@ export function DevOutboxPage({ emails }: { emails: DevOutboxItem[] }) {
                 title={`Email preview: ${preview.subject}`}
                 srcDoc={preview.html}
                 sandbox=""
-                className="h-[60vh] w-full rounded-lg bg-white ring-1 ring-foreground/10"
+                className="h-[60vh] w-full rounded-lg bg-white ring-1 ring-border"
               />
             ) : null}
           </DialogBody>

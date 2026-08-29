@@ -9,7 +9,7 @@ fall and is then finished, while a grid can earn on repeated crossings.
 
 Nothing rests on the exchange. A level is a price the grid is watching, and when
 price reaches it the grid trades there and then. That is the app-wide rule and
-`smart-orders-never-rest.md` covers why.
+`smart-orders.md` covers why.
 
 ## Buy the dips, or sell the rallies
 
@@ -50,7 +50,7 @@ can only fall to zero, so the most it costs you is $100. A coin you sold at
 $100 has no ceiling: at $300 you owe $200 for every $100 you sold, and with
 borrowing the exchange closes you out long before that. So a selling grid whose
 stop sits at or past the exchange's close-out price is refused before anything
-is placed, with a sentence saying what to change. `trading-rules.md` holds that
+is placed, with a sentence saying what to change. `../rules/trading-rules.md` holds that
 rule.
 
 A worked example on a $10,000 account, coin at $100:
@@ -90,7 +90,7 @@ So the engine and the app are deployed together, or the engine first, never the
 app alone. That happened on 28 Aug 2026, and selling grids have worked since. A
 rollback has the same problem in reverse. Buying grids are
 unaffected either way, because every stored plan stays in the shape every
-version reads. `trading-rules.md` carries the rule this comes from.
+version reads. `../rules/trading-rules.md` carries the rule this comes from.
 
 **Funding is not modelled.** On a real exchange a short usually collects a
 small payment every few hours from the people who are long. Nothing in the

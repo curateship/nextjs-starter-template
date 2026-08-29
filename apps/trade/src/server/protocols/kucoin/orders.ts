@@ -66,7 +66,7 @@ import { scrubbedMessage } from "@/server/protocols/scrub"
  * amend-an-order call, so moving an order is two orders' worth of work. The
  * new one goes on FIRST and the old one comes off after, so the level is
  * covered twice for a moment rather than left empty. `modify` says so where it
- * does it; `workspace/docs/trading-rules.md` states the rule and what the
+ * does it; `workspace/docs/rules/trading-rules.md` states the rule and what the
  * doubled moment can cost.
  */
 

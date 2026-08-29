@@ -129,7 +129,6 @@ export function MarketPicker({
     hoverTimer.current = setTimeout(() => setOpen(false), 220)
   }
   React.useEffect(() => clearHover, [])
-  const [borderColor, setBorderColor] = React.useState<string>()
   const [query, setQuery] = React.useState("")
   const [view, setView] = React.useState<MarketPickerView>("all")
   const [category, setCategory] = React.useState<TradFiCategory>("all")
@@ -212,13 +211,6 @@ export function MarketPicker({
     <Popover
       open={open}
       onOpenChange={(next) => {
-        if (next && triggerRef.current) {
-          setBorderColor(
-            getComputedStyle(triggerRef.current)
-              .getPropertyValue("--border")
-              .trim() || undefined
-          )
-        }
         setOpen(next)
         if (!next) {
           setQuery("")
@@ -271,12 +263,7 @@ export function MarketPicker({
           // for. Drifted over it: leave the keyboard where it was.
           if (!openedByHover.current) searchRef.current?.focus()
         }}
-        style={
-          borderColor
-            ? ({ "--border": borderColor } as React.CSSProperties)
-            : undefined
-        }
-        className="flex h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0 ring-border"
+        className="flex h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0"
       >
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="relative">

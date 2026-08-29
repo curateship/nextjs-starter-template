@@ -34,7 +34,7 @@ What Trade has added to the shell, and what each piece is for:
 | `src/server/protocols/` | The exchange side: the registry, and one folder per exchange. |
 | `src/server/trade/` | Trade's own tables and the code that touches them. |
 | `drizzle/0100_…` | Trade's own migrations, numbered from 0100. |
-| `workspace/docs/ui-ux.md` | The approved look and behaviour of every screen. |
+| `workspace/docs/screens/`, `charts/`, `orders/` | The approved look and behaviour of every screen, one file per part. |
 | `workspace/tasks/Platform/` | The task files, where decisions are recorded. |
 
 ## The protocol layer
@@ -331,7 +331,7 @@ the recovery view (`recovery-tools.md`), and automations trading real money.
   line through the chart's surface, not through the chart. The market list's
   Watch tab is already used by markets with active smart orders. Notices about
   things that already happened — a fill, a stop firing, a flow stopping on its
-  own — exist now; see `trade-notices.md`.
+  own — exist now; see `screens/notices.md`.
 - **The Canvas and the Backtest stay outside this app's exchange boundary.**
   The Canvas will hand an automation to the Backtest or to a Bot tab through a
   door, not run either itself — decided in
@@ -353,5 +353,5 @@ re-suggested.
 The task files under `workspace/tasks/` are the record: what was decided,
 when, and why, including the decisions made mid-build — finished and
 superseded ones move to `tasks/archive/`. The screen rules live in
-`workspace/docs/ui-ux.md`. When this file and a task file disagree, the task
+the docs under `workspace/docs/screens/`, `charts/` and `orders/`. When this file and a task file disagree, the task
 file is newer — fix this one.

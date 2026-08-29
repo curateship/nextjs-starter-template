@@ -82,8 +82,8 @@ still reads one page, and older pages load only when asked.
   screen matches the oldest rows in the table. Watch the poll in the network
   tab to confirm it still reads one page.
 
-- **Docs:** edit `workspace/docs/reading-the-figures.md` or the Journal section
-  of `ui-ux.md`, whichever describes the Journal tab, to say the tab shows the
+- **Docs:** edit `workspace/docs/screens/reading-the-figures.md` or the Journal section
+  of the screen docs in `workspace/docs/screens/`, whichever describes the Journal tab, to say the tab shows the
   newest page and how to reach older trades.
 
 - **Risks and open questions:** `hideLiveTrade` at `live-fills.ts:538` hides
@@ -94,7 +94,7 @@ still reads one page, and older pages load only when asked.
 
 ## Rules
 
-- Follow Ui Ux design at workspace/docs/ui-ux.md
+- Follow Ui Ux design at workspace/docs/screens/
 - Use .agents/skills/audit-change to follow coding standards
 - Don't make assumptions. If not clear, use @.agents/skills/interview-me
 - For big changes use skill @.agents/skills/validate-live

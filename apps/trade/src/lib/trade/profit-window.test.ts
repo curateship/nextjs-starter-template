@@ -80,7 +80,7 @@ describe("the profit start day", () => {
     // Tyler's rule outranks the code, so the doc has to name the day rather
     // than a count that goes stale the morning after it is written.
     const rules = readFileSync(
-      join(SRC, "..", "workspace", "docs", "trading-rules.md"),
+      join(SRC, "..", "workspace", "docs", "rules", "trading-rules.md"),
       "utf8"
     )
     expect(rules).toMatch(/20 August 2026/)

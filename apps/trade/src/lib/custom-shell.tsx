@@ -939,6 +939,43 @@ export const MODAL_STYLE_VAR_NAMES = [
   "--shell-modal-card-bg",
 ] as const
 
+/**
+ * Border CSS custom properties from the Styling settings, applied to the
+ * document root (via an effect in ShellLayout) so they reach content that
+ * portals to document.body — popovers, dropdown menus, selects, sheets, and
+ * toasts. Inside the shell subtree the same values are already set closer to
+ * the content (ShellLayout's wrapper and DashboardContent), so this only
+ * changes what the portaled layers see. Values in "default" mode are omitted
+ * so the theme's own tokens show through.
+ */
+export function getBorderStyleVars(styling: ShellStyling): Record<string, string> {
+  const vars: Record<string, string> = {
+    "--shell-card-border-width": String(
+      clampCardBorderWidth(styling.cardBorderWidth)
+    ),
+  }
+  const dividerColor = resolveBackground(styling.dividerColor, {
+    base: "--muted-foreground",
+  })
+  if (dividerColor) {
+    vars["--border"] = dividerColor
+    vars["--sidebar-border"] = dividerColor
+  }
+  const cardBorderColor = resolveBackground(styling.cardBorderColor, {
+    base: "--muted-foreground",
+  })
+  if (cardBorderColor) vars["--shell-card-border-color"] = cardBorderColor
+  return vars
+}
+
+/** The full set of border CSS variable names, used to clear stale values. */
+export const BORDER_STYLE_VAR_NAMES = [
+  "--border",
+  "--sidebar-border",
+  "--shell-card-border-width",
+  "--shell-card-border-color",
+] as const
+
 export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
   return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
     type: "builtIn" as const,

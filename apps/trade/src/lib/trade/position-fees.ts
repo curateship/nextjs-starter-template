@@ -7,7 +7,7 @@ import type { TradePosition } from "@/lib/trade/paper"
  *
  * **It is this app's count, not the exchange's figure, and the words on screen
  * have to say so.** No venue reports "fees so far on this open position", and
- * `ui-ux.md` forbids printing a figure the exchange did not state as though it
+ * `workspace/docs/screens/reading-the-figures.md` forbids printing a figure the exchange did not state as though it
  * had. What the exchange DOES report is every fill it charged us for, and this
  * adds those up. The difference matters: a fill the sweep has not brought in
  * yet is missing from the total, and the total then reads low.

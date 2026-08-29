@@ -502,7 +502,7 @@ export default function BacktestCanvasPanel({
                 />
               </div>
 
-              <div className="grid gap-1.5 border-t pt-3">
+              <div className="-mx-3 grid gap-1.5 border-t px-3 pt-3">
                 <Line
                   label="Days tested"
                   value={

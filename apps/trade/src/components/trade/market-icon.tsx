@@ -36,7 +36,7 @@ export function MarketIcon({
       // and the smallest step the scale offers is 12px, which fills the circle
       // edge to edge and reads as a word rather than a mark. Everything else
       // in `src/components/trade` takes its size from the scale; this is the
-      // exception, and it is written down in `workspace/docs/ui-ux.md`.
+      // exception, and it is written down in `workspace/docs/screens/reading-the-figures.md`.
       <span
         className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-bold text-muted-foreground"
         aria-hidden

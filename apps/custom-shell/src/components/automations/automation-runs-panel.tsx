@@ -400,7 +400,7 @@ function RunRow({
   const latestDeliveryStepIds = latestSendEmailStepIds(detail?.steps ?? [])
 
   return (
-    <div className="min-w-0 rounded-lg border border-foreground/10 bg-muted/20">
+    <div className="min-w-0 rounded-lg border bg-muted/20">
       <div className="flex min-w-0 items-center gap-2 pr-2">
         <button
           type="button"
@@ -474,7 +474,7 @@ function RunRow({
       </div>
 
       {expanded ? (
-        <div className="grid min-w-0 gap-3 border-t border-foreground/10 p-3">
+        <div className="grid min-w-0 gap-3 border-t p-3">
           {detailError ? (
             <ErrorBanner message={detailError} onRetry={() => void load()} />
           ) : !detail ? (
@@ -627,7 +627,7 @@ function ApprovalBlock({
   onDecide: (decision: "approved" | "rejected") => void
 }) {
   return (
-    <div className="grid gap-2 rounded-lg border border-foreground/10 bg-background p-3">
+    <div className="grid gap-2 rounded-lg border bg-background p-3">
       <p className="text-xs">
         <span className="font-medium">If you approve: </span>
         {detail.approval_summary?.trim() ||

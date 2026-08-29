@@ -30,7 +30,7 @@ and the "Long" badge wear green because of what they are, not because of what
 they made, so they keep their own colours and do not call this helper.
 
 **A stand-in figure is still never coloured** — see "Stand-in figures" in
-`ui-ux.md`. Colour is what makes a made-up number look real.
+`../screens/rules-everywhere.md`. Colour is what makes a made-up number look real.
 
 ## One spelling for every number
 

@@ -457,6 +457,22 @@ body:has(
     );
 }
 
+/*
+ * Popovers and dropdown menus portal to document.body like the dialog, so
+ * their hairline follows the card border settings the same way: replace the
+ * fixed ring-1 ring-foreground/10 with a width- and color-adjustable ring.
+ * Only --tw-ring-shadow is overridden so the elevation shadow (shadow-md)
+ * stays. The variables are set on the document root by ShellLayout.
+ */
+[data-slot="popover-content"],
+[data-slot="dropdown-menu-content"] {
+  --tw-ring-shadow: 0 0 0 calc(var(--shell-card-border-width, 1) * 1px)
+    var(
+      --shell-card-border-color,
+      color-mix(in oklab, var(--foreground) 10%, transparent)
+    );
+}
+
 [data-slot="dialog-content"][data-variant="default"] {
   padding: var(--shell-modal-padding, 1rem);
   gap: var(--shell-modal-padding, 1rem);

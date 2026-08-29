@@ -48,7 +48,7 @@ runs the whole 24 hours**. That last one is how the "whole day" preset is
 written down, and it is how to get a break looked for at any hour.
 
 **Every one of those times is read on the chart's own clock**, which the View
-options next door set — see `chart-timezone.md`. Put the chart on New York and
+options next door set — see `timezone.md`. Put the chart on New York and
 09:30 is the New York open. Put it on UTC and 09:30 is 09:30 UTC. The line under
 the settings always says which, in words, because the clock is the one thing
 about a session that can be wrong while every setting on the card looks right.
