@@ -8,6 +8,7 @@ import {
   dcaLevels,
   dcaParamsSchema,
   defaultDcaParams,
+  ladderPlanSchema,
   ladderBaseStopOf,
   ladderExitLevels,
   ladderFirstBuyPx,
@@ -16,6 +17,8 @@ import {
   floorSize,
   volumeCapUsd,
   sizeOneOrder,
+  MAX_BASE_STOP_RECLAIM_DAYS,
+  MAX_BASE_STOP_UNDER_PCT,
   type LadderPlan,
   type LadderRungState,
 } from "./dca"
@@ -238,6 +241,33 @@ describe("ladder plans", () => {
     // A ladder is not a grid. Reading one as the other has to fail, or a row
     // of the wrong kind would be half-obeyed by whichever engine got to it.
     expect(readSmartPlan("grid", plan)).toBeNull()
+  })
+
+  it("uses the public base-stop limits when it reads a stored plan", () => {
+    const atLimit = {
+      ...plan,
+      stopLoss: {
+        mode: "percent" as const,
+        pct: 5,
+        base: {
+          underPct: MAX_BASE_STOP_UNDER_PCT,
+          reclaimDays: MAX_BASE_STOP_RECLAIM_DAYS,
+        },
+      },
+    }
+    expect(ladderPlanSchema.safeParse(atLimit).success).toBe(true)
+    expect(
+      ladderPlanSchema.safeParse({
+        ...atLimit,
+        stopLoss: {
+          ...atLimit.stopLoss,
+          base: {
+            ...atLimit.stopLoss.base,
+            reclaimDays: MAX_BASE_STOP_RECLAIM_DAYS + 1,
+          },
+        },
+      }).success
+    ).toBe(false)
   })
 })
 

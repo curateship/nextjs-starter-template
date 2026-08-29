@@ -4,6 +4,9 @@ import type {
   LiveFigures,
   NetworkId,
 } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
 
 /**
  * Lighter's resolution names. All six app timeframes exist; Lighter also
@@ -34,14 +37,6 @@ export function lighterWsUrl(network: NetworkId): string {
  * still spends one of the 200 client messages a socket may send in a minute.
  */
 export const LIGHTER_KEEPALIVE_MS = 50_000
-
-/** A Lighter decimal — string or number — as a finite number, or null. */
-export function num(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null
-  if (typeof value !== "string" || value.trim() === "") return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 /**
  * Lighter states no tick directly; it states how many decimal places a price

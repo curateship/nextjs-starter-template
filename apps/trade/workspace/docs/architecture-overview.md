@@ -57,6 +57,9 @@ The one idea: **screens never know which exchange they are talking to.**
   `src/lib/protocols/timing.ts`. Exchanges use the shared answers unless an
   exchange supplies its own reconnect schedule. Exchanges whose legal price
   rule is a market tick also share the adapter in `src/lib/protocols/tick.ts`.
+- Exchange response translators use one number reader in
+  `src/lib/protocols/number.ts`. A finite number or a nonblank decimal string
+  is accepted. Blank text, including whitespace, is unknown on every venue.
 - Phemex and KuCoin account-change marks live in
   `src/server/protocols/touched.ts`, keyed by exchange on `globalThis`. A module
   reload keeps both marks, while clearing one in a test leaves the other alone.
@@ -251,6 +254,29 @@ but a testnet run is not required before using the mainnet connector.
   drifts from the first. Reading an account replays the candles since the last
   look and then checks every level against today's price — both halves are
   safe to run twice, which is what lets two tabs poll at once.
+
+## The large-file boundaries
+
+Two server files have clean internal boundaries now. Live ladder placement and
+reconciliation stay in `live-smart-orders.ts`. Live grid placement and grid
+edits live in `live-grid-orders.ts`. Both send work through the same per-wallet
+queue, so a grid edit cannot race a ladder pass on the same wallet.
+
+The practice wallet's database loading, saving and commands stay in `paper.ts`.
+The in-memory book and candle replay live in `paper-replay.ts`. Backtests and
+practice wallets still call the same replay functions. The replay file imports
+no database code.
+
+The next useful split in `use-trading.ts` has three parts. The hook should keep
+ownership of polling and command state. Pure code should build its derived
+rows from the latest answer. Thin command wrappers can move to a second hook.
+The existing mutation helper stays shared and unchanged.
+
+`chart-panel.tsx` needs a design decision before code moves. One owner should
+decide which dialog is open, instead of fifteen separate values that can allow
+two dialogs at once. The chart drawing half can then become a separate layer
+component. The current file stays intact until that dialog rule is agreed and
+covered by browser tests.
 
 ## Real orders
 

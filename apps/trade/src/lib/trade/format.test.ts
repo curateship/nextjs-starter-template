@@ -5,6 +5,7 @@ import {
   formatCompactUsd,
   formatFeeUsd,
   formatFunding,
+  formatWholeUsd,
   formatPrice,
   formatSignedUsd,
   formatSize,
@@ -46,6 +47,12 @@ describe("trade figures", () => {
     expect(formatSignedUsd(412.65)).toBe("+$412.65")
     expect(formatSignedUsd(-18.9)).toBe("-$18.90")
     expect(formatSignedUsd(0)).toBe("$0.00")
+  })
+
+  it("puts a whole-dollar loss sign before the dollar sign", () => {
+    expect(formatWholeUsd(1_250.4)).toBe("$1,250")
+    expect(formatWholeUsd(-1_250.4)).toBe("-$1,250")
+    expect(formatWholeUsd(-0.4)).toBe("$0")
   })
 })
 

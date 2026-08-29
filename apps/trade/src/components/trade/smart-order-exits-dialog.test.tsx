@@ -196,6 +196,46 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(control("grid-stop-pct").disabled).toBe(false)
 })
 
+it("keeps four-decimal fixed exits when the ladder window opens twice", async () => {
+  const fixed = {
+    ...ladder,
+    plan: {
+      ...ladder.plan,
+      takeProfit: { mode: "fixed" as const, pct: 2 },
+      stopLoss: { mode: "fixed" as const, pct: 5, base: null },
+    },
+  } as SmartLadder
+  const position = {
+    entryPx: 100,
+    tpPx: 102.34567,
+    slPx: 94.32109,
+  } as Parameters<typeof SmartLadderExitsDialog>[0]["position"]
+
+  const render = async (open: boolean) => {
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <SmartLadderExitsDialog
+            ladder={open ? fixed : null}
+            position={position}
+            busy={false}
+            onSave={async () => true}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+    })
+  }
+
+  await render(true)
+  expect((control("ladder-tp-pct") as HTMLInputElement).value).toBe("2.3457")
+  expect((control("ladder-sl-pct") as HTMLInputElement).value).toBe("5.6789")
+  await render(false)
+  await render(true)
+  expect((control("ladder-tp-pct") as HTMLInputElement).value).toBe("2.3457")
+  expect((control("ladder-sl-pct") as HTMLInputElement).value).toBe("5.6789")
+})
+
 it("edits borrowing and End Grid from the grid gear window", async () => {
   const reshape = vi.fn(async () => true)
   const setEnd = vi.fn(async () => true)

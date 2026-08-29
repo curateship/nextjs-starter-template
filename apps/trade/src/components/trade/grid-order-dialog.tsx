@@ -30,6 +30,7 @@ import {
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { marketLeverageLimit } from "@/lib/trade/leverage"
 import { BUY_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -298,10 +299,7 @@ export function GridOrderDialog({
   const below = parsed(belowPct)
   const levelCount = parsed(levels)
   const borrowing = parsed(leverage)
-  const maxBorrowing =
-    market.maxLeverage === null
-      ? 50
-      : Math.max(1, Math.min(50, Math.floor(market.maxLeverage)))
+  const maxBorrowing = marketLeverageLimit(market.maxLeverage)
   const borrowingInvalid =
     borrowing === null ||
     !Number.isInteger(borrowing) ||

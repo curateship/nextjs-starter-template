@@ -43,15 +43,10 @@ import {
   type DcaParams,
   type DcaTpMode,
 } from "@/lib/trade/dca"
+import { bracketPercent } from "@/lib/trade/brackets"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { TradePosition } from "@/lib/trade/paper"
 import { showErrorToast } from "@/lib/toast/error-toast"
-
-/** A bracket price back to its distance from the entry, for filling a box in. */
-function pctFromEntry(entryPx: number | undefined, px: number | null): number | null {
-  if (!entryPx || !(entryPx > 0) || px === null) return null
-  return Number(((Math.abs(px - entryPx) / entryPx) * 100).toFixed(2))
-}
 
 /**
  * Changing a live ladder's exits — the one edit that is always safe, because
@@ -136,19 +131,15 @@ function ExitsForm({
       : "average"
   )
   const [tpPct, setTpPct] = React.useState(
-    String(
-      (tpFixed ? pctFromEntry(position?.entryPx, position?.tpPx ?? null) : null) ??
-        plan.takeProfit?.pct ??
-        DEFAULT_DCA_TAKE_PROFIT_PCT
-    )
+    (tpFixed
+      ? bracketPercent(position?.entryPx ?? 0, position?.tpPx ?? null)
+      : "") || String(plan.takeProfit?.pct ?? DEFAULT_DCA_TAKE_PROFIT_PCT)
   )
   const [slOn, setSlOn] = React.useState(plan.stopLoss !== null)
   const [slPct, setSlPct] = React.useState(
-    String(
-      (slFixed ? pctFromEntry(position?.entryPx, position?.slPx ?? null) : null) ??
-        plan.stopLoss?.pct ??
-        DEFAULT_DCA_STOP_LOSS_PCT
-    )
+    (slFixed
+      ? bracketPercent(position?.entryPx ?? 0, position?.slPx ?? null)
+      : "") || String(plan.stopLoss?.pct ?? DEFAULT_DCA_STOP_LOSS_PCT)
   )
   const [baseOn, setBaseOn] = React.useState(plan.stopLoss?.base != null)
   const [baseUnderPct, setBaseUnderPct] = React.useState(

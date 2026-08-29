@@ -1,4 +1,7 @@
 import type { LiveFigures, MarketCategory } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
 
 /**
  * The pure translation rules both halves of the Hyperliquid module share —
@@ -9,12 +12,6 @@ import type { LiveFigures, MarketCategory } from "@/lib/protocols/contracts"
  * Nothing here touches the exchange package or the network; it is data in,
  * data out, and safe everywhere.
  */
-
-/** A figure the exchange sent as a decimal string, or null if it was junk. */
-export function num(value: string): number | null {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 /**
  * The one rule for a market's id across venues: sub-exchange assets arrive

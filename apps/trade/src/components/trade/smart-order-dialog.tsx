@@ -44,6 +44,7 @@ import {
   baseStopDetection,
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { marketLeverageLimit } from "@/lib/trade/leverage"
 import { BUY_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
@@ -333,11 +334,12 @@ export function SmartOrderDialog({
     baseReclaimDays,
   ])
   const borrowing = parsed(leverage)
+  const maxBorrowing = marketLeverageLimit(market.maxLeverage)
   const borrowingInvalid =
     borrowing === null ||
     !Number.isInteger(borrowing) ||
     borrowing < 1 ||
-    borrowing > 50
+    borrowing > maxBorrowing
 
   // The click stands in for the base until the base read lands, so the rungs
   // draw in the same frame the window opens. Placing still waits for the real
@@ -384,13 +386,15 @@ export function SmartOrderDialog({
     ? "This market has no confirmed base yet, and the ladder hangs from one. Point it at the clicked price in Advanced settings, or wait for the chart to mark a base."
     : underBase
       ? `Price is already under the base at ${formatPrice(basePx as number)}, so that level has gone. The ladder starts when price is at or above a base and buys the fall from there.`
-      : !params
-        ? "A number here does not make sense yet — every step needs to be between 0 and 99."
-        : plan && plan.tooSmallIndex !== null
-          ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
-          : plan && plan.totalCost > free
-            ? `The ladder costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
-            : null
+      : borrowingInvalid
+        ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
+        : !params
+          ? "A number here does not make sense yet — every step needs to be between 0 and 99."
+          : plan && plan.tooSmallIndex !== null
+            ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
+            : plan && plan.totalCost > free
+              ? `The ladder costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
+              : null
 
   const ready =
     (anchor === "click" || baseRead) &&

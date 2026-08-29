@@ -4,6 +4,9 @@ import type {
   LiveFigures,
   NetworkId,
 } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
 
 /** Aster uses Binance-style interval names, and all six app intervals exist. */
 export const ASTER_INTERVALS: Record<CandleInterval, string> = {
@@ -19,14 +22,6 @@ export function asterWsUrl(network: NetworkId): string {
   return network === "testnet"
     ? "wss://fstream5.asterdex-testnet.com/ws"
     : "wss://fstream.asterdex.com/ws"
-}
-
-/** An Aster decimal as a finite number, or null when it cannot be trusted. */
-export function num(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null
-  if (typeof value !== "string" || value.trim() === "") return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 /**

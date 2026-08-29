@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest"
  * rung, on every pass. It used to be answered by walking the whole book each
  * time, which on a replay of 500 coins came to about fifty billion reads and
  * turned a two-minute run into twenty. Now the answer is worked out once and
- * kept until the book actually changes — see `liveOrderIds` in `paper.ts`.
+ * kept until the book actually changes. See `liveOrderIds` in
+ * `paper-replay.ts`.
  *
  * Keeping it depends on one thing: **anything that adds or removes an order
  * bumps `ordersVersion`.** Miss that once and a ladder reads a list of orders

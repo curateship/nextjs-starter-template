@@ -624,8 +624,8 @@ const ladderTakeProfitSchema = z.object({
  * base" is the shape of every bug in this area so far.
  */
 const ladderBaseStopSchema = z.object({
-  underPct: z.number().min(0).max(50),
-  reclaimDays: z.number().min(0).max(90),
+  underPct: z.number().min(0).max(MAX_BASE_STOP_UNDER_PCT),
+  reclaimDays: z.number().min(0).max(MAX_BASE_STOP_RECLAIM_DAYS),
 })
 
 type LadderBaseStop = z.infer<typeof ladderBaseStopSchema>

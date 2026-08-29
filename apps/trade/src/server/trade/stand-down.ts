@@ -1,9 +1,7 @@
 import { laddersAndGridsYouPlaced } from "@/lib/trade/smart-plan"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import {
-  cancelLiveGridRest,
-  cancelLiveLadderRest,
-} from "@/server/trade/live-smart-orders"
+import { cancelLiveGridRest } from "@/server/trade/live-grid-orders"
+import { cancelLiveLadderRest } from "@/server/trade/live-smart-orders"
 import { cancelGridRest as cancelGridRestRows } from "@/server/trade/grid-orders"
 import {
   cancelLadderRest as cancelRestRows,

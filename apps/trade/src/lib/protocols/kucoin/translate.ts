@@ -3,6 +3,9 @@ import type {
   CandleInterval,
   LiveFigures,
 } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
 
 /**
  * Pure translation between KuCoin's words and the app's, shared by the server
@@ -16,14 +19,6 @@ import type {
  * the conversion rounds DOWN: an order for slightly less than the app asked
  * is a smaller trade, where rounding up would spend money nobody offered.
  */
-
-/** A KuCoin decimal — sometimes a string, sometimes a number — or null. */
-export function num(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null
-  if (typeof value !== "string" || value === "") return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
 
 /**
  * The exchange's kline granularity for each chart timeframe, in MINUTES.

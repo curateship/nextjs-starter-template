@@ -1,5 +1,8 @@
 import { cn } from "@/lib/utils"
+import { formatWholeUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
+
+export { formatWholeUsd as usd } from "@/lib/trade/format"
 
 /**
  * One headline figure: a label, the number, and the quiet line under it saying
@@ -76,8 +79,6 @@ export function signedPct(value: number): string {
   return `${value >= 0 ? "+" : "-"}${roundedPct(Math.abs(value))}`
 }
 
-const WHOLE_USD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
-
 /**
  * "$111,782" / "-$1,250" — whole dollars, always.
  *
@@ -91,19 +92,11 @@ const WHOLE_USD = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
  * pot in the tens of thousands, forty-five cents is nothing, and the colour of
  * the figure already says which way it went.
  */
-export function usd(value: number): string {
-  const whole = Math.round(Math.abs(value))
-  // No sign on a rounded-away figure. Forty-five pence lost is "$0", never
-  // "-$0", which reads as a broken minus rather than as nothing.
-  const sign = whole > 0 && value < 0 ? "-" : ""
-  return `${sign}$${WHOLE_USD.format(whole)}`
-}
-
 /** The same, with its sign always shown — "+$111,782". */
 export function signedUsd(value: number): string {
   const whole = Math.round(Math.abs(value))
-  if (whole === 0) return usd(0)
-  return `${value > 0 ? "+" : ""}${usd(value)}`
+  if (whole === 0) return formatWholeUsd(0)
+  return `${value > 0 ? "+" : ""}${formatWholeUsd(value)}`
 }
 
 /** The same rounding without a sign in front — "22%", "0.2%". */

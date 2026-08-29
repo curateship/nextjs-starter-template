@@ -61,7 +61,9 @@ export function formatUsdRounded(value: number): string {
  * $20 stake from a $1,000 one; the Watched tab asked for its cents gone.
  */
 export function formatWholeUsd(value: number): string {
-  return `$${USD_WHOLE.format(value)}`
+  const whole = Math.round(Math.abs(value))
+  const sign = whole > 0 && value < 0 ? "-" : ""
+  return `${sign}$${USD_WHOLE.format(whole)}`
 }
 
 /**

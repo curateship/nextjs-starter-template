@@ -3,6 +3,9 @@ import type {
   CandleInterval,
   LiveFigures,
 } from "@/lib/protocols/contracts"
+import { num } from "@/lib/protocols/number"
+
+export { num } from "@/lib/protocols/number"
 
 /**
  * Pure translation between Phemex's words and the app's, shared by the
@@ -28,14 +31,6 @@ export function phemexWsUrl(network: "mainnet" | "testnet"): string {
   // and from the server alike — so Phemex prices never streamed at all, and
   // every screen quietly fell back to asking again every few seconds.
   return "wss://ws.phemex.com"
-}
-
-/** A Phemex decimal — a string most of the time — as a number, or null. */
-export function num(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null
-  if (typeof value !== "string" || value === "") return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
 }
 
 /**
