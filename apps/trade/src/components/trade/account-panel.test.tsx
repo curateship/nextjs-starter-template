@@ -192,7 +192,7 @@ describe("the active wallet picker", () => {
 })
 
 describe("wallet management in the chart header", () => {
-  it("opens the tabs, totals answered wallets, and adds from the footer", async () => {
+  it("opens the tabs and adds from the plus in the tab row", async () => {
     const onAddWallet = vi.fn()
     const onOpenWalletDetails = vi.fn()
     const account: TradeAccount = {
@@ -226,7 +226,8 @@ describe("wallet management in the chart header", () => {
     await act(async () => trigger?.click())
 
     expect(document.body.textContent).toContain("ActiveAllInactive")
-    expect(document.body.textContent).toContain("$15,300.00+$275.00")
+    // No footer any more: no total across wallets in the menu.
+    expect(document.body.textContent).not.toContain("$15,300.00")
     expect(
       document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')
         ?.className
@@ -244,8 +245,8 @@ describe("wallet management in the chart header", () => {
     expect(
       document.body.querySelector('[data-slot="popover-content"]')
     ).not.toBeNull()
-    const add = [...document.body.querySelectorAll<HTMLElement>("button")].find(
-      (button) => button.textContent?.includes("Add wallet")
+    const add = document.body.querySelector<HTMLElement>(
+      'button[aria-label="Add wallet"]'
     )
     await act(async () => add?.click())
     expect(onAddWallet).toHaveBeenCalledOnce()

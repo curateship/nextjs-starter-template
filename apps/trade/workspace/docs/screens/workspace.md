@@ -88,8 +88,9 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   button. A fresh mainnet wallet does not repeat its exchange, connection state
   or a Real chip. A failed or old read still says what is wrong beside its dot.
   All and Inactive use the same row grid, selector size, figures and three-dot
-  placement. The total of active wallets that answered and Add wallet sit in
-  the menu footer.
+  placement. The menu has no footer: Add wallet is a grey square plus button
+  at the right end of the tab row, wearing the same muted grey as the chart
+  header's own icon buttons.
   Every three-dot button opens the same wallet details window. The window shows
   the key-expiry notice, Free, In trades, margin health and profit figures. It
   ends with Empty wallet and Edit wallet. Edit closes the details window before

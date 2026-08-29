@@ -166,7 +166,8 @@ PnL is the profit or loss on what the smart order still holds. Banked is the
 money from sales that have finished. Banked has no icon, and $0.00 stays visible
 before the first sale.
 
-Pointing at the ticker icon opens the smart order's details. Keyboard focus
+Pointing at the ticker icon or the ticker name opens the smart order's
+details — the hover target is the whole icon-and-name pair. Keyboard focus
 opens the same tooltip. The card is 224px wide on the phone sheet and 256px on
 larger screens. It stays centered beside the icon and keeps an 8px boundary
 from the viewport, so it does not take over the chart or clip. The details card

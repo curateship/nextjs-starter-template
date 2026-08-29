@@ -692,25 +692,31 @@ export function WalletMenuContent({
   const inactiveWallets = shownWallets.filter(
     (wallet) => wallet.status === "inactive"
   )
-  const totals = activeWallets.reduce(
-    (sum, wallet) => {
-      const summary = shownSummaryOf(wallet.id)
-      if (summary?.state !== "ok") return sum
-      sum.wallets += 1
-      sum.equity += summary.equity
-      sum.madeOrLost += summary.madeOrLost
-      return sum
-    },
-    { wallets: 0, equity: 0, madeOrLost: 0 }
-  )
-
   return (
     <Tabs
       value={tab}
       onValueChange={(value) => setTab(value as "active" | "all" | "inactive")}
       className="min-w-0 gap-0 overflow-hidden bg-popover"
     >
-      <DashboardCardTabsHeader>
+      <DashboardCardTabsHeader
+        action={
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Add wallet"
+                className="bg-muted/60 dark:bg-muted/60"
+                onClick={onAddWallet}
+              >
+                <PlusIcon className="size-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Add wallet</TooltipContent>
+          </Tooltip>
+        }
+      >
         <DashboardCardTab
           value="active"
           icon={<CreditCardIcon className="size-4" />}
@@ -791,23 +797,6 @@ export function WalletMenuContent({
           )}
         </ScrollArea>
       </TabsContent>
-      <div className="flex min-h-14 items-center gap-2 border-t px-3">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <span className="font-mono text-base font-semibold tabular-nums">
-            {totals.wallets > 0 ? formatUsd(totals.equity) : "—"}
-          </span>
-          {totals.wallets > 0 ? (
-            <SignedUsd
-              value={totals.madeOrLost}
-              className="font-mono text-sm"
-            />
-          ) : null}
-        </div>
-        <Button type="button" className="ml-auto" onClick={onAddWallet}>
-          <PlusIcon className="size-4" />
-          Add wallet
-        </Button>
-      </div>
     </Tabs>
   )
 }

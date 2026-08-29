@@ -245,7 +245,7 @@ async function openBots(host: HTMLElement) {
 
 async function openSmartOrderDetails(host: HTMLElement, symbol = "XMR") {
   const trigger = host.querySelector<HTMLButtonElement>(
-    `button[aria-label="${symbol} smart order details"]`
+    `[aria-label="${symbol} smart order details"]`
   )
   await act(async () => {
     document.dispatchEvent(
@@ -500,7 +500,7 @@ describe("the Smart orders panel", () => {
     await act(async () => root.unmount())
   })
 
-  it("draws three sortable columns and puts details on the ticker icon", async () => {
+  it("draws three sortable columns and puts details on the ticker icon and name", async () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
@@ -554,12 +554,14 @@ describe("the Smart orders panel", () => {
     })
     expect(rowTickers()).toEqual(["BTC", "XMR"])
     const details = host.querySelector(
-      'button[aria-label="XMR smart order details"]'
+      '[aria-label="XMR smart order details"]'
     )
     expect(
       host.querySelector('[data-slot="dashboard-card-header"]')?.className
     ).toContain("min-h-[var(--dashboard-card-header-height)]")
-    expect(details?.textContent).toBe("X")
+    // The hover target is the icon and the ticker name together, so the
+    // details trigger holds the icon's letter and the symbol.
+    expect(details?.textContent).toBe("XXMR")
     expect(host.textContent).toContain("$0.00")
     expect(host.querySelector(".lucide-piggy-bank")).toBeNull()
     expect(host.querySelector(".lucide-ellipsis-vertical")).toBeNull()

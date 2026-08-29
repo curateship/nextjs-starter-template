@@ -10,6 +10,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
@@ -263,7 +264,9 @@ export function MarketPicker({
           // for. Drifted over it: leave the keyboard where it was.
           if (!openedByHover.current) searchRef.current?.focus()
         }}
-        className="flex h-[min(72vh,640px)] w-[min(94vw,960px)] max-w-none flex-col gap-0 overflow-hidden rounded-xl p-0"
+        // `w-max` hugs the table's own width — the columns say how wide the
+        // window is, capped only by the viewport.
+        className="flex h-[min(72vh,640px)] w-max max-w-[94vw] flex-col gap-0 overflow-hidden rounded-xl p-0"
       >
         <div className="flex flex-col gap-3 border-b p-3">
           <div className="relative">
@@ -312,22 +315,21 @@ export function MarketPicker({
         ) : null}
 
         {/*
-         * The list scrolls in its own box rather than a `ScrollArea`, and that
-         * is what makes the heading stay put.
-         *
-         * `Table` always wraps itself in a sideways-scrolling box, and a box
-         * that scrolls sideways is what a sticky heading inside it sticks to.
-         * Wrapped in a `ScrollArea`, that box was 10,889px tall and never
-         * scrolled, so the heading had nothing to stick to and scrolled away
-         * with the rows — measured on Hyperliquid's 1,300 markets. Giving that
-         * same box the height makes one box scroll both ways, which is what
-         * `Table`'s own note says to do, and the heading sticks to it.
+         * The `ScrollArea` viewport is the one box that scrolls both ways, so
+         * the sticky heading sticks to it. `Table`'s own sideways-scrolling
+         * container is switched off (`overflow-visible`) — two nested scroll
+         * boxes was what once left the viewport 10,889px tall with a heading
+         * that scrolled away. Same shape as `TradeTablePanel`.
          */}
-        <Table
+        <ScrollArea
           // Not `flex-1`: it shrinks to whatever room is left and scrolls, but
           // it never stretches past its rows, so "No matching markets" stays
           // under the heading instead of at the bottom of an empty window.
-          containerClassName="min-h-0"
+          className="min-h-0"
+          viewportClassName="h-full"
+        >
+        <Table
+          containerClassName="overflow-visible"
           className="min-w-[760px] text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3"
         >
           {/* Opaque, because rows now slide underneath it: the muted tint is
@@ -394,6 +396,8 @@ export function MarketPicker({
               ))}
             </TableBody>
         </Table>
+        <ScrollBar orientation="horizontal" />
+        </ScrollArea>
         {visible.length === 0 ? (
           <div className="p-8 text-center text-xs text-muted-foreground">
             No matching markets.

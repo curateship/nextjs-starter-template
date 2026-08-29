@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client"
 import { expect, it, vi } from "vitest"
 
 import { WalletMenuContent } from "@/components/trade/account-panel"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import type { TradeAccount } from "@/components/trade/use-trade-account"
 import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
 
@@ -47,12 +48,14 @@ it("uses cached wallets only to draw while the real account is loading", async (
 
   await act(async () => {
     root.render(
-      <WalletMenuContent
-        account={account}
-        cacheScope="person:hyperliquid"
-        onAddWallet={() => {}}
-        onOpenWalletDetails={() => {}}
-      />
+      <TooltipProvider>
+        <WalletMenuContent
+          account={account}
+          cacheScope="person:hyperliquid"
+          onAddWallet={() => {}}
+          onOpenWalletDetails={() => {}}
+        />
+      </TooltipProvider>
     )
   })
 

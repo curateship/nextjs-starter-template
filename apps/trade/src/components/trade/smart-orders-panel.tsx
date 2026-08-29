@@ -738,19 +738,19 @@ function SmartOrdersView({
                                   markets.get(order.marketKey)?.iconUrl ?? null
                                 }
                               />
+                              <button
+                                type="button"
+                                onClick={() => onSelectMarket(order.marketKey)}
+                                className={cn(
+                                  "min-w-0 flex-1 rounded-sm text-left",
+                                  focusRing
+                                )}
+                              >
+                                <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">
+                                  {marketSymbol(order.marketKey)}
+                                </span>
+                              </button>
                             </SmartOrderDetailsTooltip>
-                            <button
-                              type="button"
-                              onClick={() => onSelectMarket(order.marketKey)}
-                              className={cn(
-                                "min-w-0 flex-1 rounded-sm text-left",
-                                focusRing
-                              )}
-                            >
-                              <span className="min-w-0 truncate text-xs font-semibold sm:text-sm">
-                                {marketSymbol(order.marketKey)}
-                              </span>
-                            </button>
                           </div>
                           {order.plan.paused ? (
                             <span
@@ -869,13 +869,19 @@ function SmartOrderDetailsTooltip({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          className={cn("inline-flex shrink-0 rounded-full", focusRing)}
+        {/* A span, not a button: the ticker inside is already a button that
+            switches the chart, and a button may not hold another button. It
+            keeps a tab stop so the details still open from the keyboard. */}
+        <span
+          tabIndex={0}
           aria-label={`${marketSymbol(order.marketKey)} smart order details`}
+          className={cn(
+            "flex min-w-0 flex-1 items-center gap-1 rounded-sm",
+            focusRing
+          )}
         >
           {children}
-        </button>
+        </span>
       </TooltipTrigger>
       <TooltipContent
         side="left"

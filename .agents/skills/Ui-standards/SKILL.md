@@ -72,6 +72,14 @@ in `src/lib/custom-shell.tsx` and are applied by
   `border-foreground/10`, `border-foreground/5`, `border-black/10` — looks
   right at the default and then never moves when the setting changes.
   `src/components/shared/dashboard-card-header.tsx` is the reference.
+- **Every scrolling box uses `ScrollArea`** from `src/components/ui/scroll-area`,
+  never a native `overflow-auto` / `overflow-y-auto` box — the native scrollbar
+  is the fat grey browser one and looks foreign next to the thin themed thumb.
+  For a table with a sticky heading, the ScrollArea viewport must be the one
+  box that scrolls both ways: switch off `Table`'s own sideways container
+  (`containerClassName="overflow-visible"`) and add
+  `<ScrollBar orientation="horizontal" />` — `TradeTablePanel` in
+  `apps/trade/src/components/trade/trade-table.tsx` is the reference.
 - **Dividers run edge to edge.** A divider inside a padded container stops
   short of the surface's edges and reads as a broken line. Pull it out to the
   edges with negative margins matching the container's padding (`-mx-3` inside
