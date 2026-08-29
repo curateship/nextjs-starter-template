@@ -87,7 +87,6 @@ import {
 } from "@/lib/feedback/feedback-type"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useListSearchNavigate, useListSort, useSearchBoxText } from "@/lib/nav/list-search"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useShellRuntime } from "@/components/shell/shell-layout"
 
 // Type-only, so nothing is imported at run time — the route imports this
@@ -160,11 +159,8 @@ export function FeedbackDashboard({
     setListSearch({ q: text.trim() ? text : undefined, page: undefined })
   )
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
-  const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [editingFeedback, setEditingFeedback] =
-    React.useState<FeedbackItem | null>(null)
-  const [viewingComments, setViewingComments] =
     React.useState<FeedbackItem | null>(null)
   const [deletingFeedback, setDeletingFeedback] =
     React.useState<FeedbackItem | null>(null)
@@ -175,9 +171,7 @@ export function FeedbackDashboard({
   const [runMassDelete, massDeleting] = useAsyncAction(getFeedbackErrorMessage)
   const [runQuickDelete, quickDeleting] = useAsyncAction(getFeedbackErrorMessage)
   const [reloadCount, setReloadCount] = React.useState(0)
-  // Flips once, when the first load lands. After that every refetch already has
-  // real numbers on screen, so the count and the footer never blank out again.
-  const [firstLoadDone, setFirstLoadDone] = React.useState(false)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
   const setOpenFeedback = React.useCallback(
     (id: string | undefined) => {
       void navigate({
@@ -194,28 +188,26 @@ export function FeedbackDashboard({
   )
   const openFeedbackComments = React.useCallback(
     (item: FeedbackItem) => {
-      setViewingComments(item)
       setOpenFeedback(item.id)
     },
     [setOpenFeedback]
   )
-
-  // A link from elsewhere opens the conversation, which is where a reply is
-  // written — it waits for the list below to arrive before it can.
-  useOpenFromLink({ openId, records: feedback, onOpen: setViewingComments })
-  React.useEffect(() => {
-    if (!openId) setViewingComments(null)
-  }, [openId])
+  const viewingComments = React.useMemo(
+    () => feedback.find((item) => item.id === openId) ?? null,
+    [feedback, openId]
+  )
+  const requestKey = `${refreshToken}:${reloadCount}`
+  const loading = loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   React.useEffect(() => {
     let active = true
-    setLoading(true)
-    setError(null)
 
     listFeedback()
       .then((data) => {
         if (!active) return
         setFeedback(data.feedback)
+        setError(null)
       })
       .catch((loadError) => {
         if (!active) return
@@ -223,18 +215,17 @@ export function FeedbackDashboard({
       })
       .finally(() => {
         if (!active) return
-        setLoading(false)
-        setFirstLoadDone(true)
+        setLoadedRequest(requestKey)
       })
 
     return () => {
       active = false
     }
-  }, [refreshToken, reloadCount])
+  }, [requestKey])
 
   // Until the first answer arrives there is no honest number to show: the list
   // is empty because nothing has come back, not because there is no feedback.
-  const countsPending = loading && !firstLoadDone
+  const countsPending = loading && loadedRequest === null
 
   const filteredFeedback = React.useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -387,10 +378,10 @@ export function FeedbackDashboard({
         icon={<MessageSquarePlusIcon className="text-muted-foreground" />}
         count={filteredFeedback.length}
         countsPending={countsPending}
-        error={
-          error
+          error={
+          visibleError
             ? {
-                message: error,
+                message: visibleError,
                 onRetry: () => setReloadCount((count) => count + 1),
               }
             : null
@@ -603,6 +594,7 @@ export function FeedbackDashboard({
         ))}
       </DashboardTable>
       <EditFeedbackModal
+        key={editingFeedback?.id ?? "closed-feedback"}
         feedback={editingFeedback}
         open={Boolean(editingFeedback)}
         onOpenChange={(open) => {
@@ -628,7 +620,6 @@ export function FeedbackDashboard({
         open={Boolean(viewingComments)}
         onOpenChange={(open) => {
           if (!open) {
-            setViewingComments(null)
             setOpenFeedback(undefined)
           }
         }}
@@ -689,23 +680,16 @@ function EditFeedbackModal({
   onDeleted: (feedbackId: string) => void
 }) {
   const [feedbackType, setFeedbackType] =
-    React.useState<FeedbackType>("suggestion")
+    React.useState<FeedbackType>(feedback?.type ?? "suggestion")
   const [feedbackStatus, setFeedbackStatus] =
-    React.useState<FeedbackStatus>("open")
-  const [feedbackTags, setFeedbackTags] = React.useState<FeedbackTag[]>([])
-  const [message, setMessage] = React.useState("")
+    React.useState<FeedbackStatus>(feedback?.status ?? "open")
+  const [feedbackTags, setFeedbackTags] = React.useState<FeedbackTag[]>(
+    feedback?.tags ?? []
+  )
+  const [message, setMessage] = React.useState(feedback?.message ?? "")
   const [run, saving] = useAsyncAction(getFeedbackErrorMessage)
   const [deleting, setDeleting] = React.useState(false)
   const [confirmingDelete, setConfirmingDelete] = React.useState(false)
-
-  React.useEffect(() => {
-    if (!feedback) return
-    setFeedbackType(feedback.type)
-    setFeedbackStatus(feedback.status)
-    setFeedbackTags(feedback.tags)
-    setMessage(feedback.message)
-    setConfirmingDelete(false)
-  }, [feedback])
 
   const handleSave = async () => {
     if (!feedback) return

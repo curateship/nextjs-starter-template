@@ -24,7 +24,7 @@ import {
 } from "@/server/trade/flow-run-report"
 import { listRunningBots } from "@/server/trade/running-bots"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * The doors onto live runs: the list of every flow that has been switched on,

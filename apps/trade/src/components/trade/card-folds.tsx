@@ -3,7 +3,7 @@ import * as React from "react"
 import {
   getCardFoldsErrorMessage,
   saveRememberedFolds,
-} from "@/lib/api/card-folds"
+} from "@/lib/api/trade/card-folds"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { FoldContext } from "@/components/trade/card-folds-store"
 import type { CardFolds } from "@/lib/trade/card-folds"

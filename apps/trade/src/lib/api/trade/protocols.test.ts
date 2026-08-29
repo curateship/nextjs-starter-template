@@ -1,6 +1,6 @@
 import { expect, it } from "vitest"
 
-import { loadProtocols } from "@/lib/api/protocols"
+import { loadProtocols } from "@/lib/api/trade/protocols"
 import { listProtocols } from "@/server/protocols/registry"
 
 it("ships the same public exchange descriptions as the server adapters", async () => {

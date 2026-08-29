@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router"
 import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { FlowRunPage } from "@/components/flow-run/flow-run-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { loadRememberedChartView } from "@/lib/api/chart-view"
-import { getFlowRunErrorMessage, loadFlowRun } from "@/lib/api/flow-runs"
+import { loadRememberedChartView } from "@/lib/api/trade/chart-view"
+import { getFlowRunErrorMessage, loadFlowRun } from "@/lib/api/trade/flow-runs"
 
 /**
  * One run in full.

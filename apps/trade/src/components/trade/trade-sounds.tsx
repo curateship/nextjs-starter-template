@@ -1,7 +1,7 @@
 import * as React from "react"
 
-import { loadTradeSoundEvents } from "@/lib/api/notice-links"
-import { loadTradeSoundSettings } from "@/lib/api/trade-sound-settings"
+import { loadTradeSoundEvents } from "@/lib/api/trade/notice-links"
+import { loadTradeSoundSettings } from "@/lib/api/trade/trade-sound-settings"
 import {
   consumeTradeSoundBootstrap,
   ensureTradeSoundSetting,

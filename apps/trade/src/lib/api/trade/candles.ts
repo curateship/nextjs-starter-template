@@ -10,7 +10,7 @@ import {
 import { userGet } from "@/server/guards"
 import { loadProtocolCandles } from "@/server/trade/candles"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * Price history for the chart. The market arrives as a full market key, so

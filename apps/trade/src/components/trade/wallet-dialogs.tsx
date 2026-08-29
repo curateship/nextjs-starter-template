@@ -31,13 +31,13 @@ import {
   type NetworkId,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import { loadProtocolsOnce, type ProtocolDescription } from "@/lib/api/protocols"
+import { loadProtocolsOnce, type ProtocolDescription } from "@/lib/api/trade/protocols"
 import {
   createWallet,
   deleteWallet,
   getWalletErrorMessage,
   updateWallet,
-} from "@/lib/api/wallets"
+} from "@/lib/api/trade/wallets"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import {
   cleanAgentKey,

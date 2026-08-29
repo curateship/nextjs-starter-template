@@ -19,7 +19,7 @@ import {
   loadBacktestCoin,
   loadBacktestRunTrades,
   stopBacktest,
-} from "@/lib/api/backtests"
+} from "@/lib/api/trade/backtests"
 import {
   buildGraphSeries,
   graphView,

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input"
 import {
   getBacktestErrorMessage,
   renameBacktest,
-} from "@/lib/api/backtests"
+} from "@/lib/api/trade/backtests"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import type { BacktestListRow } from "@/lib/trade/backtest/result"
 

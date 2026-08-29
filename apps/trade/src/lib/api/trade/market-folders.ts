@@ -23,7 +23,7 @@ import {
   setMarketInFolder,
 } from "@/server/trade/market-folders"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 const scopeSchema = z.object({
   protocol: z.enum(KNOWN_PROTOCOLS),

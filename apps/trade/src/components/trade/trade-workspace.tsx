@@ -2,7 +2,7 @@ import * as React from "react"
 import { getRouteApi } from "@tanstack/react-router"
 import type { PanelImperativeHandle } from "react-resizable-panels"
 
-import type { DashboardBootstrap } from "@/lib/api/dashboard"
+import type { DashboardBootstrap } from "@/lib/api/trade/dashboard"
 import {
   WalletDetailsDialog,
   WalletManagement,
@@ -55,7 +55,7 @@ import {
   getMarketFolderErrorMessage,
   loadFolders as reloadFolders,
   setFolderMarket,
-} from "@/lib/api/market-folders"
+} from "@/lib/api/trade/market-folders"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   CANDLE_INTERVALS,

@@ -19,7 +19,7 @@ import {
   updateWallet as updateWalletRow,
 } from "@/server/trade/wallets"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 
 /**

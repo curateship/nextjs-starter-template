@@ -16,7 +16,7 @@ import type {
   WalletPortfolio,
   WalletPosition,
 } from "@/lib/protocols/contracts"
-import { protocolCore, protocolDescription } from "@/lib/api/protocols"
+import { protocolCore, protocolDescription } from "@/lib/api/trade/protocols"
 import { roundOrderPx } from "@/lib/protocols/hyperliquid/translate"
 import { candleIntervalMs as standardCandleIntervalMs } from "@/lib/protocols/timing"
 import { roundToTick } from "@/lib/protocols/tick"

@@ -26,7 +26,7 @@ import {
   tradeBacktests,
 } from "@/server/trade/schema"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * The doors onto saved backtests: read the list, read one run, follow one that

@@ -10,7 +10,7 @@ import {
   workersDashboard,
 } from "@/server/trade/workers"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * The doors onto the trading engine: see whether it is running, and switch it

@@ -49,10 +49,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ErrorBanner } from "@/components/ui/error-banner"
-import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { intervalMs, wantsFullHistory } from "@/lib/trade/chart-history"
-import { saveQuickOrderPrefs } from "@/lib/api/quick-order"
+import { saveQuickOrderPrefs } from "@/lib/api/trade/quick-order"
 import {
   parseMarketKey,
   protocolChasesFullHistory,

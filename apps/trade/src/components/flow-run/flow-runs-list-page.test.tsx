@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server"
 import { describe, expect, it, vi } from "vitest"
 
-import type { FlowRunListRow } from "@/lib/api/flow-runs"
+import type { FlowRunListRow } from "@/lib/api/trade/flow-runs"
 
 /**
  * Which actions each kind of row offers. A RUNNING row is the one somebody

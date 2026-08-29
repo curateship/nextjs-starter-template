@@ -17,7 +17,7 @@ import {
   getTradeSoundSettingsSaveErrorMessage,
   loadTradeSoundSettings,
   saveTradeSoundSettings,
-} from "@/lib/api/trade-sound-settings"
+} from "@/lib/api/trade/trade-sound-settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   ensureTradeSoundSetting,

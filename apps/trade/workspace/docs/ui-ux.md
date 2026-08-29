@@ -1337,7 +1337,7 @@ hold an open position from the current run. When several runs added to the same
 open position, the run whose earliest recorded order opened it gets the count.
 Later runs do not count the same position again.
 
-Running bots also copies Active Trades' row type. Automation uses the same 12px
+Running bots also uses Active Trades' row type. Automation uses the same 12px
 medium text as Market. Status uses the same 12px muted text as Protocol and
 Wallet. Markets and Positions use the same 12px monospaced numbers as Value.
 Made or lost uses the same 12px type and medium-weight dollar figure as P/L.

@@ -9,10 +9,10 @@ const api = vi.hoisted(() => ({
   loadSettings: vi.fn(),
 }))
 
-vi.mock("@/lib/api/notice-links", () => ({
+vi.mock("@/lib/api/trade/notice-links", () => ({
   loadTradeSoundEvents: api.loadEvents,
 }))
-vi.mock("@/lib/api/trade-sound-settings", () => ({
+vi.mock("@/lib/api/trade/trade-sound-settings", () => ({
   loadTradeSoundSettings: api.loadSettings,
 }))
 

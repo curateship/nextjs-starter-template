@@ -43,7 +43,7 @@ import { findWallet } from "@/server/trade/wallets"
 import { marketFolderForRun } from "@/server/trade/market-folders"
 import { workspaceIdForRequest } from "@/server/workspaces/for-request"
 
-import { createErrorMessage, describeAuthError } from "./error-message"
+import { createErrorMessage, describeAuthError } from "../error-message"
 
 /**
  * What a flow is set up to do, asked from the canvas.

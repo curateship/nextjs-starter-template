@@ -4,6 +4,13 @@ import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
+import {
+  MIN_ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_WIDTH,
+  parseOrderNumber as parsed,
+  useOrderWindowForm,
+} from "@/components/trade/order-window-form"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -64,22 +71,6 @@ import { cn } from "@/lib/utils"
  */
 
 export type SmartOrderState = { px: number; x: number; y: number }
-
-const PANEL_WIDTH = 304
-/**
- * What the window takes at its tallest. Past this the fields scroll inside it
- * rather than the window growing — a ladder with a dozen rungs would otherwise
- * run off the bottom of the screen.
- */
-const PANEL_HEIGHT = 560
-/** Below this there is not enough left to be worth drawing fields into. */
-const MIN_PANEL_HEIGHT = 260
-
-/** A number field as typed, and what it parses to. */
-function parsed(value: string): number | null {
-  const n = Number(value)
-  return value.trim() !== "" && Number.isFinite(n) ? n : null
-}
 
 /**
  * One rung of the ladder while it is being typed: what is in its box, and a
@@ -153,19 +144,8 @@ export function SmartOrderDialog({
   // with, so nothing on screen moves. Opening on defaults and swapping when
   // the read landed made the fields visibly snap a second in.
   const [seeded] = React.useState(knownDcaPrefs)
-  const [showValidation, setShowValidation] = React.useState(false)
-  // A hand that has already touched a field beats the read either way,
-  // because a form must never change under somebody typing into it.
-  const edited = React.useRef(false)
-  const touched = React.useCallback(
-    <A extends unknown[]>(set: (...args: A) => void) =>
-      (...args: A) => {
-        edited.current = true
-        setShowValidation(false)
-        set(...args)
-      },
-    []
-  )
+  const { edited, touched, showValidation, setShowValidation } =
+    useOrderWindowForm()
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
     rungsFrom(
       (seeded ?? defaultDcaParams()).rungs.map((rung) => rung.deviation)
@@ -441,9 +421,9 @@ export function SmartOrderDialog({
       label={`DCA ladder on ${market.symbol} from its base`}
       wide={wide}
       openedAt={state}
-      width={PANEL_WIDTH}
-      height={PANEL_HEIGHT}
-      minimumHeight={MIN_PANEL_HEIGHT}
+      width={ORDER_WINDOW_WIDTH}
+      height={ORDER_WINDOW_HEIGHT}
+      minimumHeight={MIN_ORDER_WINDOW_HEIGHT}
       title="DCA ladder"
       wallet={wallet}
       free={free}

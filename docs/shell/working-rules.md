@@ -30,6 +30,9 @@ How to make a change here and how to prove it works.
   `./node_modules/.bin/tsc` instead. `npx` can pick up a different copy of
   TypeScript and invent errors that are not there.
 - `npx eslint <files>` works. `npm run format` is broken and always has been.
+- `react-hooks/set-state-in-effect` is an error. Derive state needed for the
+  current render, and let an effect update state only from an external system's
+  callback.
 - Never start a dev server. Use the one already running on this app's port from
   `local-apps.json`. `docs/local-enviroment.md` explains why a running port
   belongs to whichever worktree got it first.

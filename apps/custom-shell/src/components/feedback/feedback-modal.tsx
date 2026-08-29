@@ -177,6 +177,7 @@ export function FeedbackModal({
   onMutated,
   currentUserName,
 }: FeedbackModalProps) {
+  const targetId = targetFeedbackId ?? null
   const [feedbackType, setFeedbackType] =
     React.useState<FeedbackType>("suggestion")
   const [composerTags, setComposerTags] = React.useState<FeedbackTag[]>([])
@@ -184,7 +185,11 @@ export function FeedbackModal({
   // already uploaded and persisted, or "" for none.
   const [composerAttachment, setComposerAttachment] = React.useState("")
   const [message, setMessage] = React.useState("")
-  const [loadError, setLoadError] = React.useState<string | null>(null)
+  const [loadFailure, setLoadFailure] = React.useState<{
+    request: string
+    message: string
+  } | null>(null)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [feedback, setFeedback] = React.useState<FeedbackItem[]>([])
   const [feedbackFilter, setFeedbackFilter] =
@@ -193,16 +198,17 @@ export function FeedbackModal({
   const [feedbackStatus, setFeedbackStatus] =
     React.useState<FeedbackStatusFilter>("all")
   const [feedbackSort, setFeedbackSort] = React.useState<FeedbackSort>("recent")
-  const [loadingFeedback, setLoadingFeedback] = React.useState(false)
-  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set())
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(
+    () => new Set(targetId ? [targetId] : [])
+  )
   const [openThreadIds, setOpenThreadIds] = React.useState<Set<string>>(
-    new Set()
+    () => new Set(targetId ? [targetId] : [])
   )
   const [commentThreads, setCommentThreads] = React.useState<
     Record<string, FeedbackCommentItem[]>
   >({})
   const [loadingThreadId, setLoadingThreadId] = React.useState<string | null>(
-    null
+    targetId
   )
   const [commentInputs, setCommentInputs] = React.useState<
     Record<string, string>
@@ -223,40 +229,11 @@ export function FeedbackModal({
   // Bumped by "Try again" on a failed load. The deep link is unchanged, so the
   // retry is a plain reload: nothing you were typing is thrown away.
   const [reloads, setReloads] = React.useState(0)
+  const [lastTargetId, setLastTargetId] = React.useState<string | null>(targetId)
 
-  const dirty =
-    Boolean(message.trim()) ||
-    Boolean(composerAttachment) ||
-    Object.values(commentInputs).some((value) => Boolean(value.trim())) ||
-    Boolean(editingCommentMessage.trim())
-  const busy =
-    isSubmitting || submittingCommentId !== null || busyCommentId !== null
-
-  // The deep link the popup was last opened with. A different one means a
-  // notification is pointing at one specific item and wants a clean view;
-  // reopening the popup on your own keeps whatever you were typing.
-  const lastTargetIdRef = React.useRef<string | null>(null)
-  // Votes already on their way to the server, so a double-click cannot count twice.
-  const votingIdsRef = React.useRef(new Set<string>())
-  // Which threads are on screen, read by the open-effect without making it
-  // re-run every time one is toggled. Declared before that effect so it is
-  // already up to date when the effect below runs.
-  const openThreadIdsRef = React.useRef(openThreadIds)
-  React.useEffect(() => {
-    openThreadIdsRef.current = openThreadIds
-  })
-
-  React.useEffect(() => {
-    if (!open) return
-
-    let active = true
-    const targetId = targetFeedbackId ?? null
-    const freshView = targetId !== null && targetId !== lastTargetIdRef.current
-    lastTargetIdRef.current = targetId
-
-    setLoadError(null)
-    setLoadingFeedback(true)
-    if (freshView) {
+  if (open && targetId !== lastTargetId) {
+    setLastTargetId(targetId)
+    if (targetId) {
       setExpandedIds(new Set([targetId]))
       setOpenThreadIds(new Set([targetId]))
       setCommentThreads({})
@@ -271,15 +248,51 @@ export function FeedbackModal({
       setFeedbackSort("recent")
       setLoadingThreadId(targetId)
     }
+  }
+
+  const requestKey = open
+    ? JSON.stringify([
+        reloads,
+        targetId,
+        feedbackFilter,
+        feedbackTag,
+        feedbackStatus,
+        feedbackSort,
+      ])
+    : null
+  const loadingFeedback = requestKey !== null && loadedRequest !== requestKey
+  const loadError =
+    requestKey !== null && loadFailure?.request === requestKey
+      ? loadFailure.message
+      : null
+
+  const dirty =
+    Boolean(message.trim()) ||
+    Boolean(composerAttachment) ||
+    Object.values(commentInputs).some((value) => Boolean(value.trim())) ||
+    Boolean(editingCommentMessage.trim())
+  const busy =
+    isSubmitting || submittingCommentId !== null || busyCommentId !== null
+
+  // Votes already on their way to the server, so a double-click cannot count twice.
+  const votingIdsRef = React.useRef(new Set<string>())
+  // Which threads are on screen, read by the open-effect without making it
+  // re-run every time one is toggled. Declared before that effect so it is
+  // already up to date when the effect below runs.
+  const openThreadIdsRef = React.useRef(openThreadIds)
+  React.useEffect(() => {
+    openThreadIdsRef.current = openThreadIds
+  })
+
+  React.useEffect(() => {
+    if (!requestKey) return
+
+    let active = true
 
     // Threads already on screen refresh in place, keeping the comments you can
     // already see until the new ones land — the standard for a surface that
     // refreshes on its own.
-    // freshView is only true when there is a targetId, so the fresh case always
-    // has exactly that one thread to fetch.
-    const threadIds = freshView
-      ? [targetId]
-      : Array.from(openThreadIdsRef.current)
+    const threadIds = Array.from(openThreadIdsRef.current)
 
     // A comment someone else removed while the popup was shut must not leave a
     // half-open editor or an unanswered "delete this?" pointing at nothing.
@@ -299,18 +312,13 @@ export function FeedbackModal({
       try {
         const [data, threads] = await Promise.all([
           // The order and both filters are the server's job: the database
-          // counts the votes, so it decides what "most votes" means. A fresh
-          // deep-linked view always asks for the clean defaults it just set.
-          listFeedback(
-            freshView
-              ? {}
-              : {
-                  type: feedbackFilter,
-                  tag: feedbackTag,
-                  status: feedbackStatus,
-                  sort: feedbackSort,
-                }
-          ),
+          // counts the votes, so it decides what "most votes" means.
+          listFeedback({
+            type: feedbackFilter,
+            tag: feedbackTag,
+            status: feedbackStatus,
+            sort: feedbackSort,
+          }),
           Promise.all(
             threadIds.map(
               async (id) =>
@@ -320,6 +328,7 @@ export function FeedbackModal({
         ])
         if (!active) return
         setFeedback(data.feedback)
+        setLoadFailure(null)
         if (threads.length) {
           setCommentThreads((current) => ({
             ...current,
@@ -329,13 +338,16 @@ export function FeedbackModal({
         }
       } catch (feedbackLoadError) {
         if (!active) return
-        setLoadError(getFeedbackErrorMessage(feedbackLoadError))
+        setLoadFailure({
+          request: requestKey,
+          message: getFeedbackErrorMessage(feedbackLoadError),
+        })
       } finally {
         // Written the positive way round on purpose. A `return` inside a
         // `finally` throws away whatever was on its way out of the block, so
         // an error raised by the catch above would have vanished silently.
         if (active) {
-          setLoadingFeedback(false)
+          setLoadedRequest(requestKey)
           setLoadingThreadId(null)
         }
       }
@@ -347,9 +359,7 @@ export function FeedbackModal({
       active = false
     }
   }, [
-    open,
-    reloads,
-    targetFeedbackId,
+    requestKey,
     feedbackFilter,
     feedbackTag,
     feedbackStatus,

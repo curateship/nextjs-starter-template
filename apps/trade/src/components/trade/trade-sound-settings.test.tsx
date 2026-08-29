@@ -19,7 +19,7 @@ vi.mock("@/app/page-title", () => ({ useTradePageTitle: vi.fn() }))
 vi.mock("@/components/trade/trade-sounds", () => ({
   useRememberedTradeSoundSetting: () => false,
 }))
-vi.mock("@/lib/api/trade-sound-settings", () => ({
+vi.mock("@/lib/api/trade/trade-sound-settings", () => ({
   getTradeSoundSettingsLoadErrorMessage: vi.fn(() => "Could not load"),
   getTradeSoundSettingsSaveErrorMessage: vi.fn(() => "Could not save"),
   loadTradeSoundSettings: vi.fn(),

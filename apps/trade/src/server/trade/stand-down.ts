@@ -53,6 +53,18 @@ export async function standDownWallet(
   describeError: (error: unknown) => string
 ): Promise<{ stood: StoodDownSmartOrder[]; refused: RefusedSmartOrder[] }> {
   const live = wallet.kind === "live"
+  const cancelRest = live
+    ? {
+        dca: (id: string) =>
+          cancelLiveLadderRest(userId, wallet, { ladderId: id }),
+        grid: (id: string) =>
+          cancelLiveGridRest(userId, wallet, { gridId: id }),
+      }
+    : {
+        dca: (id: string) => cancelRestRows(userId, wallet, { ladderId: id }),
+        grid: (id: string) =>
+          cancelGridRestRows(userId, wallet, { gridId: id }),
+      }
   const working = laddersAndGridsYouPlaced(
     await listActiveSmartOrders(userId, [wallet.id])
   )
@@ -62,15 +74,7 @@ export async function standDownWallet(
   for (const order of working) {
     const named = { id: order.id, marketKey: order.marketKey, kind: order.kind }
     try {
-      if (order.kind === "dca") {
-        const input = { ladderId: order.id }
-        if (live) await cancelLiveLadderRest(userId, wallet, input)
-        else await cancelRestRows(userId, wallet, input)
-      } else {
-        const input = { gridId: order.id }
-        if (live) await cancelLiveGridRest(userId, wallet, input)
-        else await cancelGridRestRows(userId, wallet, input)
-      }
+      await cancelRest[order.kind](order.id)
       stood.push(named)
     } catch (error) {
       refused.push({ ...named, reason: describeError(error) })

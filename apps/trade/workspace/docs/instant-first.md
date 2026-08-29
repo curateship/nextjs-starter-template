@@ -36,6 +36,9 @@ job is to confirm it, not to unlock it.
   from a read that left before a placement, because it describes the settings
   from before that placement and letting it land flipped the window back to a
   choice that had just been placed away.
+  Both order windows use the same mounted form guard in
+  `order-window-form.ts`. Each open window owns its own guard, so two windows
+  cannot mark one another as edited, and closing a window clears the guard.
 - **The DCA preview hangs from the click until the base loads.** The base
   read walks 500 candles and takes a second or two, so it is started the
   moment the right-click menu opens (`src/lib/trade/ladder-base-cache.ts`)

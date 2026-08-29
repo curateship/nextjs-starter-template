@@ -6,18 +6,12 @@ import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-hea
 import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { MarketIcon } from "@/components/trade/market-icon"
 import { TradeBadge } from "@/components/trade/trade-badge"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-  TableSurface,
-} from "@/components/ui/table"
+  TradeTablePanel,
+  type ColumnSpec,
+} from "@/components/trade/trade-table"
+import { Badge } from "@/components/ui/badge"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { marketChartHref } from "@/lib/protocols/contracts"
 import type {
@@ -26,13 +20,18 @@ import type {
 } from "@/lib/trade/dashboard/overview"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
-import {
-  stickyPanelSectionBarClassName,
-  stickyPanelTableHeaderClassName,
-} from "@/lib/layout/panel-section-bar"
+import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
 type ActiveTradeColumn = "market" | "protocol" | "wallet" | "value" | "profit"
+
+const ACTIVE_TRADE_COLUMNS = [
+  { key: "market", label: "Market" },
+  { key: "protocol", label: "Exchange" },
+  { key: "wallet", label: "Wallet" },
+  { key: "value", label: "Value" },
+  { key: "profit", label: "P/L" },
+] as const satisfies readonly ColumnSpec<ActiveTradeColumn>[]
 
 function defaultDirection(column: ActiveTradeColumn) {
   return column === "value" || column === "profit"
@@ -96,94 +95,67 @@ export function ActiveTradesWidget({
     })
   }, [direction, filtered, sort])
   const summary = React.useMemo(() => summarizeActiveTrades(trades), [trades])
-  const heading = (column: ActiveTradeColumn, label: string) => (
-    <TableSortButton
-      active={sort === column}
-      direction={direction}
-      onClick={() => toggleSort(column)}
-    >
-      {label}
-    </TableSortButton>
-  )
+  const emptyWords =
+    protocol || walletId
+      ? "No active trades match these filters."
+      : overview.activeTradesUnavailable.length
+        ? "No active trades found in the wallets that answered."
+        : "No active trades across your wallets."
 
   return (
-    <TableSurface className={cn("flex min-h-0 flex-col", className)}>
-      <DashboardCardTitleHeader
-        className="border-b-0"
-        icon={<ListChecksIcon />}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">Active Trades</span>
-            <Badge variant="secondary">{trades.length.toLocaleString()}</Badge>
-          </span>
-        }
-        action={
-          <ActiveTradeFilters
-            trades={overview.activeTrades}
-            protocol={protocol}
-            walletId={walletId}
-            onProtocolChange={setProtocol}
-            onWalletChange={setWalletId}
-            onClear={() => {
-              setProtocol(null)
-              setWalletId(null)
-            }}
-          />
-        }
-      />
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24"
-      >
-        <Table
-          containerClassName={cn(
-            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
-            stickyPanelTableHeaderClassName
-          )}
-        >
-          <TableHeader>
-            <TableRow>
-              <TableHead column="meta">{heading("market", "Market")}</TableHead>
-              <TableHead column="meta">
-                {heading("protocol", "Exchange")}
-              </TableHead>
-              <TableHead column="meta">{heading("wallet", "Wallet")}</TableHead>
-              <TableHead column="meta">{heading("value", "Value")}</TableHead>
-              <TableHead column="meta">{heading("profit", "P/L")}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {trades.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={5}
-                  className="h-24 text-center text-sm text-muted-foreground"
-                >
-                  {protocol || walletId
-                    ? "No active trades match these filters."
-                    : overview.activeTradesUnavailable.length
-                      ? "No active trades found in the wallets that answered."
-                      : "No active trades across your wallets."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              trades.map((trade) => (
-                <ActiveTradeRow
-                  key={trade.id}
-                  trade={trade}
-                  onOpen={() => {
-                    const href = marketChartHref(trade.marketKey)
-                    if (href) void navigate({ href })
-                  }}
-                />
-              ))
-            )}
-          </TableBody>
-          {trades.length ? <ActiveTradesFooter summary={summary} /> : null}
-        </Table>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </TableSurface>
+    <TradeTablePanel
+      className={cn("min-h-0", className)}
+      header={
+        <DashboardCardTitleHeader
+          className="border-b-0"
+          icon={<ListChecksIcon />}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">Active Trades</span>
+              <Badge variant="secondary">
+                {trades.length.toLocaleString()}
+              </Badge>
+            </span>
+          }
+          action={
+            <ActiveTradeFilters
+              trades={overview.activeTrades}
+              protocol={protocol}
+              walletId={walletId}
+              onProtocolChange={setProtocol}
+              onWalletChange={setWalletId}
+              onClear={() => {
+                setProtocol(null)
+                setWalletId(null)
+              }}
+            />
+          }
+        />
+      }
+      columns={ACTIVE_TRADE_COLUMNS}
+      rows={trades}
+      loading={false}
+      failed={false}
+      loadingLabel="Loading active trades"
+      failedWords="Active trades could not be loaded."
+      emptyWords={emptyWords}
+      stateClassName="flex min-h-24 items-center justify-center text-sm"
+      onRetry={() => undefined}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      renderRow={(trade) => (
+        <ActiveTradeRow
+          key={trade.id}
+          trade={trade}
+          onOpen={() => {
+            const href = marketChartHref(trade.marketKey)
+            if (href) void navigate({ href })
+          }}
+        />
+      )}
+      footer={trades.length ? <ActiveTradesFooter summary={summary} /> : null}
+    />
   )
 }
 

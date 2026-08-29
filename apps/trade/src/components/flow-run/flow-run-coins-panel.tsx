@@ -18,7 +18,7 @@ import {
   TableSortButton,
 } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import type { FlowRunReport } from "@/lib/api/flow-runs"
+import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatPrice } from "@/lib/trade/format"
 import { cn } from "@/lib/utils"
 

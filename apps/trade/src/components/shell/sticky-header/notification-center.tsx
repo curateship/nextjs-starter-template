@@ -90,7 +90,7 @@ export function NotificationCenter({
     setUnreadCount(initialUnreadCount)
   }
   const [nextCursor, setNextCursor] = React.useState<string | null>(null)
-  const [loading, setLoading] = React.useState(false)
+  const [firstPageLoaded, setFirstPageLoaded] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [markingAll, setMarkingAll] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
@@ -122,7 +122,7 @@ export function NotificationCenter({
       : 0
   const canLoadHiddenUnread = hiddenUnreadCount > 0 && nextCursor !== null
 
-  const loadNotificationRows = React.useCallback(async (cursor?: string) => {
+  const loadNotificationRows = React.useCallback(async () => {
     // One request at a time. Three things ask for pages now — opening the
     // panel, scrolling to the bottom, and the Load more button — and the
     // busy flags they check only go up on the next render, so two can start
@@ -132,11 +132,27 @@ export function NotificationCenter({
     if (requestInFlightRef.current) return
     requestInFlightRef.current = true
 
-    if (cursor) {
-      setLoadingMore(true)
-    } else {
-      setLoading(true)
+    try {
+      const data = await listNotificationPage({
+        limit: NOTIFICATION_PAGE_SIZE,
+      })
+      setNotifications(data.notifications)
+      setUnreadCount(data.unread_count)
+      setNextCursor(data.next_cursor)
+      setError(null)
+      pendingReadIdsRef.current.clear()
+    } catch (loadError) {
+      setError(getNotificationErrorMessage(loadError))
+    } finally {
+      requestInFlightRef.current = false
+      setFirstPageLoaded(true)
     }
+  }, [])
+
+  const loadMoreNotificationRows = React.useCallback(async (cursor: string) => {
+    if (requestInFlightRef.current) return
+    requestInFlightRef.current = true
+    setLoadingMore(true)
     setError(null)
 
     try {
@@ -144,9 +160,7 @@ export function NotificationCenter({
         cursor,
         limit: NOTIFICATION_PAGE_SIZE,
       })
-      setNotifications((current) =>
-        cursor ? [...current, ...data.notifications] : data.notifications
-      )
+      setNotifications((current) => [...current, ...data.notifications])
       setUnreadCount(data.unread_count)
       setNextCursor(data.next_cursor)
       pendingReadIdsRef.current.clear()
@@ -154,15 +168,29 @@ export function NotificationCenter({
       setError(getNotificationErrorMessage(loadError))
     } finally {
       requestInFlightRef.current = false
-      setLoading(false)
       setLoadingMore(false)
     }
   }, [])
 
   React.useEffect(() => {
-    if (!open) return
-    void loadNotificationRows()
-  }, [loadNotificationRows, open])
+    if (!open || requestInFlightRef.current) return
+    requestInFlightRef.current = true
+    void listNotificationPage({ limit: NOTIFICATION_PAGE_SIZE })
+      .then((data) => {
+        setNotifications(data.notifications)
+        setUnreadCount(data.unread_count)
+        setNextCursor(data.next_cursor)
+        setError(null)
+        pendingReadIdsRef.current.clear()
+      })
+      .catch((loadError) => {
+        setError(getNotificationErrorMessage(loadError))
+      })
+      .finally(() => {
+        requestInFlightRef.current = false
+        setFirstPageLoaded(true)
+      })
+  }, [open])
 
   /**
    * What the live connection (and its slow fallback check) asks for.
@@ -195,6 +223,7 @@ export function NotificationCenter({
     onSync: () => void syncNotifications(),
   })
 
+  const loading = open && !firstPageLoaded
   const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
     const distanceFromBottom =
       element.scrollHeight - element.scrollTop - element.clientHeight
@@ -203,8 +232,8 @@ export function NotificationCenter({
       return
     }
 
-    void loadNotificationRows(nextCursor)
-  }, [loadNotificationRows, loading, loadingMore, nextCursor])
+    void loadMoreNotificationRows(nextCursor)
+  }, [loadMoreNotificationRows, loading, loadingMore, nextCursor])
 
   React.useEffect(() => {
     const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
@@ -329,7 +358,16 @@ export function NotificationCenter({
     // none of what is inside here is a menu item, so none of that ever worked.
     // A popover is the primitive for a panel of mixed content: it still closes
     // on Escape and on a click outside, and still hands focus back to the bell.
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen && notifications.length === 0) {
+          setFirstPageLoaded(false)
+          setError(null)
+        }
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -440,7 +478,7 @@ export function NotificationCenter({
                     size="sm"
                     disabled={loading || loadingMore}
                     onClick={() => {
-                      if (nextCursor) void loadNotificationRows(nextCursor)
+                      if (nextCursor) void loadMoreNotificationRows(nextCursor)
                     }}
                   >
                     {loadingMore ? (
@@ -459,7 +497,11 @@ export function NotificationCenter({
                 <div className="mt-4">
                   <ErrorBanner
                     message={error}
-                    onRetry={() => void loadNotificationRows()}
+                    onRetry={() => {
+                      setFirstPageLoaded(false)
+                      setError(null)
+                      void loadNotificationRows()
+                    }}
                   />
                 </div>
               ) : null}

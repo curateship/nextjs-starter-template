@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
-import { getMarketsErrorMessage, loadMarkets } from "@/lib/api/markets"
+import { getMarketsErrorMessage, loadMarkets } from "@/lib/api/trade/markets"
 import type { FilteredMarketCatalog } from "@/lib/trade/market-volume"
 
 export type DashboardMarkets = {

@@ -82,7 +82,7 @@ import {
   listWallets,
 } from "@/server/trade/wallets"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * Smart orders: one right-click places a whole plan, and these are the actions

@@ -70,6 +70,11 @@ import {
 import { sweepLiveFills } from "@/server/trade/live-fills"
 import { pushedMarks } from "@/server/trade/live-marks"
 import { marketRules } from "@/server/trade/market-rules"
+import {
+  cancelLadderRestPlan,
+  cancelLadderRungPlan,
+  updateLadderExitsPlan,
+} from "@/server/trade/smart-order-actions"
 import { walletCredential } from "@/server/trade/wallet-auth"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
 import {
@@ -399,17 +404,14 @@ async function cancelLiveLadderRungOnce(
   input: { ladderId: string; rungIndex: number }
 ): Promise<void> {
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
-  const rung = ladder.plan.rungs[input.rungIndex]
-  if (!rung || rung.status !== "waiting") throw new Error("SMART_RUNG_DONE")
-  if (rung.orderId) {
+  const orderId = cancelLadderRungPlan(ladder.plan, input.rungIndex)
+  if (orderId) {
     await cancelLiveOrder(userId, {
       walletId: wallet.id,
       marketKey: ladder.marketKey,
-      orderId: rung.orderId,
+      orderId,
     })
   }
-  rung.status = "cancelled"
-  rung.orderId = null
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
 }
 
@@ -606,21 +608,17 @@ async function cancelLiveLadderRestOnce(
     })
   }
 
-  let cancelled = 0
   try {
-    for (const rung of ladder.plan.rungs) {
-      if (rung.status !== "waiting") continue
-      if (rung.orderId) {
-        await cancelLiveOrder(userId, {
-          walletId: wallet.id,
-          marketKey: ladder.marketKey,
-          orderId: rung.orderId,
-        })
-      }
-      rung.status = "cancelled"
-      rung.orderId = null
-      cancelled += 1
-    }
+    const result = await cancelLadderRestPlan(ladder.plan, async (orderId) => {
+      await cancelLiveOrder(userId, {
+        walletId: wallet.id,
+        marketKey: ladder.marketKey,
+        orderId,
+      })
+    })
+    const status = hasFill ? "active" : "done"
+    await saveLadderPlan(userId, ladder.id, ladder.plan, status)
+    return result
   } catch (error) {
     // Keep every successful cancel. The next pass retries only the rungs that
     // still say waiting instead of asking the exchange to cancel the same
@@ -628,9 +626,6 @@ async function cancelLiveLadderRestOnce(
     await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
     throw error
   }
-  const status = hasFill ? "active" : "done"
-  await saveLadderPlan(userId, ladder.id, ladder.plan, status)
-  return { cancelled }
 }
 
 export async function updateLiveLadderExits(
@@ -659,34 +654,13 @@ async function updateLiveLadderExitsOnce(
   }
 ): Promise<void> {
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
-  if (
-    ladder.plan.takeProfit?.mode === "prevRung" &&
-    input.takeProfit?.mode !== "prevRung"
-  ) {
-    for (const rung of ladder.plan.rungs) {
-      if (!rung.sellOrderId) continue
-      await cancelLiveOrder(userId, {
-        walletId: wallet.id,
-        marketKey: ladder.marketKey,
-        orderId: rung.sellOrderId,
-      })
-      rung.sellOrderId = null
-    }
-  }
-  ladder.plan.takeProfit = input.takeProfit
-    ? {
-        mode: input.takeProfit.mode,
-        pct: input.takeProfit.mode === "average" ? input.takeProfit.pct : null,
-      }
-    : null
-  ladder.plan.stopLoss = input.stopLoss
-    ? {
-        mode: "percent",
-        pct: input.stopLoss.pct,
-        base: ladderBaseStopOf(input.stopLoss.base),
-      }
-    : null
-  if (!ladder.plan.stopLoss?.base) ladder.plan.reclaim = null
+  await updateLadderExitsPlan(ladder.plan, input, async (orderId) => {
+    await cancelLiveOrder(userId, {
+      walletId: wallet.id,
+      marketKey: ladder.marketKey,
+      orderId,
+    })
+  })
   ladder.plan.aimedTpPx = null
   ladder.plan.aimedSlPx = null
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")

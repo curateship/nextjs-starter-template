@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/trading-overview", () => ({
+vi.mock("@/lib/api/trade/trading-overview", () => ({
   getTradingOverviewLayoutErrorMessage: vi.fn(() => "Could not save"),
   getTradingOverviewLayoutLoadErrorMessage: vi.fn(() => "Could not load"),
   loadTradingOverviewLayout: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 import TradingDashboardWidgetSettings from "@/components/trade/dashboard-widget-settings"
 import { TradeSettingsProvider } from "@/components/trade/trade-settings-bootstrap"
-import { loadTradingOverviewLayout } from "@/lib/api/trading-overview"
+import { loadTradingOverviewLayout } from "@/lib/api/trade/trading-overview"
 
 let host: HTMLDivElement
 let root: Root

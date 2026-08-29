@@ -3,21 +3,14 @@ import { Link, useNavigate } from "@tanstack/react-router"
 import { BotIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
+import {
+  TradeTablePanel,
+  type ColumnSpec,
+} from "@/components/trade/trade-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-  TableSurface,
-} from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import type {
   TradingOverviewBot,
   TradingOverviewBotState,
@@ -43,6 +36,14 @@ const STATE_ORDER: Record<TradingOverviewBotState, number> = {
 }
 
 type BotColumn = "automation" | "status" | "markets" | "positions" | "money"
+
+const BOT_COLUMNS = [
+  { key: "automation", label: "Automation" },
+  { key: "status", label: "Status" },
+  { key: "markets", label: "Markets" },
+  { key: "positions", label: "Positions" },
+  { key: "money", label: "Made or lost" },
+] as const satisfies readonly ColumnSpec<BotColumn>[]
 
 function defaultDirection(column: BotColumn) {
   return column === "markets" || column === "positions" || column === "money"
@@ -89,88 +90,53 @@ export function RunningBotsWidget({
       return right.startedAt - left.startedAt
     })
   }, [bots, direction, sort])
-  const heading = (column: BotColumn, label: string) => (
-    <TableSortButton
-      active={sort === column}
-      direction={direction}
-      onClick={() => toggleSort(column)}
-    >
-      {label}
-    </TableSortButton>
-  )
-
   return (
-    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
-      <DashboardCardTitleHeader
-        className="border-b-0"
-        icon={<BotIcon />}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">Running bots</span>
-            <Badge variant="secondary">{rows.length.toLocaleString()}</Badge>
-          </span>
-        }
-      />
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24"
-      >
-        <Table
-          containerClassName={cn(
-            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
-            stickyPanelTableHeaderClassName
-          )}
-        >
-          <TableHeader>
-            <TableRow>
-              <TableHead column="meta">
-                {heading("automation", "Automation")}
-              </TableHead>
-              <TableHead column="meta">{heading("status", "Status")}</TableHead>
-              <TableHead column="meta">
-                {heading("markets", "Markets")}
-              </TableHead>
-              <TableHead column="meta">
-                {heading("positions", "Positions")}
-              </TableHead>
-              <TableHead column="meta">
-                {heading("money", "Made or lost")}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-36 text-center">
-                  <div className="flex flex-col items-center justify-center gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      No running bots.
-                    </p>
-                    <Button asChild variant="outline">
-                      <Link to="/admin/automations">Open the canvas</Link>
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              rows.map((bot) => (
-                <BotRow
-                  key={bot.automationId}
-                  bot={bot}
-                  onOpen={() =>
-                    void navigate({
-                      to: "/flow-runs/$runId",
-                      params: { runId: bot.runId },
-                    })
-                  }
-                />
-              ))
-            )}
-          </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-    </TableSurface>
+    <TradeTablePanel
+      className={className}
+      header={
+        <DashboardCardTitleHeader
+          className="border-b-0"
+          icon={<BotIcon />}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">Running bots</span>
+              <Badge variant="secondary">{rows.length.toLocaleString()}</Badge>
+            </span>
+          }
+        />
+      }
+      columns={BOT_COLUMNS}
+      rows={rows}
+      loading={false}
+      failed={false}
+      loadingLabel="Loading running bots"
+      failedWords="Running bots could not be loaded."
+      emptyWords={
+        <div className="flex flex-col items-center justify-center gap-3">
+          <p className="text-sm text-muted-foreground">No running bots.</p>
+          <Button asChild variant="outline">
+            <Link to="/admin/automations">Open the canvas</Link>
+          </Button>
+        </div>
+      }
+      stateClassName="flex min-h-36 items-center justify-center"
+      onRetry={() => undefined}
+      sort={sort}
+      direction={direction}
+      onSort={toggleSort}
+      renderRow={(bot) => (
+        <BotRow
+          key={bot.automationId}
+          bot={bot}
+          onOpen={() =>
+            void navigate({
+              to: "/flow-runs/$runId",
+              params: { runId: bot.runId },
+            })
+          }
+        />
+      )}
+    />
   )
 }
 

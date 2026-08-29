@@ -1,4 +1,4 @@
-import { loadWalletAccounts } from "@/lib/api/wallets"
+import { loadWalletAccounts } from "@/lib/api/trade/wallets"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 
 /**

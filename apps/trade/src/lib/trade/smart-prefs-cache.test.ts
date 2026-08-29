@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/smart-orders", () => ({
+vi.mock("@/lib/api/trade/smart-orders", () => ({
   loadSmartDcaParams: vi.fn(),
   loadSmartGridParams: vi.fn(),
 }))
 
-import { loadSmartGridParams } from "@/lib/api/smart-orders"
+import { loadSmartGridParams } from "@/lib/api/trade/smart-orders"
 import { defaultGridParams, type GridParams } from "@/lib/trade/grid"
 
 import {

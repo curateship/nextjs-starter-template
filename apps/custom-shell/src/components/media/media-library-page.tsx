@@ -254,7 +254,10 @@ export function MediaLibraryPage({
   )
   const selection = useSelection()
   const selectedIds = selection.selected
-  const [openMedia, setOpenMedia] = React.useState<AdminMediaItem | null>(null)
+  const [loadedMedia, setLoadedMedia] = React.useState<{
+    id: string
+    item: AdminMediaItem | null
+  } | null>(null)
   const [deleteIds, setDeleteIds] = React.useState<string[] | null>(null)
   // The confirmation is still on screen while it fades out, after the selection
   // has been cleared — so it keeps counting what it opened with, not "0 files".
@@ -268,14 +271,15 @@ export function MediaLibraryPage({
   // Finding orphans means reading the whole bucket, so the scan runs the first
   // time the filter asks for it and the result is kept until it changes.
   const [orphanData, setOrphanData] = React.useState<OrphanDashboard | null>(null)
-  const [scanning, setScanning] = React.useState(false)
+  const [rescanning, setRescanning] = React.useState(false)
   const [orphanError, setOrphanError] = React.useState<string | null>(null)
+  const scanning =
+    rescanning || Boolean(openOrphanKey && !orphanData && !orphanError)
   const {
     sort: orphanSort,
     direction: orphanDirection,
     toggleSort: toggleOrphanSort,
   } = useTableSort<OrphanSort>("size", "desc", orphanSortDirection)
-  const [openOrphan, setOpenOrphan] = React.useState<MediaOrphan | null>(null)
   const [confirmKeys, setConfirmKeys] = React.useState<string[] | null>(null)
   // Same as the media confirmation: the window is still fading out after the
   // keys have been cleared, so it keeps counting what it opened with.
@@ -325,17 +329,20 @@ export function MediaLibraryPage({
     }
   }, [query])
 
-  const rescan = React.useCallback(async () => {
-    setScanning(true)
+  const loadOrphanData = React.useCallback(async () => {
     try {
       setOrphanData(await loadOrphans())
       setOrphanError(null)
     } catch (scanError) {
       setOrphanError(getAdminMediaErrorMessage(scanError))
     } finally {
-      setScanning(false)
+      setRescanning(false)
     }
   }, [])
+  const rescan = React.useCallback(() => {
+    setRescanning(true)
+    return loadOrphanData()
+  }, [loadOrphanData])
 
   // A queue of uploads runs for minutes, and the filters stay live the whole
   // time. Reloading through a ref means the reload at the end asks for whatever
@@ -376,38 +383,48 @@ export function MediaLibraryPage({
   )
 
   const media = data.media.media
-  React.useEffect(() => {
-    if (!openMediaId) {
-      setOpenMedia(null)
-      return
-    }
+  const visibleOpenMedia = media.find((item) => item.id === openMediaId) ?? null
+  const openMedia =
+    visibleOpenMedia ??
+    (loadedMedia && loadedMedia.id === openMediaId ? loadedMedia.item : null)
 
-    const visibleItem = media.find((item) => item.id === openMediaId)
-    if (visibleItem) {
-      setOpenMedia(visibleItem)
-      return
-    }
+  React.useEffect(() => {
+    if (!openMediaId || visibleOpenMedia || loadedMedia?.id === openMediaId) return
 
     let active = true
     void loadAdminMediaItem(openMediaId)
       .then((item) => {
-        if (active) setOpenMedia(item)
+        if (active) setLoadedMedia({ id: openMediaId, item })
       })
       .catch(() => {
-        if (active) setOpenMedia(null)
+        if (active) setLoadedMedia({ id: openMediaId, item: null })
       })
     return () => {
       active = false
     }
-  }, [media, openMediaId])
+  }, [loadedMedia?.id, openMediaId, visibleOpenMedia])
+  const openOrphan = React.useMemo(
+    () =>
+      orphanData?.orphans.find((item) => orphanKey(item) === openOrphanKey) ??
+      null,
+    [openOrphanKey, orphanData]
+  )
   React.useEffect(() => {
-    if (openOrphanKey && !orphanData) void rescan()
-    if (orphanData) {
-      setOpenOrphan(
-        orphanData.orphans.find((item) => orphanKey(item) === openOrphanKey) ?? null
-      )
+    if (!openOrphanKey || orphanData) return
+    let active = true
+    void loadOrphans()
+      .then((next) => {
+        if (!active) return
+        setOrphanData(next)
+        setOrphanError(null)
+      })
+      .catch((scanError) => {
+        if (active) setOrphanError(getAdminMediaErrorMessage(scanError))
+      })
+    return () => {
+      active = false
     }
-  }, [openOrphanKey, orphanData, rescan])
+  }, [openOrphanKey, orphanData])
   const visibleIds = media.map((item) => item.id)
 
   const matchingOrphans = React.useMemo(() => {
@@ -518,7 +535,7 @@ export function MediaLibraryPage({
         return next
       })
       setDeleteIds(null)
-      setOpenMedia(null)
+      setOpenRecord("media", undefined)
       await refresh()
     })
   }
@@ -554,7 +571,7 @@ export function MediaLibraryPage({
       })
       setConfirmKeys(null)
       setDeletingAll(false)
-      setOpenOrphan(null)
+      setOpenRecord("orphan", undefined)
       // A cleaned-up record was media a moment ago, so the library behind the
       // filter is stale too.
       await Promise.all([rescan(), refresh()])

@@ -8,7 +8,7 @@ import {
 import { userGet, userPost } from "@/server/guards"
 import { loadIndicators, saveIndicators } from "@/server/trade/prefs"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * Which indicators the chart is showing, kept against the account.

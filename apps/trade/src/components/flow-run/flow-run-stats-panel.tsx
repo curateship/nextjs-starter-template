@@ -12,7 +12,7 @@ import {
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
-import type { FlowRunReport } from "@/lib/api/flow-runs"
+import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { DCA_TP_MODE_LABELS } from "@/lib/trade/dca"
 import { plural } from "@/lib/format/plural"

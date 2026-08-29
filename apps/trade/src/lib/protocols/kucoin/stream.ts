@@ -3,7 +3,7 @@ import type {
   CandleInterval,
   NetworkId,
 } from "@/lib/protocols/contracts"
-import { loadLiveTicket } from "@/lib/api/live-stream"
+import { loadLiveTicket } from "@/lib/api/trade/live-stream"
 import {
   KUCOIN_GRANULARITIES,
   toKucoinPushedBar,

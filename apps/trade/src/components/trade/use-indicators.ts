@@ -3,7 +3,7 @@ import * as React from "react"
 import {
   getIndicatorsErrorMessage,
   saveIndicatorSettings,
-} from "@/lib/api/indicators"
+} from "@/lib/api/trade/indicators"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {
   defaultParamsOf,

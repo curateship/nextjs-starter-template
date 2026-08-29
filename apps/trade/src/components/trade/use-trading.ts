@@ -13,7 +13,7 @@ import {
   setLiveBrackets,
   hideLiveTrade,
   moveLiveOrder,
-} from "@/lib/api/live"
+} from "@/lib/api/trade/live"
 import {
   cancelPaperOrder,
   closeAllPaperPositions,
@@ -27,7 +27,7 @@ import {
   placePaperOrder,
   setPaperBrackets,
   updatePaperOrder,
-} from "@/lib/api/paper"
+} from "@/lib/api/trade/paper"
 import {
   cancelAllSmartOrders as cancelAllSmartOrdersApi,
   cancelGridLevel as cancelGridLevelApi,
@@ -52,7 +52,7 @@ import {
   updateLadderExits,
   moveWatch,
   editWatch,
-} from "@/lib/api/smart-orders"
+} from "@/lib/api/trade/smart-orders"
 import {
   marketSymbol,
   parseMarketKey,

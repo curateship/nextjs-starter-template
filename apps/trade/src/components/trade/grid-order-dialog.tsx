@@ -4,6 +4,13 @@ import { Loader2Icon } from "lucide-react"
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
 import { OptionCard } from "@/components/trade/option-card"
+import {
+  MIN_ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_HEIGHT,
+  ORDER_WINDOW_WIDTH,
+  parseOrderNumber as parsed,
+  useOrderWindowForm,
+} from "@/components/trade/order-window-form"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -108,16 +115,6 @@ export type GridPreview = {
   lines: GridPreviewLine[]
 }
 
-const PANEL_WIDTH = 304
-const PANEL_HEIGHT = 560
-const MIN_PANEL_HEIGHT = 260
-
-/** A number field as typed, and what it parses to. */
-function parsed(value: string): number | null {
-  const n = Number(value)
-  return value.trim() !== "" && Number.isFinite(n) ? n : null
-}
-
 export function GridOrderDialog({
   state,
   wide = true,
@@ -173,19 +170,8 @@ export function GridOrderDialog({
   // seeded with, nothing on screen moves. Opening on defaults and swapping
   // when the read landed made the range choice visibly snap a second in.
   const [seeded] = React.useState(knownGridPrefs)
-  const [showValidation, setShowValidation] = React.useState(false)
-  // A hand that has already touched a field beats the read either way,
-  // because a form must never change under somebody typing into it.
-  const edited = React.useRef(false)
-  const touched = React.useCallback(
-    <A extends unknown[]>(set: (...args: A) => void) =>
-      (...args: A) => {
-        edited.current = true
-        setShowValidation(false)
-        set(...args)
-      },
-    []
-  )
+  const { edited, touched, showValidation, setShowValidation } =
+    useOrderWindowForm()
   const [direction, setDirection] = React.useState<GridDirection>(
     seeded?.direction ?? defaultGridParams().direction
   )
@@ -555,9 +541,9 @@ export function GridOrderDialog({
       label={`Grid on ${market.symbol}`}
       wide={wide}
       openedAt={state}
-      width={PANEL_WIDTH}
-      height={PANEL_HEIGHT}
-      minimumHeight={MIN_PANEL_HEIGHT}
+      width={ORDER_WINDOW_WIDTH}
+      height={ORDER_WINDOW_HEIGHT}
+      minimumHeight={MIN_ORDER_WINDOW_HEIGHT}
       title="Grid"
       wallet={wallet}
       free={free}

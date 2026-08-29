@@ -19,7 +19,7 @@ import type { AutomationGraph, AutomationNode } from "@/lib/automations/graph"
  * render never runs, so the coin list itself is a browser check.
  */
 
-vi.mock("@/lib/api/backtests", () => ({
+vi.mock("@/lib/api/trade/backtests", () => ({
   loadTestableMarkets: () => new Promise(() => {}),
   loadMarketProtocols: () => new Promise(() => {}),
 }))

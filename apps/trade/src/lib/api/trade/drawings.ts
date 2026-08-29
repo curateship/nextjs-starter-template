@@ -17,7 +17,7 @@ import {
   saveChartDrawing,
 } from "@/server/trade/drawings"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 import { invalidateDashboardBootstrap } from "@/lib/trade/dashboard-bootstrap-cache"
 
 /**

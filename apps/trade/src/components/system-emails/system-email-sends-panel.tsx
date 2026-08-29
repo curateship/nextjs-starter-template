@@ -37,15 +37,17 @@ export function SystemEmailSendsPanel({
 }) {
   const [sends, setSends] = React.useState<SystemEmailSendItem[]>([])
   const [hasMore, setHasMore] = React.useState(false)
-  const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
 
   const meta = SYSTEM_EMAIL_META[kind]
+  const requestKey = `${kind}:${refreshToken}`
+  const loading = loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   React.useEffect(() => {
     let cancelled = false
-    setLoading(true)
     loadSystemEmailSends(kind, { limit: PAGE_SIZE })
       .then((page) => {
         if (cancelled) return
@@ -58,12 +60,12 @@ export function SystemEmailSendsPanel({
         setError(getSystemEmailErrorMessage(loadError))
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadedRequest(requestKey)
       })
     return () => {
       cancelled = true
     }
-  }, [kind, refreshToken])
+  }, [kind, requestKey])
 
   const loadMore = async () => {
     setLoadingMore(true)
@@ -101,7 +103,7 @@ export function SystemEmailSendsPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {error ? <ErrorBanner message={error} /> : null}
+          {visibleError ? <ErrorBanner message={visibleError} /> : null}
 
           <div className="grid gap-1.5">
             <p className="text-sm text-muted-foreground">{meta.whenSent}</p>

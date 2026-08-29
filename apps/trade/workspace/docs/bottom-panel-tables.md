@@ -4,6 +4,12 @@ Positions, Open orders and the Journal use one table frame. Each tab supplies
 its own columns, rows, words and row actions. The frame owns the pinned heading
 row and the loading, failed and empty row beneath it.
 
+Active Trades, Running bots and the Trades dashboard card use the same frame
+in their own card wrapper. Their columns and row contents stay different, but
+sorting, scrolling and the state row come from `trade-table.tsx`. The pinned
+heading uses one opaque theme-token mix in light and dark mode, so values moving
+under it cannot show through the labels.
+
 The shared frame keeps three safety rules in one place. A first read that has
 not landed cannot claim the account is empty. A failed read stays different
 from an empty result and keeps its retry button. Closing the last row leaves the

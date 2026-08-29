@@ -12,8 +12,8 @@ import {
   loadBacktests,
   loadLastBacktestAttempt,
   stopBacktest,
-} from "@/lib/api/backtests"
-import { loadFlowTrading, type FlowTrading } from "@/lib/api/flow-trading"
+} from "@/lib/api/trade/backtests"
+import { loadFlowTrading, type FlowTrading } from "@/lib/api/trade/flow-trading"
 import type { AutomationCanvasPanelProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"

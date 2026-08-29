@@ -22,7 +22,7 @@ import {
   getWorkersErrorMessage,
   loadWorkers,
   restartWorker,
-} from "@/lib/api/workers"
+} from "@/lib/api/trade/workers"
 import {
   Select,
   SelectContent,
@@ -34,7 +34,7 @@ import { formatRelativeTime } from "@/lib/format/format-time"
 import {
   loadRememberedOrderStyle,
   saveRememberedOrderStyle,
-} from "@/lib/api/quick-order"
+} from "@/lib/api/trade/quick-order"
 import { DEFAULT_ORDER_STYLE, type OrderStyle } from "@/lib/trade/order-style"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import {

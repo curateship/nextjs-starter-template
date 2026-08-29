@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { loadProtocolsOnce } from "@/lib/api/protocols"
+import { loadProtocolsOnce } from "@/lib/api/trade/protocols"
 import type {
   ProtocolAbility,
   ProtocolCapabilities,

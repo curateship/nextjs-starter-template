@@ -16,7 +16,6 @@ import {
   gridStopPx,
   heldWrongWay,
   holdsEntry,
-  lossEdge,
   reachedEntry,
   reachedExit,
   readyWhen,
@@ -33,6 +32,14 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketRules } from "@/server/trade/market-rules"
+import {
+  cancelGridLevelPlan,
+  cancelGridRestPlan,
+  moveGridExitPlan,
+  setGridFollowPlan,
+  updateGridEndPlan,
+  updateGridStopPlan,
+} from "@/server/trade/smart-order-actions"
 import {
   exposedMarketKeys,
   marksForKeys,
@@ -571,14 +578,7 @@ export async function cancelGridLevel(
 ): Promise<void> {
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
-  const level = grid.plan.levels[input.levelIndex]
-  if (!level) throw new Error("SMART_GRID_LEVEL_DONE")
-  if (level.status !== "waiting") throw new Error("SMART_GRID_LEVEL_DONE")
-
-  // Written explicitly, and this is the only thing that ever writes it. Every
-  // other way a level stops watching leaves it `waiting` so the engine picks it
-  // up again — being called off by hand is the one exit from the recycle.
-  level.status = "cancelled"
+  cancelGridLevelPlan(grid.plan, input.levelIndex)
   await saveGridPlan(userId, grid.id, grid.plan, "active")
   await settleWallet(userId, wallet)
 }
@@ -592,12 +592,7 @@ export async function cancelGridRest(
   await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
 
-  let cancelled = 0
-  for (const level of grid.plan.levels) {
-    if (level.status !== "waiting") continue
-    level.status = "cancelled"
-    cancelled += 1
-  }
+  const cancelled = cancelGridRestPlan(grid.plan)
   await saveGridPlan(userId, grid.id, grid.plan, "active")
   await settleWallet(userId, wallet)
   return { cancelled }
@@ -625,16 +620,7 @@ export async function updateGridStop(
   const roundPx = (px: number) =>
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
-  const followsIntoLoss =
-    plan.direction === "long" ? plan.followDown : plan.follow
-  plan.stopLoss = {
-    mode: followsIntoLoss ? "fixed" : "percent",
-    underPct: input.stopLoss.underPct,
-    px: followsIntoLoss
-      ? gridStopBeyond(plan.direction, plan, input.stopLoss.underPct)
-      : null,
-    base: input.stopLoss.base,
-  }
+  updateGridStopPlan(plan, input.stopLoss)
 
   // Write the new stop onto the position right now, and remember exactly what
   // was written — anything else there later means a hand moved it.
@@ -688,28 +674,7 @@ export async function setGridFollow(
   // Switching on the follow that walks INTO the loss freezes the stop where it
   // stands. On a buying grid that is following down; on a selling grid it is
   // following up.
-  const turnIntoLossOn =
-    grid.plan.direction === "long"
-      ? input.followDown === true && !grid.plan.followDown
-      : input.follow && !grid.plan.follow
-  if (turnIntoLossOn && grid.plan.stopLoss?.mode === "percent") {
-    grid.plan.stopLoss = {
-      ...grid.plan.stopLoss,
-      mode: "fixed",
-      px: gridStopPx(grid.plan),
-    }
-  }
-  grid.plan.follow = input.follow
-  if (input.followDown !== undefined) grid.plan.followDown = input.followDown
-  const turnedAwayOn =
-    grid.plan.direction === "long" ? input.follow : input.followDown === true
-  if (turnedAwayOn) {
-    // Switching following on BY HAND is a direct instruction, so the range
-    // counts as in play from this moment — a range already past its top
-    // catches up straight away. Only a follow choice remembered onto a NEW
-    // grid placed below the price waits for price to reach it first.
-    grid.plan.entered = true
-  }
+  setGridFollowPlan(grid.plan, input)
   await saveGridPlan(userId, grid.id, grid.plan, "active")
   // And again on the way out, so a range already past its top starts following
   // now rather than on the next poll.
@@ -726,28 +691,14 @@ export async function updateGridEnd(
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
 
-  if (input.abovePct === null) {
-    plan.takeProfitPx = null
-    plan.takeProfitPct = null
-  } else {
-    const mark = (await marksForKeys([grid.marketKey])).get(grid.marketKey)
-    if (mark === undefined || !(mark > 0)) throw new Error("PAPER_NO_PRICE")
-    const protocol = getProtocol(wallet.protocol)
-    const target = protocol.markets.roundPx(
-      gridEndPx(plan.direction, plan, mark, input.abovePct),
-      plan.sizeDecimals,
-      plan.priceTick
-    )
-    // Past the winning edge, and not already reached.
-    if (!readyWhen(plan.direction, target, winEdge(plan.direction, plan))) {
-      throw new Error("SMART_GRID_TARGET_IN_RANGE")
-    }
-    if (reachedExit(plan.direction, mark, target)) {
-      throw new Error("SMART_GRID_TARGET_PASSED")
-    }
-    plan.takeProfitPx = target
-    plan.takeProfitPct = input.abovePct
-  }
+  const mark =
+    input.abovePct === null
+      ? null
+      : ((await marksForKeys([grid.marketKey])).get(grid.marketKey) ?? null)
+  const protocol = getProtocol(wallet.protocol)
+  updateGridEndPlan(plan, input.abovePct, mark, (px) =>
+    protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+  )
 
   const at = Date.now()
   await saveGridPlan(userId, grid.id, plan, "active", at)
@@ -921,37 +872,17 @@ export async function moveGridExit(
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
   const protocol = getProtocol(wallet.protocol)
-  const px = protocol.markets.roundPx(
-    input.px,
-    plan.sizeDecimals,
-    plan.priceTick
+  const { px, movedStop } = moveGridExitPlan(
+    plan,
+    input,
+    (value) =>
+      protocol.markets.roundPx(value, plan.sizeDecimals, plan.priceTick),
+    "PAPER_PRICE"
   )
-  if (!(px > 0)) throw new Error("PAPER_PRICE")
 
-  const direction = plan.direction
-  if (input.which === "takeProfit") {
-    // Past the winning edge, always. Inside the range is where the grid is
-    // working, so a target in there would close the grid on an ordinary swing.
-    if (!readyWhen(direction, px, winEdge(direction, plan))) {
-      throw new Error("SMART_GRID_TARGET_IN_RANGE")
-    }
-    plan.takeProfitPx = px
-    // A hand-set line replaces the placement percentage. A later range move
-    // carries its distance from the range instead of restoring the old setting.
-    plan.takeProfitPct = undefined
-  } else {
-    // Past the losing edge, for the mirror of the same reason.
-    if (!readyWhen(direction, lossEdge(direction, plan), px)) {
-      throw new Error("SMART_GRID_STOP_IN_RANGE")
-    }
-    plan.stopLoss = {
-      mode: "fixed",
-      underPct: plan.stopLoss?.underPct ?? 0,
-      px,
-      base: null,
-    }
+  if (movedStop) {
     const position = book.positions.get(grid.marketKey) ?? null
-    if (position && holdsEntry(direction, position.szi)) {
+    if (position && holdsEntry(plan.direction, position.szi)) {
       await db
         .update(tradePaperPositions)
         .set({ slPx: px, updatedAt: new Date() })

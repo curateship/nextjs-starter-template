@@ -5,7 +5,7 @@ import type { ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { FlowTrading } from "@/lib/api/flow-trading"
+import type { FlowTrading } from "@/lib/api/trade/flow-trading"
 
 const { dismissErrorToast, loadFlowTrading, showErrorToast, stopFlow } =
   vi.hoisted(() => ({
@@ -36,7 +36,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 
-vi.mock("@/lib/api/flow-trading", () => ({
+vi.mock("@/lib/api/trade/flow-trading", () => ({
   flowActionProblem: () => "That did not work.",
   getFlowTradingErrorMessage: () =>
     "Could not read this flow's trading status.",

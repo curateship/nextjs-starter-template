@@ -51,37 +51,43 @@ export function FeedbackCommentsModal({
   onCommentDeleted: (feedbackId: string) => void
 }) {
   const [comments, setComments] = React.useState<FeedbackCommentItem[]>([])
-  const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
   const [reloadCount, setReloadCount] = React.useState(0)
   const [deletingComment, setDeletingComment] =
     React.useState<FeedbackCommentItem | null>(null)
   const [runDelete, deleting] = useAsyncAction(getFeedbackErrorMessage)
 
   const feedbackId = feedback?.id ?? null
+  const requestKey = open && feedbackId
+    ? `${feedbackId}:${reloadCount}`
+    : null
+  const loading = requestKey !== null && loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   React.useEffect(() => {
-    if (!open || !feedbackId) return
+    if (!requestKey || !feedbackId) return
     let active = true
-    setLoading(true)
-    setError(null)
-    setComments([])
 
     listFeedbackComments(feedbackId)
       .then((data) => {
-        if (active) setComments(data.comments)
+        if (!active) return
+        setComments(data.comments)
+        setError(null)
       })
       .catch((loadError) => {
-        if (active) setError(getFeedbackErrorMessage(loadError))
+        if (!active) return
+        setComments([])
+        setError(getFeedbackErrorMessage(loadError))
       })
       .finally(() => {
-        if (active) setLoading(false)
+        if (active) setLoadedRequest(requestKey)
       })
 
     return () => {
       active = false
     }
-  }, [open, feedbackId, reloadCount])
+  }, [feedbackId, requestKey])
 
   const handleDelete = async () => {
     if (!deletingComment) return
@@ -106,9 +112,9 @@ export function FeedbackCommentsModal({
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            {error ? (
+            {visibleError ? (
               <ErrorBanner
-                message={error}
+                message={visibleError}
                 onRetry={() => setReloadCount((count) => count + 1)}
               />
             ) : (

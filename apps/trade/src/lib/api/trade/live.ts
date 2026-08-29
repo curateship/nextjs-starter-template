@@ -8,7 +8,7 @@ import {
   type PlaceOrderOutcome,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
-import type { PollScope } from "@/lib/api/paper"
+import type { PollScope } from "@/lib/api/trade/paper"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
@@ -41,7 +41,7 @@ import {
   listWalletsWithCredentials,
 } from "@/server/trade/wallets"
 
-import { describeAuthError } from "./error-message"
+import { describeAuthError } from "../error-message"
 
 /**
  * Real trading: the poll that draws a live wallet's rows, and the four

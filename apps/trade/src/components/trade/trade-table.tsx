@@ -1,26 +1,38 @@
 import * as React from "react"
 
 import { LoadingRow } from "@/components/ui/loading-row"
-import { TableSortButton, type TableSortDirection } from "@/components/ui/table"
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
+import {
+  TableSortButton,
+  TableSurface,
+  type TableSortDirection,
+} from "@/components/ui/table"
 import { cn } from "@/lib/utils"
-import { stickyPanelTableCellClassName } from "@/lib/layout/panel-section-bar"
+import {
+  stickyPanelTableCellClassName,
+  stickyPanelTableHeaderClassName,
+} from "@/lib/layout/panel-section-bar"
 
 function HeaderCell({
   children,
   sort,
   info,
+  roomy,
 }: {
   children: React.ReactNode
   /** Omitted on the actions column, which is the one thing never sorted. */
   sort?: { active: boolean; direction: TableSortDirection; onClick: () => void }
   /** A mark beside the label, kept outside the sort button. */
   info?: React.ReactNode
+  roomy: boolean
 }) {
   return (
     <th
       scope="col"
       className={cn(
-        "px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
+        roomy
+          ? "h-10 px-5 text-left text-xs font-medium whitespace-nowrap text-muted-foreground sm:text-sm"
+          : "px-3 py-2 text-left text-xs font-medium whitespace-nowrap text-muted-foreground",
         // Pinned to the top of the scrolling box, so eleven columns of dollars
         // never end up under an empty strip. `z-10` because a focused row
         // paints an outline and would otherwise draw over the headings.
@@ -73,6 +85,7 @@ function TableStateRow({
   onRetry,
   empty,
   children,
+  className,
 }: {
   span: number
   loading: boolean
@@ -81,23 +94,37 @@ function TableStateRow({
   onRetry: () => void
   empty: React.ReactNode
   children: React.ReactNode
+  className?: string
 }) {
   return (
-    <tr className="border-t">
+    <tr data-slot="table-row" className="border-t">
       <td colSpan={span}>
         {loading ? (
-          <LoadingRow label={loadingLabel} className="py-6 text-xs" />
+          <LoadingRow
+            label={loadingLabel}
+            className={cn("py-6 text-xs", className)}
+          />
         ) : failed ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+          <div
+            className={cn(
+              "px-3 py-6 text-center text-xs text-muted-foreground",
+              className
+            )}
+          >
             {children}{" "}
             <button type="button" className="underline" onClick={onRetry}>
               Try again
             </button>
-          </p>
+          </div>
         ) : (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+          <div
+            className={cn(
+              "px-3 py-6 text-center text-xs text-muted-foreground",
+              className
+            )}
+          >
             {empty}
-          </p>
+          </div>
         )}
       </td>
     </tr>
@@ -121,6 +148,9 @@ export function TradeTable<Row, Key extends string>({
   headerInfo,
   renderRow,
   footer,
+  actions = true,
+  roomy = false,
+  stateClassName,
 }: {
   columns: readonly ColumnSpec<Key>[]
   rows: readonly Row[]
@@ -135,15 +165,26 @@ export function TradeTable<Row, Key extends string>({
   onSort: (key: Key) => void
   leadingHeader?: React.ReactNode
   headerInfo?: (key: Key) => React.ReactNode
-  renderRow: (row: Row) => React.ReactNode
+  renderRow: (row: Row, index: number) => React.ReactNode
   footer?: React.ReactNode
+  /** Positions have a final row-action column. Read-only widgets do not. */
+  actions?: boolean
+  /** Dashboard cards keep the shell table's roomier row and heading gutters. */
+  roomy?: boolean
+  stateClassName?: string
 }) {
   return (
-    <table className="w-full border-collapse">
+    <table
+      className={cn(
+        "w-full border-collapse",
+        roomy &&
+          "text-sm [&_td:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:first-child]:pl-6 [&_th:last-child]:pr-6"
+      )}
+    >
       <thead data-slot="table-header">
-        <tr>
+        <tr data-slot="table-row">
           {leadingHeader === undefined ? null : (
-            <HeaderCell>{leadingHeader}</HeaderCell>
+            <HeaderCell roomy={roomy}>{leadingHeader}</HeaderCell>
           )}
           {columns.map(({ key, label }) => (
             <HeaderCell
@@ -154,13 +195,16 @@ export function TradeTable<Row, Key extends string>({
                 onClick: () => onSort(key),
               }}
               info={headerInfo?.(key)}
+              roomy={roomy}
             >
               {label}
             </HeaderCell>
           ))}
-          <HeaderCell>
-            <span className="sr-only">Actions</span>
-          </HeaderCell>
+          {actions ? (
+            <HeaderCell roomy={roomy}>
+              <span className="sr-only">Actions</span>
+            </HeaderCell>
+          ) : null}
         </tr>
       </thead>
       {/* The heading owns the hairline above the rows. Removing the first
@@ -169,12 +213,17 @@ export function TradeTable<Row, Key extends string>({
       <tbody className="[&>tr:first-child]:border-t-0">
         {rows.length === 0 ? (
           <TableStateRow
-            span={columns.length + (leadingHeader === undefined ? 1 : 2)}
+            span={
+              columns.length +
+              (leadingHeader === undefined ? 0 : 1) +
+              (actions ? 1 : 0)
+            }
             loading={loading}
             failed={failed}
             loadingLabel={loadingLabel}
             onRetry={onRetry}
             empty={emptyWords}
+            className={stateClassName}
           >
             {failedWords}
           </TableStateRow>
@@ -184,5 +233,39 @@ export function TradeTable<Row, Key extends string>({
       </tbody>
       {footer}
     </table>
+  )
+}
+
+/** The shared card, title, scroller and table frame used by dashboard widgets. */
+export function TradeTablePanel<Row, Key extends string>({
+  className,
+  header,
+  afterTable,
+  ...table
+}: React.ComponentProps<typeof TradeTable<Row, Key>> & {
+  className?: string
+  header: React.ReactNode
+  afterTable?: React.ReactNode
+}) {
+  return (
+    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
+      {header}
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="h-full min-h-24"
+      >
+        <div
+          data-slot="table-container"
+          className={cn(
+            "relative w-full overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+            stickyPanelTableHeaderClassName
+          )}
+        >
+          <TradeTable {...table} actions={false} roomy />
+        </div>
+        <ScrollBar orientation="horizontal" />
+      </ScrollArea>
+      {afterTable}
+    </TableSurface>
   )
 }

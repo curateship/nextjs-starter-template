@@ -32,7 +32,7 @@ const { loadWalletAccounts, successToast } = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { success: successToast } }))
 
-vi.mock("@/lib/api/wallets", () => ({
+vi.mock("@/lib/api/trade/wallets", () => ({
   loadWalletAccounts,
   getWalletErrorMessage: () => "Could not read your wallets.",
 }))

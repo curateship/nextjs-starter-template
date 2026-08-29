@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { BacktestRunPage } from "@/components/backtest/backtest-run-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { getBacktestErrorMessage, loadBacktest } from "@/lib/api/backtests"
+import { getBacktestErrorMessage, loadBacktest } from "@/lib/api/trade/backtests"
 
 /**
  * One run in full.

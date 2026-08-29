@@ -38,7 +38,6 @@ import { plural } from "@/lib/format/plural"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"
 
 const segmentsRoute = getRouteApi("/_authenticated/admin/segments")
@@ -106,7 +105,6 @@ export function SegmentsPage({
   const direction = listSearch.direction ?? "asc"
   const toggleSort = useListSort<SegmentSortColumn>({ sort, direction })
 
-  const [editing, setEditing] = React.useState<SegmentItem | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [deleteTargets, setDeleteTargets] = React.useState<SegmentItem[]>([])
   const [runDelete, deleting] = useAsyncAction(getSegmentErrorMessage)
@@ -129,16 +127,15 @@ export function SegmentsPage({
   )
   const openSegment = React.useCallback(
     (segment: SegmentItem) => {
-      setEditing(segment)
       setOpenSegment(segment.id)
     },
     [setOpenSegment]
   )
 
-  useOpenFromLink({ openId, records: initial.segments, onOpen: setEditing })
-  React.useEffect(() => {
-    if (!openId && !creating) setEditing(null)
-  }, [creating, openId])
+  const editing = React.useMemo(
+    () => initial.segments.find((segment) => segment.id === openId) ?? null,
+    [initial.segments, openId]
+  )
 
   /** Names to show wherever one segment leaves another out. */
   const segmentNames = React.useMemo(
@@ -388,12 +385,10 @@ export function SegmentsPage({
         options={initial}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenSegment(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenSegment(undefined)
           await refresh()
         }}

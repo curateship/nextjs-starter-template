@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router"
 import { tradePageTitle, useTradePageTitle } from "@/app/page-title"
 import { FlowRunsListPage } from "@/components/flow-run/flow-runs-list-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
-import { getFlowRunErrorMessage, loadFlowRuns } from "@/lib/api/flow-runs"
+import { getFlowRunErrorMessage, loadFlowRuns } from "@/lib/api/trade/flow-runs"
 
 /**
  * Every flow this account has ever switched on.

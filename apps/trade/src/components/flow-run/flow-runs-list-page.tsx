@@ -28,8 +28,8 @@ import {
   loadFlowRuns,
   removeFlowRuns,
   type FlowRunListRow,
-} from "@/lib/api/flow-runs"
-import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/flow-trading"
+} from "@/lib/api/trade/flow-runs"
+import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/trade/flow-trading"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"

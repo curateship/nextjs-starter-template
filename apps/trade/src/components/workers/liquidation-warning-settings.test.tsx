@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/liquidation-warning-settings", () => ({
+vi.mock("@/lib/api/trade/liquidation-warning-settings", () => ({
   getLiquidationWarningLoadErrorMessage: vi.fn(() => "Could not load"),
   getLiquidationWarningSaveErrorMessage: vi.fn(() => "Could not save"),
   loadLiquidationWarningSettings: vi.fn(),
@@ -21,7 +21,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   loadLiquidationWarningSettings,
   saveLiquidationWarningSettings,
-} from "@/lib/api/liquidation-warning-settings"
+} from "@/lib/api/trade/liquidation-warning-settings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 let host: HTMLDivElement

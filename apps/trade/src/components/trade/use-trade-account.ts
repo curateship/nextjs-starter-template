@@ -1,8 +1,8 @@
 import * as React from "react"
 
-import type { DashboardBootstrap } from "@/lib/api/dashboard"
+import type { DashboardBootstrap } from "@/lib/api/trade/dashboard"
 import type { ProtocolId } from "@/lib/protocols/contracts"
-import { loadWalletAccounts, pickWallet } from "@/lib/api/wallets"
+import { loadWalletAccounts, pickWallet } from "@/lib/api/trade/wallets"
 import { writeWalletPanelCache } from "@/lib/trade/dashboard-cache"
 import { keepGoodSummaries } from "@/lib/trade/wallets"
 import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"

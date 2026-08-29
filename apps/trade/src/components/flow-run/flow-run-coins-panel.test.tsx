@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { FlowRunCoinsPanel } from "@/components/flow-run/flow-run-coins-panel"
-import type { FlowRunReport } from "@/lib/api/flow-runs"
+import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 
 const MARKET = "hyperliquid:mainnet:ETH"
 

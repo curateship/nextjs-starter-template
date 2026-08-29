@@ -319,9 +319,9 @@ function RunRow({
   const [deciding, setDeciding] = React.useState(false)
 
   const load = React.useCallback(async () => {
-    setDetailError(null)
     try {
       setDetail(await getAutomationRun(run.id))
+      setDetailError(null)
     } catch (error) {
       setDetail(null)
       setDetailError(getAutomationRunErrorMessage(error))
@@ -343,8 +343,22 @@ function RunRow({
 
   React.useEffect(() => {
     if (!expanded || !panelActive) return
-    void load()
-  }, [expanded, load, panelActive])
+    let active = true
+    void getAutomationRun(run.id)
+      .then((next) => {
+        if (!active) return
+        setDetail(next)
+        setDetailError(null)
+      })
+      .catch((error) => {
+        if (!active) return
+        setDetail(null)
+        setDetailError(getAutomationRunErrorMessage(error))
+      })
+    return () => {
+      active = false
+    }
+  }, [expanded, panelActive, run.id])
 
   // A run that has not finished is still growing steps. Read once and it stays
   // as it was the instant it was opened — press Run and the row opens on a run

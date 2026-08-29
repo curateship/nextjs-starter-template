@@ -13,7 +13,7 @@ import {
 } from "@/server/trade/prefs"
 import { loadTradingOverview } from "@/server/trade/trading-overview"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 const widgetId = z.enum(["equity", "active-trades", "running-bots", "trades"])
 const layoutSchema = z.object({

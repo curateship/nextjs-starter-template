@@ -18,7 +18,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 
-vi.mock("@/lib/api/live", () => ({
+vi.mock("@/lib/api/trade/live", () => ({
   cancelLiveOrder: vi.fn(),
   changeLiveLeverage: vi.fn(),
   changeLiveMargin: vi.fn(),
@@ -33,7 +33,7 @@ vi.mock("@/lib/api/live", () => ({
   setLiveBrackets: vi.fn(),
 }))
 
-vi.mock("@/lib/api/paper", () => ({
+vi.mock("@/lib/api/trade/paper", () => ({
   cancelPaperOrder: vi.fn(),
   closeAllPaperPositions: vi.fn(),
   closePaperPosition: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock("@/lib/api/paper", () => ({
   updatePaperOrder: vi.fn(),
 }))
 
-vi.mock("@/lib/api/smart-orders", () => ({
+vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelAllSmartOrders: vi.fn(),
   cancelGridLevel: vi.fn(),
   cancelGridRest: vi.fn(),

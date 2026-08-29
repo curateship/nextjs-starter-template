@@ -20,7 +20,7 @@ import {
   saveLastMarketKey,
 } from "@/server/trade/prefs"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * The market list and the last market this account opened.

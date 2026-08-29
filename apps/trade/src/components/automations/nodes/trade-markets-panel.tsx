@@ -21,12 +21,12 @@ import {
 } from "@/components/ui/select"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { loadMarketProtocols, loadTestableMarkets } from "@/lib/api/backtests"
-import { getMarketsErrorMessage } from "@/lib/api/markets"
+import { loadMarketProtocols, loadTestableMarkets } from "@/lib/api/trade/backtests"
+import { getMarketsErrorMessage } from "@/lib/api/trade/markets"
 import {
   getMarketFoldersLoadErrorMessage,
   loadFolders,
-} from "@/lib/api/market-folders"
+} from "@/lib/api/trade/market-folders"
 import type { AutomationNode } from "@/lib/automations/graph"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {

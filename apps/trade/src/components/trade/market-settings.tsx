@@ -18,7 +18,7 @@ import {
   getMarketSettingsSaveErrorMessage,
   loadMarketSettings,
   saveMarketSettings,
-} from "@/lib/api/market-settings"
+} from "@/lib/api/trade/market-settings"
 import { MAXIMUM_MARKET_VOLUME_USD } from "@/lib/trade/market-volume"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 

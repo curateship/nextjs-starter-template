@@ -39,16 +39,18 @@ export function SystemEmailSendsPanel({
 }) {
   const [sends, setSends] = React.useState<SystemEmailSendItem[]>([])
   const [hasMore, setHasMore] = React.useState(false)
-  const [loading, setLoading] = React.useState(true)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [reloads, setReloads] = React.useState(0)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
 
   const meta = SYSTEM_EMAIL_META[kind]
+  const requestKey = `${kind}:${refreshToken}:${reloads}`
+  const loading = loadedRequest !== requestKey
+  const visibleError = loadedRequest === requestKey ? error : null
 
   React.useEffect(() => {
     let cancelled = false
-    setLoading(true)
     loadSystemEmailSends(kind, { limit: PAGE_SIZE })
       .then((page) => {
         if (cancelled) return
@@ -61,12 +63,12 @@ export function SystemEmailSendsPanel({
         setError(getSystemEmailErrorMessage(loadError))
       })
       .finally(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) setLoadedRequest(requestKey)
       })
     return () => {
       cancelled = true
     }
-  }, [kind, refreshToken, reloads])
+  }, [kind, requestKey])
 
   const loadMore = async () => {
     setLoadingMore(true)
@@ -104,12 +106,11 @@ export function SystemEmailSendsPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">
-          {error ? (
+          {visibleError ? (
             <ErrorRow
-              message={error}
+              message={visibleError}
               onRetry={() => {
                 setError(null)
-                setLoading(true)
                 setReloads((count) => count + 1)
               }}
             />
@@ -142,7 +143,7 @@ export function SystemEmailSendsPanel({
 
           {loading && sends.length === 0 ? (
             <LoadingRow label="Loading recent sends…" />
-          ) : !error && sends.length === 0 ? (
+          ) : !visibleError && sends.length === 0 ? (
             <EmptyRow>
               Nobody has been sent this yet. Every one that goes out from now on
               shows up here.

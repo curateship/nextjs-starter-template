@@ -86,9 +86,9 @@ export function ContactDetailDialog({
   // taken every tag off them.
   const [tagsText, setTagsText] = React.useState(openedTags)
   const [detail, setDetail] = React.useState<ContactDetail | null>(null)
-  const [loadingDetail, setLoadingDetail] = React.useState(false)
   const [historyPage, setHistoryPage] = React.useState(1)
   const [reloads, setReloads] = React.useState(0)
+  const [loadedRequest, setLoadedRequest] = React.useState<string | null>(null)
   const [runSave, saving] = useAsyncAction(getContactErrorMessage)
   const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
 
@@ -102,6 +102,7 @@ export function ContactDetailDialog({
       setTagsText(openedTags)
       setDetail(null)
       setHistoryPage(1)
+      setReloads((count) => count + 1)
     }
   }
 
@@ -112,10 +113,14 @@ export function ContactDetailDialog({
   }, [open])
 
   const contactId = contact?.id
+  const requestKey = open && contactId
+    ? `${contactId}:${historyPage}:${reloads}`
+    : null
+  const loadingDetail = requestKey !== null && loadedRequest !== requestKey
+
   React.useEffect(() => {
-    if (!open || !contactId) return
+    if (!requestKey || !contactId) return
     let active = true
-    setLoadingDetail(true)
     loadContactDetail(contactId, historyPage)
       .then((loaded) => {
         if (active) setDetail(loaded)
@@ -124,12 +129,12 @@ export function ContactDetailDialog({
         if (active) showErrorToast(getContactErrorMessage(error))
       })
       .finally(() => {
-        if (active) setLoadingDetail(false)
+        if (active) setLoadedRequest(requestKey)
       })
     return () => {
       active = false
     }
-  }, [open, contactId, historyPage, reloads])
+  }, [contactId, historyPage, requestKey])
 
   if (!contact) return null
 

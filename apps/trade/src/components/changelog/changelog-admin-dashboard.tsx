@@ -58,7 +58,6 @@ import { plural } from "@/lib/format/plural"
 import { formatDate } from "@/lib/format/format-time"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useClientPage } from "@/lib/hooks/use-client-page"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
@@ -111,7 +110,6 @@ export function ChangelogAdminDashboard({
     "published",
     "desc"
   )
-  const [editing, setEditing] = React.useState<ChangelogEntry | null>(null)
   const [previewing, setPreviewing] = React.useState<ChangelogEntry | null>(
     null
   )
@@ -141,16 +139,14 @@ export function ChangelogAdminDashboard({
   )
   const openEntry = React.useCallback(
     (entry: ChangelogEntry) => {
-      setEditing(entry)
       setOpenEntry(entry.id)
     },
     [setOpenEntry]
   )
-
-  useOpenFromLink({ openId, records: entries, onOpen: setEditing })
-  React.useEffect(() => {
-    if (!openId && !creating) setEditing(null)
-  }, [creating, openId])
+  const editing = React.useMemo(
+    () => entries.find((entry) => entry.id === openId) ?? null,
+    [entries, openId]
+  )
 
   const sortedEntries = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -348,12 +344,10 @@ export function ChangelogAdminDashboard({
         entry={editing}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenEntry(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenEntry(undefined)
           await refresh()
         }}

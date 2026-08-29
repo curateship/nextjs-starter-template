@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { TradingEngineSettingsContext } from "@/components/workers/trading-engine-settings-context"
-import type { TradingEngineSettingsPage } from "@/lib/api/trading-engine-settings"
+import type { TradingEngineSettingsPage } from "@/lib/api/trade/trading-engine-settings"
 
 export function TradingEngineSettingsProvider({
   value,

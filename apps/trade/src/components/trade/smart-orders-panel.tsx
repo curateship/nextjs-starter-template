@@ -44,7 +44,7 @@ import {
 import {
   getRunningBotsErrorMessage,
   loadRunningBots,
-} from "@/lib/api/flow-runs"
+} from "@/lib/api/trade/flow-runs"
 import {
   marketSymbol,
   type MarketRow,
@@ -82,7 +82,7 @@ import {
   writeSmartOrdersCache,
 } from "@/lib/trade/dashboard-cache"
 import { cn } from "@/lib/utils"
-import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/flow-trading"
+import { flowActionProblem, pauseFlow, stopFlow } from "@/lib/api/trade/flow-trading"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 /**

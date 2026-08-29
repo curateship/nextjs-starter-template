@@ -30,8 +30,7 @@ What Trade has added to the shell, and what each piece is for:
 | `src/components/trade/paint/` | The paint tools: the rail, the layer the lines are drawn on, and their state. |
 | `src/lib/trade/` | Small app helpers: panel-layout keys, number formatting, drawing shapes, chart maths. |
 | `src/lib/protocols/contracts.ts` | The shapes screens and exchanges agree on, including each market's quote token. Browser-safe. |
-| `src/lib/api/markets.ts` | The guarded endpoints: the market list, and saved stars. |
-| `src/lib/api/drawings.ts` | The guarded endpoints for the lines drawn on a chart. |
+| `src/lib/api/trade/` | Trade's guarded server calls, including markets, charts, wallets, orders, backtests and workers. The root of `src/lib/api/` stays the shell's. |
 | `src/server/protocols/` | The exchange side: the registry, and one folder per exchange. |
 | `src/server/trade/` | Trade's own tables and the code that touches them. |
 | `drizzle/0100_…` | Trade's own migrations, numbered from 0100. |
@@ -228,6 +227,9 @@ but a testnet run is not required before using the mainnet connector.
   `trade_chart_drawings` (one row per line drawn on a chart, tied to its market
   key). All are server-side, so they follow the account rather than the
   browser.
+- **Recorded candle and funding gaps store only the missing range and its
+  reason.** Nothing reads when a gap row was inserted, so those tables do not
+  write or carry a second timestamp.
 - **A drawing's shape is one `jsonb` column, read through one validator.** A
   level and a trendline hold different things, and a third kind later should
   be a new shape to validate rather than a migration. A row that cannot be
@@ -261,6 +263,11 @@ Two server files have clean internal boundaries now. Live ladder placement and
 reconciliation stay in `live-smart-orders.ts`. Live grid placement and grid
 edits live in `live-grid-orders.ts`. Both send work through the same per-wallet
 queue, so a grid edit cannot race a ladder pass on the same wallet.
+
+The nine edits shared by a practice and live smart order change their plan in
+`smart-order-actions.ts`. Practice supplies its database rows and settling;
+live supplies the wallet queue, exchange cancels, price read and bracket work.
+The shared code never decides that exchange work belongs on a practice wallet.
 
 The practice wallet's database loading, saving and commands stay in `paper.ts`.
 The in-memory book and candle replay live in `paper-replay.ts`. Backtests and

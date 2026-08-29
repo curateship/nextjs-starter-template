@@ -9,7 +9,7 @@ import {
   getLiquidationWarningSaveErrorMessage,
   loadLiquidationWarningSettings,
   saveLiquidationWarningSettings,
-} from "@/lib/api/liquidation-warning-settings"
+} from "@/lib/api/trade/liquidation-warning-settings"
 import type { LiquidationWarning } from "@/lib/trade/liquidation-warning"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 

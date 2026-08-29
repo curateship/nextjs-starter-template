@@ -35,7 +35,7 @@ import {
   listWallets,
 } from "@/server/trade/wallets"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * Practice trading: placing, moving and closing, and the one read that draws

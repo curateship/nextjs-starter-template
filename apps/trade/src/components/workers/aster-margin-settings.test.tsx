@@ -4,7 +4,7 @@ import { act, type ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/aster-margin-mode", () => ({
+vi.mock("@/lib/api/trade/aster-margin-mode", () => ({
   getAsterMarginModeLoadErrorMessage: vi.fn(() => "Could not load"),
   getAsterMarginModeSaveErrorMessage: vi.fn(() => "Could not save"),
   loadAsterMarginModes: vi.fn(),
@@ -48,7 +48,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import {
   loadAsterMarginModes,
   saveAsterMarginMode,
-} from "@/lib/api/aster-margin-mode"
+} from "@/lib/api/trade/aster-margin-mode"
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 let host: HTMLDivElement

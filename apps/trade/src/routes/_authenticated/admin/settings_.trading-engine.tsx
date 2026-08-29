@@ -6,7 +6,7 @@ import { TradingEngineSettingsPage } from "@/components/workers/trading-engine-s
 import {
   getTradingEngineSettingsErrorMessage,
   loadTradingEngineSettingsPage,
-} from "@/lib/api/trading-engine-settings"
+} from "@/lib/api/trade/trading-engine-settings"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/settings_/trading-engine"

@@ -30,7 +30,7 @@ import {
   getTradingOverviewLayoutLoadErrorMessage,
   loadTradingOverviewLayout,
   saveTradingOverviewLayout,
-} from "@/lib/api/trading-overview"
+} from "@/lib/api/trade/trading-overview"
 import {
   createDefaultTradingDashboardWidgets,
   findTradingDashboardWidget,

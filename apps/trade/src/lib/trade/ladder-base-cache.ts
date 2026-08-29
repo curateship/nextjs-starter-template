@@ -1,4 +1,4 @@
-import { loadLadderBase } from "@/lib/api/smart-orders"
+import { loadLadderBase } from "@/lib/api/trade/smart-orders"
 
 /**
  * The base price a DCA ladder would hang from, asked for before it is needed.

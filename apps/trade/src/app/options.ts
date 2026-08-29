@@ -1,5 +1,5 @@
 
-import { loadTradeNoticeLinks } from "@/lib/api/notice-links"
+import { loadTradeNoticeLinks } from "@/lib/api/trade/notice-links"
 import type { AppOptions } from "@/lib/app-options"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"

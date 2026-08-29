@@ -25,8 +25,8 @@ const flowTradingApi = vi.hoisted(() => ({
   flowActionProblem: vi.fn(() => "The bot action failed."),
 }))
 
-vi.mock("@/lib/api/flow-runs", () => flowRunsApi)
-vi.mock("@/lib/api/flow-trading", () => flowTradingApi)
+vi.mock("@/lib/api/trade/flow-runs", () => flowRunsApi)
+vi.mock("@/lib/api/trade/flow-trading", () => flowTradingApi)
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({

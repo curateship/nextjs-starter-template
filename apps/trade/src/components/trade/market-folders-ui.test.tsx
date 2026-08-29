@@ -29,8 +29,8 @@ const savePanelLayout = vi.fn(
     panelRows: DEFAULT_MARKET_PANEL_ROWS,
   })
 )
-vi.mock("@/lib/api/market-folders", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/market-folders")>()),
+vi.mock("@/lib/api/trade/market-folders", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/api/trade/market-folders")>()),
   // Called rather than passed: `vi.mock` is hoisted above the const above it,
   // so the stub can only be reached once the module is actually used.
   savePanelLayout: (input: Parameters<typeof savePanelLayout>[0]) =>

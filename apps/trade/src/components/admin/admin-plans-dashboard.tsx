@@ -159,7 +159,6 @@ export function AdminPlansDashboard({
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const sort: PlanSortColumn = listSearch.sort ?? "name"
   const direction = listSearch.direction ?? "asc"
-  const [editing, setEditing] = React.useState<AdminPlan | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [archiveTarget, setArchiveTarget] = React.useState<AdminPlan | null>(null)
   const [archiving, setArchiving] = React.useState(false)
@@ -184,17 +183,14 @@ export function AdminPlansDashboard({
   )
   const openPlan = React.useCallback(
     (plan: AdminPlan) => {
-      setEditing(plan)
       setOpenPlan(plan.id)
     },
     [setOpenPlan]
   )
-
-  React.useEffect(() => {
-    const plan = plans.find((item) => item.id === listSearch.open)
-    if (plan) setEditing(plan)
-    else if (!creating) setEditing(null)
-  }, [creating, listSearch.open, plans])
+  const editing = React.useMemo(
+    () => plans.find((plan) => plan.id === listSearch.open) ?? null,
+    [listSearch.open, plans]
+  )
 
   const sortedPlans = React.useMemo(() => {
     const factor = direction === "asc" ? 1 : -1
@@ -452,12 +448,10 @@ export function AdminPlansDashboard({
         plan={editing}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenPlan(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenPlan(undefined)
           await refresh()
         }}

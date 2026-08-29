@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import type { ChartSurface } from "@/components/trade/price-chart"
-import { loadCandles } from "@/lib/api/candles"
+import { loadCandles } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import type { CandleInterval } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
@@ -15,8 +15,8 @@ import type { ChartColors } from "@/lib/trade/chart-theme"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { Trading } from "@/components/trade/use-trading"
 
-vi.mock("@/lib/api/candles", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/candles")>()
+vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api/trade/candles")>()
   return { ...actual, loadCandles: vi.fn() }
 })
 

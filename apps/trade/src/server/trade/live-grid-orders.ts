@@ -7,14 +7,8 @@ import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
-  gridEndPx,
   gridRangeMovable,
-  gridStopBeyond,
   gridStopPx,
-  lossEdge,
-  reachedExit,
-  readyWhen,
-  winEdge,
   type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
@@ -36,6 +30,14 @@ import { rollbackLiveOrder, setLiveBrackets } from "@/server/trade/live-orders"
 import { reconcileLiveLaddersOnce } from "@/server/trade/live-smart-orders"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
 import { marketRules } from "@/server/trade/market-rules"
+import {
+  cancelGridLevelPlan,
+  cancelGridRestPlan,
+  moveGridExitPlan,
+  setGridFollowPlan,
+  updateGridEndPlan,
+  updateGridStopPlan,
+} from "@/server/trade/smart-order-actions"
 import { tradeSmartLadders, tradeWallets } from "@/server/trade/schema"
 import {
   assertSmartOrderPlacable,
@@ -241,11 +243,7 @@ export async function cancelLiveGridLevel(
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
-    const level = grid.plan.levels[input.levelIndex]
-    if (!level || level.status !== "waiting") {
-      throw new Error("SMART_GRID_LEVEL_DONE")
-    }
-    level.status = "cancelled"
+    cancelGridLevelPlan(grid.plan, input.levelIndex)
     await saveGridPlan(userId, grid.id, grid.plan, "active")
   })
 }
@@ -259,12 +257,7 @@ export async function cancelLiveGridRest(
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
-    let cancelled = 0
-    for (const level of grid.plan.levels) {
-      if (level.status !== "waiting") continue
-      level.status = "cancelled"
-      cancelled += 1
-    }
+    const cancelled = cancelGridRestPlan(grid.plan)
     await saveGridPlan(userId, grid.id, grid.plan, "active")
     return { cancelled }
   })
@@ -279,20 +272,7 @@ export async function setLiveGridFollow(
   await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
-    const turnDownOn = input.followDown === true && !grid.plan.followDown
-    if (turnDownOn && grid.plan.stopLoss?.mode === "percent") {
-      grid.plan.stopLoss = {
-        ...grid.plan.stopLoss,
-        mode: "fixed",
-        px: gridStopPx(grid.plan),
-      }
-    }
-    grid.plan.follow = input.follow
-    if (input.followDown !== undefined) grid.plan.followDown = input.followDown
-    if (input.follow) {
-      // A hand's own switch counts the range as in play — see `setGridFollow`.
-      grid.plan.entered = true
-    }
+    setGridFollowPlan(grid.plan, input)
     await saveGridPlan(userId, grid.id, grid.plan, "active")
   })
 }
@@ -308,28 +288,17 @@ export async function updateLiveGridEnd(
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
 
-    if (input.abovePct === null) {
-      plan.takeProfitPx = null
-      plan.takeProfitPct = null
-    } else {
+    let mark: number | null = null
+    if (input.abovePct !== null) {
       const ref = parseMarketKey(grid.marketKey)
       if (!ref) throw new Error("LIVE_MARKET")
       const protocol = getProtocol(wallet.protocol)
-      const mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
-      const target = protocol.markets.roundPx(
-        gridEndPx(plan.direction, plan, mark, input.abovePct),
-        plan.sizeDecimals,
-        plan.priceTick
-      )
-      if (!readyWhen(plan.direction, target, winEdge(plan.direction, plan))) {
-        throw new Error("SMART_GRID_TARGET_IN_RANGE")
-      }
-      if (reachedExit(plan.direction, mark, target)) {
-        throw new Error("SMART_GRID_TARGET_PASSED")
-      }
-      plan.takeProfitPx = target
-      plan.takeProfitPct = input.abovePct
+      mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
     }
+    const protocol = getProtocol(wallet.protocol)
+    updateGridEndPlan(plan, input.abovePct, mark, (px) =>
+      protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
+    )
 
     const at = Date.now()
     await saveGridPlan(userId, grid.id, plan, "active", at)
@@ -416,16 +385,7 @@ export async function updateLiveGridStop(
 
     // The follow that walks INTO the loss freezes the stop where it stands:
     // following down on a buying grid, following up on a selling one.
-    const followsIntoLoss =
-      plan.direction === "long" ? plan.followDown : plan.follow
-    plan.stopLoss = {
-      mode: followsIntoLoss ? "fixed" : "percent",
-      underPct: input.stopLoss.underPct,
-      px: followsIntoLoss
-        ? gridStopBeyond(plan.direction, plan, input.stopLoss.underPct)
-        : null,
-      base: input.stopLoss.base,
-    }
+    updateGridStopPlan(plan, input.stopLoss)
 
     // While a ladder shares the coin, the stop is the handoff line: it must
     // exist and sit above the ladder's first buy, or the pairing's whole
@@ -619,29 +579,15 @@ export async function moveLiveGridExit(
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
     const protocol = getProtocol(wallet.protocol)
-    const px = protocol.markets.roundPx(
-      input.px,
-      plan.sizeDecimals,
-      plan.priceTick
+    const { px, movedStop } = moveGridExitPlan(
+      plan,
+      input,
+      (value) =>
+        protocol.markets.roundPx(value, plan.sizeDecimals, plan.priceTick),
+      "LIVE_PRICE"
     )
-    if (!(px > 0)) throw new Error("LIVE_PRICE")
 
-    if (input.which === "takeProfit") {
-      if (!readyWhen(plan.direction, px, winEdge(plan.direction, plan))) {
-        throw new Error("SMART_GRID_TARGET_IN_RANGE")
-      }
-      plan.takeProfitPx = px
-      plan.takeProfitPct = undefined
-    } else {
-      if (!readyWhen(plan.direction, lossEdge(plan.direction, plan), px)) {
-        throw new Error("SMART_GRID_STOP_IN_RANGE")
-      }
-      plan.stopLoss = {
-        mode: "fixed",
-        underPct: plan.stopLoss?.underPct ?? 0,
-        px,
-        base: null,
-      }
+    if (movedStop) {
       // While a ladder shares the coin the stop is the handoff line — it
       // may move, but never to or below the ladder's first buy.
       const ladder = await pairedLadderPlan(userId, wallet.id, grid.marketKey)

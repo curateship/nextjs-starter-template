@@ -5,7 +5,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { FlowRunReport } from "@/lib/api/flow-runs"
+import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 
 const { loadCandles, loadFlowRun, loadFlowRunCoin } = vi.hoisted(() => ({
   loadCandles: vi.fn(),
@@ -17,12 +17,12 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
 }))
 
-vi.mock("@/lib/api/candles", () => ({
+vi.mock("@/lib/api/trade/candles", () => ({
   getCandlesErrorMessage: () => "Could not load candles.",
   loadCandles,
 }))
 
-vi.mock("@/lib/api/flow-runs", () => ({
+vi.mock("@/lib/api/trade/flow-runs", () => ({
   loadFlowRun,
   loadFlowRunCoin,
 }))

@@ -80,7 +80,6 @@ import {
 } from "@/lib/nav/list-search"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
-import { useOpenFromLink } from "@/lib/hooks/use-open-from-link"
 import { useSelection } from "@/lib/hooks/use-selection"
 
 const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
@@ -197,7 +196,6 @@ export function AdminAnnouncementsDashboard({
   const sort: AnnouncementSortColumn = listSearch.sort ?? "shows"
   const direction = listSearch.direction ?? "desc"
   const toggleSort = useListSort<AnnouncementSortColumn>({ sort, direction })
-  const [editing, setEditing] = React.useState<Announcement | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [retireTargets, setRetireTargets] = React.useState<Announcement[]>([])
   const [retiring, setRetiring] = React.useState(false)
@@ -222,16 +220,14 @@ export function AdminAnnouncementsDashboard({
   )
   const openAnnouncement = React.useCallback(
     (announcement: Announcement) => {
-      setEditing(announcement)
       setOpenAnnouncement(announcement.id)
     },
     [setOpenAnnouncement]
   )
-
-  useOpenFromLink({ openId, records: announcements, onOpen: setEditing })
-  React.useEffect(() => {
-    if (!openId && !creating) setEditing(null)
-  }, [creating, openId])
+  const editing = React.useMemo(
+    () => announcements.find((announcement) => announcement.id === openId) ?? null,
+    [announcements, openId]
+  )
 
   // One reading of the clock, taken once. Every row's status and the sort then
   // agree with each other, and — because a fresh number on every render would
@@ -476,12 +472,10 @@ export function AdminAnnouncementsDashboard({
         announcement={editing}
         onClose={() => {
           setCreating(false)
-          setEditing(null)
           setOpenAnnouncement(undefined)
         }}
         onSaved={async () => {
           setCreating(false)
-          setEditing(null)
           setOpenAnnouncement(undefined)
           await refresh()
         }}

@@ -61,7 +61,7 @@ import {
   getMarketFolderErrorMessage,
   renameFolder,
   savePanelLayout,
-} from "@/lib/api/market-folders"
+} from "@/lib/api/trade/market-folders"
 import type { LiveRefusal } from "@/lib/trade/live"
 import type { TradeOrder } from "@/lib/trade/paper"
 import {

@@ -8,7 +8,7 @@ const api = vi.hoisted(() => ({
   load: vi.fn(),
 }))
 
-vi.mock("@/lib/api/drawings", () => ({
+vi.mock("@/lib/api/trade/drawings", () => ({
   clearDrawings: vi.fn(),
   deleteDrawing: vi.fn(),
   getDrawingsErrorMessage: vi.fn(),

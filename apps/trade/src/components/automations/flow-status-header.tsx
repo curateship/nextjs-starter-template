@@ -29,7 +29,7 @@ import {
   startFlow,
   stopFlow,
   type FlowTrading,
-} from "@/lib/api/flow-trading"
+} from "@/lib/api/trade/flow-trading"
 import type { AutomationCanvasStatusProps } from "@/lib/automations/canvas-panel"
 import { formatRelativeTime } from "@/lib/format/format-time"
 import { focusRing } from "@/lib/layout/focus-ring"

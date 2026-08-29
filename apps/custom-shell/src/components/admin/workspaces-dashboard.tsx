@@ -99,11 +99,10 @@ export function WorkspacesDashboard({
   const { open: openWorkspaceId } = workspacesRoute.useSearch()
   const { config } = useShellRuntime()
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [editing, setEditing] = React.useState<WorkspaceItem | null>(null)
   const [pendingDelete, setPendingDelete] =
     React.useState<WorkspaceItem | null>(null)
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
-  const [formOpen, setFormOpen] = React.useState(false)
+  const [creating, setCreating] = React.useState(false)
   const [run, busy] = useAsyncAction(getWorkspaceErrorMessage)
   const { sort, direction: sortDirection, toggleSort } =
     useTableSort<WorkspaceSortColumn>("name")
@@ -126,6 +125,11 @@ export function WorkspacesDashboard({
     },
     [navigate]
   )
+  const editing = React.useMemo(
+    () => workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
+    [openWorkspaceId, workspaces]
+  )
+  const formOpen = creating || Boolean(editing)
 
   // Built here rather than at the top of the file: the header names the thing
   // whatever this app calls it, and `workspaceWord()` may only be read inside a
@@ -195,30 +199,13 @@ export function WorkspacesDashboard({
   )
 
   function openCreateForm() {
-    setEditing(null)
-    setFormOpen(true)
+    setCreating(true)
   }
 
   function openEditForm(workspace: WorkspaceItem) {
-    setEditing(workspace)
-    setFormOpen(true)
+    setCreating(false)
     setOpenWorkspace(workspace.id)
   }
-
-  React.useEffect(() => {
-    if (openWorkspaceId) {
-      const workspace = workspaces.find((item) => item.id === openWorkspaceId)
-      if (workspace) {
-        setEditing(workspace)
-        setFormOpen(true)
-      }
-      return
-    }
-    if (!formOpen || editing) {
-      setEditing(null)
-      setFormOpen(false)
-    }
-  }, [editing, formOpen, openWorkspaceId, workspaces])
 
   // One request for the whole selection, and the server decides what it can
   // take — one workspace always has to survive, so the last one never goes.
@@ -474,8 +461,7 @@ export function WorkspacesDashboard({
         open={formOpen}
         editing={editing}
         onClose={() => {
-          setEditing(null)
-          setFormOpen(false)
+          setCreating(false)
           setOpenWorkspace(undefined)
         }}
       />

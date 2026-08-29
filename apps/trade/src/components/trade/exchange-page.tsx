@@ -11,8 +11,8 @@ import { marketTitleFromMatches, useMarketPageTitle } from "@/app/page-title"
 import { TradeWorkspace } from "@/components/trade/trade-workspace"
 import { useDashboardMarkets } from "@/components/trade/use-dashboard-markets"
 import type { NetworkId, ProtocolId } from "@/lib/protocols/contracts"
-import { loadDashboardBootstrap } from "@/lib/api/dashboard"
-import { saveLastMarket } from "@/lib/api/markets"
+import { loadDashboardBootstrap } from "@/lib/api/trade/dashboard"
+import { saveLastMarket } from "@/lib/api/trade/markets"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
@@ -51,7 +51,7 @@ type ExchangePage = {
 }
 
 /**
- * One server call for everything the page needs — see `@/lib/api/dashboard`.
+ * One server call for everything the page needs — see `@/lib/api/trade/dashboard`.
  * A dead exchange is answered inside it, with an empty list and a message. A
  * server that does not answer at all still opens the workspace: the list
  * explains itself and offers a retry, and every preference falls back to its

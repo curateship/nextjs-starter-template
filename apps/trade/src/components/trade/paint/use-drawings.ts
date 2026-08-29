@@ -8,7 +8,7 @@ import {
   getDrawingsLoadErrorMessage,
   loadDrawings,
   saveDrawing,
-} from "@/lib/api/drawings"
+} from "@/lib/api/trade/drawings"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { Drawing, DrawingShape } from "@/lib/trade/drawings"
 

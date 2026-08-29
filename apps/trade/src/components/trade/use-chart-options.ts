@@ -3,7 +3,7 @@ import * as React from "react"
 import {
   getChartOptionsErrorMessage,
   saveRememberedChartOptions,
-} from "@/lib/api/chart-options"
+} from "@/lib/api/trade/chart-options"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import type { TradingZoneId } from "@/lib/trade/chart-timezone"
 import type { ChartOptions, ChartOptionToggle } from "@/lib/trade/chart-options"

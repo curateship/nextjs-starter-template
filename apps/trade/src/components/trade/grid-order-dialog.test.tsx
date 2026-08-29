@@ -4,7 +4,7 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/smart-orders", () => ({
+vi.mock("@/lib/api/trade/smart-orders", () => ({
   loadSmartGridParams: vi.fn(),
 }))
 
@@ -17,7 +17,7 @@ import {
   type GridPreview,
 } from "@/components/trade/grid-order-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadSmartGridParams } from "@/lib/api/smart-orders"
+import { loadSmartGridParams } from "@/lib/api/trade/smart-orders"
 import type { MarketRow } from "@/lib/protocols/contracts"
 import { defaultGridParams, type GridParams } from "@/lib/trade/grid"
 

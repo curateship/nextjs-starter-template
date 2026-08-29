@@ -13,8 +13,8 @@ many trips each one makes after the check.
 ## Opening the page
 
 The page's account-specific opening data arrives through one authenticated
-answer, `loadDashboardBootstrap` in `src/lib/api/dashboard.ts`. It reads the
-preference row once, including the sound switch, and starts the independent
+answer, `loadDashboardBootstrap` in `src/lib/api/trade/dashboard.ts`. It reads
+the preference row once, including the sound switch, and starts the independent
 reads together. That answer now carries the market list, folders, running bots,
 wallet figures, chart drawings, the opening sound cursor and the first chart
 candles.

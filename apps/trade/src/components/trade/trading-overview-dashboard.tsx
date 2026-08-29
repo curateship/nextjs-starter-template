@@ -13,33 +13,26 @@ import { CountedFilterPopover } from "@/components/trade/counted-filter-popover"
 import { PnlGraphWidget } from "@/components/trade/pnl-graph-widget"
 import { RunningBotsWidget } from "@/components/trade/running-bots-widget"
 import { TradeBadge } from "@/components/trade/trade-badge"
+import {
+  TradeTablePanel,
+  type ColumnSpec,
+} from "@/components/trade/trade-table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableSortButton,
-  TableSurface,
-} from "@/components/ui/table"
+import { TableCell, TableRow } from "@/components/ui/table"
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { loadTradingOverviewPage } from "@/lib/api/trading-overview"
+import { loadTradingOverviewPage } from "@/lib/api/trade/trading-overview"
 import {
   formatClockTime,
   formatDate,
   formatDateTime,
 } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
-import { stickyPanelTableHeaderClassName } from "@/lib/layout/panel-section-bar"
 import {
   mergeTradingOverviewRefresh,
   type TradingOverview,
@@ -209,6 +202,13 @@ function renderWidget(
 
 type TradeColumn = "at" | "venue" | "wallet" | "money"
 
+const TRADE_COLUMNS = [
+  { key: "at", label: "Market" },
+  { key: "venue", label: "Exchange" },
+  { key: "wallet", label: "Wallet" },
+  { key: "money", label: "Money" },
+] as const satisfies readonly ColumnSpec<TradeColumn>[]
+
 function defaultTradeDirection(column: TradeColumn) {
   return column === "at" || column === "money"
     ? ("desc" as const)
@@ -277,146 +277,106 @@ function TradesTable({
   )
   const unpriced = filtered.filter((fill) => fill.money === null).length
 
-  const heading = (
-    column: TradeColumn,
-    label: string,
-    hint?: React.ReactNode
-  ) => (
-    <div className="flex items-center gap-1">
-      <TableSortButton
-        active={sort === column}
-        direction={direction}
-        onClick={() => {
-          toggleSort(column)
-          setPage(1)
-        }}
-      >
-        {label}
-      </TableSortButton>
-      {hint ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={`About ${label}`}
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <InfoIcon className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent className="max-w-64">{hint}</TooltipContent>
-        </Tooltip>
-      ) : null}
-    </div>
-  )
-
   return (
-    <TableSurface className={cn("flex h-full min-h-0 flex-col", className)}>
-      <DashboardCardTitleHeader
-        className="border-b-0"
-        icon={<ListIcon />}
-        title={
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">Trades</span>
-            <Badge variant="secondary">{sorted.length.toLocaleString()}</Badge>
-          </span>
-        }
-        action={
-          <TradeFilters
-            fills={overview.fills}
-            venue={venue}
-            walletId={walletId}
-            onVenueChange={(next) => {
-              setVenue(next)
-              setPage(1)
-            }}
-            onWalletChange={(next) => {
-              setWalletId(next)
-              setPage(1)
-            }}
-            onClear={() => {
-              setVenue(null)
-              setWalletId(null)
-              setPage(1)
-            }}
-          />
-        }
-      />
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="h-full min-h-24"
-      >
-        <Table
-          containerClassName={cn(
-            "overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
-            stickyPanelTableHeaderClassName
-          )}
-        >
-          <TableHeader>
-            <TableRow>
-              <TableHead column="main">{heading("at", "Market")}</TableHead>
-              <TableHead column="meta">
-                {heading("venue", "Exchange")}
-              </TableHead>
-              <TableHead column="meta">{heading("wallet", "Wallet")}</TableHead>
-              <TableHead column="meta">
-                {heading(
-                  "money",
-                  "Money",
-                  unpriced ? (
-                    <>
-                      The money total is short of {unpriced.toLocaleString()}{" "}
-                      {unpriced === 1 ? "trade" : "trades"} the exchange did not
-                      price.
-                    </>
-                  ) : null
-                )}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sorted.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="h-24 text-center text-sm text-muted-foreground"
-                >
-                  {venue || walletId
-                    ? "No trades match these filters."
-                    : "No real trades have been recorded yet."}
-                </TableCell>
-              </TableRow>
-            ) : (
-              visible.map((fill, index) => {
-                const day = tradeDayKey(fill.at)
-                const previousDay = index
-                  ? tradeDayKey(visible[index - 1].at)
-                  : null
-                return (
-                  <React.Fragment key={`${fill.walletId}:${fill.fillId}`}>
-                    {day !== previousDay ? <TradeDayRow at={fill.at} /> : null}
-                    <TradeRow fill={fill} />
-                  </React.Fragment>
-                )
-              })
-            )}
-          </TableBody>
-        </Table>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
-      <DashboardTablePagination
-        page={currentPage}
-        pageSize={pageSize}
-        total={sorted.length}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        onPageSizeChange={(next) => {
-          setPageSize(next)
-          setPage(1)
-        }}
-        pageSizeOptions={[25, 50, 100]}
-      />
-    </TableSurface>
+    <TradeTablePanel
+      className={className}
+      header={
+        <DashboardCardTitleHeader
+          className="border-b-0"
+          icon={<ListIcon />}
+          title={
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="truncate">Trades</span>
+              <Badge variant="secondary">
+                {sorted.length.toLocaleString()}
+              </Badge>
+            </span>
+          }
+          action={
+            <TradeFilters
+              fills={overview.fills}
+              venue={venue}
+              walletId={walletId}
+              onVenueChange={(next) => {
+                setVenue(next)
+                setPage(1)
+              }}
+              onWalletChange={(next) => {
+                setWalletId(next)
+                setPage(1)
+              }}
+              onClear={() => {
+                setVenue(null)
+                setWalletId(null)
+                setPage(1)
+              }}
+            />
+          }
+        />
+      }
+      columns={TRADE_COLUMNS}
+      rows={visible}
+      loading={false}
+      failed={false}
+      loadingLabel="Loading trades"
+      failedWords="Trades could not be loaded."
+      emptyWords={
+        venue || walletId
+          ? "No trades match these filters."
+          : "No real trades have been recorded yet."
+      }
+      stateClassName="flex min-h-24 items-center justify-center text-sm"
+      onRetry={() => undefined}
+      sort={sort}
+      direction={direction}
+      onSort={(column) => {
+        toggleSort(column)
+        setPage(1)
+      }}
+      headerInfo={(column) =>
+        column === "money" && unpriced ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-label="About Money"
+                className="text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <InfoIcon className="size-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">
+              The money total is short of {unpriced.toLocaleString()}{" "}
+              {unpriced === 1 ? "trade" : "trades"} the exchange did not price.
+            </TooltipContent>
+          </Tooltip>
+        ) : null
+      }
+      renderRow={(fill, index) => {
+        const day = tradeDayKey(fill.at)
+        const previousDay = index ? tradeDayKey(visible[index - 1].at) : null
+        return (
+          <React.Fragment key={`${fill.walletId}:${fill.fillId}`}>
+            {day !== previousDay ? <TradeDayRow at={fill.at} /> : null}
+            <TradeRow fill={fill} />
+          </React.Fragment>
+        )
+      }}
+      afterTable={
+        <DashboardTablePagination
+          page={currentPage}
+          pageSize={pageSize}
+          total={sorted.length}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(next) => {
+            setPageSize(next)
+            setPage(1)
+          }}
+          pageSizeOptions={[25, 50, 100]}
+        />
+      }
+    />
   )
 }
 

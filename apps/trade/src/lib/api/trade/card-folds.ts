@@ -5,7 +5,7 @@ import { cardFoldsSchema, type CardFolds } from "@/lib/trade/card-folds"
 import { userGet, userPost } from "@/server/guards"
 import { loadCardFolds, saveCardFolds } from "@/server/trade/prefs"
 
-import { createErrorMessage } from "./error-message"
+import { createErrorMessage } from "../error-message"
 
 /**
  * Which settings cards a person has folded away, kept against the account.

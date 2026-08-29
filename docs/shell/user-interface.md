@@ -56,6 +56,14 @@ need to signal each other directly. Do not invent a second mechanism (manual
 cross-component `refresh()` calls, shared mutable stores); wire new shell-level
 surfaces into the same token.
 
+A request effect starts the external read and updates state only when that read
+answers. The screen derives whether the request is pending from the current
+request key and the last key that finished. It does not set a loading flag at
+the start of the effect, because that paints an empty or stale state once and
+then immediately corrects it. Record dialogs follow the same rule: when the
+address names the open record, the dialog derives that record from the current
+list instead of copying it into state after the page has drawn.
+
 ## Dashboard Filters
 
 - Dashboard filter bars should use the dashboard toolbar primitives from `src/components/dashboard-toolbar`.

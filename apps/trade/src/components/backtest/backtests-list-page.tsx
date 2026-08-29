@@ -43,7 +43,7 @@ import {
   getBacktestErrorMessage,
   loadBacktests,
   pinBacktests,
-} from "@/lib/api/backtests"
+} from "@/lib/api/trade/backtests"
 import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDateTime, formatRelativeTime } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"

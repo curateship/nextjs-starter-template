@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getWalletErrorMessage } from "@/lib/api/wallets"
+import { getWalletErrorMessage } from "@/lib/api/trade/wallets"
 import type { AutomationNodeFieldsProps } from "@/lib/automations/node-descriptor"
 import {
   loadAutomationWalletAccounts,

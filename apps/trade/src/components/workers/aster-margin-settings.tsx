@@ -16,7 +16,7 @@ import {
   getAsterMarginModeSaveErrorMessage,
   loadAsterMarginModes,
   saveAsterMarginMode,
-} from "@/lib/api/aster-margin-mode"
+} from "@/lib/api/trade/aster-margin-mode"
 import type {
   AsterMarginMode,
   AsterMarginModeSetting,

@@ -6,7 +6,7 @@ import { TradingOverviewDashboard } from "@/components/trade/trading-overview-da
 import {
   getTradingOverviewErrorMessage,
   loadTradingOverviewPage,
-} from "@/lib/api/trading-overview"
+} from "@/lib/api/trade/trading-overview"
 
 export const Route = createFileRoute("/_authenticated/admin/trading-overview")({
   head: ({ matches }) => ({

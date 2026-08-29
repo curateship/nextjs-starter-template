@@ -14,12 +14,12 @@ import {
   ResizablePanelGroup,
   WorkspacePanel,
 } from "@/components/ui/resizable"
-import { getCandlesErrorMessage, loadCandles } from "@/lib/api/candles"
+import { getCandlesErrorMessage, loadCandles } from "@/lib/api/trade/candles"
 import {
   loadFlowRun,
   loadFlowRunCoin,
   type FlowRunReport,
-} from "@/lib/api/flow-runs"
+} from "@/lib/api/trade/flow-runs"
 import {
   buildGraphSeries,
   graphView,

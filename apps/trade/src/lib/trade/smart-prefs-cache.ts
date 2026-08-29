@@ -1,4 +1,4 @@
-import { loadSmartDcaParams, loadSmartGridParams } from "@/lib/api/smart-orders"
+import { loadSmartDcaParams, loadSmartGridParams } from "@/lib/api/trade/smart-orders"
 import type { DcaParams } from "@/lib/trade/dca"
 import type { GridParams } from "@/lib/trade/grid"
 

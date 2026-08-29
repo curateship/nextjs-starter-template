@@ -18,7 +18,7 @@ import {
   TableRow,
   TableSortButton,
 } from "@/components/ui/table"
-import type { FlowRunReport } from "@/lib/api/flow-runs"
+import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatDateTime, formatDuration } from "@/lib/format/format-time"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 import { tradeEndingLabel } from "@/lib/trade/live-trades"

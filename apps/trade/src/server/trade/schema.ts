@@ -897,9 +897,6 @@ export const tradeCandleGaps = pgTable(
     toTime: bigint("to_time", { mode: "number" }).notNull(),
     /** Plain words for the results page: "the exchange has nothing before…". */
     reason: text("reason").notNull(),
-    recordedAt: timestamp("recorded_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
   },
   (table) => [
     primaryKey({
@@ -937,9 +934,6 @@ export const tradeFundingGaps = pgTable(
     fromTime: bigint("from_time", { mode: "number" }).notNull(),
     toTime: bigint("to_time", { mode: "number" }).notNull(),
     reason: text("reason").notNull(),
-    recordedAt: timestamp("recorded_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.marketKey, table.fromTime] })]
 )

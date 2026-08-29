@@ -31,6 +31,11 @@ import { db } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
+import {
+  cancelLadderRestPlan,
+  cancelLadderRungPlan,
+  updateLadderExitsPlan,
+} from "@/server/trade/smart-order-actions"
 import { resumeSmartOrderPlan } from "@/server/trade/smart-order-pause"
 import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
 import {
@@ -612,13 +617,7 @@ export async function cancelLadderRung(
 ): Promise<void> {
   await settleWallet(userId, wallet)
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
-  const rung = ladder.plan.rungs[input.rungIndex]
-  if (!rung) throw new Error("SMART_RUNG_DONE")
-  if (rung.status !== "waiting") throw new Error("SMART_RUNG_DONE")
-
-  const orderId = rung.orderId
-  rung.status = "cancelled"
-  rung.orderId = null
+  const orderId = cancelLadderRungPlan(ladder.plan, input.rungIndex)
   // The row goes before the plan does: a settle landing between the two would
   // otherwise fill an order the plan already calls off.
   if (orderId) await deleteOrders(userId, [orderId])
@@ -637,19 +636,14 @@ export async function cancelLadderRest(
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
 
   const gone: string[] = []
-  let cancelled = 0
-  for (const rung of ladder.plan.rungs) {
-    if (rung.status !== "waiting") continue
-    if (rung.orderId) gone.push(rung.orderId)
-    rung.status = "cancelled"
-    rung.orderId = null
-    cancelled += 1
-  }
+  const result = await cancelLadderRestPlan(ladder.plan, async (orderId) => {
+    gone.push(orderId)
+  })
   // Rows first, then the plan — see `cancelLadderRung`.
   await deleteOrders(userId, gone)
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
   await settleWallet(userId, wallet)
-  return { cancelled }
+  return result
 }
 
 /** Calls off a flow's unbought ladder without giving its watched rungs a turn. */
@@ -863,33 +857,10 @@ export async function updateLadderExits(
     protocol.markets.roundPx(px, plan.sizeDecimals, plan.priceTick)
 
   // Leaving "sell at previous rung" takes its resting sells off the book.
-  const leavingPrevRung =
-    plan.takeProfit?.mode === "prevRung" &&
-    input.takeProfit?.mode !== "prevRung"
   const goneSells: string[] = []
-  if (leavingPrevRung) {
-    for (const rung of plan.rungs) {
-      if (rung.sellOrderId) goneSells.push(rung.sellOrderId)
-      rung.sellOrderId = null
-    }
-  }
-
-  plan.takeProfit = input.takeProfit
-    ? {
-        mode: input.takeProfit.mode,
-        pct: input.takeProfit.mode === "average" ? input.takeProfit.pct : null,
-      }
-    : null
-  plan.stopLoss = input.stopLoss
-    ? {
-        mode: "percent",
-        pct: input.stopLoss.pct,
-        base: ladderBaseStopOf(input.stopLoss.base),
-      }
-    : null
-  // Switching the base rule off drops what it was waiting on. A buy-back is
-  // that rule's promise, and it must not outlive it.
-  if (!plan.stopLoss?.base) plan.reclaim = null
+  await updateLadderExitsPlan(plan, input, async (orderId) => {
+    goneSells.push(orderId)
+  })
 
   // Rewrite the position's brackets to the new rules right now, and remember
   // exactly what was written — anything else there later means a hand moved it.

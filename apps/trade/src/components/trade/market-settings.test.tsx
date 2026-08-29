@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({ invalidate: vi.fn() }),
 }))
-vi.mock("@/lib/api/market-settings", () => ({
+vi.mock("@/lib/api/trade/market-settings", () => ({
   getMarketSettingsLoadErrorMessage: vi.fn(() => "Could not load"),
   getMarketSettingsSaveErrorMessage: vi.fn(() => "Could not save"),
   loadMarketSettings: vi.fn(),
@@ -22,7 +22,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
 import MarketSettings from "@/components/trade/market-settings"
 import { TradeSettingsProvider } from "@/components/trade/trade-settings-bootstrap"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadMarketSettings } from "@/lib/api/market-settings"
+import { loadMarketSettings } from "@/lib/api/trade/market-settings"
 
 let host: HTMLDivElement
 let root: Root

@@ -6,7 +6,7 @@ import { MarketsSettingsPage } from "@/components/trade/trade-settings-page"
 import {
   getMarketSettingsLoadErrorMessage,
   loadMarketSettings,
-} from "@/lib/api/market-settings"
+} from "@/lib/api/trade/market-settings"
 
 export const Route = createFileRoute("/_authenticated/admin/settings_/markets")(
   {

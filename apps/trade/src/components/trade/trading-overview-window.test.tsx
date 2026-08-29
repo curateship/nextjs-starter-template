@@ -4,13 +4,13 @@ import { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("@/lib/api/trading-overview", () => ({
+vi.mock("@/lib/api/trade/trading-overview", () => ({
   loadTradingOverviewPage: vi.fn(),
 }))
 
 import { TradingOverviewDashboard } from "@/components/trade/trading-overview-dashboard"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { loadTradingOverviewPage } from "@/lib/api/trading-overview"
+import { loadTradingOverviewPage } from "@/lib/api/trade/trading-overview"
 import type { TradingOverview } from "@/lib/trade/dashboard/overview"
 
 /**

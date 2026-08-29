@@ -6,7 +6,7 @@ import { TradingWidgetsSettingsPage } from "@/components/trade/trade-settings-pa
 import {
   getTradingOverviewLayoutLoadErrorMessage,
   loadTradingOverviewLayout,
-} from "@/lib/api/trading-overview"
+} from "@/lib/api/trade/trading-overview"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/settings_/trading-widgets"

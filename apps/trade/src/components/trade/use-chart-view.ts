@@ -1,6 +1,6 @@
 import * as React from "react"
 
-import { saveRememberedChartView } from "@/lib/api/chart-view"
+import { saveRememberedChartView } from "@/lib/api/trade/chart-view"
 import { sameView, type ChartView } from "@/lib/trade/chart-view"
 
 /** How long the chart must sit still before the view is written down. */

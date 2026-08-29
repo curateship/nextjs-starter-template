@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { getCandlesErrorMessage } from "@/lib/api/candles"
-import { getLiveErrorMessage } from "@/lib/api/live"
-import { getSmartOrderErrorMessage } from "@/lib/api/smart-orders"
+import { getCandlesErrorMessage } from "@/lib/api/trade/candles"
+import { getLiveErrorMessage } from "@/lib/api/trade/live"
+import { getSmartOrderErrorMessage } from "@/lib/api/trade/smart-orders"
 
 /**
  * The refusals that carry their own sentence, and reach the screen intact.
