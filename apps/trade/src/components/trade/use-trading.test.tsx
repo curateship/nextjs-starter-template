@@ -12,6 +12,9 @@ const api = vi.hoisted(() => ({
   loadLiveTrading: vi.fn(),
   loadPaperPortfolio: vi.fn(),
   placeLiveOrder: vi.fn(),
+  closeLivePositions: vi.fn(),
+  closeAllPaperPositions: vi.fn(),
+  flattenWalletApi: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
 }))
@@ -23,6 +26,7 @@ vi.mock("@/lib/api/trade/live", () => ({
   changeLiveLeverage: vi.fn(),
   changeLiveMargin: vi.fn(),
   closeLivePosition: vi.fn(),
+  closeLivePositions: api.closeLivePositions,
   getLiveErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Live order refused",
   hideLiveTrade: vi.fn(),
@@ -35,7 +39,7 @@ vi.mock("@/lib/api/trade/live", () => ({
 
 vi.mock("@/lib/api/trade/paper", () => ({
   cancelPaperOrder: vi.fn(),
-  closeAllPaperPositions: vi.fn(),
+  closeAllPaperPositions: api.closeAllPaperPositions,
   closePaperPosition: vi.fn(),
   flipPaperPosition: vi.fn(),
   getPaperErrorMessage: (error: unknown) =>
@@ -58,7 +62,7 @@ vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelWatch: vi.fn(),
   closePartOfPosition: vi.fn(),
   editWatch: vi.fn(),
-  flattenWalletApi: vi.fn(),
+  flattenWalletApi: api.flattenWalletApi,
   getSmartOrderErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Smart order refused",
   moveGridExit: vi.fn(),
@@ -142,6 +146,17 @@ beforeEach(() => {
   api.loadPaperPortfolio.mockReset().mockResolvedValue(emptyPaperAnswer)
   api.loadLiveTrading.mockReset().mockResolvedValue(emptyLiveAnswer)
   api.placeLiveOrder.mockReset()
+  api.closeLivePositions.mockReset().mockResolvedValue({
+    closed: 0,
+    refused: [],
+  })
+  api.closeAllPaperPositions.mockReset().mockResolvedValue({ closed: 0 })
+  api.flattenWalletApi.mockReset().mockResolvedValue({
+    stood: [],
+    cancelRefused: [],
+    selling: [],
+    sellRefused: [],
+  })
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
   host = document.createElement("div")
@@ -209,5 +224,55 @@ describe("the line for an order being sent", () => {
       "The order must be worth at least $10."
     )
     expect(latest?.placing).toHaveLength(0)
+  })
+})
+
+describe("bulk safety actions", () => {
+  it("sends twenty live Close all positions in one capped request", async () => {
+    const positions = Array.from({ length: 20 }, (_, index) => ({
+      id: `position-${index}`,
+      walletId: wallet.id,
+      marketKey: `hyperliquid:mainnet:COIN${index}`,
+      szi: 1,
+      entryPx: 100,
+      leverage: 1,
+      maxLeverage: 50,
+      targets: [],
+      tpPx: null,
+      feesPaid: 0,
+      updatedAt: Date.now(),
+      live: {
+        marginUsed: 100,
+        liquidationPx: null,
+        tpOrderId: null,
+        slOrderId: null,
+      },
+    }))
+    api.loadLiveTrading.mockResolvedValue({
+      ...emptyLiveAnswer,
+      positions,
+    })
+    api.closeLivePositions.mockResolvedValue({ closed: 20, refused: [] })
+
+    await finishFirstRead()
+    await act(async () => {
+      await latest?.closeAll()
+    })
+
+    expect(api.closeLivePositions).toHaveBeenCalledOnce()
+    expect(api.closeLivePositions).toHaveBeenCalledWith(
+      positions.map(({ walletId, marketKey }) => ({ walletId, marketKey }))
+    )
+  })
+
+  it("sends Empty wallet as one capped request", async () => {
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.flattenWallet(wallet.id)
+    })
+
+    expect(api.flattenWalletApi).toHaveBeenCalledOnce()
+    expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
   })
 })

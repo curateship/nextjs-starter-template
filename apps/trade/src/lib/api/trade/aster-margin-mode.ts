@@ -8,6 +8,7 @@ import {
   loadAsterMarginModeSettings,
   saveAsterMarginModeSetting,
 } from "@/server/protocols/aster-margin-mode"
+import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 
 const loadFn = createServerFn({ method: "GET" })
   .middleware([userGet])
@@ -22,7 +23,9 @@ const saveFn = createServerFn({ method: "POST" })
     })
   )
   .handler(({ data, context }) =>
-    saveAsterMarginModeSetting(context.user.id, data.walletId, data.mode)
+    runLiveOrderAction(context.user.id, "order", () =>
+      saveAsterMarginModeSetting(context.user.id, data.walletId, data.mode)
+    )
   )
 
 export function loadAsterMarginModes() {
@@ -43,6 +46,8 @@ export const getAsterMarginModeLoadErrorMessage = createErrorMessage(
 
 export const getAsterMarginModeSaveErrorMessage = createErrorMessage(
   {
+    TRADE_ORDER_RATE_LIMITED:
+      "The app is sending orders too fast. Try again in a moment.",
     LIVE_MARGIN_MODE:
       "Aster would not change the account margin setting. Close any open Aster positions or orders, then try again.",
     LIVE_MAINNET_OFF:

@@ -72,6 +72,9 @@ Two files outrank the rest, and outrank the code:
   trading app, line by line.
 - `hyperliquid-rate-limits.md` — the cap Hyperliquid puts on requests and how
   this app stays under it.
+- `order-rate-limits.md` explains the separate signed-in caps for orders and
+  cancellations, the measured twenty-position bulk actions, and why worker
+  orders do not use them.
 - `aster.md` explains Aster's public markets, charts, funding, networks,
   measured catalogue size and the figures its public API does not state.
 - `lighter.md` — Lighter's markets, charts and hourly funding: why 18 listed

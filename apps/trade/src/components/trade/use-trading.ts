@@ -6,6 +6,7 @@ import {
   changeLiveLeverage,
   changeLiveMargin,
   closeLivePosition,
+  closeLivePositions,
   getLiveErrorMessage,
   loadOlderLiveTrades,
   loadLiveTrading,
@@ -2108,29 +2109,37 @@ export function useTrading(
    * practice sweep that fails must never be the reason real money stayed open
    * — which is exactly what a single throw used to do.
    *
-   * Each real position goes through `closeLivePosition`, the same door its own
-   * row's button uses, so the emergency path can never sell real money
-   * differently from a hand on each row.
+   * The real positions travel in one server request. The server still closes
+   * every position through the same function its own row uses, and one press
+   * spends one slot in the order cap whether it carries one position or twenty.
    */
   const closeAll: Trading["closeAll"] = React.useCallback(async () => {
     setPending((count) => count + 1)
     const real = positions.filter((one) => one.live)
     try {
-      const [sweep, ...answers] = await Promise.allSettled([
+      const [sweep, live] = await Promise.allSettled([
         closeAllPaperPositions(),
-        ...real.map((held) => closeLivePosition(held.walletId, held.marketKey)),
+        real.length > 0
+          ? closeLivePositions(
+              real.map((held) => ({
+                walletId: held.walletId,
+                marketKey: held.marketKey,
+              }))
+            )
+          : Promise.resolve({ closed: 0, refused: [] }),
       ])
 
       if (sweep.status === "rejected") {
         showErrorToast(getPaperErrorMessage(sweep.reason))
       }
-      const refused = answers.filter((one) => one.status === "rejected")
-      if (refused.length > 0) {
-        const why = getLiveErrorMessage(refused[0].reason)
+      if (live.status === "rejected") {
+        showErrorToast(getLiveErrorMessage(live.reason))
+      } else if (live.value.refused.length > 0) {
+        const why = getLiveErrorMessage(new Error(live.value.refused[0]))
         showErrorToast(
-          refused.length === 1
+          live.value.refused.length === 1
             ? why
-            : `${refused.length} real positions were not closed. The first said: ${why}`
+            : `${live.value.refused.length} real positions were not closed. The first said: ${why}`
         )
       }
 
@@ -2138,7 +2147,7 @@ export function useTrading(
       // and saying "all closed" when one is still there would be a lie.
       const done =
         (sweep.status === "fulfilled" ? sweep.value.closed : 0) +
-        (answers.length - refused.length)
+        (live.status === "fulfilled" ? live.value.closed : 0)
       toast.success(
         done === 1 ? "1 position closed." : `${done} positions closed.`
       )

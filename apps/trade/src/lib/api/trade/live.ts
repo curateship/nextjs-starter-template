@@ -30,7 +30,11 @@ import {
   hideLiveTrade as hideTradeRows,
   loadLiveHistoryBefore,
 } from "@/server/trade/live-fills"
+import {
+  closeLivePositions as closePositionRows,
+} from "@/server/trade/close-live-positions"
 import { loadOrderStyle } from "@/server/trade/prefs"
+import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 import {
   listActiveSmartOrdersIfChanged,
   placeWatchOrder,
@@ -200,29 +204,31 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(
     async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
-      // Watched rather than rested, when that is what the account is set to.
-      // Nothing reaches the exchange until the price is actually there, so the
-      // answer here is "it is waiting", the same shape a resting order gives.
-      if ((await loadOrderStyle(context.user.id)) === "watch") {
-        const wallet = await findWallet(context.user.id, data.walletId)
-        if (!wallet) throw new Error("LIVE_WALLET")
-        await placeWatchOrder(context.user.id, wallet, data)
-        return {
-          outcome: {
-            status: "resting",
-            // No exchange order to name: there is not one yet, and the whole
-            // point is that there will not be until the price is reached.
-            orderId: null,
-            avgPx: null,
-            filledSz: null,
-            // The stop and target travel with the watch and are handed to the
-            // position it opens, so there is nothing to report on here.
-            protection: null,
-            protectionNote: null,
-          },
+      return await runLiveOrderAction(context.user.id, "order", async () => {
+        // Watched rather than rested, when that is what the account is set to.
+        // Nothing reaches the exchange until the price is actually there, so the
+        // answer here is "it is waiting", the same shape a resting order gives.
+        if ((await loadOrderStyle(context.user.id)) === "watch") {
+          const wallet = await findWallet(context.user.id, data.walletId)
+          if (!wallet) throw new Error("LIVE_WALLET")
+          await placeWatchOrder(context.user.id, wallet, data)
+          return {
+            outcome: {
+              status: "resting",
+              // No exchange order to name: there is not one yet, and the whole
+              // point is that there will not be until the price is reached.
+              orderId: null,
+              avgPx: null,
+              filledSz: null,
+              // The stop and target travel with the watch and are handed to the
+              // position it opens, so there is nothing to report on here.
+              protection: null,
+              protectionNote: null,
+            },
+          }
         }
-      }
-      return { outcome: await placeOrderRow(context.user.id, data) }
+        return { outcome: await placeOrderRow(context.user.id, data) }
+      })
     }
   )
 
@@ -243,24 +249,30 @@ const moveLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(moveSchema)
   .handler(async ({ data, context }): Promise<{ moved: true }> => {
-    await moveOrderRow(context.user.id, data)
-    return { moved: true }
+    return await runLiveOrderAction(context.user.id, "order", async () => {
+      await moveOrderRow(context.user.id, data)
+      return { moved: true }
+    })
   })
 
 const cancelLiveOrderFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(cancelSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: true }> => {
-    await cancelOrderRow(context.user.id, data)
-    return { cancelled: true }
+    return await runLiveOrderAction(context.user.id, "cancel", async () => {
+      await cancelOrderRow(context.user.id, data)
+      return { cancelled: true }
+    })
   })
 
 const setLiveBracketsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(bracketsSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
-    await setBracketsRow(context.user.id, data)
-    return { saved: true }
+    return await runLiveOrderAction(context.user.id, "order", async () => {
+      await setBracketsRow(context.user.id, data)
+      return { saved: true }
+    })
   })
 
 /**
@@ -280,8 +292,10 @@ const changeLiveLeverageFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<{ asked: true }> => {
-    await changeLeverageRow(context.user.id, data)
-    return { asked: true }
+    return await runLiveOrderAction(context.user.id, "order", async () => {
+      await changeLeverageRow(context.user.id, data)
+      return { asked: true }
+    })
   })
 
 /**
@@ -301,17 +315,33 @@ const changeLiveMarginFn = createServerFn({ method: "POST" })
     })
   )
   .handler(async ({ data, context }): Promise<{ asked: true }> => {
-    await changeMarginRow(context.user.id, data)
-    return { asked: true }
+    return await runLiveOrderAction(context.user.id, "order", async () => {
+      await changeMarginRow(context.user.id, data)
+      return { asked: true }
+    })
   })
 
 const closeLivePositionFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(positionSchema)
   .handler(async ({ data, context }): Promise<{ closed: true }> => {
-    await closePositionRow(context.user.id, data)
-    return { closed: true }
+    return await runLiveOrderAction(context.user.id, "order", async () => {
+      await closePositionRow(context.user.id, data)
+      return { closed: true }
+    })
   })
+
+const closeLivePositionsFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    z.object({ positions: z.array(positionSchema).min(1).max(50) })
+  )
+  .handler(
+    async ({ data, context }): Promise<{ closed: number; refused: string[] }> =>
+      await runLiveOrderAction(context.user.id, "order", () =>
+        closePositionRows(context.user.id, data.positions)
+      )
+  )
 
 /**
  * Takes one finished trade off the Journal, by hiding the fills behind it.
@@ -361,6 +391,12 @@ export function closeLivePosition(walletId: string, marketKey: string) {
   return closeLivePositionFn({ data: { walletId, marketKey } })
 }
 
+export function closeLivePositions(
+  positions: { walletId: string; marketKey: string }[]
+) {
+  return closeLivePositionsFn({ data: { positions } })
+}
+
 export function changeLiveLeverage(input: {
   walletId: string
   marketKey: string
@@ -380,6 +416,8 @@ export function changeLiveMargin(input: {
 }
 
 const LIVE_SENTENCES: Record<string, string> = {
+  TRADE_ORDER_RATE_LIMITED:
+    "The app is sending orders too fast. Try again in a moment.",
   LIVE_WALLET_NOT_FOUND:
     "That wallet is not there any more — it may have been deleted in another tab.",
   LIVE_WALLET_KIND: "Only a live wallet trades this way.",

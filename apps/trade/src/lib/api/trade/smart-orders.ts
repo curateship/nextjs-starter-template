@@ -56,6 +56,7 @@ import {
   saveSmartGrid,
 } from "@/server/trade/prefs"
 import { openPartClose, type PartCloseOutcome } from "@/server/trade/part-close"
+import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 
 export type { PartCloseOutcome }
 import {
@@ -142,6 +143,18 @@ async function tradingWallet(
   return wallet
 }
 
+/** Practice actions do not spend an exchange allowance. */
+async function runWalletOrderAction<T>(
+  userId: string,
+  wallet: { kind: "live" | "paper" },
+  direction: "order" | "cancel",
+  action: () => Promise<T>
+): Promise<T> {
+  return wallet.kind === "live"
+    ? await runLiveOrderAction(userId, direction, action)
+    : await action()
+}
+
 /**
  * The base a ladder would hang from right now.
  *
@@ -181,19 +194,26 @@ const placeDcaLadderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<PlacedLadder> => {
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
-    const input = {
-      marketKey: data.marketKey,
-      clickPx: data.clickPx,
-      interval: data.interval,
-      params: data.params,
-    }
-    const placed =
-      wallet.kind === "live"
-        ? await placeLiveDcaLadder(context.user.id, wallet, input)
-        : await placeLadderRows(context.user.id, wallet, input)
-    // Remembered only once a ladder was really placed with them.
-    await saveSmartDca(context.user.id, data.params)
-    return placed
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        const input = {
+          marketKey: data.marketKey,
+          clickPx: data.clickPx,
+          interval: data.interval,
+          params: data.params,
+        }
+        const placed =
+          wallet.kind === "live"
+            ? await placeLiveDcaLadder(context.user.id, wallet, input)
+            : await placeLadderRows(context.user.id, wallet, input)
+        // Remembered only once a ladder was really placed with them.
+        await saveSmartDca(context.user.id, data.params)
+        return placed
+      }
+    )
   })
 
 const cancelLadderRungFn = createServerFn({ method: "POST" })
@@ -201,12 +221,19 @@ const cancelLadderRungFn = createServerFn({ method: "POST" })
   .inputValidator(rungSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    if (wallet.kind === "live") {
-      await cancelLiveLadderRung(context.user.id, wallet, data)
-    } else {
-      await cancelRungRow(context.user.id, wallet, data)
-    }
-    return { cancelled: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "cancel",
+      async () => {
+        if (wallet.kind === "live") {
+          await cancelLiveLadderRung(context.user.id, wallet, data)
+        } else {
+          await cancelRungRow(context.user.id, wallet, data)
+        }
+        return { cancelled: true }
+      }
+    )
   })
 
 const cancelLadderRestFn = createServerFn({ method: "POST" })
@@ -214,9 +241,15 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
   .inputValidator(ladderSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return wallet.kind === "live"
-      ? await cancelLiveLadderRest(context.user.id, wallet, data)
-      : await cancelRestRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "cancel",
+      async () =>
+        wallet.kind === "live"
+          ? await cancelLiveLadderRest(context.user.id, wallet, data)
+          : await cancelRestRows(context.user.id, wallet, data)
+    )
   })
 
 const resumeSmartOrderFn = createServerFn({ method: "POST" })
@@ -251,12 +284,20 @@ const cancelAllSmartOrdersFn = createServerFn({ method: "POST" })
     }): Promise<{
       stood: StoodDownSmartOrder[]
       refused: RefusedSmartOrder[]
-    }> =>
-      await standDownWallet(
+    }> => {
+      const wallet = await tradingWallet(context.user.id, data.walletId)
+      return await runWalletOrderAction(
         context.user.id,
-        await tradingWallet(context.user.id, data.walletId),
-        getSmartOrderErrorMessage
+        wallet,
+        "cancel",
+        async () =>
+          await standDownWallet(
+            context.user.id,
+            wallet,
+            getSmartOrderErrorMessage
+          )
       )
+    }
   )
 
 /**
@@ -269,14 +310,16 @@ const cancelAllSmartOrdersFn = createServerFn({ method: "POST" })
 const flattenWalletFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(cancelAllSmartOrdersSchema)
-  .handler(
-    async ({ data, context }): Promise<FlattenOutcome> =>
-      await flattenWallet(
-        context.user.id,
-        await tradingWallet(context.user.id, data.walletId, true),
-        getSmartOrderErrorMessage
-      )
-  )
+  .handler(async ({ data, context }): Promise<FlattenOutcome> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        await flattenWallet(context.user.id, wallet, getSmartOrderErrorMessage)
+    )
+  })
 
 /**
  * Sells part of a position, through a reduce-only limit that chases the price.
@@ -302,17 +345,19 @@ const closePartOfPositionFn = createServerFn({ method: "POST" })
       amount: z.number().positive().finite(),
     })
   )
-  .handler(
-    async ({ data, context }): Promise<PartCloseOutcome> =>
-      await openPartClose(
-        context.user.id,
-        await tradingWallet(context.user.id, data.walletId, true),
-        {
+  .handler(async ({ data, context }): Promise<PartCloseOutcome> => {
+    const wallet = await tradingWallet(context.user.id, data.walletId, true)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        await openPartClose(context.user.id, wallet, {
           marketKey: data.marketKey,
           size: { unit: data.unit, amount: data.amount },
-        }
-      )
-  )
+        })
+    )
+  })
 
 /**
  * Calls off a watched price. One door for both kinds of wallet: nothing is on
@@ -365,12 +410,19 @@ const updateLadderExitsFn = createServerFn({ method: "POST" })
   .inputValidator(exitsSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    if (wallet.kind === "live") {
-      await updateLiveLadderExits(context.user.id, wallet, data)
-    } else {
-      await updateExitsRows(context.user.id, wallet, data)
-    }
-    return { saved: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        if (wallet.kind === "live") {
+          await updateLiveLadderExits(context.user.id, wallet, data)
+        } else {
+          await updateExitsRows(context.user.id, wallet, data)
+        }
+        return { saved: true }
+      }
+    )
   })
 
 /**
@@ -526,19 +578,26 @@ const placeGridOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeGridSchema)
   .handler(async ({ data, context }): Promise<PlacedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
-    const input = {
-      marketKey: data.marketKey,
-      topPx: data.topPx,
-      bottomPx: data.bottomPx,
-      params: data.params,
-    }
-    const placed =
-      wallet.kind === "live"
-        ? await placeLiveGridOrder(context.user.id, wallet, input)
-        : await placeGridRows(context.user.id, wallet, input)
-    // Remembered only once a grid was really placed with them.
-    await saveSmartGrid(context.user.id, data.params)
-    return placed
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        const input = {
+          marketKey: data.marketKey,
+          topPx: data.topPx,
+          bottomPx: data.bottomPx,
+          params: data.params,
+        }
+        const placed =
+          wallet.kind === "live"
+            ? await placeLiveGridOrder(context.user.id, wallet, input)
+            : await placeGridRows(context.user.id, wallet, input)
+        // Remembered only once a grid was really placed with them.
+        await saveSmartGrid(context.user.id, data.params)
+        return placed
+      }
+    )
   })
 
 const cancelGridLevelFn = createServerFn({ method: "POST" })
@@ -546,12 +605,19 @@ const cancelGridLevelFn = createServerFn({ method: "POST" })
   .inputValidator(gridLevelSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    if (wallet.kind === "live") {
-      await cancelLiveGridLevel(context.user.id, wallet, data)
-    } else {
-      await cancelGridLevelRow(context.user.id, wallet, data)
-    }
-    return { cancelled: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "cancel",
+      async () => {
+        if (wallet.kind === "live") {
+          await cancelLiveGridLevel(context.user.id, wallet, data)
+        } else {
+          await cancelGridLevelRow(context.user.id, wallet, data)
+        }
+        return { cancelled: true }
+      }
+    )
   })
 
 const cancelGridRestFn = createServerFn({ method: "POST" })
@@ -559,9 +625,15 @@ const cancelGridRestFn = createServerFn({ method: "POST" })
   .inputValidator(gridSchema)
   .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return wallet.kind === "live"
-      ? await cancelLiveGridRest(context.user.id, wallet, data)
-      : await cancelGridRestRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "cancel",
+      async () =>
+        wallet.kind === "live"
+          ? await cancelLiveGridRest(context.user.id, wallet, data)
+          : await cancelGridRestRows(context.user.id, wallet, data)
+    )
   })
 
 const reverseGridFn = createServerFn({ method: "POST" })
@@ -569,12 +641,19 @@ const reverseGridFn = createServerFn({ method: "POST" })
   .inputValidator(gridSchema)
   .handler(async ({ data, context }): Promise<{ reversed: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
-    if (wallet.kind === "live") {
-      await reverseLiveGrid(context.user.id, wallet, data)
-    } else {
-      await reverseGridOrderRows(context.user.id, wallet, data)
-    }
-    return { reversed: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        if (wallet.kind === "live") {
+          await reverseLiveGrid(context.user.id, wallet, data)
+        } else {
+          await reverseGridOrderRows(context.user.id, wallet, data)
+        }
+        return { reversed: true }
+      }
+    )
   })
 
 const moveGridRangeSchema = z.object({
@@ -589,9 +668,15 @@ const moveGridRangeFn = createServerFn({ method: "POST" })
   .inputValidator(moveGridRangeSchema)
   .handler(async ({ data, context }): Promise<MovedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
-    return wallet.kind === "live"
-      ? await moveLiveGridRange(context.user.id, wallet, data)
-      : await moveGridRangeRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        wallet.kind === "live"
+          ? await moveLiveGridRange(context.user.id, wallet, data)
+          : await moveGridRangeRows(context.user.id, wallet, data)
+    )
   })
 
 const reshapeGridSchema = z.object({
@@ -608,9 +693,15 @@ const reshapeGridFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<MovedGrid> => {
     // A re-shape can buy, so it needs a wallet that may receive orders.
     const wallet = await tradingWallet(context.user.id, data.walletId, true)
-    return wallet.kind === "live"
-      ? await reshapeLiveGrid(context.user.id, wallet, data)
-      : await reshapeGridRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        wallet.kind === "live"
+          ? await reshapeLiveGrid(context.user.id, wallet, data)
+          : await reshapeGridRows(context.user.id, wallet, data)
+    )
   })
 
 const moveGridExitSchema = z.object({
@@ -625,9 +716,15 @@ const moveGridExitFn = createServerFn({ method: "POST" })
   .inputValidator(moveGridExitSchema)
   .handler(async ({ data, context }): Promise<MovedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return wallet.kind === "live"
-      ? await moveLiveGridExit(context.user.id, wallet, data)
-      : await moveGridExitRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        wallet.kind === "live"
+          ? await moveLiveGridExit(context.user.id, wallet, data)
+          : await moveGridExitRows(context.user.id, wallet, data)
+    )
   })
 
 const updateGridStopFn = createServerFn({ method: "POST" })
@@ -635,12 +732,19 @@ const updateGridStopFn = createServerFn({ method: "POST" })
   .inputValidator(gridStopUpdateSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    if (wallet.kind === "live") {
-      await updateLiveGridStop(context.user.id, wallet, data)
-    } else {
-      await updateGridStopRows(context.user.id, wallet, data)
-    }
-    return { saved: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        if (wallet.kind === "live") {
+          await updateLiveGridStop(context.user.id, wallet, data)
+        } else {
+          await updateGridStopRows(context.user.id, wallet, data)
+        }
+        return { saved: true }
+      }
+    )
   })
 
 const gridFollowSchema = z.object({
@@ -655,12 +759,19 @@ const setGridFollowFn = createServerFn({ method: "POST" })
   .inputValidator(gridFollowSchema)
   .handler(async ({ data, context }): Promise<{ saved: true }> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    if (wallet.kind === "live") {
-      await setLiveGridFollow(context.user.id, wallet, data)
-    } else {
-      await setGridFollowRows(context.user.id, wallet, data)
-    }
-    return { saved: true }
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () => {
+        if (wallet.kind === "live") {
+          await setLiveGridFollow(context.user.id, wallet, data)
+        } else {
+          await setGridFollowRows(context.user.id, wallet, data)
+        }
+        return { saved: true }
+      }
+    )
   })
 
 const gridEndSchema = z.object({
@@ -674,9 +785,15 @@ const updateGridEndFn = createServerFn({ method: "POST" })
   .inputValidator(gridEndSchema)
   .handler(async ({ data, context }): Promise<MovedGrid> => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
-    return wallet.kind === "live"
-      ? await updateLiveGridEnd(context.user.id, wallet, data)
-      : await updateGridEndRows(context.user.id, wallet, data)
+    return await runWalletOrderAction(
+      context.user.id,
+      wallet,
+      "order",
+      async () =>
+        wallet.kind === "live"
+          ? await updateLiveGridEnd(context.user.id, wallet, data)
+          : await updateGridEndRows(context.user.id, wallet, data)
+    )
   })
 
 /** The grid window's remembered settings, or null the first time it opens. */
@@ -728,6 +845,8 @@ export function loadSmartGridParams() {
 
 const baseSmartOrderErrorMessage = createErrorMessage(
   {
+    TRADE_ORDER_RATE_LIMITED:
+      "The app is sending orders too fast. Try again in a moment.",
     PAPER_WALLET_NOT_FOUND:
       "That wallet is not there any more — it may have been deleted in another tab.",
     PAPER_WALLET_KIND: "Only a practice wallet trades this way.",

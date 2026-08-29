@@ -153,6 +153,7 @@ beforeEach(async () => {
   database = testDb.db
   clearMarketRulesCache()
   resetWatchChaseGate()
+  marks.clear()
   marks.set("BTC", 100)
   marks.set("ETH", 50)
   standDown.stood = []
@@ -215,6 +216,24 @@ describe("emptying one wallet", () => {
       expect(order.side).toBe("sell")
       expect(order.reduceOnly).toBe(true)
     }
+  })
+
+  it("starts twenty followed closes inside one Empty wallet action", async () => {
+    const marketKeys = Array.from({ length: 20 }, (_, index) => {
+      const symbol = `COIN${index}`
+      marks.set(symbol, 100 + index)
+      return `hyperliquid:mainnet:${symbol}`
+    })
+    for (const marketKey of marketKeys) {
+      await open(wallet, marketKey, 1)
+    }
+
+    const answer = await flattenWallet(userId, wallet, words)
+
+    expect(answer.cancelRefused).toEqual([])
+    expect(answer.sellRefused).toEqual([])
+    expect(answer.selling).toHaveLength(20)
+    expect(await closes()).toHaveLength(20)
   })
 
   it("leaves every other wallet alone", async () => {
