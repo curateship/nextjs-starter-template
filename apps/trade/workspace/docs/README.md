@@ -91,6 +91,8 @@ Two files outrank the rest, and outrank the code:
 - `running-tests-fast.md` — `npm run test:app`, the everyday test command: what
   it skips, how the saved database copy works, and when the full suite still
   runs.
+- `trade-data-retention.md` says which trading rows are permanent records and
+  which exchange caches the capped ten-year sweep may rebuild.
 - `market-folders.md` — how Fav and named coin folders work on each exchange,
   how running flows follow them, and why backtests keep their starting list.
 - `bottom-panel-tables.md` — the one frame shared by Positions, Open orders and

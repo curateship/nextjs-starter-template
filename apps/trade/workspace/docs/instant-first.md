@@ -63,6 +63,20 @@ job is to confirm it, not to unlock it.
   memoized and every handler the chart panel gives them is pinned, so a
   keystroke in an order window re-renders only the preview layer it belongs
   to, not all seven layers.
+- **Closed order windows stay out of the first download.** Grid, DCA, DCA
+  exits and position margin now have their own JavaScript files. Their loading
+  shells keep the click and show the same window or modal while the file
+  arrives. The chart engine begins prefetching as soon as the trading route
+  loads. The chart shows a loading row until it is ready, and a failed download
+  shows a retry instead of an empty panel.
+
+  The production build on 28 August 2026 reduced the main route file from
+  680,673 bytes to 664,825 bytes. The split files are 17,469 bytes for grid,
+  12,544 for DCA, 6,866 for position margin and 5,522 for DCA exits. The chart
+  library is still its own prefetched file, 192,474 bytes in this build. The
+  earlier build reported 163,070 bytes for that dependency, so no chart-library
+  reduction is claimed. The proven saving is 15,848 bytes removed from the
+  route file and four windows that are not parsed until opened.
 
 ## How a background answer corrects the screen
 

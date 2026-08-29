@@ -574,10 +574,13 @@ export function PositionsTable({
   )
 
   const marks = useLiveMarks(positions.map((one) => one.marketKey))
-  const markOf = (position: TradePosition) =>
-    marks.get(position.marketKey) ??
-    markets.get(position.marketKey)?.price ??
-    position.entryPx
+  const markOf = React.useCallback(
+    (position: TradePosition) =>
+      marks.get(position.marketKey) ??
+      markets.get(position.marketKey)?.price ??
+      position.entryPx,
+    [marks, markets]
+  )
 
   // Worked out once per position rather than per row render, because each one
   // walks that coin's fills and this panel redraws on every price tick.
@@ -586,34 +589,41 @@ export function PositionsTable({
     for (const one of positions) byId.set(one.id, positionFees(fills, one))
     return byId
   }, [positions, fills])
-  const feesOf = (position: TradePosition) => feesById.get(position.id) ?? null
+  const feesOf = React.useCallback(
+    (position: TradePosition) => feesById.get(position.id) ?? null,
+    [feesById]
+  )
 
-  const rows = sortRows(positions, direction, (position) => {
-    const mark = markOf(position)
-    switch (sort) {
-      case "market":
-        return marketSymbol(position.marketKey)
-      case "wallet":
-        return walletName(position.walletId)
-      case "value":
-        return positionValue(position, mark)
-      case "margin":
-        return marginOf(position)
-      case "liquidation":
-        return liquidationAwayOf(position, mark) ?? Number.POSITIVE_INFINITY
-      case "projected":
-        return targetsProfit(position) ?? Number.NEGATIVE_INFINITY
-      case "fees":
-        // The figure the row prints, so the order and the number agree. A
-        // real position with nothing swept has no figure at all and sorts to
-        // the end, the way a missing liquidation price already does.
-        return position.live
-          ? (feesOf(position)?.paid ?? Number.POSITIVE_INFINITY)
-          : position.feesPaid
-      default:
-        return positionProfit(position, mark)
-    }
-  })
+  const rows = React.useMemo(
+    () =>
+      sortRows(positions, direction, (position) => {
+        const mark = markOf(position)
+        switch (sort) {
+          case "market":
+            return marketSymbol(position.marketKey)
+          case "wallet":
+            return walletName(position.walletId)
+          case "value":
+            return positionValue(position, mark)
+          case "margin":
+            return marginOf(position)
+          case "liquidation":
+            return liquidationAwayOf(position, mark) ?? Number.POSITIVE_INFINITY
+          case "projected":
+            return targetsProfit(position) ?? Number.NEGATIVE_INFINITY
+          case "fees":
+            // The figure the row prints, so the order and the number agree. A
+            // real position with nothing swept has no figure at all and sorts
+            // to the end, the way a missing liquidation price already does.
+            return position.live
+              ? (feesOf(position)?.paid ?? Number.POSITIVE_INFINITY)
+              : position.feesPaid
+          default:
+            return positionProfit(position, mark)
+        }
+      }),
+    [positions, direction, sort, markOf, walletName, feesOf]
+  )
 
   return (
     <>
@@ -711,24 +721,28 @@ export function OpenOrdersTable({
         : "desc"
   )
 
-  const rows = sortRows(orders, direction, (order) => {
-    switch (sort) {
-      case "market":
-        return marketSymbol(order.marketKey)
-      case "wallet":
-        return walletName(order.walletId)
-      case "side":
-        return order.side
-      case "size":
-        return order.sz
-      case "value":
-        return order.px * order.sz
-      case "leverage":
-        return order.leverage
-      default:
-        return order.px
-    }
-  })
+  const rows = React.useMemo(
+    () =>
+      sortRows(orders, direction, (order) => {
+        switch (sort) {
+          case "market":
+            return marketSymbol(order.marketKey)
+          case "wallet":
+            return walletName(order.walletId)
+          case "side":
+            return order.side
+          case "size":
+            return order.sz
+          case "value":
+            return order.px * order.sz
+          case "leverage":
+            return order.leverage
+          default:
+            return order.px
+        }
+      }),
+    [orders, direction, sort, walletName]
+  )
 
   return (
     <TradeTable
@@ -763,11 +777,7 @@ export function OpenOrdersTable({
             }
           />
           <WalletCell wallet={walletName(order.walletId)} />
-          <Cell
-            className={
-              order.side === "buy" ? MADE_MONEY : LOST_MONEY
-            }
-          >
+          <Cell className={order.side === "buy" ? MADE_MONEY : LOST_MONEY}>
             {order.side === "buy" ? "Buy" : "Sell"}
           </Cell>
           <Cell>{formatPrice(order.px)}</Cell>

@@ -187,11 +187,29 @@ The Journal is up to two thousand practice rows and four thousand real ones,
 built into trades on the server. Both halves of the poll used to carry all
 of it every four seconds. Now each poll sends back a stamp for the Journal it
 holds, and the server answers "unchanged" unless a fill has landed, been
-binned, or (real wallets) a trigger has been learnt since. The stamp is one
-count plus the newest fill time per table, computed after the practice
-settle and after any waited-for sweep, so a fill written in that very poll
-is in it. A finished trade shows on the next four-second poll, and a quiet
-Journal costs one small aggregate query.
+binned, or a real-wallet trigger has been learnt since.
+
+The stamp used to count every matching history row and find the newest one on
+every poll. Each wallet now owns an integer version that every fill, trigger
+and hide increments atomically in the same database transaction as the write.
+A quiet poll reads only those indexed wallet rows. Practice wallets keep their
+realized profit on the same row, so settling a wallet no longer sums its whole
+journal while holding the wallet lock. Real history first takes the newest
+4,000 fills, then reads only triggers belonging to those orders instead of
+loading the permanent trigger table whole.
+
+Migration `0150` adds and backfills both wallet values. Writer tests prove that
+duplicate fills leave the version alone while new fills, learned triggers and
+hides move it. A before-and-after query time on the deployed account is still
+needed. The database host configured in this worktree did not resolve on 28
+August 2026, so no local timing has been passed off as a production result.
+
+Migration `0150` has to run before code using these wallet fields. On 28 August
+2026 the new code was hot-reloaded against the older schema, which made Smart
+Orders, Positions and Trading Overview fail their wallet reads. Applying
+migrations `0150` and `0151` restored all three in the existing browser without
+restarting its server. A browser check then loaded Smart Orders and Trading
+Overview with no console errors. Future releases run the migrations first.
 
 Tyler's rule, 23 August 2026: the Journal reads when something actually
 happened, not on a clock.
@@ -220,7 +238,12 @@ The chart does not use this batch and its candle callback remains immediate.
 
 The market rows and the picked market are memoised in the workspace, so the
 market picker no longer re-sorts every market on every poll while it is
-closed. The Journal's sort is memoised too.
+closed. The Journal's sort is memoised too. An unchanged poll now also keeps
+the order, position, journal and fill arrays already on screen. Positions and
+orders sort only when their rows change, and memoized market rows share one
+selection callback instead of receiving a fresh function each render. A React
+Profiler recording on a quiet deployed dashboard is still needed to attach a
+render count to the change.
 
 ## The engine pass, every second
 

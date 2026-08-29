@@ -13,6 +13,7 @@ import {
   closeAllPaperPositions,
   closePaperPosition,
   flipPaperPosition,
+  hidePaperJournalEntries,
   loadPaperPortfolio,
   movePaperOrder,
   paperWalletFigures,
@@ -962,6 +963,16 @@ describe("the Journal stamp", () => {
     expect(changed.journalUnchanged).toBe(false)
     expect(changed.trades).toHaveLength(1)
     expect(changed.journalStamp).not.toBe(first.journalStamp)
+
+    const fillIds = (await journal()).map((row) => row.id)
+    await hidePaperJournalEntries(userId, fillIds)
+    const hidden = await loadPaperPortfolio(userId, [wallet], {
+      journalStamp: changed.journalStamp,
+    })
+    expect(hidden.journalUnchanged).toBe(false)
+    expect(hidden.fills).toEqual([])
+    expect(hidden.trades).toEqual([])
+    expect(hidden.journalStamp).not.toBe(changed.journalStamp)
   })
 })
 

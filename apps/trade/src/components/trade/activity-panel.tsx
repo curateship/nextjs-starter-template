@@ -8,7 +8,7 @@ import {
 
 import { BracketsDialog } from "@/components/trade/brackets-dialog"
 import { CloseAllMenu } from "@/components/trade/close-all-menu"
-import { PositionMarginDialog } from "@/components/trade/position-margin-dialog"
+import { LazyDialogFallback } from "@/components/trade/lazy-window-fallback"
 import {
   OpenOrdersTable,
   PositionsTable,
@@ -50,6 +50,12 @@ import {
   type TradePosition,
 } from "@/lib/trade/paper"
 import { cn } from "@/lib/utils"
+
+const PositionMarginDialog = React.lazy(() =>
+  import("@/components/trade/position-margin-dialog").then((module) => ({
+    default: module.PositionMarginDialog,
+  }))
+)
 
 /**
  * Which of the bottom panel's tabs is showing.
@@ -139,7 +145,6 @@ export function ActivityPanel({
   /** How the panel changes its own height when a tab is pressed. */
   fit: PanelFit
 }) {
-
   const [editing, setEditing] = React.useState<TradePosition | null>(null)
   const [changingMargin, setChangingMargin] =
     React.useState<TradePosition | null>(null)
@@ -151,9 +156,9 @@ export function ActivityPanel({
   // Nothing here can be put back from the screen, and the two lists sit under
   // a chart people click around on all day. One row or many, it is the same
   // question, so one dialog holds whichever list is being asked about.
-  const [removingTrades, setRemovingTrades] = React.useState<LiveTrade[] | null>(
-    null
-  )
+  const [removingTrades, setRemovingTrades] = React.useState<
+    LiveTrade[] | null
+  >(null)
 
   // Which Journal rows are ticked for a mass remove, by trade id.
   const journalTicks = useSelection()
@@ -485,7 +490,9 @@ export function ActivityPanel({
             : "It stops showing here, and stops being drawn on the chart. Nothing about your money changes — a practice wallet's cash is added up from its fills, so the fills are kept and only hidden."
         }
         confirmLabel={
-          removingTrades && removingTrades.length > 1 ? "Remove them" : "Remove it"
+          removingTrades && removingTrades.length > 1
+            ? "Remove them"
+            : "Remove it"
         }
         onConfirm={() => {
           if (removingTrades) {
@@ -501,25 +508,34 @@ export function ActivityPanel({
         }}
       />
 
-      <PositionMarginDialog
-        position={marginNow}
-        maxLeverage={
-          marginNow ? (markets.get(marginNow.marketKey)?.maxLeverage ?? null) : null
-        }
-        walletName={marginNow ? walletName(marginNow.walletId) : ""}
-        canChangeLeverage={canChangeLeverage}
-        leverageRefusal={leverageRefusal}
-        canAdjustMargin={canAdjustMargin}
-        marginRefusal={marginRefusal}
-        busy={trading.busy}
-        onSetLeverage={(position, leverage) =>
-          void trading.setPositionLeverage(position, leverage)
-        }
-        onAdjustMargin={(position, dollars) =>
-          void trading.adjustPositionMargin(position, dollars)
-        }
-        onDismiss={() => setChangingMargin(null)}
-      />
+      {marginNow ? (
+        <React.Suspense
+          fallback={
+            <LazyDialogFallback
+              title="Change position margin"
+              onClose={() => setChangingMargin(null)}
+            />
+          }
+        >
+          <PositionMarginDialog
+            position={marginNow}
+            maxLeverage={markets.get(marginNow.marketKey)?.maxLeverage ?? null}
+            walletName={walletName(marginNow.walletId)}
+            canChangeLeverage={canChangeLeverage}
+            leverageRefusal={leverageRefusal}
+            canAdjustMargin={canAdjustMargin}
+            marginRefusal={marginRefusal}
+            busy={trading.busy}
+            onSetLeverage={(position, leverage) =>
+              void trading.setPositionLeverage(position, leverage)
+            }
+            onAdjustMargin={(position, dollars) =>
+              void trading.adjustPositionMargin(position, dollars)
+            }
+            onDismiss={() => setChangingMargin(null)}
+          />
+        </React.Suspense>
+      ) : null}
 
       <BracketsDialog
         position={editingNow}

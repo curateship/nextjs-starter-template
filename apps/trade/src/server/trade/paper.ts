@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 
-import { and, count, desc, eq, inArray, lt, max, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, lt, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -34,6 +34,10 @@ import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import {
+  bumpTradeHistory,
+  tradeHistoryStamp,
+} from "@/server/trade/history-version"
 import { marketRules } from "@/server/trade/market-rules"
 import {
   tradePaperJournal,
@@ -190,9 +194,8 @@ const NO_TRIGGERS = new Map<
 // ----- Loading, settling, saving ----------------------------------------
 
 /**
- * Everything this wallet has banked: profit less fees, over every fill it has
- * ever had. Added up in the database rather than read out row by row, because
- * this runs on every poll and a year of practice is a lot of rows.
+ * Everything this wallet has banked: profit less fees. Writers maintain this
+ * one number on the wallet, so every poll avoids summing the whole Journal.
  */
 async function realizedTotal(
   database: CustomShellDb,
@@ -200,16 +203,10 @@ async function realizedTotal(
   walletId: string
 ): Promise<number> {
   const rows = await database
-    .select({
-      total: sql<string>`coalesce(sum(${tradePaperJournal.closedPnl} - ${tradePaperJournal.fee}), 0)`,
-    })
-    .from(tradePaperJournal)
-    .where(
-      and(
-        eq(tradePaperJournal.userId, userId),
-        eq(tradePaperJournal.walletId, walletId)
-      )
-    )
+    .select({ total: tradeWallets.paperRealized })
+    .from(tradeWallets)
+    .where(and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, walletId)))
+    .limit(1)
   return Number(rows[0]?.total ?? 0)
 }
 
@@ -401,6 +398,22 @@ export async function saveBook(
         orderId: entry.orderId,
       }))
     )
+    const realized = book.fills.reduce(
+      (total, entry) => total + entry.closedPnl - entry.fee,
+      0
+    )
+    await database
+      .update(tradeWallets)
+      .set({
+        historyVersion: sql`${tradeWallets.historyVersion} + 1`,
+        paperRealized: sql`${tradeWallets.paperRealized} + ${realized}`,
+      })
+      .where(
+        and(
+          eq(tradeWallets.userId, userId),
+          eq(tradeWallets.id, book.wallet.id)
+        )
+      )
   }
 
   if (settledTo) {
@@ -955,24 +968,14 @@ export async function loadPaperPortfolio(
 
 /**
  * A short string that changes when the practice Journal would read
- * differently: a fill written, or one binned. One small aggregate.
+ * differently: a fill written, or one binned. Writers maintain the version,
+ * so this reads only the selected wallet rows.
  */
 async function paperJournalStamp(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string> {
-  if (walletIds.length === 0) return "0"
-  const rows = await db
-    .select({ count: count(), newest: max(tradePaperJournal.fillTime) })
-    .from(tradePaperJournal)
-    .where(
-      and(
-        eq(tradePaperJournal.userId, userId),
-        inArray(tradePaperJournal.walletId, [...walletIds]),
-        eq(tradePaperJournal.hidden, false)
-      )
-    )
-  return `${rows[0]?.count ?? 0}:${rows[0]?.newest?.getTime() ?? 0}`
+  return tradeHistoryStamp(userId, walletIds)
 }
 
 /**
@@ -1548,13 +1551,24 @@ export async function hidePaperJournalEntries(
   ids: readonly string[]
 ): Promise<void> {
   if (ids.length === 0) return
-  await db
-    .update(tradePaperJournal)
-    .set({ hidden: true })
-    .where(
-      and(
-        eq(tradePaperJournal.userId, userId),
-        inArray(tradePaperJournal.id, [...ids])
+  await db.transaction(async (tx) => {
+    const hidden = await tx
+      .update(tradePaperJournal)
+      .set({ hidden: true })
+      .where(
+        and(
+          eq(tradePaperJournal.userId, userId),
+          inArray(tradePaperJournal.id, [...ids]),
+          eq(tradePaperJournal.hidden, false)
+        )
       )
-    )
+      .returning({ walletId: tradePaperJournal.walletId })
+    if (hidden.length > 0) {
+      await bumpTradeHistory(
+        tx,
+        userId,
+        hidden.map((row) => row.walletId)
+      )
+    }
+  })
 }

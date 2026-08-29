@@ -1011,11 +1011,11 @@ export function useTrading(
 
   const allOrders = React.useMemo(
     () => [...(paperAnswer?.orders ?? []), ...(liveAnswer?.orders ?? [])],
-    [paperAnswer, liveAnswer]
+    [paperAnswer?.orders, liveAnswer?.orders]
   )
   const allPositions = React.useMemo(
     () => [...(paperAnswer?.positions ?? []), ...(liveAnswer?.positions ?? [])],
-    [paperAnswer, liveAnswer]
+    [paperAnswer?.positions, liveAnswer?.positions]
   )
   /** Exactly what the server last said, for the lookups an action does. */
   const allSmartOrders = React.useMemo(
@@ -1181,7 +1181,13 @@ export function useTrading(
       (trade) =>
         !cancelling.has(trade.id) || holdExpired(cancelling.get(trade.id))
     )
-  }, [paperAnswer, liveAnswer, olderTrades, cancelling, holdExpired])
+  }, [
+    paperAnswer?.trades,
+    liveAnswer?.trades,
+    olderTrades,
+    cancelling,
+    holdExpired,
+  ])
 
   const loadOlderTrades = React.useCallback(async () => {
     if (olderTradesBusy) return
@@ -1234,7 +1240,7 @@ export function useTrading(
       ...(paperAnswer?.fills ?? EMPTY_FILLS),
       ...(liveAnswer?.fills ?? EMPTY_FILLS),
     ],
-    [paperAnswer, liveAnswer]
+    [paperAnswer?.fills, liveAnswer?.fills]
   )
 
   /**

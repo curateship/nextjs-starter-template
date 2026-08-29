@@ -1,5 +1,6 @@
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { copyFile } from "node:fs/promises"
 
 import { build } from "esbuild"
 
@@ -33,6 +34,7 @@ import { build } from "esbuild"
  */
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+const outdir = path.join(root, "worker/dist")
 
 await build({
   entryPoints: {
@@ -40,7 +42,7 @@ await build({
     health: path.join(root, "worker/src/health.ts"),
     trade: path.join(root, "worker/src/index.ts"),
   },
-  outdir: path.join(root, "worker/dist"),
+  outdir,
   outExtension: { ".js": ".mjs" },
   bundle: true,
   platform: "node",
@@ -62,3 +64,11 @@ await build({
   },
   logLevel: "info",
 })
+
+await copyFile(
+  path.join(
+    root,
+    "src/server/protocols/lighter/signer/assets/lighter-signer.wasm"
+  ),
+  path.join(outdir, "lighter-signer.wasm")
+)

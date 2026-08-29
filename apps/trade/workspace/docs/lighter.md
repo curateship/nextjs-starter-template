@@ -488,7 +488,7 @@ needed, because the number itself is found from your address and your key.
   instead, so its margin is worked out from the percent. That reproduced
   Lighter's own account-wide figure exactly.
 
-## The signer is two files, and a build leaves them behind
+## The signer is two files, and the build keeps them private to the server
 
 Learned the hard way on 26 August 2026. Lighter's signer is a `.wasm` binary
 and Go's glue script — data, not code — so a bundler compiles everything
@@ -502,13 +502,22 @@ sat at a price it had already reached without one line in the Journal to say
 why. The other four venues carried on normally, which made it look like a
 Lighter problem rather than a missing file.
 
-Two things stop it happening again:
+Three things stop it happening again:
 
-- The worker's own Dockerfile copies both files next to the built bundle,
-  which is the first place the loader looks.
+- Nitro embeds the binary as a server asset. Native WASM import handling is
+  disabled because the signer loads the bytes through Go's runtime itself.
+  The built asset was checked byte for byte on 28 August 2026. It is 7,731,685
+  bytes and begins with WebAssembly's `00 61 73 6d` signature.
+- The worker build copies the binary next to its bundle, and the worker image
+  takes that copy. Development reads the same binary from the source signer
+  folder.
 - The loader searches the places a build can put them and, finding none,
   refuses with a sentence saying the signing files are missing and listing
   where it looked. A missing file must never again read as a bad key.
+
+The binary no longer lives under `public/`. A production build reduced public
+output from 19 MB to 11 MB, and no signer path appears in that output. The
+server output carries the binary and the worker build carries an exact copy.
 
 **Anything that loads a file by path needs proving against a real build**, not
 against the development server. The signing itself was well tested and still

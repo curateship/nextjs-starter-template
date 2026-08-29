@@ -76,7 +76,7 @@
     "predev": "npm run db:setup",
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
-    "test": "vitest run --config vitest.config.ts",
+    "test": "vitest run --config vitest.full.config.ts",
     "test:app": "vitest run --config vitest.app.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "build:worker": "node scripts/build-worker.mjs",

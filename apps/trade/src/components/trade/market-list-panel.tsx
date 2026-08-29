@@ -176,7 +176,7 @@ export function AllMarketsList({
           key={row.key}
           row={row}
           selected={row.key === selectedKey}
-          onSelect={() => onSelect(row.key)}
+          onSelect={onSelect}
         />
       ))}
     </div>
@@ -224,7 +224,7 @@ export function TestnetStrip() {
  * The whole row is the one button — the star that used to sit at its left edge
  * now lives in the market header, where it is always on screen.
  */
-export function MarketRowLine({
+export const MarketRowLine = React.memo(function MarketRowLine({
   row,
   selected,
   onSelect,
@@ -232,7 +232,7 @@ export function MarketRowLine({
 }: {
   row: MarketRow
   selected: boolean
-  onSelect: () => void
+  onSelect: (key: string) => void
   className?: string
 }) {
   // Subscribed per row, so a tick repaints exactly the rows whose numbers
@@ -246,7 +246,7 @@ export function MarketRowLine({
   return (
     <button
       type="button"
-      onClick={onSelect}
+      onClick={() => onSelect(row.key)}
       aria-current={selected ? "true" : undefined}
       className={cn(
         "flex h-9 min-w-0 items-center border-r-2 text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
@@ -297,4 +297,4 @@ export function MarketRowLine({
       </span>
     </button>
   )
-}
+})

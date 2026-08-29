@@ -36,6 +36,7 @@ import type { TradeWallet, WalletAccountSummary } from "@/lib/trade/wallets"
 import { userGet } from "@/server/guards"
 import { loadRawMarketCatalog } from "@/server/protocols/market-catalog"
 import { getProtocol } from "@/server/protocols/registry"
+import { maybeCleanTradeCaches } from "@/server/trade/cache-cleanup"
 import { loadProtocolCandles } from "@/server/trade/candles"
 import { loadChartDrawings } from "@/server/trade/drawings"
 import { loadMarketFolders } from "@/server/trade/market-folders"
@@ -127,6 +128,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
     const openedAt = Date.now()
     const soundCursor: TradeSoundCursor = { afterAt: openedAt, afterId: "" }
     const prefsPromise = loadDashboardPrefs(context.user.id, data)
+    const cleanupPromise = maybeCleanTradeCaches()
     const drawingsPromise = prefsPromise.then(async (prefs) => {
       const marketKey = marketOnDashboard(
         prefs.lastMarketKey,
@@ -241,6 +243,7 @@ const loadDashboardBootstrapFn = createServerFn({ method: "GET" })
         })
       ),
     ])
+    await cleanupPromise
     return {
       markets: catalog.catalog
         ? {

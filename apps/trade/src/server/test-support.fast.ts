@@ -14,7 +14,7 @@ export * from "./test-support"
 
 /**
  * A faster stand-in for `createTestDatabase` in `test-support.ts`, swapped in
- * by `vitest.app.config.ts` through an import alias. The original replays all
+ * by Trade's Vitest configs through an import alias. The original replays all
  * of `drizzle/` into a fresh database before every test, which is over a
  * second each time and is where most of a suite run goes. This version does
  * that replay once, saves the finished database as one file under
@@ -22,8 +22,7 @@ export * from "./test-support"
  * ~150ms. The file name includes a hash of the migration scripts, so adding
  * or editing a migration makes a new snapshot instead of reusing a stale one.
  *
- * `test-support.ts` itself is a shell file and stays untouched; plain
- * `npm run test` still uses it and behaves exactly as before.
+ * `test-support.ts` itself is a shell file and stays untouched.
  */
 
 const migrationsFolder = new URL("../../drizzle/", import.meta.url)

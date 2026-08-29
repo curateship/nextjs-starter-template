@@ -22,19 +22,19 @@ import { PaintToolbar } from "@/components/trade/paint/paint-toolbar"
 import { useChartDrawings } from "@/components/trade/paint/use-drawings"
 import { PanelPlaceholder } from "@/components/trade/panel-placeholder"
 import { PriceChart, type ChartSurface } from "@/components/trade/price-chart"
+import { prefetchChartEngine } from "@/components/trade/chart-engine"
 import { GridLayer } from "@/components/trade/grid-layer"
-import {
-  GridOrderDialog,
-  type GridOrderState,
-  type GridPreview,
+import type {
+  GridOrderState,
+  GridPreview,
 } from "@/components/trade/grid-order-dialog"
 import { GridStopDialog } from "@/components/trade/grid-stop-dialog"
-import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
-import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
 import {
-  SmartOrderDialog,
-  type SmartOrderState,
-} from "@/components/trade/smart-order-dialog"
+  LazyDialogFallback,
+  LazyOrderWindowFallback,
+} from "@/components/trade/lazy-window-fallback"
+import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
+import type { SmartOrderState } from "@/components/trade/smart-order-dialog"
 import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
@@ -97,6 +97,24 @@ import {
 
 const CANDLE_LOAD_SETTLE_MS = 250
 const ORB_SOURCE_INTERVAL: CandleInterval = "15m"
+
+const GridOrderDialog = React.lazy(() =>
+  import("@/components/trade/grid-order-dialog").then((module) => ({
+    default: module.GridOrderDialog,
+  }))
+)
+const SmartOrderDialog = React.lazy(() =>
+  import("@/components/trade/smart-order-dialog").then((module) => ({
+    default: module.SmartOrderDialog,
+  }))
+)
+const SmartLadderExitsDialog = React.lazy(() =>
+  import("@/components/trade/smart-ladder-exits-dialog").then((module) => ({
+    default: module.SmartLadderExitsDialog,
+  }))
+)
+
+if (typeof window !== "undefined") prefetchChartEngine()
 
 /**
  * The last charts this browser drew, so a revisit paints instantly.
@@ -1352,67 +1370,93 @@ export function ChartPanel({
         />
       ) : null}
       {smart && market ? (
-        <SmartOrderDialog
-          state={smart}
-          wide={wide}
-          market={market}
-          wallet={trading.wallet?.label ?? ""}
-          equity={equity}
-          free={free}
-          interval={interval}
-          busy={trading.busy}
-          pairedWithGrid={trading.smartOrders.some(
-            (one) =>
-              one.kind === "grid" &&
-              one.marketKey === market.key &&
-              one.status === "active"
-          )}
-          onPreview={setPreview}
-          onClose={() => setSmart(null)}
-          onPlace={(input) =>
-            trading.placeLadder({ marketKey: market.key, ...input })
+        <React.Suspense
+          fallback={
+            <LazyOrderWindowFallback
+              state={smart}
+              wide={wide}
+              wallet={trading.wallet?.label ?? ""}
+              free={free}
+              title="DCA order"
+              onClose={() => setSmart(null)}
+            />
           }
-        />
+        >
+          <SmartOrderDialog
+            state={smart}
+            wide={wide}
+            market={market}
+            wallet={trading.wallet?.label ?? ""}
+            equity={equity}
+            free={free}
+            interval={interval}
+            busy={trading.busy}
+            pairedWithGrid={trading.smartOrders.some(
+              (one) =>
+                one.kind === "grid" &&
+                one.marketKey === market.key &&
+                one.status === "active"
+            )}
+            onPreview={setPreview}
+            onClose={() => setSmart(null)}
+            onPlace={(input) =>
+              trading.placeLadder({ marketKey: market.key, ...input })
+            }
+          />
+        </React.Suspense>
       ) : null}
       {grid && market ? (
-        <GridOrderDialog
-          state={grid}
-          wide={wide}
-          market={market}
-          wallet={trading.wallet?.label ?? ""}
-          equity={equity}
-          free={free}
-          takerFeeRate={TAKER_FEE_RATE}
-          busy={trading.busy}
-          pairedWithLadder={trading.smartOrders.some(
-            (one) =>
-              one.kind === "dca" &&
-              one.walletId === trading.wallet?.id &&
-              one.marketKey === market.key &&
-              one.status === "active"
-          )}
-          pairedLeverage={
-            trading.ladders.find(
+        <React.Suspense
+          fallback={
+            <LazyOrderWindowFallback
+              state={grid}
+              wide={wide}
+              wallet={trading.wallet?.label ?? ""}
+              free={free}
+              title="Grid order"
+              onClose={() => setGrid(null)}
+            />
+          }
+        >
+          <GridOrderDialog
+            state={grid}
+            wide={wide}
+            market={market}
+            wallet={trading.wallet?.label ?? ""}
+            equity={equity}
+            free={free}
+            takerFeeRate={TAKER_FEE_RATE}
+            busy={trading.busy}
+            pairedWithLadder={trading.smartOrders.some(
               (one) =>
+                one.kind === "dca" &&
                 one.walletId === trading.wallet?.id &&
                 one.marketKey === market.key &&
                 one.status === "active"
-            )?.plan.leverage ?? null
-          }
-          positionLeverage={
-            trading.positions.find(
-              (one) =>
-                one.walletId === trading.wallet?.id &&
-                one.marketKey === market.key &&
-                one.szi > 0
-            )?.leverage ?? null
-          }
-          onPreview={setGridPreview}
-          onClose={() => setGrid(null)}
-          onPlace={(input) =>
-            trading.placeGrid({ marketKey: market.key, ...input })
-          }
-        />
+            )}
+            pairedLeverage={
+              trading.ladders.find(
+                (one) =>
+                  one.walletId === trading.wallet?.id &&
+                  one.marketKey === market.key &&
+                  one.status === "active"
+              )?.plan.leverage ?? null
+            }
+            positionLeverage={
+              trading.positions.find(
+                (one) =>
+                  one.walletId === trading.wallet?.id &&
+                  one.marketKey === market.key &&
+                  one.szi > 0
+              )?.leverage ?? null
+            }
+            onPreview={setGridPreview}
+            onClose={() => setGrid(null)}
+            onPlace={(input) =>
+              trading.placeGrid({ marketKey: market.key, ...input })
+            }
+          />
+        </React.Suspense>
       ) : null}
       <GridStopDialog
         grid={stopFor}
@@ -1502,23 +1546,32 @@ export function ChartPanel({
           setCancelGridFor(null)
         }}
       />
-      <SmartLadderExitsDialog
-        ladder={exitsFor}
-        position={
-          exitsFor
-            ? (trading.positions.find(
+      {exitsFor ? (
+        <React.Suspense
+          fallback={
+            <LazyDialogFallback
+              title="Edit DCA exits"
+              onClose={() => setExitsFor(null)}
+            />
+          }
+        >
+          <SmartLadderExitsDialog
+            ladder={exitsFor}
+            position={
+              trading.positions.find(
                 (one) =>
                   one.walletId === exitsFor.walletId &&
                   one.marketKey === exitsFor.marketKey
-              ) ?? null)
-            : null
-        }
-        busy={trading.busy}
-        onSave={(ladder, exits) =>
-          trading.setLadderExits(ladder.walletId, ladder.id, exits)
-        }
-        onClose={() => setExitsFor(null)}
-      />
+              ) ?? null
+            }
+            busy={trading.busy}
+            onSave={(ladder, exits) =>
+              trading.setLadderExits(ladder.walletId, ladder.id, exits)
+            }
+            onClose={() => setExitsFor(null)}
+          />
+        </React.Suspense>
+      ) : null}
       <ConfirmDialog
         open={cancelFor !== null}
         onOpenChange={(open) => {

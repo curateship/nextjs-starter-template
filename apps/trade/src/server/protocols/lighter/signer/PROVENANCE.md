@@ -1,10 +1,10 @@
 # Where these two files came from
 
-**They live in `apps/trade/public/lighter-signer/`, not here.** That is the one
-folder every build copies whole, so the website gets them without touching the
-shared build files, which an app may not edit. The trading engine's own
-Dockerfile copies them beside its bundle. Serving them publicly costs nothing:
-Lighter publishes this binary openly.
+The source files live in `assets/` beside this document. Nitro bundles the WASM
+as a server-only asset, and the worker build copies it beside `trade.mjs`. Go's
+glue is imported as server code. Neither file is copied into the website's
+public output. Lighter publishes the binary openly, so this placement is about
+the 7.7 MB public image cost rather than secrecy.
 
 Both are vendored, not built here, and neither is edited. Replacing them means
 repeating the steps below and re-running `signer.test.ts`.

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gt, inArray, lt, max, sql } from "drizzle-orm"
+import { and, desc, eq, gt, inArray, lt, sql } from "drizzle-orm"
 
 import {
   marketChartHref,
@@ -29,6 +29,10 @@ import { scrubSecrets } from "@/server/protocols/scrub"
 import { db } from "@/server/db"
 import { getProtocol, ordersOf } from "@/server/protocols/registry"
 import { stampGridFills } from "@/server/trade/grid-fills"
+import {
+  bumpTradeHistory,
+  tradeHistoryStamp,
+} from "@/server/trade/history-version"
 import {
   tradeLiveFills,
   tradeLiveJournal,
@@ -265,36 +269,40 @@ export async function recordLiveFills(
 ): Promise<void> {
   if (fills.length === 0) return
   try {
-    const inserted = await db
-      .insert(tradeLiveFills)
-      .values(
-        fills.map((fill) => ({
-          userId,
-          walletId: wallet.id,
-          fillId: fill.fillId,
-          orderId: fill.orderId,
-          marketKey: marketKey({
-            protocol: wallet.protocol,
-            network: wallet.network,
-            marketId: fill.marketId,
-          }),
-          side: fill.side as TradeSide,
-          px: fill.px,
-          sz: fill.sz,
-          at: fill.at,
-          closedPnl: fill.closedPnl,
-          fee: fill.fee,
-          dir: fill.dir.slice(0, 24),
-          liquidation: fill.liquidation,
-        }))
-      )
-      .onConflictDoNothing()
-      // Which rows were actually NEW — the whole answer to "who gets told".
-      // A recovery read re-inserting a month of history conflicts on every
-      // row, returns nothing here, and announces nothing. And when the web
-      // container and the engine both receive the same pushed fill, only the
-      // one whose insert went in tells the person.
-      .returning({ fillId: tradeLiveFills.fillId })
+    const inserted = await db.transaction(async (tx) => {
+      const rows = await tx
+        .insert(tradeLiveFills)
+        .values(
+          fills.map((fill) => ({
+            userId,
+            walletId: wallet.id,
+            fillId: fill.fillId,
+            orderId: fill.orderId,
+            marketKey: marketKey({
+              protocol: wallet.protocol,
+              network: wallet.network,
+              marketId: fill.marketId,
+            }),
+            side: fill.side as TradeSide,
+            px: fill.px,
+            sz: fill.sz,
+            at: fill.at,
+            closedPnl: fill.closedPnl,
+            fee: fill.fee,
+            dir: fill.dir.slice(0, 24),
+            liquidation: fill.liquidation,
+          }))
+        )
+        .onConflictDoNothing()
+        // Which rows were actually NEW — the whole answer to "who gets told".
+        // A recovery read re-inserting a month of history conflicts on every
+        // row, returns nothing here, and announces nothing. And when the web
+        // container and the engine both receive the same pushed fill, only the
+        // one whose insert went in tells the person.
+        .returning({ fillId: tradeLiveFills.fillId })
+      if (rows.length > 0) await bumpTradeHistory(tx, userId, [wallet.id])
+      return rows
+    })
     const insertedIds = new Set(inserted.map((row) => row.fillId))
     await announceFills(
       userId,
@@ -502,14 +510,20 @@ async function resolveClosingOrders(
     })
   }
 
-  const learnt = await db
-    .insert(tradeLiveTriggers)
-    .values(rows)
-    .onConflictDoNothing()
-    .returning({
-      orderId: tradeLiveTriggers.orderId,
-      kind: tradeLiveTriggers.kind,
-    })
+  const learnt = await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(tradeLiveTriggers)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning({
+        orderId: tradeLiveTriggers.orderId,
+        kind: tradeLiveTriggers.kind,
+      })
+    if (inserted.length > 0) {
+      await bumpTradeHistory(tx, userId, [wallet.id])
+    }
+    return inserted
+  })
 
   const learntNotices = learnt.filter(
     (
@@ -660,7 +674,16 @@ async function recordTriggers(
   }
 
   if (rows.length === 0) return
-  await db.insert(tradeLiveTriggers).values(rows).onConflictDoNothing()
+  await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(tradeLiveTriggers)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning({ orderId: tradeLiveTriggers.orderId })
+    if (inserted.length > 0) {
+      await bumpTradeHistory(tx, userId, [wallet.id])
+    }
+  })
 }
 
 /**
@@ -750,41 +773,14 @@ export async function loadLiveRefusals(
 /**
  * A short string that changes when `loadLiveHistory` would answer
  * differently: a fill arriving, one being binned, or a trigger being learnt
- * (which changes how a trade says it ended). One round trip, two small
- * aggregates, so the poll can ask "did anything happen?" instead of
- * carrying thousands of rows every four seconds.
+ * (which changes how a trade says it ended). Writers maintain the wallet's
+ * version, so the poll reads only the selected wallet rows.
  */
 export async function liveHistoryStamp(
   userId: string,
   walletIds: readonly string[]
 ): Promise<string> {
-  if (walletIds.length === 0) return "0"
-  const [fills, triggers] = await Promise.all([
-    db
-      .select({ count: count(), newest: max(tradeLiveFills.at) })
-      .from(tradeLiveFills)
-      .where(
-        and(
-          eq(tradeLiveFills.userId, userId),
-          inArray(tradeLiveFills.walletId, [...walletIds]),
-          eq(tradeLiveFills.hidden, false)
-        )
-      ),
-    db
-      .select({ count: count() })
-      .from(tradeLiveTriggers)
-      .where(
-        and(
-          eq(tradeLiveTriggers.userId, userId),
-          inArray(tradeLiveTriggers.walletId, [...walletIds])
-        )
-      ),
-  ])
-  return [
-    fills[0]?.count ?? 0,
-    fills[0]?.newest ?? 0,
-    triggers[0]?.count ?? 0,
-  ].join(":")
+  return tradeHistoryStamp(userId, walletIds)
 }
 
 /**
@@ -820,36 +816,36 @@ export async function loadLiveHistory(
     return { fills: [], trades: [], nextBefore: null }
   }
 
-  const [fillRows, triggerRows] = await Promise.all([
-    db
-      .select()
-      .from(tradeLiveFills)
-      .where(
-        and(
-          eq(tradeLiveFills.userId, userId),
-          inArray(tradeLiveFills.walletId, [...walletIds]),
-          marketKeys
-            ? inArray(tradeLiveFills.marketKey, [...marketKeys])
-            : undefined,
-          eq(tradeLiveFills.hidden, false),
-          before === undefined ? undefined : lt(tradeLiveFills.at, before)
-        )
+  const fillRows = await db
+    .select()
+    .from(tradeLiveFills)
+    .where(
+      and(
+        eq(tradeLiveFills.userId, userId),
+        inArray(tradeLiveFills.walletId, [...walletIds]),
+        marketKeys
+          ? inArray(tradeLiveFills.marketKey, [...marketKeys])
+          : undefined,
+        eq(tradeLiveFills.hidden, false),
+        before === undefined ? undefined : lt(tradeLiveFills.at, before)
       )
-      .orderBy(desc(tradeLiveFills.at))
-      .limit(MAX_FILLS),
-    db
-      .select()
-      .from(tradeLiveTriggers)
-      .where(
-        and(
-          eq(tradeLiveTriggers.userId, userId),
-          inArray(tradeLiveTriggers.walletId, [...walletIds]),
-          marketKeys
-            ? inArray(tradeLiveTriggers.marketKey, [...marketKeys])
-            : undefined
-        )
-      ),
-  ])
+    )
+    .orderBy(desc(tradeLiveFills.at))
+    .limit(MAX_FILLS)
+  const orderIds = [...new Set(fillRows.map((row) => row.orderId))]
+  const triggerRows =
+    orderIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(tradeLiveTriggers)
+          .where(
+            and(
+              eq(tradeLiveTriggers.userId, userId),
+              inArray(tradeLiveTriggers.walletId, [...walletIds]),
+              inArray(tradeLiveTriggers.orderId, orderIds)
+            )
+          )
 
   const raw: LiveFill[] = fillRows.map((row) => ({
     fillId: row.fillId,
@@ -927,14 +923,19 @@ export async function hideLiveTrade(
   fillIds: readonly string[]
 ): Promise<void> {
   if (fillIds.length === 0) return
-  await db
-    .update(tradeLiveFills)
-    .set({ hidden: true })
-    .where(
-      and(
-        eq(tradeLiveFills.userId, userId),
-        eq(tradeLiveFills.walletId, walletId),
-        inArray(tradeLiveFills.fillId, [...fillIds])
+  await db.transaction(async (tx) => {
+    const hidden = await tx
+      .update(tradeLiveFills)
+      .set({ hidden: true })
+      .where(
+        and(
+          eq(tradeLiveFills.userId, userId),
+          eq(tradeLiveFills.walletId, walletId),
+          inArray(tradeLiveFills.fillId, [...fillIds]),
+          eq(tradeLiveFills.hidden, false)
+        )
       )
-    )
+      .returning({ fillId: tradeLiveFills.fillId })
+    if (hidden.length > 0) await bumpTradeHistory(tx, userId, [walletId])
+  })
 }

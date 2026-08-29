@@ -7,6 +7,8 @@ import type { CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import { writeTradeNotice } from "@/server/trade/notices"
 import {
+  hideLiveTrade,
+  liveHistoryStamp,
   loadLiveHistory,
   recordLiveFills,
   sweepLiveFills,
@@ -132,6 +134,8 @@ describe("live fill storage", () => {
       })
     )
     const select = vi.spyOn(database, "select")
+    const before = await liveHistoryStamp(user.id, [wallet.id])
+    select.mockClear()
 
     await sweepLiveFills(
       user.id,
@@ -143,6 +147,7 @@ describe("live fill storage", () => {
     expect(select).toHaveBeenCalledTimes(3)
     expect(protocolMocks.orderInfo).toHaveBeenCalledTimes(2)
     expect(writeTradeNotice).toHaveBeenCalledTimes(2)
+    expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(before)
   })
 
   it("reads known triggers once before announcing a batch", async () => {
@@ -330,7 +335,9 @@ describe("live fill storage", () => {
     }
 
     await recordLiveFills(user.id, wallet, [fill])
+    const afterInsert = await liveHistoryStamp(user.id, [wallet.id])
     await recordLiveFills(user.id, wallet, [fill])
+    const afterDuplicate = await liveHistoryStamp(user.id, [wallet.id])
 
     const rows = await database
       .select()
@@ -338,6 +345,10 @@ describe("live fill storage", () => {
       .where(eq(tradeLiveFills.userId, user.id))
     expect(rows).toHaveLength(1)
     expect(rows[0].fillId).toBe("88")
+    expect(afterDuplicate).toBe(afterInsert)
+
+    await hideLiveTrade(user.id, wallet.id, [fill.fillId])
+    expect(await liveHistoryStamp(user.id, [wallet.id])).not.toBe(afterInsert)
   })
 
   it("reads only the markets requested for a run list", async () => {

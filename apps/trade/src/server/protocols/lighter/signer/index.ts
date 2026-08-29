@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
+import "./assets/wasm_exec.js"
+
 /**
  * Lighter's own signing library, run in this process.
  *
@@ -124,64 +126,67 @@ let loading: Promise<SignerGlobals> | null = null
  * per process, not once per signature. Loading is about a second; a signature
  * after that is a couple of milliseconds.
  */
-/** The binary and the glue, which are data rather than code. */
+/** The binary is server data. Go's glue is bundled by the import above. */
 const WASM_FILE = "lighter-signer.wasm"
-const GLUE_FILE = "wasm_exec.js"
 
 /**
- * Where the signer's two files are, which is not one fixed place.
+ * Reads the signer binary in each layout this module runs under.
  *
- * **A bundler compiles code and leaves data behind.** They live in `public/`
- * because that is the one folder every build copies whole — the website gets
- * them at `.output/public` without a single line of build configuration,
- * which matters because this app may not edit the shared build files. The
- * trading engine's own Dockerfile puts a copy beside its bundle.
- *
- * They are public bytes either way: Lighter publishes this binary openly, and
- * nothing about it is a secret. Serving it is harmless; not having it is not.
- *
- * That last part is the whole reason this is a search and not a path. When
- * this shipped without the files, every Lighter read failed on a missing
- * file, the engine stepped over the whole wallet, and a watched order sat at
- * a price it had already reached with nothing written down anywhere. A
- * missing file must never again be mistaken for a bad key.
+ * Nitro carries the web server's copy as a server asset. Direct Node tests and
+ * development read the source file, while the worker reads the copy beside its
+ * bundle. Lighter publishes these bytes openly, so the move is about keeping
+ * 7.7 MB out of the website download folder rather than hiding a secret.
  */
-function signerHome(): string {
+async function signerBytes(): Promise<Uint8Array> {
+  try {
+    const { useStorage: nitroStorage } = await import("nitro/storage")
+    const stored = await nitroStorage("assets").getItem(
+      `lighter-signer/${WASM_FILE}`
+    )
+    if (stored instanceof Uint8Array) return stored
+  } catch {
+    // Direct Node tests and the worker have no Nitro virtual storage.
+  }
+
   // `fileURLToPath`, not `.pathname`: this app's own checkout lives under
-  // "Application Support", and a raw pathname leaves the space percent-encoded
-  // so both files below fail to open.
+  // "Application Support", and a raw pathname leaves the space encoded.
   const beside = dirname(fileURLToPath(import.meta.url))
   const tried = [
-    // The web server, where Vite copies `public/` wholesale. Its working
-    // directory is the app's own folder.
-    join(process.cwd(), ".output", "public", "lighter-signer"),
-    // Running from source.
-    join(process.cwd(), "public", "lighter-signer"),
-    // The trading engine, whose Dockerfile puts them beside its bundle.
+    // Running from source or a direct Node test.
+    join(beside, "assets"),
+    join(
+      process.cwd(),
+      "src",
+      "server",
+      "protocols",
+      "lighter",
+      "signer",
+      "assets"
+    ),
+    // The trading engine's build copies the binary beside its bundle.
     beside,
     join(process.cwd(), "worker", "dist"),
   ]
   for (const home of tried) {
-    if (existsSync(join(home, WASM_FILE)) && existsSync(join(home, GLUE_FILE))) {
-      return home
-    }
+    const file = join(home, WASM_FILE)
+    if (existsSync(file)) return new Uint8Array(await readFile(file))
   }
   throw new Error(
-    `LIGHTER_SIGNER_MISSING:Lighter's signing files are not on this server, so nothing Lighter can be signed. They are data rather than code, so a build has to copy them; looked in ${tried.join(", ")}.`
+    `LIGHTER_SIGNER_MISSING:Lighter's signing file is not on this server, so nothing Lighter can be signed. The build has to carry it as server data; looked in Nitro's server assets and ${tried.join(", ")}.`
   )
 }
 
 async function load(): Promise<SignerGlobals> {
-  const here = signerHome()
-  // Go's glue installs `globalThis.Go`; it has no export of its own.
-  await import(/* @vite-ignore */ join(here, GLUE_FILE))
   const scope = globalThis as unknown as SignerGlobals
   if (typeof scope.Go !== "function") {
     throw new Error("LIGHTER_SIGNER_UNAVAILABLE")
   }
   const go = new scope.Go()
-  const bytes = await readFile(join(here, WASM_FILE))
-  const { instance } = await WebAssembly.instantiate(bytes, go.importObject)
+  const bytes = await signerBytes()
+  const { instance } = await WebAssembly.instantiate(
+    bytes.slice().buffer as ArrayBuffer,
+    go.importObject
+  )
   go.run(instance)
   // Proven, not assumed: a build that instantiated but registered nothing
   // would otherwise fail later as "undefined is not a function", deep inside

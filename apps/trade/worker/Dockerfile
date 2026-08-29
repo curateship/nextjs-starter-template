@@ -47,16 +47,8 @@ COPY --from=prod-deps /app/node_modules ./node_modules
 # Source maps stay in the build stage for local crash debugging. The running
 # image gets only the three programs Node opens, never their debugging files.
 COPY --from=build /app/apps/trade/worker/dist/*.mjs ./worker/dist/
+COPY --from=build /app/apps/trade/worker/dist/lighter-signer.wasm ./worker/dist/
 COPY --from=build /app/apps/trade/package.json ./package.json
-
-# **Lighter's signer is two files, not code, so the bundler leaves them
-# behind.** The engine loads them from beside itself, and without this line
-# they simply are not there: every Lighter read fails on a missing file, the
-# whole wallet's pass is stepped over, and a watched Lighter order sits at a
-# price it has already reached without one word in the Journal. That is
-# exactly what happened on 26 Aug 2026. They land beside `trade.mjs` because
-# that is where the loader looks first.
-COPY --from=build /app/apps/trade/public/lighter-signer/ ./worker/dist/
 
 # No port and no health endpoint on purpose: it serves nothing. Whether it is
 # alive is answered by the lock — a copy that has died is not holding one.

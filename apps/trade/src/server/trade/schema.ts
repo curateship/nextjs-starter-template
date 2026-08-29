@@ -307,6 +307,12 @@ export const tradeWallets = pgTable(
       .$type<AsterMarginMode>()
       .notNull()
       .default("isolated"),
+    /** Bumped atomically whenever this wallet's visible Journal changes. */
+    historyVersion: bigint("history_version", { mode: "number" })
+      .notNull()
+      .default(0),
+    /** Practice profit less fees, maintained with each Journal insert. */
+    paperRealized: doublePrecision("paper_realized").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -838,6 +844,7 @@ export const tradeCandles = pgTable(
     primaryKey({
       columns: [table.marketKey, table.interval, table.openTime],
     }),
+    index("trade_candles_open_time_idx").on(table.openTime),
   ]
 )
 
@@ -869,6 +876,7 @@ export const tradeCandleCoverage = pgTable(
     primaryKey({
       columns: [table.marketKey, table.interval, table.fromTime],
     }),
+    index("trade_candle_coverage_from_time_idx").on(table.fromTime),
   ]
 )
 
@@ -902,6 +910,7 @@ export const tradeCandleGaps = pgTable(
     primaryKey({
       columns: [table.marketKey, table.interval, table.fromTime],
     }),
+    index("trade_candle_gaps_from_time_idx").on(table.fromTime),
   ]
 )
 
@@ -913,18 +922,25 @@ export const tradeFundingRates = pgTable(
     time: bigint("time", { mode: "number" }).notNull(),
     rate: doublePrecision("rate").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.marketKey, table.time] })]
+  (table) => [
+    primaryKey({ columns: [table.marketKey, table.time] }),
+    index("trade_funding_rates_time_idx").on(table.time),
+  ]
 )
 
 /** The funding stretch already requested from the exchange. */
-export const tradeFundingCoverage = pgTable("trade_funding_coverage", {
-  marketKey: varchar("market_key", { length: 120 }).primaryKey(),
-  fromTime: bigint("from_time", { mode: "number" }).notNull(),
-  toTime: bigint("to_time", { mode: "number" }).notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-})
+export const tradeFundingCoverage = pgTable(
+  "trade_funding_coverage",
+  {
+    marketKey: varchar("market_key", { length: 120 }).primaryKey(),
+    fromTime: bigint("from_time", { mode: "number" }).notNull(),
+    toTime: bigint("to_time", { mode: "number" }).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index("trade_funding_coverage_from_time_idx").on(table.fromTime)]
+)
 
 /** Missing settlements that a saved result must disclose. */
 export const tradeFundingGaps = pgTable(
@@ -935,7 +951,10 @@ export const tradeFundingGaps = pgTable(
     toTime: bigint("to_time", { mode: "number" }).notNull(),
     reason: text("reason").notNull(),
   },
-  (table) => [primaryKey({ columns: [table.marketKey, table.fromTime] })]
+  (table) => [
+    primaryKey({ columns: [table.marketKey, table.fromTime] }),
+    index("trade_funding_gaps_from_time_idx").on(table.fromTime),
+  ]
 )
 
 /**

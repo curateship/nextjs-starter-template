@@ -10,6 +10,9 @@ import type {
   UTCTimestamp,
 } from "lightweight-charts"
 
+import { loadChartEngine } from "@/components/trade/chart-engine"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadingRow } from "@/components/ui/loading-row"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import { zoneAxisLabel, zoneCrosshairLabel } from "@/lib/trade/chart-timezone"
@@ -235,6 +238,10 @@ export function PriceChart({
    */
   overlay?: (surface: ChartSurface, colors: ChartColors) => React.ReactNode
 }) {
+  const [engineAttempt, setEngineAttempt] = React.useState(0)
+  const [engineState, setEngineState] = React.useState<
+    "loading" | "ready" | "failed"
+  >("loading")
   const containerRef = React.useRef<HTMLDivElement | null>(null)
   const chartRef = React.useRef<IChartApi | null>(null)
   const priceSeriesRef = React.useRef<ISeriesApi<"Candlestick"> | null>(null)
@@ -473,133 +480,143 @@ export function PriceChart({
     let themeWatcher: MutationObserver | null = null
     let pending = 0
 
+    setEngineState("loading")
     void (async () => {
-      const { createChart, CandlestickSeries, HistogramSeries, CrosshairMode } =
-        await import("lightweight-charts")
-      if (disposed || !containerRef.current) return
-      crosshairModesRef.current = {
-        normal: CrosshairMode.Normal,
-        hidden: CrosshairMode.Hidden,
-      }
+      try {
+        const {
+          createChart,
+          CandlestickSeries,
+          HistogramSeries,
+          CrosshairMode,
+        } = await loadChartEngine()
+        if (disposed || !containerRef.current) return
+        crosshairModesRef.current = {
+          normal: CrosshairMode.Normal,
+          hidden: CrosshairMode.Hidden,
+        }
 
-      const colors = readChartColors(containerRef.current)
-      const chart = createChart(containerRef.current, {
-        autoSize: true,
-        layout: {
-          background: { color: "transparent" },
-          textColor: colors.text,
-          attributionLogo: false,
-        },
-        grid: {
-          vertLines: { color: colors.grid, visible: optionsRef.current.grid },
-          horzLines: { color: colors.grid, visible: optionsRef.current.grid },
-        },
-        // The library's default is "magnet": the horizontal line snaps to
-        // each candle's price, leaping close-to-close as the mouse crosses
-        // bars — which reads as the crosshair skipping all over the place.
-        // Normal simply follows the mouse.
-        crosshair: {
-          mode: optionsRef.current.crosshair
-            ? CrosshairMode.Normal
-            : CrosshairMode.Hidden,
-        },
-        rightPriceScale: { borderColor: colors.border },
-        timeScale: { borderColor: colors.border, timeVisible: true },
-      })
-      // The clock the times on it are read against. Applied here as well as in
-      // the effect above because that effect runs before the library has
-      // finished loading, and so cannot have reached this chart.
-      chart.applyOptions(clockOptions(optionsRef.current.zone))
-
-      const price = chart.addSeries(CandlestickSeries, {
-        upColor: colors.up,
-        downColor: colors.down,
-        borderUpColor: colors.up,
-        borderDownColor: colors.down,
-        wickUpColor: colors.up,
-        wickDownColor: colors.down,
-      })
-      // Volume lives in the bottom fifth of the same pane, on its own scale,
-      // so a huge bar never squashes the candles.
-      const volume = chart.addSeries(HistogramSeries, {
-        priceScaleId: "volume",
-        priceFormat: { type: "volume" },
-        lastValueVisible: false,
-        priceLineVisible: false,
-        visible: optionsRef.current.volume,
-      })
-      chart
-        .priceScale("volume")
-        .applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
-
-      chartRef.current = chart
-      priceSeriesRef.current = price
-      volumeSeriesRef.current = volume
-      colorsRef.current = colors
-      setColors(colors)
-      applyCandles(price, volume, candlesRef.current, colors)
-      timesRef.current = candlesRef.current.map((bar) => bar.openTime)
-      lastTimeRef.current = candlesRef.current.at(-1)?.openTime ?? 0
-      frameChart()
-
-      // A primitive that draws nothing. Its one job is being told when the
-      // chart has repainted, which is the only honest moment to re-read where
-      // a time and a price now land — panning, zooming, resizing and the price
-      // scale rescaling itself all arrive here and nowhere else. Coalesced
-      // onto one frame because the library also calls it on every mouse move.
-      price.attachPrimitive({
-        updateAllViews: () => {
-          if (pending) return
-          pending = requestAnimationFrame(() => {
-            pending = 0
-            refreshSurface()
-          })
-        },
-      })
-      refreshSurface()
-
-      // The theme class lives on <html>, while Styling puts its Divider lines
-      // token on a shell wrapper. Watch the chart's ancestor chain so either
-      // change recolours the live chart and its overlays in place.
-      themeWatcher = new MutationObserver(() => {
-        if (!containerRef.current) return
-        const next = readChartColors(containerRef.current)
-        colorsRef.current = next
-        setColors(next)
-        chart.applyOptions({
-          layout: { textColor: next.text },
-          grid: {
-            vertLines: {
-              color: next.grid,
-              visible: optionsRef.current.grid,
-            },
-            horzLines: {
-              color: next.grid,
-              visible: optionsRef.current.grid,
-            },
+        const colors = readChartColors(containerRef.current)
+        const chart = createChart(containerRef.current, {
+          autoSize: true,
+          layout: {
+            background: { color: "transparent" },
+            textColor: colors.text,
+            attributionLogo: false,
           },
-          rightPriceScale: { borderColor: next.border },
-          timeScale: { borderColor: next.border },
+          grid: {
+            vertLines: { color: colors.grid, visible: optionsRef.current.grid },
+            horzLines: { color: colors.grid, visible: optionsRef.current.grid },
+          },
+          // The library's default is "magnet": the horizontal line snaps to
+          // each candle's price, leaping close-to-close as the mouse crosses
+          // bars — which reads as the crosshair skipping all over the place.
+          // Normal simply follows the mouse.
+          crosshair: {
+            mode: optionsRef.current.crosshair
+              ? CrosshairMode.Normal
+              : CrosshairMode.Hidden,
+          },
+          rightPriceScale: { borderColor: colors.border },
+          timeScale: { borderColor: colors.border, timeVisible: true },
         })
-        price.applyOptions({
-          upColor: next.up,
-          downColor: next.down,
-          borderUpColor: next.up,
-          borderDownColor: next.down,
-          wickUpColor: next.up,
-          wickDownColor: next.down,
+        // The clock the times on it are read against. Applied here as well as in
+        // the effect above because that effect runs before the library has
+        // finished loading, and so cannot have reached this chart.
+        chart.applyOptions(clockOptions(optionsRef.current.zone))
+
+        const price = chart.addSeries(CandlestickSeries, {
+          upColor: colors.up,
+          downColor: colors.down,
+          borderUpColor: colors.up,
+          borderDownColor: colors.down,
+          wickUpColor: colors.up,
+          wickDownColor: colors.down,
         })
-        applyCandles(price, volume, candlesRef.current, next)
-      })
-      for (
-        let ancestor: HTMLElement | null = containerRef.current;
-        ancestor;
-        ancestor = ancestor.parentElement
-      ) {
-        themeWatcher.observe(ancestor, {
-          attributes: true,
-          attributeFilter: ["class", "data-theme", "style"],
+        // Volume lives in the bottom fifth of the same pane, on its own scale,
+        // so a huge bar never squashes the candles.
+        const volume = chart.addSeries(HistogramSeries, {
+          priceScaleId: "volume",
+          priceFormat: { type: "volume" },
+          lastValueVisible: false,
+          priceLineVisible: false,
+          visible: optionsRef.current.volume,
         })
+        chart
+          .priceScale("volume")
+          .applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } })
+
+        chartRef.current = chart
+        priceSeriesRef.current = price
+        volumeSeriesRef.current = volume
+        colorsRef.current = colors
+        setColors(colors)
+        applyCandles(price, volume, candlesRef.current, colors)
+        timesRef.current = candlesRef.current.map((bar) => bar.openTime)
+        lastTimeRef.current = candlesRef.current.at(-1)?.openTime ?? 0
+        frameChart()
+        setEngineState("ready")
+
+        // A primitive that draws nothing. Its one job is being told when the
+        // chart has repainted, which is the only honest moment to re-read where
+        // a time and a price now land — panning, zooming, resizing and the price
+        // scale rescaling itself all arrive here and nowhere else. Coalesced
+        // onto one frame because the library also calls it on every mouse move.
+        price.attachPrimitive({
+          updateAllViews: () => {
+            if (pending) return
+            pending = requestAnimationFrame(() => {
+              pending = 0
+              refreshSurface()
+            })
+          },
+        })
+        refreshSurface()
+
+        // The theme class lives on <html>, while Styling puts its Divider lines
+        // token on a shell wrapper. Watch the chart's ancestor chain so either
+        // change recolours the live chart and its overlays in place.
+        themeWatcher = new MutationObserver(() => {
+          if (!containerRef.current) return
+          const next = readChartColors(containerRef.current)
+          colorsRef.current = next
+          setColors(next)
+          chart.applyOptions({
+            layout: { textColor: next.text },
+            grid: {
+              vertLines: {
+                color: next.grid,
+                visible: optionsRef.current.grid,
+              },
+              horzLines: {
+                color: next.grid,
+                visible: optionsRef.current.grid,
+              },
+            },
+            rightPriceScale: { borderColor: next.border },
+            timeScale: { borderColor: next.border },
+          })
+          price.applyOptions({
+            upColor: next.up,
+            downColor: next.down,
+            borderUpColor: next.up,
+            borderDownColor: next.down,
+            wickUpColor: next.up,
+            wickDownColor: next.down,
+          })
+          applyCandles(price, volume, candlesRef.current, next)
+        })
+        for (
+          let ancestor: HTMLElement | null = containerRef.current;
+          ancestor;
+          ancestor = ancestor.parentElement
+        ) {
+          themeWatcher.observe(ancestor, {
+            attributes: true,
+            attributeFilter: ["class", "data-theme", "style"],
+          })
+        }
+      } catch {
+        if (!disposed) setEngineState("failed")
       }
     })()
 
@@ -614,7 +631,7 @@ export function PriceChart({
     }
     // Built once per mount; data and theme changes are applied to the live
     // chart above and below, never by rebuilding it.
-  }, [frameChart, refreshSurface])
+  }, [engineAttempt, frameChart, refreshSurface])
 
   React.useEffect(() => {
     candlesRef.current = candles
@@ -684,6 +701,16 @@ export function PriceChart({
         className="absolute inset-0"
         onDoubleClick={resetChart}
       />
+      {engineState === "loading" ? (
+        <LoadingRow label="Drawing the chart" className="absolute inset-0" />
+      ) : engineState === "failed" ? (
+        <div className="absolute inset-0 grid place-items-center p-3">
+          <ErrorBanner
+            message="The chart could not be loaded."
+            onRetry={() => setEngineAttempt((attempt) => attempt + 1)}
+          />
+        </div>
+      ) : null}
       {overlay && surface && colors ? (
         // As tall as the plot and as wide as the plot plus the price axis. The
         // extra strip is there for one thing only — a price badge sitting on

@@ -231,7 +231,7 @@ export function MarketFoldersPanel({
                   key={market.key}
                   row={market}
                   selected={market.key === selectedMarketKey}
-                  onSelect={() => onSelectMarket(market.key)}
+                  onSelect={onSelectMarket}
                 />
               ))}
             </div>

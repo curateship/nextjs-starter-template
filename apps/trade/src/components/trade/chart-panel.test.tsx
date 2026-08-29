@@ -16,7 +16,8 @@ import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { Trading } from "@/components/trade/use-trading"
 
 vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/trade/candles")>()
+  const actual =
+    await importOriginal<typeof import("@/lib/api/trade/candles")>()
   return { ...actual, loadCandles: vi.fn() }
 })
 
@@ -93,6 +94,10 @@ vi.mock("@/components/trade/price-chart", async () => {
     }) => <div data-testid="price-chart">{overlay?.(surface, colors)}</div>,
   }
 })
+
+vi.mock("@/components/trade/chart-engine", () => ({
+  prefetchChartEngine: vi.fn(),
+}))
 
 vi.mock("@/components/trade/trade-lines-layer", async () => {
   const React = await import("react")
