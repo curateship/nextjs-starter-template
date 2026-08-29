@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm"
+import { performance } from "node:perf_hooks"
 
 import { parseMarketKey } from "@/lib/protocols/contracts"
 import { firstOpenAtOrAfter } from "@/lib/trade/candle-window"
@@ -11,6 +12,7 @@ import {
   worstDip,
   type BacktestCoinSummary,
   type BacktestResult,
+  type BacktestPreparation,
   type BacktestSkip,
   type BacktestSpecSnapshot,
   type BacktestFill,
@@ -93,7 +95,33 @@ import { tradeBacktests } from "@/server/trade/schema"
  * promises at once.
  */
 const FETCH_AT_ONCE = 6
+/** Two full histories at once keeps the read-side peak below the old duplicate. */
+const PREPARE_AT_ONCE = 2
+/** Two warning reads per coin fill the default ten-connection pool. */
+const WARNING_COINS_AT_ONCE = 5
 const HEARTBEAT_MS = 60_000
+
+async function mapInBatches<Input, Output>(
+  values: readonly Input[],
+  batchSize: number,
+  work: (value: Input) => Promise<Output>,
+  afterOne: () => void = () => {}
+): Promise<Output[]> {
+  const output: Output[] = []
+  for (let at = 0; at < values.length; at += batchSize) {
+    const batch = await Promise.all(
+      values.slice(at, at + batchSize).map(async (value) => {
+        try {
+          return await work(value)
+        } finally {
+          afterOne()
+        }
+      })
+    )
+    output.push(...batch)
+  }
+  return output
+}
 
 /**
  * How far before the window a signals run has to be able to see, in candles of
@@ -344,68 +372,107 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   const protocol = first.protocol
   const network = first.network
 
-  const coins: BacktestCoin[] = []
-  for (const coin of testable) {
-    const ref = parseMarketKey(coin.marketKey)
-    if (!ref) continue
-    const rules = await replayMarketRules(protocol, network, ref.marketId)
-    if (!rules) {
-      skipped.push({
-        marketKey: coin.marketKey,
-        symbol: coin.symbol,
-        reason: "The exchange no longer lists this coin.",
-      })
-      continue
-    }
-    // The base rule always reads 4h, so a run that IS on 4h wants the same
-    // candles twice — once from the start of the window and once from before
-    // it. Loaded once and shared: the window's bars are the same objects, from
-    // where the warm-up ends. It is the difference between holding one copy of
-    // ten years of history per coin and holding two, which on a big run is
-    // hundreds of megabytes and was part of why the server ran out of memory.
-    const baseBars = await loadStoredCandles(
-      coin.marketKey,
-      BASE_STOP_INTERVAL,
-      spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
-      spec.to
+  const heapStartBytes = process.memoryUsage().heapUsed
+  let heapHighWaterBytes = heapStartBytes
+  const sampleHeap = () => {
+    heapHighWaterBytes = Math.max(
+      heapHighWaterBytes,
+      process.memoryUsage().heapUsed
     )
-    // A signals run needs history at ITS OWN interval from before the window,
-    // or its indicators cannot say anything about the window's first bars —
-    // and with a long search over a short window, about any of them. Bounded by
-    // what the switched-on indicators actually ask for rather than a guess, so
-    // a default Base costs 44 extra bars and not five hundred.
-    const signalFrom = signalWarmupFrom(spec)
-    const warmupBars =
-      signalFrom < spec.from
-        ? await loadStoredCandles(
-            coin.marketKey,
-            spec.interval,
-            signalFrom,
-            spec.from
-          )
-        : []
+  }
+  const preparationStartedAt = performance.now()
+  const prepared = await mapInBatches(
+    testable,
+    PREPARE_AT_ONCE,
+    async (
+      coin
+    ): Promise<{ coin: BacktestCoin } | { skip: BacktestSkip } | null> => {
+      const ref = parseMarketKey(coin.marketKey)
+      if (!ref) return null
+      const signalFrom = signalWarmupFrom(spec)
 
-    coins.push({
-      marketKey: coin.marketKey,
-      symbol: coin.symbol,
-      rules,
-      warmupBars,
-      bars:
-        spec.interval === BASE_STOP_INTERVAL
-          ? baseBars.slice(firstOpenAtOrAfter(baseBars, spec.from))
-          : await loadStoredCandles(
+      try {
+        const [rules, baseBars, warmupBars, windowBars, funding] =
+          await Promise.all([
+            replayMarketRules(protocol, network, ref.marketId),
+            // The base rule always reads 4h, so a run that IS on 4h wants the
+            // same candles for its warm history and window. The window below
+            // slices this one list instead of holding a duplicate.
+            loadStoredCandles(
               coin.marketKey,
-              spec.interval,
-              spec.from,
+              BASE_STOP_INTERVAL,
+              spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
               spec.to
             ),
-      baseBars,
-      funding: await loadStoredFunding(
-        coin.marketKey,
-        spec.from,
-        spec.to
-      ),
-    })
+            // Indicator warm-up is bounded by the settings that are on.
+            signalFrom < spec.from
+              ? loadStoredCandles(
+                  coin.marketKey,
+                  spec.interval,
+                  signalFrom,
+                  spec.from
+                )
+              : Promise.resolve([]),
+            spec.interval === BASE_STOP_INTERVAL
+              ? Promise.resolve(null)
+              : loadStoredCandles(
+                  coin.marketKey,
+                  spec.interval,
+                  spec.from,
+                  spec.to
+                ),
+            loadStoredFunding(coin.marketKey, spec.from, spec.to),
+          ])
+
+        if (!rules) {
+          return {
+            skip: {
+              marketKey: coin.marketKey,
+              symbol: coin.symbol,
+              reason: "The exchange no longer lists this coin.",
+            },
+          }
+        }
+
+        return {
+          coin: {
+            marketKey: coin.marketKey,
+            symbol: coin.symbol,
+            rules,
+            warmupBars,
+            bars:
+              windowBars ??
+              baseBars.slice(firstOpenAtOrAfter(baseBars, spec.from)),
+            baseBars,
+            funding,
+          },
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "The stored history read failed."
+        throw new Error(`Preparing ${coin.symbol} failed: ${message}`, {
+          cause: error,
+        })
+      }
+    },
+    sampleHeap
+  )
+  sampleHeap()
+
+  const coins: BacktestCoin[] = []
+  for (const result of prepared) {
+    if (!result) continue
+    if ("skip" in result) skipped.push(result.skip)
+    else coins.push(result.coin)
+  }
+  const preparation: BacktestPreparation = {
+    coinCount: testable.length,
+    batchSize: PREPARE_AT_ONCE,
+    durationMs: performance.now() - preparationStartedAt,
+    heapStartBytes,
+    heapHighWaterBytes,
   }
 
   await noteAll(userId, groupId, 0.4, "Running the strategy")
@@ -455,7 +522,15 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   )
 
   await noteAll(userId, groupId, 0.97, "Saving results")
-  await finish(claimed, Date.now(), coins, skipped, outcome, zoom.coinsWithoutMinutes())
+  await finish(
+    claimed,
+    Date.now(),
+    coins,
+    skipped,
+    outcome,
+    zoom.coinsWithoutMinutes(),
+    preparation
+  )
 }
 
 type Outcome = Awaited<ReturnType<typeof runBacktest>>
@@ -468,7 +543,8 @@ async function finish(
   skippedByRules: readonly BacktestSkip[],
   outcome: Outcome | null,
   /** Coins the exchange publishes no minute prices for. */
-  withoutMinutes: readonly string[] = []
+  withoutMinutes: readonly string[] = [],
+  preparation?: BacktestPreparation
 ): Promise<void> {
   const { userId, groupId, spec } = claimed
 
@@ -735,6 +811,7 @@ async function finish(
       rungEvents: [],
     })),
     skipped,
+    ...(preparation ? { preparation } : {}),
   }
 
   await saveBacktestResult(
@@ -771,16 +848,25 @@ async function credibilityWarnings(
     )
   }
 
-  const holed: string[] = []
-  for (const coin of coins) {
-    const gaps = await listCandleGaps(
-      coin.marketKey,
-      spec.interval,
-      spec.from,
-      spec.to
-    )
-    if (gaps.length > 0) holed.push(coin.symbol)
-  }
+  const gapReports = await mapInBatches(
+    coins,
+    WARNING_COINS_AT_ONCE,
+    async (coin) => {
+      const [candleGaps, fundingGaps] = await Promise.all([
+        listCandleGaps(coin.marketKey, spec.interval, spec.from, spec.to),
+        listFundingGaps(coin.marketKey, spec.from, spec.to),
+      ])
+      return {
+        symbol: coin.symbol,
+        candlesMissing: candleGaps.length > 0,
+        fundingMissing: fundingGaps.length > 0,
+      }
+    }
+  )
+
+  const holed = gapReports
+    .filter((report) => report.candlesMissing)
+    .map((report) => report.symbol)
   if (holed.length > 0) {
     // The COUNT first, then the names. It used to lead with five symbols and
     // trail off in "and 81 more", which reads as a handful of oddities when it
@@ -790,11 +876,9 @@ async function credibilityWarnings(
     )
   }
 
-  const fundingMissing: string[] = []
-  for (const coin of coins) {
-    const gaps = await listFundingGaps(coin.marketKey, spec.from, spec.to)
-    if (gaps.length > 0) fundingMissing.push(coin.symbol)
-  }
+  const fundingMissing = gapReports
+    .filter((report) => report.fundingMissing)
+    .map((report) => report.symbol)
   if (fundingMissing.length > 0) {
     warnings.push(
       `${fundingMissing.length} of ${coins.length} coins had stretches with no funding history — ${fundingMissing.slice(0, 5).join(", ")}${fundingMissing.length > 5 ? ` and ${fundingMissing.length - 5} more` : ""}. Those charges are missing from this result, not assumed to be free.`

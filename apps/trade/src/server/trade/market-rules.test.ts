@@ -24,9 +24,7 @@ const {
   ASSUMED_REPLAY_MAX_LEVERAGE,
   clearMarketRulesCache,
   replayMarketRules,
-} = await import(
-  "@/server/trade/market-rules"
-)
+} = await import("@/server/trade/market-rules")
 
 function row(marketId: string, maxLeverage: number | null) {
   return { marketId, sizeDecimals: 2, maxLeverage, volume24hUsd: 1_000 }
@@ -68,6 +66,21 @@ describe("the limit a replay is closed out by", () => {
     expect(rules?.maxLeverage).toBe(40)
     // Asked once. A second catalogue fetch per coin would be paid on every
     // coin of every run, for an answer already in hand.
+    expect(fetchMarkets).toHaveBeenCalledTimes(1)
+  })
+
+  it("shares a catalogue request between coins prepared at the same time", async () => {
+    fetchMarkets.mockResolvedValue({
+      rows: [row("BTC", 40), row("ETH", 25)],
+    })
+
+    const [btc, eth] = await Promise.all([
+      replayMarketRules("hyperliquid", "mainnet", "BTC"),
+      replayMarketRules("hyperliquid", "mainnet", "ETH"),
+    ])
+
+    expect(btc?.maxLeverage).toBe(40)
+    expect(eth?.maxLeverage).toBe(25)
     expect(fetchMarkets).toHaveBeenCalledTimes(1)
   })
 

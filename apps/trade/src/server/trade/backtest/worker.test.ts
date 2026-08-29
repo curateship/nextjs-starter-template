@@ -51,6 +51,10 @@ const permanentFailures = new Set<string>()
 const rateLimitOnce = new Set<string>()
 /** Markets the exchange refuses with "slow down" until this is emptied. */
 const rationed = new Set<string>()
+/** Markets omitted from the rules replay, after their stored history loads. */
+const unlistedRules = new Set<string>()
+let rulesInFlight = 0
+let peakRulesInFlight = 0
 
 // Only `getProtocol` is replaced. The store still chooses the adapter from the
 // full market key, while this scripted adapter keeps the worker test offline.
@@ -116,11 +120,23 @@ vi.mock("@/server/trade/market-rules", () => ({
   // A market that answers for itself, so the Hyperliquid fill-in inside
   // `replayMarketRules` has nothing to do — the walk here is about candles and
   // coins, not about where a leverage limit comes from.
-  replayMarketRules: async () => ({
-    sizeDecimals: 3,
-    maxLeverage: 10,
-    volume24hUsd: 1_000_000_000,
-  }),
+  replayMarketRules: async (
+    _protocol: string,
+    _network: string,
+    marketId: string
+  ) => {
+    rulesInFlight += 1
+    peakRulesInFlight = Math.max(peakRulesInFlight, rulesInFlight)
+    await Promise.resolve()
+    rulesInFlight -= 1
+    return unlistedRules.has(marketId)
+      ? null
+      : {
+          sizeDecimals: 3,
+          maxLeverage: 10,
+          volume24hUsd: 1_000_000_000,
+        }
+  },
 }))
 
 function specOf(marketKeys: string[]): BacktestSpec {
@@ -182,6 +198,9 @@ beforeEach(async () => {
   history = new Map()
   permanentFailures.clear()
   rateLimitOnce.clear()
+  unlistedRules.clear()
+  rulesInFlight = 0
+  peakRulesInFlight = 0
 })
 
 afterEach(async () => {
@@ -686,7 +705,49 @@ describe("a run the worker picks up", () => {
       .where(eq(tradeBacktests.groupId, groupId))
     expect(coins).toHaveLength(20)
     expect(coins.every((coin) => coin.status === "done")).toBe(true)
+
+    const [group] = await db
+      .select()
+      .from(tradeBacktestGroups)
+      .where(eq(tradeBacktestGroups.id, groupId))
+    expect(peakRulesInFlight).toBe(2)
+    expect(group.result?.preparation).toMatchObject({
+      coinCount: 20,
+      batchSize: 2,
+    })
+    expect(group.result!.preparation!.durationMs).toBeGreaterThanOrEqual(0)
+    expect(
+      group.result!.preparation!.heapHighWaterBytes
+    ).toBeGreaterThanOrEqual(group.result!.preparation!.heapStartBytes)
   }, 60_000)
+
+  it("skips one coin with missing replay rules without losing its batch", async () => {
+    history.set("AAA", shape(START - 600 * FOUR_HOURS, 800))
+    history.set("GONE", shape(START - 600 * FOUR_HOURS, 800, 40))
+    unlistedRules.add("GONE")
+
+    const { groupId } = await createBacktest(
+      userId,
+      {
+        automationId: "flow-rules",
+        automationName: "My strategy",
+        spec: specOf(["hyperliquid:mainnet:AAA", "hyperliquid:mainnet:GONE"]),
+        now: START,
+      },
+      db
+    )
+    expect(await tickUntilDone(groupId)).not.toBeNull()
+
+    const coins = await db
+      .select()
+      .from(tradeBacktests)
+      .where(eq(tradeBacktests.groupId, groupId))
+    expect(coins.find((coin) => coin.symbol === "AAA")?.status).toBe("done")
+    expect(coins.find((coin) => coin.symbol === "GONE")?.status).toBe("skipped")
+    expect(coins.find((coin) => coin.symbol === "GONE")?.skipReason).toContain(
+      "no longer lists"
+    )
+  })
 
   it("says so out loud when it really has run out of tries", async () => {
     // A group at the limit is never claimed again, so without this it sits

@@ -50,6 +50,72 @@ function settings(over: Record<string, number | boolean> = {}) {
   }
 }
 
+/** The old window-by-window scan, kept here as the independent comparison. */
+function slowLevelsInForce(
+  candles: readonly IndicatorCandle[],
+  params: ReturnType<typeof settings>,
+  side: "up" | "down"
+): Array<number | null> {
+  const searchBars = params.searchBars as number
+  const hold = cappedHold(searchBars, params.holdBars as number)
+  const floor = side === "up"
+  const prices = candles.map((bar) => (floor ? bar.low : bar.high))
+  const extreme = new Array<number>(candles.length).fill(Number.NaN)
+
+  for (let i = searchBars - 1; i < candles.length; i += 1) {
+    let best = prices[i]
+    for (let j = i - searchBars + 1; j < i; j += 1) {
+      best = floor ? Math.min(best, prices[j]) : Math.max(best, prices[j])
+    }
+    extreme[i] = best
+  }
+
+  const confirmed = new Array<boolean>(candles.length).fill(false)
+  const levels = new Array<number>(candles.length).fill(Number.NaN)
+  let current = Number.NaN
+  for (let i = 0; i < candles.length; i += 1) {
+    if (i - hold - 1 >= 0) {
+      const before = extreme[i - hold - 1]
+      const set = extreme[i - hold]
+      const now = extreme[i]
+      if (
+        !Number.isNaN(before) &&
+        !Number.isNaN(set) &&
+        !Number.isNaN(now) &&
+        (floor ? before > set : before < set) &&
+        set === now
+      ) {
+        current = now
+        confirmed[i] = true
+      }
+    }
+    levels[i] = current
+  }
+
+  const answer: Array<number | null> = new Array(candles.length).fill(null)
+  let inForce: number | null = null
+  let previous = Number.NaN
+  let countedAt = -Infinity
+  for (let i = 0; i < candles.length; i += 1) {
+    if (confirmed[i]) {
+      const level = levels[i]
+      const withTrend =
+        !Number.isFinite(previous) ||
+        (side === "up" ? level > previous : level < previous)
+      previous = level
+      if (
+        (!(params.withTrendOnly as boolean) || withTrend) &&
+        i - countedAt >= (params.minBarsApart as number)
+      ) {
+        inForce = level
+        countedAt = i
+      }
+    }
+    answer[i] = inForce
+  }
+  return answer
+}
+
 // One dip to 5 at candle 4. The window is 4 candles and the wait is 1, so the
 // level is confirmed at candle 5 — one candle after the low held.
 const ONE_BASE = [10, 9, 8, 7, 5, 6, 7, 8, 9, 10]
@@ -285,6 +351,34 @@ describe("the base at every candle, in one pass", () => {
       null,
       null,
     ])
+  })
+
+  it("matches the old scan exactly across 2,000 random histories in both directions", () => {
+    let seed = 0x51_1d_1e
+    const random = () => {
+      seed = (seed * 1_664_525 + 1_013_904_223) >>> 0
+      return seed / 0x1_0000_0000
+    }
+    const whole = (maximum: number) => Math.floor(random() * maximum)
+
+    for (let sample = 0; sample < 2_000; sample += 1) {
+      const count = whole(121)
+      const lows = Array.from({ length: count }, () => 50 + whole(21))
+      const highs = lows.map((low) => low + whole(21))
+      const candles = bars(lows, highs)
+      const params = settings({
+        searchBars: 4 + whole(42),
+        holdBars: 1 + whole(60),
+        minBarsApart: 1 + whole(20),
+        withTrendOnly: whole(2) === 1,
+      })
+
+      for (const side of ["up", "down"] as const) {
+        expect(baseLevelsInForce(candles, params, side)).toEqual(
+          slowLevelsInForce(candles, params, side)
+        )
+      }
+    }
   })
 })
 

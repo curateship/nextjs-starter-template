@@ -180,12 +180,40 @@ function levelsOf(
   // The lowest low — or highest high — of the trailing window, per candle.
   // NaN until there are enough candles behind it to fill one.
   const extreme = new Array<number>(count).fill(Number.NaN)
-  for (let i = searchBars - 1; i < count; i += 1) {
-    let best = prices[i]
-    for (let j = i - searchBars + 1; j < i; j += 1) {
-      best = floor ? Math.min(best, prices[j]) : Math.max(best, prices[j])
+  const candidates = new Array<number>(count)
+  let firstCandidate = 0
+  let afterLastCandidate = 0
+  let nanInWindow = 0
+  for (let i = 0; i < count; i += 1) {
+    const leaving = i - searchBars
+    if (leaving >= 0 && Number.isNaN(prices[leaving])) nanInWindow -= 1
+    while (
+      firstCandidate < afterLastCandidate &&
+      candidates[firstCandidate] <= leaving
+    ) {
+      firstCandidate += 1
     }
-    extreme[i] = best
+
+    const price = prices[i]
+    if (Number.isNaN(price)) {
+      nanInWindow += 1
+    } else {
+      // Keep equal prices in their original order. The older one stays in
+      // charge until it leaves the window, which preserves the old scan's tie
+      // behavior while still doing one comparison per candidate.
+      while (firstCandidate < afterLastCandidate) {
+        const last = candidates[afterLastCandidate - 1]
+        const beaten = floor ? prices[last] > price : prices[last] < price
+        if (!beaten) break
+        afterLastCandidate -= 1
+      }
+      candidates[afterLastCandidate] = i
+      afterLastCandidate += 1
+    }
+
+    if (i >= searchBars - 1 && nanInWindow === 0) {
+      extreme[i] = prices[candidates[firstCandidate]]
+    }
   }
 
   // The dash spans a few candles either side of the one that made the level,

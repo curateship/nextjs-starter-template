@@ -34,10 +34,12 @@ export type MarketRules = {
 type Entry = { at: number; rules: Map<string, MarketRules> }
 
 const cache = new Map<string, Entry>()
+const pending = new Map<string, Promise<Entry>>()
 
 /** Tests drive time themselves; a cache across them would leak between cases. */
 export function clearMarketRulesCache(): void {
   cache.clear()
+  pending.clear()
 }
 
 async function rulesFor(
@@ -48,24 +50,38 @@ async function rulesFor(
   const cached = cache.get(key)
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.rules
 
-  const catalog = await getProtocol(protocol).markets.fetch(network)
-  const rules = new Map<string, MarketRules>(
-    catalog.rows.map((row) => [
-      row.marketId,
-      {
-        sizeDecimals: row.sizeDecimals,
-        minOrderSize: row.minOrderSize,
-        priceTick: row.priceTick,
-        priceMultiplierUp: row.priceMultiplierUp,
-        priceMultiplierDown: row.priceMultiplierDown,
-        minOrderValueUsd: row.minOrderValueUsd,
-        maxLeverage: row.maxLeverage,
-        volume24hUsd: row.volume24hUsd,
-      },
-    ])
-  )
-  cache.set(key, { at: Date.now(), rules })
-  return rules
+  let loading = pending.get(key)
+  if (!loading) {
+    loading = getProtocol(protocol)
+      .markets.fetch(network)
+      .then((catalog) => ({
+        at: Date.now(),
+        rules: new Map<string, MarketRules>(
+          catalog.rows.map((row) => [
+            row.marketId,
+            {
+              sizeDecimals: row.sizeDecimals,
+              minOrderSize: row.minOrderSize,
+              priceTick: row.priceTick,
+              priceMultiplierUp: row.priceMultiplierUp,
+              priceMultiplierDown: row.priceMultiplierDown,
+              minOrderValueUsd: row.minOrderValueUsd,
+              maxLeverage: row.maxLeverage,
+              volume24hUsd: row.volume24hUsd,
+            },
+          ])
+        ),
+      }))
+    pending.set(key, loading)
+  }
+
+  try {
+    const entry = await loading
+    cache.set(key, entry)
+    return entry.rules
+  } finally {
+    if (pending.get(key) === loading) pending.delete(key)
+  }
 }
 
 /**

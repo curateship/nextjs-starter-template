@@ -724,6 +724,21 @@ export const backtestSummarySchema = z.object({
 export type BacktestSummary = z.infer<typeof backtestSummarySchema>
 
 /** The heavy half — loaded only when somebody opens the run. */
+export const backtestPreparationSchema = z.object({
+  /** Coins that reached the preparation pass, including ones no longer listed. */
+  coinCount: z.number(),
+  /** The maximum number whose full histories were read at the same time. */
+  batchSize: z.number(),
+  /** Wall-clock time spent preparing the coins, in milliseconds. */
+  durationMs: z.number(),
+  /** Heap use when preparation began, in bytes. */
+  heapStartBytes: z.number(),
+  /** Highest heap sample while a prepared coin or batch finished, in bytes. */
+  heapHighWaterBytes: z.number(),
+})
+
+export type BacktestPreparation = z.infer<typeof backtestPreparationSchema>
+
 export const backtestResultSchema = z.object({
   /** The combined pot at each bar, for the line on the run page. */
   equity: z.array(z.object({ t: z.number(), usd: z.number() })),
@@ -742,6 +757,8 @@ export const backtestResultSchema = z.object({
   inPlay: z.array(z.number()).default([]),
   coins: z.array(backtestCoinSummarySchema),
   skipped: z.array(backtestSkipSchema),
+  /** Saved on new runs so preparation speed can be checked against memory use. */
+  preparation: backtestPreparationSchema.optional(),
 })
 
 export type BacktestResult = z.infer<typeof backtestResultSchema>

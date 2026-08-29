@@ -17,14 +17,12 @@ import {
 } from "@/server/schema"
 import { loadStoredCandles } from "@/server/trade/candle-store"
 import {
-  listBacktests,
-  readBacktestGroup,
-} from "@/server/trade/backtest/store"
+  deleteBacktestGroups,
+  setBacktestFlag,
+} from "@/server/trade/backtest/actions"
+import { listBacktests, readBacktestGroup } from "@/server/trade/backtest/store"
 import { listProtocols } from "@/server/protocols/registry"
-import {
-  tradeBacktestGroups,
-  tradeBacktests,
-} from "@/server/trade/schema"
+import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 import { createErrorMessage } from "../error-message"
 
@@ -422,41 +420,18 @@ const flagSchema = z.object({
   on: z.boolean(),
 })
 
-/** One request for however many rows were selected — see the UI standards. */
-async function setFlag(
-  userId: string,
-  groupIds: readonly string[],
-  patch: { pinned?: boolean; archived?: boolean }
-): Promise<{ changed: string[] }> {
-  const changed: string[] = []
-  for (const groupId of groupIds) {
-    const rows = await db
-      .update(tradeBacktestGroups)
-      .set(patch)
-      .where(
-        and(
-          eq(tradeBacktestGroups.userId, userId),
-          eq(tradeBacktestGroups.id, groupId)
-        )
-      )
-      .returning({ id: tradeBacktestGroups.id })
-    if (rows[0]) changed.push(rows[0].id)
-  }
-  return { changed }
-}
-
 const pinBacktestsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(flagSchema)
   .handler(({ data, context }) =>
-    setFlag(context.user.id, data.groupIds, { pinned: data.on })
+    setBacktestFlag(context.user.id, data.groupIds, "pinned", data.on)
   )
 
 const archiveBacktestsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(flagSchema)
   .handler(({ data, context }) =>
-    setFlag(context.user.id, data.groupIds, { archived: data.on })
+    setBacktestFlag(context.user.id, data.groupIds, "archived", data.on)
   )
 
 const deleteSchema = z.object({
@@ -466,22 +441,9 @@ const deleteSchema = z.object({
 const deleteBacktestsFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(deleteSchema)
-  .handler(async ({ data, context }): Promise<{ deleted: string[] }> => {
-    const deleted: string[] = []
-    for (const groupId of data.groupIds) {
-      const rows = await db
-        .delete(tradeBacktestGroups)
-        .where(
-          and(
-            eq(tradeBacktestGroups.userId, context.user.id),
-            eq(tradeBacktestGroups.id, groupId)
-          )
-        )
-        .returning({ id: tradeBacktestGroups.id })
-      if (rows[0]) deleted.push(rows[0].id)
-    }
-    return { deleted }
-  })
+  .handler(({ data, context }) =>
+    deleteBacktestGroups(context.user.id, data.groupIds)
+  )
 
 /**
  * Asks a run to stop. Safe to press twice: it sets a flag rather than doing
