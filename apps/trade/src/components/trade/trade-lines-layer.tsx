@@ -9,6 +9,7 @@ import {
 } from "@/lib/trade/format"
 import {
   liquidationPx,
+  positionProfit,
   projectedProfit,
   type TradeOrder,
   type TradePosition,
@@ -91,6 +92,13 @@ type Line = {
    * from the stored price it would be a beat behind the hand moving it.
    */
   label: (price: number) => string
+  /** A signed dollar figure inside the label that takes the chart's money color. */
+  money?: {
+    before: string
+    text: string
+    after: string
+    value: number
+  }
   /** Dragging it re-prices the thing behind it. */
   onMove?: (price: number) => void
   /** The × throws it away. */
@@ -123,6 +131,13 @@ function colorOf(kind: LineKind, colors: ChartColors): string {
   if (kind === "stop_loss" || kind === "order_stop_loss") return colors.down
   if (kind === "liquidation") return colors.warning
   return colors.neutral
+}
+
+/** Money keeps its meaning even when it sits inside a differently colored line. */
+function moneyColor(value: number, colors: ChartColors, fallback: string) {
+  if (value > 0) return colors.up
+  if (value < 0) return colors.down
+  return fallback
 }
 
 /** A finer dash on the two that have not started yet — they are a plan, not a fact. */
@@ -181,6 +196,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   surface,
   colors,
   marketKey,
+  currentPx,
   positions,
   orders,
   walletName,
@@ -200,6 +216,8 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   colors: ChartColors
   /** The market on screen — lines from other markets are not drawn here. */
   marketKey: string | null
+  /** The market's current price, or null until the exchange has answered. */
+  currentPx: number | null
   positions: readonly TradePosition[]
   orders: readonly TradeOrder[]
   /** Names a wallet, for when this market holds more than one wallet's lines. */
@@ -303,12 +321,25 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     if (!marketKey) break
     const tag = whose(position.walletId)
     const badge = entryBadge?.(position) ?? null
+    const profit = currentPx === null ? null : positionProfit(position, currentPx)
+    const profitText = profit === null ? null : formatSignedUsd(profit)
+    const afterProfit = `${tag}${badge ? ` · ${badge.text}` : ""}`
 
     lines.push({
       id: `entry:${position.id}`,
       kind: "entry",
       price: position.entryPx,
-      label: () => `Entry${tag}${badge ? ` · ${badge.text}` : ""}`,
+      label: () =>
+        `Entry${profitText === null ? "" : ` ${profitText}`}${afterProfit}`,
+      money:
+        profit === null || profitText === null
+          ? undefined
+          : {
+              before: "Entry ",
+              text: profitText,
+              after: afterProfit,
+              value: profit,
+            },
       hint: badge?.hint,
       onSettings: badge?.onSettings,
       // A ladder's own × folds in here and means "stop the ladder"; a plain
@@ -766,7 +797,17 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
                     letterSpacing: 0.3,
                   }}
                 >
-                  {label}
+                  {line.money ? (
+                    <>
+                      {line.money.before}
+                      <tspan fill={moneyColor(line.money.value, colors, color)}>
+                        {line.money.text}
+                      </tspan>
+                      {line.money.after}
+                    </>
+                  ) : (
+                    label
+                  )}
                 </text>
                 {/* The price in the line's colour, over the axis, where every
                   other price on the chart is read. Dropped when a badge for

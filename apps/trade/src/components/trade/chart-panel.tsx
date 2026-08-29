@@ -1148,6 +1148,7 @@ export function ChartPanel({
           surface={surface}
           colors={colors}
           marketKey={selectedKey}
+          currentPx={currentMarketPx}
           // The grid's chips as things the pills slide around, so an Entry
           // pill at a level's own price sits BESIDE its money chip and both
           // stay readable.

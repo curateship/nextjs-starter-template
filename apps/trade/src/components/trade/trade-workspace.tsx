@@ -797,9 +797,9 @@ export function TradeWorkspace({
         panelRef={marketsPanelRef}
         collapsible
         collapsedSize="0%"
-        // Three tabs now, and "Watched" is a wider word than the two it joined.
-        // At 16% the tab row ran off its own edge and "All" was half a label.
-        defaultSize="20%"
+        // A reset returns the panel to the smallest useful width. The chart
+        // takes every pixel left after both side panels claim their minimums.
+        defaultSize="12%"
         minSize="12%"
         maxSize="30%"
         // A smaller window shrinks the chart, never this list. Without it every
@@ -811,7 +811,7 @@ export function TradeWorkspace({
         <div className="flex h-full min-h-0">{marketColumn}</div>
       </ResizablePanel>
       <ResizableHandle gap collapsed={marketsCollapsed} className={NO_RING} />
-      <ResizablePanel id="chart" defaultSize="58%" minSize="30%">
+      <ResizablePanel id="chart" minSize="30%">
         {middle}
       </ResizablePanel>
       <ResizableHandle
@@ -824,6 +824,9 @@ export function TradeWorkspace({
         panelRef={smartOrdersPanelRef}
         collapsible
         collapsedSize="0%"
+        // Keep reset and first-open width at the smallest usable size, just
+        // like the market list. Omitting the chart default lets it fill the
+        // exact remainder instead of stretching both side panels.
         defaultSize="20.5rem"
         minSize="20.5rem"
         maxSize="42%"

@@ -597,8 +597,11 @@ stop bar. Each target label states the dollars sold and the profit at its
 price. This includes a grid's own STOP LOSS line. The chart does not draw the
 exchange's copy of that order as a second gray Sell bar.
 
-The Entry bar is chart blue. It does not borrow the account accent, so changing
-the theme cannot turn the entry into the colour of some other kind of line.
+The Entry line, border and name are chart blue. Its current dollar profit is
+green and its loss is red; exactly zero stays blue. The figure updates with the
+market price and stays out until a price has arrived, rather than showing a
+made-up zero. The bar does not borrow the account accent, so changing the theme
+cannot turn the entry into the colour of some other kind of line.
 
 A position's stop can be dragged past its entry after price moves in the
 trade's favour. This trailing stop protects profit. It must remain below the
@@ -737,9 +740,11 @@ line in the body, share the panel's one 12px gutter.
   search box of its own.
 - **On testnet, the amber strip sits at the panel's foot** with the Back to
   Mainnet link, exactly as it did on the old market list panel.
-- **The panel opens at a fifth of the workspace.** The width is still yours to
-  drag and is remembered per browser, so a width you have already dragged to
-  wins over this.
+- **Both side panels open at their smallest useful width.** Folders starts at
+  12% of the workspace and Smart orders starts at 20.5rem. The chart takes the
+  space left between them. Either width is still yours to drag and is
+  remembered per browser, so a width you have already dragged to wins over
+  these starting sizes.
 - **A row is the symbol and the day's move, nothing else.** The percentage is
   signed and sits in a soft pill of its colour — green up, red down; the price
   belongs to the market header; a market with no yesterday price shows a plain

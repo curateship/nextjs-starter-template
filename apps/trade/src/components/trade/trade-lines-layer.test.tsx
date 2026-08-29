@@ -98,13 +98,15 @@ function render(kind: "target" | "stop", orderId = "bracket-order"): string {
 
 function renderLines(
   held: TradePosition,
-  orders: readonly TradeOrder[]
+  orders: readonly TradeOrder[],
+  currentPx: number | null = null
 ): string {
   return renderToStaticMarkup(
     <TradeLinesLayer
       surface={surface}
       colors={colors}
       marketKey={MARKET}
+      currentPx={currentPx}
       positions={[held]}
       orders={orders}
       walletName={() => "Wallet"}
@@ -114,6 +116,16 @@ function renderLines(
       onSetBrackets={() => undefined}
     />
   )
+}
+
+function entryLabel(html: string): Element {
+  const host = document.createElement("div")
+  host.innerHTML = html
+  const entry = [...host.querySelectorAll("text")].find((one) =>
+    one.textContent?.startsWith("Entry")
+  )
+  if (!entry) throw new Error("Entry label is missing")
+  return entry
 }
 
 describe("chart bracket lines", () => {
@@ -142,6 +154,7 @@ describe("chart bracket lines", () => {
           surface={surface}
           colors={colors}
           marketKey={MARKET}
+          currentPx={null}
           positions={[held]}
           orders={[]}
           walletName={() => "Wallet"}
@@ -173,6 +186,33 @@ describe("chart bracket lines", () => {
   it("draws the entry bar in chart blue", () => {
     expect(render("target")).toContain("#2962ff")
   })
+
+  it("does not invent a zero before the current price arrives", () => {
+    const entry = entryLabel(render("target"))
+
+    expect(entry.textContent).toBe("Entry")
+    expect(entry.querySelector("tspan")).toBeNull()
+  })
+
+  it.each([
+    ["a long that made money", 1, 156, "+$56.00", "theme-up"],
+    ["a long that lost money", 1, 44, "-$56.00", "theme-down"],
+    ["a short that made money", -1, 44, "+$56.00", "theme-up"],
+    ["a position at zero", 1, 100, "$0.00", "#2962ff"],
+  ] as const)(
+    "adds the current profit and its color for %s to Entry",
+    (_, size, mark, pnl, color) => {
+      const held = position("target")
+      held.szi = size
+
+      const entry = entryLabel(renderLines(held, [], mark))
+      const money = entry.querySelector("tspan")
+      expect(entry.textContent).toBe(`Entry ${pnl}`)
+      expect(entry.getAttribute("fill")).toBe("#2962ff")
+      expect(money?.textContent).toBe(pnl)
+      expect(money?.getAttribute("fill")).toBe(color)
+    }
+  )
 
   it.each([
     ["target", "Take Profit"],
@@ -261,6 +301,7 @@ describe("chart bracket lines", () => {
         surface={surface}
         colors={colors}
         marketKey={MARKET}
+        currentPx={null}
         positions={[held]}
         orders={[]}
         walletName={() => "Wallet"}
