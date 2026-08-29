@@ -173,4 +173,10 @@ describe("a refusal that carries its own figures", () => {
     expect(said).toContain("still running")
     expect(said).not.toContain("Nothing was placed")
   })
+
+  it("says when an edit lost a race with a grid finishing", () => {
+    expect(
+      getSmartOrderErrorMessage(new Error("SMART_GRID_FINISHED"))
+    ).toBe("That grid has already finished, so nothing was changed.")
+  })
 })

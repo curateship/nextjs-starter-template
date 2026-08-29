@@ -920,6 +920,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels, a bigger share, or the same size at every level.",
     SMART_GRID_NOT_FOUND:
       "That grid is not there any more — it may have finished or been cancelled.",
+    SMART_GRID_FINISHED:
+      "That grid has already finished, so nothing was changed.",
     SMART_GRID_LEVEL_DONE:
       "That level already bought or was already called off.",
     SMART_GRID_ADJUST_BUSY:

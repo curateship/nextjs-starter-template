@@ -558,7 +558,7 @@ export async function saveGridPlan(
    */
   at?: number
 ): Promise<void> {
-  await db
+  const saved = await db
     .update(tradeSmartLadders)
     .set({
       plan,
@@ -568,9 +568,14 @@ export async function saveGridPlan(
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
-        eq(tradeSmartLadders.id, gridId)
+        eq(tradeSmartLadders.id, gridId),
+        // A close may land while an edit is saving a copy read one pass ago.
+        // Once the close marks the row done, that older copy must stay old.
+        eq(tradeSmartLadders.status, "active")
       )
     )
+    .returning({ id: tradeSmartLadders.id })
+  if (saved.length === 0) throw new Error("SMART_GRID_FINISHED")
 }
 
 /** Calling off one waiting level — its × on the chart. It never comes back. */

@@ -19,6 +19,7 @@ import {
   moveGridRange,
   placeGridOrder,
   reshapeGrid,
+  saveGridPlan,
   setGridFollow,
   updateGridEnd,
   updateGridStop,
@@ -398,6 +399,41 @@ describe("placing a grid", () => {
       params: params({ potPct: 100 }),
     })
     expect((await onlyGrid()).status).toBe("active")
+  })
+})
+
+describe("saving a grid plan", () => {
+  it("does not bring back a grid that finished during an older save", async () => {
+    await place()
+    const stale = await onlyGrid()
+    const closed = { ...stale.plan, closedReason: "stop" as const }
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan: closed, status: "done" })
+      .where(eq(tradeSmartLadders.id, stale.id))
+
+    await expect(
+      saveGridPlan(userId, stale.id, stale.plan, "active")
+    ).rejects.toThrow("SMART_GRID_FINISHED")
+    await expect(
+      saveGridPlan(userId, stale.id, stale.plan, "active")
+    ).rejects.toThrow("SMART_GRID_FINISHED")
+
+    const stored = await onlyGrid()
+    expect(stored.status).toBe("done")
+    expect(stored.plan.closedReason).toBe("stop")
+  })
+
+  it("still lets the current save finish an active grid", async () => {
+    await place()
+    const grid = await onlyGrid()
+    const closed = { ...grid.plan, closedReason: "stop" as const }
+
+    await saveGridPlan(userId, grid.id, closed, "done")
+
+    const stored = await onlyGrid()
+    expect(stored.status).toBe("done")
+    expect(stored.plan.closedReason).toBe("stop")
   })
 })
 

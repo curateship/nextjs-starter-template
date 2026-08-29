@@ -440,6 +440,11 @@ Borrowing can change only while the grid holds no coin and still has buys
 waiting. A held position has already fixed its borrowing, and a paired DCA
 ladder fixes the same number for their shared position.
 
+An edit that started before the grid finished cannot bring the grid back. The
+save changes only a grid that is still running. If the engine finished the grid
+first, the edit changes nothing and the screen says, "That grid has already
+finished, so nothing was changed."
+
 ## The stop
 
 Every grid has a stop. The placement window asks where it sits, but has no

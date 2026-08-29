@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   closeLivePositions: vi.fn(),
   closeAllPaperPositions: vi.fn(),
   flattenWalletApi: vi.fn(),
+  moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
 }))
@@ -64,9 +65,13 @@ vi.mock("@/lib/api/trade/smart-orders", () => ({
   editWatch: vi.fn(),
   flattenWalletApi: api.flattenWalletApi,
   getSmartOrderErrorMessage: (error: unknown) =>
-    error instanceof Error ? error.message : "Smart order refused",
+    error instanceof Error && error.message === "SMART_GRID_FINISHED"
+      ? "That grid has already finished, so nothing was changed."
+      : error instanceof Error
+        ? error.message
+        : "Smart order refused",
   moveGridExit: vi.fn(),
-  moveGridRange: vi.fn(),
+  moveGridRange: api.moveGridRange,
   moveWatch: vi.fn(),
   placeDcaLadder: vi.fn(),
   placeGridOrder: vi.fn(),
@@ -157,6 +162,7 @@ beforeEach(() => {
     selling: [],
     sellRefused: [],
   })
+  api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
   host = document.createElement("div")
@@ -274,5 +280,23 @@ describe("bulk safety actions", () => {
 
     expect(api.flattenWalletApi).toHaveBeenCalledOnce()
     expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
+  })
+})
+
+describe("a grid edit that finishes before it saves", () => {
+  it("shows why the range did not move", async () => {
+    api.moveGridRange.mockRejectedValue(new Error("SMART_GRID_FINISHED"))
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.moveGridRange(wallet.id, "grid-1", {
+        topPx: 120,
+        bottomPx: 80,
+      })
+    })
+
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "That grid has already finished, so nothing was changed."
+    )
   })
 })
