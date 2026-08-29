@@ -366,7 +366,6 @@ describe("a later overview read", () => {
         marketKey: "hyperliquid:mainnet:BTC",
         market: "BTC",
         side: "long",
-        leverage: 5,
         value: 500,
         profit: 20,
         profitShare: 0.2,

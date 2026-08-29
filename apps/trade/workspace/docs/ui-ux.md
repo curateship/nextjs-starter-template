@@ -1307,18 +1307,17 @@ chip. New dashboards put Active Trades under PnL Graph;
 an account with a saved arrangement finds it under Settings → Widgets until it
 is placed.
 
-The Active Trades table has five columns: market, exchange, wallet, current
-position value, and current profit in dollars and as a share of the money the
-trade holds. Value is the absolute position size at the current market price,
-not the margin committed to the trade. The
-market cell copies the bottom Positions panel: a 16px icon, 12px medium symbol,
-the compact Long or Short and leverage badge, then a compact Testnet or Practice
-badge when the account is pretend. Clicking the symbol or anywhere else on the
-row opens that market on its protocol's chart. The Market column takes only the
-width its ticker cluster needs, so resizing the widget keeps every column
-visible. Trade rows use 10px of vertical padding, 2px more than the bottom
-Positions panel, to
-give the list a little more air without changing its type size. The table opens
+The Active Trades table has four columns: ticker, type, current position value,
+and current profit in dollars and as a share of the money the trade holds. Type
+is Long or Short. Value is the absolute position size at the current market
+price, not the margin committed to the trade. The ticker cell has a 16px icon,
+12px medium symbol, then a compact Testnet or Practice badge when the account is
+pretend. Clicking the symbol or anywhere else on the row opens that market on
+its protocol's chart. All four columns fit at the card's normal width. A narrow
+screen keeps every column reachable through the table's horizontal scroll.
+Trade rows use 10px of vertical padding, 2px more than the bottom Positions
+panel, to give the list a little more air without changing its type size. The
+table opens
 with the largest P/L first. Every heading sorts, and Filter narrows the rows by
 exchange, wallet, or both. Active Trades and Trades use the same counted Filter
 menu, including the All rows, Clear all, Done, and the number of filters in
@@ -1353,8 +1352,8 @@ open position, the run whose earliest recorded order opened it gets the count.
 Later runs do not count the same position again.
 
 Running bots also uses Active Trades' row type. Automation uses the same 12px
-medium text as Market. Status uses the same 12px muted text as Protocol and
-Wallet. Markets and Positions use the same 12px monospaced numbers as Value.
+medium text as Ticker. Status uses 12px muted text. Markets and Positions use
+the same 12px monospaced numbers as Value.
 Made or lost uses the same 12px type and medium-weight dollar figure as P/L.
 
 Each automation gets one row. When an automation has run more than once, its

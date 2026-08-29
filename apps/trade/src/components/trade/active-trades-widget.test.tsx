@@ -29,7 +29,6 @@ function trade(
     marketKey: "hyperliquid:mainnet:BTC",
     market: "BTC",
     side: "long",
-    leverage: 5,
     value: 100,
     profit: 10,
     profitShare: 0.1,
@@ -51,7 +50,33 @@ function overview(activeTrades: TradingOverviewActiveTrade[]): TradingOverview {
   }
 }
 
-describe("the Active Trades footer", () => {
+describe("the Active Trades widget", () => {
+  it("shows the requested ticker, type, value, and P/L columns", () => {
+    const html = renderToStaticMarkup(
+      <ActiveTradesWidget
+        overview={overview([
+          trade({ id: "long" }),
+          trade({ id: "short", side: "short" }),
+        ])}
+        className=""
+      />
+    )
+    const document = new DOMParser().parseFromString(html, "text/html")
+    const headings = Array.from(document.querySelectorAll("thead th")).map(
+      (heading) => heading.textContent
+    )
+    const rows = Array.from(document.querySelectorAll("tbody tr")).map(
+      (row) => row.textContent
+    )
+
+    expect(headings).toEqual(["Ticker", "Type", "Value", "P/L"])
+    expect(document.querySelectorAll("tbody tr:first-child td")).toHaveLength(4)
+    expect(rows.some((row) => row?.includes("Long"))).toBe(true)
+    expect(rows.some((row) => row?.includes("Short"))).toBe(true)
+    expect(rows.every((row) => !row?.includes("Hyperliquid"))).toBe(true)
+    expect(rows.every((row) => !row?.includes("Main"))).toBe(true)
+  })
+
   it("uses the standard panel bars for its heading and footer", () => {
     const html = renderToStaticMarkup(
       <ActiveTradesWidget overview={overview([trade({})])} className="" />
@@ -104,6 +129,7 @@ describe("the Active Trades footer", () => {
     const document = new DOMParser().parseFromString(html, "text/html")
     const footer = document.querySelector("tfoot")
 
+    expect(footer?.querySelectorAll("td")).toHaveLength(4)
     expect(footer?.textContent).toContain("Total")
     expect(footer?.textContent).not.toContain("Average")
     expect(footer?.textContent).toContain("$400.00")

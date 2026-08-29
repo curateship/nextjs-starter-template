@@ -23,12 +23,11 @@ import { moneyTone } from "@/lib/trade/money-tone"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
 import { cn } from "@/lib/utils"
 
-type ActiveTradeColumn = "market" | "protocol" | "wallet" | "value" | "profit"
+type ActiveTradeColumn = "market" | "type" | "value" | "profit"
 
 const ACTIVE_TRADE_COLUMNS = [
-  { key: "market", label: "Market" },
-  { key: "protocol", label: "Exchange" },
-  { key: "wallet", label: "Wallet" },
+  { key: "market", label: "Ticker" },
+  { key: "type", label: "Type" },
   { key: "value", label: "Value" },
   { key: "profit", label: "P/L" },
 ] as const satisfies readonly ColumnSpec<ActiveTradeColumn>[]
@@ -68,10 +67,8 @@ export function ActiveTradesWidget({
       switch (sort) {
         case "market":
           return trade.market
-        case "protocol":
-          return trade.protocol
-        case "wallet":
-          return trade.walletLabel
+        case "type":
+          return trade.side
         case "value":
           return trade.value ?? Number.NEGATIVE_INFINITY
         case "profit":
@@ -195,7 +192,6 @@ function ActiveTradesFooter({ summary }: { summary: ActiveTradesSummary }) {
           Total
         </TableCell>
         <TableCell column="meta" aria-hidden />
-        <TableCell column="meta" aria-hidden />
         <TableCell
           column="meta"
           className="py-2.5 text-left font-mono text-xs font-semibold tabular-nums"
@@ -251,21 +247,15 @@ function ActiveTradeRow({
           ) : (
             <span className="text-xs font-medium">{trade.market}</span>
           )}
-          <TradeBadge tone={trade.side === "long" ? "made" : "lost"}>
-            {trade.side === "long" ? "Long" : "Short"} {trade.leverage}×
-          </TradeBadge>
           {trade.accountType === "Real" ? null : (
             <AccountTypeBadge type={trade.accountType} />
           )}
         </span>
       </TableCell>
-      <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
-        {trade.protocol}
-      </TableCell>
-      <TableCell column="meta" className="py-2.5 text-xs text-muted-foreground">
-        <span className="block max-w-32 truncate" title={trade.walletLabel}>
-          {trade.walletLabel}
-        </span>
+      <TableCell column="meta" className="py-2.5">
+        <TradeBadge tone={trade.side === "long" ? "made" : "lost"}>
+          {trade.side === "long" ? "Long" : "Short"}
+        </TradeBadge>
       </TableCell>
       <TableCell
         column="meta"

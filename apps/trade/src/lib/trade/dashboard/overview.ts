@@ -51,7 +51,6 @@ export type TradingOverviewActiveTrade = {
   marketKey: string
   market: string
   side: "long" | "short"
-  leverage: number
   value: number | null
   profit: number | null
   profitShare: number | null
@@ -241,7 +240,6 @@ export function buildTradingOverviewActiveTrades(
         marketKey: position.marketKey,
         market,
         side: position.szi > 0 ? ("long" as const) : ("short" as const),
-        leverage: position.leverage,
         value: mark === undefined ? null : positionValue(position, mark),
         profit,
         profitShare: profit !== null && margin > 0 ? profit / margin : null,
