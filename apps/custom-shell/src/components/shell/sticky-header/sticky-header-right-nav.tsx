@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import { MessageSquarePlusIcon, Moon, Sun } from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
@@ -7,6 +8,11 @@ import { useTheme } from "@/components/shell/sticky-header/light-dark-switcher"
 import { NotificationCenter } from "@/components/shell/sticky-header/notification-center"
 import { isExternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { Button } from "@/components/ui/button"
+import {
+  appHeaderRightActionForRole,
+  type AppHeaderAction,
+  type AppHeaderActionProps,
+} from "@/lib/app-options"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,6 +27,31 @@ import {
   type ShellTopRightLink,
   type ShellTopRightNavigationItem,
 } from "@/lib/custom-shell"
+
+const lazyHeaderActions = new Map<
+  AppHeaderAction["component"],
+  React.LazyExoticComponent<React.ComponentType<AppHeaderActionProps>>
+>()
+
+/** The app's one place in the signed-in header. */
+function AppHeaderRightAction({
+  action,
+  role,
+}: AppHeaderActionProps & { action: AppHeaderAction }) {
+  const asked = action.component
+
+  let Action = lazyHeaderActions.get(asked)
+  if (!Action) {
+    Action = React.lazy(asked)
+    lazyHeaderActions.set(asked, Action)
+  }
+
+  return (
+    <React.Suspense fallback={null}>
+      {React.createElement(Action, { role })}
+    </React.Suspense>
+  )
+}
 
 function ThemeToggle() {
   const { setTheme } = useTheme()
@@ -108,7 +139,11 @@ export function StickyHeaderRightNav({
   onOpenFeedback,
   onOpenFeedbackThread,
 }: StickyHeaderRightNavProps) {
-  const navItems = normalizeTopRightNavigation(items)
+  const appAction = appHeaderRightActionForRole(role)
+  const navItems = normalizeTopRightNavigation(
+    items,
+    appAction ? [appAction.id] : []
+  )
 
   return (
     <div className="flex items-center gap-1 pr-1 [&>[data-nav-shape=icon]+[data-nav-shape=text]]:ml-2 [&>[data-nav-shape=text]+[data-nav-shape=icon]]:ml-2">
@@ -125,6 +160,16 @@ export function StickyHeaderRightNav({
         }
 
         if (!item.visible) return null
+
+        if (item.type === "app") {
+          return appAction && item.id === appAction.id ? (
+            <AppHeaderRightAction
+              key={item.id}
+              action={appAction}
+              role={role}
+            />
+          ) : null
+        }
 
         if (item.id === "feedback") {
           return onOpenFeedback ? (

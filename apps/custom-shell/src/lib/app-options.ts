@@ -35,12 +35,43 @@ import type { AppSettingsTab } from "@/lib/settings-tab"
  * install of it, and changing it means a deploy.
  */
 export type AppOptions = {
+  header?: HeaderOptions
   landing?: LandingOptions
   pages?: PagesOptions
   automations?: AutomationOptions
   workspaces?: WorkspaceOptions
   settings?: SettingsOptions
   notifications?: NotificationOptions
+}
+
+/** What the shell hands the app-owned piece of the signed-in header. */
+export type AppHeaderActionProps = { role: string }
+
+/**
+ * One app-owned item in the signed-in header's right side.
+ *
+ * The item carries the stable id, label and icon the shell needs to put it in
+ * the draggable Top right menu settings. Its component stays behind a pointer
+ * so an app can read its own APIs without putting that feature in every
+ * browser bundle.
+ */
+export type AppHeaderAction = {
+  id: string
+  label: string
+  icon: ComponentType<{ className?: string }>
+  /** Unset means admins and members may both see it. */
+  roles?: readonly string[]
+  component: () => Promise<{
+    default: ComponentType<AppHeaderActionProps>
+  }>
+}
+
+type HeaderOptions = {
+  /**
+   * A single app-owned control in the draggable top-right menu. Unset leaves
+   * the signed-in header and its settings exactly as they were.
+   */
+  rightAction?: AppHeaderAction
 }
 
 /**
@@ -400,6 +431,23 @@ export function landingPageOverride(
   options: AppOptions = appOptions
 ): PublicPage | null {
   return options.landing?.page ?? null
+}
+
+/** The app's one control on the signed-in header, or none. */
+export function appHeaderRightAction(
+  options: AppOptions = appOptions
+): AppHeaderAction | null {
+  return options.header?.rightAction ?? null
+}
+
+/** The app-owned header item for this role, or none. */
+export function appHeaderRightActionForRole(
+  role: string,
+  options: AppOptions = appOptions
+): AppHeaderAction | null {
+  const action = appHeaderRightAction(options)
+  if (!action || (action.roles && !action.roles.includes(role))) return null
+  return action
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   isTradingOverviewWallet,
   tradingOverviewWalletPerformance,
   type TradingOverview,
+  type ActiveTradesSnapshot,
   type TradingOverviewFill,
   type TradingOverviewWallet,
 } from "@/lib/trade/dashboard/overview"
@@ -171,6 +172,17 @@ export async function loadTradingOverview(
     unpricedFills: countedFills.filter(
       (fill) => fill.at >= performanceSince && fill.money === null
     ).length,
+  }
+}
+
+/** The small account-wide answer used by the active-trades header menu. */
+export async function loadActiveTradesSnapshot(
+  userId: string
+): Promise<ActiveTradesSnapshot> {
+  const walletRead = await loadWalletSummaries(userId)
+  return {
+    readAt: Date.now(),
+    ...(await loadActiveTrades(userId, walletRead.wallets)),
   }
 }
 

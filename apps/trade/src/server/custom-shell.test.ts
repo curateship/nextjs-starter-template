@@ -4412,6 +4412,30 @@ describe("top right menu", () => {
     ])
   })
 
+  it("adds an app-owned control without losing its saved place or visibility", () => {
+    expect(
+      normalizeTopRightNavigation(
+        [
+          { id: "theme", visible: true },
+          { type: "app", id: "app-status", visible: false },
+          { id: "feedback", visible: true },
+        ],
+        ["app-status"]
+      )
+    ).toEqual([
+      { type: "builtIn", id: "theme", visible: true },
+      { type: "app", id: "app-status", visible: false },
+      { type: "builtIn", id: "feedback", visible: true },
+      { type: "builtIn", id: "notifications", visible: true },
+    ])
+
+    expect(normalizeTopRightNavigation([], ["app-status"])[0]).toEqual({
+      type: "app",
+      id: "app-status",
+      visible: true,
+    })
+  })
+
   it("gives a member the admin-built menu and an admin their own", async () => {
     const { adminId, memberId } = await seedPeople()
     const testDb = database as unknown as CustomShellDb

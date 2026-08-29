@@ -14,7 +14,10 @@ import { StripeSettings } from "@/components/settings/stripe-settings"
 import { StylingSettings } from "@/components/settings/styling-settings"
 import { TopRightSettings } from "@/components/settings/top-right-settings"
 import { WidgetSettings } from "@/components/settings/widget-settings"
-import { appSettingsTabs } from "@/lib/app-options"
+import {
+  appHeaderRightActionForRole,
+  appSettingsTabs,
+} from "@/lib/app-options"
 import { focusRing } from "@/lib/layout/focus-ring"
 import { pageGutter } from "@/lib/layout/shell-gutter"
 import { cn } from "@/lib/utils"
@@ -104,6 +107,9 @@ export function SettingsPage({
   onSessionPolicyChange: (policy: ShellSessionPolicy) => Promise<boolean>
   sessionPolicyBusy: boolean
 }) {
+  const adminHeaderAction = appHeaderRightActionForRole("admin")
+  const memberHeaderAction = appHeaderRightActionForRole("member")
+
   return (
     <div
       className="flex flex-col items-start lg:flex-row"
@@ -207,6 +213,7 @@ export function SettingsPage({
               onConfigChange({ ...config, topRightNavigation })
             }
             onSaveConfig={onSaveConfig}
+            appAction={adminHeaderAction}
             card={{
               storageId: "top-right",
               title: "Your top right menu",
@@ -216,11 +223,13 @@ export function SettingsPage({
             reset={{
               label: "Reset top right menu",
               description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
+                "Every built-in button goes back to its starting place and is shown, and every link you added here is deleted. The members' menu is not touched. This cannot be undone.",
               onReset: () =>
                 onConfigChange({
                   ...config,
-                  topRightNavigation: createDefaultTopRightNavigation(),
+                  topRightNavigation: createDefaultTopRightNavigation(
+                    adminHeaderAction ? [adminHeaderAction.id] : []
+                  ),
                 }),
             }}
           />
@@ -232,6 +241,7 @@ export function SettingsPage({
               onConfigChange({ ...config, memberTopRightNavigation })
             }
             onSaveConfig={onSaveConfig}
+            appAction={memberHeaderAction}
             card={{
               storageId: "member-top-right",
               title: "Member top right menu",
@@ -241,11 +251,13 @@ export function SettingsPage({
             reset={{
               label: "Reset member menu",
               description:
-                "The Feedback button, theme switcher and notification bell go back to their starting order and are all shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
+                "Every built-in button goes back to its starting place and is shown for members, and every link you added for them is deleted. Your own menu is not touched. This cannot be undone.",
               onReset: () =>
                 onConfigChange({
                   ...config,
-                  memberTopRightNavigation: createDefaultTopRightNavigation(),
+                  memberTopRightNavigation: createDefaultTopRightNavigation(
+                    memberHeaderAction ? [memberHeaderAction.id] : []
+                  ),
                 }),
             }}
           />

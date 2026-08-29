@@ -81,6 +81,10 @@ the guess that one might:
   announcements has a title, a body and nowhere to go, which is what this
   answers. Addresses inside the app only: anything else is dropped rather than
   followed, because these strings come out of a database
+- `header.rightAction` — one app-owned control in the signed-in header. Its
+  stable id, label, icon and allowed roles put it in the same draggable Top
+  right menu settings as the shell controls. Its component loads only when the
+  header draws. Unset leaves the header and its settings unchanged.
 
 An app adds a step; it never replaces one of the shell's. A `kind` or a palette
 key the shell already uses is refused out loud.
@@ -217,4 +221,3 @@ defaults and the last two rules. The first three are conventions no test can
 see, so they are on whoever writes the code. Defaults are checked by passing an
 empty object rather than by reading this app's own answers, so the check keeps
 working inside an app that has set an option.
-

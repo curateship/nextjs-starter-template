@@ -1,3 +1,4 @@
+import { CandlestickChartIcon } from "lucide-react"
 
 import { loadTradeNoticeLinks } from "@/lib/api/trade/notice-links"
 import type { AppOptions } from "@/lib/app-options"
@@ -25,6 +26,15 @@ import {
  * object still reads as the full shape. Both catch a misspelled option.
  */
 export const appOptions: AppOptions = {
+  header: {
+    rightAction: {
+      id: "active-trades",
+      label: "Active trades",
+      icon: CandlestickChartIcon,
+      roles: ["admin"],
+      component: () => import("@/components/trade/active-trades-header"),
+    },
+  },
   settings: {
     /**
      * The trading engine runs as its own program on the server, so "is it
@@ -97,7 +107,8 @@ export const appOptions: AppOptions = {
       // would otherwise carry a button offering a backtest it never ran. Both
       // strategies back-test, so both bring the panel.
       appliesTo: (kinds) =>
-        kinds.includes(tradeDcaNode.kind) || kinds.includes(tradeSignalsNode.kind),
+        kinds.includes(tradeDcaNode.kind) ||
+        kinds.includes(tradeSignalsNode.kind),
       panel: () => import("@/components/automations/backtest-canvas-panel"),
     },
     /**

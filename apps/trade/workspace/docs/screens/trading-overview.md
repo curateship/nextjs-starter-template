@@ -111,10 +111,12 @@ second is their current profit or loss. Both are rounded to whole dollars in
 the header so the answer stays readable beside the shell controls. Hovering the
 summary opens the same Active Trades widget, with the same rows, filters,
 sorting, totals and chart links. Clicking the summary opens it for touch and
-keyboard use. Moving away closes it. The header asks for a fresh answer every
-15 seconds while the browser tab is visible. A wallet that misses a read keeps
-its last known rows, and the header uses dashes rather than claiming a partial
-account-wide total.
+keyboard use. The menu fits the width its table needs, up to the available
+browser width. Moving away closes it. The header asks for a fresh answer every
+15 seconds while the browser tab is visible. The Active trades item can be
+moved or hidden under Settings → Top right menu. It appears only in the admin
+menu. A wallet that misses a read keeps its last known rows, and the header uses
+dashes rather than claiming a partial account-wide total.
 
 Running bots is the fourth trading-overview widget. A new or reset dashboard
 puts it in the left column, beside All trades. A saved arrangement keeps its

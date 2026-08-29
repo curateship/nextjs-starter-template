@@ -18,6 +18,7 @@ import type {
   TradingOverview,
   TradingOverviewActiveTrade,
 } from "@/lib/trade/dashboard/overview"
+import { summarizeActiveTrades } from "@/lib/trade/dashboard/active-trades"
 import { formatChange, formatSignedUsd, formatUsd } from "@/lib/trade/format"
 import { moneyTone } from "@/lib/trade/money-tone"
 import { stickyPanelSectionBarClassName } from "@/lib/layout/panel-section-bar"
@@ -41,9 +42,11 @@ function defaultDirection(column: ActiveTradeColumn) {
 export function ActiveTradesWidget({
   overview,
   className,
+  onTradeOpen,
 }: {
-  overview: TradingOverview
+  overview: Pick<TradingOverview, "activeTrades" | "activeTradesUnavailable">
   className: string
+  onTradeOpen?: () => void
 }) {
   const navigate = useNavigate()
   const [protocol, setProtocol] = React.useState<string | null>(null)
@@ -146,6 +149,7 @@ export function ActiveTradesWidget({
           key={trade.id}
           trade={trade}
           onOpen={() => {
+            onTradeOpen?.()
             const href = marketChartHref(trade.marketKey)
             if (href) void navigate({ href })
           }}
@@ -156,32 +160,11 @@ export function ActiveTradesWidget({
   )
 }
 
-type ActiveTradesSummary = {
-  totalValue: number | null
-  totalProfit: number | null
-}
-
-/** The complete totals for the rows currently shown. */
-function summarizeActiveTrades(
-  trades: readonly TradingOverviewActiveTrade[]
-): ActiveTradesSummary {
-  return {
-    totalValue: completeTotal(trades.map((trade) => trade.value)),
-    totalProfit: completeTotal(trades.map((trade) => trade.profit)),
-  }
-}
-
-function completeTotal(values: readonly (number | null)[]) {
-  if (values.length === 0) return null
-  let total = 0
-  for (const value of values) {
-    if (value === null) return null
-    total += value
-  }
-  return total
-}
-
-function ActiveTradesFooter({ summary }: { summary: ActiveTradesSummary }) {
+function ActiveTradesFooter({
+  summary,
+}: {
+  summary: ReturnType<typeof summarizeActiveTrades>
+}) {
   return (
     <tfoot className="sticky bottom-0 z-10">
       <TableRow className={stickyPanelSectionBarClassName}>

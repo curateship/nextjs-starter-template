@@ -56,6 +56,12 @@ export type TradingOverviewActiveTrade = {
   profitShare: number | null
 }
 
+export type ActiveTradesSnapshot = {
+  readAt: number
+  activeTrades: TradingOverviewActiveTrade[]
+  activeTradesUnavailable: string[]
+}
+
 export type TradingOverviewBotState =
   "running" | "waiting" | "paused" | "stopping" | "stopped"
 

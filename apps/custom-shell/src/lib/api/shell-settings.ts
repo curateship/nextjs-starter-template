@@ -87,6 +87,11 @@ const shellTopRightItemSchema = z.discriminatedUnion("type", [
     visible: z.boolean(),
   }),
   z.object({
+    type: z.literal("app"),
+    id: z.string().trim().min(1).max(64),
+    visible: z.boolean(),
+  }),
+  z.object({
     type: z.literal("link"),
     id: z.string().min(1),
     label: z.string(),

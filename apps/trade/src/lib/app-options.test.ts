@@ -7,6 +7,8 @@ import {
   appAutomationNodes,
   appCanvasHeaderStatus,
   appCanvasPanel,
+  appHeaderRightAction,
+  appHeaderRightActionForRole,
   appNotificationLinks,
   appShowsRunButton,
   appOffersMemberTest,
@@ -60,6 +62,10 @@ function testNode(kind: string) {
 }
 
 describe("an option nobody set means what the shell always did", () => {
+  it("adds no app-owned control to the signed-in header", () => {
+    expect(appHeaderRightAction({})).toBeNull()
+  })
+
   it("keeps the shell's own front page", () => {
     expect(landingPageOverride({})).toBeNull()
   })
@@ -85,6 +91,23 @@ describe("an option nobody set means what the shell always did", () => {
 })
 
 describe("an app's answer wins", () => {
+  it("hands over the signed-in header's app-owned control", () => {
+    const rightAction = {
+      id: "app-status",
+      label: "App status",
+      icon: () => null,
+      roles: ["admin"],
+      component: async () => ({ default: () => null }),
+    }
+    expect(appHeaderRightAction({ header: { rightAction } })).toBe(rightAction)
+    expect(
+      appHeaderRightActionForRole("admin", { header: { rightAction } })
+    ).toBe(rightAction)
+    expect(
+      appHeaderRightActionForRole("member", { header: { rightAction } })
+    ).toBeNull()
+  })
+
   it("sends a notice where the app says it came from", async () => {
     const asked: string[] = []
     const links = await appNotificationLinks(

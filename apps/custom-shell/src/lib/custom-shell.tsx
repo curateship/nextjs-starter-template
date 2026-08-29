@@ -341,6 +341,13 @@ export type ShellTopRightBuiltIn = {
   visible: boolean
 }
 
+/** An app-owned control that shares the fixed controls' order and visibility. */
+export type ShellTopRightAppAction = {
+  type: "app"
+  id: string
+  visible: boolean
+}
+
 /**
  * A link an admin added to the header row: a name, an icon and an address,
  * rendered like the Feedback button. Unlike a built-in it has no hidden state —
@@ -354,7 +361,10 @@ export type ShellTopRightLink = {
   icon: ShellIcon
 }
 
-export type ShellTopRightNavigationItem = ShellTopRightBuiltIn | ShellTopRightLink
+export type ShellTopRightNavigationItem =
+  | ShellTopRightBuiltIn
+  | ShellTopRightAppAction
+  | ShellTopRightLink
 
 export function isShellTopRightLink(
   item: ShellTopRightNavigationItem
@@ -976,12 +986,21 @@ export const BORDER_STYLE_VAR_NAMES = [
   "--shell-card-border-color",
 ] as const
 
-export function createDefaultTopRightNavigation(): ShellTopRightNavigationItem[] {
-  return TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
-    type: "builtIn" as const,
-    id,
-    visible: true,
-  }))
+export function createDefaultTopRightNavigation(
+  appActionIds: readonly string[] = []
+): ShellTopRightNavigationItem[] {
+  return [
+    ...appActionIds.map((id) => ({
+      type: "app" as const,
+      id,
+      visible: true,
+    })),
+    ...TOP_RIGHT_NAVIGATION_ITEM_IDS.map((id) => ({
+      type: "builtIn" as const,
+      id,
+      visible: true,
+    })),
+  ]
 }
 
 export function createDefaultShellConfig(): ShellConfig {
@@ -1078,14 +1097,16 @@ export function createDefaultMemberSections(): ShellSection[] {
  * appended, so the three fixed controls can be hidden but never lost.
  */
 export function normalizeTopRightNavigation(
-  items: unknown
+  items: unknown,
+  appActionIds: readonly string[] = []
 ): ShellTopRightNavigationItem[] {
-  const fallback = createDefaultTopRightNavigation()
+  const fallback = createDefaultTopRightNavigation(appActionIds)
   if (!Array.isArray(items)) {
     return fallback
   }
 
   const builtInIds = new Set<string>(TOP_RIGHT_NAVIGATION_ITEM_IDS)
+  const appIds = new Set(appActionIds)
   const seenIds = new Set<string>()
   const kept: ShellTopRightNavigationItem[] = []
 
@@ -1100,6 +1121,16 @@ export function normalizeTopRightNavigation(
         type: "builtIn",
         id: item.id as ShellTopRightNavigationItemId,
         // Missing reads as shown: hiding is a deliberate saved `false`.
+        visible: item.visible !== false,
+      })
+      continue
+    }
+
+    if (appIds.has(item.id)) {
+      seenIds.add(item.id)
+      kept.push({
+        type: "app",
+        id: item.id,
         visible: item.visible !== false,
       })
       continue
@@ -1122,7 +1153,12 @@ export function normalizeTopRightNavigation(
     }
   }
 
-  return [...kept, ...fallback.filter((item) => !seenIds.has(item.id))]
+  const missing = fallback.filter((item) => !seenIds.has(item.id))
+  return [
+    ...missing.filter((item) => item.type === "app"),
+    ...kept,
+    ...missing.filter((item) => item.type !== "app"),
+  ]
 }
 
 export function isShellItem(entry: ShellEntry): entry is ShellItem {

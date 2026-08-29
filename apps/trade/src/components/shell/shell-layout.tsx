@@ -21,6 +21,7 @@ import {
 import {
   canSeeShellEntry,
   createDefaultShellConfig,
+  createDefaultTopRightNavigation,
   DASHBOARD_ROWS_PER_PAGE_OPTIONS,
   getBorderStyleVars,
   getModalStyleVars,
@@ -46,6 +47,7 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
+import { appHeaderRightActionForRole } from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { resolveAppName } from "@/lib/branding"
@@ -151,7 +153,9 @@ export function ShellLayout({
   const navigate = useNavigate()
   const router = useRouter()
   const { account: accountTab } = useSearch({ from: "/_authenticated" })
-  const [config, setConfig] = React.useState(() => normalizeConfig(settings))
+  const [config, setConfig] = React.useState(() =>
+    normalizeConfig(settings, user.role)
+  )
   // Last width the server confirmed, plus a serialized save queue + version
   // counter so rapid drags persist in order and a failure rolls back to the
   // last-saved width without clobbering a newer in-flight drag.
@@ -195,7 +199,7 @@ export function ShellLayout({
     }
 
     lastSettingsRef.current = settings
-    const nextConfig = normalizeConfig(settings)
+    const nextConfig = normalizeConfig(settings, user.role)
     savedSidebarWidthRef.current = nextConfig.sidebarWidth
     // Fresh server data supersedes any pending debounced auto-save so an
     // in-flight edit can't overwrite it.
@@ -206,7 +210,7 @@ export function ShellLayout({
     latestConfigRef.current = nextConfig
     setConfig(nextConfig)
     setSaveStatus("idle")
-  }, [settings])
+  }, [settings, user.role])
 
   // NOTE: no focus/visibilitychange auto-redirect. A client-side "am I still
   // signed in?" check on every tab focus was bouncing the user to /login
@@ -606,10 +610,22 @@ export function ShellLayout({
   )
 }
 
-function normalizeConfig(settings: ShellConfig | null): ShellConfig {
+function normalizeConfig(
+  settings: ShellConfig | null,
+  role: string
+): ShellConfig {
   const fallback = createDefaultShellConfig()
+  const action = appHeaderRightActionForRole(role)
+  const memberAction = appHeaderRightActionForRole("member")
+  const actionIds = action ? [action.id] : []
+  const memberActionIds = memberAction ? [memberAction.id] : []
   if (!settings) {
-    return fallback
+    return {
+      ...fallback,
+      topRightNavigation: createDefaultTopRightNavigation(actionIds),
+      memberTopRightNavigation:
+        createDefaultTopRightNavigation(memberActionIds),
+    }
   }
 
   return {
@@ -639,10 +655,12 @@ function normalizeConfig(settings: ShellConfig | null): ShellConfig {
     publicFooterCopyright:
       settings.publicFooterCopyright ?? fallback.publicFooterCopyright,
     topRightNavigation: normalizeTopRightNavigation(
-      settings.topRightNavigation
+      settings.topRightNavigation,
+      actionIds
     ),
     memberTopRightNavigation: normalizeTopRightNavigation(
-      settings.memberTopRightNavigation
+      settings.memberTopRightNavigation,
+      memberActionIds
     ),
     sections: stripRetiredAccountEntries(
       Array.isArray(settings.sections) ? settings.sections : fallback.sections
