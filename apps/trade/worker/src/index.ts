@@ -30,6 +30,7 @@ import {
 import { waitToBecomeLeader, type Leadership } from "@/server/trade/leadership"
 import { priceFeedStatus } from "@/server/trade/price-feed-status"
 import { writeHeartbeat } from "@/server/trade/workers"
+import { waitForTradePasses } from "./trade-shutdown"
 
 /**
  * **This process is the trading engine, and Lighter's budget needs to know.**
@@ -63,6 +64,7 @@ const STARTED_AT = Date.now()
 let leadership: Leadership | null = null
 let loop: ReturnType<typeof setInterval> | null = null
 let beat: ReturnType<typeof setInterval> | null = null
+const passesInFlight = new Set<Promise<void>>()
 let stopping = false
 
 /**
@@ -132,11 +134,16 @@ function workUntilLockLost(): Promise<void> {
         done()
         return
       }
-      void advanceWorkingLadders().catch((error) => {
+      const pass = advanceWorkingLadders().catch((error) => {
         // A pass that throws is one pass. The next one is a second away and
         // starts from the database, so nothing is carried over from the failure.
         console.error("trade worker: pass failed", error)
       })
+      passesInFlight.add(pass)
+      void pass.then(
+        () => passesInFlight.delete(pass),
+        () => passesInFlight.delete(pass)
+      )
     }, PASS_EVERY_MS)
     console.log(`trade worker: ready, working ladders every ${PASS_EVERY_MS}ms`)
   })
@@ -173,6 +180,7 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`trade worker: ${signal}, shutting down`)
   if (loop) clearInterval(loop)
   if (beat) clearInterval(beat)
+  await waitForTradePasses([...passesInFlight], lastPass.wallets)
   // Handing the lock back explicitly means the replacement container starts
   // trading in milliseconds rather than waiting for this socket to time out.
   await leadership?.release().catch(() => {})

@@ -10,11 +10,12 @@ on, in a `restart_requested_at` column.
 The engine reads its control row at the top of every pass, about once a
 second, so it sees the mark within a second. It then:
 
-1. finishes nothing more — the check runs between passes, and a pass in
-   flight always completes first, so no ladder is dropped half-worked;
-2. clears the mark, so the replacement copy boots clean instead of reading
+1. clears the mark, so the replacement copy boots clean instead of reading
    the same request and restarting itself again;
-3. releases the leader lock and exits with code 0.
+2. stops starting new passes and gives every pass already working up to five
+   seconds to finish writing down its orders;
+3. if five seconds pass first, writes the wallet count on the worker console;
+4. releases the leader lock and exits with code 0.
 
 The container supervisor (Coolify's restart policy) starts the replacement
 within a few seconds. Because the lock was handed back before the exit, the
@@ -27,9 +28,9 @@ While the mark is set and the engine has not picked it up, the card's
 
 ## What Restart is not
 
-- **Not a forced kill.** A hung pass is not interrupted; the check only runs
-  when a pass ends. A truly stuck engine is Coolify's business, not this
-  button's.
+- **Not an endless wait.** A pass gets five seconds to finish. After that the
+  engine says how many wallets were in the pass and exits, so a slow exchange
+  cannot stop the container from being replaced.
 - **Not a fix for the hourly lock drop.** The engine already survives that by
   re-queuing for the lock (see the comment in `worker/src/index.ts`).
 - **Not available to members.** The server function is admin-only, like the
