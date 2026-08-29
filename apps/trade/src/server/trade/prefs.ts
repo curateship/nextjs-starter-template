@@ -310,22 +310,19 @@ export async function saveLastWalletId(
   protocol: ProtocolId,
   walletId: string
 ): Promise<void> {
-  const row = await db
-    .select({ lastWalletIds: tradePrefs.lastWalletIds })
-    .from(tradePrefs)
-    .where(eq(tradePrefs.userId, userId))
-    .limit(1)
-  const lastWalletIds = {
-    ...(row[0]?.lastWalletIds ?? {}),
-    [protocol]: walletId,
-  }
-
+  const patch = { [protocol]: walletId }
   await db
     .insert(tradePrefs)
-    .values({ userId, lastWalletIds, updatedAt: new Date() })
+    .values({ userId, lastWalletIds: patch, updatedAt: new Date() })
     .onConflictDoUpdate({
       target: tradePrefs.userId,
-      set: { lastWalletIds, updatedAt: new Date() },
+      set: {
+        // Patched in the database, not read-then-written — the same idiom as
+        // `saveMarketPanelRows`. One round trip instead of two, and two
+        // exchanges picked at the same moment each keep their own entry.
+        lastWalletIds: sql`coalesce(${tradePrefs.lastWalletIds}, '{}'::jsonb) || ${JSON.stringify(patch)}::jsonb`,
+        updatedAt: new Date(),
+      },
     })
 }
 

@@ -43,9 +43,16 @@ does not close the position immediately.
   drag it. The window shows what the size costs in dollars and how much of your
   own cash is behind it, and the same window is what the ⚙ on the bar means.
 - **Placing an order does not wait for the exchange.** The window shuts on the
-  press and the order is drawn on the chart at once, labelled "sending" until
-  the answer lands — a second or two later. A "sending" line has no × and
-  cannot be dragged; there is nothing on the server yet to change.
+  press and the order is drawn on the chart at once, labelled "sending". A
+  "sending" line has no × and cannot be dragged; there is nothing on the
+  server yet to change. For a real order that rests, the label clears the
+  moment the exchange's answer names the order — the line then carries the
+  real id and can be dragged or cancelled straight away, without waiting for
+  the next full read. An order that filled on arrival becomes the position in
+  the same moment: the answer says the fill price and size, so the Entry line
+  and the position row are painted from it at once, and the next read swaps
+  in the exchange's own figures. A reduce-only fill paints nothing new — it
+  shrank a position rather than opening one.
 - **Nothing is announced when it works.** No toast for placing an order and
   none for cancelling one: the line appearing and the line disappearing is the
   answer, and a toast on every click of a trading screen is noise. Refusals

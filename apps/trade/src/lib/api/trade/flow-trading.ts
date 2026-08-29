@@ -147,19 +147,21 @@ const loadFlowTradingFn = createServerFn({ method: "GET" })
   .middleware([adminGet])
   .inputValidator(flowSchema)
   .handler(async ({ data, context }): Promise<FlowTrading> => {
-    const row = await getWorkspaceAutomation(
-      await workspaceIdForRequest(context.user.id),
-      data.automationId
-    )
-
-    // Asked FIRST, and it wins outright.
+    // The running copy WINS outright over the drawing, whatever order the
+    // answers arrive in.
     //
     // A switched-on flow trades the copy frozen when the switch was thrown, so
     // what the drawing says now cannot change it — and must not be able to hide
     // it either. Reading the drawing first meant taking the wallet off the step
     // made a running flow vanish from this card and come back as a backtest,
-    // with real ladders still working in the market behind it.
-    const live = await runningFlow(context.user.id, data.automationId)
+    // with real ladders still working in the market behind it. The two reads
+    // are independent, so they go out together; the winner is decided below.
+    const [row, live] = await Promise.all([
+      workspaceIdForRequest(context.user.id).then((workspaceId) =>
+        getWorkspaceAutomation(workspaceId, data.automationId)
+      ),
+      runningFlow(context.user.id, data.automationId),
+    ])
 
     // The drawing, not the compiled copy.
     //

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { and, asc, count, eq, max, ne, sql } from "drizzle-orm"
+import { and, asc, count, eq, inArray, max, ne, sql } from "drizzle-orm"
 
 import {
   parseMarketKey,
@@ -332,7 +332,9 @@ export async function setMarketInFolder(
       await syncRunningFlowsToFolder(userId, input, now, tx)
     }
   })
-  return loadMarketFolders(userId, folder.protocol, folder.network, database)
+  // Nothing is read back. The browser applies a star optimistically and only
+  // re-reads the folders when the save fails — the fresh list this used to
+  // build was thrown away on every successful click.
 }
 
 export async function createMarketFolder(
@@ -535,14 +537,36 @@ export async function saveMarketPanelLayout(
     ) {
       throw new Error("That folder arrangement could not be saved.")
     }
-    for (const [index, id] of input.rowIds.entries()) {
-      if (id === WATCHED_ROW || id === ALL_ROW) continue
+    // Every folder row in ONE statement. Written as a loop, a ten-folder
+    // panel paid ten round trips for a single drag; the CASE hands each row
+    // its own position and eye state in the same update.
+    const folderIds = input.rowIds.filter(
+      (id) => id !== WATCHED_ROW && id !== ALL_ROW
+    )
+    if (folderIds.length > 0) {
+      const positionWhens = sql.join(
+        folderIds.map(
+          (id) =>
+            sql`when ${id} then ${input.rowIds.indexOf(id)}::int`
+        ),
+        sql` `
+      )
+      const hiddenWhens = sql.join(
+        folderIds.map(
+          (id) => sql`when ${id} then ${hidden.has(id)}::boolean`
+        ),
+        sql` `
+      )
       await tx
         .update(tradeMarketFolders)
-        .set({ position: index, hidden: hidden.has(id), updatedAt: new Date() })
+        .set({
+          position: sql`case ${tradeMarketFolders.id} ${positionWhens} end`,
+          hidden: sql`case ${tradeMarketFolders.id} ${hiddenWhens} end`,
+          updatedAt: new Date(),
+        })
         .where(
           and(
-            eq(tradeMarketFolders.id, id),
+            inArray(tradeMarketFolders.id, folderIds),
             eq(tradeMarketFolders.userId, userId),
             eq(tradeMarketFolders.protocol, input.protocol),
             eq(tradeMarketFolders.network, input.network)

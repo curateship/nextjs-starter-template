@@ -150,6 +150,10 @@ screen: anything not written there has not been agreed yet.
 - `dashboard-speed.md` — what one database trip costs, what the opening answer
   carries, how market lists are shared for a minute, and what the four-second
   poll still asks for.
+- `one-wait-per-click.md` — the rules the action paths follow so a click pays
+  one wait, not a parade of database trips: reads that go out together, the
+  journal behind the answer, the two-second real-money memory, and what
+  stayed slow on purpose.
 - `worker-restart.md` — the Restart button on the Workers screen: how the
   engine sees the request, why a pass in flight finishes first, and who does
   the starting.

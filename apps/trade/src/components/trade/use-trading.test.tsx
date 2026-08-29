@@ -231,6 +231,112 @@ describe("the line for an order being sent", () => {
     )
     expect(latest?.placing).toHaveLength(0)
   })
+
+  it("turns into the real order the moment the answer names it", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "resting",
+        orderId: "exchange-7",
+        avgPx: null,
+        filledSz: null,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The row now IS the order: the exchange's own id, no "sending" label,
+    // and the live flag so a drag or a × takes the real road at once.
+    expect(latest?.placing).toHaveLength(1)
+    expect(latest?.placing[0].id).toBe("exchange-7")
+    expect(latest?.placing[0].placing).toBeUndefined()
+    expect(latest?.placing[0].live).toBe(true)
+  })
+
+  it("hands over to a position when the order filled straight away", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 10,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "buy",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // The answer said "filled at 0.1 for 10", so the position is painted
+    // from it in the same render the "sending" line leaves — no gap, and no
+    // waiting on the next full read for the Entry line.
+    expect(latest?.placing).toHaveLength(0)
+    expect(latest?.positions).toHaveLength(1)
+    expect(latest?.positions[0].szi).toBe(10)
+    expect(latest?.positions[0].entryPx).toBe(0.1)
+    expect(latest?.positions[0].live).toBeDefined()
+  })
+
+  it("paints nothing for a reduce-only fill", async () => {
+    api.placeLiveOrder.mockResolvedValue({
+      outcome: {
+        status: "filled",
+        orderId: null,
+        avgPx: 0.1,
+        filledSz: 10,
+        protection: null,
+        protectionNote: null,
+      },
+    })
+
+    await act(async () => root.render(<Harness />))
+    await act(async () => {
+      latest?.place({
+        marketKey: "hyperliquid:mainnet:ENA",
+        side: "sell",
+        px: 0.1,
+        sz: 10,
+        leverage: 1,
+        reduceOnly: true,
+        tpPx: null,
+        slPx: null,
+      })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    // A reduce-only fill shrank a position rather than opening one.
+    expect(latest?.positions).toHaveLength(0)
+  })
 })
 
 describe("bulk safety actions", () => {

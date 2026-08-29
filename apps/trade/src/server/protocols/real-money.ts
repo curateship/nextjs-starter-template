@@ -1,5 +1,10 @@
 import type { NetworkId } from "@/lib/protocols/contracts"
 import { type CustomShellDb, db } from "@/server/db"
+import {
+  forgetRealMoneySwitch,
+  realMoneyYesRemembered,
+  rememberRealMoneyYes,
+} from "@/server/protocols/real-money-memory"
 import { realMoneySwitch } from "@/server/trade/workers"
 
 /**
@@ -41,14 +46,21 @@ export function assertRealOrdersAllowed(network: NetworkId): void {
 
 /**
  * The Settings toggle behind the lock. Refuses unless BOTH layers say yes.
+ *
+ * A "yes" is remembered for two seconds — see `real-money-memory.ts` for
+ * why that never delays an OFF in the process that took the click, and why
+ * "off" itself is never remembered.
  */
 export async function assertRealMoneySwitchOn(
   database: CustomShellDb = db
 ): Promise<void> {
+  if (realMoneyYesRemembered(database)) return
   const real = await realMoneySwitch(database)
   if (!real.masterAllowed || !real.enabled) {
+    forgetRealMoneySwitch()
     throw new Error("LIVE_MAINNET_OFF")
   }
+  rememberRealMoneyYes(database)
 }
 
 /**

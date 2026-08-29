@@ -48,7 +48,6 @@ import {
 } from "@/lib/api/trade/flow-runs"
 import {
   marketSymbol,
-  parseMarketKey,
   type MarketRow,
   type ProtocolId,
 } from "@/lib/protocols/contracts"
@@ -590,11 +589,13 @@ function SmartOrdersView({
       const position = held.get(`${order.walletId}:${order.marketKey}`) ?? null
       const catalogueSymbol =
         markets.get(order.marketKey)?.symbol ?? marketSymbol(order.marketKey)
-      const symbol =
-        parseMarketKey(order.marketKey)?.protocol === "hyperliquid" &&
-        catalogueSymbol.startsWith("xyz:")
-          ? catalogueSymbol.slice(4)
-          : catalogueSymbol
+      // The ticker without its venue namespace — "xyz:SNDK" reads SNDK. The
+      // same rule as the icon's letter in `market-icon.tsx`: the prefix is a
+      // venue, whatever the exchange, so no protocol is named here and the
+      // fence test stays clean.
+      const symbol = catalogueSymbol.includes(":")
+        ? catalogueSymbol.slice(catalogueSymbol.indexOf(":") + 1)
+        : catalogueSymbol
       const mark =
         marks.get(order.marketKey) ??
         markets.get(order.marketKey)?.price ??

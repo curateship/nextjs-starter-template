@@ -89,10 +89,10 @@ async function allocateNonce(
   return rows[0].lastNonce
 }
 
-type LiveWalletRow = typeof tradeWallets.$inferSelect
+export type LiveWalletRow = typeof tradeWallets.$inferSelect
 
 /** The wallet, or the refusal — the same first step as the paper store's. */
-async function liveWallet(
+export async function liveWallet(
   userId: string,
   walletId: string
 ): Promise<LiveWalletRow> {
@@ -224,7 +224,12 @@ export async function placeLiveOrder(
     marketGuardPx?: number
   }
 ): Promise<PlaceOrderOutcome> {
+  // The stopwatch every real placement reports — one line per order saying
+  // where its time went, so "placing feels slow" is answered by the server
+  // log instead of a guess.
+  const t0 = Date.now()
   const row = await liveWallet(userId, input.walletId)
+  const tWallet = Date.now()
   if (row.status === "inactive") throw new Error("WALLET_INACTIVE")
   const protocol = getProtocol(row.protocol)
   // Refused before any price is read or size worked out, so an exchange with
@@ -236,14 +241,25 @@ export async function placeLiveOrder(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    // Today's price decides whether this waits or fills now — the same rule
-    // the practice engine uses, so the two kinds of wallet never disagree
-    // about what a click means.
-    const prices = await protocol.markets.prices(row.network, [ref.marketId])
-    const mark = prices.get(ref.marketId)
-    if (mark === undefined) throw new Error("LIVE_NO_PRICE")
     if (input.restingOnly && input.marketOnly)
       throw new Error("LIVE_ORDER_KIND")
+    // The price, the market's rules and the account are three independent
+    // questions, so they go out together — fetched one after another they
+    // were most of the wait between the click and the order. The price still
+    // decides whether this waits or fills now — the same rule the practice
+    // engine uses, so the two kinds of wallet never disagree about what a
+    // click means — and the portfolio is only read at all to learn whether
+    // this market is already held, which decides the leverage below.
+    const [prices, rules, portfolio] = await Promise.all([
+      protocol.markets.prices(row.network, [ref.marketId]),
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+    ])
+    const tFetch = Date.now()
+    const mark = prices.get(ref.marketId)
+    if (mark === undefined) throw new Error("LIVE_NO_PRICE")
     if (
       input.marketOnly &&
       input.marketGuardPx !== undefined &&
@@ -257,7 +273,6 @@ export async function placeLiveOrder(
       throw new Error("LIVE_SMART_ORDER_NOT_RESTING")
     }
     const entryPx = marketable ? mark : input.px
-    const rules = await marketRules(row.protocol, row.network, ref.marketId)
     const minimum = rules ? checkOrderMinimum(rules, entryPx, input.sz) : null
     const orderSize = minimum?.size ?? input.sz
     if (minimum?.tooSmall || orderSize <= 0) {
@@ -293,11 +308,6 @@ export async function placeLiveOrder(
     // Leverage is set only when this opens fresh; adding to a position
     // inherits what the position already runs at — the practice engine's
     // rule, kept identical for real money.
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
     const held = portfolio.positions.find(
       (one) => one.marketId === ref.marketId
     )
@@ -320,24 +330,33 @@ export async function placeLiveOrder(
       slPx: input.slPx,
     })
     dropEngineExchangeReads(row)
+    console.log(
+      `[trade] placeLiveOrder ${input.marketKey}: wallet ${tWallet - t0}ms, fetch ${tFetch - tWallet}ms, place ${Date.now() - tFetch}ms, total ${Date.now() - t0}ms`
+    )
 
-    await journal(userId, row.id, input.marketKey, {
-      action: outcome.status === "filled" ? "fill" : "placed",
-      side: input.side,
-      px: outcome.avgPx ?? entryPx,
-      sz: outcome.filledSz ?? orderSize,
-      note:
-        outcome.status === "filled"
-          ? "Filled straight away."
-          : "Resting on the exchange.",
-    })
-    if (outcome.protection === "partial") {
+    // The journal rides behind the answer, not in front of it — `journal`
+    // never throws and logs its own losses, so awaiting it here only slowed
+    // the reply. The two entries still land in order. A refusal is different:
+    // `refuse` below stays awaited, so no refusal is answered unrecorded.
+    void (async () => {
       await journal(userId, row.id, input.marketKey, {
-        action: "refused",
+        action: outcome.status === "filled" ? "fill" : "placed",
         side: input.side,
-        note: outcome.protectionNote,
+        px: outcome.avgPx ?? entryPx,
+        sz: outcome.filledSz ?? orderSize,
+        note:
+          outcome.status === "filled"
+            ? "Filled straight away."
+            : "Resting on the exchange.",
       })
-    }
+      if (outcome.protection === "partial") {
+        await journal(userId, row.id, input.marketKey, {
+          action: "refused",
+          side: input.side,
+          note: outcome.protectionNote,
+        })
+      }
+    })()
     return outcome
   } catch (error) {
     if (
@@ -392,7 +411,8 @@ export async function moveLiveOrder(
       reduceOnly: input.reduceOnly,
     })
     dropEngineExchangeReads(row)
-    await journal(userId, row.id, input.marketKey, {
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
       action: "placed",
       side: input.side,
       px: input.px,
@@ -413,9 +433,22 @@ export async function cancelLiveOrder(
     side?: TradeSide
     px?: number
     sz?: number
+    /**
+     * A caller cancelling a whole batch has the wallet row in hand already —
+     * re-reading it once per order made a five-rung stand-down pay five
+     * identical reads. The row is still checked to belong to this user and
+     * wallet, so a stale hand-me-down cannot aim a cancel elsewhere.
+     */
+    walletRow?: LiveWalletRow
   }
 ): Promise<void> {
-  const row = await liveWallet(userId, input.walletId)
+  const preloaded =
+    input.walletRow &&
+    input.walletRow.userId === userId &&
+    input.walletRow.id === input.walletId
+      ? input.walletRow
+      : null
+  const row = preloaded ?? (await liveWallet(userId, input.walletId))
   const protocol = getProtocol(row.protocol)
 
   try {
@@ -439,16 +472,13 @@ export async function cancelLiveOrder(
     )
     throw error
   }
-  try {
-    await journal(userId, row.id, input.marketKey, {
-      action: "cancelled",
-      side: input.side ?? null,
-      px: input.px,
-      sz: input.sz,
-    })
-  } catch (error) {
-    console.error("live cancel journal failed", error)
-  }
+  // Behind the answer, not in front of it — see `placeLiveOrder`.
+  void journal(userId, row.id, input.marketKey, {
+    action: "cancelled",
+    side: input.side ?? null,
+    px: input.px,
+    sz: input.sz,
+  })
 }
 
 /**
@@ -505,17 +535,21 @@ export async function closeLivePosition(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
+    // The portfolio read is a safety rule, not overhead: the close is sized
+    // from the exchange's own number, never a cached one, because a sell
+    // bigger than the position becomes a short. The rules read is merely
+    // independent of it, so the two go out together.
+    const [portfolio, rules] = await Promise.all([
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+      marketRules(row.protocol, row.network, ref.marketId),
+    ])
     const held = portfolio.positions.find(
       (one) => one.marketId === ref.marketId
     )
     if (!held) throw new Error("LIVE_POSITION_GONE")
     side = held.szi > 0 ? "sell" : "buy"
-    const rules = await marketRules(row.protocol, row.network, ref.marketId)
 
     const closed = await ordersOf(protocol).close(row.network, authFor(row), {
       marketId: ref.marketId,
@@ -528,7 +562,8 @@ export async function closeLivePosition(
     // The Journal row for this trade is built from the fill this close just
     // made, so the next read must not sit behind the idle wait.
     sweepSoon(userId, row.id)
-    await journal(userId, row.id, input.marketKey, {
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
       action: "close",
       side,
       px: closed.avgPx ?? 0,
@@ -603,17 +638,18 @@ export async function changeLiveLeverage(
   try {
     const ref = checkedMarket(row, input.marketKey)
     const asked = Math.max(1, Math.round(input.leverage))
-    const rules = await marketRules(row.protocol, row.network, ref.marketId)
+    // Independent questions, one wait — see `placeLiveOrder`.
+    const [rules, portfolio] = await Promise.all([
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+    ])
     if (rules?.maxLeverage != null && asked > rules.maxLeverage) {
       throw new Error(
         `LIVE_LEVERAGE_TOO_HIGH:${protocol.label} allows at most ${rules.maxLeverage}x on this market.`
       )
     }
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
     const held = portfolio.positions.find(
       (one) =>
         one.marketId === ref.marketId &&
@@ -628,7 +664,8 @@ export async function changeLiveLeverage(
       szi: held.szi,
     })
     dropEngineExchangeReads(row)
-    await journal(userId, row.id, input.marketKey, {
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side: held.szi > 0 ? "buy" : "sell",
       note: `Leverage asked to change from ${held.leverage}x to ${asked}x.`,
@@ -724,7 +761,8 @@ export async function changeLiveMargin(
       dollars: input.dollars,
     })
     dropEngineExchangeReads(row)
-    await journal(userId, row.id, input.marketKey, {
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side: held.szi > 0 ? "buy" : "sell",
       note:
@@ -865,9 +903,22 @@ export async function setLiveBrackets(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
-    // Chart prices can carry more decimal places than the exchange accepts.
-    // Normalize them from server-read rules before checking or sending them.
-    const rules = await marketRules(row.protocol, row.network, ref.marketId)
+    // Four independent questions, one wait — see `placeLiveOrder`. The price
+    // is only wanted when a stop is being set, and the grid's spared stop
+    // only when no explicit replacement list came in, so each of those rides
+    // along as nothing when it is not needed.
+    const [rules, portfolio, stopPrices, sparedIds] = await Promise.all([
+      marketRules(row.protocol, row.network, ref.marketId),
+      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
+        credentialFor(row)
+      ),
+      input.slPx !== null
+        ? protocol.markets.prices(row.network, [ref.marketId])
+        : null,
+      input.replaceOrderIds === undefined
+        ? pairedGridStopOrderIds(userId, input.walletId, input.marketKey)
+        : null,
+    ])
     if (!rules) throw new Error("LIVE_MARKET")
     const roundPx = (px: number) =>
       protocol.markets.roundPx(px, rules.sizeDecimals, rules.priceTick)
@@ -875,11 +926,6 @@ export async function setLiveBrackets(
       .map((target) => ({ ...target, px: roundPx(target.px) }))
       .sort((left, right) => left.px - right.px)
     const slPx = input.slPx === null ? null : roundPx(input.slPx)
-    const portfolio = await ordersOf(protocol).portfolio(
-      row.network,
-      row.address ?? "",
-      () => credentialFor(row)
-    )
     const held = portfolio.positions.find(
       (one) => one.marketId === ref.marketId
     )
@@ -937,8 +983,7 @@ export async function setLiveBrackets(
       }
     }
     if (slPx !== null) {
-      const prices = await protocol.markets.prices(row.network, [ref.marketId])
-      const mark = prices.get(ref.marketId)
+      const mark = stopPrices?.get(ref.marketId)
       if (mark === undefined) throw new Error("LIVE_NO_PRICE")
       const ahead = slPx > 0 && (long ? slPx < mark : slPx > mark)
       if (!ahead) throw new Error("LIVE_STOP_SIDE")
@@ -947,16 +992,7 @@ export async function setLiveBrackets(
     // Which legs this replace may take off. A grid running above a ladder
     // owns its stop outright: an ordinary replace spares it, and the grid's
     // own replace names exactly its old order and touches nothing else.
-    const spared =
-      input.replaceOrderIds === undefined
-        ? new Set(
-            await pairedGridStopOrderIds(
-              userId,
-              input.walletId,
-              input.marketKey
-            )
-          )
-        : null
+    const spared = sparedIds !== null ? new Set(sparedIds) : null
     const replacing = spared
       ? held.protectionOrderIds.filter((id) => !spared.has(id))
       : held.protectionOrderIds.filter((id) =>
@@ -975,7 +1011,8 @@ export async function setLiveBrackets(
       }
     )
     dropEngineExchangeReads(row)
-    await journal(userId, row.id, input.marketKey, {
+    // Behind the answer, not in front of it — see `placeLiveOrder`.
+    void journal(userId, row.id, input.marketKey, {
       action: "brackets",
       side,
       note: describeBrackets(targets, slPx, slSz),

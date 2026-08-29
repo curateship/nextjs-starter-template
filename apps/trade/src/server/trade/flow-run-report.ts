@@ -549,42 +549,48 @@ export async function readFlowRun(
     .limit(1)
   if (!row) return null
 
-  const wallets = await listWallets(userId)
-  const wallet = wallets.find((one) => one.id === row.walletId) ?? null
-
-  const [named] = await db
-    .select({ name: customShellAutomations.name })
-    .from(customShellAutomations)
-    .where(
-      and(
-        eq(customShellAutomations.userId, userId),
-        eq(customShellAutomations.id, row.automationId)
-      )
-    )
-    .limit(1)
-
-  // A stopped flow cannot still be placing rungs. Active rows left behind by
-  // its final cancel, or orders placed by hand on the same wallet and coin,
-  // belong to the wallet's current state rather than this finished run.
-  const workingCoins =
-    row.status !== "stopped"
-      ? await workingMarkets(userId, row.id, row.spec.marketKeys)
-      : new Set<string>()
-  const stoppingCount =
-    row.status === "stopping"
-      ? (await flowStopCounts(userId, row.automationId, db)).remaining
-      : null
-
-  const owners = await orderOwners(userId, [row.walletId])
-
-  // A run that has finished is history: its trades cannot change and there is
-  // nothing open to price, so the exchange is not asked at all.
-  // What is written down first, because it decides whether the exchange is
-  // worth asking at all.
-  let history: { fills: LiveFill[]; trades: LiveTrade[] } = await historyOf(
-    userId,
-    wallet ? [wallet] : []
-  )
+  // Everything below needs only the run row, not each other, so the five
+  // reads go out in one wait — asked one after another they were most of
+  // this page's load. The history still waits for the wallet list, because
+  // it cannot be asked for without knowing which wallet the run trades.
+  const [{ wallet, history: written }, [named], workingCoins, stops, owners] =
+    await Promise.all([
+      (async () => {
+        const wallets = await listWallets(userId)
+        const wallet = wallets.find((one) => one.id === row.walletId) ?? null
+        // A run that has finished is history: its trades cannot change and
+        // there is nothing open to price, so the exchange is not asked at
+        // all. What is written down first, because it decides whether the
+        // exchange is worth asking at all.
+        return {
+          wallet,
+          history: await historyOf(userId, wallet ? [wallet] : []),
+        }
+      })(),
+      db
+        .select({ name: customShellAutomations.name })
+        .from(customShellAutomations)
+        .where(
+          and(
+            eq(customShellAutomations.userId, userId),
+            eq(customShellAutomations.id, row.automationId)
+          )
+        )
+        .limit(1),
+      // A stopped flow cannot still be placing rungs. Active rows left behind
+      // by its final cancel, or orders placed by hand on the same wallet and
+      // coin, belong to the wallet's current state rather than this finished
+      // run.
+      row.status !== "stopped"
+        ? workingMarkets(userId, row.id, row.spec.marketKeys)
+        : new Set<string>(),
+      row.status === "stopping"
+        ? flowStopCounts(userId, row.automationId, db)
+        : null,
+      orderOwners(userId, [row.walletId]),
+    ])
+  const stoppingCount = stops ? stops.remaining : null
+  let history: { fills: LiveFill[]; trades: LiveTrade[] } = written
 
   // **A stopped run can still be holding coins.** Stopping calls off the
   // waiting rungs and deliberately leaves open positions alone, stops and

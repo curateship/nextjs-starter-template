@@ -13,7 +13,12 @@ import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
+import {
+  isMarketable,
+  type TradeOrder,
+  type TradePosition,
+} from "@/lib/trade/paper"
+import { getProtocol } from "@/server/protocols/registry"
 import { formatUsd } from "@/lib/trade/format"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -30,9 +35,7 @@ import {
   hideLiveTrade as hideTradeRows,
   loadLiveHistoryBefore,
 } from "@/server/trade/live-fills"
-import {
-  closeLivePositions as closePositionRows,
-} from "@/server/trade/close-live-positions"
+import { closeLivePositions as closePositionRows } from "@/server/trade/close-live-positions"
 import { loadOrderStyle } from "@/server/trade/prefs"
 import { runLiveOrderAction } from "@/server/trade/order-rate-limit"
 import {
@@ -204,13 +207,55 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(
     async ({ data, context }): Promise<{ outcome: PlaceOrderOutcome }> => {
+      // Started before the rate-limit check rather than after it: the two
+      // reads do not depend on each other, and one behind the other they were
+      // two waits where one would do. The catch keeps a rate-limited request
+      // from leaving an unhandled refusal behind; the await below still
+      // surfaces a real failure.
+      const style = loadOrderStyle(context.user.id)
+      style.catch(() => undefined)
       return await runLiveOrderAction(context.user.id, "order", async () => {
         // Watched rather than rested, when that is what the account is set to.
         // Nothing reaches the exchange until the price is actually there, so the
         // answer here is "it is waiting", the same shape a resting order gives.
-        if ((await loadOrderStyle(context.user.id)) === "watch") {
+        if ((await style) === "watch") {
           const wallet = await findWallet(context.user.id, data.walletId)
           if (!wallet) throw new Error("LIVE_WALLET")
+          // A click at a price the market is already through is not a level
+          // to wait at — it is this order, now, and the engine's next pass
+          // would only fire it at market a few seconds later. Firing it in
+          // the same call takes those seconds out of every marketable
+          // click, through the exact door the engine uses: `marketOnly`
+          // with the level as its guard, so a quote that slipped away
+          // between the two reads refuses the fire and the click becomes
+          // the watch it always was.
+          if (wallet.kind === "live") {
+            const ref = parseMarketKey(data.marketKey)
+            const protocol = getProtocol(wallet.protocol)
+            const mark = ref
+              ? (
+                  await protocol.markets.prices(wallet.network, [ref.marketId])
+                ).get(ref.marketId)
+              : undefined
+            if (mark !== undefined && isMarketable(data.side, data.px, mark)) {
+              try {
+                return {
+                  outcome: await placeOrderRow(context.user.id, {
+                    ...data,
+                    marketOnly: true,
+                    marketGuardPx: data.px,
+                  }),
+                }
+              } catch (error) {
+                if (!(
+                  error instanceof Error &&
+                  error.message === "LIVE_SMART_ORDER_PRICE_MOVED"
+                )) {
+                  throw error
+                }
+              }
+            }
+          }
           await placeWatchOrder(context.user.id, wallet, data)
           return {
             outcome: {
@@ -562,7 +607,9 @@ export function getLiveErrorMessage(error: unknown): string {
   const noOrders = message.match(/PROTOCOL_NO_ORDERS:([a-z]+)/)
   if (noOrders) {
     const id = noOrders[1] as ProtocolId
-    const named = KNOWN_PROTOCOLS.includes(id) ? protocolLabel(id) : "This exchange"
+    const named = KNOWN_PROTOCOLS.includes(id)
+      ? protocolLabel(id)
+      : "This exchange"
     return `Trade cannot place ${named} orders yet — the wallet is connected and its positions are readable, but ordering is still being built. Use ${named}'s own site to trade for now.`
   }
   return "That did not go through. Try it again."

@@ -688,6 +688,13 @@ export function useTrading(
   >(new Map())
   // Orders asked for whose answer is still on its way.
   const [placing, setPlacing] = React.useState<TradeOrder[]>([])
+  // Positions built from a "filled straight away" answer, standing in until
+  // a read brings the exchange's own row. Without this, an order that filled
+  // on arrival kept saying "sending" for as long as the next full read took
+  // — the whole wait a person watching their click actually feels.
+  const [filledStandIns, setFilledStandIns] = React.useState<TradePosition[]>(
+    []
+  )
   // A smart order the server has confirmed — just placed, or just moved —
   // standing in until an ordinary read carries the same thing. The window
   // that placed it clears its preview lines as it closes, and a drag's drop
@@ -1263,11 +1270,36 @@ export function useTrading(
    * hand-off happens in the same render the real row arrives in, leaving no
    * frame where neither is drawn.
    */
+  /**
+   * A stand-in leaves the moment the exchange's own row for the same market
+   * and direction lands, or when it has waited long enough — the read is
+   * always the truth, the stand-in only covers the gap between the answer
+   * and the read.
+   */
+  const filledShown = React.useMemo(() => {
+    if (filledStandIns.length === 0) return filledStandIns
+    return filledStandIns.filter(
+      (standIn) =>
+        !holdExpired(standIn.updatedAt) &&
+        !allPositions.some(
+          (position) =>
+            position.walletId === standIn.walletId &&
+            position.marketKey === standIn.marketKey &&
+            position.szi > 0 === standIn.szi > 0
+        )
+    )
+  }, [filledStandIns, allPositions, holdExpired])
+
   const placingShown = React.useMemo(() => {
     if (placing.length === 0) return placing
     const real = [...allOrders, ...allSmartOrders]
     return placing.filter((ghost) => {
       if (holdExpired(ghost.createdAt)) return false
+      // A converted row can be cancelled before the next read ever sees it.
+      // The × hides it here the way it hides a server row in `orders`.
+      if (cancelling.has(ghost.id) && !holdExpired(cancelling.get(ghost.id))) {
+        return false
+      }
       // **An order that filled at once became a POSITION, not an order.**
       // Looking only for a resting order or a watched price left the ghost
       // drawn beside the Entry line it had already turned into — two lines
@@ -1277,7 +1309,7 @@ export function useTrading(
       // asked, and the position's entry is an average once anything is added
       // to it. The market and the direction are enough, because the Entry
       // line the ghost would sit beside is the very thing being looked for.
-      const filled = allPositions.some(
+      const filled = [...allPositions, ...filledShown].some(
         (position) =>
           position.walletId === ghost.walletId &&
           position.marketKey === ghost.marketKey &&
@@ -1301,7 +1333,15 @@ export function useTrading(
         )
       })
     })
-  }, [placing, allOrders, allSmartOrders, allPositions, holdExpired])
+  }, [
+    placing,
+    allOrders,
+    allSmartOrders,
+    allPositions,
+    filledShown,
+    cancelling,
+    holdExpired,
+  ])
 
   const orders = React.useMemo(() => {
     const shown =
@@ -1377,11 +1417,17 @@ export function useTrading(
   )
 
   const positions = React.useMemo(() => {
+    // The exchange's rows, plus any just-filled stand-ins the read has not
+    // caught up with yet — see `filledShown`.
+    const all =
+      filledShown.length === 0
+        ? allPositions
+        : [...allPositions, ...filledShown]
     // A position being closed leaves the screen at once — see `callOff`.
     const shown =
       cancelling.size === 0
-        ? allPositions
-        : allPositions.filter((position) => {
+        ? all
+        : all.filter((position) => {
             const key = bracketKey(position.walletId, position.marketKey)
             return !cancelling.has(key) || holdExpired(cancelling.get(key))
           })
@@ -1405,7 +1451,7 @@ export function useTrading(
           }
         : position
     })
-  }, [allPositions, droppedBrackets, cancelling, holdExpired])
+  }, [allPositions, filledShown, droppedBrackets, cancelling, holdExpired])
 
   /** The row an action is aimed at decides which road the action takes. */
   const findOrder = React.useCallback(
@@ -1414,8 +1460,12 @@ export function useTrading(
       // Watched prices are orders to everything that asks by id — the drags
       // and edits route on the `watched` flag this lookup carries back.
       watchOrders.find((one) => one.id === orderId) ??
+      // A just-placed order the answer has already named, still standing in
+      // for the row the next read will bring. It carries the exchange's own
+      // id and the `live` flag, so a drag lands on it before that read.
+      placing.find((one) => one.id === orderId && !one.placing) ??
       null,
-    [allOrders, watchOrders]
+    [allOrders, watchOrders, placing]
   )
   const findPosition = React.useCallback(
     (walletId: string, marketKey: string) =>
@@ -1460,6 +1510,65 @@ export function useTrading(
             const { outcome } = await placeLiveOrder({ walletId, ...input })
             if (outcome.protection === "partial" && outcome.protectionNote) {
               showErrorToast(outcome.protectionNote)
+            }
+            // The answer already names the resting order, so the ghost turns
+            // into it now instead of wearing "sending" until the next full
+            // read lands — that read was the longest part of the wait. With
+            // the exchange's own id the row can be cancelled or dragged at
+            // once. A fill and a watched wait carry no order id, so their
+            // ghosts keep standing in until the position or the watch row
+            // arrives, exactly as before.
+            if (outcome.status === "resting" && outcome.orderId !== null) {
+              const orderId = outcome.orderId
+              setPlacing((held) =>
+                held.map((order) => {
+                  if (order.id !== ghost.id) return order
+                  const { placing: _dropped, ...rest } = order
+                  return {
+                    ...rest,
+                    id: orderId,
+                    live: true as const,
+                    updatedAt: Date.now(),
+                  }
+                })
+              )
+            }
+            // An order that filled on arrival became a POSITION, and the
+            // answer says at what price and size. The position is painted
+            // from that answer now — the exchange's own row replaces it on
+            // the next read (`filledShown`), and the "sending" line hands
+            // over in the same render. A reduce-only fill shrank a position
+            // instead of opening one, so it paints nothing.
+            if (outcome.status === "filled" && !input.reduceOnly) {
+              const sz = outcome.filledSz ?? input.sz
+              const entryPx = outcome.avgPx ?? input.px
+              const standIn: TradePosition = {
+                id: `filled:${ghost.id}`,
+                walletId,
+                marketKey: input.marketKey,
+                szi: input.side === "buy" ? sz : -sz,
+                entryPx,
+                leverage: input.leverage,
+                maxLeverage: input.leverage,
+                targets:
+                  input.tpPx !== null
+                    ? [{ px: input.tpPx, sz: null, orderId: null }]
+                    : [],
+                tpPx: input.tpPx,
+                tpSz: null,
+                slPx: input.slPx,
+                feesPaid: 0,
+                updatedAt: Date.now(),
+                live: {
+                  // An estimate, shown only until the read brings the
+                  // exchange's own figures a moment later.
+                  marginUsed: (entryPx * sz) / Math.max(1, input.leverage),
+                  liquidationPx: null,
+                  tpOrderId: null,
+                  slOrderId: null,
+                },
+              }
+              setFilledStandIns((held) => [...held, standIn])
             }
           }
         } catch (error) {

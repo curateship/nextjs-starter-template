@@ -11,6 +11,7 @@ import {
   type WorkerStatus,
 } from "@/lib/trade/workers"
 import { db, type CustomShellDb } from "@/server/db"
+import { forgetRealMoneySwitch } from "@/server/protocols/real-money-memory"
 import {
   tradeSmartLadders,
   tradeWorkerControls,
@@ -222,6 +223,9 @@ export async function setRealMoneySwitch(
       target: tradeWorkerControls.kind,
       set: { enabled: on, updatedAt: new Date() },
     })
+  // The check's short memory is dropped with the write itself, so an OFF is
+  // refused by this process's very next signature — see `real-money-memory`.
+  forgetRealMoneySwitch()
 }
 
 // The refusal built on this switch — assertRealMoneySwitchOn — lives in

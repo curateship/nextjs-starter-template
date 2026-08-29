@@ -1043,3 +1043,51 @@ describe("reading refusals back", () => {
     expect(await loadLiveRefusals(mine, [myWallet])).toEqual([])
   })
 })
+
+describe("the guarded market fire — a watched click already at its price", () => {
+  it("fires at market while the fresh quote is still at the level", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: null,
+      avgPx: 100_000,
+      filledSz: 0.5,
+      protection: null,
+      protectionNote: null,
+    })
+
+    const outcome = await placeLiveOrder(userId, {
+      ...orderInput(walletId),
+      px: 101_000,
+      marketOnly: true,
+      marketGuardPx: 101_000,
+    })
+
+    expect(outcome.status).toBe("filled")
+    expect(place).toHaveBeenCalledOnce()
+    expect(place.mock.calls[0][2]).toMatchObject({
+      kind: "market",
+      px: 100_000,
+    })
+  })
+
+  it("refuses the fire when the quote left the level, placing nothing", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId)
+
+    await expect(
+      placeLiveOrder(userId, {
+        ...orderInput(walletId),
+        px: 99_000,
+        marketOnly: true,
+        marketGuardPx: 99_000,
+      })
+    ).rejects.toThrow("LIVE_SMART_ORDER_PRICE_MOVED")
+
+    expect(place).not.toHaveBeenCalled()
+    // This refusal is the caller's cue to fall back to the watch row, not a
+    // failure to record — the journal stays clean.
+    expect(await journalRows(userId)).toEqual([])
+  })
+})

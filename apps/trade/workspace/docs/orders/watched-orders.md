@@ -21,6 +21,17 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
   price. The money stays free until that moment, the level is nobody else's
   business — it never shows in the public book — and it does not use up the
   exchange's cap on open orders.
+
+  **Except a click at a price the market is already through.** That was never
+  a level to wait at — it is this order, now — and since 29 Aug 2026 the
+  click itself fires the market order in the same call, through the same
+  guarded door the engine uses, so the position is on screen in about a
+  second. Before that the click wrote a watch row and the engine's next pass
+  fired it a few seconds later, which made every marketable click feel slow.
+  The fresh quote still guards the fire: a price that slipped away between
+  the click and the check falls back to the watch row it always was. A
+  practice wallet keeps the old road — its engine settles on every read, so
+  there is nothing to save.
 - **Rest** (the old way, still choosable in Settings → Trading engine): the
   order sits on the exchange itself. It fills even when this app is switched
   off, and anyone reading the book can see it.

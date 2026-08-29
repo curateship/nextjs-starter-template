@@ -63,6 +63,8 @@ import { marketBaseInForce } from "@/server/trade/base-level"
 import {
   cancelLiveOrder,
   closeLivePosition,
+  liveWallet,
+  type LiveWalletRow,
   placeLiveOrder,
   rollbackLiveOrder,
   setLiveBrackets,
@@ -527,7 +529,10 @@ export async function cancelLiveSignalRest(
     const recorded = await flowLadderOrderIds(userId, wallet.id, input.signalId)
     if (plan.orderId) recorded.add(plan.orderId)
     const open = portfolio.orders.filter((order) => recorded.has(order.orderId))
+    // One wallet read shared by the batch — each cancel used to pay its own.
+    let sharedRow: LiveWalletRow | null = null
     for (const order of open) {
+      sharedRow ??= await liveWallet(userId, wallet.id)
       await cancelLiveOrder(userId, {
         walletId: wallet.id,
         marketKey: row.marketKey,
@@ -535,6 +540,7 @@ export async function cancelLiveSignalRest(
         side: order.side,
         px: order.px,
         sz: order.sz,
+        walletRow: sharedRow,
       })
     }
 
@@ -584,8 +590,15 @@ async function cancelLiveLadderRestOnce(
   input: { ladderId: string },
   portfolio?: WalletPortfolio
 ): Promise<{ cancelled: number }> {
-  const ladder = await ladderById(userId, wallet.id, input.ladderId)
-  const recordedIds = await flowLadderOrderIds(userId, wallet.id, ladder.id)
+  // Independent reads, one wait.
+  const [ladder, recordedIds] = await Promise.all([
+    ladderById(userId, wallet.id, input.ladderId),
+    flowLadderOrderIds(userId, wallet.id, input.ladderId),
+  ])
+  // One wallet read shared by every cancel below — each used to pay its own.
+  let sharedRow: LiveWalletRow | null = null
+  const rowOnce = async () =>
+    (sharedRow ??= await liveWallet(userId, wallet.id))
   const planIds = new Set(
     ladder.plan.rungs.flatMap((rung) =>
       [rung.orderId, rung.sellOrderId].filter(
@@ -606,6 +619,7 @@ async function cancelLiveLadderRestOnce(
       walletId: wallet.id,
       marketKey: ladder.marketKey,
       orderId: order.orderId,
+      walletRow: await rowOnce(),
     })
   }
 
@@ -615,6 +629,7 @@ async function cancelLiveLadderRestOnce(
         walletId: wallet.id,
         marketKey: ladder.marketKey,
         orderId,
+        walletRow: await rowOnce(),
       })
     })
     const status = hasFill ? "active" : "done"
@@ -655,11 +670,15 @@ async function updateLiveLadderExitsOnce(
   }
 ): Promise<void> {
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
+  // One wallet read shared by every cancel — each used to pay its own.
+  let sharedRow: LiveWalletRow | null = null
   await updateLadderExitsPlan(ladder.plan, input, async (orderId) => {
+    sharedRow ??= await liveWallet(userId, wallet.id)
     await cancelLiveOrder(userId, {
       walletId: wallet.id,
       marketKey: ladder.marketKey,
       orderId,
+      walletRow: sharedRow,
     })
   })
   ladder.plan.aimedTpPx = null
