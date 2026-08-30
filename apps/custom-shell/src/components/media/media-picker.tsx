@@ -150,6 +150,11 @@ function MediaPickerSession({
       .then((next) => {
         if (!active) return
         setData(next)
+        setSelectedMedia((current) =>
+          current && !next.media.some((item) => item.id === current.id)
+            ? null
+            : current
+        )
         setPlayingId(null)
         setError(null)
       })
@@ -189,10 +194,11 @@ function MediaPickerSession({
     })
   }, [currentMediaUrl, data?.media])
 
-  const activeSelectedMedia =
-    selectedMedia ??
-    mediaItems.find((item) => item.url === currentMediaUrl) ??
-    null
+  const activeSelectedMedia = loading
+    ? null
+    : mediaItems.find((item) => item.id === selectedMedia?.id) ??
+      mediaItems.find((item) => item.url === currentMediaUrl) ??
+      null
 
   function clearUpload() {
     setUpload(null)

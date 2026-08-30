@@ -389,7 +389,10 @@ function SaveStatusIndicator({ status }: { status?: SaveStatus }) {
   }
   if (status === "saved") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+      <span
+        role="status"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"
+      >
         <CheckIcon className="h-4 w-4" />
         Saved
       </span>
