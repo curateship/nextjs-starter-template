@@ -132,7 +132,9 @@ export async function createCheckoutSession(
     await stripe()
   ).checkout.sessions.create({
     mode: "subscription",
-    line_items: [{ price, quantity: 1 }],
+    // Stripe rejects a quantity on metered prices. Licensed recurring prices
+    // keep the ordinary quantity of one.
+    line_items: [plan.usageMeter ? { price } : { price, quantity: 1 }],
     customer: subscription?.stripeCustomerId || undefined,
     customer_email: subscription?.stripeCustomerId ? undefined : user.email,
     client_reference_id: user.id,
@@ -1037,4 +1039,10 @@ function periodEnd(subscription: Stripe.Subscription) {
 function idOf(value: string | { id: string } | null | undefined) {
   if (!value) return null
   return typeof value === "string" ? value : value.id
+}
+
+/** The customer whose pending meter events an invoice webhook can retry. */
+export function invoiceCustomerId(event: Stripe.Event) {
+  if (event.type !== "invoice.created") return null
+  return idOf((event.data.object as Stripe.Invoice).customer)
 }

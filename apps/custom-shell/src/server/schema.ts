@@ -707,6 +707,13 @@ export const customShellPlans = pgTable(
     currency: varchar("currency", { length: 10 }).notNull().default("usd"),
     stripePriceIdMonthly: varchar("stripe_price_id_monthly", { length: 120 }),
     stripePriceIdYearly: varchar("stripe_price_id_yearly", { length: 120 }),
+    /**
+     * The Stripe meter event name for usage-priced plans. Null means the plan
+     * uses ordinary fixed recurring prices. Product code records this exact
+     * name through `recordUsage`, so the local total and Stripe receive the
+     * same meter without a second mapping table.
+     */
+    usageMeter: varchar("usage_meter", { length: 100 }),
     trialDays: integer("trial_days").notNull().default(0),
     /** Free-form per-product limits and flags, read through entitlements. */
     features: jsonb("features").$type<PlanFeatures>().notNull().default({}),
@@ -825,6 +832,59 @@ export const customShellBillingEvents = pgTable("billing_events", {
   type: varchar("type", { length: 120 }).notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }).notNull(),
 })
+
+/**
+ * Product-agnostic billable usage. One row is one measured event, kept locally
+ * before Stripe is called so an unavailable provider cannot lose the charge.
+ *
+ * `stripeCustomerId` is copied at record time. A later plan switch or account
+ * deletion must not send an old event to a different customer. The event id is
+ * also Stripe's identifier, which makes a short retry idempotent.
+ */
+export const customShellUsageEvents = pgTable(
+  "usage_events",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    userId: varchar("user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    meter: varchar("meter", { length: 100 }).notNull(),
+    quantity: bigint("quantity", { mode: "number" }).notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
+    stripeReportStatus: varchar("stripe_report_status", { length: 20 })
+      .notNull()
+      .default("not_applicable"),
+    stripeReportError: varchar("stripe_report_error", { length: 120 }),
+    stripeReportedAt: timestamp("stripe_reported_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check("usage_events_quantity_check", sql`${table.quantity} > 0`),
+    check(
+      "usage_events_stripe_status_check",
+      sql`${table.stripeReportStatus} in ('not_applicable', 'pending', 'reported', 'failed')`
+    ),
+    index("ix_usage_events_user_occurred").on(
+      table.userId,
+      table.occurredAt.desc()
+    ),
+    index("ix_usage_events_meter_occurred").on(
+      table.meter,
+      table.occurredAt.desc()
+    ),
+    index("ix_usage_events_occurred").on(table.occurredAt.desc()),
+    index("ix_usage_events_pending_customer")
+      .on(table.stripeCustomerId, table.occurredAt)
+      .where(sql`${table.stripeReportStatus} = 'pending'`),
+    index("ix_usage_events_reports_to_review")
+      .on(table.stripeReportStatus, table.meter)
+      .where(
+        sql`${table.stripeReportStatus} in ('pending', 'failed')`
+      ),
+  ]
+)
 
 /**
  * One member's billing history: trial started, subscribed, plan switched,
@@ -2174,6 +2234,7 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
+export type CustomShellUsageEvent = typeof customShellUsageEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAutomationRun =
   typeof customShellAutomationRuns.$inferSelect
