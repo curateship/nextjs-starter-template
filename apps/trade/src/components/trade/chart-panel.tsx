@@ -818,8 +818,8 @@ export function ChartPanel({
   )
   const tradingMoveGridRange = trading.moveGridRange
   const onMoveGridRange = React.useCallback(
-    (one: SmartGrid, range: { topPx: number; bottomPx: number }) =>
-      tradingMoveGridRange(one.walletId, one.id, range),
+    (one: SmartGrid, move: { end: "top" | "bottom"; px: number }) =>
+      tradingMoveGridRange(one.walletId, one.id, move),
     [tradingMoveGridRange]
   )
   const tradingMoveGridExit = trading.moveGridExit

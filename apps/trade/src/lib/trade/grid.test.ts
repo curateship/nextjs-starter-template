@@ -11,8 +11,10 @@ import {
   gridLiquidationPx,
   gridManualPcts,
   gridOrderPlan,
+  gridRangeAfterMove,
+  gridRangeEndMovable,
   gridRangeFromClick,
-  gridRangeMovable,
+  gridRangeReshapable,
   gridRowLevelIndex,
   gridRowPctsFromLevels,
   gridRowRungNumber,
@@ -374,28 +376,129 @@ describe("reading a stored grid back", () => {
   })
 
   it("lets the range move while the grid holds nothing", () => {
-    expect(gridRangeMovable(plan)).toBe(true)
+    expect(gridRangeEndMovable(plan, "top")).toBe(true)
+    expect(gridRangeEndMovable(plan, "bottom")).toBe(true)
   })
 
-  it("locks the range once a level is holding", () => {
-    // That level bought at its own price and sells one step above it. Sliding
-    // the range under it would leave it selling coins it never paid that price
-    // for, which is the lump this order type exists to avoid.
+  it("compresses around one open entry but does not re-slice it", () => {
+    const held = {
+      ...plan,
+      levels: [
+        plan.levels[0],
+        { ...plan.levels[1], status: "holding" as const },
+      ],
+    }
+    expect(gridRangeEndMovable(held, "top")).toBe(true)
+    expect(gridRangeReshapable(held)).toBe(false)
+    expect(gridRangeAfterMove(held, { end: "top", px: 110 })).toEqual({
+      topPx: 110,
+      bottomPx: 70,
+    })
+    const moved = gridRangeAfterMove(held, { end: "top", px: 110 })
     expect(
-      gridRangeMovable({
-        levels: [{ ...plan.levels[0], status: "holding" }, plan.levels[1]],
-      })
-    ).toBe(false)
+      gridLevels({
+        ...moved!,
+        levels: held.levels.length,
+        spacing: held.spacing,
+        direction: held.direction,
+      })[1].buyPx
+    ).toBe(90)
+  })
+
+  it("keeps a percent-spaced open entry fixed", () => {
+    const held = {
+      ...plan,
+      topPx: 100,
+      bottomPx: 81,
+      spacing: "compounding" as const,
+      levels: [
+        { ...plan.levels[0], buyPx: 81, sellPx: 90 },
+        {
+          ...plan.levels[1],
+          buyPx: 90,
+          sellPx: 100,
+          status: "holding" as const,
+        },
+      ],
+    }
+    const moved = gridRangeAfterMove(held, { end: "top", px: 121 })
+    expect(moved?.topPx).toBe(121)
+    const levels = gridLevels({
+      ...moved!,
+      levels: held.levels.length,
+      spacing: held.spacing,
+      direction: held.direction,
+    })
+    expect(levels[1].buyPx).toBeCloseTo(90, 9)
+  })
+
+  it("keeps a selling grid's first open entry fixed", () => {
+    const held = {
+      ...plan,
+      direction: "short" as const,
+      levels: [
+        {
+          ...plan.levels[0],
+          buyPx: 90,
+          sellPx: 80,
+          status: "holding" as const,
+        },
+        { ...plan.levels[1], buyPx: 100, sellPx: 90 },
+      ],
+    }
+    const moved = gridRangeAfterMove(held, { end: "bottom", px: 70 })
+    expect(moved).toEqual({ topPx: 110, bottomPx: 70 })
+    expect(
+      gridLevels({
+        ...moved!,
+        levels: held.levels.length,
+        spacing: held.spacing,
+        direction: held.direction,
+      })[0].buyPx
+    ).toBe(90)
+  })
+
+  it("does not move an end that is itself the open entry", () => {
+    const heldAtBottom = {
+      ...plan,
+      levels: [
+        { ...plan.levels[0], status: "holding" as const },
+        plan.levels[1],
+      ],
+    }
+    expect(gridRangeEndMovable(heldAtBottom, "bottom")).toBe(false)
+    expect(gridRangeEndMovable(heldAtBottom, "top")).toBe(true)
+  })
+
+  it("locks the range once two levels or an older range are holding", () => {
+    const twoHeld = {
+      ...plan,
+      levels: plan.levels.map((level) => ({
+        ...level,
+        status: "holding" as const,
+      })),
+    }
+    expect(gridRangeEndMovable(twoHeld, "top")).toBe(false)
+    expect(gridRangeEndMovable(twoHeld, "bottom")).toBe(false)
+    const carried = {
+      ...plan,
+      carriedLevels: [{ ...plan.levels[0], status: "holding" as const }],
+    }
+    expect(gridRangeEndMovable(carried, "top")).toBe(false)
+    expect(gridRangeEndMovable(carried, "bottom")).toBe(false)
   })
 
   it("has nothing to move once every level is called off", () => {
+    const cancelled = {
+      ...plan,
+      levels: plan.levels.map((one) => ({
+        ...one,
+        status: "cancelled" as const,
+      })),
+    }
     expect(
-      gridRangeMovable({
-        levels: plan.levels.map((one) => ({
-          ...one,
-          status: "cancelled" as const,
-        })),
-      })
+      gridRangeEndMovable(cancelled, "top") ||
+        gridRangeEndMovable(cancelled, "bottom")
     ).toBe(false)
   })
 })

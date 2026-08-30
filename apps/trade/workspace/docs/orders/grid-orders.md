@@ -92,8 +92,8 @@ can only fall to zero, so the most it costs you is $100. A coin you sold at
 $100 has no ceiling: at $300 you owe $200 for every $100 you sold, and with
 borrowing the exchange closes you out long before that. So a selling grid whose
 stop sits at or past the exchange's close-out price is refused before anything
-is placed, with a sentence saying what to change. `../rules/trading-rules.md` holds that
-rule.
+is placed or its range is moved, with a sentence saying what to change.
+`../rules/trading-rules.md` holds that rule.
 
 A worked example on a $10,000 account, coin at $100:
 
@@ -206,11 +206,16 @@ past a dormant level and comes back down to it, it buys there, at its own price,
 and sells one step up like every other level. A level price never visits simply
 never trades, and that costs nothing.
 
-One consequence worth knowing: while a grid is holding anything, its range
-cannot be dragged. That level bought at its own price and sells one step above
-it, so sliding the range under it would leave it selling coins it never paid
-that price for. A grid holds nothing for most of its life, so most of the time
-the range moves freely.
+The range stays adjustable after the first level opens. That entry price is the
+fixed point. Dragging Upper price or Lower price spreads the waiting levels out
+or pulls them in around it. The grid keeps the chosen equal-dollar or
+equal-percent spacing, every rung keeps its share of the money, and the open
+level keeps its entry, coins and budget. Its exit moves with the new spacing.
+
+An edge that is itself the open entry has no grip because moving it would move
+the entry. The other edge still works. Once two levels are open, or an older
+followed range still holds coin, both edges lock. One evenly spaced grid cannot
+change width while keeping two entry prices fixed.
 
 ## A trade needs space before a nearby level
 
@@ -297,10 +302,10 @@ the equal split and keeps the typed rows for next time.
 
 **A hand-set split never changes size when price moves.** A grid that follows
 price up or down redraws its levels at new prices, and each rung keeps exactly
-the share that was typed for it. The same is true of dragging the range on the
-chart. A grid reversing from long to short turns the shares over, the same move
-the window makes when the direction is switched by hand, so the reversed grid
-comes out as the mirror of the one it replaced.
+the share that was typed for it. Dragging the range does the same, including
+when one entry is open. A grid reversing from long to short turns the shares
+over, the same move the window makes when the direction is switched by hand,
+so the reversed grid comes out as the mirror of the one it replaced.
 
 Both windows have the card. On a running grid it is beside Slices, and like
 every other re-slice it can only be changed while the grid holds no coin.

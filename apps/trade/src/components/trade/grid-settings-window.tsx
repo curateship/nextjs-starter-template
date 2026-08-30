@@ -12,6 +12,7 @@ import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -37,7 +38,7 @@ import {
   gridEvenRungPcts,
   gridLevelPctsFromRows,
   gridRowPctsFromLevels,
-  gridRangeMovable,
+  gridRangeReshapable,
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungPctsFit,
@@ -298,7 +299,7 @@ function StopForm({
     parsedLeverage >= 1 &&
     parsedLeverage <= maxBorrowing
   )
-  const canReshape = gridRangeMovable(plan)
+  const canReshape = gridRangeReshapable(plan)
   const fixedLeverage = positionLeverage ?? pairedLeverage
 
   // ----- The hand-set split ----------------------------------------------
@@ -538,19 +539,29 @@ function StopForm({
                   >
                     Levels
                   </FieldLabel>
-                  <Input
-                    id="grid-edit-levels"
-                    inputMode="numeric"
-                    value={levels}
-                    aria-invalid={showValidation && badLevels}
-                    disabled={busy}
-                    onChange={(event) => {
-                      setShowValidation(false)
-                      setLevels(event.target.value)
-                    }}
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
+                  <DisabledReason
+                    disabled={busy || !canReshape}
+                    reason={
+                      busy
+                        ? "Trade is saving another change."
+                        : "The level count can change only while the grid holds no coin. With one open entry, the range lines can still compress or expand around it."
+                    }
+                    className="w-full"
+                  >
+                    <Input
+                      id="grid-edit-levels"
+                      inputMode="numeric"
+                      value={levels}
+                      aria-invalid={showValidation && badLevels}
+                      disabled={busy || !canReshape}
+                      onChange={(event) => {
+                        setShowValidation(false)
+                        setLevels(event.target.value)
+                      }}
+                      onBlur={() => setShowValidation(true)}
+                      className="bg-background"
+                    />
+                  </DisabledReason>
                 </>
               )}
               {step !== null ? (
@@ -571,19 +582,29 @@ function StopForm({
               >
                 Share of account %
               </FieldLabel>
-              <Input
-                id="grid-edit-pot"
-                inputMode="decimal"
-                value={potPct}
-                aria-invalid={showValidation && badPot}
-                disabled={busy}
-                onChange={(event) => {
-                  setShowValidation(false)
-                  setPotPct(event.target.value)
-                }}
-                onBlur={() => setShowValidation(true)}
-                className="bg-background"
-              />
+              <DisabledReason
+                disabled={busy || !canReshape}
+                reason={
+                  busy
+                    ? "Trade is saving another change."
+                    : "The account share can change only while the grid holds no coin. With one open entry, the range lines can still compress or expand around it."
+                }
+                className="w-full"
+              >
+                <Input
+                  id="grid-edit-pot"
+                  inputMode="decimal"
+                  value={potPct}
+                  aria-invalid={showValidation && badPot}
+                  disabled={busy || !canReshape}
+                  onChange={(event) => {
+                    setShowValidation(false)
+                    setPotPct(event.target.value)
+                  }}
+                  onBlur={() => setShowValidation(true)}
+                  className="bg-background"
+                />
+              </DisabledReason>
             </div>
             <div className="grid gap-2">
               <FieldLabel

@@ -15,7 +15,8 @@ import {
   exitSide,
   gridEndAfterRangeMove,
   gridLevels,
-  gridRangeMovable,
+  gridRangeAfterMove,
+  gridRangeEndMovable,
   gridStopBeyond,
   gridStopPx,
   gridTakeProfitPx,
@@ -36,8 +37,8 @@ import { cn } from "@/lib/utils"
  * state says what it is, and a waiting level's × calls just that level off —
  * permanently, which is the one thing here that does not come back.
  *
- * None of these lines drag. A grid's prices are frozen at placement, exactly as
- * a ladder's rungs are, and the label says so on hover.
+ * A flat grid can move freely. With one level open, the outer lines compress
+ * or expand the waiting prices around that fixed entry.
  */
 
 export const GridLayer = React.memo(function GridLayer({
@@ -78,7 +79,7 @@ export const GridLayer = React.memo(function GridLayer({
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (
     grid: SmartGrid,
-    range: { topPx: number; bottomPx: number }
+    move: { end: "top" | "bottom"; px: number }
   ) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
@@ -247,13 +248,15 @@ function edgeTitle(
   const where = end === "top" ? "top" : "bottom"
   if (level === null) {
     return movable
-      ? `Drag to move the ${where} of the range. Only until the grid opens something.`
-      : `The ${where} of the range. It is fixed now the grid has started trading.`
+      ? `Drag to move the ${where} of the range. If one entry is open, its price stays fixed while the other prices spread out or pull in.`
+      : `The ${where} of the range. It is fixed because more than one entry is open, or an older range still holds coin.`
   }
   if (level.holding !== null) {
-    return `The ${where} of the range, and the deepest thing it holds.`
+    return `The ${where} of the range is an open entry, so it stays fixed. Drag the other edge instead.`
   }
-  return `The ${where} of the range, and its deepest ${entrySide(direction)}. Drag to move it.`
+  return movable
+    ? `The ${where} of the range, and its deepest ${entrySide(direction)}. Drag to move it.`
+    : `The ${where} of the range, and its deepest ${entrySide(direction)}. It is fixed because more than one entry is open, or an older range still holds coin.`
 }
 
 /** What one level line says on hover, in the words of the grid it belongs to. */
@@ -372,7 +375,7 @@ function GridLines({
   reverseDisabledReason: (grid: SmartGrid) => string | null
   onMoveRange: (
     grid: SmartGrid,
-    range: { topPx: number; bottomPx: number }
+    move: { end: "top" | "bottom"; px: number }
   ) => Promise<boolean>
   onMoveExit: (
     grid: SmartGrid,
@@ -400,11 +403,10 @@ function GridLines({
   // While a paint tool is held, these controls must not steal its presses.
   const controls = tool ? "none" : "auto"
 
-  // The range can only be moved before anything has bought — see
-  // `gridRangeMovable`. After that the handles are simply not there, rather
-  // than there and refusing, so the chart never offers something it will say no
-  // to.
-  const movable = gridRangeMovable(plan)
+  // One open entry becomes the fixed point. Its own edge, when it sits on an
+  // edge, has no grip; every other valid end stays available.
+  const topMovable = gridRangeEndMovable(plan, "top")
+  const bottomMovable = gridRangeEndMovable(plan, "bottom")
   // The end being dragged, as a price, while the pointer is down.
   const [dragging, setDragging] = React.useState<{
     end: DragEnd
@@ -464,20 +466,14 @@ function GridLines({
         if (px === null || !(px > 0)) return
         // A drag that ends where it started is a click, not a move.
         if (Math.abs(from - px) < 1e-9) return
+        const rangeEnd = which === "top" || which === "bottom"
+        if (rangeEnd && !gridRangeAfterMove(plan, { end: which, px })) return
         // Shown where it was dropped from this moment on, so letting go looks
         // like the end of the move rather than the start of a wait.
         setPending({ end: which, px, was: savedFor(which) })
-        const settled =
-          which === "top" || which === "bottom"
-            ? (() => {
-                const next =
-                  which === "top"
-                    ? { topPx: px, bottomPx: plan.bottomPx }
-                    : { topPx: plan.topPx, bottomPx: px }
-                if (!(next.topPx > next.bottomPx)) return null
-                return onMoveRange(grid, next)
-              })()
-            : onMoveExit(grid, which, px)
+        const settled = rangeEnd
+          ? onMoveRange(grid, { end: which, px })
+          : onMoveExit(grid, which, px)
         // A refused move never changes the plan, so nothing would clear the
         // held price and the line would sit at a price it never reached.
         if (!settled) setPending(null)
@@ -515,8 +511,22 @@ function GridLines({
     if (pending?.end === end && pending.was === saved) return pending.px
     return saved
   }
-  const shownTop = showing("top", plan.topPx) ?? plan.topPx
-  const shownBottom = showing("bottom", plan.bottomPx) ?? plan.bottomPx
+  const activeRangeMove = (() => {
+    if (dragging?.end === "top" || dragging?.end === "bottom") {
+      return { end: dragging.end, px: dragging.px }
+    }
+    if (
+      (pending?.end === "top" || pending?.end === "bottom") &&
+      pending.was === savedFor(pending.end)
+    ) {
+      return { end: pending.end, px: pending.px }
+    }
+    return null
+  })()
+  const shownRange =
+    (activeRangeMove && gridRangeAfterMove(plan, activeRangeMove)) ?? plan
+  const shownTop = shownRange.topPx
+  const shownBottom = shownRange.bottomPx
 
   // The band fills whatever part of the range is on screen. The two names are
   // always drawn — pinned to the chart's edge with an arrow when their own
@@ -550,7 +560,6 @@ function GridLines({
    * `gridLevels` the server uses, so what is drawn while dragging is what will
    * be saved.
    */
-  const shownRange = { topPx: shownTop, bottomPx: shownBottom }
   const movingLevels = rangeMoved
     ? gridLevels({
         ...shownRange,
@@ -628,16 +637,27 @@ function GridLines({
       {/* While the range is moving, the levels it WOULD have — plain lines with
           a price, since they are not yet anything to cancel. */}
       {movingLevels?.map((level, index) => {
-        const y = yFor(level.buyPx)
+        const saved = plan.levels[index]
+        const holding = saved.status === "holding"
+        const px = holding ? saved.buyPx : level.buyPx
+        const y = yFor(px)
         if (y === null) return null
         return (
           <ChartLine
             key={`moving-${index}`}
             y={y}
-            colour={sideColour(entrySide(direction))}
+            usd={holding ? saved.buyPx * saved.heldSz : undefined}
+            colour={sideColour(
+              holding ? exitSide(direction) : entrySide(direction)
+            )}
             name={null}
             dashed={false}
-            faded
+            faded={!holding}
+            title={
+              holding
+                ? `Opened at ${formatPrice(saved.buyPx)}. The entry stays fixed while the other levels move.`
+                : undefined
+            }
           />
         )
       })}
@@ -679,9 +699,8 @@ function GridLines({
           )
         })}
 
-      {/* The two ends of the range — named, blue, and draggable while nothing
-          has bought. These are the thing you set, so they are the only lines
-          here that carry a name and a grip. */}
+      {/* The two ends of the range. One open level stays fixed while these
+          compress or expand the other prices around it. */}
       {pinBottom ? (
         <ChartLine
           y={pinBottom.y}
@@ -693,9 +712,11 @@ function GridLines({
           colour={colors.primary}
           name="LOWER PRICE"
           dashed={pinBottom.off !== null}
-          grip={movable && grippable}
-          onGripDown={movable ? startDrag("bottom", plan.bottomPx) : undefined}
-          title={edgeTitle(direction, "bottom", bottomLevel, movable)}
+          grip={bottomMovable && grippable}
+          onGripDown={
+            bottomMovable ? startDrag("bottom", plan.bottomPx) : undefined
+          }
+          title={edgeTitle(direction, "bottom", bottomLevel, bottomMovable)}
           action={
             bottomLevel?.entry != null ? (
               <button
@@ -724,9 +745,9 @@ function GridLines({
           colour={colors.primary}
           name="UPPER PRICE"
           dashed={pinTop.off !== null}
-          grip={movable && grippable}
-          onGripDown={movable ? startDrag("top", plan.topPx) : undefined}
-          title={edgeTitle(direction, "top", topLevel, movable)}
+          grip={topMovable && grippable}
+          onGripDown={topMovable ? startDrag("top", plan.topPx) : undefined}
+          title={edgeTitle(direction, "top", topLevel, topMovable)}
           action={
             <>
               {topLevel?.entry != null ? (
@@ -1000,7 +1021,8 @@ export function gridLineObstacles(
   for (const grid of grids) {
     if (grid.marketKey !== marketKey) continue
     const plan = grid.plan
-    const movable = gridRangeMovable(plan)
+    const topMovable = gridRangeEndMovable(plan, "top")
+    const bottomMovable = gridRangeEndMovable(plan, "bottom")
     const deepPx = lossEdge(plan.direction, plan)
 
     for (const at of pricesOf(plan)) {
@@ -1016,7 +1038,7 @@ export function gridLineObstacles(
       pricesOf(plan).find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
     add(
       plan.bottomPx,
-      nameWidth("LOWER PRICE", movable) +
+      nameWidth("LOWER PRICE", bottomMovable) +
         (plan.direction === "long" && deepLevel
           ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
             usdWidth(deepLevel.usd)
@@ -1024,7 +1046,7 @@ export function gridLineObstacles(
     )
     add(
       plan.topPx,
-      nameWidth("UPPER PRICE", movable) +
+      nameWidth("UPPER PRICE", topMovable) +
         (plan.direction === "short" && deepLevel
           ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
             usdWidth(deepLevel.usd)

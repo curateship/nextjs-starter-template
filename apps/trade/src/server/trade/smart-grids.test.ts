@@ -851,15 +851,15 @@ describe("moving the range", () => {
 
     await moveGridRange(userId, wallet, {
       gridId: (await onlyGrid()).id,
-      topPx: 160,
-      bottomPx: 120,
+      end: "top",
+      px: 160,
     })
 
     const grid = await onlyGrid()
     expect(grid.plan.topPx).toBe(160)
-    expect(grid.plan.bottomPx).toBe(120)
+    expect(grid.plan.bottomPx).toBe(80)
     expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
-      120, 130, 140, 150,
+      80, 100, 120, 140,
     ])
     // Nothing to swap on the book: there was never anything resting.
     expect(await orders()).toHaveLength(0)
@@ -869,13 +869,13 @@ describe("moving the range", () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await moveGridRange(userId, wallet, {
       gridId: (await onlyGrid()).id,
-      topPx: 160,
-      bottomPx: 120,
+      end: "bottom",
+      px: 60,
     })
     const grid = await onlyGrid()
     expect(grid.plan.stopLoss?.underPct).toBe(5)
     // And it follows the new bottom, because that is what it hangs off.
-    expect(gridStopPx(grid.plan)).toBeCloseTo(114, 9)
+    expect(gridStopPx(grid.plan)).toBeCloseTo(57, 9)
   })
 
   it("can be moved again and again while it holds nothing", async () => {
@@ -884,26 +884,27 @@ describe("moving the range", () => {
 
     await moveGridRange(userId, wallet, {
       gridId: id,
-      topPx: 240,
-      bottomPx: 160,
+      end: "top",
+      px: 240,
     })
     expect((await onlyGrid()).plan.topPx).toBe(240)
 
     await moveGridRange(userId, wallet, {
       gridId: id,
-      topPx: 260,
-      bottomPx: 170,
+      end: "top",
+      px: 260,
     })
     expect((await onlyGrid()).plan.topPx).toBe(260)
 
     await moveGridRange(userId, wallet, {
       gridId: id,
-      topPx: 150,
-      bottomPx: 100,
+      end: "bottom",
+      px: 100,
     })
     const grid = await onlyGrid()
     expect(grid.status).toBe("active")
-    expect(grid.plan.topPx).toBe(150)
+    expect(grid.plan.topPx).toBe(260)
+    expect(grid.plan.bottomPx).toBe(100)
     // Not one order in all of that. Moving a range that owns nothing is free.
     expect(await positions()).toHaveLength(0)
     expect(await orders()).toHaveLength(0)
@@ -916,8 +917,13 @@ describe("moving the range", () => {
     await moveGridRange(userId, wallet, {
       gridId: (await onlyGrid()).id,
       // Price is 200. A top of 240 puts two levels above it.
-      topPx: 240,
-      bottomPx: 160,
+      end: "top",
+      px: 240,
+    })
+    await moveGridRange(userId, wallet, {
+      gridId: (await onlyGrid()).id,
+      end: "bottom",
+      px: 160,
     })
 
     const grid = await onlyGrid()
@@ -934,23 +940,75 @@ describe("moving the range", () => {
     expect((await onlyGrid()).status).toBe("active")
   })
 
-  it("refuses to move a range once a level is holding", async () => {
-    // That level bought at its own price and sells one step above it. Sliding
-    // the range under it would leave it selling coins it never paid that price
-    // for, which is the lump this order type exists to avoid.
-    await place()
+  it("compresses around one open entry without moving its price or money", async () => {
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
     await priceTo(109)
+    const before = await onlyGrid()
+    const heldBefore = before.plan.levels[3]
+    const budgets = before.plan.levels.map((one) => one.budget)
+
+    await moveGridRange(userId, wallet, {
+      gridId: before.id,
+      end: "top",
+      px: 124,
+    })
+
+    const after = await onlyGrid()
+    const heldAfter = after.plan.levels[3]
+    expect(after.plan).toMatchObject({ topPx: 124, bottomPx: 68 })
+    expect(heldAfter).toMatchObject({
+      status: "holding",
+      buyPx: heldBefore.buyPx,
+      heldSz: heldBefore.heldSz,
+      budget: heldBefore.budget,
+      sellPx: 124,
+    })
+    expect(after.plan.levels.map((one) => one.budget)).toEqual(budgets)
+    expect(after.plan.manualRungPcts).toEqual(before.plan.manualRungPcts)
+    expect((await positions())[0].szi).toBeCloseTo(heldBefore.heldSz, 9)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("refuses a selling-grid move that puts its stop past liquidation", async () => {
+    await priceTo(70)
+    await place({
+      direction: "short",
+      leverage: 4,
+      stopLoss: { underPct: 5, base: null },
+    })
+    await priceTo(90)
+    const before = await onlyGrid()
     expect(
-      (await onlyGrid()).plan.levels.some((one) => one.status === "holding")
-    ).toBe(true)
+      before.plan.levels.filter((one) => one.status === "holding")
+    ).toHaveLength(1)
 
     await expect(
       moveGridRange(userId, wallet, {
-        gridId: (await onlyGrid()).id,
-        topPx: 240,
-        bottomPx: 160,
+        gridId: before.id,
+        end: "top",
+        px: 130,
       })
-    ).rejects.toThrow("SMART_GRID_STARTED")
+    ).rejects.toThrow("SMART_GRID_STOP_PAST_LIQUIDATION")
+
+    const after = await onlyGrid()
+    expect(after.plan).toEqual(before.plan)
+  })
+
+  it("locks once two entries are open", async () => {
+    await place()
+    await priceTo(99)
+    const before = await onlyGrid()
+    expect(
+      before.plan.levels.filter((one) => one.status === "holding")
+    ).toHaveLength(2)
+
+    await expect(
+      moveGridRange(userId, wallet, {
+        gridId: before.id,
+        end: "top",
+        px: 124,
+      })
+    ).rejects.toThrow("SMART_GRID_RANGE_FIXED")
   })
 
   it("refuses an upside-down move, and changes nothing", async () => {
@@ -959,8 +1017,8 @@ describe("moving the range", () => {
     await expect(
       moveGridRange(userId, wallet, {
         gridId: (await onlyGrid()).id,
-        topPx: 90,
-        bottomPx: 150,
+        end: "top",
+        px: 70,
       })
     ).rejects.toThrow("SMART_GRID_RANGE")
     expect((await onlyGrid()).plan.levels.map((one) => one.buyPx)).toEqual(
@@ -1004,10 +1062,15 @@ describe("re-slicing a running grid", () => {
     await place({ takeProfitPct: 5 })
     const id = (await onlyGrid()).id
 
-    await reshapeGrid(userId, wallet, {
+    await moveGridRange(userId, wallet, {
       gridId: id,
-      topPx: 100,
-      bottomPx: 60,
+      end: "top",
+      px: 100,
+    })
+    await moveGridRange(userId, wallet, {
+      gridId: id,
+      end: "bottom",
+      px: 60,
     })
 
     const grid = await onlyGrid()
@@ -1048,19 +1111,20 @@ describe("re-slicing a running grid", () => {
   })
 
   it("keeps a hand-set split when the range is dragged", async () => {
-    // The chart sends two prices and nothing else. Without the fallback to the
-    // grid's own shares, a drag would quietly redraw it split evenly.
+    // The chart sends one edge and nothing about sizing. Without the fallback
+    // to the grid's own shares, a drag would quietly redraw it split evenly.
     await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
     const id = (await onlyGrid()).id
 
     await moveGridRange(userId, wallet, {
       gridId: id,
-      topPx: 100,
-      bottomPx: 60,
+      end: "bottom",
+      px: 60,
     })
 
     const grid = await onlyGrid()
-    expect(grid.plan.topPx).toBe(100)
+    expect(grid.plan.topPx).toBe(120)
+    expect(grid.plan.bottomPx).toBe(60)
     expect(grid.plan.manualSizing).toBe(true)
     expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
       800, 600, 400, 200,

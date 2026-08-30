@@ -443,15 +443,11 @@ export type Trading = {
   ) => Promise<void>
   /** Stop the grid buying: calls off every waiting level, keeps what's held. */
   cancelGrid: (walletId: string, gridId: string) => Promise<void>
-  /**
-   * Drag an end of a grid's range. Only while nothing has bought — after that
-   * the server refuses, because levels that have bought sell against the price
-   * they bought at.
-   */
+  /** Drag one end of a grid range, compressing around one fixed open entry. */
   moveGridRange: (
     walletId: string,
     gridId: string,
-    range: { topPx: number; bottomPx: number }
+    move: { end: "top" | "bottom"; px: number }
   ) => Promise<boolean>
   /**
    * Re-slice a running grid: how many levels it has, and what share of the
@@ -2044,7 +2040,7 @@ export function useTrading(
   )
 
   const moveGridRange: Trading["moveGridRange"] = React.useCallback(
-    async (walletId, gridId, range) => {
+    async (walletId, gridId, move) => {
       // No toast. Dragging a line is a direct thing — the line moves and you
       // can see it — and a message for every nudge is noise. Errors still say
       // so, because a refused drag looks exactly like one that worked.
@@ -2055,7 +2051,7 @@ export function useTrading(
       // server hands the saved grid back, so there is nothing to re-read:
       // one write, no refresh, and the poll agrees a few seconds later.
       try {
-        const { grid } = await moveGridRangeApi({ walletId, gridId, ...range })
+        const { grid } = await moveGridRangeApi({ walletId, gridId, ...move })
         holdSmart(grid)
         return true
       } catch (error) {

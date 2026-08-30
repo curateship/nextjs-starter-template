@@ -9,14 +9,19 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
   gridEndPx,
+  gridLevelSize,
+  gridLevels,
   gridLevelPctsFromRows,
   gridLiquidationPx,
   gridOrderPlan,
-  gridRangeMovable,
+  gridRangeAfterMove,
+  gridRangeEndMovable,
+  gridRangeReshapable,
   gridRowPctsFromLevels,
   gridRungNumber,
   gridRungPctsFit,
   gridRungPctsSum,
+  gridStepPct,
   gridStopBeyond,
   gridStopPx,
   heldWrongWay,
@@ -29,6 +34,7 @@ import {
   type GridLevelState,
   type GridParams,
   type GridPlan,
+  type GridRangeEnd,
   type GridStop,
 } from "@/lib/trade/grid"
 import { paperAccountFigures } from "@/lib/trade/paper"
@@ -774,13 +780,19 @@ export type ReshapeGridShape = {
   manualRungPcts?: number[]
 }
 
+export type MoveGridRangeInput = {
+  gridId: string
+  end: GridRangeEnd
+  px: number
+}
+
 /**
  * Which split a re-shaped grid is redrawn on, from what the window sent and
  * what the grid already had.
  *
  * **The fallback to the grid's own percentages is what makes a hand-set grid
- * survive a range drag.** Dragging the range on the chart sends two prices and
- * nothing else through this same door, so without the fallback the grid would
+ * survive a range drag.** Dragging the range on the chart sends one edge and
+ * nothing about sizing through this same door, so without the fallback it would
  * come back split evenly and the shape somebody typed would be gone with no
  * warning. Shared by the practice and the live path so the two cannot drift.
  *
@@ -816,6 +828,128 @@ export function reshapedGridSplit(
 }
 
 /**
+ * Compress or expand a grid around its one open entry.
+ *
+ * The entry price and the money assigned to every level stay fixed. Waiting
+ * levels take their new prices and re-size from those same budgets. The open
+ * level keeps its actual coins and entry, while its exit moves with the new
+ * spacing. This is deliberately separate from re-slicing, which changes the
+ * level count or money and still requires a flat grid.
+ */
+export function gridPlanAfterRangeMove(input: {
+  plan: GridPlan
+  move: Omit<MoveGridRangeInput, "gridId">
+  mark: number
+  roundPx: (px: number) => number
+  takerFeeRate: number
+}): GridPlan {
+  const { plan, move, mark, roundPx } = input
+  if (!gridRangeEndMovable(plan, move.end)) {
+    throw new Error("SMART_GRID_RANGE_FIXED")
+  }
+
+  const moved = gridRangeAfterMove(plan, {
+    end: move.end,
+    px: roundPx(move.px),
+  })
+  if (!moved) throw new Error("SMART_GRID_RANGE")
+  const topPx = roundPx(moved.topPx)
+  const bottomPx = roundPx(moved.bottomPx)
+  if (!(topPx > bottomPx) || !(bottomPx > 0)) {
+    throw new Error("SMART_GRID_RANGE")
+  }
+
+  const prices = gridLevels({
+    topPx,
+    bottomPx,
+    levels: plan.levels.length,
+    spacing: plan.spacing,
+    direction: plan.direction,
+  }).map((level, index) => ({
+    // An open level is the fixed point. Rounding the two outer prices can
+    // otherwise move the derived middle price by one market tick.
+    buyPx:
+      plan.levels[index].status === "holding"
+        ? plan.levels[index].buyPx
+        : roundPx(level.buyPx),
+    sellPx: roundPx(level.sellPx),
+  }))
+  if (
+    prices.length !== plan.levels.length ||
+    prices.some(
+      (level) =>
+        !(level.buyPx > 0) ||
+        !readyWhen(plan.direction, level.sellPx, level.buyPx)
+    )
+  ) {
+    throw new Error("SMART_GRID_RANGE")
+  }
+  if (gridStepPct(prices) <= input.takerFeeRate * GRID_STEP_FEE_MULTIPLE) {
+    throw new Error("SMART_GRID_STEP_TOO_THIN")
+  }
+
+  const levels = plan.levels.map((level, index): GridLevelState => {
+    const price = prices[index]
+    if (level.status === "holding") {
+      return { ...level, sellPx: price.sellPx }
+    }
+    if (level.status === "cancelled") {
+      return { ...level, buyPx: price.buyPx, sellPx: price.sellPx }
+    }
+
+    const { rebuyAbove: _rebuyAbove, ...waiting } = level
+    const repriced = { ...waiting, buyPx: price.buyPx, sellPx: price.sellPx }
+    const sz = gridLevelSize(repriced, plan.sizeDecimals)
+    if (sz <= 0 || price.buyPx * sz + 1e-9 < plan.minOrderValueUsd) {
+      throw new Error(
+        plan.manualSizing
+          ? `SMART_GRID_RUNG_TOO_SMALL:${gridRungNumber(index, plan.levels.length, plan.direction)}`
+          : `SMART_GRID_LEVEL_TOO_SMALL:${index + 1}`
+      )
+    }
+    return {
+      ...repriced,
+      sz,
+      armed: readyWhen(plan.direction, mark, price.buyPx),
+    }
+  })
+
+  const next: GridPlan = {
+    ...plan,
+    topPx,
+    bottomPx,
+    levels,
+    takeProfitPx: (() => {
+      const px = gridEndAfterRangeMove(plan, { topPx, bottomPx }, mark)
+      return px === null ? null : roundPx(px)
+    })(),
+  }
+  const stopPx = gridStopPx(next)
+  if (next.direction === "short" && stopPx !== null) {
+    const liquidationPx = gridLiquidationPx({
+      direction: next.direction,
+      levels: next.levels,
+      leverage: next.leverage,
+      maxLeverage: next.maxLeverage,
+    })
+    if (
+      liquidationPx !== null &&
+      reachedEntry(next.direction, stopPx, liquidationPx)
+    ) {
+      throw new Error("SMART_GRID_STOP_PAST_LIQUIDATION")
+    }
+  }
+  next.levels = next.levels.map((level) => ({
+    ...level,
+    dead:
+      level.status === "waiting" &&
+      stopPx !== null &&
+      reachedEntry(plan.direction, level.buyPx, stopPx),
+  }))
+  return next
+}
+
+/**
  * Re-shaping a grid: a new range, a new level count, a new share of the
  * account, or any mix of them.
  *
@@ -828,11 +962,8 @@ export function reshapedGridSplit(
  *
  * Anything not given keeps what the grid already had.
  *
- * Allowed only while nothing is held. See `gridRangeMovable` for why: a level
- * that is holding bought at its own price and sells one step above it, so
- * sliding the range under it would leave that level selling coins it never paid
- * that price for. Nothing is held for most of a grid's life, so most of the
- * time the range moves freely.
+ * Re-slicing remains limited to a flat grid. A price-only move may compress or
+ * expand around one open entry through `gridPlanAfterRangeMove`.
  *
  * The new levels are drawn by the SAME planner that drew the first ones, with
  * the settings the grid was placed with, so a moved grid is exactly the grid
@@ -843,14 +974,22 @@ export async function reshapeGrid(
   wallet: TradeWallet,
   input: ReshapeGridShape & {
     gridId: string
-    topPx?: number
-    bottomPx?: number
+    rangeMove?: Omit<MoveGridRangeInput, "gridId">
   }
 ): Promise<MovedGrid> {
   const book = await settleWallet(userId, wallet)
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
-  if (!gridRangeMovable(plan)) throw new Error("SMART_GRID_STARTED")
+  const canReshape = gridRangeReshapable(plan)
+  const changesSlices =
+    input.levels !== undefined ||
+    input.potPct !== undefined ||
+    input.leverage !== undefined ||
+    input.manualSizing !== undefined ||
+    input.manualRungPcts !== undefined
+  if (!canReshape && (!input.rangeMove || changesSlices)) {
+    throw new Error("SMART_GRID_STARTED")
+  }
 
   const ref = parseMarketKey(grid.marketKey)
   if (!ref) throw new Error("PAPER_MARKET")
@@ -871,76 +1010,89 @@ export async function reshapeGrid(
     marks,
   })
 
-  const split = reshapedGridSplit(plan, input)
-  const draft = draftGridOrder({
-    marketKey: grid.marketKey,
-    params: {
-      // Frozen at placement. A re-shape redraws the prices; it never turns the
-      // grid round, because the levels belong to one side.
-      direction: plan.direction,
-      levels: split.levels,
-      potPct: input.potPct ?? plan.potPct,
-      compound: true,
-      leverage: input.leverage ?? plan.leverage,
-      maxOrderVolPct: plan.maxOrderVolPct,
-      spacing: plan.spacing,
-      sizing: plan.sizing,
-      manualSizing: split.manualSizing,
-      manualRungPcts: split.manualRungPcts,
-      follow: plan.follow,
-      followDown: plan.followDown,
-      // Only read when the window pre-fills; a re-shape has its own prices.
-      anchor: "price",
-      abovePct: DEFAULT_GRID_ABOVE_PCT,
-      rangePct: DEFAULT_GRID_BELOW_PCT,
-      baseDetection: plan.baseDetection,
-      stopLoss: plan.stopLoss
-        ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
-        : null,
-      takeProfitPct: null,
-      reverseWhenStopped: plan.reverseWhenStopped,
-    },
-    topPx: input.topPx ?? plan.topPx,
-    bottomPx: input.bottomPx ?? plan.bottomPx,
-    mark,
-    rules,
-    roundPx,
-    equity: figures.equity,
-    takerFeeRate: book.costs.takerFeeRate,
-    startedAt: plan.startedAt,
-    held: book.positions.get(grid.marketKey) ?? null,
-  })
+  let next: GridPlan
+  if (!canReshape && input.rangeMove) {
+    next = gridPlanAfterRangeMove({
+      plan,
+      move: input.rangeMove,
+      mark,
+      roundPx,
+      takerFeeRate: book.costs.takerFeeRate,
+    })
+  } else {
+    const movedRange = input.rangeMove
+      ? gridRangeAfterMove(plan, input.rangeMove)
+      : null
+    if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
+    const split = reshapedGridSplit(plan, input)
+    const draft = draftGridOrder({
+      marketKey: grid.marketKey,
+      params: {
+        // Frozen at placement. A re-shape redraws the prices; it never turns
+        // the grid round, because the levels belong to one side.
+        direction: plan.direction,
+        levels: split.levels,
+        potPct: input.potPct ?? plan.potPct,
+        compound: true,
+        leverage: input.leverage ?? plan.leverage,
+        maxOrderVolPct: plan.maxOrderVolPct,
+        spacing: plan.spacing,
+        sizing: plan.sizing,
+        manualSizing: split.manualSizing,
+        manualRungPcts: split.manualRungPcts,
+        follow: plan.follow,
+        followDown: plan.followDown,
+        // Only read when the window pre-fills; a re-shape has its own prices.
+        anchor: "price",
+        abovePct: DEFAULT_GRID_ABOVE_PCT,
+        rangePct: DEFAULT_GRID_BELOW_PCT,
+        baseDetection: plan.baseDetection,
+        stopLoss: plan.stopLoss
+          ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
+          : null,
+        takeProfitPct: null,
+        reverseWhenStopped: plan.reverseWhenStopped,
+      },
+      topPx: movedRange?.topPx ?? plan.topPx,
+      bottomPx: movedRange?.bottomPx ?? plan.bottomPx,
+      mark,
+      rules,
+      roundPx,
+      equity: figures.equity,
+      takerFeeRate: book.costs.takerFeeRate,
+      startedAt: plan.startedAt,
+      held: book.positions.get(grid.marketKey) ?? null,
+    })
 
-  // Everything about the grid except where it sits is carried over — the stop
-  // it was given, what it has seen, and when it started.
-  const next: GridPlan = {
-    ...draft.plan,
-    stopLoss: plan.stopLoss,
-    // Keep the chosen distance past whichever is already further into a win:
-    // the moved range or today's price.
-    takeProfitPx: (() => {
-      const px = gridEndAfterRangeMove(plan, draft.plan, mark)
-      return px === null ? null : roundPx(px)
-    })(),
-    takeProfitPct: plan.takeProfitPct,
-    baseWatch: plan.baseWatch,
-    aimedSlPx: plan.aimedSlPx,
-    seenFillsTo: plan.seenFillsTo,
-    // A move re-prices the levels; it does not reset the grid's history.
-    cycles: plan.cycles,
-    shifts: plan.shifts,
-    downShifts: plan.downShifts,
-    carriedLevels: plan.carriedLevels,
-    // A move re-prices levels; it does not forget which grid this one
-    // continues, nor a refusal already written on it.
-    reversedFrom: plan.reversedFrom,
-    reverseFailReason: plan.reverseFailReason,
+    // Everything about the grid except where it sits is carried over: the stop
+    // it was given, what it has seen, and when it started.
+    next = {
+      ...draft.plan,
+      stopLoss: plan.stopLoss,
+      // Keep the chosen distance past whichever is already further into a win:
+      // the moved range or today's price.
+      takeProfitPx: (() => {
+        const px = gridEndAfterRangeMove(plan, draft.plan, mark)
+        return px === null ? null : roundPx(px)
+      })(),
+      takeProfitPct: plan.takeProfitPct,
+      baseWatch: plan.baseWatch,
+      aimedSlPx: plan.aimedSlPx,
+      seenFillsTo: plan.seenFillsTo,
+      // A move re-prices the levels; it does not reset the grid's history.
+      cycles: plan.cycles,
+      shifts: plan.shifts,
+      downShifts: plan.downShifts,
+      carriedLevels: plan.carriedLevels,
+      // A move re-prices levels; it does not forget which grid this one
+      // continues, nor a refusal already written on it.
+      reversedFrom: plan.reversedFrom,
+      reverseFailReason: plan.reverseFailReason,
+    }
   }
 
-  // No orders to cancel, none to place, and no position to settle. Every
-  // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
-  // already refused this while anything was held — so there is nothing here
-  // that could be left describing a price it did not pay.
+  // No orders are sent by a range move. The one held level keeps its entry and
+  // coins; a flat grid redraws only waiting levels.
   const now = Date.now()
   await db.transaction(async (tx) => {
     await tx
@@ -1022,7 +1174,10 @@ export async function moveGridExit(
 export function moveGridRange(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; topPx: number; bottomPx: number }
+  input: MoveGridRangeInput
 ): Promise<MovedGrid> {
-  return reshapeGrid(userId, wallet, input)
+  return reshapeGrid(userId, wallet, {
+    gridId: input.gridId,
+    rangeMove: { end: input.end, px: input.px },
+  })
 }
