@@ -189,8 +189,78 @@ the sale keep working normally.
 
 ## How the money is split
 
-Share of account % sits in the Range card. The grid divides that money equally
-between every level. There is no sizing dropdown.
+Share of account % sits in the Range card and decides the total money. The grid
+then divides that money between its levels, and there are two ways it can:
+equally, which is what it does by default, or by hand.
+
+**By hand is the Rungs card.** Switching it on lists one row per rung, each
+holding a percentage of the money Share of account % set aside. The rows have to
+add up to 100, so the whole share is always used. The card says what they
+currently add up to, and refuses to place anything until it is 100. A grid on
+20% of a $10,000 account has $2,000 behind it, and four rungs at 10/20/30/40
+give the levels $200, $400, $600 and $800.
+
+**A selling grid's rungs run backwards down the chart from a buying grid's.**
+Tyler, 29 Aug 2026: *"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"*.
+
+The card's rows always run down the range, top first, and each row's share
+lands at the price beside it. What reverses with the direction is the number on
+the row: rung 1 is the first trade the grid makes, which is the top of the range
+on a buying grid, reached on the way down, and the bottom on a selling grid,
+reached on the way up.
+
+Switching between Long and Short turns the typed shares over in the boxes, so
+each rung keeps its share and the grid comes out mirrored:
+
+```
+LONG (buying) grid            SHORT (selling) grid
+range $80-$120                after switching the direction
+
+ rung   %   price  money      rung   %   price  money
+   1    5%   $112    $50        5   45%   $120   $450
+   2   10%   $104   $100        4   25%   $112   $250
+   3   15%    $96   $150        3   15%   $104   $150
+   4   25%    $88   $250        2   10%    $96   $100
+   5   45%    $80   $450        1    5%    $88    $50
+```
+
+A buying grid buys more the further price falls; the selling grid over the same
+range sells more the further price climbs.
+
+**The shares are held against prices, never against rung numbers.** That is a
+rule learned the hard way: three attempts held them against rung numbers, and
+each time the meaning of what was already saved changed under the new mapping,
+the card silently flipped what had been typed, and the grid on the chart came
+out exactly as it had been. Held against prices, what is on the card is what
+lands, and nothing saved is ever re-read to mean something else.
+
+The saved settings hold the card's rows, top of the range first. A placed grid's
+plan holds level order, lowest price first, which is what the engine reads. The
+two are mirror images with no direction in the conversion, and it happens in one
+place: the door every grid goes through.
+
+While the card is on, the rows are also how many levels the grid has: adding a
+rung adds a level, and the Levels box steps out of sight because the rows are
+already answering that question. Share of account % stays, because it is still
+setting the money being divided. Switching the card off puts the grid back on
+the equal split and keeps the typed rows for next time.
+
+**A hand-set split never changes size when price moves.** A grid that follows
+price up or down redraws its levels at new prices, and each rung keeps exactly
+the share that was typed for it. The same is true of dragging the range on the
+chart. A grid reversing from long to short turns the shares over, the same move
+the window makes when the direction is switched by hand, so the reversed grid
+comes out as the mirror of the one it replaced.
+
+Both windows have the card. On a running grid it is beside Slices, and like
+every other re-slice it can only be changed while the grid holds no coin.
+
+Two settings carry the choice: `manualSizing` and `manualRungPcts`, in level
+order, lowest price first. Both are additive fields with safe defaults, never a
+new value in the `sizing` list, so an older reader sees an evenly split grid
+rather than a row it cannot parse. That also means the engine ships with the app
+or before it: an older engine strips the two fields when it saves a plan back,
+which would flatten a hand-set grid to equal shares on its next move.
 
 Borrowing sits in Advanced settings and starts at 1×. The account share is the
 cash behind the grid. Borrowing changes how many dollars of coin that cash

@@ -9,9 +9,14 @@ import {
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
   gridEndPx,
+  gridLevelPctsFromRows,
   gridLiquidationPx,
   gridOrderPlan,
   gridRangeMovable,
+  gridRowPctsFromLevels,
+  gridRungNumber,
+  gridRungPctsFit,
+  gridRungPctsSum,
   gridStopBeyond,
   gridStopPx,
   heldWrongWay,
@@ -143,6 +148,26 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
   }
   const range = { topPx, bottomPx }
 
+  // A hand-set grid: one typed percentage per level, using the whole pot.
+  //
+  // Checked here rather than in the schema because `placeGridParamsSchema` has
+  // to stay a plain object — the API layer reads `.shape` off it — and because
+  // this is the one door every grid goes through, placed or reshaped, practice
+  // or real. The sum is checked before anything is drawn: a grid missing a
+  // tenth of its money is a grid nobody asked for.
+  if (params.manualSizing) {
+    if (
+      params.manualRungPcts === null ||
+      params.manualRungPcts.length !== params.levels
+    ) {
+      throw new Error("SMART_GRID_RUNG_COUNT")
+    }
+    if (!gridRungPctsFit(params.manualRungPcts)) {
+      const sum = Math.round(gridRungPctsSum(params.manualRungPcts) * 100) / 100
+      throw new Error(`SMART_GRID_RUNG_SUM:${sum}`)
+    }
+  }
+
   // A grid STRADDLES the price. That is the whole shape of it: the levels on
   // one side close what it holds, the ones on the other wait for a move, and
   // it earns from price crossing back and forth between them.
@@ -208,7 +233,15 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
       sz <= 0 ||
       buyPx * sz < orderFloor
     ) {
-      throw new Error(`SMART_GRID_LEVEL_TOO_SMALL:${index + 1}`)
+      // A hand-set grid names the RUNG that was typed, not the level. Rung 1
+      // is the first trade the grid makes — the top of the range on a buying
+      // grid, the bottom on a selling one — so the wrong number sends somebody
+      // to fix a box that was never the problem.
+      throw new Error(
+        params.manualSizing
+          ? `SMART_GRID_RUNG_TOO_SMALL:${gridRungNumber(index, drawn.levels.length, direction)}`
+          : `SMART_GRID_LEVEL_TOO_SMALL:${index + 1}`
+      )
     }
     totalCost += buyPx * sz
     return { buyPx, sellPx, sz }
@@ -304,6 +337,13 @@ export function draftGridOrder(input: GridDraftInput): GridDraft {
     takeProfitPct: params.takeProfitPct,
     spacing: params.spacing,
     sizing: params.sizing,
+    manualSizing: params.manualSizing,
+    // The settings speak in the card's rows, top of the range first; the plan
+    // and the engine speak in level order. Turned round exactly once, here.
+    manualRungPcts:
+      params.manualSizing && params.manualRungPcts
+        ? gridLevelPctsFromRows(params.manualRungPcts)
+        : null,
     potPct: params.potPct,
     startedAt: input.startedAt ?? 0,
     sizeDecimals: rules.sizeDecimals,
@@ -713,6 +753,56 @@ export async function updateGridEnd(
   return movedGrid(wallet.id, grid, plan, at)
 }
 
+/** What a window may change about how a running grid is sliced. */
+export type ReshapeGridShape = {
+  levels?: number
+  potPct?: number
+  leverage?: number
+  manualSizing?: boolean
+  manualRungPcts?: number[]
+}
+
+/**
+ * Which split a re-shaped grid is redrawn on, from what the window sent and
+ * what the grid already had.
+ *
+ * **The fallback to the grid's own percentages is what makes a hand-set grid
+ * survive a range drag.** Dragging the range on the chart sends two prices and
+ * nothing else through this same door, so without the fallback the grid would
+ * come back split evenly and the shape somebody typed would be gone with no
+ * warning. Shared by the practice and the live path so the two cannot drift.
+ *
+ * A window that asks for hand-set rungs and sends none is refused by
+ * `draftGridOrder`, out loud, rather than quietly falling back to even.
+ */
+export function reshapedGridSplit(
+  plan: Pick<
+    GridPlan,
+    "manualSizing" | "manualRungPcts" | "levels" | "direction"
+  >,
+  input: ReshapeGridShape
+): { manualSizing: boolean; manualRungPcts: number[] | null; levels: number } {
+  const manualSizing = input.manualSizing ?? plan.manualSizing
+  if (!manualSizing) {
+    return {
+      manualSizing: false,
+      manualRungPcts: null,
+      levels: input.levels ?? plan.levels.length,
+    }
+  }
+  // What the window sends is the card's rows. What the grid has stored is
+  // level order, so a drag that sends no shares turns them back round.
+  const manualRungPcts =
+    input.manualRungPcts ??
+    (plan.manualRungPcts ? gridRowPctsFromLevels(plan.manualRungPcts) : null)
+  return {
+    manualSizing: true,
+    manualRungPcts,
+    // The rows ARE the level count on a hand-set grid.
+    levels: manualRungPcts?.length ?? input.levels ?? plan.levels.length,
+  }
+}
+
 /**
  * Re-shaping a grid: a new range, a new level count, a new share of the
  * account, or any mix of them.
@@ -739,13 +829,10 @@ export async function updateGridEnd(
 export async function reshapeGrid(
   userId: string,
   wallet: TradeWallet,
-  input: {
+  input: ReshapeGridShape & {
     gridId: string
     topPx?: number
     bottomPx?: number
-    levels?: number
-    potPct?: number
-    leverage?: number
   }
 ): Promise<MovedGrid> {
   const book = await settleWallet(userId, wallet)
@@ -772,19 +859,22 @@ export async function reshapeGrid(
     marks,
   })
 
+  const split = reshapedGridSplit(plan, input)
   const draft = draftGridOrder({
     marketKey: grid.marketKey,
     params: {
       // Frozen at placement. A re-shape redraws the prices; it never turns the
       // grid round, because the levels belong to one side.
       direction: plan.direction,
-      levels: input.levels ?? plan.levels.length,
+      levels: split.levels,
       potPct: input.potPct ?? plan.potPct,
       compound: true,
       leverage: input.leverage ?? plan.leverage,
       maxOrderVolPct: plan.maxOrderVolPct,
       spacing: plan.spacing,
       sizing: plan.sizing,
+      manualSizing: split.manualSizing,
+      manualRungPcts: split.manualRungPcts,
       follow: plan.follow,
       followDown: plan.followDown,
       // Only read when the window pre-fills; a re-shape has its own prices.

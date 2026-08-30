@@ -103,6 +103,22 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   second later. A late-arriving answer never replaces a choice just made in
   the window or moves its preview. The DCA window follows the same rule, and
   the full rule lives in `../rules/instant-first.md`.
+- **Rungs** sits under Range and is switched off by default. On, it lists one
+  row per rung, each holding that rung's percentage of the money Share of
+  account % set aside, with the row's price and dollars beside it. The rows run
+  down the range, top first, and each row's share lands at the price beside it,
+  so the card and the chart always agree. The NUMBER on each row is what
+  reverses: rung 1 is the first trade the grid makes, the top of the range on a
+  buying grid and the bottom on a selling one. Switching Long to Short turns the
+  values over in the boxes, which mirrors the grid on the chart. A line under
+  the rows says what they add up to, in the refusal colour until it is 100. **Add rung** stops at 20 and the bin stops at
+  2. **Even split** fills the rows with an equal share that adds to exactly 100.
+  Switching the card on for the first time starts from the split the grid was
+  already using, so nothing about the grid moves. While it is on, the Levels box
+  in Range is replaced by a line naming the rung count, because the rows are
+  what count the levels; Share of account % stays, because it still sets the
+  money. The Range card's readouts then say the smallest and biggest buy instead
+  of one figure for each, since the levels are deliberately different sizes.
 - **Advanced settings** holds Borrowing, Follow price up, Follow price down,
   Levels spread and the liquidity guard. Borrowing starts at 1× and accepts
   whole numbers up to the coin's exchange limit. A grid paired with a DCA
@@ -135,7 +151,11 @@ window, folding option cards and fixed bottom button as the right-click Grid
 order form. Slices includes Borrowing beside Levels and Share of account.
 The Slices card is first, with no description above it. Borrowing is editable
 while the grid holds no coin and still has buys waiting. Borrowing locks while
-the grid holds coin or shares the position with a DCA ladder. The **End Grid**
+the grid holds coin or shares the position with a DCA ladder. A **Rungs** card
+sits after Slices with the same rows as the placement window, filled from what
+the running levels actually hold. Its rows and its switch are locked whenever
+the grid holds coin, because changing them re-draws every level, and the tooltip
+says so. The **End Grid**
 card can switch the line on or off and change its percentage. The **Following**
 card says that the fixed End Grid line stays in place and shows how many times
 the range has moved so far.

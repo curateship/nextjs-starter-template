@@ -385,6 +385,37 @@ export const gridParamsSchema = z.object({
   /** How the pot is split between the levels. See `GRID_SIZINGS`. */
   sizing: z.enum(GRID_SIZINGS).default("even"),
   /**
+   * Split the pot by hand, one typed percentage per level, instead of evenly.
+   *
+   * A NEW FIELD rather than a new value in `sizing`, and that is the whole
+   * reason it exists as a pair. An older copy of the app or the engine cannot
+   * read a `sizing` it has never heard of: the row fails to parse, the grid
+   * goes invisible and it stops trading, stops stopping out and never closes.
+   * A field an old reader has never heard of is stripped harmlessly instead.
+   * See the note on `gridLevelStateSchema` for the day that cost two live
+   * positions.
+   */
+  manualSizing: z.boolean().default(false),
+  /**
+   * What share of the pot each row of the card gets, in percent, adding up to
+   * 100.
+   *
+   * **Row order: the top of the range first**, which is how the card reads and
+   * how the chart draws. Held against PRICES rather than against rung numbers,
+   * so what is saved can never be re-read to mean something else — the note
+   * beside `gridLevelPctsFromRows` says why that matters.
+   *
+   * Kept even while `manualSizing` is off, so switching the card off and on
+   * again does not lose what was typed. Null on every grid saved before this
+   * existed, which splits evenly, which is what they all did.
+   */
+  manualRungPcts: z
+    .array(z.number().positive().max(100))
+    .min(MIN_GRID_LEVELS)
+    .max(MAX_GRID_LEVELS)
+    .nullable()
+    .default(null),
+  /**
    * Where the range is measured from: today's price, or the clicked price.
    *
    * Not carried onto the placed grid. A placed grid is concrete prices, and
@@ -466,6 +497,8 @@ export function defaultGridParams(): GridParams {
     maxOrderVolPct: 0,
     spacing: "even",
     sizing: "even",
+    manualSizing: false,
+    manualRungPcts: null,
     anchor: "price",
     follow: false,
     followDown: false,
@@ -769,6 +802,140 @@ export function gridShares(count: number, sizing: GridSizing): number[] {
   return dcaAllocationPcts(count, 1, GRID_DOUBLE_MULTIPLIER).reverse()
 }
 
+// ----- Splitting the pot by hand -------------------------------------------
+
+/**
+ * How far off 100 the typed rung percentages may land and still be taken.
+ *
+ * Three equal rungs are 33.33, 33.33 and 33.34, and a card that refused those
+ * would be a card nobody could use. A tenth of a percent of a $2,000 grid is
+ * $2, less than the rounding the market's own size step does to every order.
+ *
+ * Not exported: every caller asks `gridRungPctsFit` instead, so the limit is
+ * never restated anywhere it could drift from this one.
+ */
+const GRID_RUNG_SUM_SLACK = 0.1
+
+/** What a set of typed rung percentages adds up to. */
+export function gridRungPctsSum(pcts: number[]): number {
+  return pcts.reduce((sum, pct) => sum + pct, 0)
+}
+
+/** Do the typed percentages use the whole pot, give or take the slack? */
+export function gridRungPctsFit(pcts: number[]): boolean {
+  return Math.abs(gridRungPctsSum(pcts) - 100) <= GRID_RUNG_SUM_SLACK
+}
+
+/**
+ * The rungs' percentages, or null when the grid is not hand-set.
+ *
+ * One rule read from two shapes — the window's settings and a placed grid's
+ * plan — because both carry the same two fields and the arithmetic must not
+ * differ between what is drawn and what is traded. A list whose length has
+ * drifted from the level count is treated as absent rather than stretched: a
+ * guessed share is a guessed order size.
+ */
+export function gridManualPcts(
+  source: { manualSizing?: boolean; manualRungPcts?: number[] | null },
+  count: number
+): number[] | null {
+  if (!source.manualSizing) return null
+  const pcts = source.manualRungPcts
+  if (!pcts || pcts.length !== count || count < 1) return null
+  return pcts
+}
+
+/**
+ * An even split as typed percentages, for the moment the card is switched on.
+ *
+ * Rounded to two decimals with the leftover put on the first rung, so the rows
+ * add to exactly 100 and the grid does not change size the instant somebody
+ * opens the card to look at it.
+ */
+export function gridEvenRungPcts(count: number): number[] {
+  if (count < 1) return []
+  const each = Math.round((100 / count) * 100) / 100
+  const pcts = Array.from({ length: count }, () => each)
+  pcts[0] = Math.round((100 - each * (count - 1)) * 100) / 100
+  return pcts
+}
+
+// ----- Rows, levels, and which rung is which --------------------------------
+
+/**
+ * **What you see on the card is what lands at those prices, and turning the
+ * grid round turns the card over.**
+ *
+ * Tyler, 29 Aug 2026: *"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2,
+ * 1"*, said about a selling grid whose biggest rung kept coming out at the
+ * bottom like a buying grid's.
+ *
+ * The shares are held **against prices** — the card's top row is the top of the
+ * range, always — so nothing saved is ever re-read to mean something else.
+ * Three goes at holding them against rung numbers instead all failed the same
+ * way: each change to the mapping silently re-interpreted what was already
+ * saved, the card flipped what had been typed, and the chart came out
+ * identical.
+ *
+ * What reverses with the direction is the NUMBER on each row, because rung 1 is
+ * the first trade the grid makes: the top of the range on a buying grid,
+ * reached on the way down, and the bottom on a selling grid, reached on the way
+ * up. And because a share belongs to a rung, switching Long to Short turns the
+ * values over in the boxes — which is what mirrors the grid, and it happens
+ * where somebody can watch it happen.
+ *
+ * Level arrays read lowest price first; rows read the top of the range first.
+ * So a row is its level's mirror image, and that never varies.
+ *
+ * Rows, top of the range first, into level order.
+ */
+export function gridLevelPctsFromRows(rowsTopFirst: number[]): number[] {
+  return [...rowsTopFirst].reverse()
+}
+
+/** Level order back into rows. */
+export function gridRowPctsFromLevels(levelPcts: number[]): number[] {
+  return [...levelPcts].reverse()
+}
+
+/** Which level a row sits on. Rows run down the range, levels up it. */
+export function gridRowLevelIndex(rowIndex: number, count: number): number {
+  return count - 1 - rowIndex
+}
+
+/**
+ * The rung number a level carries — what a refusal names, so it names the
+ * number somebody actually typed against.
+ */
+export function gridRungNumber(
+  levelIndex: number,
+  count: number,
+  direction: GridDirection
+): number {
+  return direction === "long" ? count - levelIndex : levelIndex + 1
+}
+
+/** The rung number printed on a row of the card. */
+export function gridRowRungNumber(
+  rowIndex: number,
+  count: number,
+  direction: GridDirection
+): number {
+  return direction === "long" ? rowIndex + 1 : count - rowIndex
+}
+
+/**
+ * The same shares moved to the other end of the range — what turning a grid
+ * round does to the money.
+ *
+ * Its own step rather than a bare `.reverse()` at each site, because it is a
+ * decision about what turning a grid round MEANS: rung 1 keeps rung 1's share,
+ * and rung 1 has moved to the other end.
+ */
+export function gridFlippedPcts(pcts: number[]): number[] {
+  return [...pcts].reverse()
+}
+
 /**
  * The whole grid as concrete numbers: where each buy sits, where its sell
  * rests, what it spends and how many coins that is.
@@ -794,7 +961,8 @@ export function gridOrderPlan(input: {
     | "spacing"
     | "sizing"
     | "direction"
-  >
+  > &
+    Partial<Pick<GridParams, "manualSizing" | "manualRungPcts">>
   sizeDecimals: number | null
   volume24hUsd: number | null
 }): GridOrderPlan {
@@ -810,7 +978,15 @@ export function gridOrderPlan(input: {
   // dollars of coin that cash controls, not how much of the account is set
   // aside. At 3x, a $2,000 share buys $6,000 of coin across the levels.
   const pot = (input.equity * input.params.potPct * input.params.leverage) / 100
-  const shares = gridShares(prices.length, input.params.sizing)
+  // Hand-set rungs take their share of the SAME pot, so Share of account %
+  // still decides the money and the rungs only decide how it is divided. The
+  // settings carry the card's rows, top of the range first, and levels are
+  // priced lowest first: one mirror, with no direction in it.
+  const manualPcts = gridManualPcts(input.params, prices.length)
+  const split =
+    manualPcts === null
+      ? gridShares(prices.length, input.params.sizing)
+      : gridLevelPctsFromRows(manualPcts).map((pct) => pct / 100)
 
   let totalCost = 0
   let tooSmallIndex: number | null = null
@@ -819,7 +995,7 @@ export function gridOrderPlan(input: {
   const levels = prices.map((price, index) => {
     const sized = sizeOneOrder({
       px: price.buyPx,
-      wantedUsd: pot * shares[index],
+      wantedUsd: pot * split[index],
       capUsd,
       sizeDecimals: input.sizeDecimals,
     })
@@ -1006,6 +1182,30 @@ const gridPlanSchema = z.object({
    * existed read as even, which is what they are.
    */
   sizing: z.enum(GRID_SIZINGS).default("even"),
+  /**
+   * The pot was split by hand, one typed percentage per level, and every path
+   * that re-divides it has to use those percentages instead of an even share.
+   * Following price down is the only such path once a grid is placed.
+   *
+   * ADDITIVE, like the reversal fields below, which is the only safe kind of
+   * plan change: an older reader strips it and sees an even grid. An older
+   * ENGINE strips it when it saves the plan back, which would quietly flatten
+   * a hand-set grid on its next move, so the engine ships with the app or
+   * before it, never the app alone.
+   */
+  manualSizing: z.boolean().default(false),
+  /**
+   * The typed shares, in percent, in LEVEL order — lowest price first, which is
+   * what the engine reads. Converted from the card's row order exactly once, in
+   * `draftGridOrder`. Null on an evenly split grid and on every grid saved
+   * before this existed.
+   */
+  manualRungPcts: z
+    .array(z.number().positive().max(100))
+    .min(MIN_GRID_LEVELS)
+    .max(MAX_GRID_LEVELS)
+    .nullable()
+    .default(null),
   /** The whole grid's share of the account at placement, for the record. */
   potPct: z.number().positive().max(100),
   /**

@@ -23,8 +23,10 @@ import {
   draftGridOrder,
   gridById,
   movedGrid,
+  reshapedGridSplit,
   saveGridPlan,
   type MovedGrid,
+  type ReshapeGridShape,
   type PlaceGridInput,
   type PlacedGrid,
 } from "@/server/trade/grid-orders"
@@ -452,13 +454,10 @@ export async function updateLiveGridStop(
 export async function reshapeLiveGrid(
   userId: string,
   wallet: TradeWallet,
-  input: {
+  input: ReshapeGridShape & {
     gridId: string
     topPx?: number
     bottomPx?: number
-    levels?: number
-    potPct?: number
-    leverage?: number
   }
 ): Promise<MovedGrid> {
   return await serializeLiveWallet(userId, wallet, async () => {
@@ -495,18 +494,21 @@ export async function reshapeLiveGrid(
     ])
     // Drawn and fully checked BEFORE a single order is cancelled, so a refused
     // move leaves the grid resting exactly where it was.
+    const split = reshapedGridSplit(plan, input)
     const draft = draftGridOrder({
       marketKey: grid.marketKey,
       params: {
         // Frozen at placement — a re-shape redraws prices, never the side.
         direction: plan.direction,
-        levels: input.levels ?? plan.levels.length,
+        levels: split.levels,
         potPct: input.potPct ?? plan.potPct,
         compound: true,
         leverage: input.leverage ?? plan.leverage,
         maxOrderVolPct: plan.maxOrderVolPct,
         spacing: plan.spacing,
         sizing: plan.sizing,
+        manualSizing: split.manualSizing,
+        manualRungPcts: split.manualRungPcts,
         follow: plan.follow,
         followDown: plan.followDown,
         // Only read when the window pre-fills; a re-shape has its own prices.

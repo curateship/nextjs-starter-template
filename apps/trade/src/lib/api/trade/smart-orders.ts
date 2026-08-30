@@ -685,6 +685,14 @@ const reshapeGridSchema = z.object({
   levels: z.number().int().min(MIN_GRID_LEVELS).max(MAX_GRID_LEVELS).optional(),
   potPct: z.number().positive().max(100).optional(),
   leverage: z.number().int().min(1).max(50).optional(),
+  /** Switch the hand-set split on or off. Left out, the grid keeps what it had. */
+  manualSizing: z.boolean().optional(),
+  /** The typed shares in the card's row order, top of the range first. */
+  manualRungPcts: z
+    .array(z.number().positive().max(100))
+    .min(MIN_GRID_LEVELS)
+    .max(MAX_GRID_LEVELS)
+    .optional(),
 })
 
 const reshapeGridFn = createServerFn({ method: "POST" })
@@ -918,6 +926,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels.",
     SMART_GRID_LEVEL_TOO_SMALL:
       "A level is too small to be an order at this market's size step — nothing was placed. Use fewer levels, a bigger share, or the same size at every level.",
+    SMART_GRID_RUNG_COUNT:
+      "The rungs no longer match the grid's levels, so nothing was changed. Close the window and open it again.",
     SMART_GRID_NOT_FOUND:
       "That grid is not there any more — it may have finished or been cancelled.",
     SMART_GRID_FINISHED:
@@ -966,6 +976,16 @@ export function getSmartOrderErrorMessage(error: unknown): string {
   if (reversal) return reversal[1].trim()
   const tooSmall = message.match(/PART_CLOSE_TOO_SMALL:(.*)$/s)
   if (tooSmall) return tooSmall[1].trim()
+  // A hand-set grid's refusals name the ROW that was typed, which a fixed
+  // sentence cannot do.
+  const rungSum = message.match(/SMART_GRID_RUNG_SUM:([\d.]+)/)
+  if (rungSum) {
+    return `The rungs add up to ${rungSum[1]}%, and they have to add up to 100% so the whole share of the account is used. Nothing was placed.`
+  }
+  const rungTooSmall = message.match(/SMART_GRID_RUNG_TOO_SMALL:(\d+)/)
+  if (rungTooSmall) {
+    return `Rung ${rungTooSmall[1]} is too small to be an order on this market, so nothing was placed. Give it a bigger share, or raise the share of the account the whole grid uses.`
+  }
   const floor = message.match(
     /SMART_RUNG_DOLLAR_FLOOR:([\d.]+):([\d.]+):(\d+):(\d+)/
   )

@@ -3,26 +3,36 @@ import { describe, expect, it } from "vitest"
 import {
   defaultGridParams,
   gridEndPx,
-  gridShiftInto,
-  gridShiftAway,
+  gridEvenRungPcts,
+  gridFlippedPcts,
+  gridLevelPctsFromRows,
   gridLevels,
   gridLevelSize,
-  gridOrderPlan,
-  placeGridParamsSchema,
-  gridRangeFromClick,
-  gridShares,
-  gridStepPct,
-  plannedGridReversal,
   gridLiquidationPx,
-  readGridPlan,
+  gridManualPcts,
+  gridOrderPlan,
+  gridRangeFromClick,
   gridRangeMovable,
+  gridRowLevelIndex,
+  gridRowPctsFromLevels,
+  gridRowRungNumber,
+  gridRungNumber,
+  gridRungPctsFit,
+  gridRungPctsSum,
+  gridShares,
+  gridShiftAway,
+  gridShiftInto,
+  gridStepPct,
+  gridStopBeyond,
   gridStopLegPrices,
   gridStopPx,
+  gridTakeProfitPx,
   isGridStopLeg,
+  placeGridParamsSchema,
+  plannedGridReversal,
+  readGridPlan,
   type GridLevelState,
   type GridPlan,
-  gridStopBeyond,
-  gridTakeProfitPx,
 } from "./grid"
 import { readSmartPlan } from "./smart-plan"
 
@@ -289,6 +299,8 @@ describe("reading a stored grid back", () => {
     takeProfitPx: null,
     spacing: "even",
     sizing: "even",
+    manualSizing: false,
+    manualRungPcts: null,
     potPct: 20,
     maxOrderVolPct: 0,
     startedAt: 1,
@@ -464,6 +476,212 @@ describe("gridShares", () => {
       const sum = gridShares(count, "double").reduce((a, b) => a + b, 0)
       expect(sum).toBeCloseTo(1, 12)
     }
+  })
+})
+
+describe("splitting the pot by hand", () => {
+  /**
+   * The dollars each level controls, to the nearest cent. Never to the exact
+   * penny: every order is floored to the market's own size step first, so a
+   * $600 rung on a coin priced in millionths comes out a hair under.
+   */
+  const expectDollars = (
+    plan: { levels: { dollars: number }[] },
+    wanted: number[]
+  ) => {
+    expect(plan.levels).toHaveLength(wanted.length)
+    for (const [index, dollars] of wanted.entries()) {
+      expect(plan.levels[index].dollars).toBeCloseTo(dollars, 3)
+    }
+  }
+
+  const params = {
+    ...defaultGridParams(),
+    levels: 4,
+    potPct: 20,
+    leverage: 1,
+    maxOrderVolPct: 0,
+    manualSizing: true,
+    // RUNG order, rung 1 first. On a buying grid rung 1 is the top of the
+    // range, so this is 10% at the top down to 40% at the bottom.
+    manualRungPcts: [10, 20, 30, 40],
+  }
+
+  it("gives each level the share that was typed for it", () => {
+    // $10,000 × 20% = a $2,000 pot, split 40/30/20/10.
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params,
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [800, 600, 400, 200])
+    expect(plan.totalCost).toBeCloseTo(2000, 3)
+    expect(plan.tooSmallIndex).toBeNull()
+  })
+
+  it("puts each row's share at that row's price, either direction", () => {
+    // The rows are held against PRICES, so the same list lands the same way
+    // up whichever direction the grid runs. What mirrors a selling grid is
+    // the window turning the rows over when the direction is switched.
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, direction: "short" },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [800, 600, 400, 200])
+  })
+
+  it("borrowing multiplies the money, never the shares", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, leverage: 3 },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [2400, 1800, 1200, 600])
+  })
+
+  it("flags the level a typed share leaves too small to be an order", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 500,
+      // $500 × 20% = $100. The 1% rung is $1, under the $10 floor, and it
+      // is rung 4 — the bottom of a buying grid's range.
+      params: { ...params, manualRungPcts: [33, 33, 33, 1] },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expect(plan.tooSmallIndex).toBe(0)
+    // Level 0 is the bottom of the range: rung 4 on a buying grid.
+    expect(gridRungNumber(0, 4, "long")).toBe(4)
+  })
+
+  it("still caps a typed share on a thin coin", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, maxOrderVolPct: 1 },
+      sizeDecimals: 6,
+      // 1% of $50,000 is a $500 cap, under the biggest rung's $800.
+      volume24hUsd: 50_000,
+    })
+    expect(plan.volumeCapped).toBe(true)
+    expect(plan.levels[0].dollars).toBeLessThanOrEqual(500)
+  })
+
+  it("splits evenly when the switch is off, whatever is remembered", () => {
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, manualSizing: false },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [500, 500, 500, 500])
+  })
+
+  it("splits evenly when the typed list has drifted from the level count", () => {
+    // A guessed share would be a guessed order size, so a list that no longer
+    // matches is treated as absent rather than stretched.
+    const plan = gridOrderPlan({
+      topPx: 120,
+      bottomPx: 80,
+      equity: 10_000,
+      params: { ...params, manualRungPcts: [50, 50] },
+      sizeDecimals: 6,
+      volume24hUsd: null,
+    })
+    expectDollars(plan, [500, 500, 500, 500])
+    expect(
+      gridManualPcts({ ...params, manualRungPcts: [50, 50] }, 4)
+    ).toBeNull()
+  })
+
+  it("numbers the rows from the market outward", () => {
+    // Tyler, 29 Aug 2026: "if long was 1, 2, 3, 4, 5 then short is
+    // 5, 4, 3, 2, 1". Rung 1 is the first trade the grid makes: the top of the
+    // range on a buying grid, the bottom on a selling one. The ROWS never
+    // move — they run down the range like the chart — only the numbers do.
+    expect(
+      [0, 1, 2, 3].map((row) => gridRowRungNumber(row, 4, "long"))
+    ).toEqual([1, 2, 3, 4])
+    expect(
+      [0, 1, 2, 3].map((row) => gridRowRungNumber(row, 4, "short"))
+    ).toEqual([4, 3, 2, 1])
+
+    // Read from a level, which is what a refusal has to do. Level 0 is the
+    // bottom of the range.
+    expect(gridRungNumber(0, 4, "long")).toBe(4)
+    expect(gridRungNumber(0, 4, "short")).toBe(1)
+
+    // Rows and levels are mirror images, with no direction in it.
+    expect(gridRowLevelIndex(0, 4)).toBe(3)
+    expect(gridLevelPctsFromRows([10, 20, 30, 40])).toEqual([40, 30, 20, 10])
+    expect(gridRowPctsFromLevels([40, 30, 20, 10])).toEqual([10, 20, 30, 40])
+  })
+
+  it("turning the grid round turns the rows over, and mirrors the chart", () => {
+    // What the window does when Long becomes Short, and what a reversal does
+    // to a placed grid: each share moves to the other end of the range.
+    const buying = [10, 20, 30, 40]
+    const selling = gridFlippedPcts(buying)
+    expect(selling).toEqual([40, 30, 20, 10])
+
+    const moneyDownTheChart = (direction: "long" | "short", rows: number[]) => {
+      const plan = gridOrderPlan({
+        topPx: 120,
+        bottomPx: 80,
+        equity: 10_000,
+        params: { ...params, direction, manualRungPcts: rows },
+        sizeDecimals: 6,
+        volume24hUsd: null,
+      })
+      return [...plan.levels]
+        .sort((a, b) => b.buyPx - a.buyPx)
+        .map((one) => Math.round(one.dollars))
+    }
+    // A buying grid buys more the further price falls.
+    expect(moneyDownTheChart("long", buying)).toEqual([200, 400, 600, 800])
+    // The selling grid the switch produces sells more the further it climbs.
+    expect(moneyDownTheChart("short", selling)).toEqual([800, 600, 400, 200])
+  })
+
+  it("an even split adds to exactly 100, thirds included", () => {
+    for (const count of [2, 3, 4, 7, 12, 20]) {
+      const pcts = gridEvenRungPcts(count)
+      expect(pcts).toHaveLength(count)
+      expect(gridRungPctsSum(pcts)).toBeCloseTo(100, 9)
+      expect(gridRungPctsFit(pcts)).toBe(true)
+    }
+  })
+
+  it("takes rounding slack but not a real miss", () => {
+    expect(gridRungPctsFit([33.33, 33.33, 33.34])).toBe(true)
+    expect(gridRungPctsFit([50, 50])).toBe(true)
+    expect(gridRungPctsFit([45, 45])).toBe(false)
+    expect(gridRungPctsFit([60, 60])).toBe(false)
+  })
+
+  it("is remembered and read back with the rest of the settings", () => {
+    const checked = placeGridParamsSchema.safeParse(params)
+    expect(checked.success).toBe(true)
+    // Settings from before the card existed read back as an even grid.
+    const { manualSizing: _on, manualRungPcts: _pcts, ...old } = params
+    const older = placeGridParamsSchema.safeParse(old)
+    expect(older.success).toBe(true)
+    expect(older.success && older.data.manualSizing).toBe(false)
+    expect(older.success && older.data.manualRungPcts).toBeNull()
   })
 })
 

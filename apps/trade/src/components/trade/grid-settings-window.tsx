@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
@@ -27,22 +27,65 @@ import {
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
 } from "@/lib/trade/dca"
-import { formatPrice } from "@/lib/trade/format"
+import { formatPrice, formatUsd } from "@/lib/trade/format"
 import {
   DEFAULT_GRID_TAKE_PROFIT_PCT,
   DEFAULT_GRID_STOP_UNDER_PCT,
+  entrySide,
   exitSide,
   gridEndPx,
+  gridEvenRungPcts,
+  gridLevelPctsFromRows,
+  gridRowPctsFromLevels,
   gridRangeMovable,
+  gridRowLevelIndex,
+  gridRowRungNumber,
+  gridRungPctsFit,
+  gridRungPctsSum,
   gridStopBeyond,
   lossEdge,
   MAX_GRID_LEVELS,
   MAX_GRID_STOP_UNDER_PCT,
   MIN_GRID_LEVELS,
+  type GridPlan,
   type GridStop,
 } from "@/lib/trade/grid"
+import { LOST_MONEY } from "@/lib/trade/money-tone"
 import type { SmartGrid } from "@/lib/trade/smart-plan"
 import { showErrorToast } from "@/lib/toast/error-toast"
+import { cn } from "@/lib/utils"
+
+/** One row of the Rungs card. Its id is minted once — see the placement window. */
+type Rung = { id: string; value: string }
+
+let nextRungId = 0
+
+function rungsFrom(pcts: readonly number[]): Rung[] {
+  return pcts.map((pct) => ({
+    id: `grid-edit-rung-${(nextRungId += 1)}`,
+    value: String(pct),
+  }))
+}
+
+/**
+ * What share of the grid's money each level is on right now, in level order.
+ *
+ * A hand-set grid says so itself. An evenly split one is read back from what
+ * the levels actually hold rather than assumed to be a clean 1/n, because the
+ * market's size step rounds every level and the rounded truth is what somebody
+ * opening this card should be starting from.
+ */
+function currentLevelPcts(plan: GridPlan): number[] {
+  if (
+    plan.manualRungPcts &&
+    plan.manualRungPcts.length === plan.levels.length
+  ) {
+    return plan.manualRungPcts
+  }
+  const pot = plan.levels.reduce((sum, one) => sum + one.budget, 0)
+  if (!(pot > 0)) return gridEvenRungPcts(plan.levels.length)
+  return plan.levels.map((one) => Math.round((one.budget / pot) * 10000) / 100)
+}
 
 /**
  * Changing a running grid: how it is sliced, and where it gets out.
@@ -90,7 +133,13 @@ export function GridSettingsWindow({
   ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
-    shape: { levels?: number; potPct?: number; leverage?: number }
+    shape: {
+      levels?: number
+      potPct?: number
+      leverage?: number
+      manualSizing?: boolean
+      manualRungPcts?: number[]
+    }
   ) => Promise<boolean>
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
@@ -160,7 +209,13 @@ function StopForm({
   ) => Promise<boolean>
   onReshape: (
     grid: SmartGrid,
-    shape: { levels?: number; potPct?: number; leverage?: number }
+    shape: {
+      levels?: number
+      potPct?: number
+      leverage?: number
+      manualSizing?: boolean
+      manualRungPcts?: number[]
+    }
   ) => Promise<boolean>
   onSetEnd: (grid: SmartGrid, abovePct: number | null) => Promise<boolean>
   onSetFollow: (
@@ -172,6 +227,12 @@ function StopForm({
   const plan = grid.plan
   const [levels, setLevels] = React.useState(String(plan.levels.length))
   const [potPct, setPotPct] = React.useState(String(plan.potPct))
+  const [manualOn, setManualOn] = React.useState(plan.manualSizing)
+  const [rungs, setRungs] = React.useState<Rung[]>(() =>
+    // The plan speaks in level order; the card's rows run top of the range
+    // first, which is that list read backwards.
+    rungsFrom(gridRowPctsFromLevels(currentLevelPcts(plan)))
+  )
   const [leverage, setLeverage] = React.useState(String(plan.leverage))
   const [followOn, setFollowOn] = React.useState(plan.follow)
   const [followDownOn, setFollowDownOn] = React.useState(plan.followDown)
@@ -205,11 +266,15 @@ function StopForm({
   const [showValidation, setShowValidation] = React.useState(false)
 
   const parsedLevels = Number(levels)
-  const badLevels = !(
-    Number.isInteger(parsedLevels) &&
-    parsedLevels >= MIN_GRID_LEVELS &&
-    parsedLevels <= MAX_GRID_LEVELS
-  )
+  // The Levels box is not on screen while the Rungs card is counting them, so
+  // a leftover in it must not refuse a grid that no longer reads it.
+  const badLevels =
+    !manualOn &&
+    !(
+      Number.isInteger(parsedLevels) &&
+      parsedLevels >= MIN_GRID_LEVELS &&
+      parsedLevels <= MAX_GRID_LEVELS
+    )
   const parsedPot = Number(potPct)
   const badPot = !(
     Number.isFinite(parsedPot) &&
@@ -228,18 +293,50 @@ function StopForm({
   )
   const canReshape = gridRangeMovable(plan)
   const fixedLeverage = positionLeverage ?? pairedLeverage
+
+  // ----- The hand-set split ----------------------------------------------
+
+  const rungPcts = rungs.map((one) => Number(one.value))
+  const rungSum = gridRungPctsSum(rungPcts)
+  const badRung = rungPcts.findIndex(
+    (pct) => !(Number.isFinite(pct) && pct > 0 && pct <= 100)
+  )
+  const badRungCount =
+    rungs.length < MIN_GRID_LEVELS || rungs.length > MAX_GRID_LEVELS
+  const badRungs =
+    manualOn && (badRung !== -1 || badRungCount || !gridRungPctsFit(rungPcts))
+  // The card's rows go to the server as they are; level order is that list
+  // read backwards, which is what the running grid is compared against.
+  const levelPcts = gridLevelPctsFromRows(rungPcts)
+  const wasLevelPcts = currentLevelPcts(plan)
+  // A hand-set grid's level count comes from the rows, so a changed row count
+  // IS a re-slice. Amounts are compared with a little slack, because the ones
+  // read back off the levels were rounded to two decimals to be shown.
+  const splitChanged =
+    manualOn !== plan.manualSizing ||
+    (manualOn &&
+      (levelPcts.length !== wasLevelPcts.length ||
+        levelPcts.some(
+          (pct, index) => Math.abs(pct - wasLevelPcts[index]) > 0.005
+        )))
   const resliced =
     !badLevels &&
     !badPot &&
     !badLeverage &&
-    (parsedLevels !== plan.levels.length ||
+    !badRungs &&
+    (splitChanged ||
+      (!manualOn && parsedLevels !== plan.levels.length) ||
       parsedPot !== plan.potPct ||
       parsedLeverage !== plan.leverage)
 
   // What one round trip would be worth after re-slicing, which is the number
   // that decides whether more levels is a good idea or a slower way to pay
   // fees. A range cut finer earns less each time round.
-  const step = !badLevels ? (plan.topPx - plan.bottomPx) / parsedLevels : null
+  const sliceCount = manualOn ? rungs.length : parsedLevels
+  const step =
+    !badLevels && sliceCount > 0
+      ? (plan.topPx - plan.bottomPx) / sliceCount
+      : null
   const followChanged =
     followOn !== plan.follow || followDownOn !== plan.followDown
   const parsedEnd = Number(endPct)
@@ -303,19 +400,33 @@ function StopForm({
       ? "Share of account % has to be a number above zero and no more than 100."
       : badLeverage
         ? `Borrowing has to be a whole number between 1× and ${maxBorrowing}×.`
-        : badEnd
-          ? "Above price or range % has to be a number above zero and no more than 999."
-          : badUnder
-            ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
-            : badBaseUnder
-              ? BASE_STOP_UNDER_REFUSAL
-              : badBaseDays
-                ? BASE_STOP_DAYS_REFUSAL
-                : null
+        : manualOn && badRung !== -1
+          ? `Rung ${gridRowRungNumber(badRung, rungs.length, plan.direction)} needs a share above zero.`
+          : manualOn && badRungCount
+            ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
+            : badRungs
+              ? `The rungs add up to ${Math.round(rungSum * 100) / 100}%, and they have to add up to 100% so the whole share of the account is used.`
+              : badEnd
+                ? "Above price or range % has to be a number above zero and no more than 999."
+                : badUnder
+                  ? `Below the bottom % has to be between 0 and ${MAX_GRID_STOP_UNDER_PCT}. At 0 the stop rests on the range's bottom of ${formatPrice(plan.bottomPx)}.`
+                  : badBaseUnder
+                    ? BASE_STOP_UNDER_REFUSAL
+                    : badBaseDays
+                      ? BASE_STOP_DAYS_REFUSAL
+                      : null
 
   const save = async () => {
     if (busy) return
-    if (badUnder || badBase || badLevels || badPot || badLeverage || badEnd) {
+    if (
+      badUnder ||
+      badBase ||
+      badLevels ||
+      badPot ||
+      badLeverage ||
+      badRungs ||
+      badEnd
+    ) {
       setShowValidation(true)
       if (refusal) showErrorToast(refusal)
       return
@@ -324,9 +435,13 @@ function StopForm({
     // the range those levels sit in.
     if (resliced) {
       const shaped = await onReshape(grid, {
-        levels: parsedLevels,
+        // On a hand-set grid the rows are the level count, so the server is
+        // sent the split and works the count out from it.
+        levels: manualOn ? undefined : parsedLevels,
         potPct: parsedPot,
         leverage: parsedLeverage,
+        manualSizing: manualOn,
+        manualRungPcts: manualOn ? rungPcts : undefined,
       })
       if (!shaped) return
     }
@@ -360,6 +475,38 @@ function StopForm({
     if (saved) onClose()
   }
 
+  // ----- The Rungs card's rows -------------------------------------------
+
+  const setRung = (id: string, value: string) => {
+    setShowValidation(false)
+    setRungs((held) =>
+      held.map((one) => (one.id === id ? { ...one, value } : one))
+    )
+  }
+  const removeRung = (id: string) =>
+    setRungs((held) => held.filter((one) => one.id !== id))
+  const addRung = () =>
+    setRungs((held) => {
+      const last = Number(held[held.length - 1]?.value)
+      return [
+        ...held,
+        ...rungsFrom([Number.isFinite(last) && last > 0 ? last : 10]),
+      ]
+    })
+  const evenSplit = () =>
+    setRungs((held) => rungsFrom(gridEvenRungPcts(held.length)))
+
+  // What the whole grid is working with, as the typed settings would leave it.
+  // The pot moves in step with Share of account % and with Borrowing, so a row
+  // shows what it would actually control rather than what it controls today.
+  const potNow = (() => {
+    const held = plan.levels.reduce((sum, one) => sum + one.budget, 0)
+    if (badPot || badLeverage || !(plan.potPct > 0) || !(plan.leverage > 0)) {
+      return held
+    }
+    return held * (parsedPot / plan.potPct) * (parsedLeverage / plan.leverage)
+  })()
+
   return (
     <>
       <ScrollArea className="h-full" viewportClassName="[&>div]:block!">
@@ -368,28 +515,37 @@ function StopForm({
             id="grid-edit-slices"
             title="Slices"
             hint="How many slices the range uses, how much of the account they share, and how much coin each dollar controls."
-            summary={`${levels} levels`}
+            summary={`${sliceCount} levels`}
           >
             <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-edit-levels"
-                hint="How many slices the range is cut into. More slices means each one trades more often but earns less per round trip — and below a certain point the trading fee eats it, which is refused."
-              >
-                Levels
-              </FieldLabel>
-              <Input
-                id="grid-edit-levels"
-                inputMode="numeric"
-                value={levels}
-                aria-invalid={showValidation && badLevels}
-                disabled={busy}
-                onChange={(event) => {
-                  setShowValidation(false)
-                  setLevels(event.target.value)
-                }}
-                onBlur={() => setShowValidation(true)}
-                className="bg-background"
-              />
+              {manualOn ? (
+                <p className="text-xs text-muted-foreground">
+                  Split by the Rungs card: {rungs.length} rung
+                  {rungs.length === 1 ? "" : "s"}.
+                </p>
+              ) : (
+                <>
+                  <FieldLabel
+                    htmlFor="grid-edit-levels"
+                    hint="How many slices the range is cut into. More slices means each one trades more often but earns less per round trip — and below a certain point the trading fee eats it, which is refused."
+                  >
+                    Levels
+                  </FieldLabel>
+                  <Input
+                    id="grid-edit-levels"
+                    inputMode="numeric"
+                    value={levels}
+                    aria-invalid={showValidation && badLevels}
+                    disabled={busy}
+                    onChange={(event) => {
+                      setShowValidation(false)
+                      setLevels(event.target.value)
+                    }}
+                    onBlur={() => setShowValidation(true)}
+                    className="bg-background"
+                  />
+                </>
+              )}
               {step !== null ? (
                 <p className="text-xs text-muted-foreground">
                   {formatPrice(step)} between slices, which is what one round
@@ -400,7 +556,11 @@ function StopForm({
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-edit-pot"
-                hint="The share of the account the whole grid spends, split evenly across the slices. Every slice always spends the same amount, cycle after cycle."
+                hint={
+                  manualOn
+                    ? "The share of the account the whole grid spends. The Rungs card divides this money between the slices."
+                    : "The share of the account the whole grid spends, split evenly across the slices. Every slice always spends the same amount, cycle after cycle."
+                }
               >
                 Share of account %
               </FieldLabel>
@@ -453,6 +613,124 @@ function StopForm({
                 reaches a level.
               </p>
             ) : null}
+          </OptionCard>
+
+          {/* The hand-set split, beside the money it divides. Editable only
+              while the grid holds nothing, the same rule the range and the
+              borrowing are under: redrawing a level under coins it already
+              bought would leave it selling at a price it never paid. */}
+          <OptionCard
+            id="grid-edit-rungs"
+            title="Rungs"
+            foldWhenOff={false}
+            toggle={{
+              checked: manualOn,
+              disabled: busy || !canReshape,
+              onChange: (next) => {
+                setShowValidation(false)
+                setManualOn(next)
+              },
+            }}
+            summary={
+              manualOn
+                ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
+                : null
+            }
+            hint={
+              canReshape
+                ? `Give each ${entrySide(plan.direction)} its own share of the money instead of splitting it equally. The shares are percentages of Share of account %, and they add up to 100. Rung 1 is the first ${entrySide(plan.direction)} the grid makes, which is the ${plan.direction === "long" ? "top" : "bottom"} of the range.`
+                : "The split can change only while the grid holds no coin. Coins already bought sell one step above the price they were bought at, and re-sizing a level under them would leave it selling coins it never paid that price for."
+            }
+          >
+            {rungs.map((rung, index) => {
+              // Rows read top of the range first; levels read bottom first.
+              const level =
+                rungs.length === plan.levels.length
+                  ? plan.levels[gridRowLevelIndex(index, rungs.length)]
+                  : undefined
+              // The rows run down the range; the NUMBER counts outward from
+              // the market, so it runs the other way on a selling grid.
+              const number = gridRowRungNumber(
+                index,
+                rungs.length,
+                plan.direction
+              )
+              const pct = Number(rung.value)
+              const dollars =
+                Number.isFinite(pct) && pct > 0 ? (potNow * pct) / 100 : null
+              return (
+                <div key={rung.id} className="flex items-center gap-2">
+                  <span className="w-4 text-right text-xs text-muted-foreground">
+                    {number}
+                  </span>
+                  <Input
+                    id={`grid-edit-rung-${number}`}
+                    inputMode="decimal"
+                    value={rung.value}
+                    disabled={busy || !canReshape}
+                    aria-label={`Rung ${number}, percent of the grid's money`}
+                    aria-invalid={showValidation && !(pct > 0 && pct <= 100)}
+                    onChange={(event) => setRung(rung.id, event.target.value)}
+                    onBlur={() => setShowValidation(true)}
+                    className="w-16 bg-background"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
+                    {level ? `${formatPrice(level.buyPx)} · ` : ""}
+                    {dollars === null ? "—" : formatUsd(dollars)}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    disabled={
+                      busy || !canReshape || rungs.length <= MIN_GRID_LEVELS
+                    }
+                    aria-label={`Remove rung ${number}`}
+                    onClick={() => removeRung(rung.id)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </div>
+              )
+            })}
+            <div className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Adds up to</span>
+              <span
+                className={cn(
+                  "tabular-nums",
+                  gridRungPctsFit(rungPcts)
+                    ? "text-muted-foreground"
+                    : LOST_MONEY
+                )}
+              >
+                {Math.round(rungSum * 100) / 100}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-start"
+                disabled={
+                  busy || !canReshape || rungs.length >= MAX_GRID_LEVELS
+                }
+                onClick={addRung}
+              >
+                <PlusIcon className="size-4" />
+                Add rung
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy || !canReshape || rungs.length < MIN_GRID_LEVELS}
+                onClick={evenSplit}
+              >
+                Even split
+              </Button>
+            </div>
           </OptionCard>
 
           <OptionCard
