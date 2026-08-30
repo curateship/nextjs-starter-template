@@ -45,3 +45,7 @@ The **Signals** card has a **Cross signals** switch and a choice of which two
 lines cross. Hiding the arrows only changes the chart. A Signals step still
 receives the same crossover calls. Saved periods and the selected pair also
 reach backtests and running flows, so each place reads the same rule.
+
+The automation Grid step uses the same EMA calculation on closed 4-hour
+candles. The EMA period is saved on the step, so changing the chart does not
+change a running flow.

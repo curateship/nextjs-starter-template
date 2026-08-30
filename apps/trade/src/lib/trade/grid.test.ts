@@ -18,6 +18,7 @@ import {
   gridRowRungNumber,
   gridRungNumber,
   gridRungPctsFit,
+  gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridShares,
   gridShiftAway,
@@ -655,6 +656,21 @@ describe("splitting the pot by hand", () => {
     expect(moneyDownTheChart("long", buying)).toEqual([200, 400, 600, 800])
     // The selling grid the switch produces sells more the further it climbs.
     expect(moneyDownTheChart("short", selling)).toEqual([800, 600, 400, 200])
+  })
+
+  it("repairs a saved split only when its largest rung is on the wrong end", () => {
+    expect(gridRungRowsWithLargestFurthest("long", [40, 30, 20, 10])).toEqual([
+      10, 20, 30, 40,
+    ])
+    expect(gridRungRowsWithLargestFurthest("short", [10, 20, 30, 40])).toEqual([
+      40, 30, 20, 10,
+    ])
+    expect(gridRungRowsWithLargestFurthest("short", [40, 30, 20, 10])).toEqual([
+      40, 30, 20, 10,
+    ])
+    expect(gridRungRowsWithLargestFurthest("short", [10, 60, 30])).toEqual([
+      10, 60, 30,
+    ])
   })
 
   it("an even split adds to exactly 100, thirds included", () => {

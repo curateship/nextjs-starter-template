@@ -57,6 +57,7 @@ import {
   gridRowRungNumber,
   gridRungNumber,
   gridRungPctsFit,
+  gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
   reachedEntry,
@@ -211,7 +212,12 @@ export function GridOrderDialog({
   // what was typed.
   const [manualOn, setManualOn] = React.useState(seeded?.manualSizing ?? false)
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
-    rungsFrom(seeded?.manualRungPcts ?? [])
+    rungsFrom(
+      gridRungRowsWithLargestFurthest(
+        seeded?.direction ?? defaultGridParams().direction,
+        seeded?.manualRungPcts ?? []
+      )
+    )
   )
   const [chosenLeverage, setChosenLeverage] = React.useState(
     String(seeded?.leverage ?? defaultGridParams().leverage)
@@ -287,9 +293,17 @@ export function GridOrderDialog({
       setLevels(String(params.levels))
       setPotPct(String(params.potPct))
       setManualOn(params.manualSizing)
-      if (params.manualRungPcts) {
-        setRungs(rungsFrom(params.manualRungPcts))
-      }
+      // The fresh server answer replaces the browser seed as one setup. A
+      // saved even split has no custom rows, so it must clear rows left in the
+      // tab cache rather than pairing them with the fresh direction.
+      setRungs(
+        rungsFrom(
+          gridRungRowsWithLargestFurthest(
+            params.direction,
+            params.manualRungPcts ?? []
+          )
+        )
+      )
       setChosenLeverage(String(params.leverage))
       setMaxOrderVolPct(String(params.maxOrderVolPct))
       setSpacing(params.spacing)

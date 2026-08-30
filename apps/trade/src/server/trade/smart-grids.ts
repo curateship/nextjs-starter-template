@@ -6,6 +6,7 @@ import {
   gridLevels,
   gridLevelSize,
   gridManualPcts,
+  gridRungNumber,
   gridShares,
   gridShiftAway,
   gridShiftInto,
@@ -30,6 +31,7 @@ import type { WalletBook } from "@/server/trade/paper"
 import {
   aimStop,
   ladderBarsKey,
+  near,
   readBaseWatch,
   type LadderAdvanceInput,
   type LadderEngineDeps,
@@ -262,10 +264,20 @@ export async function advanceGrid(
 
   const closedCarried = new Set<GridPlan["carriedLevels"][number]>()
   const exitLevels = [
-    ...plan.levels.map((level) => ({ level, carried: false })),
-    ...plan.carriedLevels.map((level) => ({ level, carried: true })),
+    ...plan.levels.map((level, index) => ({
+      level,
+      carried: false,
+      rung: gridRungNumber(index, plan.levels.length, direction) - 1,
+    })),
+    ...plan.carriedLevels.map((level) => ({
+      level,
+      carried: true,
+      // A carried level left through the winning edge, which is Rung 1 in
+      // either direction.
+      rung: 0,
+    })),
   ]
-  for (const { level, carried } of exitLevels) {
+  for (const { level, carried, rung } of exitLevels) {
     if (level.status !== "holding" || level.heldSz <= 0) continue
     if (mark === null || !reachedExit(direction, mark, level.sellPx)) continue
     // Price has reached this level's way out. Close exactly what it holds —
@@ -296,6 +308,7 @@ export async function advanceGrid(
       reduceOnly: true,
       reason: "order",
       at: now,
+      rung,
     })
     // ----- THE RECYCLE ----------------------------------------------------
     // Back to watching, holding nothing. A nearby waiting level waits for a
@@ -409,7 +422,8 @@ export async function advanceGrid(
   // and the account sat at its biggest at the exact moment a grid should be
   // waiting. One big lump is not a grid.
 
-  for (const level of shiftedAwayThisPass ? [] : plan.levels) {
+  const entryLevels = shiftedAwayThisPass ? [] : plan.levels
+  for (const [levelIndex, level] of entryLevels.entries()) {
     if (level.status !== "waiting" || level.dead) continue
     if (mark === null) continue
     if (level.rebuyAbove !== undefined) {
@@ -469,6 +483,7 @@ export async function advanceGrid(
       reduceOnly: false,
       reason: "order",
       at: now,
+      rung: gridRungNumber(levelIndex, plan.levels.length, direction) - 1,
       triggerPx: level.buyPx,
       undo: () => {
         level.sz = priorSz
@@ -760,8 +775,7 @@ function followTheRangeInto(
     !(bottomPx > 0) ||
     prices.some(
       (level) =>
-        !(level.buyPx > 0) ||
-        !readyWhen(direction, level.sellPx, level.buyPx)
+        !(level.buyPx > 0) || !readyWhen(direction, level.sellPx, level.buyPx)
     )
   ) {
     return { moved: false, reason: NEXT_LEVEL_OFF_TICK }
@@ -780,7 +794,7 @@ function followTheRangeInto(
     if (index === carriedAt) continue
     const old = plan.levels[index]
     const next = prices[index + shift]
-    if (old.buyPx !== next.buyPx || old.sellPx !== next.sellPx) {
+    if (!near(old.buyPx, next.buyPx) || !near(old.sellPx, next.sellPx)) {
       return { moved: false, reason: NEXT_LEVEL_OFF_TICK }
     }
   }
@@ -794,10 +808,7 @@ function followTheRangeInto(
   const shares =
     manualPcts?.map((pct) => pct / 100) ?? gridShares(count, plan.sizing)
   const sized = prices.map((level, index) => {
-    const sz = floorSize(
-      (pot * shares[index]) / level.buyPx,
-      plan.sizeDecimals
-    )
+    const sz = floorSize((pot * shares[index]) / level.buyPx, plan.sizeDecimals)
     return { ...level, sz, budget: sz * level.buyPx }
   })
   if (
@@ -823,8 +834,7 @@ function followTheRangeInto(
     status: "waiting" as const,
     armed: true,
     dead:
-      stopPx !== null &&
-      reachedEntry(direction, sized[freshAt].buyPx, stopPx),
+      stopPx !== null && reachedEntry(direction, sized[freshAt].buyPx, stopPx),
     cycles: 0,
   }
   const nextLevels = [...plan.levels]

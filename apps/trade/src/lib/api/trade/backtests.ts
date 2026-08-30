@@ -7,7 +7,10 @@ import type {
   BacktestListRow,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
-import { fillMarksFromStored } from "@/lib/trade/backtest/result"
+import {
+  fillMarksFromStored,
+  pairTradesFromStored,
+} from "@/lib/trade/backtest/result"
 import type { BacktestRunTrade } from "@/lib/trade/backtest/graph"
 import { userGet, userPost } from "@/server/guards"
 import { db } from "@/server/db"
@@ -303,15 +306,21 @@ const readBacktestCoinFn = createServerFn({ method: "GET" })
       )
 
     const { spec } = found.group
+    const matching = spec.strategy.kind === "emaGrid" ? "grid" : "fifo"
+    const storedFills = row?.fills ?? []
     return {
-      trades: (row?.trades ?? []) as BacktestTrade[],
+      trades: pairTradesFromStored(
+        storedFills,
+        (row?.trades ?? []) as BacktestTrade[],
+        matching
+      ),
       // The arrows on the chart: one per fill, at the price and moment it
       // happened. A round trip cannot stand in for these — a five-rung ladder
       // is five arrows, and blending them into one entry hides its shape.
       // Made HERE, when somebody looks — not when the run finished. A change
       // to the wording then shows up on runs that already exist, instead of
       // needing every one of them run again.
-      fills: fillMarksFromStored(row?.fills ?? []),
+      fills: fillMarksFromStored(storedFills, matching),
       interval: spec.interval,
       bars: await loadStoredCandles(
         data.marketKey,

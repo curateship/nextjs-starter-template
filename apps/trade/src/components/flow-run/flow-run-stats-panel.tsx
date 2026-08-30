@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import type { GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
 import type { FlowRunReport } from "@/lib/api/trade/flow-runs"
 import { formatDate, formatDuration } from "@/lib/format/format-time"
+import { emaGridCleanHours } from "@/lib/automations/nodes/trade-grid"
 import { DCA_TP_MODE_LABELS } from "@/lib/trade/dca"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
@@ -276,6 +277,37 @@ export function FlowRunStatsPanel({
                         ].toLowerCase()}
                   </Line>
                 ) : null}
+              </>
+            ) : spec.strategy.kind === "emaGrid" ? (
+              <>
+                <Line label="Clean run">
+                  {emaGridCleanHours(spec.strategy.settings)} hours
+                </Line>
+                <Line label="EMA">
+                  {spec.strategy.settings.emaPeriod} candles
+                </Line>
+                <Line label="Grid rungs">
+                  {spec.strategy.settings.grid.levels}
+                  {spec.strategy.settings.grid.manualSizing
+                    ? " custom"
+                    : " even"}
+                </Line>
+                <Line label="Grid uses">
+                  {roundedPct(spec.strategy.settings.grid.potPct)} of the wallet
+                </Line>
+                <Line label="Grid range">
+                  {roundedPct(spec.strategy.settings.grid.rangePct)} from price
+                </Line>
+                <Line label="Follows price">
+                  {spec.strategy.settings.grid.follow &&
+                  spec.strategy.settings.grid.followDown
+                    ? "up and down"
+                    : spec.strategy.settings.grid.follow
+                      ? "up"
+                      : spec.strategy.settings.grid.followDown
+                        ? "down"
+                        : "off"}
+                </Line>
               </>
             ) : (
               <>

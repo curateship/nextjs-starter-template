@@ -102,7 +102,7 @@ const EMA_FIELDS: IndicatorField[] = [
 
 type EmaEvent = IndicatorMark & { signal: IndicatorSignal }
 
-function ema(values: number[], period: number): number[] {
+export function ema(values: number[], period: number): number[] {
   if (values.length === 0) return []
   const weight = 2 / (period + 1)
   const result: number[] = []

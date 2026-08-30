@@ -41,7 +41,7 @@ import { marketRules } from "@/server/trade/market-rules"
  */
 
 /** How often one coin's candles may be read, across every flow. */
-const CANDLE_EVERY_MS = 2_500
+export const CANDLE_EVERY_MS = 2_500
 
 /**
  * How many bars to read, and so how much history the indicators get.
@@ -57,7 +57,7 @@ const SIGNAL_BARS = 600
 let lastCandleAt = 0
 
 /** Test support: forgets the pace, so a test need not wait 2.5 seconds. */
-export function resetSignalPacing(): void {
+export function resetCandlePacing(): void {
   lastCandleAt = 0
 }
 
@@ -69,8 +69,15 @@ export function resetSignalPacing(): void {
  * second forever to be told there was nothing to do — the pass is paced at one
  * look every two and a half seconds, so three passes in four were pure cost.
  */
-export function signalReadDue(now: number): boolean {
+export function candleReadDue(now: number): boolean {
   return now - lastCandleAt >= CANDLE_EVERY_MS
+}
+
+/** Claims this pass's one candle read across Signals and EMA Grid flows. */
+export function claimCandleRead(now: number): boolean {
+  if (!candleReadDue(now)) return false
+  lastCandleAt = now
+  return true
 }
 
 export type SignalPassInput = {
@@ -128,7 +135,7 @@ export async function advanceSignalFlow(
   const { spec, now } = input
   if (spec.strategy.kind !== "signals")
     return { did: "nothing", marketKey: null }
-  if (!signalReadDue(now)) return { did: "nothing", marketKey: null }
+  if (!candleReadDue(now)) return { did: "nothing", marketKey: null }
 
   // A coin mid-buy or mid-sell is the engine's business this second, not ours:
   // it is already chasing a price and another arrow cannot change that.
@@ -148,7 +155,7 @@ export async function advanceSignalFlow(
   const ref = parseMarketKey(marketKey)
   if (!ref) return { did: "nothing", marketKey }
 
-  lastCandleAt = now
+  if (!claimCandleRead(now)) return { did: "nothing", marketKey: null }
   const barMs = INTERVAL_MS[spec.strategy.interval]
   const bars = await getProtocol(spec.protocol)
     .markets.candles(

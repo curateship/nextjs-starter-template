@@ -42,6 +42,26 @@ describe("which refusals are the strategy working", () => {
     expect(flowWaitIsProblem("SMART_RUNG_TOO_SMALL:3")).toBe(true)
     expect(flowWaitWords("SMART_RUNG_TOO_SMALL:3")).toContain("too small")
   })
+
+  it("explains custom Grid rung mistakes as something to correct", () => {
+    expect(flowWaitIsProblem("SMART_GRID_RUNG_SUM:99.5")).toBe(true)
+    expect(flowWaitWords("SMART_GRID_RUNG_SUM:99.5")).toContain("add up to 100")
+    expect(flowWaitWords("SMART_GRID_RUNG_COUNT")).toContain("set the rungs")
+    expect(flowWaitWords("SMART_GRID_RUNG_TOO_SMALL:4")).toContain(
+      "custom rung comes out too small"
+    )
+  })
+
+  it("explains why a live EMA flip leaves the grid alone when its stop stays on", () => {
+    expect(flowWaitWords("LIVE_GRID_STOP_CANCEL")).toContain(
+      "left the grid and its coins alone"
+    )
+  })
+
+  it("names an active EMA Grid without calling it a problem", () => {
+    expect(flowWaitIsProblem("EMA_GRID_ACTIVE")).toBe(false)
+    expect(flowWaitWords("EMA_GRID_ACTIVE")).toContain("Grid is active")
+  })
 })
 
 describe("what gets stored from an error", () => {
@@ -49,6 +69,9 @@ describe("what gets stored from an error", () => {
     expect(flowWaitCode(new Error("LIVE_WALLET_KEY"))).toBe("LIVE_WALLET_KEY")
     expect(flowWaitCode(new Error("SMART_RUNG_TOO_SMALL:2"))).toBe(
       "SMART_RUNG_TOO_SMALL:2"
+    )
+    expect(flowWaitCode(new Error("SMART_GRID_RUNG_SUM:99.5"))).toBe(
+      "SMART_GRID_RUNG_SUM:99.5"
     )
   })
 

@@ -34,10 +34,7 @@ import {
 } from "@/lib/automations/nodes/trade-markets"
 import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
-import {
-  tradeBacktestGroups,
-  tradeBacktests,
-} from "@/server/trade/schema"
+import { tradeBacktestGroups, tradeBacktests } from "@/server/trade/schema"
 
 /**
  * Where backtest runs are kept, and how one is claimed to be worked on.
@@ -96,7 +93,8 @@ export function backtestWindow(
     }
   }
   return {
-    from: Math.floor((latest - markets.days * DAY_MS) / intervalMs) * intervalMs,
+    from:
+      Math.floor((latest - markets.days * DAY_MS) / intervalMs) * intervalMs,
     to: latest,
   }
 }
@@ -120,13 +118,15 @@ function snapshotOf(
     strategy:
       spec.strategy.kind === "dca"
         ? { kind: "dca", params: spec.strategy.dca.params }
-        : {
-            kind: "signals",
-            indicators: spec.strategy.signals.indicators,
-            stakePct: spec.strategy.signals.stakePct,
-            // Stored as a share, the way everything that reads it uses it.
-            chaseGiveUp: spec.strategy.signals.chaseGiveUpPct / 100,
-          },
+        : spec.strategy.kind === "signals"
+          ? {
+              kind: "signals",
+              indicators: spec.strategy.signals.indicators,
+              stakePct: spec.strategy.signals.stakePct,
+              // Stored as a share, the way everything that reads it uses it.
+              chaseGiveUp: spec.strategy.signals.chaseGiveUpPct / 100,
+            }
+          : { kind: "emaGrid", settings: spec.strategy.grid },
     from: window.from,
     to: window.to,
   }
@@ -388,7 +388,11 @@ export async function failBacktestGroup(
 ): Promise<void> {
   await database
     .update(tradeBacktests)
-    .set({ status: "error", error: message, progressNote: "Stopped by an error" })
+    .set({
+      status: "error",
+      error: message,
+      progressNote: "Stopped by an error",
+    })
     .where(
       and(
         eq(tradeBacktests.userId, userId),
@@ -633,7 +637,9 @@ export async function listBacktests(
 
   return groups.map((group) => {
     const own = coins.filter((coin) => coin.groupId === group.id)
-    const done = own.filter((coin) => coin.status !== "waiting" && coin.status !== "running")
+    const done = own.filter(
+      (coin) => coin.status !== "waiting" && coin.status !== "running"
+    )
     // Show the earliest active step. During a large history load, hundreds of
     // coins may already be waiting while a few are still downloading. Picking
     // an arbitrary row said "Waiting for the strategy" and made a moving run

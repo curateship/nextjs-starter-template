@@ -47,14 +47,7 @@ import { cn } from "@/lib/utils"
  * rows get read beside real fills in the Journal, and that comparison should
  * not start with translating two ways of writing the same minute.
  */
-type Column =
-  | "n"
-  | "entry"
-  | "exit"
-  | "amount"
-  | "pnl"
-  | "returnPct"
-  | "cumPnl"
+type Column = "n" | "entry" | "exit" | "amount" | "pnl" | "returnPct" | "cumPnl"
 
 export function BacktestTradesPanel({
   symbol,
@@ -130,7 +123,10 @@ export function BacktestTradesPanel({
         onClick={() => toggleSort(column)}
         // Matched to the figures under it. The shared button is 14px, so on a
         // 12px table every heading sat a size above its own column.
-        className={cn("text-xs sm:text-xs", right && "ml-auto flex-row-reverse")}
+        className={cn(
+          "text-xs sm:text-xs",
+          right && "ml-auto flex-row-reverse"
+        )}
       >
         {label}
       </TableSortButton>
@@ -150,10 +146,7 @@ export function BacktestTradesPanel({
       />
       {/* Same reason as the Results panel: the scroll box's inner element
           is `display: table` and would let this table outgrow the panel. */}
-      <ScrollArea
-        className="min-h-0 flex-1"
-        viewportClassName="[&>div]:block!"
-      >
+      <ScrollArea className="min-h-0 flex-1" viewportClassName="[&>div]:block!">
         {!symbol ? (
           <p className="p-6 text-center text-sm text-muted-foreground">
             Pick a market in Results to see its trades.
@@ -180,7 +173,7 @@ export function BacktestTradesPanel({
           // The outside edges are named separately because the shared table
           // gives its first and last columns 24px there, which is the dashboard
           // rule — twice what this panel's neighbours use.
-          <Table className="text-xs [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_td]:px-3 [&_td]:py-2 [&_th:first-child]:pl-3 [&_th:last-child]:pr-3 [&_th]:px-3 [&_th]:text-xs">
+          <Table className="text-xs [&_td]:px-3 [&_td]:py-2 [&_td:first-child]:pl-3 [&_td:last-child]:pr-3 [&_th]:px-3 [&_th]:text-xs [&_th:first-child]:pl-3 [&_th:last-child]:pr-3">
             <TableHeader>
               <TableRow>
                 {head("#", "n")}
@@ -200,7 +193,9 @@ export function BacktestTradesPanel({
                   trade={trade}
                   cumPnl={cumulative.get(trade.n) ?? null}
                   selected={selected === trade.n}
-                  onSelect={() => onSelect(selected === trade.n ? null : trade.n)}
+                  onSelect={() =>
+                    onSelect(selected === trade.n ? null : trade.n)
+                  }
                 />
               ))}
               {open.map((trade) => (
@@ -210,7 +205,9 @@ export function BacktestTradesPanel({
                   openPnl={openPnl?.get(trade.n) ?? null}
                   cumPnl={null}
                   selected={selected === trade.n}
-                  onSelect={() => onSelect(selected === trade.n ? null : trade.n)}
+                  onSelect={() =>
+                    onSelect(selected === trade.n ? null : trade.n)
+                  }
                 />
               ))}
             </TableBody>
@@ -245,11 +242,15 @@ function Row({
       <TableCell column="meta" className="tabular-nums">
         {open ? "—" : trade.n}
       </TableCell>
-      {/* Always a buy: the ladder only ever goes long. Written out rather than
-          left off, because the column is the old app's and a short strategy
-          would need it the day one exists. */}
-      <TableCell column="meta" className="text-teal-600 dark:text-teal-400">
-        Long
+      <TableCell
+        column="meta"
+        className={cn(
+          trade.direction === "short"
+            ? "text-red-600 dark:text-red-400"
+            : "text-teal-600 dark:text-teal-400"
+        )}
+      >
+        {trade.direction === "short" ? "Short" : "Long"}
       </TableCell>
       <TableCell column="meta" className="tabular-nums">
         {formatDateTime(new Date(trade.entryAt))}
@@ -275,7 +276,10 @@ function Row({
       </TableCell>
       <TableCell
         column="meta"
-        className={cn("text-right tabular-nums", toneClass(open ? 0 : trade.pnl))}
+        className={cn(
+          "text-right tabular-nums",
+          toneClass(open ? 0 : trade.pnl)
+        )}
       >
         {/* The chip says the exchange ended this one, not the strategy. Beside
             the return rather than in a column of its own: it is the reason for

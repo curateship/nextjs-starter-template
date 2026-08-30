@@ -15,6 +15,34 @@
 - If the selected market's candle read fails, the Trades panel shows the same
   error and Try again action as the chart. A failed read never leaves the panel
   saying that trades are still loading.
+- Grid results can contain Long and Short rows. A selling grid starts with a
+  sale and closes with a buy-back; its profit rises as the exit price falls.
+- An ordinary Grid exit is paired with the rung it recycled, not the wallet's
+  blended position price. Its arrow and closed-position row therefore show the
+  profit from that rung's own entry after both fees. Stops and strategy closes
+  can still show a loss.
+- A selling Grid buy-back names the rung or rungs it closed. A closed position
+  can leave a decimal speck of one billionth of a coin or less; the chart treats
+  that as zero, so the next buying rung cannot be mislabeled as a buy-back from
+  a short that never existed.
+- The chart shows every closed position's dotted entry-to-exit line when no
+  trade is selected. Selecting one closed row isolates its line, even when the
+  same order closed several rungs; selecting that row again restores them all.
+
+## EMA Grid backtests
+
+- A flow ending in Grid shows the Backtest panel when its Wallet step uses
+  pretend money. The run button is the same button used by DCA and Signals.
+- Grid runs always use 4-hour candles and load 600 earlier candles for the EMA
+  warm-up. The chosen result window still begins on the date in Markets; the
+  warm-up cannot place a trade.
+- The chart draws the EMA period frozen on the saved Grid step. Parameter
+  settings returns to that Grid step, not to DCA.
+- The figures list the clean-hour wait, rung count, wallet share and whether the
+  range follows price up, down, both ways or neither.
+- A confirmed opposite stance closes the current historical grid and starts
+  the other direction at the same closed candle. The loop runs until the test
+  window ends.
 
 ## Backtest candle history
 
@@ -44,4 +72,3 @@
   A negative figure means the position received more funding than it paid.
 - Any missing market or settlement stretch appears in the result warning. It is
   never silently described as free.
-

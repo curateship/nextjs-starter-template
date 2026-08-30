@@ -30,9 +30,8 @@ import type {
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartView } from "@/lib/trade/chart-view"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
+import { flowRunIndicatorPaint } from "@/lib/trade/flow-run-indicators"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
-import { baseDashes } from "@/lib/trade/indicators/base"
-import { indicatorPaint } from "@/lib/trade/indicators/registry"
 
 /**
  * The middle panel: the **Graph** — this run's money over time — or the
@@ -110,25 +109,13 @@ export function FlowRunChartPanel({
   const paint = useChartDrawings(openCoin)
 
   // What the run is actually reading the market with, drawn on the chart: the
-  // bases a ladder hangs off, or the arrows a signals run acts on. Off the
-  // run's own frozen settings, so changing the flow since cannot redraw this.
-  const indicators = React.useMemo(() => {
-    if (spec.strategy.kind === "signals") {
-      return indicatorPaint(spec.strategy.indicators, [...bars], {
-        zone: DEFAULT_CHART_OPTIONS.zone,
-        interval: spec.strategy.interval,
-      })
-    }
-    return {
-      lines: [],
-      dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
-      // No arrows: the base indicator marks every candle that confirmed a
-      // level, and on this chart that reads as an order — which is what the
-      // fill arrows beside it already are.
-      marks: [],
-      boxes: [],
-    }
-  }, [bars, spec])
+  // bases a ladder hangs off, the arrows a signals run acts on, or the EMA a
+  // Grid run follows. The frozen run settings keep later canvas edits from
+  // redrawing what this run used.
+  const indicators = React.useMemo(
+    () => flowRunIndicatorPaint(spec, bars),
+    [bars, spec]
+  )
 
   return (
     <>

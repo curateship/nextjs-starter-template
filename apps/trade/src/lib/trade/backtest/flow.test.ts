@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import type { AutomationCompiledConfig } from "@/lib/automations/compile"
 import { automationGraphSchema } from "@/lib/automations/graph"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
+import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
 import {
   candlesPerCoin,
   coinsAllowedFor,
@@ -57,6 +58,23 @@ describe("a flow that is a backtest", () => {
     expect(read.spec?.wallet.startingUsd).toBe(10_000)
     expect(read.spec?.markets.marketKeys).toEqual(["hyperliquid:mainnet:BTC"])
     expect(read.spec?.interval).toBe("4h")
+  })
+
+  it("reads a Grid step as a 4h EMA Grid backtest", () => {
+    const settings = tradeGridNode.createSettings()
+    const read = backtestSpecFromFlow(
+      flowOf({
+        a: wallet,
+        b: markets,
+        c: { kind: tradeGridNode.kind, settings },
+      })
+    )
+
+    expect(read.problem).toBeNull()
+    expect(read.spec).toMatchObject({
+      interval: "4h",
+      strategy: { kind: "emaGrid", grid: settings },
+    })
   })
 
   it("ignores steps that are not part of a backtest", () => {

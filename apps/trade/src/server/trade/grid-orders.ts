@@ -56,6 +56,7 @@ import {
   tradeWallets,
 } from "@/server/trade/schema"
 import { assertSmartOrderPlacable } from "./smart-pairing"
+import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders"
 
 /**
  * Placing and steering grid orders — the actions behind the right-click
@@ -75,6 +76,8 @@ export type PlaceGridInput = {
   topPx: number
   bottomPx: number
   params: GridParams
+  /** The switched-on flow placing this grid, or absent for a hand placement. */
+  flowRunId?: string
 }
 
 export type PlacedGrid = {
@@ -463,6 +466,14 @@ export async function placeGridOrder(
       { kind: "grid", plan },
       tx
     )
+    if (input.flowRunId) {
+      await assertFlowRunAcceptingPlacements(
+        tx,
+        userId,
+        input.flowRunId,
+        input.marketKey
+      )
+    }
 
     // Nothing is bought here, on purpose. Placing a grid spends nothing at all:
     // every level waits for price to reach it and pays its own way then.
@@ -479,6 +490,7 @@ export async function placeGridOrder(
       kind: "grid",
       status: "active",
       plan,
+      flowRunId: input.flowRunId ?? null,
       createdAt: new Date(now),
       updatedAt: new Date(now),
     })
@@ -498,7 +510,7 @@ export async function placeGridOrder(
       marketKey: input.marketKey,
       kind: "grid",
       status: "active",
-      flowRunId: null,
+      flowRunId: input.flowRunId ?? null,
       createdAt: now,
       updatedAt: now,
       plan,

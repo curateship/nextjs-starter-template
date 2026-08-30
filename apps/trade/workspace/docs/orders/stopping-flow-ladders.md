@@ -42,6 +42,13 @@ from one lagging open-orders read, so Stop keeps the signal pending for the same
 15-second proof window used by the trading engine before it decides the order
 is gone. A position that appeared in the meantime is kept.
 
+A Grid step follows the same ownership rule. Stop cancels every waiting level
+on a grid carrying the flow's run ID. A grid placed by hand stays untouched. If
+one or more levels hold coin, Stop leaves the grid running after its waiting
+levels come off so its emergency stop still protects the position. Grid
+placement checks the run under the wallet lock, so a placement that arrives
+after Stop sends nothing.
+
 The permanent flow-order record repairs an older bad state. Old stop code could
 erase an order ID from a ladder while leaving the real order open. The live
 cancel reads the exchange's open orders and cancels only IDs that both the

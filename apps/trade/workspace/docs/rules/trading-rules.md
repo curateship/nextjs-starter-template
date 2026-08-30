@@ -165,6 +165,15 @@ add up to.
 
 ## Grids
 
+- Tyler, 30 Aug 2026: **"In What calls the grid, I need to change by hours and
+  not days."** The clean wait is shown and changed in hours. Since Grid only
+  reads closed 4-hour candles, the choices move in 4-hour steps. The default is
+  72 hours.
+- **A normal Grid exit is measured against the rung it closes.** The wallet
+  blends every open rung into one average price, so its accounting can call a
+  profitable deep-rung sale a realized loss. A Grid trade is the round trip
+  from that rung's own entry to its own exit. Only a stop, liquidation or
+  strategy close may show a losing Grid round trip.
 - **A rung buys at its own price, or it does not buy.** Never at a price that
   belongs to no rung. A grid placed with the price inside its range used to
   market-buy every rung above the price, all in one order, at whatever the

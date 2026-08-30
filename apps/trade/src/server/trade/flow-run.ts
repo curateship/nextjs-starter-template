@@ -7,6 +7,7 @@ import { tradeDcaSettingsSchema } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsSettingsSchema } from "@/lib/automations/nodes/trade-markets"
 import { trimMarketsToFit } from "@/lib/automations/nodes/trade-markets"
 import { tradeSignalsSettingsSchema } from "@/lib/automations/nodes/trade-signals"
+import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
 import type {
   FlowStopOutcome,
   TradeFlowRunSpec,
@@ -23,10 +24,12 @@ import {
 } from "@/lib/trade/flow-waiting"
 import {
   advanceSignalFlow,
-  signalReadDue,
+  candleReadDue,
   workingSignals,
 } from "@/server/trade/signal-run"
+import { advanceEmaGridFlow } from "@/server/trade/ema-grid-run"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
+import { gridHeldSz, readGridPlan } from "@/lib/trade/grid"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { db, type CustomShellDb } from "@/server/db"
 import {
@@ -40,6 +43,8 @@ import {
   cancelLiveSignalRest,
   placeLiveDcaLadder,
 } from "@/server/trade/live-smart-orders"
+import { cancelGridRest as cancelPaperGridRest } from "@/server/trade/grid-orders"
+import { cancelLiveGridRest } from "@/server/trade/live-grid-orders"
 import {
   cancelFlowLadderRemainder,
   cancelFlowLadderRest,
@@ -119,6 +124,7 @@ export type FlowNodes = {
   strategy:
     | { kind: "dca"; settings: Record<string, unknown> }
     | { kind: "signals"; settings: Record<string, unknown> }
+    | { kind: "emaGrid"; settings: Record<string, unknown> }
 }
 
 /**
@@ -250,6 +256,15 @@ function readFlowStrategy(
       // multiplies by a price. Converting once, here, is one less place for a
       // hundred to go missing.
       chaseGiveUp: parsed.data.chaseGiveUpPct / 100,
+    }
+  }
+  if (step.kind === "emaGrid") {
+    const parsed = tradeGridSettingsSchema.safeParse(step.settings)
+    if (!parsed.success) return null
+    return {
+      kind: "emaGrid",
+      settings: parsed.data,
+      interval: "4h",
     }
   }
   const parsed = tradeDcaSettingsSchema.safeParse(step.settings)
@@ -492,12 +507,20 @@ type StopRow = Pick<
   "id" | "walletId" | "marketKey" | "kind" | "plan" | "updatedAt"
 >
 
-function stopRowKind(row: StopRow): "cancel" | "signal" | "held" {
+function stopRowKind(
+  row: StopRow
+): "cancel" | "signal" | "grid" | "held" | "done" {
   const plan = row.plan
   if (row.kind === "signal" && "phase" in plan) {
     return plan.phase === "buying" || plan.phase === "stopping"
       ? "signal"
       : "held"
+  }
+  if (row.kind === "grid") {
+    const grid = readGridPlan(plan)
+    if (!grid) return "held"
+    if (grid.levels.some((level) => level.status === "waiting")) return "grid"
+    return gridHeldSz(grid) > 0 ? "held" : "done"
   }
   if (!("rungs" in plan)) return "held"
   if (plan.rungs.some((rung) => rung.status === "filled")) return "held"
@@ -554,7 +577,9 @@ export async function flowStopCounts(
   return rows.reduce(
     (counts, row) => {
       const kind = stopRowKind(row)
-      if (kind === "cancel" || kind === "signal") counts.remaining += 1
+      if (kind === "cancel" || kind === "signal" || kind === "grid") {
+        counts.remaining += 1
+      }
       if (kind === "held") counts.held += 1
       return counts
     },
@@ -632,7 +657,7 @@ async function advanceStoppingFlow(
 
   for (const row of rows) {
     const kind = stopRowKind(row)
-    if (kind === "held" || attempted >= 3) continue
+    if (kind === "held" || kind === "done" || attempted >= 3) continue
 
     if (!wallets.has(row.walletId)) {
       wallets.set(
@@ -659,6 +684,14 @@ async function advanceStoppingFlow(
             : await cancelSignalRest(run.userId, wallet, { signalId: row.id })
         complete = outcome.complete
         done = outcome.done
+      } else if (kind === "grid") {
+        if (wallet.kind === "live") {
+          await cancelLiveGridRest(run.userId, wallet, { gridId: row.id })
+        } else {
+          await cancelPaperGridRest(run.userId, wallet, { gridId: row.id })
+        }
+        const plan = readGridPlan(row.plan)
+        done = plan !== null && gridHeldSz(plan) === 0
       } else if (wallet.kind === "live") {
         const outcome = await cancelLiveFlowLadderRest(run.userId, wallet, {
           ladderId: row.id,
@@ -897,7 +930,7 @@ export async function advanceRemovedFlowLadders(
             eq(tradeSmartLadders.userId, run.userId),
             eq(tradeSmartLadders.flowRunId, run.id),
             eq(tradeSmartLadders.marketKey, marketKey),
-            inArray(tradeSmartLadders.kind, ["dca", "signal"]),
+            inArray(tradeSmartLadders.kind, ["dca", "signal", "grid"]),
             eq(tradeSmartLadders.status, "active")
           )
         )
@@ -912,23 +945,31 @@ export async function advanceRemovedFlowLadders(
         for (const row of rows) {
           try {
             const outcome =
-              row.kind === "signal"
+              row.kind === "grid"
                 ? wallet.kind === "live"
-                  ? await cancelLiveSignalRest(run.userId, wallet, {
-                      signalId: row.id,
-                      now,
+                  ? await cancelLiveGridRest(run.userId, wallet, {
+                      gridId: row.id,
                     })
-                  : await cancelSignalRest(run.userId, wallet, {
-                      signalId: row.id,
+                  : await cancelPaperGridRest(run.userId, wallet, {
+                      gridId: row.id,
                     })
-                : wallet.kind === "live"
-                  ? await cancelLiveFlowLadderRemainder(run.userId, wallet, {
-                      ladderId: row.id,
-                    })
-                  : await cancelFlowLadderRemainder(run.userId, wallet, {
-                      ladderId: row.id,
-                    })
-            if (!outcome.complete) complete = false
+                : row.kind === "signal"
+                  ? wallet.kind === "live"
+                    ? await cancelLiveSignalRest(run.userId, wallet, {
+                        signalId: row.id,
+                        now,
+                      })
+                    : await cancelSignalRest(run.userId, wallet, {
+                        signalId: row.id,
+                      })
+                  : wallet.kind === "live"
+                    ? await cancelLiveFlowLadderRemainder(run.userId, wallet, {
+                        ladderId: row.id,
+                      })
+                    : await cancelFlowLadderRemainder(run.userId, wallet, {
+                        ladderId: row.id,
+                      })
+            if ("complete" in outcome && !outcome.complete) complete = false
           } catch {
             complete = false
             failed = true
@@ -983,13 +1024,13 @@ export async function advanceRunningFlows(
     .select()
     .from(tradeFlowRuns)
     .where(eq(tradeFlowRuns.status, "running"))
+    // Signals and EMA Grid share one paced candle read. The flow that has gone
+    // longest without a pass goes first, so an older run cannot claim every
+    // read and leave later runs untouched forever.
+    .orderBy(asc(tradeFlowRuns.updatedAt), asc(tradeFlowRuns.id))
 
   for (const run of runs) {
-    const wallet = await walletFromPass(
-      passWallets,
-      run.userId,
-      run.walletId
-    )
+    const wallet = await walletFromPass(passWallets, run.userId, run.walletId)
     // A wallet deleted or switched off stops the flow rather than leaving it
     // trying every second. The same rule the ladder worker follows.
     if (!wallet || wallet.status !== "active") {
@@ -1013,6 +1054,10 @@ export async function advanceRunningFlows(
 
     if (run.spec.strategy.kind === "signals") {
       await advanceSignalRun(run, wallet, now, database)
+      continue
+    }
+    if (run.spec.strategy.kind === "emaGrid") {
+      await advanceEmaGridRun(run, wallet, now, database)
       continue
     }
 
@@ -1220,7 +1265,7 @@ async function advanceSignalRun(
   // and a half seconds, so three passes in four have nothing to do — and
   // reading what every coin is holding first, once a second, forever, would be
   // most of this flow's cost spent finding that out.
-  if (!signalReadDue(now)) return
+  if (!candleReadDue(now)) return
 
   const working = await workingSignals(
     run.userId,
@@ -1287,6 +1332,112 @@ async function advanceSignalRun(
   // first one closes.
   for (const [key, one] of working) {
     acted[key] = Math.max(acted[key] ?? 0, one.plan.signalAt)
+  }
+
+  if (flowHoldJustBegan(run.hold ?? null, hold) && hold) {
+    await tellFlowOwner(
+      run.userId,
+      holdNoticeWords(
+        await flowName(run.automationId, database),
+        run.spec.walletLabel,
+        hold,
+        now
+      ),
+      database,
+      run.id
+    )
+  }
+
+  await database
+    .update(tradeFlowRuns)
+    .set({
+      updatedAt: new Date(now),
+      waiting,
+      acted,
+      hold,
+      ...(placedNow
+        ? { placed: [...new Set([...run.placed, placedNow])] }
+        : {}),
+    })
+    .where(
+      and(eq(tradeFlowRuns.userId, run.userId), eq(tradeFlowRuns.id, run.id))
+    )
+}
+
+/** One paced candle look for a Grid flow, with the run's waiting words saved. */
+async function advanceEmaGridRun(
+  run: {
+    userId: string
+    id: string
+    automationId: string
+    walletId: string
+    spec: TradeFlowRunSpec
+    waiting: Record<string, FlowWaitReason>
+    acted: Record<string, number>
+    placed: string[]
+    hold: FlowHold | null
+  },
+  wallet: TradeWallet,
+  now: number,
+  database: CustomShellDb
+): Promise<void> {
+  if (run.spec.strategy.kind !== "emaGrid") return
+  if (run.hold && run.hold.until > now) return
+  if (!candleReadDue(now)) return
+
+  const waiting: Record<string, FlowWaitReason> = { ...run.waiting }
+  const acted = { ...run.acted }
+  let hold = run.hold ?? null
+  let placedNow: string | null = null
+
+  try {
+    const outcome = await advanceEmaGridFlow(
+      {
+        userId: run.userId,
+        wallet,
+        settings: run.spec.strategy.settings,
+        marketKeys: run.spec.marketKeys,
+        flowRunId: run.id,
+        lookedAt: Object.fromEntries(
+          Object.entries(run.waiting).map(([key, one]) => [key, one.at])
+        ),
+        acted,
+        now,
+      },
+      database
+    )
+    if (outcome.marketKey) {
+      if (outcome.did === "waiting") {
+        waiting[outcome.marketKey] = { code: outcome.code, at: now }
+      } else if (outcome.did === "refused") {
+        waiting[outcome.marketKey] = { code: outcome.code, at: now }
+        acted[outcome.marketKey] = outcome.at
+        hold = nextFlowHold(hold, outcome.code, now)
+      } else if (outcome.did === "closing") {
+        waiting[outcome.marketKey] = { code: "EMA_GRID_FLIPPING", at: now }
+        hold = null
+      } else if (outcome.did === "holding" || outcome.did === "placed") {
+        // The waiting map also carries the last-look time used to rotate
+        // through a long coin list. Keep an active answer here or the first
+        // placed coin stays at time zero and gets checked forever.
+        waiting[outcome.marketKey] = { code: "EMA_GRID_ACTIVE", at: now }
+        hold = null
+        if (outcome.did === "placed") {
+          acted[outcome.marketKey] = outcome.at
+          placedNow = outcome.marketKey
+        }
+      }
+    }
+  } catch (error) {
+    const code = flowWaitCode(error)
+    if (code === "FLOW_UNKNOWN") {
+      console.warn(
+        `EMA Grid refusal with no words: ${scrubSecrets(
+          error instanceof Error ? error.message : String(error)
+        )}`
+      )
+    }
+    hold = nextFlowHold(hold, code, now)
   }
 
   if (flowHoldJustBegan(run.hold ?? null, hold) && hold) {

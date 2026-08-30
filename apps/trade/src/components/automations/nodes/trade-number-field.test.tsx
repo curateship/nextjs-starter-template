@@ -70,4 +70,44 @@ describe("whole-number fields", () => {
     expect(changed).toHaveBeenCalledOnce()
     expect(changed).toHaveBeenCalledWith(3)
   })
+
+  it("saves only values on a requested increment", async () => {
+    const changed = vi.fn()
+
+    function Field() {
+      const [value, setValue] = useState(72)
+      return (
+        <TradeNumberField
+          id="clean-hours"
+          label="Clean hours"
+          value={value}
+          min={4}
+          max={336}
+          integer
+          step={4}
+          suffix="hours"
+          onChange={(next) => {
+            changed(next)
+            setValue(next)
+          }}
+        />
+      )
+    }
+
+    await act(async () => root.render(<Field />))
+    const input = host.querySelector<HTMLInputElement>("#clean-hours")
+    expect(input).not.toBeNull()
+
+    await act(async () => enter(input!, "6"))
+    expect(input?.getAttribute("aria-invalid")).toBe("true")
+    expect(host.textContent).toContain(
+      "Use increments of 4 hours. Anything else is not saved."
+    )
+    expect(changed).not.toHaveBeenCalled()
+
+    await act(async () => enter(input!, "8"))
+    expect(input?.getAttribute("aria-invalid")).toBe("false")
+    expect(changed).toHaveBeenCalledOnce()
+    expect(changed).toHaveBeenCalledWith(8)
+  })
 })

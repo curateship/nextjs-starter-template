@@ -25,6 +25,8 @@ import {
   BASE_STOP_INTERVAL,
   dcaParamsSchema,
 } from "@/lib/trade/dca"
+import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
+import { EMA_GRID_HISTORY_BARS } from "@/lib/trade/ema-grid"
 import {
   indicatorSettingsSchema,
   indicatorWarmupBars,
@@ -143,6 +145,13 @@ function signalWarmupFrom(spec: BacktestSpecSnapshot): number {
   return spec.from - signalWarmupCount(spec) * INTERVAL_MS[spec.interval]
 }
 
+/** EMA Grid needs the full 600-bar confidence window before the test begins. */
+function baseWarmupBars(spec: BacktestSpecSnapshot): number {
+  return spec.strategy.kind === "emaGrid"
+    ? Math.max(BASE_STOP_BARS, EMA_GRID_HISTORY_BARS)
+    : BASE_STOP_BARS
+}
+
 export async function backtestTick(now: number = Date.now()): Promise<void> {
   // Anything that ran out of tries says so, rather than sitting at "running"
   // for ever because nothing will claim it again.
@@ -247,7 +256,7 @@ async function loadSomeCandles(
   marketKeys: readonly string[]
 ): Promise<void> {
   const { userId, groupId, spec } = claimed
-  const warmFrom = spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS
+  const warmFrom = spec.from - baseWarmupBars(spec) * BASE_STOP_BAR_MS
 
   // A few at a time, rather than one after another: each coin is two network
   // reads and nothing else, so waiting for one before starting the next is
@@ -257,7 +266,9 @@ async function loadSomeCandles(
     await Promise.all(
       marketKeys
         .slice(at, at + FETCH_AT_ONCE)
-        .map((marketKey) => loadOneCoin(userId, groupId, spec, marketKey, warmFrom))
+        .map((marketKey) =>
+          loadOneCoin(userId, groupId, spec, marketKey, warmFrom)
+        )
     )
   }
 }
@@ -401,7 +412,7 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
             loadStoredCandles(
               coin.marketKey,
               BASE_STOP_INTERVAL,
-              spec.from - BASE_STOP_BARS * BASE_STOP_BAR_MS,
+              spec.from - baseWarmupBars(spec) * BASE_STOP_BAR_MS,
               spec.to
             ),
             // Indicator warm-up is bounded by the settings that are on.
@@ -481,13 +492,21 @@ async function walkAndSave(claimed: ClaimedGroup): Promise<void> {
   // build recorded the run, and the walk is about to spend a pot on it.
   const strategy =
     spec.strategy.kind === "dca"
-      ? { kind: "dca" as const, params: dcaParamsSchema.parse(spec.strategy.params) }
-      : {
-          kind: "signals" as const,
-          indicators: indicatorSettingsSchema.parse(spec.strategy.indicators),
-          stakePct: spec.strategy.stakePct,
-          chaseGiveUp: spec.strategy.chaseGiveUp,
+      ? {
+          kind: "dca" as const,
+          params: dcaParamsSchema.parse(spec.strategy.params),
         }
+      : spec.strategy.kind === "signals"
+        ? {
+            kind: "signals" as const,
+            indicators: indicatorSettingsSchema.parse(spec.strategy.indicators),
+            stakePct: spec.strategy.stakePct,
+            chaseGiveUp: spec.strategy.chaseGiveUp,
+          }
+        : {
+            kind: "emaGrid" as const,
+            settings: tradeGridSettingsSchema.parse(spec.strategy.settings),
+          }
   // Real minute prices for the bars a coin was actually holding or resting
   // something in. Everything else is walked whole, exactly as before.
   const zoom = createBarZoom()
@@ -634,7 +653,10 @@ async function finish(
       reason: one.reason,
       rung: one.rung,
     }))
-    const trades: BacktestTrade[] = pairTrades(engineFills)
+    const trades: BacktestTrade[] = pairTrades(
+      engineFills,
+      spec.strategy.kind === "emaGrid" ? "grid" : "fifo"
+    )
     // Banked, straight off the fills rather than off the pairing: this is what
     // the wallet actually took, whatever the pairing did with a part-closed
     // rung.
@@ -657,7 +679,8 @@ async function finish(
     const madeOrLost = banked + openPnl - walked.fundingPaid
     const closed = trades.filter((trade) => trade.exitAt !== null)
     const openAtEndUsd = walked.openAtEnd
-      ? Math.abs(walked.openAtEnd.szi) * (walked.lastPx ?? walked.openAtEnd.entryPx)
+      ? Math.abs(walked.openAtEnd.szi) *
+        (walked.lastPx ?? walked.openAtEnd.entryPx)
       : 0
     // Just buying this coin at the start and holding to the end.
     //
@@ -769,7 +792,8 @@ async function finish(
       dip.at === null
         ? null
         : (equity.find((point) => point.t === dip.at)?.usd ?? null),
-    coinsOpenAtEnd: coinSummaries.filter((coin) => coin.openAtEndUsd > 0).length,
+    coinsOpenAtEnd: coinSummaries.filter((coin) => coin.openAtEndUsd > 0)
+      .length,
     openAtEndUsd: coinSummaries.reduce(
       (sum, coin) => sum + coin.openAtEndUsd,
       0
@@ -990,8 +1014,7 @@ export function peakInPlay(
 
   // A bar counts as "at the peak" when it is within a tenth of a percent of it.
   const near = shares.filter((share) => share >= pct * 0.999).length
-  const barMs =
-    equity.length > 1 ? Math.max(0, equity[1].t - equity[0].t) : 0
+  const barMs = equity.length > 1 ? Math.max(0, equity[1].t - equity[0].t) : 0
   return { usd, pct, at, heldMs: near * barMs }
 }
 

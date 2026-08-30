@@ -4,6 +4,7 @@ import type {
   ProtocolId,
 } from "@/lib/protocols/contracts"
 import type { DcaParams } from "@/lib/trade/dca"
+import type { TradeGridSettings } from "@/lib/automations/nodes/trade-grid"
 import type { IndicatorSettings } from "@/lib/trade/indicators/registry"
 
 /**
@@ -28,10 +29,9 @@ export type TradeFlowRunStatus = "running" | "stopping" | "stopped"
 /**
  * How a switched-on flow decides what to buy, frozen with everything else.
  *
- * **One of two, never both.** A ladder waits for price to fall into a plan it
- * drew from a base; signals wait for an indicator to say so. A flow drawn with
- * both strategy steps is refused before it starts, in words, rather than left
- * to work out which one it meant with money on the line.
+ * A ladder waits for price to fall into a plan, Signals waits for an indicator
+ * call, and Grid follows the 4-hour EMA. A flow drawn with more than one
+ * strategy step is refused before it starts.
  */
 export type TradeFlowStrategy =
   | {
@@ -51,6 +51,13 @@ export type TradeFlowStrategy =
       stakePct: number
       /** How far a buy may follow a price that runs, as a share of it. */
       chaseGiveUp: number
+    }
+  | {
+      kind: "emaGrid"
+      /** The clean-run and grid settings frozen when the flow starts. */
+      settings: TradeGridSettings
+      /** EMA Grid always reads closed four-hour candles. */
+      interval: "4h"
     }
 
 export type TradeFlowRunSpec = {
@@ -112,7 +119,9 @@ export function isWorkingFlowOrder(
   kind: string,
   hasWaitingRung: boolean
 ): boolean {
-  return kind === "signal" || (kind === "dca" && hasWaitingRung)
+  return (
+    kind === "signal" || kind === "grid" || (kind === "dca" && hasWaitingRung)
+  )
 }
 
 /**

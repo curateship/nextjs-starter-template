@@ -1061,7 +1061,16 @@ export async function listActiveSmartOrders(
    */
   const flowPlaced = new Map<string, { runId: string; since: number }>()
   for (const run of running) {
-    const kind = run.spec.strategy.kind === "signals" ? "signal" : "dca"
+    const kind =
+      run.spec.strategy.kind === "signals"
+        ? "signal"
+        : run.spec.strategy.kind === "dca"
+          ? "dca"
+          : null
+    // Grid flows have carried a run stamp since their first release. Guessing
+    // ownership from `placed` would only risk claiming a later grid placed by
+    // hand on the same coin.
+    if (!kind) continue
     for (const marketKey of run.placed) {
       flowPlaced.set(`${run.walletId}:${marketKey}:${kind}`, {
         runId: run.id,

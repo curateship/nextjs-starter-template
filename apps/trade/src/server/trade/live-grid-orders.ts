@@ -56,6 +56,7 @@ import {
   pairedLadderPlan,
 } from "@/server/trade/smart-pairing"
 import { walletCredential } from "@/server/trade/wallet-auth"
+import { assertFlowRunAcceptingPlacements } from "@/server/trade/flow-run-orders"
 
 // ----- The grid's live half ------------------------------------------------
 
@@ -202,6 +203,14 @@ async function placeLiveGridOrderOnce(
         { kind: "grid", plan },
         tx
       )
+      if (input.flowRunId) {
+        await assertFlowRunAcceptingPlacements(
+          tx,
+          userId,
+          input.flowRunId,
+          input.marketKey
+        )
+      }
       await tx.insert(tradeSmartLadders).values({
         userId,
         id,
@@ -210,6 +219,7 @@ async function placeLiveGridOrderOnce(
         kind: "grid",
         status: "active",
         plan,
+        flowRunId: input.flowRunId ?? null,
         createdAt: stamp,
         updatedAt: stamp,
       })
@@ -238,7 +248,7 @@ async function placeLiveGridOrderOnce(
       marketKey: input.marketKey,
       kind: "grid" as const,
       status: "active" as const,
-      flowRunId: null,
+      flowRunId: input.flowRunId ?? null,
       createdAt: now,
       updatedAt: now,
       plan,

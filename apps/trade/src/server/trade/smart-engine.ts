@@ -89,6 +89,8 @@ export type LadderEngineDeps = {
       closePosition?: boolean
       reason: "order"
       at: number
+      /** The Grid rung this action belongs to, counted from zero when known. */
+      rung?: number
       /** The watched price that this fill must still have reached live. */
       triggerPx?: number
       /**

@@ -937,6 +937,27 @@ export function gridFlippedPcts(pcts: number[]): number[] {
 }
 
 /**
+ * Repairs a saved row split that was carried over from the other direction.
+ *
+ * The largest share belongs on the furthest rung: the bottom of a buying grid
+ * and the top of a selling grid. Only an unambiguous backwards list turns
+ * over. A custom split whose largest share is somewhere in the middle stays
+ * exactly as typed.
+ */
+export function gridRungRowsWithLargestFurthest(
+  direction: GridDirection,
+  pcts: readonly number[]
+): number[] {
+  if (pcts.length < 2) return [...pcts]
+
+  const largest = Math.max(...pcts)
+  const furthest = direction === "short" ? 0 : pcts.length - 1
+  const nearest = pcts.length - 1 - furthest
+  if (pcts[furthest] === largest || pcts[nearest] !== largest) return [...pcts]
+  return [...pcts].reverse()
+}
+
+/**
  * The whole grid as concrete numbers: where each buy sits, where its sell
  * rests, what it spends and how many coins that is.
  *
