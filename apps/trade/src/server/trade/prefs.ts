@@ -24,6 +24,18 @@ import {
 } from "@/lib/trade/indicators/registry"
 import { readOrderStyle, type OrderStyle } from "@/lib/trade/order-style"
 import {
+  emptyTradePanelLayouts,
+  MAX_NAMED_PANEL_LAYOUTS,
+  matchingPanelLayout,
+  readTradePanelLayouts,
+  type TradePanelLayouts,
+} from "@/lib/trade/panel-layout"
+import {
+  type TradePanelLayoutKey,
+  tradePanelIds,
+  tradePanelLayoutKey,
+} from "@/lib/trade/panel-keys"
+import {
   minimumMarketVolumeSchema,
   readMinimumMarketVolume,
 } from "@/lib/trade/market-volume"
@@ -50,6 +62,7 @@ export type DashboardPrefs = {
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
   marketPanelRows: MarketPanelRows
+  panelLayouts: TradePanelLayouts
   /**
    * The two smart-order windows' saved settings ride along too, so the first
    * right-click after a page load opens on them with nothing left to fetch.
@@ -89,6 +102,7 @@ export async function loadDashboardPrefs(
       cardFolds: tradePrefs.cardFolds,
       quickOrder: tradePrefs.quickOrder,
       marketPanelRows: tradePrefs.marketPanelRows,
+      panelLayouts: tradePrefs.panelLayouts,
       smartDca: tradePrefs.smartDca,
       smartGrid: tradePrefs.smartGrid,
     })
@@ -101,6 +115,7 @@ export async function loadDashboardPrefs(
     marketPanelRows: readMarketPanelRows(
       found?.marketPanelRows?.[panelScopeKey(scope)]
     ),
+    panelLayouts: readTradePanelLayouts(found?.panelLayouts),
     minimumMarketVolumeUsd: readMinimumMarketVolume(
       found?.minimumMarketVolumeUsd
     ),
@@ -605,4 +620,247 @@ export async function saveMarketPanelRows(
       },
     })
   return rows
+}
+
+/** Every trade workspace's divider positions, read from the preference row. */
+export async function loadTradePanelLayouts(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<TradePanelLayouts> {
+  const [row] = await database
+    .select({ panelLayouts: tradePrefs.panelLayouts })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return readTradePanelLayouts(row?.panelLayouts)
+}
+
+/** The two account-owned answers the live-run route needs, in one row read. */
+export async function loadChartWorkspacePrefs(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<{ chartView: ChartView | null; panelLayouts: TradePanelLayouts }> {
+  const [row] = await database
+    .select({
+      chartView: tradePrefs.chartView,
+      panelLayouts: tradePrefs.panelLayouts,
+    })
+    .from(tradePrefs)
+    .where(eq(tradePrefs.userId, userId))
+    .limit(1)
+  return {
+    chartView: readChartView(row?.chartView ?? null),
+    panelLayouts: readTradePanelLayouts(row?.panelLayouts),
+  }
+}
+
+/**
+ * Remember one group without reading the row first. The nested JSON merge lets
+ * two open pages save different groups at the same moment without either one
+ * dropping the other's answer.
+ */
+export async function saveTradePanelLayout(
+  userId: string,
+  key: TradePanelLayoutKey,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const layout = matchingPanelLayout(value, tradePanelIds[key])
+  if (!layout) throw new Error("PANEL_LAYOUT_INVALID")
+  const currentPatch = { [key]: layout }
+  const fresh: TradePanelLayouts = {
+    legacyImported: true,
+    current: currentPatch,
+    named: [],
+  }
+  const base = validPanelLayoutsSql()
+  const current = validCurrentPanelLayoutsSql()
+  await database
+    .insert(tradePrefs)
+    .values({ userId, panelLayouts: fresh, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        panelLayouts: sql`jsonb_set(
+          ${base} || '{"legacyImported":true}'::jsonb,
+          '{current}',
+          ${current} || ${JSON.stringify(currentPatch)}::jsonb
+        )`,
+        updatedAt: new Date(),
+      },
+    })
+}
+
+/**
+ * Bring this browser's old layouts across only while the account has no newer
+ * account-owned answer. The conflict update is one statement, so two browsers
+ * cannot both win the first import.
+ */
+export async function importLegacyTradePanelLayouts(
+  userId: string,
+  value: TradePanelLayouts["current"],
+  database: CustomShellDb = db
+): Promise<TradePanelLayouts> {
+  const imported = readTradePanelLayouts({
+    legacyImported: true,
+    current: value,
+    named: [],
+  })
+  if (Object.keys(imported.current).length === 0) {
+    return loadTradePanelLayouts(userId, database)
+  }
+
+  const base = validPanelLayoutsSql()
+  const [row] = await database
+    .insert(tradePrefs)
+    .values({ userId, panelLayouts: imported, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: tradePrefs.userId,
+      set: {
+        panelLayouts: sql`case
+          when ${base}->>'legacyImported' = 'true' then ${base}
+          else ${JSON.stringify(imported)}::jsonb
+        end`,
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ panelLayouts: tradePrefs.panelLayouts })
+  return readTradePanelLayouts(row?.panelLayouts)
+}
+
+/** Save the current trade workspace as one of at most five named choices. */
+export async function createNamedTradePanelLayout(
+  userId: string,
+  input: { name: string; horizontal: unknown; vertical: unknown },
+  database: CustomShellDb = db
+): Promise<TradePanelLayouts> {
+  const name = input.name.trim()
+  const horizontal = matchingPanelLayout(
+    input.horizontal,
+    tradePanelIds[tradePanelLayoutKey.workspaceHorizontal]
+  )
+  const vertical = matchingPanelLayout(
+    input.vertical,
+    tradePanelIds[tradePanelLayoutKey.workspaceVertical]
+  )
+  if (!name || name.length > 32 || !horizontal || !vertical) {
+    throw new Error("PANEL_LAYOUT_INVALID")
+  }
+
+  return database.transaction(async (tx) => {
+    await tx
+      .insert(tradePrefs)
+      .values({ userId, panelLayouts: emptyTradePanelLayouts() })
+      .onConflictDoNothing()
+    const [row] = await tx
+      .select({ panelLayouts: tradePrefs.panelLayouts })
+      .from(tradePrefs)
+      .where(eq(tradePrefs.userId, userId))
+      .for("update")
+    const layouts = readTradePanelLayouts(row?.panelLayouts)
+    if (
+      layouts.named.some(
+        (layout) => layout.name.toLocaleLowerCase() === name.toLocaleLowerCase()
+      )
+    ) {
+      throw new Error("PANEL_LAYOUT_NAME_TAKEN")
+    }
+    if (layouts.named.length >= MAX_NAMED_PANEL_LAYOUTS) {
+      throw new Error("PANEL_LAYOUT_LIMIT")
+    }
+    const saved: TradePanelLayouts = {
+      legacyImported: true,
+      current: {
+        ...layouts.current,
+        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.workspaceVertical]: vertical,
+      },
+      named: [
+        ...layouts.named,
+        { id: crypto.randomUUID(), name, horizontal, vertical },
+      ],
+    }
+    await tx
+      .update(tradePrefs)
+      .set({ panelLayouts: saved, updatedAt: new Date() })
+      .where(eq(tradePrefs.userId, userId))
+    return saved
+  })
+}
+
+/** Make a named arrangement current in the same write that selects it. */
+export async function applyNamedTradePanelLayout(
+  userId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<TradePanelLayouts> {
+  return updateNamedTradePanelLayouts(userId, database, (layouts) => {
+    const named = layouts.named.find((layout) => layout.id === id)
+    if (!named) throw new Error("PANEL_LAYOUT_NOT_FOUND")
+    return {
+      ...layouts,
+      legacyImported: true,
+      current: {
+        ...layouts.current,
+        [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
+        [tradePanelLayoutKey.workspaceVertical]: named.vertical,
+      },
+    }
+  })
+}
+
+/** Delete one named arrangement without moving the dividers on screen. */
+export async function deleteNamedTradePanelLayout(
+  userId: string,
+  id: string,
+  database: CustomShellDb = db
+): Promise<TradePanelLayouts> {
+  return updateNamedTradePanelLayouts(userId, database, (layouts) => {
+    const named = layouts.named.filter((layout) => layout.id !== id)
+    if (named.length === layouts.named.length) {
+      throw new Error("PANEL_LAYOUT_NOT_FOUND")
+    }
+    return { ...layouts, named }
+  })
+}
+
+async function updateNamedTradePanelLayouts(
+  userId: string,
+  database: CustomShellDb,
+  change: (layouts: TradePanelLayouts) => TradePanelLayouts
+) {
+  return database.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ panelLayouts: tradePrefs.panelLayouts })
+      .from(tradePrefs)
+      .where(eq(tradePrefs.userId, userId))
+      .for("update")
+    if (!row) throw new Error("PANEL_LAYOUT_NOT_FOUND")
+    const saved = change(readTradePanelLayouts(row.panelLayouts))
+    await tx
+      .update(tradePrefs)
+      .set({ panelLayouts: saved, updatedAt: new Date() })
+      .where(eq(tradePrefs.userId, userId))
+    return saved
+  })
+}
+
+/** Treat a hand-edited non-object value as an empty current-format answer. */
+function validPanelLayoutsSql() {
+  const empty = JSON.stringify(emptyTradePanelLayouts())
+  return sql`case
+    when jsonb_typeof(${tradePrefs.panelLayouts}) = 'object'
+      then ${tradePrefs.panelLayouts}
+    else ${empty}::jsonb
+  end`
+}
+
+/** A damaged nested value must not turn a later valid save into another array. */
+function validCurrentPanelLayoutsSql() {
+  const base = validPanelLayoutsSql()
+  return sql`case
+    when jsonb_typeof(${base}->'current') = 'object'
+      then ${base}->'current'
+    else '{}'::jsonb
+  end`
 }

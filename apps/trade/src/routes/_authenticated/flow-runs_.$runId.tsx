@@ -5,6 +5,7 @@ import { FlowRunPage } from "@/components/flow-run/flow-run-page"
 import { routeErrorComponent } from "@/components/shell/route-error"
 import { loadRememberedChartView } from "@/lib/api/trade/chart-view"
 import { getFlowRunErrorMessage, loadFlowRun } from "@/lib/api/trade/flow-runs"
+import { emptyTradePanelLayouts } from "@/lib/trade/panel-layout"
 
 /**
  * One run in full.
@@ -31,16 +32,22 @@ function readCoinSearch(search: Record<string, unknown>): CoinSearch {
 export const Route = createFileRoute("/_authenticated/flow-runs_/$runId")({
   validateSearch: readCoinSearch,
   gcTime: 0,
-  loader: async ({ params }) => ({
-    report: await loadFlowRun(params.runId),
-    // The same zoom and up-and-down squash the trading chart is remembered at.
-    // Without it this chart framed itself its own way, and a ladder whose rungs
-    // sit well under today's price fell off the bottom here while showing fine
-    // on the trade screen — two charts of one coin disagreeing about where its
-    // buy levels are.
-    chartView:
-      (await loadRememberedChartView().catch(() => null))?.chartView ?? null,
-  }),
+  loader: async ({ params }) => {
+    const [report, prefs] = await Promise.all([
+      loadFlowRun(params.runId),
+      loadRememberedChartView().catch(() => null),
+    ])
+    return {
+      report,
+      // The same zoom and up-and-down squash the trading chart is remembered at.
+      // Without it this chart framed itself its own way, and a ladder whose rungs
+      // sit well under today's price fell off the bottom here while showing fine
+      // on the trade screen — two charts of one coin disagreeing about where its
+      // buy levels are.
+      chartView: prefs?.chartView ?? null,
+      panelLayouts: prefs?.panelLayouts ?? emptyTradePanelLayouts(),
+    }
+  },
   head: ({ matches }) => ({
     meta: [{ title: marketTitleFromMatches(matches, "coin", "Flow run") }],
   }),
@@ -49,7 +56,7 @@ export const Route = createFileRoute("/_authenticated/flow-runs_/$runId")({
 })
 
 function FlowRunRoute() {
-  const { report, chartView } = Route.useLoaderData()
+  const { report, chartView, panelLayouts } = Route.useLoaderData()
   const { coin } = Route.useSearch()
 
   // A coin named in the address that this run never watched is treated as no
@@ -59,6 +66,11 @@ function FlowRunRoute() {
   useMarketPageTitle(openCoin, "Flow run")
 
   return (
-    <FlowRunPage initial={report} openCoin={openCoin} chartView={chartView} />
+    <FlowRunPage
+      initial={report}
+      openCoin={openCoin}
+      chartView={chartView}
+      initialPanelLayouts={panelLayouts}
+    />
   )
 }

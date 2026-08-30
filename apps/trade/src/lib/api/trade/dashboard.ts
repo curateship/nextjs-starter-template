@@ -21,6 +21,7 @@ import {
 import type { DcaParams } from "@/lib/trade/dca"
 import type { GridParams } from "@/lib/trade/grid"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import type { Drawing } from "@/lib/trade/drawings"
 import {
@@ -80,6 +81,7 @@ export type DashboardCore = {
   indicators: IndicatorSettings
   cardFolds: CardFolds
   quickOrder: QuickOrderPrefs
+  panelLayouts: TradePanelLayouts
   /**
    * The smart-order windows' saved settings, carried with the page so the
    * first right-click after a load opens on them with nothing to fetch.
@@ -251,6 +253,7 @@ const loadDashboardCoreFn = createServerFn({ method: "GET" })
       indicators: prefs.indicators,
       cardFolds: prefs.cardFolds,
       quickOrder: prefs.quickOrder,
+      panelLayouts: prefs.panelLayouts,
       smartDca: prefs.smartDca,
       smartGrid: prefs.smartGrid,
       runningBots,

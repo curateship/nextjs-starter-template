@@ -2,8 +2,9 @@ import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
 import { chartViewSchema, type ChartView } from "@/lib/trade/chart-view"
+import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
 import { userGet, userPost } from "@/server/guards"
-import { loadChartView, saveChartView } from "@/server/trade/prefs"
+import { loadChartWorkspacePrefs, saveChartView } from "@/server/trade/prefs"
 
 /**
  * How far the chart is zoomed and scrolled, kept against the account.
@@ -17,9 +18,14 @@ const saveChartViewSchema = z.object({ chartView: chartViewSchema })
 
 const loadChartViewFn = createServerFn({ method: "GET" })
   .middleware([userGet])
-  .handler(async ({ context }): Promise<{ chartView: ChartView | null }> => {
-    return { chartView: await loadChartView(context.user.id) }
-  })
+  .handler(
+    async ({
+      context,
+    }): Promise<{
+      chartView: ChartView | null
+      panelLayouts: TradePanelLayouts
+    }> => loadChartWorkspacePrefs(context.user.id)
+  )
 
 const saveChartViewFn = createServerFn({ method: "POST" })
   .middleware([userPost])

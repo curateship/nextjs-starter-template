@@ -36,7 +36,11 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   the name would never be on screen. The star has its own outlined button. The
   market logo, name, top leverage, arrow and info button sit in one outlined
   group. The leverage is secondary 12px text beside the larger market name.
-  Every control in that row is 32px high. Pressing the market name
+  Every control in that row is 32px high. The saved-layout button keeps up to
+  five named arrangements of the surrounding panels. The full-screen button,
+  or F from outside a field, leaves the chart and its own header on screen and
+  hides the rest of the workspace and page chrome. Escape returns to the exact
+  panel arrangement from before. Pressing the market name
   opens the full market picker: search; segmented tabs; sortable figures; and
   a star on every row. Favorites, All and Trending are always there. Phemex and
   KuCoin stop there because every market is crypto. Hyperliquid also has Crypto,
@@ -151,6 +155,19 @@ and half a window's width left the market list too narrow to read (decided
 23 Aug 2026). The panels' own minimums still hold on a screen too small for
 everything, and a screen below the wide-screen line keeps its own layout —
 the chart as the page with the side panels behind the header's two buttons.
+
+Divider positions and shut panels belong to the account. The trade workspace,
+backtest screen and live-run screen all read them with the preference row their
+opening request already needs. A first visit after migration brings valid
+positions from the six old browser keys across once. A layout whose panel names
+no longer match the screen is ignored, so a redesigned screen opens at its
+defaults.
+
+The chart's full-screen view records those positions without replacing the
+panel groups. When it exits, the viewport-wide fixed frame comes off before the
+recorded percentages are restored. That order matters because the side panels
+preserve pixel widths: restoring against the wider frame would make them wider
+when the shell returned even though the saved percentages were unchanged.
 
 ### What the Positions tab lists
 

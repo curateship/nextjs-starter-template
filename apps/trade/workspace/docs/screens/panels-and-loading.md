@@ -16,10 +16,32 @@ fixed in one is fixed in both.
 - **Double-clicking the blank part of a panel shuts it.** Double-clicking what
   is left opens it again. A double-click on a button, a box or a word is that
   control's, never the panel's.
-- **Sizes and shut panels survive a reload**, remembered per browser.
+- **Sizes and shut panels follow the account.** The trade workspace, backtest
+  run and live-run screens keep their six divider arrangements in
+  `trade_prefs`. A drag or collapse therefore returns after a reload and on a
+  second browser signed into the same account.
+- **An old browser layout crosses over once.** The first browser with one of
+  the six earlier local-storage answers sends every valid answer it has to the
+  account. The app then removes those browser copies and never uses them as a
+  second source of truth. An account layout saved on another browser wins over
+  a later old-browser import.
 - A saved set of panel sizes returns only while its panel names still match the
   current screen. When a redesign replaces a panel, the old sizes are ignored
   and the current layout opens at its defaults instead of stopping the page.
+- **Up to five trade-workspace layouts can have names.** The layout button in
+  the chart header saves the current left, right and bottom arrangement under
+  a name. Pressing a saved name moves both dividers in place. Its delete button
+  removes the name without moving the current panels. This is a short switcher,
+  not a separate manager screen.
+- **The chart has its own full-screen view.** Press the full-screen button or F
+  while no field is being typed in. The side panels, bottom panel and page
+  chrome leave, while the chart header stays with an exit button. Press the
+  button again, F again or Escape to restore the exact divider positions and
+  shut panels from before. The chart and its panel groups stay mounted, so
+  entering or leaving does not ask for candles again. On exit the fixed,
+  viewport-wide frame is removed before the saved percentages are put back;
+  otherwise a percentage restored against that wider frame becomes a larger
+  pixel width when the shell returns. Nothing animates.
 - **Pressing a tab in the bottom panel grows it to fit that tab's rows.** Six
   waiting buys means all six on screen without touching the divider. The panel
   grows through the same resizable panel the divider drags, so there is one
@@ -102,6 +124,9 @@ Designed with the wide one, not bolted on.
   150ms instead of drifting a short distance and then disappearing. Reduced
   motion removes the animation.
 - The bottom panel stays where it is — it already works at any width.
+- Full screen hides that bottom panel and the page chrome. The side panels are
+  already sheets at this width, so any open sheet closes while the chart is
+  full screen and returns on exit.
 - A slid-open sheet closes when the window crosses the width boundary, in
   either direction.
 
@@ -229,4 +254,3 @@ working bar streams beside it.
   lingers on screen.
 - **A hidden tab lets the connection go** and reconnects — with the same
   catch-up — when you come back.
-

@@ -6,6 +6,7 @@ import { FlowRunChartPanel } from "@/components/flow-run/flow-run-chart-panel"
 import { FlowRunCoinsPanel } from "@/components/flow-run/flow-run-coins-panel"
 import { FlowRunStatsPanel } from "@/components/flow-run/flow-run-stats-panel"
 import { FlowRunTradesPanel } from "@/components/flow-run/flow-run-trades-panel"
+import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -36,10 +37,13 @@ import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import { buildFlowRunEquity } from "@/lib/trade/flow-run/equity"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import {
+  type TradePanelLayouts,
+  useRememberedPanelLayoutInPlace,
+} from "@/lib/trade/panel-layout"
 
 /**
  * One switched-on flow, laid out as a workspace: its figures on the left, the
@@ -64,12 +68,14 @@ export function FlowRunPage({
   initial,
   openCoin,
   chartView: savedChartView,
+  initialPanelLayouts,
 }: {
   initial: FlowRunReport
   /** `?coin=<market key>` — which coin's chart is open. */
   openCoin: string | null
   /** The zoom the trading chart is remembered at, so both frame the same. */
   chartView: ChartView | null
+  initialPanelLayouts: TradePanelLayouts
 }) {
   // Shared with the trading screen on purpose: panning here carries over
   // there and back, and a ladder's rungs are in the same place on both.
@@ -77,11 +83,18 @@ export function FlowRunPage({
   const navigate = useNavigate()
   const desktop = useWideScreen()
 
-  const horizontalLayout = useRememberedPanelLayout(
-    tradePanelLayoutKey.flowRunHorizontal
+  const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
+  const horizontalKey = tradePanelLayoutKey.flowRunHorizontal
+  const verticalKey = tradePanelLayoutKey.flowRunVertical
+  const horizontalLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[horizontalKey],
+    panelLayouts.layouts.current[horizontalKey],
+    (layout) => panelLayouts.remember(horizontalKey, layout)
   )
-  const verticalLayout = useRememberedPanelLayout(
-    tradePanelLayoutKey.flowRunVertical
+  const verticalLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[verticalKey],
+    panelLayouts.layouts.current[verticalKey],
+    (layout) => panelLayouts.remember(verticalKey, layout)
   )
 
   const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -90,13 +103,24 @@ export function FlowRunPage({
   const [statsCollapsed, setStatsCollapsed] = React.useState(false)
   const [coinsCollapsed, setCoinsCollapsed] = React.useState(false)
 
-  const toggleStats = usePanelToggle(statsPanelRef)
-  const toggleCoins = usePanelToggle(coinsPanelRef)
+  const toggleStatsPanel = usePanelToggle(statsPanelRef)
+  const toggleStats = React.useCallback(() => {
+    toggleStatsPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleStatsPanel])
+  const toggleCoinsPanel = usePanelToggle(coinsPanelRef)
+  const toggleCoins = React.useCallback(() => {
+    toggleCoinsPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleCoinsPanel])
   const statsDoubleClick = useBlankSpaceDoubleClick(toggleStats)
   const coinsDoubleClick = useBlankSpaceDoubleClick(toggleCoins)
-  const tradesDoubleClick = useBlankSpaceDoubleClick(
-    usePanelToggle(tradesPanelRef)
-  )
+  const toggleTradesPanel = usePanelToggle(tradesPanelRef)
+  const toggleTrades = React.useCallback(() => {
+    toggleTradesPanel()
+    verticalLayout.rememberLayout()
+  }, [toggleTradesPanel, verticalLayout])
+  const tradesDoubleClick = useBlankSpaceDoubleClick(toggleTrades)
 
   const [read, setRead] = React.useState({ from: initial, report: initial })
   // A fresh answer from the route loader replaces what is on screen. Adjusted
@@ -304,10 +328,9 @@ export function FlowRunPage({
 
   const upper = desktop ? (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -381,10 +404,9 @@ export function FlowRunPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
-        key={verticalLayout.layoutKey}
+        groupRef={verticalLayout.groupRef}
         orientation="vertical"
         className="min-h-0 flex-1"
-        defaultLayout={verticalLayout.defaultLayout}
         onLayoutChanged={verticalLayout.onLayoutChanged}
       >
         <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">

@@ -7,6 +7,7 @@ import type {
   BacktestListRow,
   BacktestTrade,
 } from "@/lib/trade/backtest/result"
+import { emptyTradePanelLayouts } from "@/lib/trade/panel-layout"
 import {
   fillMarksFromStored,
   pairTradesFromStored,
@@ -19,6 +20,7 @@ import {
   customShellAutomationRunSteps,
 } from "@/server/schema"
 import { loadStoredCandles } from "@/server/trade/candle-store"
+import { loadTradePanelLayouts } from "@/server/trade/prefs"
 import {
   deleteBacktestGroups,
   setBacktestFlag,
@@ -244,7 +246,10 @@ const readBacktestFn = createServerFn({ method: "GET" })
   .middleware([userGet])
   .inputValidator(groupIdSchema)
   .handler(async ({ data, context }) => {
-    const found = await readBacktestGroup(context.user.id, data.groupId)
+    const [found, panelLayouts] = await Promise.all([
+      readBacktestGroup(context.user.id, data.groupId),
+      loadTradePanelLayouts(context.user.id).catch(emptyTradePanelLayouts),
+    ])
     if (!found) throw new Error("BACKTEST_NOT_FOUND")
 
     const { group, coins } = found
@@ -269,6 +274,7 @@ const readBacktestFn = createServerFn({ method: "GET" })
         // time, by the chart. A run page loading twenty coins' trades to draw
         // a table of twenty numbers would load months of them for nothing.
       })),
+      panelLayouts,
     }
   })
 

@@ -76,13 +76,13 @@ export type PanelFit = {
  *
  * The grown height is never remembered. `onLayoutChanged` goes onto the panel
  * group in place of the remembered layout's own, and it drops exactly one kind
- * of change on the floor: a size this hook asked for. A drag, a collapse and
- * every other layout change are saved as they always were, so the next visit
- * opens on the height the divider was left at rather than on the cap.
+ * of change on the floor: a temporary grown size this hook asked for. Every
+ * forwarded change keeps the library's interaction metadata, so the account
+ * layout hook can tell a divider drag from an imperative resize.
  */
 export function usePanelFit(
   panelRef: React.RefObject<PanelImperativeHandle | null>,
-  save: (layout: Layout) => void
+  save: (layout: Layout, meta: LayoutChangedMeta) => void
 ): PanelFit & {
   onLayoutChanged: (layout: Layout, meta: LayoutChangedMeta) => void
 } {
@@ -90,6 +90,7 @@ export function usePanelFit(
   // Null means the panel is showing that dragged height already, which is also
   // how "grown" is told apart from "not grown".
   const draggedPercent = React.useRef<number | null>(null)
+  const rememberNextChange = React.useRef(false)
 
   const grow = React.useCallback(
     (hidden: number) => {
@@ -103,6 +104,10 @@ export function usePanelFit(
       // panel shut while grown would reopen on the grown height, and then save
       // it. That is the one thing the grown height must never become.
       if (panel.isCollapsed()) {
+        // This imperative resize still came from a person's tab press. Mark
+        // its callback as a direct interaction so opening the panel follows
+        // the account just like closing it does.
+        rememberNextChange.current = true
         panel.expand()
         return
       }
@@ -122,9 +127,9 @@ export function usePanelFit(
   const shrink = React.useCallback(() => {
     const panel = panelRef.current
     const back = draggedPercent.current
-    // Cleared first, so the layout change this causes is saved like any other.
-    // It writes back the height that was already stored, which costs nothing
-    // and leaves the panel and the memory of it agreeing again.
+    // Cleared first, so the layout change reaches the remembered-layout hook.
+    // The restored height was saved before growing, so that hook can leave the
+    // account alone while updating its in-memory view of the group.
     draggedPercent.current = null
     if (panel && back !== null) panel.resize(`${back}%`)
   }, [panelRef])
@@ -133,11 +138,16 @@ export function usePanelFit(
 
   const onLayoutChanged = React.useCallback(
     (layout: Layout, meta: LayoutChangedMeta) => {
+      if (rememberNextChange.current) {
+        rememberNextChange.current = false
+        save(layout, { ...meta, isUserInteraction: true })
+        return
+      }
       // A drag wins: the new height becomes the remembered one and the one a
       // second press on the same tab returns to.
       if (meta.isUserInteraction) draggedPercent.current = null
       else if (draggedPercent.current !== null) return
-      save(layout)
+      save(layout, meta)
     },
     [save]
   )

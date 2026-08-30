@@ -22,4 +22,24 @@ export const tradePanelLayoutKey = {
   flowRunHorizontal: "trade-flow-run-horizontal",
   /** The live-run workspace above, its trades below. */
   flowRunVertical: "trade-flow-run-vertical",
+} as const
+
+export type TradePanelLayoutKey =
+  (typeof tradePanelLayoutKey)[keyof typeof tradePanelLayoutKey]
+
+/** The six account-owned panel groups, also used to validate imported keys. */
+export const TRADE_PANEL_LAYOUT_KEYS = Object.values(tradePanelLayoutKey)
+
+/** The exact panel names each saved group must contain. */
+export const tradePanelIds: Record<TradePanelLayoutKey, readonly string[]> = {
+  [tradePanelLayoutKey.workspaceHorizontal]: [
+    "markets",
+    "chart",
+    "smart-orders",
+  ],
+  [tradePanelLayoutKey.workspaceVertical]: ["workspace", "activity"],
+  [tradePanelLayoutKey.backtestHorizontal]: ["stats", "chart", "markets"],
+  [tradePanelLayoutKey.backtestVertical]: ["workspace", "trades"],
+  [tradePanelLayoutKey.flowRunHorizontal]: ["stats", "chart", "coins"],
+  [tradePanelLayoutKey.flowRunVertical]: ["workspace", "trades"],
 }
