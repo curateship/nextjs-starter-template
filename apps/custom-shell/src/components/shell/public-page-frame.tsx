@@ -1,5 +1,5 @@
 import * as React from "react"
-import { useLocation } from "@tanstack/react-router"
+import { Link, useLocation } from "@tanstack/react-router"
 import { MenuIcon, SearchIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
@@ -29,6 +29,7 @@ import {
 } from "@/lib/announcement"
 import { loadVisitorAnnouncements } from "@/lib/api/content/announcements"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { isInternalHref, toLinkProps } from "@/lib/nav/nav-href"
 import { cn } from "@/lib/utils"
 
 /**
@@ -126,8 +127,8 @@ export function PublicPageFrame({
       {hasSiteFrame ? (
         <header className="border-b bg-background">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-2 px-3 py-2 md:gap-3 md:px-4">
-          <a
-            href="/"
+          <Link
+            to="/"
             className={cn(
               "flex min-w-0 items-center gap-2 rounded-md",
               focusRing
@@ -137,7 +138,7 @@ export function PublicPageFrame({
             <span className="truncate text-sm font-medium text-foreground">
               {appName}
             </span>
-          </a>
+          </Link>
           {pathname === "/search" ? null : (
             <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
               <div className="relative">
@@ -185,7 +186,7 @@ export function PublicPageFrame({
                       key={`${link.label}-${link.href}-${index}`}
                       asChild
                     >
-                      <a href={link.href}>{link.label}</a>
+                      <PublicLink link={link} />
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -240,18 +241,33 @@ export function PublicPageFrame({
 function PublicLink({
   link,
   className,
+  ...props
 }: {
   link: PublicNavigationLink
-  className?: string
-}) {
+} & Omit<React.ComponentProps<"a">, "href">) {
+  const linkClassName = cn(
+    "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground",
+    focusRing,
+    className
+  )
+
+  if (isInternalHref(link.href)) {
+    return (
+      <Link
+        {...props}
+        {...toLinkProps(link.href)}
+        className={linkClassName}
+      >
+        {link.label}
+      </Link>
+    )
+  }
+
   return (
     <a
+      {...props}
       href={link.href}
-      className={cn(
-        "rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground",
-        focusRing,
-        className
-      )}
+      className={linkClassName}
     >
       {link.label}
     </a>

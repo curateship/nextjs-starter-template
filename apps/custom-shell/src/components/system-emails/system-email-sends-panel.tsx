@@ -1,7 +1,7 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, SendIcon } from "lucide-react"
 
-import { DashboardCardHeader } from "@/components/shared/dashboard-card-header"
+import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { ErrorRow } from "@/components/ui/error-row"
@@ -97,12 +97,11 @@ export function SystemEmailSendsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
-      <DashboardCardHeader className="gap-3">
-        <span className="text-sm font-medium">Recent sends</span>
-        <span className="truncate text-xs text-muted-foreground">
-          {summary}
-        </span>
-      </DashboardCardHeader>
+      <DashboardCardTitleHeader
+        icon={<SendIcon className="size-4" />}
+        title="Recent sends"
+        meta={summary}
+      />
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-3 p-3">

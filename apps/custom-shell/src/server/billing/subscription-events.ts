@@ -1,8 +1,11 @@
-import { desc, eq } from "drizzle-orm"
+import { and, desc, eq, inArray } from "drizzle-orm"
 
 import {
+  MEMBER_SUBSCRIPTION_EVENT_KINDS,
   SUBSCRIPTION_EVENT_LIMIT,
+  memberSubscriptionEvent,
   subscriptionEventSource,
+  type MemberSubscriptionEvent,
   type SubscriptionEvent,
   type SubscriptionEventKind,
   type SubscriptionEventSource,
@@ -207,6 +210,19 @@ export async function recordSubscriptionEvent(
     .onConflictDoNothing()
 }
 
+function toSubscriptionEvent(
+  row: typeof customShellSubscriptionEvents.$inferSelect
+): SubscriptionEvent {
+  return {
+    id: row.id,
+    kind: row.kind,
+    planName: row.planName,
+    detail: row.detail,
+    source: subscriptionEventSource(row.source),
+    createdAt: row.createdAt.toISOString(),
+  }
+}
+
 /** One person's history, newest first. */
 export async function listSubscriptionEvents(
   userId: string,
@@ -219,12 +235,37 @@ export async function listSubscriptionEvents(
     .orderBy(desc(customShellSubscriptionEvents.createdAt))
     .limit(SUBSCRIPTION_EVENT_LIMIT)
 
-  return rows.map((row) => ({
-    id: row.id,
-    kind: row.kind,
-    planName: row.planName,
-    detail: row.detail,
-    source: subscriptionEventSource(row.source),
-    createdAt: row.createdAt.toISOString(),
-  }))
+  return rows.map(toSubscriptionEvent)
+}
+
+/**
+ * One member's own safe history, newest first.
+ *
+ * The caller supplies the trusted session user id, never a browser value. The
+ * kind filter runs before the limit so hidden internal events cannot crowd an
+ * older member-visible event out of the result.
+ */
+export async function listMemberSubscriptionEvents(
+  userId: string,
+  database: CustomShellDb = db
+): Promise<MemberSubscriptionEvent[]> {
+  const rows = await database
+    .select()
+    .from(customShellSubscriptionEvents)
+    .where(
+      and(
+        eq(customShellSubscriptionEvents.userId, userId),
+        inArray(
+          customShellSubscriptionEvents.kind,
+          MEMBER_SUBSCRIPTION_EVENT_KINDS
+        )
+      )
+    )
+    .orderBy(desc(customShellSubscriptionEvents.createdAt))
+    .limit(SUBSCRIPTION_EVENT_LIMIT)
+
+  return rows.flatMap((row) => {
+    const event = memberSubscriptionEvent(toSubscriptionEvent(row))
+    return event ? [event] : []
+  })
 }

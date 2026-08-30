@@ -1,23 +1,87 @@
 # Custom Shell docs
 
-This folder belongs to Custom Shell itself. Nothing in it is copied into an app
-by a merge, so it never conflicts.
+This library explains the working Custom Shell application. The folders match
+the product areas an admin or developer sees, so a new doc has an obvious home.
+Start with [the application map](architecture/application-map.md) for the route,
+server, data, and app-extension boundaries.
 
-Custom Shell is the template, so almost everything true about it is true about
-every app built on it, and lives in the repo's `docs/shell/` instead. Start
-there: `shell-and-apps.md` is the rulebook, `what-lives-where.md` is the folder
-map, and the repo's `docs/README.md` indexes the rest.
+Rules shared by every app remain in the repo's `docs/shell/` folder. Do not copy
+those rulebooks here. `docs/shell/shell-and-apps.md` explains ownership,
+`docs/shell/what-lives-where.md` explains file placement, and the repo's
+`docs/README.md` indexes the shared architecture, security, UI, deployment, and
+local setup docs.
 
-## What is in this folder
+## Accounts
 
-- `automation-run-results.md` — how an app gives its own automation step a
-  result view inside the shell's Runs panel.
-- `account-security.md` explains password drafts and signing out other devices.
-- `public-page-load-errors.md` explains how signed-out pages handle a failed load.
-- `automation-run-refresh.md` explains when run and delivery history refresh.
-- `dashboard-controls.md` explains the shared tab and sortable-table rules.
+- [Authentication and sessions](accounts/authentication-and-sessions.md)
+- [Account security](accounts/security.md)
+
+## AI
+
+- [Providers, keys, and usage](ai/providers-keys-and-usage.md)
+
+## Architecture
+
+- [Application map](architecture/application-map.md)
+- [Routes and integrations](architecture/routes-and-integrations.md)
+
+## Automations
+
+- [Automations](automations/overview.md)
+- [Automation run refresh](automations/run-refresh.md)
+- [App-owned automation run results](automations/app-owned-run-results.md)
+
+## Billing
+
+- [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md)
+
+## Content
+
+- [Announcements and changelog](content/announcements-and-changelog.md)
+- [Public pages, search, and SEO](content/public-pages-search-and-seo.md)
+- [Public page load errors](content/public-page-load-errors.md)
+
+## Email and notifications
+
+- [Newsletters and broadcasts](email/newsletters-and-broadcasts.md)
+- [System emails](email/system-emails.md)
+- [Notifications](email/notifications.md)
+
+## Feedback
+
+- [Feedback and roadmap](feedback/feedback-and-roadmap.md)
+
+## Media
+
+- [Media library, picker, and storage](media/library-picker-and-storage.md)
+
+## Operations
+
+- [Background work](operations/background-work.md)
+- [Maintenance, health, cleanup, and traffic](operations/maintenance-health-cleanup-and-traffic.md)
+
+## People and workspaces
+
+- [Users, contacts, and segments](people/users-contacts-and-segments.md)
+- [Workspaces and membership](people/workspaces-and-membership.md)
+
+## Settings
+
+- [Administration and personalization](settings/administration-and-personalization.md)
+
+## UI
+
+- [App shell and navigation](ui/app-shell-and-navigation.md)
+- [Home and dashboards](ui/home-and-dashboards.md)
+- [Dashboard controls](ui/dashboard-controls.md)
+- [Forms, tables, dialogs, and accessibility](ui/forms-tables-dialogs-and-accessibility.md)
 
 ## Adding a doc
 
-One file per subject, named after the subject. Add its line above in the same
-turn. Write it the way `.agents/skills/unslop/SKILL.md` says.
+Put the file in the folder for the product area it explains and add its link to
+this index in the same change. Use one file per subject. Update an existing file
+when behavior changes instead of creating a second version of the same truth.
+
+Write what the app does, why the rule exists, and where ownership changes. Keep
+screenshots in `assets/`. If a subject applies unchanged to every app built on
+Custom Shell, update the matching repo doc instead of repeating it here.
