@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { CandleBar } from "@/lib/protocols/contracts"
 import {
   defaultGridParams,
+  gridFlippedPcts,
   gridStopPx,
   type GridParams,
   type GridPlan,
@@ -234,6 +235,109 @@ describe("placing a grid", () => {
     for (const level of grid.plan.levels) {
       expect(level.budget).toBeCloseTo(500, 0)
     }
+  })
+
+  it("splits the pot by the typed shares when the rungs are set by hand", async () => {
+    // Rung order in, level order stored. Rung 1 is the top of a buying
+    // grid's range, so 10% at the top and 40% at the $80 bottom.
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
+    const grid = await onlyGrid()
+    expect(grid.plan.manualSizing).toBe(true)
+    expect(grid.plan.manualRungPcts).toEqual([40, 30, 20, 10])
+    // 20% of $10,000 is $2,000, split 40/30/20/10.
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
+  })
+
+  it("names the rung that was typed, not the level, when one is too small", async () => {
+    // A 0.4% share of a $2,000 pot is $8, under this market's $10 floor. It
+    // is rung 4, which on a buying grid is the bottom of the range.
+    await expect(
+      placeGridOrder(userId, wallet, {
+        marketKey: BTC,
+        topPx: 120,
+        bottomPx: 80,
+        params: params({
+          manualSizing: true,
+          manualRungPcts: [33.2, 33.2, 33.2, 0.4],
+        }),
+      })
+    ).rejects.toThrow("SMART_GRID_RUNG_TOO_SMALL:4")
+  })
+
+  it("gives the two directions mirrored grids once the rows turn over", async () => {
+    // Tyler, 29 Aug 2026: "if long was 1, 2, 3, 4, 5 then short is
+    // 5, 4, 3, 2, 1". The rows are held against prices, and switching the
+    // direction turns them over, so the two grids come out mirrored.
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
+    const buying = await onlyGrid()
+    // Level order is the rows read backwards: 40% at the $80 bottom.
+    expect(buying.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
+
+    await cancelGridRest(userId, wallet, { gridId: buying.id })
+    await settle()
+    await priceTo(70)
+    await place({
+      direction: "short",
+      manualSizing: true,
+      manualRungPcts: gridFlippedPcts([10, 20, 30, 40]),
+    })
+    const selling = (await gridRows())
+      .map((row) => ({ ...row, plan: row.plan as GridPlan }))
+      .find((row) => row.plan.direction === "short")
+    // The mirror: 40% at the $120 top instead.
+    expect(selling?.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      200, 400, 600, 800,
+    ])
+  })
+
+  it("numbers a selling grid's rungs from the bottom", async () => {
+    // Rung 1 is the first trade the grid makes. On a selling grid that is the
+    // BOTTOM level, so a tiny rung 1 is named rung 1 — the same level a
+    // buying grid would call rung 4.
+    await priceTo(70)
+    await expect(
+      placeGridOrder(userId, wallet, {
+        marketKey: BTC,
+        topPx: 120,
+        bottomPx: 80,
+        params: params({
+          direction: "short",
+          manualSizing: true,
+          manualRungPcts: [33.2, 33.2, 33.2, 0.4],
+        }),
+      })
+    ).rejects.toThrow("SMART_GRID_RUNG_TOO_SMALL:1")
+  })
+
+  it("a selling grid sells most the further the rally runs", async () => {
+    await priceTo(70)
+    // The rows a selling grid ends up with after the switch turns them over:
+    // 40% on the top row down to 10% on the bottom one.
+    await place({
+      direction: "short",
+      manualSizing: true,
+      manualRungPcts: [40, 30, 20, 10],
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      90, 100, 110, 120,
+    ])
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      200, 400, 600, 800,
+    ])
+
+    // Price climbs to rung 1 at the bottom and only that level sells, for its
+    // $200.
+    await priceTo(90)
+    const sold = await onlyGrid()
+    expect(sold.plan.levels[0].status).toBe("holding")
+    expect(sold.plan.levels[0].heldSz * 90).toBeCloseTo(200, 0)
+    expect(sold.plan.levels[1].status).toBe("waiting")
   })
 
   it("uses the chosen borrowing when a level buys", async () => {
@@ -912,6 +1016,74 @@ describe("re-slicing a running grid", () => {
     expect(grid.plan.takeProfitPx).toBeCloseTo(210, 9)
   })
 
+  it("switches a running grid onto a hand-set split", async () => {
+    await place()
+    const id = (await onlyGrid()).id
+
+    await reshapeGrid(userId, wallet, {
+      gridId: id,
+      manualSizing: true,
+      manualRungPcts: [10, 20, 30, 40],
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.manualSizing).toBe(true)
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
+  })
+
+  it("switches back to an even split and forgets the shares", async () => {
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
+    const id = (await onlyGrid()).id
+
+    await reshapeGrid(userId, wallet, { gridId: id, manualSizing: false })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.manualSizing).toBe(false)
+    expect(grid.plan.manualRungPcts).toBeNull()
+    for (const level of grid.plan.levels) {
+      expect(level.budget).toBeCloseTo(500, 0)
+    }
+  })
+
+  it("keeps a hand-set split when the range is dragged", async () => {
+    // The chart sends two prices and nothing else. Without the fallback to the
+    // grid's own shares, a drag would quietly redraw it split evenly.
+    await place({ manualSizing: true, manualRungPcts: [10, 20, 30, 40] })
+    const id = (await onlyGrid()).id
+
+    await moveGridRange(userId, wallet, {
+      gridId: id,
+      topPx: 100,
+      bottomPx: 60,
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.topPx).toBe(100)
+    expect(grid.plan.manualSizing).toBe(true)
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
+  })
+
+  it("takes the row count as the level count on a hand-set grid", async () => {
+    await place()
+    const id = (await onlyGrid()).id
+
+    await reshapeGrid(userId, wallet, {
+      gridId: id,
+      manualSizing: true,
+      manualRungPcts: [1, 4, 15, 30, 50],
+    })
+
+    const grid = await onlyGrid()
+    expect(grid.plan.levels).toHaveLength(5)
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      1000, 600, 300, 80, 20,
+    ])
+  })
+
   it("changes how many levels the range has", async () => {
     await place()
     const id = (await onlyGrid()).id
@@ -1074,6 +1246,27 @@ describe("following price up", () => {
       (await onlyGrid()).plan.levels.find((level) => level.buyPx === 120)
         ?.status
     ).toBe("holding")
+  })
+
+  it("keeps a hand-set split when the range moves up", async () => {
+    await priceTo(100)
+    await place({
+      follow: true,
+      manualSizing: true,
+      manualRungPcts: [10, 20, 30, 40],
+    })
+    await priceTo(121)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.shifts).toBe(1)
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([
+      90, 100, 110, 120,
+    ])
+    // Each level carried its own money to its new price, so the shares are
+    // still 40/30/20/10 from the bottom.
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
   })
 
   it("waits for a full rung above the sold price before buying there again", async () => {
@@ -1420,6 +1613,35 @@ describe("following price down", () => {
     expect(grid.plan.bottomPx).toBeCloseTo(10, 9)
   })
 
+  it("keeps a hand-set split when the range moves down", async () => {
+    // THE RULE Tyler stated: whichever way price moves, a rung's share of the
+    // money never changes. Following down is the one place the money is
+    // divided again, so this is where that rule is kept or lost.
+    await priceTo(100)
+    await place({
+      followDown: true,
+      manualSizing: true,
+      manualRungPcts: [10, 20, 30, 40],
+    })
+    const before = await onlyGrid()
+    const potBefore = before.plan.levels.reduce(
+      (sum, one) => sum + one.budget,
+      0
+    )
+    await priceTo(121)
+    await priceTo(80)
+
+    const grid = await onlyGrid()
+    expect(grid.plan.downShifts).toBe(1)
+    expect(grid.plan.levels.map((one) => one.buyPx)).toEqual([70, 80, 90, 100])
+    // The prices all moved down a step; the split did not move at all.
+    expect(grid.plan.levels.map((one) => Math.round(one.budget))).toEqual([
+      800, 600, 400, 200,
+    ])
+    const potAfter = grid.plan.levels.reduce((sum, one) => sum + one.budget, 0)
+    expect(potAfter).toBeCloseTo(potBefore, 0)
+  })
+
   it("pauses when the exchange's new minimum makes the lower buys too small", async () => {
     await priceTo(100)
     await place({ followDown: true })
@@ -1647,6 +1869,31 @@ describe("reversing a grid", () => {
       ...over,
     })
   }
+
+  it("turns a hand-set split over when the grid turns round", async () => {
+    // The buying grid was weighted at the BOTTOM of its range, where a fall
+    // runs furthest its way. The selling grid it becomes must be weighted at
+    // the TOP, for the same reason — the same move the window makes when the
+    // direction is switched by hand.
+    await placeReversible({
+      manualSizing: true,
+      manualRungPcts: [10, 20, 30, 40],
+    })
+    await priceTo(100)
+    await priceTo(70)
+
+    const rows = await gridRows()
+    const reversed = rows.find(
+      (row) => (row.plan as GridPlan).reversedFrom !== null
+    )
+    const plan = reversed?.plan as GridPlan
+    expect(plan.direction).toBe("short")
+    expect(plan.manualSizing).toBe(true)
+    expect(plan.manualRungPcts).toEqual([10, 20, 30, 40])
+    // Level 0 is the bottom of the range: light now, where it was heavy.
+    const budgets = plan.levels.map((one) => one.budget)
+    expect(budgets[0]).toBeLessThan(budgets[3])
+  })
 
   it("flips into a selling grid over the same range when the stop fires", async () => {
     await placeReversible()

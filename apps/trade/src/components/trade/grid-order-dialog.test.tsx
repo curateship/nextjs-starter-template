@@ -499,6 +499,141 @@ describe("the grid window's saved settings", () => {
     expect(endCard?.querySelectorAll("button")).toHaveLength(1)
   })
 
+  describe("the Rungs card", () => {
+    const typeInto = async (input: HTMLInputElement | null, value: string) => {
+      await act(async () => {
+        const set = Object.getOwnPropertyDescriptor(
+          HTMLInputElement.prototype,
+          "value"
+        )?.set
+        set?.call(input, value)
+        input?.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    }
+
+    const rungBoxes = () =>
+      [...host.querySelectorAll<HTMLInputElement>("input")].filter((one) =>
+        one.id.startsWith("grid-rung-")
+      )
+
+    const switchOn = async () => {
+      await act(async () => {
+        host.querySelector<HTMLButtonElement>("#grid-rungs")?.click()
+      })
+    }
+
+    const pickDirection = async (which: "long" | "short") => {
+      await act(async () => {
+        host
+          .querySelector<HTMLButtonElement>(`#grid-direction-${which}`)
+          ?.click()
+      })
+    }
+
+    it("switching Long to Short turns the rows over", async () => {
+      // Tyler, 29 Aug 2026: "if long was 1, 2, 3, 4, 5 then short is
+      // 5, 4, 3, 2, 1". The rows stay sorted top of the range first, so
+      // keeping each rung's share means the values move to the other end.
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 4 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      await typeInto(rungBoxes()[0], "10")
+      await typeInto(rungBoxes()[1], "20")
+      await typeInto(rungBoxes()[2], "30")
+      await typeInto(rungBoxes()[3], "40")
+
+      await pickDirection("short")
+      expect(rungBoxes().map((one) => one.value)).toEqual([
+        "40",
+        "30",
+        "20",
+        "10",
+      ])
+
+      await pickDirection("long")
+      expect(rungBoxes().map((one) => one.value)).toEqual([
+        "10",
+        "20",
+        "30",
+        "40",
+      ])
+    })
+
+    it("sends the mirror after the direction is switched", async () => {
+      // The rows are held against prices, so what is sent is what is on
+      // screen. Switching the direction turns the rows over, which is what
+      // makes the two grids mirror on the chart.
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 4 },
+      })
+      const sent: number[][] = []
+      const onPlace = vi.fn(
+        async (input: { params: { manualRungPcts: number[] | null } }) => {
+          if (input.params.manualRungPcts)
+            sent.push(input.params.manualRungPcts)
+          return false
+        }
+      )
+      await renderDialog(
+        onPlace as unknown as React.ComponentProps<
+          typeof GridOrderDialog
+        >["onPlace"]
+      )
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      await typeInto(rungBoxes()[0], "10")
+      await typeInto(rungBoxes()[1], "20")
+      await typeInto(rungBoxes()[2], "30")
+      await typeInto(rungBoxes()[3], "40")
+
+      const place = () =>
+        [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) =>
+          button.textContent?.includes("Place")
+        )
+      await act(async () => place()?.click())
+      await pickDirection("short")
+      await act(async () => place()?.click())
+
+      expect(sent).toEqual([
+        [10, 20, 30, 40],
+        [40, 30, 20, 10],
+      ])
+    })
+
+    it("refuses rows that do not add up to 100", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: { ...defaultGridParams(), levels: 4 },
+      })
+      await renderDialog()
+      await act(async () => Promise.resolve())
+      await switchOn()
+
+      await typeInto(rungBoxes()[0], "10")
+      await typeInto(rungBoxes()[1], "20")
+      await typeInto(rungBoxes()[2], "30")
+      await typeInto(rungBoxes()[3], "20")
+
+      // The card says the running total the moment it is off.
+      expect(host.textContent).toContain("Adds up to80%")
+
+      // And pressing Place says why, rather than placing four fifths of a grid.
+      const onPlace = vi.fn(async () => false)
+      const place = [
+        ...host.querySelectorAll<HTMLButtonElement>("button"),
+      ].find((button) => button.textContent?.includes("Place"))
+      await act(async () => place?.click())
+      expect(onPlace).not.toHaveBeenCalled()
+      expect(host.textContent).toContain(
+        "The rungs add up to 80%, and they have to add up to 100%"
+      )
+    })
+  })
+
   it("keeps stop loss on when old saved settings had it off", async () => {
     vi.mocked(loadSmartGridParams).mockResolvedValue({
       params: { ...defaultGridParams(), stopLoss: null },

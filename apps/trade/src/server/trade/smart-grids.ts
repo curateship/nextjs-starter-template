@@ -5,6 +5,7 @@ import {
   gridHeldSz,
   gridLevels,
   gridLevelSize,
+  gridManualPcts,
   gridShares,
   gridShiftAway,
   gridShiftInto,
@@ -785,7 +786,13 @@ function followTheRangeInto(
   }
 
   const pot = plan.levels.reduce((sum, level) => sum + level.budget, 0)
-  const shares = gridShares(count, plan.sizing)
+  // **The one place a placed grid's money is divided again.** A hand-set grid
+  // divides it by the percentages that were typed, so the shape survives every
+  // downward move: the prices change, the split does not. Everything else
+  // re-splits evenly, as it always has.
+  const manualPcts = gridManualPcts(plan, count)
+  const shares =
+    manualPcts?.map((pct) => pct / 100) ?? gridShares(count, plan.sizing)
   const sized = prices.map((level, index) => {
     const sz = floorSize(
       (pot * shares[index]) / level.buyPx,

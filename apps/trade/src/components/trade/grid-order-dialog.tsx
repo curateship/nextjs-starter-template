@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2Icon } from "lucide-react"
+import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
 
 import { BaseStopFields } from "@/components/trade/base-stop-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
@@ -38,7 +38,7 @@ import {
 } from "@/lib/trade/dca"
 import { formatPrice, formatUsd } from "@/lib/trade/format"
 import { marketLeverageLimit } from "@/lib/trade/leverage"
-import { BUY_BUTTON } from "@/lib/trade/money-tone"
+import { BUY_BUTTON, LOST_MONEY } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 import {
@@ -48,10 +48,16 @@ import {
   defaultGridParams,
   entrySide,
   gridEndPx,
+  gridEvenRungPcts,
   gridLiquidationPx,
   gridOrderPlan,
   placeGridParamsSchema,
   gridRangeFromClick,
+  gridRowLevelIndex,
+  gridRowRungNumber,
+  gridRungNumber,
+  gridRungPctsFit,
+  gridRungPctsSum,
   gridStopBeyond,
   reachedEntry,
   readyWhen,
@@ -113,6 +119,25 @@ export type GridPreviewLine = {
 export type GridPreview = {
   direction: GridDirection
   lines: GridPreviewLine[]
+}
+
+/**
+ * One row of the Rungs card while it is being typed into.
+ *
+ * The id is minted when the row appears and never changes, for the reason the
+ * DCA ladder's rows carry one: keyed by position, removing the third row hands
+ * the fourth row's box to the third, half-typed contents and all.
+ */
+type Rung = { id: string; value: string }
+
+/** Counts up for the life of the tab; nothing is stored or compared to it. */
+let nextRungId = 0
+
+function rungsFrom(pcts: readonly number[]): Rung[] {
+  return pcts.map((pct) => ({
+    id: `grid-rung-${(nextRungId += 1)}`,
+    value: String(pct),
+  }))
 }
 
 export function GridOrderDialog({
@@ -180,6 +205,13 @@ export function GridOrderDialog({
   )
   const [potPct, setPotPct] = React.useState(
     String(seeded?.potPct ?? defaultGridParams().potPct)
+  )
+  // The hand-set split. The rows are kept whether the switch is on or off, so
+  // switching it off to look at the even split and back on again does not lose
+  // what was typed.
+  const [manualOn, setManualOn] = React.useState(seeded?.manualSizing ?? false)
+  const [rungs, setRungs] = React.useState<Rung[]>(() =>
+    rungsFrom(seeded?.manualRungPcts ?? [])
   )
   const [chosenLeverage, setChosenLeverage] = React.useState(
     String(seeded?.leverage ?? defaultGridParams().leverage)
@@ -254,6 +286,10 @@ export function GridOrderDialog({
       setDirection(params.direction)
       setLevels(String(params.levels))
       setPotPct(String(params.potPct))
+      setManualOn(params.manualSizing)
+      if (params.manualRungPcts) {
+        setRungs(rungsFrom(params.manualRungPcts))
+      }
       setChosenLeverage(String(params.leverage))
       setMaxOrderVolPct(String(params.maxOrderVolPct))
       setSpacing(params.spacing)
@@ -287,8 +323,13 @@ export function GridOrderDialog({
   // same numbers.
   const above = parsed(abovePct)
   const below = parsed(belowPct)
-  const levelCount = parsed(levels)
+  // On a hand-set grid the ROWS are the level count: adding a rung is how you
+  // add a level, so a second box saying how many would be a box that argues
+  // with them.
+  const rungCount = rungs.length
+  const levelCount = manualOn ? rungCount : parsed(levels)
   const borrowing = parsed(leverage)
+
   const maxBorrowing = marketLeverageLimit(market.maxLeverage)
   const borrowingInvalid =
     borrowing === null ||
@@ -296,6 +337,23 @@ export function GridOrderDialog({
     borrowing < 1 ||
     borrowing > maxBorrowing
 
+  // The typed shares, in the card's row order — the top of the range first,
+  // both directions. A row that is not a number reads as -1 so the refusal
+  // below can name it.
+  //
+  // Held through `useMemo` so the list keeps its identity between renders. The
+  // settings memo below feeds the preview the chart draws, and a fresh array
+  // every render would redraw the chart on every render for ever.
+  const rungPcts = React.useMemo(
+    () => rungs.map((one) => parsed(one.value) ?? -1),
+    [rungs]
+  )
+  const rungSum = gridRungPctsSum(rungPcts)
+  const rungsUsable =
+    rungs.length >= MIN_GRID_LEVELS &&
+    rungs.length <= MAX_GRID_LEVELS &&
+    rungPcts.every((pct) => pct > 0 && pct <= 100)
+  const badRung = rungPcts.findIndex((pct) => !(pct > 0 && pct <= 100))
   // Hanging off a click reads ONE depth, and which of the two fields holds it
   // depends on the direction: a buying grid reaches DOWN from the click, a
   // selling grid reaches UP.
@@ -339,7 +397,7 @@ export function GridOrderDialog({
   const params = React.useMemo((): PlaceGridParams | null => {
     const candidate: PlaceGridParams = {
       direction,
-      levels: parsed(levels) ?? -1,
+      levels: manualOn ? rungCount : (parsed(levels) ?? -1),
       potPct: parsed(potPct) ?? -1,
       // A grid placed by hand is sized once, off the account right now.
       compound: true,
@@ -347,6 +405,12 @@ export function GridOrderDialog({
       maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
       spacing,
       sizing: "even",
+      manualSizing: manualOn,
+      // The card's rows as they stand, so what is remembered is what was on
+      // screen. Sent even while the switch is off, so the next window opens on
+      // it; `draftGridOrder` only reads it when the switch is on, and turns it
+      // into level order there.
+      manualRungPcts: rungsUsable ? rungPcts : null,
       anchor,
       follow,
       followDown,
@@ -384,6 +448,10 @@ export function GridOrderDialog({
     direction,
     levels,
     potPct,
+    manualOn,
+    rungCount,
+    rungPcts,
+    rungsUsable,
     borrowing,
     maxOrderVolPct,
     spacing,
@@ -507,17 +575,26 @@ export function GridOrderDialog({
         ? "The bottom of the grid has to be below the top."
         : borrowingInvalid
           ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
-          : !params
-            ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
-            : plan && plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
-              ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
-              : plan && plan.tooSmallIndex !== null
-                ? `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
-                : marginNeeded !== null && marginNeeded > free
-                  ? `The grid needs ${formatUsd(marginNeeded)} of margin but only ${formatUsd(free)} is free — nothing would fit.`
-                  : stopPastLiquidation
-                    ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
-                    : null
+          : manualOn && badRung !== -1
+            ? `Rung ${gridRowRungNumber(badRung, rungs.length, direction)} needs a share above zero.`
+            : manualOn && !rungsUsable
+              ? `A hand-set grid needs between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} rungs.`
+              : manualOn && !gridRungPctsFit(rungPcts)
+                ? `The rungs add up to ${Math.round(rungSum * 100) / 100}%, and they have to add up to 100% so the whole share of the account is used.`
+                : !params
+                  ? `Something here does not make sense yet — between ${MIN_GRID_LEVELS} and ${MAX_GRID_LEVELS} levels, and a share above zero.`
+                  : plan &&
+                      plan.stepPct <= takerFeeRate * GRID_STEP_FEE_MULTIPLE
+                    ? "Those levels sit too close together to clear the trading fee — each round trip would lose money. Use a wider range or fewer levels."
+                    : plan && plan.tooSmallIndex !== null
+                      ? manualOn
+                        ? `Rung ${gridRungNumber(plan.tooSmallIndex, plan.levels.length, direction)} is too small to be an order on this market. Give it a bigger share, or raise the share of the account.`
+                        : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
+                      : marginNeeded !== null && marginNeeded > free
+                        ? `The grid needs ${formatUsd(marginNeeded)} of margin but only ${formatUsd(free)} is free — nothing would fit.`
+                        : stopPastLiquidation
+                          ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
+                          : null
 
   const ready = !busy && refusal === null && plan !== null
 
@@ -542,6 +619,67 @@ export function GridOrderDialog({
   const deepestUsd = deepest?.dollars ?? null
   const deepestMargin =
     deepestUsd === null || borrowing === null ? null : deepestUsd / borrowing
+
+  // ----- The Rungs card's rows -------------------------------------------
+
+  const setRung = (id: string, value: string) =>
+    setRungs((held) =>
+      held.map((one) => (one.id === id ? { ...one, value } : one))
+    )
+  const removeRung = (id: string) =>
+    setRungs((held) => held.filter((one) => one.id !== id))
+  // A new row copies the last one rather than guessing a number. The sum line
+  // then says the rungs no longer add to 100, which is true, and "Even split"
+  // is one click away.
+  const addRung = () =>
+    setRungs((held) => {
+      const last = parsed(held[held.length - 1]?.value ?? "")
+      return [...held, ...rungsFrom([last !== null && last > 0 ? last : 10])]
+    })
+  const evenSplit = () =>
+    setRungs((held) => rungsFrom(gridEvenRungPcts(held.length)))
+  // Switching the card on with no usable rows starts from the even split the
+  // grid was already using, so nothing about the grid changes the moment
+  // somebody opens the card to look at it.
+  const toggleManual = (next: boolean) => {
+    if (next && !rungsUsable) {
+      const count = Math.min(
+        MAX_GRID_LEVELS,
+        Math.max(MIN_GRID_LEVELS, parsed(levels) ?? defaultGridParams().levels)
+      )
+      setRungs(rungsFrom(gridEvenRungPcts(count)))
+    }
+    setManualOn(next)
+  }
+
+  /**
+   * Turning the grid round turns the rows over, so the grid mirrors.
+   *
+   * A share belongs to a RUNG, and rung 1 is the first trade the grid makes:
+   * the top of the range when price falls into it, the bottom when price
+   * climbs into it. The rows stay sorted top-of-range first, so keeping rung
+   * 1's share means the values move to the other end of the list — and the
+   * grid on the chart comes out as the mirror of the one you were looking at.
+   *
+   * Each row keeps its own id, so only the contents of the boxes change and
+   * nothing being typed into jumps to another row.
+   */
+  const chooseDirection = (next: GridDirection) => {
+    if (next === direction) return
+    setDirection(next)
+    setRungs((held) => {
+      // The typed text, not the parsed number, so a half-finished box comes
+      // through the switch as whatever was in it.
+      const flipped = [...held].reverse()
+      return held.map((one, index) => ({ ...one, value: flipped[index].value }))
+    })
+  }
+
+  // What the smallest and the biggest rung control. An even grid's levels are
+  // all the same size, so it names one figure instead.
+  const rungDollars = plan?.levels.map((one) => one.dollars) ?? []
+  const smallestUsd = rungDollars.length ? Math.min(...rungDollars) : null
+  const largestUsd = rungDollars.length ? Math.max(...rungDollars) : null
   return (
     <FloatingOrderWindow
       label={`Grid on ${market.symbol}`}
@@ -594,7 +732,7 @@ export function GridOrderDialog({
                     id={`grid-direction-${one}`}
                     checked={direction === one}
                     disabled={busy}
-                    onCheckedChange={touched(() => setDirection(one))}
+                    onCheckedChange={touched(() => chooseDirection(one))}
                   />
                   <FieldLabel
                     htmlFor={`grid-direction-${one}`}
@@ -703,28 +841,43 @@ export function GridOrderDialog({
                 </div>
               </div>
             )}
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="grid-levels"
-                hint={`How many ${entrySide(direction)}s the range is split into. Each one watches its own price, so ${MAX_GRID_LEVELS} is the most.`}
-              >
-                Levels
-              </FieldLabel>
-              <Input
-                id="grid-levels"
-                inputMode="numeric"
-                value={levels}
-                disabled={busy}
-                aria-invalid={showValidation && parsed(levels) === null}
-                onChange={(event) => touched(setLevels)(event.target.value)}
-                onBlur={() => setShowValidation(true)}
-                className="bg-background"
-              />
-            </div>
+            {/* The Rungs card counts the levels once it is on, so the box that
+                counts them here would be a second answer to one question.
+                Hidden rather than greyed out: a disabled box still showing a
+                number nothing is reading is a box that lies. */}
+            {manualOn ? (
+              <p className="text-xs text-muted-foreground">
+                Split by the Rungs card: {rungs.length} rung
+                {rungs.length === 1 ? "" : "s"}.
+              </p>
+            ) : (
+              <div className="grid gap-2">
+                <FieldLabel
+                  htmlFor="grid-levels"
+                  hint={`How many ${entrySide(direction)}s the range is split into. Each one watches its own price, so ${MAX_GRID_LEVELS} is the most.`}
+                >
+                  Levels
+                </FieldLabel>
+                <Input
+                  id="grid-levels"
+                  inputMode="numeric"
+                  value={levels}
+                  disabled={busy}
+                  aria-invalid={showValidation && parsed(levels) === null}
+                  onChange={(event) => touched(setLevels)(event.target.value)}
+                  onBlur={() => setShowValidation(true)}
+                  className="bg-background"
+                />
+              </div>
+            )}
             <div className="grid gap-2">
               <FieldLabel
                 htmlFor="grid-pot"
-                hint="The share of the account the whole grid may spend. Every level gets the same amount."
+                hint={
+                  manualOn
+                    ? "The share of the account the whole grid may spend. The Rungs card divides this money between the levels."
+                    : "The share of the account the whole grid may spend. Every level gets the same amount."
+                }
               >
                 Share of account %
               </FieldLabel>
@@ -750,26 +903,151 @@ export function GridOrderDialog({
                 to reach it and then {entrySide(direction)}s at its own price.
               </p>
             ) : null}
-            {/* What each level puts up and what the whole grid costs. */}
+            {/* What each level puts up and what the whole grid costs.
+
+                A hand-set grid's levels are deliberately different sizes, so
+                one figure for "each" would be a figure that is true of no
+                level. It names the two ends instead, and every row in the
+                Rungs card says its own. */}
             <div className="grid gap-1 text-xs text-muted-foreground">
-              <div className="flex items-baseline justify-between gap-2">
-                <span>Each {entrySide(direction)} controls</span>
-                <span className="tabular-nums">
-                  {deepestUsd === null ? "—" : formatUsd(deepestUsd)}
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <span>Margin per {entrySide(direction)}</span>
-                <span className="tabular-nums">
-                  {deepestMargin === null ? "—" : formatUsd(deepestMargin)}
-                </span>
-              </div>
+              {manualOn ? (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span>Smallest {entrySide(direction)} controls</span>
+                    <span className="tabular-nums">
+                      {smallestUsd === null ? "—" : formatUsd(smallestUsd)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span>Biggest {entrySide(direction)} controls</span>
+                    <span className="tabular-nums">
+                      {largestUsd === null ? "—" : formatUsd(largestUsd)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span>Each {entrySide(direction)} controls</span>
+                    <span className="tabular-nums">
+                      {deepestUsd === null ? "—" : formatUsd(deepestUsd)}
+                    </span>
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span>Margin per {entrySide(direction)}</span>
+                    <span className="tabular-nums">
+                      {deepestMargin === null ? "—" : formatUsd(deepestMargin)}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="flex items-baseline justify-between gap-2">
                 <span>Whole grid controls</span>
                 <span className="tabular-nums">
                   {plan === null ? "—" : formatUsd(plan.totalCost)}
                 </span>
               </div>
+            </div>
+          </OptionCard>
+
+          {/* The hand-set split. Under Range because Share of account % is
+              the money it divides, and the two read as one decision. */}
+          <OptionCard
+            id="grid-rungs"
+            title="Rungs"
+            foldWhenOff={false}
+            toggle={{
+              checked: manualOn,
+              disabled: busy,
+              onChange: touched(toggleManual),
+            }}
+            summary={
+              manualOn
+                ? `${rungs.length} rungs · ${Math.round(rungSum * 100) / 100}%`
+                : null
+            }
+            hint={`Give each ${entrySide(direction)} its own share of the money instead of splitting it equally. The shares are percentages of Share of account %, and they add up to 100. Rung 1 is the first ${entrySide(direction)} the grid makes, which is the ${direction === "long" ? "top" : "bottom"} of the range — a ${direction === "long" ? "buying grid is reached on the way down" : "selling grid is reached on the way up"} — so the rows run ${direction === "long" ? "down" : "up"} the chart from there.`}
+          >
+            {rungs.map((rung, index) => {
+              // Rows read top of the range first; levels read bottom first.
+              const level = plan?.levels[gridRowLevelIndex(index, rungs.length)]
+              // The rows run down the range like the chart. The NUMBER on
+              // each one counts outward from the market, so it runs the other
+              // way on a selling grid.
+              const number = gridRowRungNumber(index, rungs.length, direction)
+              return (
+                <div key={rung.id} className="flex items-center gap-2">
+                  <span className="w-4 text-right text-xs text-muted-foreground">
+                    {number}
+                  </span>
+                  <Input
+                    id={`grid-rung-${number}`}
+                    inputMode="decimal"
+                    value={rung.value}
+                    disabled={busy}
+                    aria-label={`Rung ${number}, percent of the grid's money`}
+                    aria-invalid={showValidation && parsed(rung.value) === null}
+                    onChange={(event) =>
+                      touched(setRung)(rung.id, event.target.value)
+                    }
+                    onBlur={() => setShowValidation(true)}
+                    className="w-16 bg-background"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
+                    {level
+                      ? `${formatPrice(level.buyPx)} · ${formatUsd(level.dollars)}`
+                      : "—"}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-muted-foreground"
+                    disabled={busy || rungs.length <= MIN_GRID_LEVELS}
+                    aria-label={`Remove rung ${number}`}
+                    onClick={() => touched(removeRung)(rung.id)}
+                  >
+                    <Trash2Icon className="size-4" />
+                  </Button>
+                </div>
+              )
+            })}
+            {/* Said out loud, because the whole rule of the card is that the
+                rows use the whole pot. */}
+            <div className="flex items-baseline justify-between gap-2 text-xs">
+              <span className="text-muted-foreground">Adds up to</span>
+              <span
+                className={cn(
+                  "tabular-nums",
+                  gridRungPctsFit(rungPcts)
+                    ? "text-muted-foreground"
+                    : LOST_MONEY
+                )}
+              >
+                {Math.round(rungSum * 100) / 100}%
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-start"
+                disabled={busy || rungs.length >= MAX_GRID_LEVELS}
+                onClick={touched(addRung)}
+              >
+                <PlusIcon className="size-4" />
+                Add rung
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={busy || rungs.length < MIN_GRID_LEVELS}
+                onClick={touched(evenSplit)}
+              >
+                Even split
+              </Button>
             </div>
           </OptionCard>
 

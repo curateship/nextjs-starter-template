@@ -9,6 +9,8 @@ import {
 } from "@/lib/protocols/contracts"
 import {
   exitSide,
+  gridFlippedPcts,
+  gridRowPctsFromLevels,
   gridStopPx,
   holdsEntry,
   plannedGridReversal,
@@ -71,6 +73,10 @@ export function plainReversalRefusal(error: unknown): string {
   if (message.startsWith("SMART_GRID_LEVEL_TOO_SMALL")) {
     return "A level of the reversed grid comes out too small to be an order on this market."
   }
+  const rung = message.match(/SMART_GRID_RUNG_TOO_SMALL:(\d+)/)
+  if (rung) {
+    return `Rung ${rung[1]} of the reversed grid comes out too small to be an order on this market.`
+  }
   if (message.startsWith("SMART_GRID_TARGET_PASSED")) {
     return "Price is already past where the new End Grid line would sit, so the reversed grid would close the moment it was placed."
   }
@@ -125,6 +131,20 @@ export function buildReversedPlan(input: {
       maxOrderVolPct: plan.maxOrderVolPct,
       spacing: plan.spacing,
       sizing: "even",
+      // A hand-set split turns over with the grid, the same move the window
+      // makes when the direction is switched by hand: each share moves to the
+      // other end of the range, so rung 1 keeps rung 1's share and rung 1 has
+      // moved.
+      //
+      // **This reads like a pass-through and is not one.** The draft is given
+      // the card's ROWS, which are the level list read backwards, and the
+      // mirrored level list written out as rows is the old level list
+      // unchanged. Both steps are spelled out rather than cancelled, because
+      // the day one of them changes the other has to move with it.
+      manualSizing: plan.manualSizing,
+      manualRungPcts: plan.manualRungPcts
+        ? gridRowPctsFromLevels(gridFlippedPcts(plan.manualRungPcts))
+        : null,
       // The follow switches carry; their directions swap with the grid.
       follow: plan.follow,
       followDown: plan.followDown,
