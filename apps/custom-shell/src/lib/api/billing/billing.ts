@@ -21,10 +21,12 @@ import {
   type CardExpiryWarning,
 } from "@/server/billing/stripe"
 import { loadEntitlements } from "@/server/billing/entitlements"
+import { listMemberSubscriptionEvents } from "@/server/billing/subscription-events"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
 import type { PlanFeatures } from "@/lib/billing/plan-features"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 import { userGet, userPost } from "@/server/guards"
 
 export type PlanOption = {
@@ -259,8 +261,14 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
       overview: BillingOverview
       invoices: BillingInvoice[]
       cardWarning: CardExpiryWarning | null
+      billingHistory: MemberSubscriptionEvent[]
     }> => {
-      const { overview, subscription } = await buildBillingOverview(context.user)
+      // No account id comes from the browser. The session supplies the only id
+      // used for this history read, so another member's events are unreachable.
+      const [{ overview, subscription }, billingHistory] = await Promise.all([
+        buildBillingOverview(context.user),
+        listMemberSubscriptionEvents(context.user.id),
+      ])
 
       // Both of these are calls out to Stripe, so make them at the same time
       // rather than leaving the reader waiting through one and then the other.
@@ -276,7 +284,7 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
           : null,
       ])
 
-      return { overview, invoices, cardWarning }
+      return { overview, invoices, cardWarning, billingHistory }
     }
   )
 

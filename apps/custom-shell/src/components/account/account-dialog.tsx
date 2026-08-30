@@ -28,6 +28,7 @@ import {
   type CardExpiryWarning,
   type PlanSummary,
 } from "@/lib/api/billing/billing"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 
 export const ACCOUNT_TABS = ["profile", "billing", "security"] as const
 export type AccountTab = (typeof ACCOUNT_TABS)[number]
@@ -207,7 +208,7 @@ export function AccountDialog({
                 />
               </TabsContent>
               <TabsContent value="billing" className="min-w-0">
-                <BillingTab />
+                <BillingTab key={user.id} userId={user.id} />
               </TabsContent>
               <TabsContent value="security" className="min-w-0">
                 <AccountSecurityPage
@@ -283,6 +284,7 @@ type BillingTabData = {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
+  billingHistory: MemberSubscriptionEvent[]
 }
 
 /**
@@ -295,11 +297,13 @@ type BillingTabData = {
  * Only ever written from the browser (the load happens in an effect), so this
  * cannot carry one person's billing into another's page on the server.
  */
-let lastBilling: BillingTabData | null = null
+let lastBilling: { userId: string; data: BillingTabData } | null = null
 
 /** Billing data isn't in the shell, so fetch it when the tab first mounts. */
-function BillingTab() {
-  const [data, setData] = React.useState<BillingTabData | null>(lastBilling)
+function BillingTab({ userId }: { userId: string }) {
+  const [data, setData] = React.useState<BillingTabData | null>(
+    lastBilling?.userId === userId ? lastBilling.data : null
+  )
   const [error, setError] = React.useState<string | null>(null)
   // Bumped by "Try again", which re-runs the same load rather than making the
   // reader close the window and come back.
@@ -309,7 +313,7 @@ function BillingTab() {
     let cancelled = false
     loadBillingPage()
       .then((result) => {
-        lastBilling = result
+        lastBilling = { userId, data: result }
         if (!cancelled) setData(result)
       })
       .catch((loadError) => {
@@ -318,7 +322,7 @@ function BillingTab() {
     return () => {
       cancelled = true
     }
-  }, [reloads])
+  }, [reloads, userId])
 
   // Only when there is nothing else to show. Once `lastBilling` is filled, a
   // refresh that fails leaves the cards from last time standing rather than
@@ -350,6 +354,7 @@ function BillingTab() {
       overview={data.overview}
       invoices={data.invoices}
       cardWarning={data.cardWarning}
+      billingHistory={data.billingHistory}
       // Pausing changes the plan, the badges and the buttons all at once, so
       // the tab re-reads itself rather than trying to patch what it is showing.
       onChanged={() => setReloads((count) => count + 1)}

@@ -4,6 +4,7 @@ import { ExternalLinkIcon, Loader2Icon, PauseIcon, PlayIcon } from "lucide-react
 import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
+import { AccountBillingHistoryCard } from "@/components/account/account-billing-history-card"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
@@ -61,6 +62,7 @@ import { formatDate, formatMonthAndYear } from "@/lib/format/format-time"
 import { formatMoney } from "@/lib/format/money"
 import { planSummary } from "@/lib/billing/plan-summary"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
+import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
 
 /**
  * Stripe's own words for an invoice, said the way a person would. Anything not
@@ -83,11 +85,13 @@ export function AccountBillingPage({
   overview,
   invoices,
   cardWarning,
+  billingHistory,
   onChanged,
 }: {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
+  billingHistory: MemberSubscriptionEvent[]
   /** Re-reads the page after a pause or a resume changed what it says. */
   onChanged: () => void
 }) {
@@ -321,6 +325,8 @@ export function AccountBillingPage({
         loading={pausing}
         onConfirm={() => void handlePause(true)}
       />
+
+      <AccountBillingHistoryCard events={billingHistory} />
 
       <AccountAiUsageCard />
 
