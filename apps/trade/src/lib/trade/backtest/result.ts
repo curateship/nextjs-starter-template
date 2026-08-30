@@ -2,6 +2,7 @@ import { z } from "zod"
 
 import { CANDLE_INTERVALS } from "@/lib/protocols/contracts"
 import { dcaParamsSchema } from "@/lib/trade/dca"
+import { tradeGridSettingsSchema } from "@/lib/automations/nodes/trade-grid"
 import { flowWaitWords } from "@/lib/trade/flow-waiting"
 import { indicatorSettingsSchema } from "@/lib/trade/indicators/registry"
 import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
@@ -21,20 +22,22 @@ import { formatSignedUsd, formatUsd } from "@/lib/trade/format"
  */
 
 /**
- * One round trip: a buy, and the sell that closed it.
+ * One round trip: a buy and its sale, or a sale and its buy-back.
  *
  * **Not one row per fill.** A ladder buys five times and sells once, and five
  * fills in a list tells you nothing about whether any of them worked — the row
  * that matters is "this money went in here and came out there, for this". So
- * every buy is matched to the sell that closed it, and each match is a trade
- * with its own entry, exit, and profit.
+ * every opening fill is matched to the opposite fill that closed it. Each
+ * match is a trade with its own entry, exit, direction and profit.
  *
- * A buy the run never closed is still a row, with no exit on it. Leaving it out
- * would quietly drop the losing half of a strategy that ends holding the bag.
+ * A position the run never closed is still a row, with no exit on it. Leaving
+ * it out would drop the losing half of a strategy that ends holding the bag.
  */
 export const backtestTradeSchema = z.object({
   /** Its place in the list, oldest entry first, counted from 1. */
   n: z.number(),
+  /** Long for a buy-first trip, short for a sell-first trip. Old runs omit it. */
+  direction: z.enum(["long", "short"]).optional(),
   entryAt: z.number(),
   entryPx: z.number(),
   /** Null while it is still open at the end of the run. */
@@ -62,9 +65,12 @@ export type BacktestFill = {
   fee: number
   closedPnl: number
   reason: string
-  /** Which ladder step this buy was, counted from 0, or null when it was not one. */
+  /** Which ladder or Grid rung this fill belongs to, counted from 0 when known. */
   rung: number | null
 }
+
+/** How a closing fill is matched to the entries behind it. */
+export type BacktestTradeMatching = "fifo" | "grid"
 
 /**
  * One arrow on the chart: a single fill, at the exact price and moment it
@@ -141,12 +147,14 @@ const EXIT_WORDS: Record<string, string> = {
  * frozen, and re-running that backtest is what unfreezes it.
  */
 export function fillMarksFromStored(
-  stored: readonly unknown[]
+  stored: readonly unknown[],
+  matching: BacktestTradeMatching = "fifo"
 ): BacktestFillMark[] {
   const rows = stored as ReadonlyArray<Record<string, unknown>>
   // The old shape carries `label` and no `reason`; the new one is the reverse.
   const alreadyWords = rows.some((row) => typeof row.label === "string")
-  if (!alreadyWords) return buildFillMarks(rows as unknown as BacktestFill[])
+  if (!alreadyWords)
+    return buildFillMarks(rows as unknown as BacktestFill[], matching)
   return rows.map((row) => {
     // An old one-liner is still split onto the two lines, so a run saved
     // before this reads the same way as a fresh one. What it CANNOT show is
@@ -165,10 +173,26 @@ export function fillMarksFromStored(
   })
 }
 
+/** Rebuild Grid rows from raw fills while old sentence-only runs keep their saved rows. */
+export function pairTradesFromStored(
+  stored: readonly unknown[],
+  saved: readonly BacktestTrade[],
+  matching: BacktestTradeMatching = "fifo"
+): BacktestTrade[] {
+  const rows = stored as ReadonlyArray<Record<string, unknown>>
+  return rows.length === 0 || rows.some((row) => typeof row.label === "string")
+    ? [...saved]
+    : pairTrades(rows as unknown as BacktestFill[], matching)
+}
+
 export function buildFillMarks(
-  fills: readonly BacktestFill[]
+  fills: readonly BacktestFill[],
+  matching: BacktestTradeMatching = "fifo"
 ): BacktestFillMark[] {
-  // The rungs of the cycle currently open, so a sell can name what it closed.
+  const gridMatches =
+    matching === "grid" ? pairFillTrades(fills, matching).exitMatches : null
+  // The rungs of the cycle currently open, so either kind of exit can name
+  // what it closed.
   let openRungs: number[] = []
   /**
    * How much coin is held, running down the fills.
@@ -196,31 +220,43 @@ export function buildFillMarks(
 
       const amount = formatUsd(fill.px * fill.sz)
 
-      if (fill.side === "buy") {
-        // A rung that is not a real number is no rung at all. Saying "Rung
-        // NaN" is worse than saying nothing, and a run saved in an older shape
-        // is exactly where that comes from.
-        const rung = Number.isFinite(fill.rung as number)
-          ? (fill.rung as number)
-          : null
+      // A rung that is not a real number is no rung at all. Saying "Rung NaN"
+      // is worse than saying nothing, and an old saved run is where that comes
+      // from.
+      const rung = Number.isFinite(fill.rung as number)
+        ? (fill.rung as number)
+        : null
+      // Decimal sizes can leave a speck such as -0.00000000000000003 after a
+      // position closes. That is flat, not an open short. Treating the next
+      // rung buy as a buy-back hid its rung and invented a short that never
+      // existed.
+      if (Math.abs(held) <= 1e-9) held = 0
+      const closesLong = fill.side === "sell" && held > 0
+      const closesShort = fill.side === "buy" && held < 0
+      const closes = closesLong || closesShort
+
+      held += fill.side === "buy" ? fill.sz : -fill.sz
+
+      if (!closes) {
         if (rung !== null) openRungs.push(rung)
-        held += fill.sz
-        label = `Bought ${amount}`
+        label = fill.side === "buy" ? `Bought ${amount}` : `Sold ${amount}`
         detail = rung === null ? null : `Rung ${rung + 1}`
       } else {
-        held = Math.max(0, held - fill.sz)
         // Close enough to nothing is nothing: sizes are floored to the market's
         // step, so a full close can leave a speck behind.
-        const flat = held <= 1e-9
+        const flat = Math.abs(held) <= 1e-9
+        if (flat) held = 0
 
         // Both numbers, because they are two different questions. "$200.03" is
         // how much it sold; "+$19.50" is whether that was a good idea — selling
         // $200 of a coin is a win or a loss depending entirely on what it cost.
         // Fees come out of the profit, so the sign is the honest one.
-        const net = fill.closedPnl - fill.fee
+        const matched = gridMatches?.get(fill)
+        const net = matched?.pnl ?? fill.closedPnl - fill.fee
+        const verb = closesShort ? "Bought back" : "Sold"
         label = Number.isFinite(net)
-          ? `Sold ${amount} · ${net < 0 ? "lost" : "made"} ${formatSignedUsd(net)}`
-          : `Sold ${amount}`
+          ? `${verb} ${amount} · ${net < 0 ? "lost" : "made"} ${formatSignedUsd(net)}`
+          : `${verb} ${amount}`
 
         // The word for HOW it sold, and only when that is news. A plain sale
         // at a rung has nothing to add — the line above already opens with
@@ -228,12 +264,22 @@ export function buildFillMarks(
         // along by a word.
         const parts = EXIT_WORDS[fill.reason] ? [EXIT_WORDS[fill.reason]] : []
         // Lower case only when something is in front of it.
-        const closed = rungNames(openRungs)
+        const closedRungs = matched?.rungs ?? openRungs
+        const closed = rungNames(closedRungs)
         if (closed) parts.push(parts.length > 0 ? closed.toLowerCase() : closed)
-        parts.push(flat ? "all out" : `${formatUsd(held * fill.px)} left`)
+        parts.push(
+          flat ? "all out" : `${formatUsd(Math.abs(held) * fill.px)} left`
+        )
         detail = parts.join(" · ")
 
-        openRungs = []
+        if (matched) {
+          for (const rung of matched.rungs) {
+            const index = openRungs.lastIndexOf(rung)
+            if (index >= 0) openRungs.splice(index, 1)
+          }
+        } else {
+          openRungs = []
+        }
       }
 
       return {
@@ -249,38 +295,81 @@ export function buildFillMarks(
 }
 
 /**
- * Pairs a coin's fills into round trips, oldest buy first.
+ * Pairs a coin's fills into round trips, then numbers them by entry time.
  *
- * First in, first out: the oldest unsold buy is the one a sell closes. That is
- * the rule the exchange itself uses and the only one that makes a ladder read
- * correctly — the deepest rung is the newest buy, so a partial sell must not be
- * allowed to claim it and flatter the result.
+ * Ladders use first in, first out because one target can close several entries.
+ * A Grid exit is different: it recycles one specific rung, and that rung is the
+ * newest open entry as price returns through the range. Comparing that exit to
+ * the wallet's blended average can call a profitable rung a loss.
  *
  * Fees are shared out by size, so a sell that closed three buys puts a third of
  * its cost on each. Otherwise one row carries every fee and reads as the loser.
  */
-export function pairTrades(fills: readonly BacktestFill[]): BacktestTrade[] {
-  const open: Array<{ at: number; px: number; sz: number; fee: number }> = []
+export function pairTrades(
+  fills: readonly BacktestFill[],
+  matching: BacktestTradeMatching = "fifo"
+): BacktestTrade[] {
+  return pairFillTrades(fills, matching).trades
+}
+
+function pairFillTrades(
+  fills: readonly BacktestFill[],
+  matching: BacktestTradeMatching
+): {
+  trades: BacktestTrade[]
+  exitMatches: Map<BacktestFill, { pnl: number; rungs: number[] }>
+} {
+  type OpenTrade = {
+    at: number
+    px: number
+    sz: number
+    fee: number
+    rung: number | null
+  }
+  const longs: OpenTrade[] = []
+  const shorts: OpenTrade[] = []
   const closed: Array<Omit<BacktestTrade, "n">> = []
+  const exitMatches = new Map<BacktestFill, { pnl: number; rungs: number[] }>()
 
   for (const fill of [...fills].sort((left, right) => left.at - right.at)) {
     if (fill.sz <= 0) continue
-
-    if (fill.side === "buy") {
-      open.push({ at: fill.at, px: fill.px, sz: fill.sz, fee: fill.fee })
-      continue
-    }
-
     let left = fill.sz
-    while (left > 1e-12 && open.length > 0) {
-      const entry = open[0]
+    let feeLeft = fill.fee
+    const closing = fill.side === "buy" ? shorts : longs
+    const direction = fill.side === "buy" ? "short" : "long"
+
+    while (left > 1e-12 && closing.length > 0) {
+      let recordedEntry = -1
+      if (matching === "grid" && fill.rung !== null) {
+        for (let index = closing.length - 1; index >= 0; index -= 1) {
+          if (closing[index].rung !== fill.rung) continue
+          recordedEntry = index
+          break
+        }
+      }
+      const entryIndex =
+        recordedEntry >= 0
+          ? recordedEntry
+          : matching === "grid"
+            ? closing.length - 1
+            : 0
+      const entry = closing[entryIndex]
       const matched = Math.min(entry.sz, left)
       const entryFee = entry.sz > 0 ? (entry.fee * matched) / entry.sz : 0
       const exitFee = fill.sz > 0 ? (fill.fee * matched) / fill.sz : 0
       const amountUsd = entry.px * matched
-      const pnl = (fill.px - entry.px) * matched - entryFee - exitFee
+      const pricePnl =
+        direction === "long"
+          ? (fill.px - entry.px) * matched
+          : (entry.px - fill.px) * matched
+      const pnl = pricePnl - entryFee - exitFee
+      const exitMatch = exitMatches.get(fill) ?? { pnl: 0, rungs: [] }
+      exitMatch.pnl += pnl
+      if (entry.rung !== null) exitMatch.rungs.push(entry.rung)
+      exitMatches.set(fill, exitMatch)
 
       closed.push({
+        direction,
         entryAt: entry.at,
         entryPx: entry.px,
         exitAt: fill.at,
@@ -295,29 +384,48 @@ export function pairTrades(fills: readonly BacktestFill[]): BacktestTrade[] {
       entry.sz -= matched
       entry.fee -= entryFee
       left -= matched
-      if (entry.sz <= 1e-12) open.shift()
+      feeLeft -= exitFee
+      if (entry.sz <= 1e-12) closing.splice(entryIndex, 1)
+    }
+
+    if (left > 1e-12) {
+      const opening = fill.side === "buy" ? longs : shorts
+      opening.push({
+        at: fill.at,
+        px: fill.px,
+        sz: left,
+        fee: Math.max(0, feeLeft),
+        rung: fill.rung,
+      })
     }
   }
 
-  // Whatever never sold. Counted as a trade with no exit rather than dropped:
-  // a strategy that ends holding its worst coin should say so.
-  for (const entry of open) {
-    closed.push({
-      entryAt: entry.at,
-      entryPx: entry.px,
-      exitAt: null,
-      exitPx: null,
-      sz: entry.sz,
-      amountUsd: entry.px * entry.sz,
-      pnl: 0,
-      returnPct: 0,
-      exitReason: null,
-    })
+  // Whatever never closed. Counted rather than dropped: a strategy ending in
+  // its worst position has to say so, whichever way it trades.
+  for (const [direction, open] of [
+    ["long", longs],
+    ["short", shorts],
+  ] as const) {
+    for (const entry of open) {
+      closed.push({
+        direction,
+        entryAt: entry.at,
+        entryPx: entry.px,
+        exitAt: null,
+        exitPx: null,
+        sz: entry.sz,
+        amountUsd: entry.px * entry.sz,
+        pnl: 0,
+        returnPct: 0,
+        exitReason: null,
+      })
+    }
   }
 
-  return closed
+  const trades = closed
     .sort((left, right) => left.entryAt - right.entryAt)
     .map((trade, index) => ({ n: index + 1, ...trade }))
+  return { trades, exitMatches }
 }
 
 /**
@@ -349,9 +457,8 @@ export function coinWorstDip(trades: readonly BacktestTrade[]): number {
  * Every figure here comes off the round trips and nothing else, so it can be
  * worked out from what is already stored and checked by hand against the table.
  *
- * There is no long/short split. The ladder only ever goes long, so a short
- * column would be zeros pretending to be a measurement. It comes back the day
- * a strategy can short.
+ * Long and short trades share one set of figures here. The table carries each
+ * trade's direction; this block answers for the coin as a whole.
  */
 const sideStatsSchema = z.object({
   trades: z.number(),
@@ -575,7 +682,10 @@ export function openTradePnls(
   const finalPx = summary.openAtEndUsd / size
   const raw = open.map((trade) => ({
     trade,
-    pnl: (finalPx - trade.entryPx) * trade.sz,
+    pnl:
+      trade.direction === "short"
+        ? (trade.entryPx - finalPx) * trade.sz
+        : (finalPx - trade.entryPx) * trade.sz,
   }))
   const rawTotal = raw.reduce((sum, row) => sum + row.pnl, 0)
   const adjustment = totalOpenPnl - rawTotal
@@ -793,6 +903,10 @@ const backtestStrategySnapshotSchema = z.discriminatedUnion("kind", [
     /** How far a buy followed a price that ran, as a share of it. */
     chaseGiveUp: z.number(),
   }),
+  z.object({
+    kind: z.literal("emaGrid"),
+    settings: tradeGridSettingsSchema,
+  }),
 ])
 
 export type BacktestStrategySnapshot = z.infer<
@@ -805,7 +919,7 @@ export const backtestSpecSnapshotSchema = z.object({
   makerFeePct: z.number(),
   slippagePct: z.number(),
   days: z.number(),
-  /** Shared by both strategies — the bar size the run walks. */
+  /** Shared by every strategy — the bar size the run walks. */
   interval: z.enum(CANDLE_INTERVALS),
   marketKeys: z.array(z.string()),
   strategy: backtestStrategySnapshotSchema,

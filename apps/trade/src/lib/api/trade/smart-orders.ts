@@ -34,6 +34,7 @@ import {
   cancelLiveLadderRung,
   placeLiveDcaLadder,
   reconcileLiveLadders,
+  reshapeLiveLadder,
   updateLiveLadderExits,
 } from "@/server/trade/live-smart-orders"
 import {
@@ -76,6 +77,7 @@ import {
   cancelLadderRung as cancelRungRow,
   placeDcaLadder as placeLadderRows,
   resumeSmartOrder as resumeSmartOrderRow,
+  reshapeLadder as reshapeLadderRows,
   updateLadderExits as updateExitsRows,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
@@ -121,6 +123,17 @@ const ladderSchema = z.object({
   walletId: z.string().max(36),
   ladderId: z.string().max(36),
 })
+
+const reshapeLadderSchema = ladderSchema
+  .extend({
+    anchorPx: z.number().positive().finite().optional(),
+    deepestPx: z.number().positive().finite().optional(),
+  })
+  .refine(
+    (input) =>
+      (input.anchorPx === undefined) !== (input.deepestPx === undefined),
+    { message: "SMART_LADDER_RANGE" }
+  )
 
 const exitsSchema = z.object({
   walletId: z.string().max(36),
@@ -250,6 +263,20 @@ const cancelLadderRestFn = createServerFn({ method: "POST" })
           ? await cancelLiveLadderRest(context.user.id, wallet, data)
           : await cancelRestRows(context.user.id, wallet, data)
     )
+  })
+
+const reshapeLadderFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(reshapeLadderSchema)
+  .handler(async ({ data, context }) => {
+    const wallet = await tradingWallet(context.user.id, data.walletId)
+    const input =
+      data.anchorPx !== undefined
+        ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
+        : { ladderId: data.ladderId, deepestPx: data.deepestPx as number }
+    return wallet.kind === "live"
+      ? await reshapeLiveLadder(context.user.id, wallet, input)
+      : await reshapeLadderRows(context.user.id, wallet, input)
   })
 
 const resumeSmartOrderFn = createServerFn({ method: "POST" })
@@ -516,6 +543,10 @@ export function moveWatch(input: {
 
 export function cancelLadderRest(input: z.infer<typeof ladderSchema>) {
   return cancelLadderRestFn({ data: input })
+}
+
+export function reshapeLadder(input: z.infer<typeof reshapeLadderSchema>) {
+  return reshapeLadderFn({ data: input })
 }
 
 export function resumeSmartOrder(input: z.infer<typeof ladderSchema>) {
@@ -916,6 +947,12 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "This market has no confirmed base yet, and the ladder hangs from one — nothing was placed. Wait for the chart to mark a base.",
     SMART_LADDER_NOT_FOUND:
       "That ladder is not there any more — it may have finished or been cancelled.",
+    SMART_LADDER_STARTED:
+      "That ladder has already started buying, so its rung prices can no longer be changed. Cancel the waiting rungs and place a new ladder for a different shape.",
+    SMART_LADDER_RANGE:
+      "Those rung prices no longer make a valid ladder. Keep every rung below the one above it.",
+    SMART_LADDER_FLOW:
+      "A ladder controlled by an automation cannot be moved by hand. Change the automation or stop its run first.",
     SMART_ORDER_NOT_FOUND:
       "That smart order is not there any more. The account will refresh now.",
     SMART_ORDER_NOT_PAUSED: "That smart order is already running.",

@@ -805,6 +805,123 @@ export const ladderPlanSchema = z.object({
 
 export type LadderPlan = z.infer<typeof ladderPlanSchema>
 
+export type LadderShapeChange =
+  | { anchorPx: number; deepestPx?: never }
+  | { anchorPx?: never; deepestPx: number }
+
+/** Re-spread typed rung percentages so the deepest rung lands at one price. */
+export function resizedDcaDeviations(
+  deviations: readonly number[],
+  anchorPx: number,
+  currentDeepestPx: number,
+  nextDeepestPx: number
+): number[] | null {
+  if (
+    deviations.length === 0 ||
+    !(anchorPx > currentDeepestPx) ||
+    !(anchorPx > nextDeepestPx) ||
+    !(nextDeepestPx > 0)
+  ) {
+    return null
+  }
+
+  const currentDepth = Math.log(currentDeepestPx / anchorPx)
+  const nextDepth = Math.log(nextDeepestPx / anchorPx)
+  const scale = nextDepth / currentDepth
+  if (!Number.isFinite(scale) || !(scale > 0)) return null
+
+  const resized = deviations.map((deviation) => {
+    const remaining = 1 - deviation / 100
+    return (1 - remaining ** scale) * 100
+  })
+  return resized.every(
+    (deviation) =>
+      Number.isFinite(deviation) && deviation > 0 && deviation <= 99
+  )
+    ? resized
+    : null
+}
+
+/** A ladder can be moved only before any rung has started or been called off. */
+export function ladderShapeMovable(plan: LadderPlan): boolean {
+  return (
+    plan.steppedDown === 0 &&
+    plan.reclaim === null &&
+    plan.rungs.every(
+      (rung) =>
+        rung.status === "waiting" &&
+        rung.orderId === null &&
+        rung.sellOrderId === null
+    )
+  )
+}
+
+/** Redraw a not-yet-started ladder while preserving each rung's budget. */
+export function reshapeLadderPlan(
+  plan: LadderPlan,
+  change: LadderShapeChange,
+  roundPx: (px: number) => number
+): LadderPlan {
+  if (!ladderShapeMovable(plan)) throw new Error("SMART_LADDER_STARTED")
+
+  const deepest = plan.rungs.at(-1)
+  if (!deepest) throw new Error("SMART_LADDER_RANGE")
+  const moving = change.anchorPx !== undefined
+  const wantedAnchor = moving ? change.anchorPx : plan.anchorPx
+  if (!(wantedAnchor > 0)) throw new Error("SMART_LADDER_RANGE")
+
+  let rawPrices: number[]
+  if (moving) {
+    const scale = wantedAnchor / plan.anchorPx
+    rawPrices = plan.rungs.map((rung) => rung.px * scale)
+  } else {
+    if (!(change.deepestPx > 0) || !(plan.anchorPx > change.deepestPx)) {
+      throw new Error("SMART_LADDER_RANGE")
+    }
+    const scale =
+      Math.log(change.deepestPx / plan.anchorPx) /
+      Math.log(deepest.px / plan.anchorPx)
+    if (!Number.isFinite(scale) || !(scale > 0)) {
+      throw new Error("SMART_LADDER_RANGE")
+    }
+    rawPrices = plan.rungs.map(
+      (rung) => plan.anchorPx * (rung.px / plan.anchorPx) ** scale
+    )
+  }
+
+  const anchorPx = roundPx(wantedAnchor)
+  const prices = rawPrices.map(roundPx)
+  if (
+    !(anchorPx > prices[0]) ||
+    prices.some(
+      (price, index) =>
+        !(price > 0) || (index > 0 && !(prices[index - 1] > price))
+    )
+  ) {
+    throw new Error("SMART_LADDER_RANGE")
+  }
+
+  const rungs = plan.rungs.map((rung, index) => {
+    const px = prices[index]
+    const budget = rungBudget(rung)
+    const sz = floorSize(budget / px, plan.sizeDecimals)
+    if (!(sz > 0) || px * sz < MIN_ORDER_USD) {
+      throw new Error("SMART_RUNG_TOO_SMALL")
+    }
+    return { ...rung, px, sz, budget, dead: false, touched: false }
+  })
+
+  return {
+    ...plan,
+    anchorPx,
+    // A hand-set shape must not jump back to the next detected base.
+    anchor: "click",
+    rungs,
+    green: null,
+    baseWatch: null,
+  }
+}
+
 /**
  * The coins the ladder's filled rungs are holding right now — the rungs that
  * have bought and not yet sold. What the ladder's take profit is sized to

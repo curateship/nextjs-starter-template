@@ -25,6 +25,7 @@ export function TradeNumberField({
   min,
   max,
   integer = false,
+  step,
   suffix,
   onChange,
 }: {
@@ -36,7 +37,9 @@ export function TradeNumberField({
   max: number
   /** True when a decimal would not be honoured by the thing this controls. */
   integer?: boolean
-  /** A unit drawn after the box — "%", "days". */
+  /** The saved value must sit on this increment, starting from `min`. */
+  step?: number
+  /** A unit drawn after the box — "%", "hours". */
   suffix?: string
   onChange: (next: number) => void
 }) {
@@ -53,12 +56,17 @@ export function TradeNumberField({
   }
 
   const parsed = Number(text.trim())
-  const valid =
-    text.trim() !== "" &&
-    Number.isFinite(parsed) &&
-    parsed >= min &&
-    parsed <= max &&
-    (!integer || Number.isInteger(parsed))
+  const accepts = (next: number) => {
+    const steps = step === undefined ? 0 : (next - min) / step
+    return (
+      Number.isFinite(next) &&
+      next >= min &&
+      next <= max &&
+      (!integer || Number.isInteger(next)) &&
+      (step === undefined || Math.abs(steps - Math.round(steps)) < 1e-9)
+    )
+  }
+  const valid = text.trim() !== "" && accepts(parsed)
 
   return (
     <div className="grid gap-1.5">
@@ -69,18 +77,13 @@ export function TradeNumberField({
         <Input
           id={id}
           inputMode={integer ? "numeric" : "decimal"}
+          step={step}
           value={text}
           aria-invalid={!valid}
           onChange={(event) => {
             setText(event.target.value)
             const next = Number(event.target.value.trim())
-            if (
-              event.target.value.trim() !== "" &&
-              Number.isFinite(next) &&
-              next >= min &&
-              next <= max &&
-              (!integer || Number.isInteger(next))
-            ) {
+            if (event.target.value.trim() !== "" && accepts(next)) {
               onChange(next)
             }
           }}
@@ -103,6 +106,13 @@ export function TradeNumberField({
             ? "This needs a number."
             : integer && Number.isFinite(parsed) && !Number.isInteger(parsed)
               ? "Use a whole number. Anything else is not saved."
+              : step !== undefined &&
+                  Number.isFinite(parsed) &&
+                  parsed >= min &&
+                  parsed <= max
+                ? `Use increments of ${step.toLocaleString()}${
+                    suffix ? ` ${suffix}` : ""
+                  }. Anything else is not saved.`
               : `Between ${min.toLocaleString()} and ${max.toLocaleString()}${
                   suffix ? ` ${suffix}` : ""
                 }. Anything else is not saved.`}

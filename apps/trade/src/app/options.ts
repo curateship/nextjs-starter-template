@@ -5,6 +5,7 @@ import type { AppOptions } from "@/lib/app-options"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
 import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
+import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
 import {
   TRADE_PALETTE_GROUP,
   tradeWalletNode,
@@ -71,13 +72,17 @@ export const appOptions: AppOptions = {
      * The steps a trading flow is drawn from, in the order they chain: the
      * pot, the coins, then a strategy. Reaching the strategy starts the run.
      *
-     * **Two strategies are offered and a flow holds one of them.** The ladder
-     * waits for price to fall into a plan; Signals waits for an indicator to
-     * call it. A flow holding both is refused in words when it is switched on
-     * — see `flowNodesOf` and `backtestSpecFromFlow` — rather than left to
-     * discover itself with money on the line.
+     * A flow holds one strategy. The ladder waits for price to fall into a
+     * plan, Signals waits for an indicator call, and Grid follows the 4-hour
+     * EMA. A drawing with more than one is refused before it can trade.
      */
-    nodes: [tradeWalletNode, tradeMarketsNode, tradeDcaNode, tradeSignalsNode],
+    nodes: [
+      tradeWalletNode,
+      tradeMarketsNode,
+      tradeDcaNode,
+      tradeSignalsNode,
+      tradeGridNode,
+    ],
     paletteGroups: [TRADE_PALETTE_GROUP],
     /**
      * A trading flow has no member to test against.
@@ -95,6 +100,7 @@ export const appOptions: AppOptions = {
           tradeMarketsNode.kind,
           tradeDcaNode.kind,
           tradeSignalsNode.kind,
+          tradeGridNode.kind,
         ].some((kind) => kinds.includes(kind)),
     },
     canvasPanel: {
@@ -104,11 +110,12 @@ export const appOptions: AppOptions = {
       // chip, so the honest name is the plain one.
       label: "Backtest",
       // Only on a flow that actually runs one. Every other flow in this app
-      // would otherwise carry a button offering a backtest it never ran. Both
-      // strategies back-test, so both bring the panel.
+      // would otherwise carry a button offering a backtest it never ran. All
+      // three trading strategies bring the panel.
       appliesTo: (kinds) =>
         kinds.includes(tradeDcaNode.kind) ||
-        kinds.includes(tradeSignalsNode.kind),
+        kinds.includes(tradeSignalsNode.kind) ||
+        kinds.includes(tradeGridNode.kind),
       panel: () => import("@/components/automations/backtest-canvas-panel"),
     },
     /**

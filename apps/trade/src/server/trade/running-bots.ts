@@ -66,7 +66,12 @@ export async function listRunningBots(
         runId: run.id,
         automationId: run.automationId,
         name: nameOf.get(run.automationId) ?? "This flow has been deleted",
-        strategy: spec.strategy.kind === "dca" ? "DCA ladder" : "Signals",
+        strategy:
+          spec.strategy.kind === "dca"
+            ? "DCA ladder"
+            : spec.strategy.kind === "emaGrid"
+              ? "Grid"
+              : "Signals",
         marketCount: run.coins,
         workingCount: run.working,
         holdingCount: run.holdingCoins,

@@ -145,6 +145,11 @@ screen: anything not written there has not been agreed yet.
 - `dca-rules-vs-old-app.md` — the DCA rules here beside the ones in the old
   trading app, line by line.
 
+## automations/
+
+- `grid-step.md` explains how the Grid step reads the 4-hour EMA, places and flips an
+  ordinary grid, shares candle reads with Signals, and stops safely.
+
 ## engine/ — the server side
 
 - `dashboard-speed.md` — what one database trip costs, what the opening answer

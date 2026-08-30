@@ -149,6 +149,13 @@ const JUST_WAITING: Record<string, string> = {
   // same reason "no base yet" does not.
   SIGNAL_NONE_YET: "Waiting for an arrow",
   SIGNAL_RAN_AWAY: "Price ran away before it could buy",
+  EMA_GRID_HISTORY: "Waiting for 100 days of closed 4-hour candles",
+  EMA_GRID_NONE: "Waiting for every wick to clear the 4-hour EMA",
+  EMA_GRID_NEW_CANDLE:
+    "Waiting for a new closed 4-hour candle before placing again",
+  EMA_GRID_ACTIVE: "A Grid is active on this side of the 4-hour EMA",
+  EMA_GRID_FLIPPING:
+    "The old grid is closed, and the opposite grid goes in on the next pass",
 }
 
 /** The refusals somebody has to act on, and what they would do about it. */
@@ -161,6 +168,22 @@ const NEEDS_A_PERSON: Record<string, string> = {
     "The wallet holds this coin, so selling would only shrink what it holds",
   SMART_GRID_STOP_PAST_LIQUIDATION:
     "The exchange would close this short out before the stop was reached — use a tighter stop, less borrowing, or a smaller share",
+  SMART_GRID_RANGE:
+    "The grid range could not be drawn — use a wider range or fewer rungs",
+  SMART_GRID_STEP_TOO_THIN:
+    "The rungs sit too close together to cover the trading fee — use a wider range or fewer rungs",
+  SMART_GRID_LEVEL_TOO_SMALL:
+    "A grid level comes out too small to be an order — use fewer levels or more money",
+  SMART_GRID_RUNG_TOO_SMALL:
+    "A custom rung comes out too small to be an order — give it a bigger share or give the grid more money",
+  SMART_GRID_RUNG_COUNT:
+    "The custom rung shares no longer match the number of rungs — open Grid and set the rungs again",
+  SMART_GRID_RUNG_SUM:
+    "The custom rung shares do not add up to 100 — open Grid and correct the shares",
+  SMART_GRID_TARGET_PASSED:
+    "End Grid is already behind the current price — move the line farther away",
+  LIVE_GRID_STOP_CANCEL:
+    "The grid's separate stop could not be cancelled, so the EMA left the grid and its coins alone — check the open stop order before trying again",
   PAPER_ORDER_LIMIT: "The wallet has too many orders open already",
   // A practice wallet and a real one refuse for the same reasons down two
   // different paths, so both sets of codes are answered. A practice flow that
@@ -210,9 +233,12 @@ export function flowWaitCode(error: unknown): string {
   // so the ones worth naming are recognised here. Everything else still falls
   // through to "no words for it" and is written to the log to be named later.
   if (/insufficient margin/i.test(message)) return "EXCHANGE_NO_MARGIN"
-  // `SMART_RUNG_TOO_SMALL:3` — a few codes name which rung, and that number is
-  // worth keeping.
-  return /^[A-Z][A-Z0-9_]*(:\d+)?$/.test(message) ? message : "FLOW_UNKNOWN"
+  // `SMART_RUNG_TOO_SMALL:3` names a rung, while
+  // `SMART_GRID_RUNG_SUM:99.5` names a safe numeric total. Those figures are
+  // worth keeping, but free-form error text is still thrown away.
+  return /^[A-Z][A-Z0-9_]*(?::\d+(?:\.\d+)?)?$/.test(message)
+    ? message
+    : "FLOW_UNKNOWN"
 }
 
 /** The exchange saying "too fast", however it happens to phrase it. */

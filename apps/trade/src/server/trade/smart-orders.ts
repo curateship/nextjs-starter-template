@@ -8,7 +8,9 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
+  reshapeLadderPlan,
   type DcaParams,
+  type LadderShapeChange,
   type LadderPlan,
   type LadderRungState,
 } from "@/lib/trade/dca"
@@ -27,7 +29,7 @@ import {
 import { isMarketable, paperAccountFigures } from "@/lib/trade/paper"
 import { checkOrderMinimum, orderMinimumRefusal } from "@/lib/trade/market-info"
 import type { TradeWallet } from "@/lib/trade/wallets"
-import { db } from "@/server/db"
+import { db, type CustomShellDb } from "@/server/db"
 import { getProtocol } from "@/server/protocols/registry"
 import { marketBaseInForce } from "@/server/trade/base-level"
 import { marketRules } from "@/server/trade/market-rules"
@@ -518,14 +520,19 @@ export type LadderRowRecord = {
   marketKey: string
   status: "active" | "done"
   plan: LadderPlan
+  flowRunId: string | null
+  createdAt: number
 }
+
+export type MovedLadder = { moved: true; ladder: SmartLadder }
 
 export async function ladderById(
   userId: string,
   walletId: string,
-  ladderId: string
+  ladderId: string,
+  tx: CustomShellDb = db
 ): Promise<LadderRowRecord> {
-  const rows = await db
+  const rows = await tx
     .select()
     .from(tradeSmartLadders)
     .where(
@@ -542,7 +549,94 @@ export async function ladderById(
       ? (readSmartPlan("dca", row.plan) as LadderPlan | null)
       : null
   if (!row || !plan) throw new Error("SMART_LADDER_NOT_FOUND")
-  return { id: row.id, marketKey: row.marketKey, status: row.status, plan }
+  return {
+    id: row.id,
+    marketKey: row.marketKey,
+    status: row.status,
+    plan,
+    flowRunId: row.flowRunId ?? null,
+    createdAt: row.createdAt.getTime(),
+  }
+}
+
+export function movedLadder(
+  walletId: string,
+  ladder: LadderRowRecord,
+  plan: LadderPlan,
+  updatedAt: number
+): MovedLadder {
+  return {
+    moved: true,
+    ladder: {
+      id: ladder.id,
+      walletId,
+      marketKey: ladder.marketKey,
+      kind: "dca",
+      status: "active",
+      flowRunId: ladder.flowRunId,
+      createdAt: ladder.createdAt,
+      updatedAt,
+      plan,
+    },
+  }
+}
+
+export function assertLadderRungsTradable(
+  plan: LadderPlan,
+  rules: {
+    sizeDecimals: number | null
+    minOrderValueUsd?: number | null
+    minOrderSize?: number | null
+  }
+): void {
+  for (const rung of plan.rungs) {
+    const minimum = checkOrderMinimum(rules, rung.px, rung.sz)
+    if (minimum.tooSmall) throw new Error("SMART_RUNG_TOO_SMALL")
+  }
+}
+
+/** Move or re-spread a ladder before its first rung starts. */
+export async function reshapeLadder(
+  userId: string,
+  wallet: TradeWallet,
+  input: LadderShapeChange & { ladderId: string }
+): Promise<MovedLadder> {
+  await settleWallet(userId, wallet)
+  const firstRead = await ladderById(userId, wallet.id, input.ladderId)
+  const ref = parseMarketKey(firstRead.marketKey)
+  if (!ref) throw new Error("PAPER_MARKET")
+  const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
+  if (!rules) throw new Error("PAPER_MARKET")
+  const protocol = getProtocol(wallet.protocol)
+  return await db.transaction(async (tx) => {
+    // The engine takes the same wallet lock. Re-read the plan after winning it
+    // so a rung that bought during this click can never be overwritten by the
+    // older all-waiting plan the click started from.
+    await tx
+      .select({ id: tradeWallets.id })
+      .from(tradeWallets)
+      .where(
+        and(
+          eq(tradeWallets.userId, userId),
+          eq(tradeWallets.id, wallet.id)
+        )
+      )
+      .for("update")
+    const ladder = await ladderById(userId, wallet.id, input.ladderId, tx)
+    if (ladder.flowRunId !== null) throw new Error("SMART_LADDER_FLOW")
+    const plan = reshapeLadderPlan(ladder.plan, input, (px) =>
+      protocol.markets.roundPx(
+        px,
+        ladder.plan.sizeDecimals,
+        ladder.plan.priceTick
+      )
+    )
+    assertLadderRungsTradable(plan, rules)
+
+    const at = Date.now()
+    await saveLadderPlan(userId, ladder.id, plan, "active", at, tx)
+    return movedLadder(wallet.id, ladder, plan, at)
+  })
 }
 
 /** Writes any smart order's plan down — the ladder's and the grid's alike. */
@@ -550,11 +644,13 @@ export async function saveLadderPlan(
   userId: string,
   ladderId: string,
   plan: SmartPlan,
-  status: "active" | "done"
+  status: "active" | "done",
+  updatedAt = Date.now(),
+  tx: CustomShellDb = db
 ): Promise<void> {
-  await db
+  await tx
     .update(tradeSmartLadders)
-    .set({ plan, status, updatedAt: new Date() })
+    .set({ plan, status, updatedAt: new Date(updatedAt) })
     .where(
       and(
         eq(tradeSmartLadders.userId, userId),
@@ -1061,7 +1157,16 @@ export async function listActiveSmartOrders(
    */
   const flowPlaced = new Map<string, { runId: string; since: number }>()
   for (const run of running) {
-    const kind = run.spec.strategy.kind === "signals" ? "signal" : "dca"
+    const kind =
+      run.spec.strategy.kind === "signals"
+        ? "signal"
+        : run.spec.strategy.kind === "dca"
+          ? "dca"
+          : null
+    // Grid flows have carried a run stamp since their first release. Guessing
+    // ownership from `placed` would only risk claiming a later grid placed by
+    // hand on the same coin.
+    if (!kind) continue
     for (const marketKey of run.placed) {
       flowPlaced.set(`${run.walletId}:${marketKey}:${kind}`, {
         runId: run.id,

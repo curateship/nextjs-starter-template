@@ -3,8 +3,10 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { defaultSignalIndicators } from "@/lib/automations/nodes/trade-signals"
+import { defaultTradeGridSettings } from "@/lib/automations/nodes/trade-grid"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultDcaParams } from "@/lib/trade/dca"
+import { defaultGridParams } from "@/lib/trade/grid"
 import { describeFlowStop } from "@/lib/trade/flow-run"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import type { CustomShellDb } from "@/server/db"
@@ -68,6 +70,8 @@ const paperPlace = vi.hoisted(() =>
       undefined
   )
 )
+const liveGridCancel = vi.hoisted(() => vi.fn(async () => ({ cancelled: 1 })))
+const paperGridCancel = vi.hoisted(() => vi.fn(async () => ({ cancelled: 1 })))
 
 vi.mock("@/server/trade/wallets", () => ({
   findWallet: async () => walletRow,
@@ -100,6 +104,16 @@ vi.mock("@/server/trade/smart-orders", async (importOriginal) => ({
   cancelFlowLadderRemainder: paperRemainderCancel,
 }))
 
+vi.mock("@/server/trade/live-grid-orders", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  cancelLiveGridRest: liveGridCancel,
+}))
+
+vi.mock("@/server/trade/grid-orders", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  cancelGridRest: paperGridCancel,
+}))
+
 const {
   advanceRemovedFlowLadders,
   advanceRunningFlows,
@@ -108,6 +122,7 @@ const {
   startFlowRun,
   stopFlowRun,
 } = await import("@/server/trade/flow-run")
+const { draftGridOrder } = await import("@/server/trade/grid-orders")
 type FlowNodes = Parameters<typeof flowRunSpec>[1]
 
 function wallet(patch: Partial<TradeWallet> = {}): TradeWallet {
@@ -174,6 +189,10 @@ beforeEach(async () => {
   paperRemainderCancel.mockResolvedValue({ complete: true, done: true })
   paperPlace.mockReset()
   paperPlace.mockResolvedValue(undefined)
+  liveGridCancel.mockReset()
+  liveGridCancel.mockResolvedValue({ cancelled: 1 })
+  paperGridCancel.mockReset()
+  paperGridCancel.mockResolvedValue({ cancelled: 1 })
 
   // Two real flows to hang the runs off. The table points at `automations` so
   // that deleting a flow stops it looking for coins, which means a test needs
@@ -344,6 +363,18 @@ describe("what a flow is allowed to start with", () => {
     expect(spec.strategy.chaseGiveUp).toBe(0.02)
   })
 
+  it("freezes the Grid step with its own EMA and grid settings", async () => {
+    const grid = nodes()
+    const settings = defaultTradeGridSettings()
+    settings.days = 5
+    settings.emaPeriod = 150
+    grid.strategy = { kind: "emaGrid", settings }
+
+    const { spec } = await flowRunSpec(userId, grid)
+
+    expect(spec.strategy).toEqual({ kind: "emaGrid", settings, interval: "4h" })
+  })
+
   it("refuses a flow with no wallet", async () => {
     await expect(
       flowRunSpec(userId, nodes({ wallet: { walletId: null } }))
@@ -507,11 +538,7 @@ describe("switching one on", () => {
       db
     )
 
-    await advanceRunningFlows(
-      NOW + 1,
-      db,
-      new Map([[`${userId}\0w1`, null]])
-    )
+    await advanceRunningFlows(NOW + 1, db, new Map([[`${userId}\0w1`, null]]))
 
     expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
   })
@@ -1122,6 +1149,123 @@ describe("switching one off", () => {
     })
     const [stopped] = await db.select().from(tradeFlowRuns)
     expect(stopped.status).toBe("stopped")
+  })
+
+  it("calls off a waiting Grid placed by the flow", async () => {
+    const gridNodes = nodes()
+    gridNodes.strategy = {
+      kind: "emaGrid",
+      settings: defaultTradeGridSettings(),
+    }
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: gridNodes, now: NOW },
+      db
+    )
+    const { plan } = draftGridOrder({
+      marketKey: "hyperliquid:mainnet:BTC",
+      params: { ...defaultGridParams(), levels: 4 },
+      topPx: 120,
+      bottomPx: 80,
+      mark: 100,
+      rules: {
+        sizeDecimals: 3,
+        priceTick: 0.01,
+        minOrderValueUsd: 10,
+        maxLeverage: 50,
+        volume24hUsd: 10_000_000,
+      },
+      roundPx: (px) => px,
+      equity: 10_000,
+      takerFeeRate: 0.00045,
+      startedAt: NOW,
+      held: null,
+    })
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "flow-grid",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "grid",
+      status: "active",
+      flowRunId: started.id,
+      plan,
+    })
+
+    expect(
+      await stopFlowRun(
+        userId,
+        { automationId: "flow-1", now: NOW + 1, byHand: true },
+        db
+      )
+    ).toEqual({ held: 0, remaining: 1 })
+    await advanceStoppingFlows(NOW + 2, db)
+
+    expect(paperGridCancel).toHaveBeenCalledWith(userId, walletRow, {
+      gridId: "flow-grid",
+    })
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
+  })
+
+  it("leaves a Grid that holds coin and its protection alone", async () => {
+    const gridNodes = nodes()
+    gridNodes.strategy = {
+      kind: "emaGrid",
+      settings: defaultTradeGridSettings(),
+    }
+    const started = await startFlowRun(
+      userId,
+      { automationId: "flow-1", nodes: gridNodes, now: NOW },
+      db
+    )
+    const { plan } = draftGridOrder({
+      marketKey: "hyperliquid:mainnet:BTC",
+      params: { ...defaultGridParams(), levels: 4 },
+      topPx: 120,
+      bottomPx: 80,
+      mark: 100,
+      rules: {
+        sizeDecimals: 3,
+        priceTick: 0.01,
+        minOrderValueUsd: 10,
+        maxLeverage: 50,
+        volume24hUsd: 10_000_000,
+      },
+      roundPx: (px) => px,
+      equity: 10_000,
+      takerFeeRate: 0.00045,
+      startedAt: NOW,
+      held: null,
+    })
+    for (const level of plan.levels) level.status = "cancelled"
+    plan.levels[0].status = "holding"
+    plan.levels[0].heldSz = plan.levels[0].sz
+    await db.insert(tradeSmartLadders).values({
+      userId,
+      walletId: "w1",
+      id: "held-flow-grid",
+      marketKey: "hyperliquid:mainnet:BTC",
+      kind: "grid",
+      status: "active",
+      flowRunId: started.id,
+      plan,
+    })
+
+    expect(
+      await stopFlowRun(
+        userId,
+        { automationId: "flow-1", now: NOW + 1, byHand: true },
+        db
+      )
+    ).toEqual({ held: 1, remaining: 0 })
+
+    expect(paperGridCancel).not.toHaveBeenCalled()
+    const [grid] = await db
+      .select()
+      .from(tradeSmartLadders)
+      .where(eq(tradeSmartLadders.id, "held-flow-grid"))
+    expect(grid.status).toBe("active")
+    expect((await db.select().from(tradeFlowRuns))[0].status).toBe("stopped")
   })
 
   it("finishes a live signal stop without relying on normal wallet work", async () => {

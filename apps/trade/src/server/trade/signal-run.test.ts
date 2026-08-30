@@ -78,7 +78,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   }),
 }))
 
-const { advanceSignalFlow, resetSignalPacing, workingSignals } =
+const { advanceSignalFlow, resetCandlePacing, workingSignals } =
   await import("@/server/trade/signal-run")
 
 const runId = "run-1"
@@ -148,7 +148,7 @@ function spec(over: Partial<TradeFlowRunSpec> = {}): TradeFlowRunSpec {
 
 async function pass(over: Partial<TradeFlowRunSpec> = {}, acted = {}) {
   const runSpec = spec(over)
-  resetSignalPacing()
+  resetCandlePacing()
   return await advanceSignalFlow(
     {
       userId,
@@ -181,7 +181,7 @@ beforeEach(async () => {
   client = testDb.client
   database = testDb.db
   clearMarketRulesCache()
-  resetSignalPacing()
+  resetCandlePacing()
   now = Date.UTC(2026, 7, 16)
   marks.set("BTC", 100)
   marks.set("ETH", 100)

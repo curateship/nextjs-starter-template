@@ -32,8 +32,8 @@ export type ChartFillMark = {
  * opened the chart to look at.
  *
  * Pointing at an arrow says which rung it was and what it cost. The words are
- * worked out when the run is saved, not here — the chart has never heard of a
- * ladder.
+ * worked out when the run is read, not here, so saved raw fills pick up current
+ * wording and Grid exits can be matched to their own rung.
  *
  * The same idiom as `indicator-layer.tsx`: handed a surface that answers "where
  * does this time and this price land?", it draws on top, and `price-chart.tsx`
@@ -191,8 +191,8 @@ export function BacktestMarksLayer({
                 : "bg-red-600 dark:bg-red-400"
             )}
           />
-          {/* Two lines: the money on top, the detail under it. Both are worked
-              out when the run is saved — the chart has never heard of a rung. */}
+          {/* Two lines: the money on top, the detail under it. The chart has
+              never heard of a rung; it only draws the words it was handed. */}
           <span className="grid gap-0.5 leading-tight">
             <span className="text-sm font-semibold">{onPlot.mark.label}</span>
             {onPlot.mark.detail ? (

@@ -40,6 +40,7 @@ import {
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
   dcaLadderPlan,
+  resizedDcaDeviations,
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
   DEFAULT_DCA_STOP_LOSS_PCT,
@@ -71,6 +72,16 @@ import { cn } from "@/lib/utils"
  */
 
 export type SmartOrderState = { px: number; x: number; y: number }
+
+/** The DCA shape drawn on the chart while the placement window is open. */
+export type DcaPreview = {
+  anchorPx: number
+  rungs: readonly { px: number; dollars: number }[]
+  /** Move the complete shape without changing the gaps between its rungs. */
+  onMove: (anchorPx: number) => void | Promise<boolean>
+  /** Move the deepest rung and spread every gap by the same proportion. */
+  onResize: (deepestPx: number) => void | Promise<boolean>
+}
 
 /**
  * One rung of the ladder while it is being typed: what is in its box, and a
@@ -126,8 +137,8 @@ export function SmartOrderDialog({
    * two. The window then says out loud what they will share.
    */
   pairedWithGrid?: boolean
-  /** The rung prices as edited, live — the chart draws them as faint lines. */
-  onPreview: (levels: number[] | null) => void
+  /** The editable ladder shape the chart draws before Place is pressed. */
+  onPreview: (preview: DcaPreview | null) => void
   onPlace: (input: {
     clickPx: number
     interval: CandleInterval
@@ -144,8 +155,12 @@ export function SmartOrderDialog({
   // with, so nothing on screen moves. Opening on defaults and swapping when
   // the read landed made the fields visibly snap a second in.
   const [seeded] = React.useState(knownDcaPrefs)
-  const { edited, touched, showValidation, setShowValidation } =
-    useOrderWindowForm()
+  const {
+    edited: editedRef,
+    touched,
+    showValidation,
+    setShowValidation,
+  } = useOrderWindowForm()
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
     rungsFrom(
       (seeded ?? defaultDcaParams()).rungs.map((rung) => rung.deviation)
@@ -167,6 +182,10 @@ export function SmartOrderDialog({
   const [anchor, setAnchor] = React.useState<DcaAnchor>(
     seeded?.anchor ?? "base"
   )
+  // A chart drag turns the preview into a click-anchored ladder at the dropped
+  // price. Kept apart from `state.px`, which is the original right-click and
+  // still owns where the floating window opened.
+  const [movedClickPx, setMovedClickPx] = React.useState<number | null>(null)
   const [tpOn, setTpOn] = React.useState(
     seeded ? seeded.takeProfit !== null : true
   )
@@ -221,7 +240,7 @@ export function SmartOrderDialog({
       // A field already typed into is never overwritten — the remembered
       // settings lost the race and the hand wins. Values equal to what the
       // fields were seeded with change nothing on screen.
-      if (stale || !params || edited.current) return
+      if (stale || !params || editedRef.current) return
       setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
       setMaxPositionPct(String(params.maxPositionPct))
       setSizeMultiplier(String(params.sizeMultiplier))
@@ -247,7 +266,7 @@ export function SmartOrderDialog({
     return () => {
       stale = true
     }
-  }, [])
+  }, [editedRef])
 
   // ----- The honest arithmetic, live -------------------------------------
 
@@ -324,7 +343,12 @@ export function SmartOrderDialog({
   // The click stands in for the base until the base read lands, so the rungs
   // draw in the same frame the window opens. Placing still waits for the real
   // base — see `ready` — so nothing measured from the stand-in can be placed.
-  const hangsFrom = anchor === "click" ? state.px : baseRead ? basePx : state.px
+  const hangsFrom =
+    anchor === "click"
+      ? (movedClickPx ?? state.px)
+      : baseRead
+        ? basePx
+        : state.px
 
   const plan = React.useMemo(
     () =>
@@ -340,9 +364,63 @@ export function SmartOrderDialog({
     [params, hangsFrom, equity, market.sizeDecimals, market.volume24hUsd]
   )
 
+  const movePreview = React.useCallback(
+    (anchorPx: number) => {
+      if (!(anchorPx > 0)) return
+      editedRef.current = true
+      setShowValidation(false)
+      // A hand-moved ladder no longer follows the confirmed base. The price
+      // under the hand becomes the click price sent when Place is pressed.
+      setAnchor("click")
+      setMovedClickPx(anchorPx)
+    },
+    [editedRef, setShowValidation]
+  )
+
+  const resizePreview = React.useCallback(
+    (deepestPx: number) => {
+      const currentDeepest = plan?.rungs.at(-1)?.px
+      if (hangsFrom === null || currentDeepest === undefined) return
+      const deviations = rungs.map((rung) => parsed(rung.value))
+      if (deviations.some((value) => value === null)) return
+      const resized = resizedDcaDeviations(
+        deviations as number[],
+        hangsFrom,
+        currentDeepest,
+        deepestPx
+      )
+      if (!resized) return
+
+      editedRef.current = true
+      setShowValidation(false)
+      setRungs((held) =>
+        held.map((rung, index) => ({
+          ...rung,
+          // Six places keeps the dropped line still after the percentages are
+          // put back through the planner, without filling the boxes with noise.
+          value: String(Number(resized[index].toFixed(6))),
+        }))
+      )
+    },
+    [editedRef, hangsFrom, plan, rungs, setShowValidation]
+  )
+
+  const previewPlan = React.useMemo<DcaPreview | null>(
+    () =>
+      plan && hangsFrom !== null
+        ? {
+            anchorPx: hangsFrom,
+            rungs: plan.rungs,
+            onMove: movePreview,
+            onResize: resizePreview,
+          }
+        : null,
+    [hangsFrom, movePreview, plan, resizePreview]
+  )
+
   React.useEffect(() => {
-    onPreview(plan ? plan.rungs.map((rung) => rung.px) : null)
-  }, [plan, onPreview])
+    onPreview(previewPlan)
+  }, [onPreview, previewPlan])
   // The preview dies with the window, whichever way it closes.
   React.useEffect(() => () => onPreview(null), [onPreview])
 
@@ -393,7 +471,11 @@ export function SmartOrderDialog({
       showErrorToast(blockedReason)
       return
     }
-    const placed = await onPlace({ clickPx: state.px, interval, params })
+    const placed = await onPlace({
+      clickPx: anchor === "click" && hangsFrom !== null ? hangsFrom : state.px,
+      interval,
+      params,
+    })
     // The server remembers these on placing; the browser's copy keeps the
     // next window from opening on anything older.
     if (placed) rememberDcaPrefs(params)
@@ -418,7 +500,7 @@ export function SmartOrderDialog({
 
   return (
     <FloatingOrderWindow
-      label={`DCA ladder on ${market.symbol} from its base`}
+      label={`DCA ladder on ${market.symbol}`}
       wide={wide}
       openedAt={state}
       width={ORDER_WINDOW_WIDTH}
@@ -427,30 +509,15 @@ export function SmartOrderDialog({
       title="DCA ladder"
       wallet={wallet}
       free={free}
+      chartPreviewControls
       onClose={onClose}
     >
       <ScrollArea className="h-full">
         <div className="grid gap-4 p-3">
-          {/* What the whole ladder hangs from. Said out loud rather than
-                implied: every rung below is a step down from this number, and
-                a ladder measured from somewhere you cannot see is a ladder you
-                cannot check. */}
-          <div className="flex items-baseline justify-between gap-2 text-xs">
-            <span className="text-muted-foreground">
-              {anchor === "click"
-                ? "Hangs from your click"
-                : baseRead
-                  ? "Hangs from the base"
-                  : "Hangs from your click while the base loads"}
-            </span>
-            <span className="font-medium tabular-nums">
-              {hangsFrom === null ? "none yet" : formatPrice(hangsFrom)}
-            </span>
-          </div>
           <OptionCard
             id="smart-ladder"
             title="Ladder"
-            hint="Each step is measured below the buy above it, so the drops compound. The first is below the price you clicked."
+            hint="Each step is measured below the buy above it, so the drops compound. Drag any preview rung on the chart to move the whole ladder, or drag the deepest rung's resize handle to spread the rungs apart or bring them closer."
           >
             {rungs.map((rung, index) => {
               const planned = plan?.rungs[index]
@@ -473,9 +540,7 @@ export function SmartOrderDialog({
                     className="w-16 bg-background"
                   />
                   <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
-                    {planned
-                      ? `${formatPrice(planned.px)} · ${formatUsd(planned.dollars)}`
-                      : "—"}
+                    {planned ? formatUsd(planned.dollars) : "—"}
                   </span>
                   <Button
                     type="button"
@@ -509,7 +574,7 @@ export function SmartOrderDialog({
             title="Position"
             hint="How much of the account this ladder may put to work, and how that money is spread across the buys."
           >
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid gap-4">
               <div className="grid gap-2">
                 <FieldLabel
                   htmlFor="smart-pot"
@@ -578,6 +643,7 @@ export function SmartOrderDialog({
             id="smart-tp-on"
             title="Take profit"
             hint={DCA_TP_MODE_HINTS[tpMode]}
+            foldWhenOff={false}
             toggle={{
               checked: tpOn,
               disabled: busy,
@@ -600,7 +666,7 @@ export function SmartOrderDialog({
                     <SelectTrigger id="smart-tp-mode" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent data-order-frame-control>
                       {DCA_TP_MODES.map((mode) => (
                         <SelectItem key={mode} value={mode}>
                           {DCA_TP_MODE_LABELS[mode]}
@@ -638,6 +704,7 @@ export function SmartOrderDialog({
             id="smart-sl-on"
             title="Stop loss"
             hint="Percent below the average buy, following it as it moves. If the stop hits, everything sells and the waiting rungs are cancelled — unless the base rule below is on, which steps the ladder down to its next rung instead."
+            foldWhenOff={false}
             toggle={{
               checked: slOn,
               disabled: busy,
@@ -729,7 +796,7 @@ export function SmartOrderDialog({
                 >
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent data-order-frame-control>
                   {DCA_ANCHORS.map((one) => (
                     <SelectItem key={one} value={one}>
                       {DCA_ANCHOR_LABELS[one]}

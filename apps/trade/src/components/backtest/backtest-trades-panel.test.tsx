@@ -46,4 +46,43 @@ describe("the backtest trades panel", () => {
     await act(async () => root.unmount())
     host.remove()
   })
+
+  it("shows a sell-first Grid trade as Short", async () => {
+    const host = document.createElement("div")
+    document.body.append(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(
+        <BacktestTradesPanel
+          symbol="BTC"
+          summary={null}
+          trades={[
+            {
+              n: 1,
+              direction: "short",
+              entryAt: 0,
+              entryPx: 100,
+              exitAt: 1,
+              exitPx: 90,
+              sz: 1,
+              amountUsd: 100,
+              pnl: 10,
+              returnPct: 10,
+              exitReason: "order",
+            },
+          ]}
+          loading={false}
+          error={null}
+          selected={null}
+          onRetry={() => {}}
+          onSelect={() => {}}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain("Short")
+    await act(async () => root.unmount())
+    host.remove()
+  })
 })

@@ -11,6 +11,48 @@ Nothing rests on the exchange. A level is a price the grid is watching, and when
 price reaches it the grid trades there and then. That is the app-wide rule and
 `smart-orders.md` covers why.
 
+## Grids placed by a flow
+
+The automation canvas has a Grid step. The step watches closed 4-hour candles
+and places an ordinary grid when every wick stays on one side of its saved EMA
+for the chosen number of hours. The choice moves in 4-hour steps because only a
+closed 4-hour candle can add to the wait. Above the EMA means a buying grid.
+Below means a selling grid. A touch or a mix means wait.
+
+The step starts at 72 clean hours and EMA 200. It needs 600 closed candles,
+which is 100 days of history, before it can decide. The step also saves the
+rungs, range, wallet share, borrowing, spacing, both price-following switches,
+and an emergency stop distance. A flow grid has no End Grid line. Rungs can
+split the money evenly or give each trade its own share. The EMA chooses
+direction. A buying range reaches down from the current price, and a selling
+range reaches up from it.
+
+Rung 1 is always the first trade nearest the current price. When the EMA flips
+the direction, custom shares turn over on the chart so the same rung keeps the
+same money. Following price uses the rules later in this document without a
+second automation-only version of the grid engine.
+
+Once placed, the existing grid engine does all the trading. A mixed reading
+does not end a running grid. A clean reading on the other side closes the old
+grid first, including any coin it holds, after the full Clean hours wait. The
+next engine pass places a fresh grid from the current price. Splitting the close
+and placement means a server restart cannot leave two flow grids working on the
+same coin. The EMA keeps changing the grid between buying and selling until
+Stop is pressed on the flow.
+
+The run page draws the saved EMA and lists the saved Grid settings. The main
+trading chart shows the grid like any grid placed by hand. Stop calls off the
+flow grid's waiting levels. If the grid holds coin, Stop leaves the position and
+its emergency stop alone. If one grid reaches its emergency stop while the flow
+is still on, the flow waits for a new closed candle and starts again in the
+direction chosen by the EMA.
+
+With pretend money selected on the Wallet step, the canvas also shows the
+Backtest panel. Its replay uses the same range draft and grid engine as a paper
+or live flow, including custom rung shares and both following switches. The
+result chart draws the saved EMA, and selling-grid cycles appear as Short rows
+whose exit is the buy-back.
+
 ## Buy the dips, or sell the rallies
 
 Two boxes, **Long** and **Short**, sit side by side at the top of the Range
@@ -201,7 +243,7 @@ currently add up to, and refuses to place anything until it is 100. A grid on
 give the levels $200, $400, $600 and $800.
 
 **A selling grid's rungs run backwards down the chart from a buying grid's.**
-Tyler, 29 Aug 2026: *"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"*.
+Tyler, 29 Aug 2026: _"if long was 1, 2, 3, 4, 5 then short is 5, 4, 3, 2, 1"_.
 
 The card's rows always run down the range, top first, and each row's share
 lands at the price beside it. What reverses with the direction is the number on
@@ -238,6 +280,14 @@ The saved settings hold the card's rows, top of the range first. A placed grid's
 plan holds level order, lowest price first, which is what the engine reads. The
 two are mirror images with no direction in the conversion, and it happens in one
 place: the door every grid goes through.
+
+An older saved Short setup may still carry the Long row order. When that saved
+split has its largest amount at the bottom, the placement window turns the rows
+over before drawing or placing anything. A saved Short that already has its
+largest amount at the top stays unchanged. The same check works the other way
+for Long. An active grid is never changed in the background. If an active grid
+still has the old order and holds no coin, its gear window shows the corrected
+rows and Save changes redraws the waiting levels in that order.
 
 While the card is on, the rows are also how many levels the grid has: adding a
 rung adds a level, and the Levels box steps out of sight because the rows are
@@ -395,6 +445,12 @@ still holds coins, it keeps its original buy and sell prices until it sells.
 The grid calls it a carried level and never recycles it after the sale. The
 active range keeps the original number of levels and splits its next buys by
 the same money rule the grid was placed with.
+
+Percentage-spaced ranges keep every overlapping level at its existing price
+when they move. Repeating the percentage arithmetic can put the same price a
+few trillionths away, which is treated as the same price rather than a reason
+to pause the grid. A real difference at the market's price step still pauses
+before an existing level can be changed.
 
 The position on the wallet is still the final count of what exists. If coins
 from a carried level were already closed by hand, the grid removes that carried

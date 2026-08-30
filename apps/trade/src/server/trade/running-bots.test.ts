@@ -1,6 +1,7 @@
 import { PGlite } from "@electric-sql/pglite"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
+import { defaultTradeGridSettings } from "@/lib/automations/nodes/trade-grid"
 import { defaultDcaParams } from "@/lib/trade/dca"
 import type { TradeFlowRunSpec } from "@/lib/trade/flow-run"
 import { customShellAutomations } from "@/server/schema"
@@ -186,7 +187,14 @@ describe("the exchange dashboard's running bots", () => {
         walletId: "cross-user-name-wallet",
         automationId: "flow-stranger",
         status: "running",
-        spec: spec("hyperliquid", ["hyperliquid:mainnet:SOL"]),
+        spec: {
+          ...spec("hyperliquid", ["hyperliquid:mainnet:SOL"]),
+          strategy: {
+            kind: "emaGrid",
+            settings: defaultTradeGridSettings(),
+            interval: "4h",
+          },
+        },
         startedAt: new Date(NOW + 2),
         updatedAt: new Date(NOW + 2),
       },
@@ -199,7 +207,7 @@ describe("the exchange dashboard's running bots", () => {
         runId: "run-cross-user-name",
         automationId: "flow-stranger",
         name: "This flow has been deleted",
-        strategy: "DCA ladder",
+        strategy: "Grid",
         marketCount: 1,
         workingCount: 0,
         holdingCount: 0,

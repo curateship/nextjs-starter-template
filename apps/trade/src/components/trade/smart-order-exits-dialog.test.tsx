@@ -198,6 +198,68 @@ it("does not let a running grid remove its stop loss", async () => {
   expect(control("grid-stop-pct").disabled).toBe(false)
 })
 
+it("offers to repair a running Short whose largest rung is at the bottom", async () => {
+  const prices = [0.73364, 0.75134, 0.76945, 0.78801, 0.80701]
+  const wrongShort = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      direction: "short" as const,
+      bottomPx: prices[0],
+      topPx: prices[prices.length - 1],
+      levels: prices.map((buyPx, index) => ({
+        status: "waiting" as const,
+        heldSz: 0,
+        buyPx,
+        budget: [300, 250, 200, 150, 100][index],
+      })),
+      manualSizing: true,
+      // Plan order is bottom to top. This is the SPX failure: $300 at the
+      // bottom and $100 at the top of a selling grid.
+      manualRungPcts: [30, 25, 20, 15, 10],
+    },
+  } as SmartGrid
+  const reshape = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={wrongShort}
+          wallet="Test wallet"
+          mark={0.57}
+          busy={false}
+          onSave={async () => true}
+          onReshape={reshape}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  const rows = [
+    ...document.querySelectorAll<HTMLInputElement>(
+      'input[id^="grid-edit-rung-"]'
+    ),
+  ]
+  expect(rows.map((row) => row.value)).toEqual(["30", "25", "20", "15", "10"])
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(reshape).toHaveBeenCalledWith(
+    wrongShort,
+    expect.objectContaining({
+      manualSizing: true,
+      manualRungPcts: [30, 25, 20, 15, 10],
+    })
+  )
+})
+
 it("opens grid settings beside the cog with the Grid order UI", async () => {
   const cog = document.createElement("button")
   cog.getBoundingClientRect = () =>

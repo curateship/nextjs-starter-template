@@ -19,12 +19,17 @@ import {
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { focusRing } from "@/lib/layout/focus-ring"
+import { emaGridCleanHours } from "@/lib/automations/nodes/trade-grid"
 import type {
   BacktestResult,
   BacktestSpecSnapshot,
   BacktestSummary,
 } from "@/lib/trade/backtest/result"
-import type { GraphSeries, GraphWindow, WindowStats } from "@/lib/trade/backtest/graph"
+import type {
+  GraphSeries,
+  GraphWindow,
+  WindowStats,
+} from "@/lib/trade/backtest/graph"
 import { formatDate, formatDuration } from "@/lib/format/format-time"
 import { plural } from "@/lib/format/plural"
 import { signalIndicatorsOn } from "@/lib/trade/indicators/registry"
@@ -184,12 +189,16 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Win rate"
                   value={
-                    stats && stats.tradesClosed !== null && stats.tradesWon !== null
+                    stats &&
+                    stats.tradesClosed !== null &&
+                    stats.tradesWon !== null
                       ? sharePct(stats.tradesWon, stats.tradesClosed)
                       : "—"
                   }
                   sub={
-                    stats && stats.tradesClosed !== null && stats.tradesWon !== null
+                    stats &&
+                    stats.tradesClosed !== null &&
+                    stats.tradesWon !== null
                       ? `${stats.tradesWon}W / ${stats.tradesClosed - stats.tradesWon}L`
                       : "needs the run's trades"
                   }
@@ -234,7 +243,9 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Buy & hold"
                   value={signedUsd(summary.buyAndHold)}
-                  sub={scoped ? "whole run · if you just held" : "if you just held"}
+                  sub={
+                    scoped ? "whole run · if you just held" : "if you just held"
+                  }
                   tone={summary.buyAndHold}
                 />
                 <BacktestKpi
@@ -267,7 +278,9 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Markets green"
                   value={
-                    stats && stats.coinsGreen !== null && stats.coinsTraded !== null
+                    stats &&
+                    stats.coinsGreen !== null &&
+                    stats.coinsTraded !== null
                       ? `${stats.coinsGreen}/${stats.coinsTraded}`
                       : "—"
                   }
@@ -295,9 +308,7 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Avg wallet"
                   value={stats ? `${Math.round(stats.typicalWalletPct)}%` : "—"}
-                  sub={
-                    stats ? `${usd(stats.typicalWalletUsd)} typically` : ""
-                  }
+                  sub={stats ? `${usd(stats.typicalWalletUsd)} typically` : ""}
                 />
                 <BacktestKpi
                   label="Time in market"
@@ -330,7 +341,9 @@ export function BacktestStatsPanel({
                 <BacktestKpi
                   label="Markets tested"
                   value={
-                    scoped && stats?.coinsTraded !== null && stats?.coinsTraded !== undefined
+                    scoped &&
+                    stats?.coinsTraded !== null &&
+                    stats?.coinsTraded !== undefined
                       ? `${stats.coinsTraded}/${coinsTotal}`
                       : `${summary.coinsTested}/${coinsTotal}`
                   }
@@ -391,11 +404,13 @@ export function BacktestStatsPanel({
                       value={`${spec.strategy.params.sizeMultiplier}×`}
                     />
                   </>
-                ) : (
+                ) : spec.strategy.kind === "signals" ? (
                   <>
                     <Line
                       label="Indicators"
-                      value={String(signalIndicatorsOn(spec.strategy.indicators))}
+                      value={String(
+                        signalIndicatorsOn(spec.strategy.indicators)
+                      )}
                     />
                     <Line
                       label="Per market, per arrow"
@@ -407,6 +422,34 @@ export function BacktestStatsPanel({
                         spec.strategy.chaseGiveUp === 0
                           ? "Not at all"
                           : `Up to ${(spec.strategy.chaseGiveUp * 100).toFixed(2).replace(/\.?0+$/, "")}%`
+                      }
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Line
+                      label="EMA"
+                      value={`4h EMA ${spec.strategy.settings.emaPeriod}`}
+                    />
+                    <Line
+                      label="Cross confirmation"
+                      value={`${emaGridCleanHours(spec.strategy.settings)} clean hours`}
+                    />
+                    <Line
+                      label="Grid"
+                      value={`${spec.strategy.settings.grid.levels} rungs · ${spec.strategy.settings.grid.potPct}% per market`}
+                    />
+                    <Line
+                      label="Follows price"
+                      value={
+                        spec.strategy.settings.grid.follow &&
+                        spec.strategy.settings.grid.followDown
+                          ? "Up and down"
+                          : spec.strategy.settings.grid.follow
+                            ? "Up"
+                            : spec.strategy.settings.grid.followDown
+                              ? "Down"
+                              : "Off"
                       }
                     />
                   </>

@@ -197,7 +197,11 @@ export function BacktestRunPage({
   // saved figure — and reading it straight said $529 where $1,058 was at work.
   // A signals run does not borrow, so it stands at 1.
   const leverage =
-    run.spec.strategy.kind === "dca" ? run.spec.strategy.params.leverage : 1
+    run.spec.strategy.kind === "dca"
+      ? run.spec.strategy.params.leverage
+      : run.spec.strategy.kind === "emaGrid"
+        ? run.spec.strategy.settings.grid.leverage
+        : 1
 
   // Which stretch of the run every figure on the screen is answering for. It
   // lives here rather than inside the graph because the tiles on the left have
@@ -569,7 +573,6 @@ export function BacktestRunPage({
           </WorkspacePanel>
         </ResizablePanel>
       </ResizablePanelGroup>
-
     </div>
   )
 }

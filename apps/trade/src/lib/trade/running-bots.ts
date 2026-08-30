@@ -5,7 +5,7 @@ export type RunningBot = {
   runId: string
   automationId: string
   name: string
-  strategy: "DCA ladder" | "Signals"
+  strategy: "DCA ladder" | "Signals" | "Grid"
   marketCount: number
   workingCount: number
   holdingCount: number

@@ -21,6 +21,11 @@ import {
   type TradeSignalsSettings,
 } from "@/lib/automations/nodes/trade-signals"
 import {
+  tradeGridNode,
+  tradeGridSettingsSchema,
+  type TradeGridSettings,
+} from "@/lib/automations/nodes/trade-grid"
+import {
   chosenWallet,
   tradeWalletNode,
   tradeWalletSettingsSchema,
@@ -47,7 +52,7 @@ import type { MarketFolder } from "@/lib/trade/market-folders"
  * Everything one backtest needs, read off the steps.
  *
  * The candle size sits on whichever strategy step was drawn, so it is lifted
- * out here: both strategies have one and everything downstream — the window
+ * out here: every strategy has one and everything downstream — the window
  * arithmetic, the memory check, the stored snapshot — needs it without caring
  * which strategy it came from.
  */
@@ -58,6 +63,7 @@ export type BacktestSpec = {
   strategy:
     | { kind: "dca"; dca: TradeDcaSettings }
     | { kind: "signals"; signals: TradeSignalsSettings }
+    | { kind: "emaGrid"; grid: TradeGridSettings }
 }
 
 export type BacktestSpecResult =
@@ -82,16 +88,19 @@ export function backtestSpecFromFlow(
   const markets = stepsOfKind(config, tradeMarketsNode.kind)
   const ladders = stepsOfKind(config, tradeDcaNode.kind)
   const signals = stepsOfKind(config, tradeSignalsNode.kind)
+  const grids = stepsOfKind(config, tradeGridNode.kind)
 
-  // Both strategies drawn, asked before anything else about the flow: it is not
+  // More than one strategy drawn, asked before anything else about the flow: it is not
   // a complaint about the coins or the dates, it is a drawing this app cannot
   // read either way.
-  if (ladders.length > 0 && signals.length > 0) {
+  if (
+    [ladders.length > 0, signals.length > 0, grids.length > 0].filter(Boolean)
+      .length > 1
+  ) {
     return {
       spec: null,
       problem:
-        "This flow has a DCA ladder step and a Signals step on it. A backtest " +
-        "tests one strategy, so delete whichever one you did not mean.",
+        "This flow has more than one strategy step on it. A backtest tests one strategy, so delete whichever one you did not mean.",
     }
   }
 
@@ -118,10 +127,10 @@ export function backtestSpecFromFlow(
         "This flow has two Markets to test steps. Put every coin on one of them and delete the other.",
     }
   }
-  if (ladders.length === 0 && signals.length === 0) {
+  if (ladders.length === 0 && signals.length === 0 && grids.length === 0) {
     return {
       spec: null,
-      problem: "Add a DCA ladder step or a Signals step after the markets.",
+      problem: "Add a DCA ladder, Signals, or Grid step after the markets.",
     }
   }
   if (ladders.length > 1) {
@@ -138,6 +147,13 @@ export function backtestSpecFromFlow(
         "This flow has two Signals steps. A backtest tests one strategy, so delete one of them.",
     }
   }
+  if (grids.length > 1) {
+    return {
+      spec: null,
+      problem:
+        "This flow has two Grid steps. A backtest tests one strategy, so delete one of them.",
+    }
+  }
 
   // Already strict-parsed at compile time, so a failure here means a saved flow
   // written by a different build. Refusing beats running half-read settings.
@@ -148,6 +164,9 @@ export function backtestSpecFromFlow(
     : null
   const signal = signals[0]
     ? tradeSignalsSettingsSchema.safeParse(signals[0][1].settings)
+    : null
+  const grid = grids[0]
+    ? tradeGridSettingsSchema.safeParse(grids[0][1].settings)
     : null
 
   if (!wallet.success) {
@@ -213,6 +232,13 @@ export function backtestSpecFromFlow(
         "The Signals step's settings could not be read. Open it and check the numbers.",
     }
   }
+  if (grid && !grid.success) {
+    return {
+      spec: null,
+      problem:
+        "The Grid step's settings could not be read. Open it and check the numbers.",
+    }
+  }
   if (signal?.success && signalIndicatorsOn(signal.data.indicators) === 0) {
     // A run with nothing switched on would walk months of candles and report a
     // flat line, which reads as "the strategy lost nothing" rather than "there
@@ -228,11 +254,13 @@ export function backtestSpecFromFlow(
     ? dca.data.interval
     : signal?.success
       ? signal.data.interval
-      : null
+      : grid?.success
+        ? ("4h" as const)
+        : null
   if (interval === null) {
     return {
       spec: null,
-      problem: "Add a DCA ladder step or a Signals step after the markets.",
+      problem: "Add a DCA ladder, Signals, or Grid step after the markets.",
     }
   }
 
@@ -320,14 +348,19 @@ export function backtestSpecFromFlow(
               },
             },
           }
-        : {
-            // Nothing is forced on a signals run. Its two settings mean the
-            // same thing in a replay as they do on a real book — how much a
-            // buy spends, and how far it follows — and the replay models its
-            // resting orders the way it models every other one.
-            kind: "signals",
-            signals: (signal as { data: TradeSignalsSettings }).data,
-          },
+        : signal?.success
+          ? {
+              // Nothing is forced on a signals run. Its two settings mean the
+              // same thing in a replay as they do on a real book — how much a
+              // buy spends, and how far it follows — and the replay models its
+              // resting orders the way it models every other one.
+              kind: "signals",
+              signals: signal.data,
+            }
+          : {
+              kind: "emaGrid",
+              grid: (grid as { data: TradeGridSettings }).data,
+            },
     },
     problem: null,
   }

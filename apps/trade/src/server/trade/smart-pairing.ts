@@ -142,6 +142,30 @@ export async function pairedLadderPlan(
   return readSmartPlan("dca", row.plan) as LadderPlan | null
 }
 
+/** The active grid sharing this ladder's coin, or null when it runs alone. */
+export async function pairedGridPlan(
+  userId: string,
+  walletId: string,
+  marketKey: string,
+  tx: CustomShellDb = db
+): Promise<GridPlan | null> {
+  const rows = await tx
+    .select({ plan: tradeSmartLadders.plan })
+    .from(tradeSmartLadders)
+    .where(
+      and(
+        eq(tradeSmartLadders.userId, userId),
+        eq(tradeSmartLadders.walletId, walletId),
+        eq(tradeSmartLadders.marketKey, marketKey),
+        eq(tradeSmartLadders.kind, "grid"),
+        eq(tradeSmartLadders.status, "active")
+      )
+    )
+    .limit(1)
+  const row = rows[0]
+  return row ? (readSmartPlan("grid", row.plan) as GridPlan | null) : null
+}
+
 /**
  * Every paired grid stop these wallets are holding, keyed by wallet and then
  * by the exchange's market id — what a portfolio read needs to hand each

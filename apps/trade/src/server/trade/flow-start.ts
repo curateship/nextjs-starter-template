@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
 import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
+import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
 import {
   chosenWallet,
   tradeWalletNode,
@@ -47,10 +48,11 @@ export function flowNodesOf(
   const markets = steps.find((one) => one.kind === tradeMarketsNode.kind)
   const dca = steps.find((one) => one.kind === tradeDcaNode.kind)
   const signals = steps.find((one) => one.kind === tradeSignalsNode.kind)
+  const grid = steps.find((one) => one.kind === tradeGridNode.kind)
   if (!wallet || !markets) return null
   // Both drawn is not a flow this can read, and saying so is
   // `flowStrategyProblem`'s job — every caller asks it first.
-  if (dca && signals) return null
+  if ([dca, signals, grid].filter(Boolean).length > 1) return null
   if (dca) {
     return {
       wallet: wallet.settings as Record<string, unknown>,
@@ -71,11 +73,21 @@ export function flowNodesOf(
       },
     }
   }
+  if (grid) {
+    return {
+      wallet: wallet.settings as Record<string, unknown>,
+      markets: markets.settings as Record<string, unknown>,
+      strategy: {
+        kind: "emaGrid",
+        settings: grid.settings as Record<string, unknown>,
+      },
+    }
+  }
   return null
 }
 
 /**
- * The one sentence about a flow drawn with two strategies on it.
+ * The one sentence about a flow drawn with more than one strategy on it.
  *
  * **Written once and asked by both paths** — switching on and back-testing —
  * because they would otherwise say two different things about the same drawing,
@@ -89,14 +101,13 @@ export function flowStrategyProblem(
 ): string | null {
   if (!config) return null
   const kinds = Object.values(config.nodes).map((one) => one.kind)
-  const strategies = [tradeDcaNode.kind, tradeSignalsNode.kind].filter((kind) =>
-    kinds.includes(kind)
-  )
+  const strategies = [
+    tradeDcaNode.kind,
+    tradeSignalsNode.kind,
+    tradeGridNode.kind,
+  ].filter((kind) => kinds.includes(kind))
   if (strategies.length < 2) return null
-  return (
-    "This flow has a DCA ladder step and a Signals step on it. A flow trades one " +
-    "strategy or the other, so delete whichever one you did not mean."
-  )
+  return "This flow has more than one strategy step. A flow trades one strategy, so delete the extra strategy step."
 }
 
 export async function runTradeFlow(
@@ -140,11 +151,16 @@ export async function runTradeFlow(
       now,
     })
     const coins = started.spec.marketKeys.length
+    const action =
+      started.spec.strategy.kind === "emaGrid"
+        ? "It waits for each coin to hold cleanly on one side of the 4-hour EMA, then places or flips its grid."
+        : started.spec.strategy.kind === "signals"
+          ? "It buys and sells when the saved indicators call them."
+          : "It places a ladder on each coin as it finds a base."
     return {
       summary:
         `Switched on. It is watching ${coins} ${plural(coins, "coin", "coins")} on ${started.spec.walletLabel} ` +
-        `with ${started.spec.real ? "real" : "practice"} money, and places a ladder on each one as it finds a base. ` +
-        "Each buy waits for its price and is refused if the wallet cannot afford it then.",
+        `with ${started.spec.real ? "real" : "practice"} money. ${action}`,
     }
   } catch (error) {
     // Every refusal reaches the person as a sentence on the step, the way every

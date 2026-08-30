@@ -563,6 +563,42 @@ describe("the grid window's saved settings", () => {
       ])
     })
 
+    it("opens saved Short rungs with the biggest amount at the top", async () => {
+      vi.mocked(loadSmartGridParams).mockResolvedValue({
+        params: {
+          ...defaultGridParams(),
+          direction: "short",
+          levels: 5,
+          manualSizing: true,
+          manualRungPcts: [10, 15, 20, 25, 30],
+        },
+      })
+      const onPlace = vi.fn(async () => false)
+      await renderDialog(onPlace)
+      await act(async () => Promise.resolve())
+
+      expect(rungBoxes().map((one) => one.value)).toEqual([
+        "30",
+        "25",
+        "20",
+        "15",
+        "10",
+      ])
+
+      const place = [
+        ...host.querySelectorAll<HTMLButtonElement>("button"),
+      ].find((button) => button.textContent?.includes("Place"))
+      await act(async () => place?.click())
+      expect(onPlace).toHaveBeenCalledWith(
+        expect.objectContaining({
+          params: expect.objectContaining({
+            direction: "short",
+            manualRungPcts: [30, 25, 20, 15, 10],
+          }),
+        })
+      )
+    })
+
     it("sends the mirror after the direction is switched", async () => {
       // The rows are held against prices, so what is sent is what is on
       // screen. Switching the direction turns the rows over, which is what

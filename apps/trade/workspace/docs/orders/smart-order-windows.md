@@ -35,9 +35,12 @@ sent again without guessing which version reached the exchange.
 ## The floating order frame
 
 The quick order, DCA ladder and Grid forms use one floating frame on a wide
-screen. Each form still opens at the price that was pressed. The frame keeps an
-eight-pixel gap from every screen edge while it opens and while it is dragged.
-Escape and a press outside close it.
+screen. Quick orders and grids open at the point that was pressed. The DCA form
+opens to the left of that point so it does not cover the rung handles on the
+right edge of the chart. The frame keeps an eight-pixel gap from every screen
+edge while it opens and while it is dragged. Escape and a press outside close
+it. A DCA rung handle counts as part of the open window, so dragging one does
+not close the form.
 
 The quick order stays 288 pixels wide and keeps its full form on screen. DCA
 and Grid stay 304 pixels wide. Their fields scroll when the window gets short,
@@ -48,6 +51,36 @@ of dragging.
 Every grab bar uses the same wallet line: the wallet name, followed by its free
 cash and the word "free". The title and fields still belong to the order type.
 Changing the frame does not change the order sent to the server.
+
+## The DCA window and chart shape
+
+The Ladder card shows the dollars each rung will order. It leaves out the coin
+price because the preview line already marks that price on the chart. The chart
+tag also shows the order dollars, not a second copy of the price. The Position
+card puts Max position, Size ramp and Borrowing on separate rows. The window no
+longer repeats the line saying where the ladder hangs.
+
+Take profit and Stop loss have no settings chevron while their checkbox is off.
+Turning either one on adds the chevron and opens its settings, matching the Grid
+window.
+
+While the window is open, dragging any rung moves the complete ladder without
+changing its gaps. The deepest rung has a second handle that spreads every gap
+or brings the rungs closer. Moving a ladder by hand changes it to a clicked-price
+ladder, and Place sends the dropped anchor rather than the original right-click.
+Pressing a drag handle without moving it leaves the anchor and rung gaps alone.
+
+An untouched saved ladder keeps the same handles after the window closes. The
+DCA ladder bar follows the rungs on every drag frame; it does not wait for the
+server save after the pointer is released. Pressing the bar's × calls off an
+empty ladder at once, without another question. Once a rung has bought, the ×
+moves into the position's entry bar and asks before it calls off the remaining
+buys. The server accepts a move only while every rung is still waiting and no
+rung has been called off. Once a rung buys, sells or is cancelled, its prices
+are frozen because moving them would rewrite the prices behind a position
+already in progress. A ladder owned by an automation cannot be moved by hand.
+A ladder paired with a grid must still keep its first buy below the grid's
+stop, and an invalid drag is refused without changing the saved plan.
 
 ## A stop that rests under the base
 

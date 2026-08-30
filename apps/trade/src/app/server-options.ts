@@ -2,6 +2,7 @@ import type { AutomationNodeSettings } from "@/lib/automations/node-descriptor"
 import { tradeDcaNode } from "@/lib/automations/nodes/trade-dca"
 import { tradeMarketsNode } from "@/lib/automations/nodes/trade-markets"
 import { tradeSignalsNode } from "@/lib/automations/nodes/trade-signals"
+import { tradeGridNode } from "@/lib/automations/nodes/trade-grid"
 import { tradeWalletNode } from "@/lib/automations/nodes/trade-wallet"
 import type { AppServerOptions } from "@/server/app-options"
 import { backtestTick } from "@/server/trade/backtest/worker"
@@ -43,7 +44,9 @@ export const appServerOptions: AppServerOptions = {
        */
       [tradeWalletNode.kind]: async ({ settings }) => ({
         type: "next",
-        summary: tradeWalletNode.description(settings as AutomationNodeSettings),
+        summary: tradeWalletNode.description(
+          settings as AutomationNodeSettings
+        ),
       }),
       [tradeMarketsNode.kind]: async ({ settings }) => ({
         type: "next",
@@ -77,6 +80,10 @@ export const appServerOptions: AppServerOptions = {
        * keyed by kind and a kind with no entry fails the run as broken.
        */
       [tradeSignalsNode.kind]: async ({ run, now }) => {
+        const outcome = await runTradeFlow(run, now().getTime())
+        return { type: "complete", summary: outcome.summary }
+      },
+      [tradeGridNode.kind]: async ({ run, now }) => {
         const outcome = await runTradeFlow(run, now().getTime())
         return { type: "complete", summary: outcome.summary }
       },

@@ -40,7 +40,12 @@ describe("theme colours on chart overlays", () => {
         colors={colors}
         marketKey="market"
         ladders={[]}
-        preview={[100]}
+        preview={{
+          anchorPx: 110,
+          rungs: [{ px: 100, dollars: 250 }],
+          onMove: () => undefined,
+          onResize: () => undefined,
+        }}
         tool={null}
         walletName={() => "Wallet"}
       />

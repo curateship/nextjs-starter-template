@@ -9,6 +9,7 @@ import {
   openPnlOf,
   openTradePnls,
   pairTrades,
+  pairTradesFromStored,
   sideStatsFromTrades,
   worstDip,
   backtestSummarySchema,
@@ -86,6 +87,35 @@ describe("pairing a buy with the sell that closed it", () => {
     expect(trades[1]).toMatchObject({ entryPx: 90, exitPx: 100, pnl: 10 })
   })
 
+  it("pairs an ordinary Grid exit with the rung it recycled", () => {
+    const trades = pairTrades(
+      [
+        buy(0, 90.375165, 3.7, 0.150474649725, 2),
+        buy(HOUR, 89.374665, 3.7, 0.148808817225, 3),
+        buy(2 * HOUR, 87.713835, 3.8, 0.14999065785, 4),
+        buy(3 * HOUR, 86.48322, 3.9, 0.1517780511, 5),
+        sell(4 * HOUR, 88.285835, 3.9, 0.154941640425, "order", -4.056666),
+      ],
+      "grid"
+    )
+
+    const closed = trades.filter((trade) => trade.exitAt !== null)
+    expect(closed).toHaveLength(1)
+    expect(closed[0]).toMatchObject({ entryPx: 86.48322, exitPx: 88.285835 })
+    expect(closed[0].pnl).toBeCloseTo(6.723478808475, 10)
+  })
+
+  it("uses an exit's saved Grid rung when the engine recorded it", () => {
+    const exit = sell(2 * HOUR, 110, 1)
+    exit.rung = 0
+    const closed = pairTrades(
+      [buy(0, 100, 1, 0, 0), buy(HOUR, 90, 1, 0, 1), exit],
+      "grid"
+    ).filter((trade) => trade.exitAt !== null)
+
+    expect(closed).toMatchObject([{ entryPx: 100, exitPx: 110, pnl: 10 }])
+  })
+
   it("splits a buy when only part of it is sold", () => {
     const trades = pairTrades([buy(0, 100, 2), sell(HOUR, 110, 1)])
 
@@ -138,10 +168,27 @@ describe("pairing a buy with the sell that closed it", () => {
     expect(trades[1].entryAt).toBe(HOUR)
   })
 
-  it("ignores a sell with nothing to close", () => {
-    // The engine never writes one, but a row from an older build must not
-    // become a trade with no entry.
-    expect(pairTrades([sell(0, 100, 1)])).toEqual([])
+  it("keeps a sell-first trip open as a short", () => {
+    expect(pairTrades([sell(0, 100, 1)])).toMatchObject([
+      { direction: "short", entryPx: 100, exitAt: null },
+    ])
+  })
+
+  it("pairs a selling Grid entry with the buy that closes it", () => {
+    const [trade] = pairTrades([
+      sell(0, 100, 1, 1, "order"),
+      buy(HOUR, 90, 1, 0.5),
+    ])
+
+    expect(trade).toMatchObject({
+      direction: "short",
+      entryAt: 0,
+      entryPx: 100,
+      exitAt: HOUR,
+      exitPx: 90,
+      pnl: 8.5,
+      returnPct: 8.5,
+    })
   })
 })
 
@@ -249,6 +296,24 @@ describe("the arrows on the chart", () => {
     expect(marks[2].detail).toBe("Stopped out · rungs 1, 3 · all out")
   })
 
+  it("measures an ordinary Grid sale against its own rung", () => {
+    const marks = buildFillMarks(
+      [
+        buy(0, 90.375165, 3.7, 0.150474649725, 2),
+        buy(HOUR, 89.374665, 3.7, 0.148808817225, 3),
+        buy(2 * HOUR, 87.713835, 3.8, 0.14999065785, 4),
+        buy(3 * HOUR, 86.48322, 3.9, 0.1517780511, 5),
+        sell(4 * HOUR, 88.285835, 3.9, 0.154941640425, "order", -4.056666),
+      ],
+      "grid"
+    )
+
+    expect(marks.at(-1)).toMatchObject({
+      label: "Sold $344.31 · made +$6.72",
+      detail: "Rung 6 · $988.80 left",
+    })
+  })
+
   it("says plainly when a buy was not one of the rungs", () => {
     // A two-green confirmation or a buy-back lands nowhere near a rung, and
     // inventing a number for it would be worse than saying nothing.
@@ -273,6 +338,53 @@ describe("the arrows on the chart", () => {
   it("carries the dollars, so identical arrows can be told apart", () => {
     const [mark] = buildFillMarks([buy(0, 200, 1.5, 0, 0)])
     expect(mark.valueUsd).toBe(300)
+  })
+
+  it("names a short entry and its profitable buy-back", () => {
+    const marks = buildFillMarks([
+      {
+        at: 0,
+        side: "sell",
+        px: 100,
+        sz: 1,
+        fee: 0,
+        closedPnl: 0,
+        reason: "order",
+        rung: 0,
+      },
+      {
+        at: HOUR,
+        side: "buy",
+        px: 90,
+        sz: 1,
+        fee: 0,
+        closedPnl: 10,
+        reason: "order",
+        rung: null,
+      },
+    ])
+
+    expect(marks.map((mark) => `${mark.label} / ${mark.detail}`)).toEqual([
+      "Sold $100.00 / Rung 1",
+      "Bought back $90.00 · made +$10.00 / Rung 1 · all out",
+    ])
+  })
+
+  it("does not call a new rung a buy-back because a closed position left decimal dust", () => {
+    const marks = buildFillMarks(
+      [
+        buy(0, 100, 0.3, 0, 0),
+        sell(HOUR, 110, 0.1, 0, "order"),
+        sell(2 * HOUR, 110, 0.2, 0, "order"),
+        buy(3 * HOUR, 100, 0.3, 0, 1),
+      ],
+      "grid"
+    )
+
+    expect(marks.at(-1)).toMatchObject({
+      label: "Bought $30.00",
+      detail: "Rung 2",
+    })
   })
 })
 
@@ -458,6 +570,26 @@ describe("what a sell says it sold", () => {
 })
 
 describe("reading a run's fills back", () => {
+  it("keeps saved trades when an older run has no raw fills", () => {
+    const saved: BacktestTrade[] = [
+      {
+        n: 1,
+        direction: "long",
+        entryAt: 0,
+        entryPx: 100,
+        exitAt: HOUR,
+        exitPx: 110,
+        sz: 1,
+        amountUsd: 100,
+        pnl: 10,
+        returnPct: 10,
+        exitReason: "order",
+      },
+    ]
+
+    expect(pairTradesFromStored([], saved, "grid")).toEqual(saved)
+  })
+
   it("makes the words now, so a wording change reaches old runs", () => {
     const marks = fillMarksFromStored([
       {
@@ -594,6 +726,29 @@ describe("open profit in a coin result", () => {
     ).toBe(72)
     expect(split?.get(1)).toBeCloseTo(10.67, 2)
     expect(split?.get(2)).toBeCloseTo(61.33, 2)
+  })
+
+  it("measures an open short from its entry down to the final price", () => {
+    const trade: BacktestTrade = {
+      n: 1,
+      direction: "short",
+      entryAt: 0,
+      entryPx: 100,
+      exitAt: null,
+      exitPx: null,
+      sz: 1,
+      amountUsd: 100,
+      pnl: 0,
+      returnPct: 0,
+      exitReason: null,
+    }
+    const split = openTradePnls([trade], {
+      madeOrLost: 10,
+      openAtEndUsd: 90,
+      stats: sideStatsFromTrades([], 0),
+    })
+
+    expect(split?.get(1)).toBeCloseTo(10, 10)
   })
 })
 

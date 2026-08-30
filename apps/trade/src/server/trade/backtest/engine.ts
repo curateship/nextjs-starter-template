@@ -7,6 +7,10 @@ import type {
 } from "@/lib/protocols/contracts"
 import type { DcaBaseDetection } from "@/lib/trade/dca"
 import {
+  emaGridCleanBars,
+  type TradeGridSettings,
+} from "@/lib/automations/nodes/trade-grid"
+import {
   BASE_STOP_BAR_MS,
   MIN_ORDER_USD,
   baseStopDetection,
@@ -16,6 +20,17 @@ import {
   type LadderPlan,
 } from "@/lib/trade/dca"
 import { marketIsCascading } from "@/lib/trade/cascade"
+import {
+  emaGridPlacement,
+  emaGridStances,
+  type EmaGridStance,
+} from "@/lib/trade/ema-grid"
+import {
+  exitSide,
+  gridRungNumber,
+  gridStopPx,
+  gridTakeProfitPx,
+} from "@/lib/trade/grid"
 import { baseLevelsInForce } from "@/lib/trade/indicators/base"
 import type { IndicatorSignal } from "@/lib/trade/indicators/contract"
 import {
@@ -27,6 +42,7 @@ import {
   liquidationPx,
   paperAccountFigures,
   positionMargin,
+  slippedPx,
   type PaperCosts,
   type PaperJournalEntry,
   type TradePosition,
@@ -54,6 +70,8 @@ import {
   type LadderRow,
 } from "@/server/trade/smart-ladders"
 import { advanceSignal, type SignalRow } from "@/server/trade/smart-signals"
+import { draftGridOrder } from "@/server/trade/grid-orders"
+import { advanceGrid, type GridRow } from "@/server/trade/smart-grids"
 
 /**
  * Replaying a strategy over stored candles — the backtest itself.
@@ -103,7 +121,8 @@ const CHUNK_BARS = 50
 function couldActInBar(
   book: WalletBook,
   marketKey: string,
-  bar: CandleBar
+  bar: CandleBar,
+  grid?: GridRow
 ): boolean {
   const inRange = (level: number | null | undefined) =>
     level != null && level >= bar.low && level <= bar.high
@@ -115,6 +134,21 @@ function couldActInBar(
   for (const order of book.orders) {
     if (order.marketKey !== marketKey) continue
     if (inRange(order.px)) return true
+  }
+
+  if (grid) {
+    const plan = grid.plan
+    const watched = [
+      gridStopPx(plan),
+      gridTakeProfitPx(plan),
+      plan.topPx,
+      plan.bottomPx,
+      ...plan.levels.map((level) =>
+        level.status === "holding" ? level.sellPx : level.buyPx
+      ),
+      ...plan.carriedLevels.map((level) => level.sellPx),
+    ]
+    if (watched.some(inRange)) return true
   }
 
   const held = book.positions.get(marketKey)
@@ -206,6 +240,8 @@ async function walkByMinute(input: {
     at: number,
     midCandle?: boolean
   ) => Promise<void>
+  /** Grid triggers are watched prices, so an active one is worked every minute. */
+  activeGridCoins: ReadonlySet<string>
   /** Move this minute's fills off the book and into the run's record. */
   takeFills: () => void
   /**
@@ -229,6 +265,7 @@ async function walkByMinute(input: {
     zoomed,
     marks,
     advanceCoin,
+    activeGridCoins,
     takeFills,
     notePot,
   } = input
@@ -288,7 +325,10 @@ async function walkByMinute(input: {
     // is the very trade the minutes exist to find. Asked only for the coins
     // that actually filled, and only in the minute they filled, because a
     // ladder whose position did not change has nothing new to say.
-    for (const marketKey of [...filled].sort()) {
+    for (const marketKey of [
+      ...new Set([...filled, ...activeGridCoins]),
+    ].sort()) {
+      if (!minuteAt.get(marketKey)?.has(minute)) continue
       await advanceCoin(marketKey, minute + MINUTE_MS, true)
     }
 
@@ -334,7 +374,7 @@ export type BacktestCoin = {
   rules: MarketRules
   /** The bars the strategy is walked over — the window only, warm-up excluded. */
   bars: readonly CandleBar[]
-  /** 4h bars from before the window as well, for the base rule. */
+  /** 4h bars from before the window as well, for the base rule or EMA Grid. */
   baseBars: readonly CandleBar[]
   /**
    * Candles from BEFORE the window, at the run's own interval, for a signals
@@ -354,9 +394,9 @@ export type BacktestCoin = {
 /**
  * What the run is testing.
  *
- * A union rather than two fields, so a walk that reads a ladder's rungs out of
- * a signals run cannot compile. The candle size stays outside it: both need
- * one, and the merge of every coin's bar times is built from it before either
+ * A union rather than optional fields, so a walk that reads one strategy's
+ * settings out of another cannot compile. The candle size stays outside it:
+ * every strategy needs one, and the merged bar times are built before the
  * strategy is asked anything.
  */
 export type BacktestStrategy =
@@ -369,6 +409,7 @@ export type BacktestStrategy =
       /** How far a buy follows a price that runs, as a share of it. */
       chaseGiveUp: number
     }
+  | { kind: "emaGrid"; settings: TradeGridSettings }
 
 export type BacktestRunInput = {
   protocol: ProtocolId
@@ -510,6 +551,7 @@ export async function runBacktest(
   const barMs = protocol.markets.intervalMs(input.interval)
   const ladder = input.strategy.kind === "dca" ? input.strategy : null
   const signals = input.strategy.kind === "signals" ? input.strategy : null
+  const emaGrid = input.strategy.kind === "emaGrid" ? input.strategy : null
   // The flow's own two numbers, not the indicator's factory pair. A signals run
   // has no base stop to ride, so it needs none.
   const detection = ladder?.params.baseDetection ?? baseStopDetection()
@@ -561,6 +603,8 @@ export async function runBacktest(
   const ladders = new Map<string, LadderRow>()
   /** Every signal trade still working, on a signals run. Also one per coin. */
   const trades = new Map<string, SignalRow>()
+  /** Every EMA Grid still working, one per coin at most. */
+  const grids = new Map<string, GridRow>()
   /**
    * How far through each coin's arrows the walk has read.
    *
@@ -573,8 +617,38 @@ export async function runBacktest(
   const signalsPerCoin = new Map<string, readonly IndicatorSignal[]>()
   const signalCursor = new Map<string, number>()
 
+  /** Grid entries are fills rather than resting orders, so remember their rung here. */
+  const rungByFillId = new Map<string, number>()
+
   const deps: LadderEngineDeps = {
-    fill,
+    fill: (heldBook, fillInput) => {
+      const grid = grids.get(fillInput.marketKey)
+      const triggerPx = fillInput.triggerPx
+      const levelIndex =
+        grid && triggerPx !== undefined
+          ? grid.plan.levels.findIndex(
+              (level) =>
+                Math.abs(level.buyPx - triggerPx) <=
+                Math.max(1e-9, Math.abs(level.buyPx) * 1e-9)
+            )
+          : -1
+      const rung =
+        fillInput.rung ??
+        (grid && levelIndex >= 0
+          ? gridRungNumber(
+              levelIndex,
+              grid.plan.levels.length,
+              grid.plan.direction
+            ) - 1
+          : -1)
+      const before = heldBook.fills.length
+      fill(heldBook, fillInput)
+      if (grid && rung >= 0) {
+        for (const one of heldBook.fills.slice(before)) {
+          rungByFillId.set(one.id, rung)
+        }
+      }
+    },
     dropOrder: (heldBook, orderId) => {
       // Taken out where it sits, rather than by rebuilding the list around it.
       // A big run keeps a thousand orders on the book and drops them by the
@@ -616,6 +690,7 @@ export async function runBacktest(
       if (status === "done") {
         ladders.delete(row.marketKey)
         trades.delete(row.marketKey)
+        grids.delete(row.marketKey)
       }
     },
   }
@@ -804,6 +879,27 @@ export async function runBacktest(
     }
   }
 
+  /** The confirmed EMA stance at each historical candle, computed once. */
+  const emaStanceAt = new Map<string, ReadonlyMap<number, EmaGridStance>>()
+  if (emaGrid) {
+    for (const coin of coins) {
+      // Worker-prepared base bars already include the window. Tests and other
+      // callers may hand the two stretches separately, so merge by candle time.
+      const byTime = new Map(
+        [...coin.baseBars, ...coin.bars].map((bar) => [bar.openTime, bar])
+      )
+      const history = ascending([...byTime.values()])
+      const stances = emaGridStances(history, {
+        emaPeriod: emaGrid.settings.emaPeriod,
+        cleanBars: emaGridCleanBars(emaGrid.settings),
+      })
+      emaStanceAt.set(
+        coin.marketKey,
+        new Map(history.map((bar, index) => [bar.openTime, stances[index]]))
+      )
+    }
+  }
+
   const equity: Array<{ t: number; usd: number }> = []
   const inPlay: number[] = []
   let stoppedEarly = false
@@ -915,14 +1011,38 @@ export async function runBacktest(
       midCandle = false
     ) => {
       const row = ladders.get(marketKey)
-      if (!row) return
-      rememberRungOrders(row.plan)
-      await advanceOne(
-        { book, marks, ladderBars, now: at, cascading, midCandle },
-        deps,
-        row
-      )
-      noteRungs(marketKey, row.plan, at)
+      const grid = grids.get(marketKey)
+      const currentMarks = midCandle ? book.marks : marks
+      if (row) {
+        rememberRungOrders(row.plan)
+        await advanceOne(
+          {
+            book,
+            marks: currentMarks,
+            ladderBars,
+            now: at,
+            cascading,
+            midCandle,
+          },
+          deps,
+          row
+        )
+        noteRungs(marketKey, row.plan, at)
+      }
+      if (grid) {
+        await advanceGrid(
+          {
+            book,
+            marks: currentMarks,
+            ladderBars,
+            now: at,
+            cascading,
+            midCandle,
+          },
+          deps,
+          grid
+        )
+      }
     }
 
     /**
@@ -944,9 +1064,10 @@ export async function runBacktest(
         // fills matched nothing. Eighteen buys of 763 lost their rung that way,
         // every one of them on a crash bar, which are the ones worth reading.
         const rung =
-          one.side === "buy" && one.orderId
+          rungByFillId.get(one.id) ??
+          (one.side === "buy" && one.orderId
             ? (rungByOrderId.get(one.orderId) ?? -1)
-            : -1
+            : -1)
         // Stamped with the bar's OPEN time, not the close time the engine runs
         // on. A candle is named by the moment it opened everywhere else in the
         // app, so a fill stamped with the close lands on the NEXT candle — a 4h
@@ -1003,7 +1124,10 @@ export async function runBacktest(
       for (const coin of coins) {
         const bar = barAt.get(coin.marketKey)?.get(time)
         if (!bar) continue
-        if (!couldActInBar(book, coin.marketKey, bar)) continue
+        if (
+          !couldActInBar(book, coin.marketKey, bar, grids.get(coin.marketKey))
+        )
+          continue
         const minutes = await input.zoomIn?.(coin.marketKey, time, barMs)
         if (minutes && minutes.length > 0) zoomed.set(coin.marketKey, minutes)
       }
@@ -1019,6 +1143,7 @@ export async function runBacktest(
         zoomed,
         marks,
         advanceCoin,
+        activeGridCoins: new Set(grids.keys()),
         takeFills,
         notePot,
       })
@@ -1034,7 +1159,9 @@ export async function runBacktest(
     applyFundingThrough(closeTime, true)
 
     // ----- What the ladders make of it -----------------------------------
-    for (const marketKey of [...ladders.keys()].sort()) {
+    for (const marketKey of [
+      ...new Set([...ladders.keys(), ...grids.keys()]),
+    ].sort()) {
       // `advanceCoin` remembers the rung's order id before working it, because
       // a rung that fills inside this pass throws its order id away and the
       // fills are not written down until later.
@@ -1124,6 +1251,95 @@ export async function runBacktest(
             startedAt: closeTime,
           },
         })
+      }
+    }
+
+    // ----- What the closed 4h candle tells an EMA Grid -------------------
+    if (emaGrid) {
+      for (const coin of coins) {
+        const stance = emaStanceAt.get(coin.marketKey)?.get(time) ?? "none"
+        if (stance === "none") continue
+        const mark = marks.get(coin.marketKey)
+        if (mark === undefined || !(mark > 0)) continue
+
+        const current = grids.get(coin.marketKey)
+        if (current?.plan.direction === stance) continue
+
+        // A confirmed opposite stance ends the old grid before the new one is
+        // drafted. This is the replay equivalent of the live flow's two passes:
+        // both happen after the same closed candle and at the same known price.
+        if (current) {
+          const held = book.positions.get(coin.marketKey)
+          if (held) {
+            const side = exitSide(current.plan.direction)
+            deps.fill(book, {
+              marketKey: coin.marketKey,
+              side,
+              px: slippedPx(mark, side, book.costs.slippageRate),
+              sz: Math.abs(held.szi),
+              feeRate: book.costs.takerFeeRate,
+              leverage: held.leverage,
+              maxLeverage: held.maxLeverage,
+              reduceOnly: true,
+              closePosition: true,
+              reason: "order",
+              at: closeTime,
+            })
+          }
+          for (const level of [
+            ...current.plan.levels,
+            ...current.plan.carriedLevels,
+          ]) {
+            if (level.status === "waiting") level.status = "cancelled"
+            level.heldSz = 0
+          }
+          current.plan.closedReason = "cancelled"
+          grids.delete(coin.marketKey)
+        }
+
+        // A reduce-only close is synchronous in the replay. If anything is
+        // still held, placing the opposite grid would trade against it.
+        if (book.positions.has(coin.marketKey)) continue
+        const placement = emaGridPlacement(emaGrid.settings, stance, mark)
+        if (!placement) {
+          noteRefusal(coin.marketKey, "SMART_GRID_RANGE", closeTime)
+          continue
+        }
+
+        try {
+          const drafted = draftGridOrder({
+            marketKey: coin.marketKey,
+            ...placement,
+            mark,
+            rules: coin.rules,
+            roundPx: (px) =>
+              protocol.markets.roundPx(
+                px,
+                coin.rules.sizeDecimals,
+                coin.rules.priceTick
+              ),
+            equity: paperAccountFigures({
+              startingBalance: input.startingUsd,
+              realized: book.cash - input.startingUsd,
+              positions: [...book.positions.values()],
+              marks,
+            }).equity,
+            takerFeeRate: book.costs.takerFeeRate,
+            startedAt: closeTime,
+            held: null,
+          })
+          grids.set(coin.marketKey, {
+            id: `backtest-grid-${coin.marketKey}-${closeTime}`,
+            marketKey: coin.marketKey,
+            plan: drafted.plan,
+          })
+        } catch (error) {
+          noteRefusal(
+            coin.marketKey,
+            error instanceof Error ? error.message : "SMART_GRID_RANGE",
+            closeTime
+          )
+        }
       }
     }
 

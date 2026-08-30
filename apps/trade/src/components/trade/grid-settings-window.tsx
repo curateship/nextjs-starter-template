@@ -41,6 +41,7 @@ import {
   gridRowLevelIndex,
   gridRowRungNumber,
   gridRungPctsFit,
+  gridRungRowsWithLargestFurthest,
   gridRungPctsSum,
   gridStopBeyond,
   lossEdge,
@@ -230,8 +231,14 @@ function StopForm({
   const [manualOn, setManualOn] = React.useState(plan.manualSizing)
   const [rungs, setRungs] = React.useState<Rung[]>(() =>
     // The plan speaks in level order; the card's rows run top of the range
-    // first, which is that list read backwards.
-    rungsFrom(gridRowPctsFromLevels(currentLevelPcts(plan)))
+    // first, which is that list read backwards. A backwards saved split is
+    // shown in the corrected order, but the grid changes only after Save.
+    rungsFrom(
+      gridRungRowsWithLargestFurthest(
+        plan.direction,
+        gridRowPctsFromLevels(currentLevelPcts(plan))
+      )
+    )
   )
   const [leverage, setLeverage] = React.useState(String(plan.leverage))
   const [followOn, setFollowOn] = React.useState(plan.follow)

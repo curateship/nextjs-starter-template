@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest"
 
 import type { CandleBar, FundingRate } from "@/lib/protocols/contracts"
 import { defaultDcaParams, type DcaParams } from "@/lib/trade/dca"
+import {
+  defaultTradeGridSettings,
+  emaGridCleanBars,
+} from "@/lib/automations/nodes/trade-grid"
+import { emaGridStances } from "@/lib/trade/ema-grid"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { defaultPaperCosts, type PaperCosts } from "@/lib/trade/paper"
 import {
@@ -30,6 +35,7 @@ const START = 1_700_000_000_000 - (1_700_000_000_000 % FOUR_HOURS)
 vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   getProtocol: () => ({
+    capabilities: { gridStop: "exchange" },
     markets: {
       intervalMs: () => FOUR_HOURS,
       // No price grid — every price is allowed, so the arithmetic in the test
@@ -39,7 +45,12 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => ({
   }),
 }))
 
-const rules = { sizeDecimals: 3, priceTick: null, maxLeverage: 10, volume24hUsd: 1_000_000_000 }
+const rules = {
+  sizeDecimals: 3,
+  priceTick: null,
+  maxLeverage: 10,
+  volume24hUsd: 1_000_000_000,
+}
 
 /**
  * A price that falls from 100 for `fall` bars, then climbs back. Enough for a
@@ -91,7 +102,11 @@ function params(overrides: Partial<DcaParams> = {}): DcaParams {
 
 function inputFor(
   coins: BacktestCoin[],
-  overrides: { costs?: PaperCosts; params?: DcaParams; startingUsd?: number } = {}
+  overrides: {
+    costs?: PaperCosts
+    params?: DcaParams
+    startingUsd?: number
+  } = {}
 ) {
   return {
     protocol: "hyperliquid" as const,
@@ -152,7 +167,9 @@ describe("one pot", () => {
     )
 
     // Nothing ever goes negative, at any moment of the walk.
-    expect(Math.min(...outcome.equity.map((point) => point.usd))).toBeGreaterThan(0)
+    expect(
+      Math.min(...outcome.equity.map((point) => point.usd))
+    ).toBeGreaterThan(0)
     expect(Math.max(...outcome.inPlay)).toBeLessThanOrEqual(10_000 + 1e-6)
   })
 
@@ -165,6 +182,99 @@ describe("one pot", () => {
 
     // One point per bar time, whatever the coin count — the combined pot.
     expect(outcome.equity).toHaveLength(20)
+  })
+})
+
+describe("an EMA Grid backtest", () => {
+  it("changes from a buying grid to a selling grid after the clean wait", async () => {
+    const warmup = Array.from({ length: 600 }, (_, index): CandleBar => ({
+      openTime: START - (600 - index) * FOUR_HOURS,
+      open: 100,
+      high: 100.2,
+      low: 99.8,
+      close: 100,
+      volume: 1_000,
+    }))
+    let last = 100
+    const walked: CandleBar[] = []
+    const add = (close: number) => {
+      walked.push({
+        openTime: START + walked.length * FOUR_HOURS,
+        open: last,
+        high: Math.max(last, close) + 0.2,
+        low: Math.min(last, close) - 0.2,
+        close,
+        volume: 1_000,
+      })
+      last = close
+    }
+    for (let index = 1; index <= 18; index += 1) add(100 + index)
+    for (let index = 1; index <= 45; index += 1) add(118 - index * 1.5)
+
+    const settings = {
+      ...defaultTradeGridSettings(),
+      grid: {
+        ...defaultTradeGridSettings().grid,
+        levels: 4,
+        rangePct: 8,
+        potPct: 20,
+        stopLoss: { underPct: 5 },
+      },
+    }
+    const history = [...warmup, ...walked]
+    const stances = emaGridStances(history, {
+      emaPeriod: settings.emaPeriod,
+      cleanBars: emaGridCleanBars(settings),
+    })
+    const shortAt = history.findIndex(
+      (bar, index) => bar.openTime >= START && stances[index] === "short"
+    )
+    expect(shortAt).toBeGreaterThanOrEqual(600)
+
+    // The selling grid is now below its range. A rally reaches its sell
+    // triggers and the next fall buys those rungs back.
+    const shortAnchor = history[shortAt].close
+    add(shortAnchor * 1.07)
+    add(shortAnchor * 0.9)
+
+    const outcome = await runBacktest({
+      protocol: "hyperliquid",
+      network: "mainnet",
+      startingUsd: 10_000,
+      costs: { takerFeeRate: 0, makerFeeRate: 0, slippageRate: 0 },
+      strategy: { kind: "emaGrid", settings },
+      interval: "4h",
+      coins: [
+        {
+          marketKey: "hyperliquid:mainnet:AAA",
+          symbol: "AAA",
+          rules,
+          bars: walked,
+          baseBars: [...warmup, ...walked],
+          funding: [],
+        },
+      ],
+      from: START,
+      to: START + walked.length * FOUR_HOURS,
+    })
+
+    const fills = outcome.coins[0].fills
+    const firstShortSignalTime = history[shortAt].openTime
+    const shortEntry = fills.find(
+      (one) =>
+        one.fillTime > firstShortSignalTime &&
+        one.side === "sell" &&
+        one.rung !== null
+    )
+    expect(shortEntry).toBeDefined()
+    const shortExit = fills.find(
+      (one) =>
+        one.fillTime >= (shortEntry?.fillTime ?? Infinity) &&
+        one.side === "buy" &&
+        one.closedPnl > 0
+    )
+    expect(shortExit).toBeDefined()
+    expect(shortExit?.rung).toBe(shortEntry?.rung)
   })
 })
 
@@ -204,7 +314,14 @@ describe("what trading costs", () => {
 
   it("charges each historical funding hour with hand-checkable arithmetic", async () => {
     const shape: CandleBar[] = [
-      { openTime: START, open: 100, high: 100, low: 100, close: 100, volume: 1 },
+      {
+        openTime: START,
+        open: 100,
+        high: 100,
+        low: 100,
+        close: 100,
+        volume: 1,
+      },
       {
         openTime: START + FOUR_HOURS,
         open: 100,
@@ -266,11 +383,14 @@ describe("stopping", () => {
 
   it("reports how far through it got as it goes", async () => {
     const seen: number[] = []
-    await runBacktest(inputFor([coin("hyperliquid:mainnet:AAA", bars(10, 10))]), {
-      onProgress: (fraction) => {
-        seen.push(fraction)
-      },
-    })
+    await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", bars(10, 10))]),
+      {
+        onProgress: (fraction) => {
+          seen.push(fraction)
+        },
+      }
+    )
 
     expect(seen[0]).toBe(0)
     expect(seen[seen.length - 1]).toBe(1)
@@ -386,7 +506,10 @@ describe("a run with many coins", () => {
     // the alphabet decided who got tested. A live run showed trades on 0G, 2Z,
     // AAVE … ARB and nothing at all on the other 154.
     const coins = Array.from({ length: 40 }, (_, index) =>
-      coin(`hyperliquid:mainnet:C${String(index).padStart(2, "0")}`, bars(6, 20))
+      coin(
+        `hyperliquid:mainnet:C${String(index).padStart(2, "0")}`,
+        bars(6, 20)
+      )
     )
     const result = await runBacktest(
       inputFor(coins, { startingUsd: 5_000_000 }),
@@ -417,7 +540,8 @@ describe("a ladder that watches candles", () => {
     // Nothing may be stamped before the run's own first bar closed, and no two
     // rungs may buy on the same bar — one candle, one rung.
     const firstClose = shape[0].openTime + FOUR_HOURS
-    for (const one of fills) expect(one.fillTime).toBeGreaterThanOrEqual(firstClose)
+    for (const one of fills)
+      expect(one.fillTime).toBeGreaterThanOrEqual(firstClose)
     const buyTimes = fills
       .filter((one) => one.side === "buy")
       .map((one) => one.fillTime)
@@ -529,7 +653,10 @@ describe("holding through a market-wide crash", () => {
           volume: 1_000_000,
         })
       }
-      return coin(`hyperliquid:mainnet:C${String(index).padStart(2, "0")}`, shape)
+      return coin(
+        `hyperliquid:mainnet:C${String(index).padStart(2, "0")}`,
+        shape
+      )
     })
   }
 
@@ -586,9 +713,7 @@ describe("holding through a market-wide crash", () => {
     // The same 80% collapse, but only this coin has it. One coin falling is a
     // catastrophe that may never come back; the rule must not touch it.
     const market = crashingMarket().map((one, index) =>
-      index === 0
-        ? one
-        : coin(one.marketKey, bars(12, 100))
+      index === 0 ? one : coin(one.marketKey, bars(12, 100))
     )
     const result = await runBacktest(
       inputFor(market, {
@@ -653,17 +778,20 @@ describe("what counts as a base", () => {
   async function runWith(searchBars: number, holdBars: number) {
     const shape = staircase()
     return runBacktest({
-      ...inputFor([{ ...coin("hyperliquid:mainnet:AAA", shape), baseBars: shape }], {
-        params: params({
-          anchor: "base",
-          baseDetection: {
-            searchBars,
-            holdBars,
-            withTrendOnly: false,
-            minBarsApart: 1,
-          },
-        }),
-      }),
+      ...inputFor(
+        [{ ...coin("hyperliquid:mainnet:AAA", shape), baseBars: shape }],
+        {
+          params: params({
+            anchor: "base",
+            baseDetection: {
+              searchBars,
+              holdBars,
+              withTrendOnly: false,
+              minBarsApart: 1,
+            },
+          }),
+        }
+      ),
       to: START + 300 * FOUR_HOURS,
     })
   }
@@ -836,7 +964,9 @@ describe("replaying a signals run", () => {
       costs: defaultPaperCosts(),
       strategy: signalsFor(),
       interval: "4h" as const,
-      coins: [{ ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before }],
+      coins: [
+        { ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before },
+      ],
       from: START,
       to: START + window.length * FOUR_HOURS,
     })
@@ -861,7 +991,9 @@ describe("replaying a signals run", () => {
       costs: defaultPaperCosts(),
       strategy: signalsFor(),
       interval: "4h" as const,
-      coins: [{ ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before }],
+      coins: [
+        { ...coin("hyperliquid:mainnet:AAA", window), warmupBars: before },
+      ],
       from: START,
       to: START + window.length * FOUR_HOURS,
     })

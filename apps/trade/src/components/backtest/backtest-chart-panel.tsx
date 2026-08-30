@@ -36,6 +36,7 @@ import {
 } from "@/lib/trade/chart-view"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { baseDashes } from "@/lib/trade/indicators/base"
+import { emaIndicator } from "@/lib/trade/indicators/ema"
 import { indicatorPaint } from "@/lib/trade/indicators/registry"
 
 import type { BacktestCoinRow } from "./backtest-run-page"
@@ -157,6 +158,22 @@ export function BacktestChartPanel({
         interval: spec.interval,
       })
     }
+    if (spec.strategy.kind === "emaGrid") {
+      return emaIndicator.compute(
+        [...bars],
+        {
+          show20: false,
+          show50: false,
+          show200: true,
+          period200: spec.strategy.settings.emaPeriod,
+          showSignals: false,
+        },
+        {
+          zone: DEFAULT_CHART_OPTIONS.zone,
+          interval: spec.interval,
+        }
+      )
+    }
     return {
       lines: [],
       dashes: baseDashes([...bars], spec.strategy.params.baseDetection),
@@ -186,18 +203,12 @@ export function BacktestChartPanel({
   // Off the candles themselves, so no timeframe is written down twice.
   const barMs = bars.length > 1 ? bars[1].openTime - bars[0].openTime : 0
 
-  // The picked trade AND every other rung its exit closed. A sell that took
-  // out three rungs is three round trips sharing one exit arrow, and picking
-  // any of them is picking the same event — so all of them get their dotted
-  // line, and the zoom below reaches back to the earliest of their buys.
+  // One picked row means one dotted line. Trades can share the same exit fill,
+  // but each row is still a separate round trip and selecting it isolates that
+  // position from the other rungs closed by the same order.
   const focusTrades = React.useMemo<readonly BacktestTrade[]>(() => {
-    if (!focusTrade) return []
-    if (focusTrade.exitAt === null) return [focusTrade]
-    return trades.filter(
-      (trade) =>
-        trade.exitAt === focusTrade.exitAt && trade.exitPx === focusTrade.exitPx
-    )
-  }, [focusTrade, trades])
+    return focusTrade ? [focusTrade] : []
+  }, [focusTrade])
 
   const focusView = React.useMemo<ChartView | null>(() => {
     if (!focusTrade || !(barMs > 0)) return null
@@ -285,7 +296,14 @@ export function BacktestChartPanel({
               <Link
                 to="/admin/automations/$automationId"
                 params={{ automationId }}
-                search={{ node: "tradeDca" }}
+                search={{
+                  node:
+                    spec.strategy.kind === "dca"
+                      ? "tradeDca"
+                      : spec.strategy.kind === "signals"
+                        ? "tradeSignals"
+                        : "tradeGrid",
+                }}
               >
                 <SlidersHorizontalIcon className="size-4" />
                 Parameter settings

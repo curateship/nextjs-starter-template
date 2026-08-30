@@ -1726,6 +1726,35 @@ describe("a grid that sells first", () => {
     expect(position).toBeUndefined()
   })
 
+  it("keeps a percentage-spaced selling grid trading after it follows up", async () => {
+    // DASH reproduced the failure with this ratio. Moving the range one step
+    // up redraws the same overlapping prices, but ordinary floating-point
+    // arithmetic leaves them a few trillionths apart.
+    await priceTo(30)
+    await placeGridOrder(userId, wallet, {
+      marketKey: BTC,
+      topPx: 50.388,
+      bottomPx: 36.29927326802116,
+      params: params({
+        direction: "short",
+        spacing: "compounding",
+        follow: true,
+      }),
+    })
+
+    // The rally sells the range and moves it one step higher. The microscopic
+    // arithmetic difference must not pause the grid as if the market rejected
+    // a price.
+    await priceTo(51)
+    const followed = await onlyGrid()
+    expect(followed.plan.paused).not.toBe(true)
+    expect(followed.plan.downShifts).toBe(1)
+
+    // Existing shorts still buy back when price returns through their exits.
+    await priceTo(30)
+    expect(await positions()).toHaveLength(0)
+  })
+
   it("makes a level wait for a one percent FALL after a nearby buy-back", async () => {
     await priceTo(70)
     await placeShort()

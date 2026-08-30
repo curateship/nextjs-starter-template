@@ -13,6 +13,7 @@ import type { CandleInterval } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
+import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { Trading } from "@/components/trade/use-trading"
 
 vi.mock("@/lib/api/trade/candles", async (importOriginal) => {
@@ -105,12 +106,32 @@ vi.mock("@/components/trade/trade-lines-layer", async () => {
     TradeLinesLayer: ({
       surface,
       onSurface,
+      positions = [],
+      entryBadge,
     }: {
       surface: unknown
       onSurface?: (surface: unknown) => void
+      positions?: Array<{ id: string }>
+      entryBadge?: (position: { id: string }) => {
+        onRemove: (() => void) | null
+      } | null
     }) => {
       React.useLayoutEffect(() => onSurface?.(surface), [surface, onSurface])
-      return null
+      return (
+        <>
+          {positions.map((position) => {
+            const badge = entryBadge?.(position)
+            return badge?.onRemove ? (
+              <button
+                key={position.id}
+                type="button"
+                aria-label={`Remove ladder for ${position.id}`}
+                onClick={badge.onRemove}
+              />
+            ) : null
+          })}
+        </>
+      )
     },
   }
 })
@@ -595,5 +616,162 @@ describe("the chart take-profit shortcut", () => {
     })
 
     expect(host.textContent).toContain("Take profit")
+  })
+})
+
+function ladderWithStatuses(
+  statuses: Array<"waiting" | "filled">
+): SmartLadder {
+  return {
+    id: "ladder-1",
+    walletId: "wallet-1",
+    marketKey: "hyperliquid:BTC",
+    kind: "dca",
+    status: "active",
+    flowRunId: null,
+    createdAt: 1,
+    updatedAt: 1,
+    plan: {
+      anchorPx: 110,
+      steppedDown: 0,
+      reclaim: null,
+      rungs: statuses.map((status, index) => ({
+        px: 100 - index * 10,
+        sz: 1,
+        budget: 100 - index * 10,
+        status,
+        orderId: null,
+        sellOrderId: null,
+        dead: false,
+        touched: false,
+      })),
+      takeProfit: null,
+      stopLoss: null,
+    },
+  } as unknown as SmartLadder
+}
+
+function chartWithLadder(
+  ladder: SmartLadder,
+  cancelLadder: (walletId: string, ladderId: string) => Promise<void>
+) {
+  const positions = ladder.plan.rungs.some((rung) => rung.status === "filled")
+    ? [
+        {
+          id: "position-1",
+          walletId: ladder.walletId,
+          marketKey: ladder.marketKey,
+          szi: 1,
+          entryPx: 100,
+          leverage: 1,
+          maxLeverage: 50,
+          targets: [],
+          tpPx: null,
+          slPx: null,
+          feesPaid: 0,
+          updatedAt: 1,
+        },
+      ]
+    : []
+  const oneTrading = {
+    ...trading,
+    wallet: { id: ladder.walletId },
+    positions,
+    ladders: [ladder],
+    smartOrders: [ladder],
+    walletNames: new Map([[ladder.walletId, "Practice"]]),
+    cancelLadder,
+  } as unknown as Trading
+
+  return (
+    <ChartPanel
+      selectedKey={ladder.marketKey}
+      interval="15m"
+      initialChartView={null}
+      initialChart={{
+        key: `${ladder.marketKey}@15m`,
+        interval: "15m",
+        candles: [
+          {
+            openTime: 0,
+            open: 100,
+            high: 110,
+            low: 90,
+            close: 100,
+            volume: 1,
+          },
+        ],
+        error: null,
+        pending: false,
+      }}
+      initialDrawings={{ marketKey: ladder.marketKey, rows: [], error: null }}
+      initialQuickOrder={DEFAULT_QUICK_ORDER}
+      options={DEFAULT_CHART_OPTIONS}
+      indicators={{}}
+      market={{ key: ladder.marketKey, price: 100 } as never}
+      trading={oneTrading}
+      free={1000}
+      equity={1000}
+      shownTrade={null}
+      addTo={null}
+      onAddOpened={() => {}}
+    />
+  )
+}
+
+describe("removing a DCA ladder from the chart", () => {
+  it("removes an empty ladder on the first press", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const cancelLadder = vi.fn(async () => {})
+    await act(async () =>
+      root.render(
+        chartWithLadder(
+          ladderWithStatuses(["waiting", "waiting"]),
+          cancelLadder
+        )
+      )
+    )
+
+    const remove = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Stop buying deeper — cancel every waiting rung"]'
+    )
+    expect(remove).not.toBeNull()
+    await act(async () => remove?.click())
+
+    expect(cancelLadder).toHaveBeenCalledOnce()
+    expect(cancelLadder).toHaveBeenCalledWith("wallet-1", "ladder-1")
+    expect(document.body.textContent).not.toContain(
+      "Stop this ladder buying deeper?"
+    )
+  })
+
+  it("still asks before stopping a ladder that has bought", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const cancelLadder = vi.fn(async () => {})
+    await act(async () =>
+      root.render(
+        chartWithLadder(
+          ladderWithStatuses(["filled", "waiting"]),
+          cancelLadder
+        )
+      )
+    )
+
+    const remove = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Remove ladder for position-1"]'
+    )
+    expect(remove).not.toBeNull()
+    await act(async () => remove?.click())
+
+    expect(cancelLadder).not.toHaveBeenCalled()
+    expect(document.body.textContent).toContain(
+      "Stop this ladder buying deeper?"
+    )
+
+    const confirm = Array.from(document.body.querySelectorAll("button")).find(
+      (button) => button.textContent === "Stop the ladder"
+    )
+    await act(async () => confirm?.click())
+    expect(cancelLadder).toHaveBeenCalledWith("wallet-1", "ladder-1")
   })
 })
