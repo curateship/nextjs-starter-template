@@ -198,6 +198,8 @@ function gridState(over: Partial<GridPlan> = {}): GridPlan {
     downShifts: 0,
     closedReason: null,
     ...over,
+    manualSizing: over.manualSizing ?? false,
+    manualRungPcts: over.manualRungPcts ?? null,
   }
 }
 
@@ -1299,6 +1301,8 @@ describe("live Smart orders", () => {
       takeProfitPx: null,
       spacing: "even",
       sizing: "even",
+      manualSizing: false,
+      manualRungPcts: null,
       potPct: 20,
       maxOrderVolPct: 0,
       startedAt: Date.now() - 60_000,

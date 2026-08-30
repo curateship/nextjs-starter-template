@@ -15,12 +15,18 @@ import {
   ladderBaseStopOf,
   ladderExitLevels,
   ladderHeldSz,
+  reshapeLadderPlan,
+  type LadderShapeChange,
   type LadderPlan,
   type LadderRungState,
   type DcaParams,
 } from "@/lib/trade/dca"
 import { gridHeldSz, gridStopPx, type GridPlan } from "@/lib/trade/grid"
-import { reattributePairedStops, type PairedStopRef } from "@/lib/trade/pairing"
+import {
+  gridLadderPairingRefusal,
+  reattributePairedStops,
+  type PairedStopRef,
+} from "@/lib/trade/pairing"
 import {
   forEachPlanOrderId,
   readSmartEntry,
@@ -80,12 +86,16 @@ import {
 import { walletCredential } from "@/server/trade/wallet-auth"
 import { serializeLiveWallet } from "@/server/trade/live-wallet-queue"
 import {
+  assertLadderRungsTradable,
   ladderById,
+  movedLadder,
   saveLadderPlan,
+  type MovedLadder,
   type PlaceLadderInput,
   type PlacedLadder,
 } from "@/server/trade/smart-orders"
 import { assertSmartOrderPlacable } from "@/server/trade/smart-pairing"
+import { pairedGridPlan } from "@/server/trade/smart-pairing"
 import { autoReverseStoppedGrid } from "@/server/trade/grid-reversal"
 import { advanceGrid } from "./smart-grids"
 import { advanceSignal } from "./smart-signals"
@@ -684,6 +694,49 @@ async function updateLiveLadderExitsOnce(
   ladder.plan.aimedTpPx = null
   ladder.plan.aimedSlPx = null
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+}
+
+/** Move or re-spread a live ladder while every rung is still waiting. */
+export async function reshapeLiveLadder(
+  userId: string,
+  wallet: TradeWallet,
+  input: LadderShapeChange & { ladderId: string }
+): Promise<MovedLadder> {
+  return await serializeLiveWallet(userId, wallet, async () => {
+    await reconcileLiveLaddersOnce(userId, wallet)
+    const ladder = await ladderById(userId, wallet.id, input.ladderId)
+    if (ladder.flowRunId !== null) throw new Error("SMART_LADDER_FLOW")
+    const ref = parseMarketKey(ladder.marketKey)
+    if (!ref) throw new Error("LIVE_MARKET")
+    const rules = await marketRules(
+      wallet.protocol,
+      wallet.network,
+      ref.marketId
+    )
+    if (!rules) throw new Error("LIVE_MARKET")
+    const protocol = getProtocol(wallet.protocol)
+    const plan = reshapeLadderPlan(ladder.plan, input, (px) =>
+      protocol.markets.roundPx(
+        px,
+        ladder.plan.sizeDecimals,
+        ladder.plan.priceTick
+      )
+    )
+    assertLadderRungsTradable(plan, rules)
+    const pairedGrid = await pairedGridPlan(userId, wallet.id, ladder.marketKey)
+    if (pairedGrid) {
+      const refusal = gridLadderPairingRefusal({
+        walletKind: wallet.kind,
+        protocol: wallet.protocol,
+        grid: pairedGrid,
+        ladder: plan,
+      })
+      if (refusal) throw new Error(refusal)
+    }
+    const at = Date.now()
+    await saveLadderPlan(userId, ladder.id, plan, "active", at)
+    return movedLadder(wallet.id, ladder, plan, at)
+  })
 }
 
 const EXCHANGE_VISIBILITY_GRACE_MS = 2_000

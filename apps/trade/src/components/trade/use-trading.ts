@@ -37,6 +37,7 @@ import {
   cancelLadderRung,
   moveGridExit as moveGridExitApi,
   moveGridRange as moveGridRangeApi,
+  reshapeLadder as reshapeLadderApi,
   reshapeGrid as reshapeGridApi,
   updateGridEnd as updateGridEndApi,
   setGridFollow as setGridFollowApi,
@@ -410,6 +411,12 @@ export type Trading = {
   ) => Promise<void>
   /** Stop buying deeper: calls off every waiting rung, keeps what's bought. */
   cancelLadder: (walletId: string, ladderId: string) => Promise<void>
+  /** Move or spread a DCA ladder while every rung is still waiting. */
+  reshapeLadder: (
+    walletId: string,
+    ladderId: string,
+    shape: { anchorPx: number } | { deepestPx: number }
+  ) => Promise<boolean>
   /** Change a live ladder's take profit and stop rules. */
   setLadderExits: (
     walletId: string,
@@ -1942,6 +1949,24 @@ export function useTrading(
     [callOff, nameOf]
   )
 
+  const reshapeLadder: Trading["reshapeLadder"] = React.useCallback(
+    async (walletId, ladderId, shape) => {
+      try {
+        const { ladder } = await reshapeLadderApi({
+          walletId,
+          ladderId,
+          ...shape,
+        })
+        holdSmart(ladder)
+        return true
+      } catch (error) {
+        showErrorToast(getTradingSmartOrderError(error))
+        return false
+      }
+    },
+    [holdSmart]
+  )
+
   const resumeSmartOrder: Trading["resumeSmartOrder"] = React.useCallback(
     async (order) =>
       await runWith(
@@ -2624,6 +2649,7 @@ export function useTrading(
     placeLadder,
     cancelRung,
     cancelLadder,
+    reshapeLadder,
     setLadderExits,
     placeGrid,
     cancelGridLevel,

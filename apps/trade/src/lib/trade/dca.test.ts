@@ -14,6 +14,7 @@ import {
   ladderFirstBuyPx,
   baseStopPx,
   rungBudget,
+  reshapeLadderPlan,
   floorSize,
   volumeCapUsd,
   sizeOneOrder,
@@ -232,6 +233,37 @@ describe("ladder plans", () => {
 
   it("exits each rung at the rung above it, the first at the click", () => {
     expect(ladderExitLevels(plan)).toEqual([100, 95])
+  })
+
+  it("moves an untouched ladder as one shape and keeps each rung's budget", () => {
+    const moved = reshapeLadderPlan(plan, { anchorPx: 120 }, (px) => px)
+
+    expect(moved.anchorPx).toBe(120)
+    expect(moved.rungs[0].px).toBeCloseTo(114, 10)
+    expect(moved.rungs[1].px).toBeCloseTo(104.88, 10)
+    expect(moved.rungs.map((rung) => rung.budget)).toEqual([95, 174.8])
+    expect(moved.rungs[0].sz).toBeCloseTo(0.833, 10)
+  })
+
+  it("re-spreads every rung to the requested deepest price", () => {
+    const resized = reshapeLadderPlan(plan, { deepestPx: 80 }, (px) => px)
+
+    expect(resized.rungs.at(-1)?.px).toBeCloseTo(80, 10)
+    expect(resized.rungs[0].px).toBeLessThan(95)
+    expect(resized.anchor).toBe("click")
+  })
+
+  it("refuses to move a ladder after a rung starts", () => {
+    expect(() =>
+      reshapeLadderPlan(
+        {
+          ...plan,
+          rungs: [{ ...plan.rungs[0], status: "filled" }, plan.rungs[1]],
+        },
+        { anchorPx: 120 },
+        (px) => px
+      )
+    ).toThrow("SMART_LADDER_STARTED")
   })
 
   it("reads a stored plan back, and refuses junk rather than half-obeying it", () => {

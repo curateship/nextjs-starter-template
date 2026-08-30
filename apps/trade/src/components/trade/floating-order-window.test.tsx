@@ -34,10 +34,12 @@ afterEach(async () => {
 async function renderWindow({
   openedAt = { x: 20, y: 20 },
   minimumHeight,
+  chartPreviewControls = false,
   onClose = () => undefined,
 }: {
   openedAt?: { x: number; y: number }
   minimumHeight?: number
+  chartPreviewControls?: boolean
   onClose?: () => void
 } = {}) {
   await act(async () => {
@@ -52,6 +54,7 @@ async function renderWindow({
         title="DCA ladder"
         wallet="Practice"
         free={1_234}
+        chartPreviewControls={chartPreviewControls}
         onClose={onClose}
       >
         <div>Order fields</div>
@@ -146,5 +149,42 @@ describe("the floating order window", () => {
     })
 
     expect(onClose).toHaveBeenCalledTimes(2)
+  })
+
+  it("lets a marked chart handle through without weakening other outside presses", async () => {
+    const onClose = vi.fn()
+    const panel = await renderWindow({
+      openedAt: { x: 500, y: 20 },
+      chartPreviewControls: true,
+      onClose,
+    })
+    const handle = document.createElement("button")
+    handle.dataset.orderFrameControl = "true"
+    document.body.appendChild(handle)
+
+    // Preview windows leave the price tags clear on the right of the click.
+    expect(panel?.style.left).toBe("188px")
+
+    await act(async () => {
+      handle.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }))
+    })
+    expect(onClose).not.toHaveBeenCalled()
+
+    const menu = document.createElement("button")
+    menu.dataset.orderFrameControl = "true"
+    document.body.appendChild(menu)
+    await act(async () => {
+      menu.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }))
+    })
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => {
+      document.body.dispatchEvent(
+        new MouseEvent("pointerdown", { bubbles: true, cancelable: true })
+      )
+    })
+    expect(onClose).toHaveBeenCalledOnce()
+    handle.remove()
+    menu.remove()
   })
 })

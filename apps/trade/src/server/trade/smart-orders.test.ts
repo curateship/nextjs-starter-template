@@ -35,6 +35,7 @@ import {
   placeDcaLadder,
   placeWatchOrder,
   resumeSmartOrder,
+  reshapeLadder,
   saveLadderPlan,
   updateLadderExits,
 } from "@/server/trade/smart-orders"
@@ -852,6 +853,41 @@ describe("placing a ladder", () => {
     expect(rungs[0].sz).toBeCloseTo(7.017, 9)
     expect(rungs[1].px).toBeCloseTo(87.4, 9)
     expect(rungs[1].sz).toBeCloseTo(15.255, 9)
+  })
+
+  it("moves and re-spreads a placed ladder until its first buy", async () => {
+    const placed = await place()
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      anchorPx: 90,
+    })
+    expect(moved.ladder.plan.anchorPx).toBe(90)
+    expect(moved.ladder.plan.rungs[0].px).toBeCloseTo(85.5, 9)
+    expect(moved.ladder.plan.rungs[1].px).toBeCloseTo(78.66, 9)
+
+    const resized = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      deepestPx: 60,
+    })
+    expect(resized.ladder.plan.rungs.at(-1)?.px).toBeCloseTo(60, 9)
+  })
+
+  it("leaves an automation-owned ladder under the automation's control", async () => {
+    await insertRunningFlow()
+    const placed = await placeDcaLadder(userId, wallet, {
+      marketKey: BTC,
+      clickPx: 110,
+      interval: "1m",
+      params: params(),
+      flowRunId: "run-1",
+    })
+
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: placed.ladder.id,
+        anchorPx: 90,
+      })
+    ).rejects.toThrow("SMART_LADDER_FLOW")
   })
 
   it("stamps the flow that placed it, and leaves a hand-placed one blank", async () => {

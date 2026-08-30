@@ -23,6 +23,7 @@ export function TouchOrderFrame({
   desktopStyle,
   desktopRef,
   sheetScrollable = false,
+  allowOutsideControl = false,
   onClose,
   children,
 }: {
@@ -34,9 +35,36 @@ export function TouchOrderFrame({
   desktopStyle?: React.CSSProperties
   desktopRef?: React.Ref<HTMLDivElement>
   sheetScrollable?: boolean
+  /** Let marked chart handles and portalled menus work outside the desktop frame. */
+  allowOutsideControl?: boolean
   onClose: () => void
   children: React.ReactNode
 }) {
+  const ownDesktopRef = React.useRef<HTMLDivElement | null>(null)
+
+  React.useEffect(() => {
+    if (!wide || !allowOutsideControl) return
+
+    const outside = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Node && ownDesktopRef.current?.contains(target))
+        return
+      if (
+        target instanceof Element &&
+        target.closest("[data-order-frame-control]")
+      ) {
+        return
+      }
+      // Match the ordinary backdrop: close the frame and keep the same press
+      // from falling through into a second chart action.
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener("pointerdown", outside, true)
+    return () => document.removeEventListener("pointerdown", outside, true)
+  }, [allowOutsideControl, onClose, wide])
+
   if (!wide) {
     return (
       <Sheet open onOpenChange={(open) => (open ? undefined : onClose())}>
@@ -70,7 +98,10 @@ export function TouchOrderFrame({
   return (
     <>
       <div
-        className="fixed inset-0 z-40"
+        className={cn(
+          "fixed inset-0 z-40",
+          allowOutsideControl && "pointer-events-none"
+        )}
         onPointerDown={onClose}
         onContextMenu={(event) => {
           event.preventDefault()
@@ -78,7 +109,9 @@ export function TouchOrderFrame({
         }}
       />
       <div
-        ref={desktopRef}
+        // The measured context menu uses `desktopRef`; DCA uses the local ref
+        // only for its outside-control exception. No frame needs both jobs.
+        ref={allowOutsideControl ? ownDesktopRef : desktopRef}
         role={role}
         aria-label={label}
         className={desktopClassName}

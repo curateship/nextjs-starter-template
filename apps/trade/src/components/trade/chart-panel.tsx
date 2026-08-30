@@ -34,7 +34,10 @@ import {
   LazyOrderWindowFallback,
 } from "@/components/trade/lazy-window-fallback"
 import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
-import type { SmartOrderState } from "@/components/trade/smart-order-dialog"
+import type {
+  DcaPreview,
+  SmartOrderState,
+} from "@/components/trade/smart-order-dialog"
 import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
 import { TradeLinesLayer } from "@/components/trade/trade-lines-layer"
 import { useLongPress } from "@/components/trade/use-long-press"
@@ -388,7 +391,7 @@ export function ChartPanel({
   // The DCA window, its live preview lines, and the exits window of a placed
   // ladder — the smart-order half of the same right-click.
   const [smart, setSmart] = React.useState<SmartOrderState | null>(null)
-  const [preview, setPreview] = React.useState<number[] | null>(null)
+  const [preview, setPreview] = React.useState<DcaPreview | null>(null)
   const [exitsFor, setExitsFor] = React.useState<SmartLadder | null>(null)
   // The grid's half of the same right-click: its window, its preview lines,
   // and the two things a placed grid can be asked to do.
@@ -407,8 +410,8 @@ export function ChartPanel({
   const [cancelGridFor, setCancelGridFor] = React.useState<SmartGrid | null>(
     null
   )
-  // Stopping a ladder cancels every waiting rung at once, so unlike a single
-  // order's × it asks first.
+  // A ladder that has started asks before its remaining buys are called off.
+  // An empty ladder can go at once because it holds nothing.
   const [cancelFor, setCancelFor] = React.useState<SmartLadder | null>(null)
   // The waiting order opened from its own bar on the chart.
   const [editing, setEditing] = React.useState<TradeOrder | null>(null)
@@ -753,6 +756,20 @@ export function ChartPanel({
       setEditing(tradingOrders.find((one) => one.id === orderId) ?? null),
     [tradingOrders]
   )
+  const tradingCancelLadder = trading.cancelLadder
+  const onCancelLadder = React.useCallback(
+    (ladder: SmartLadder) => {
+      const hasBought = ladder.plan.rungs.some(
+        (rung) => rung.status === "filled" || rung.status === "sold"
+      )
+      if (!hasBought) {
+        void tradingCancelLadder(ladder.walletId, ladder.id)
+        return
+      }
+      setCancelFor(ladder)
+    },
+    [tradingCancelLadder]
+  )
   const entryBadgeOf = React.useCallback(
     (position: TradePosition) => {
       const ladder = tradingLadders.find(
@@ -774,16 +791,24 @@ export function ChartPanel({
           waiting === 1 ? "rung" : "rungs"
         } still waiting to buy. The gear changes its exits; the × stops it buying deeper.`,
         onSettings: () => setExitsFor(ladder),
-        onRemove: waiting > 0 ? () => setCancelFor(ladder) : null,
+        onRemove: waiting > 0 ? () => onCancelLadder(ladder) : null,
       }
     },
-    [tradingLadders]
+    [tradingLadders, onCancelLadder]
   )
   const tradingCancelRung = trading.cancelRung
   const onCancelRung = React.useCallback(
     (walletId: string, ladderId: string, rungIndex: number) =>
       void tradingCancelRung(walletId, ladderId, rungIndex),
     [tradingCancelRung]
+  )
+  const tradingReshapeLadder = trading.reshapeLadder
+  const onReshapeLadder = React.useCallback(
+    (
+      ladder: SmartLadder,
+      shape: { anchorPx: number } | { deepestPx: number }
+    ) => tradingReshapeLadder(ladder.walletId, ladder.id, shape),
+    [tradingReshapeLadder]
   )
   const tradingCancelGridLevel = trading.cancelGridLevel
   const onCancelGridLevel = React.useCallback(
@@ -1167,8 +1192,9 @@ export function ChartPanel({
           tool={paintTool}
           walletName={walletNameOf}
           onCancelRung={onCancelRung}
-          onCancelLadder={setCancelFor}
+          onCancelLadder={onCancelLadder}
           onEditExits={setExitsFor}
+          onReshapeLadder={onReshapeLadder}
         />
         <GridLayer
           surface={surface}
@@ -1275,12 +1301,14 @@ export function ChartPanel({
       tradingLadders,
       preview,
       onCancelRung,
+      onReshapeLadder,
       gridsShown,
       gridPreview,
       currentMarketPx,
       onCancelGridLevel,
       onMoveGridRange,
       onMoveGridExit,
+      onCancelLadder,
       openGridSettings,
       reverseDisabledReason,
       marketTrades,

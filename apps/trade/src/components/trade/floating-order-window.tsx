@@ -35,6 +35,7 @@ export function FloatingOrderWindow({
   titleClassName,
   wallet,
   free,
+  chartPreviewControls = false,
   onClose,
   children,
 }: {
@@ -50,11 +51,20 @@ export function FloatingOrderWindow({
   titleClassName?: string
   wallet: string
   free?: number
+  /** Let marked chart-preview handles work outside this desktop frame. */
+  chartPreviewControls?: boolean
   onClose: () => void
   children: React.ReactNode
 }) {
   const [at, setAt] = React.useState(() => ({
-    x: withinScreen(openedAt.x, width, window.innerWidth),
+    // A DCA preview is controlled from price tags on the chart's right edge.
+    // Open its form to the left of the click so the form does not cover the
+    // handles the person has just been invited to drag.
+    x: withinScreen(
+      chartPreviewControls ? openedAt.x - width - EDGE : openedAt.x,
+      width,
+      window.innerWidth
+    ),
     y: withinScreen(openedAt.y, height, window.innerHeight),
   }))
   const dragRef = React.useRef<{ dx: number; dy: number } | null>(null)
@@ -124,6 +134,7 @@ export function FloatingOrderWindow({
             }),
       }}
       sheetScrollable={!longForm}
+      allowOutsideControl={chartPreviewControls}
       onClose={onClose}
     >
       <div
@@ -137,11 +148,7 @@ export function FloatingOrderWindow({
       >
         <GripVerticalIcon className="size-4 shrink-0 text-muted-foreground" />
         <span
-          className={cn(
-            "text-sm font-semibold",
-            MADE_MONEY,
-            titleClassName
-          )}
+          className={cn("text-sm font-semibold", MADE_MONEY, titleClassName)}
         >
           {title}
         </span>
