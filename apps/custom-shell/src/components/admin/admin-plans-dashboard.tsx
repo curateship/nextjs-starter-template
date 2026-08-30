@@ -2,6 +2,7 @@ import * as React from "react"
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
 import {
   GaugeIcon,
+  GiftIcon,
   Loader2Icon,
   PackageIcon,
   PlusIcon,
@@ -315,6 +316,12 @@ export function AdminPlansDashboard({
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
+            <DashboardToolbarButton asChild type="button" variant="outline">
+              <Link to="/admin/referrals">
+                <GiftIcon className="size-4" />
+                Referrals
+              </Link>
+            </DashboardToolbarButton>
             <DashboardToolbarButton asChild type="button" variant="outline">
               <Link to="/admin/ai-usage">
                 <GaugeIcon className="size-4" />

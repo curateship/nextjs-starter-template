@@ -91,11 +91,20 @@ export const customShellUsers = pgTable(
      * until it picks one.
      */
     currentWorkspaceId: varchar("current_workspace_id", { length: 36 }),
+    /**
+     * The stable public code in this account's invite link. Postgres supplies
+     * it for every account creation path, including admin-created accounts and
+     * test fixtures, so no caller can accidentally make an account without one.
+     */
+    referralCode: varchar("referral_code", { length: 32 })
+      .notNull()
+      .default(sql`replace(gen_random_uuid()::text, '-', '')`),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
   (table) => [
     index("ix_users_email").on(table.email),
+    uniqueIndex("ux_users_referral_code").on(table.referralCode),
     index("ix_users_current_workspace").on(table.currentWorkspaceId),
     index("ix_users_deleted_at")
       .on(table.deletedAt)
@@ -918,6 +927,87 @@ export const customShellSubscriptionEvents = pgTable(
       table.userId,
       table.createdAt.desc()
     ),
+  ]
+)
+
+/**
+ * One person-to-person invite from registration through its first real paid
+ * invoice and any free-month credit earned from it.
+ *
+ * Names and emails are copied at registration so deleting either account does
+ * not erase or damage the other person's reward record. The user references
+ * clear on deletion instead of cascading for the same reason.
+ */
+export const customShellReferrals = pgTable(
+  "referrals",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    referrerUserId: varchar("referrer_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    referredUserId: varchar("referred_user_id", { length: 36 }).references(
+      () => customShellUsers.id,
+      { onDelete: "set null" }
+    ),
+    referrerName: varchar("referrer_name", { length: 255 }).notNull(),
+    referrerEmail: varchar("referrer_email", { length: 255 }).notNull(),
+    referredName: varchar("referred_name", { length: 255 }).notNull(),
+    referredEmail: varchar("referred_email", { length: 255 }).notNull(),
+    status: varchar("status", { length: 20 }).notNull().default("invited"),
+    rewardStatus: varchar("reward_status", { length: 20 })
+      .notNull()
+      .default("not_earned"),
+    stripeInvoiceId: varchar("stripe_invoice_id", { length: 120 }).unique(),
+    stripePaymentIntentId: varchar("stripe_payment_intent_id", { length: 120 }),
+    rewardAmountCents: integer("reward_amount_cents"),
+    rewardCurrency: varchar("reward_currency", { length: 10 }),
+    stripeCustomerId: varchar("stripe_customer_id", { length: 120 }),
+    stripeBalanceTransactionId: varchar("stripe_balance_transaction_id", {
+      length: 120,
+    }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+    joinedAt: timestamp("joined_at", { withTimezone: true }),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    grantedAt: timestamp("granted_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "referrals_status_check",
+      sql`${table.status} in ('invited', 'joined', 'converted')`
+    ),
+    check(
+      "referrals_reward_status_check",
+      sql`${table.rewardStatus} in ('not_earned', 'pending', 'granted', 'revoked')`
+    ),
+    check(
+      "referrals_reward_amount_check",
+      sql`${table.rewardAmountCents} is null or ${table.rewardAmountCents} > 0`
+    ),
+    check(
+      "referrals_progress_check",
+      sql`(${table.status} = 'invited' and ${table.joinedAt} is null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'joined' and ${table.joinedAt} is not null and ${table.convertedAt} is null and ${table.rewardStatus} = 'not_earned') or (${table.status} = 'converted' and ${table.joinedAt} is not null and ${table.convertedAt} is not null and ${table.rewardStatus} in ('pending', 'granted', 'revoked'))`
+    ),
+    check(
+      "referrals_grant_check",
+      sql`${table.rewardStatus} <> 'granted' or (${table.rewardAmountCents} is not null and ${table.rewardCurrency} is not null and ${table.stripeCustomerId} is not null and ${table.stripeBalanceTransactionId} is not null and ${table.grantedAt} is not null)`
+    ),
+    uniqueIndex("ux_referrals_referred_user")
+      .on(table.referredUserId)
+      .where(sql`${table.referredUserId} is not null`),
+    index("ix_referrals_referrer_created").on(
+      table.referrerUserId,
+      table.createdAt.desc()
+    ),
+    index("ix_referrals_reward_status").on(
+      table.rewardStatus,
+      table.convertedAt.desc()
+    ),
+    index("ix_referrals_payment_intent")
+      .on(table.stripePaymentIntentId)
+      .where(sql`${table.stripePaymentIntentId} is not null`),
   ]
 )
 
@@ -2234,6 +2324,7 @@ export type CustomShellNotification =
   typeof customShellNotifications.$inferSelect
 export type CustomShellSubscriptionEvent =
   typeof customShellSubscriptionEvents.$inferSelect
+export type CustomShellReferral = typeof customShellReferrals.$inferSelect
 export type CustomShellUsageEvent = typeof customShellUsageEvents.$inferSelect
 export type CustomShellAutomation = typeof customShellAutomations.$inferSelect
 export type CustomShellAutomationRun =

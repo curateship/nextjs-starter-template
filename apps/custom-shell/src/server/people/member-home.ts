@@ -3,6 +3,10 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm"
 import { billingEnabled } from "@/server/billing/stripe"
 import { db, type CustomShellDb } from "@/server/db"
 import { loadEntitlements } from "@/server/billing/entitlements"
+import {
+  loadMemberReferrals,
+  type MemberReferralSummary,
+} from "@/server/billing/referrals"
 import { getNotificationPage } from "@/server/notifications/inbox"
 import { readShellGlobals } from "@/server/shell-settings"
 import { findWorkspaceIdForRequest } from "@/server/workspaces/for-request"
@@ -54,6 +58,7 @@ export type MemberHomePlan = {
 
 export type MemberHome = {
   plan: MemberHomePlan
+  referrals: MemberReferralSummary
   notifications: NotificationItem[]
   unreadNotifications: number
   feedback: MemberHomeFeedback[]
@@ -82,22 +87,24 @@ export async function loadMemberHome(
   // deployment's sites has a separate list on each, the same way a visitor sees
   // a separate board on each.
   const workspaceId = await findWorkspaceIdForRequest(user.id, database)
-  const [{ entitlements }, notifications, feedback] = await Promise.all([
-    loadEntitlements(user.id, database),
-    notificationTypesPromise.then((notificationTypes) =>
-      getNotificationPage({
-        currentUser: user,
-        limit: NOTIFICATIONS_SHOWN,
-        database,
-        notificationTypes,
-      })
-    ),
-    // No site at all means nothing has been filed on one, which is an empty
-    // list rather than a broken page.
-    workspaceId
-      ? listOwnFeedback(workspaceId, user.id, database)
-      : Promise.resolve({ total: 0, items: [] }),
-  ])
+  const [{ entitlements }, referrals, notifications, feedback] =
+    await Promise.all([
+      loadEntitlements(user.id, database),
+      loadMemberReferrals(user.id, database),
+      notificationTypesPromise.then((notificationTypes) =>
+        getNotificationPage({
+          currentUser: user,
+          limit: NOTIFICATIONS_SHOWN,
+          database,
+          notificationTypes,
+        })
+      ),
+      // No site at all means nothing has been filed on one, which is an empty
+      // list rather than a broken page.
+      workspaceId
+        ? listOwnFeedback(workspaceId, user.id, database)
+        : Promise.resolve({ total: 0, items: [] }),
+    ])
 
   return {
     plan: {
@@ -112,6 +119,7 @@ export async function loadMemberHome(
       pausedPlanName: entitlements.pausedPlanName,
       billingEnabled: billingEnabled(),
     },
+    referrals,
     notifications: notifications.notifications,
     unreadNotifications: notifications.unread_count,
     feedback: feedback.items,

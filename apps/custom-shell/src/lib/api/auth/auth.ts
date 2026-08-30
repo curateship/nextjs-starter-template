@@ -93,6 +93,11 @@ import {
   alertPasswordChanged,
   startSessionWithAlert,
 } from "@/server/auth/security-alerts"
+import {
+  markReferralJoined,
+  recordReferralRegistration,
+  validateReferralRegistration,
+} from "@/server/billing/referrals"
 
 export type AuthUser = {
   id: string
@@ -147,6 +152,7 @@ const registerSchema = z.object({
   password: passwordSchema,
   name: nameSchema,
   humanCheckToken: humanCheckTokenSchema,
+  referralCode: z.string().trim().toLowerCase().length(32).optional(),
 })
 const loginSchema = z.object({
   email: emailSchema,
@@ -243,6 +249,9 @@ const authErrorMessages: Record<string, string> = {
   PASSKEY_NOT_FOUND: "That passkey is already removed.",
   SUBSCRIPTION_CANCEL_FAILED:
     "We could not cancel your paid plan, so your account was not deleted. Please try again in a moment.",
+  REFERRAL_NOT_FOUND:
+    "This invite link is no longer valid. Ask the person who invited you for a new link.",
+  SELF_REFERRAL: "You cannot use your own invite link.",
 }
 
 /**
@@ -256,6 +265,8 @@ export const SIGN_IN_ERROR_CODES = [
   "ACCOUNT_SUSPENDED",
   "ACCOUNT_PENDING_DELETION",
   "RATE_LIMITED",
+  "REFERRAL_NOT_FOUND",
+  "SELF_REFERRAL",
 ] as const
 
 export function getAuthErrorMessage(error: unknown) {
@@ -321,6 +332,10 @@ const registerFn = createServerFn({ method: "POST" })
     // the moment that account is really gone.
     await purgeExpiredDeletions()
 
+    if (data.referralCode) {
+      await validateReferralRegistration(data.referralCode, data.email)
+    }
+
     const [existing] = await db
       .select({ id: customShellUsers.id })
       .from(customShellUsers)
@@ -365,6 +380,14 @@ const registerFn = createServerFn({ method: "POST" })
         }
       )
       await emitMemberEvent("registered", user, tx)
+      if (data.referralCode) {
+        await recordReferralRegistration(
+          data.referralCode,
+          { ...user, emailVerifiedAt: null },
+          tx,
+          createdAt
+        )
+      }
 
       return { user, token }
     })
@@ -403,7 +426,10 @@ const verifyEmailFn = createServerFn({ method: "POST" })
           currentWorkspaceId: customShellUsers.currentWorkspaceId,
         })
 
-      if (verified) await emitMemberEvent("verified", verified, tx)
+      if (verified) {
+        await markReferralJoined(verified.id, tx, timestamp)
+        await emitMemberEvent("verified", verified, tx)
+      }
     })
 
     return { ok: true }
@@ -658,6 +684,7 @@ const resetPasswordFn = createServerFn({ method: "POST" })
         })
 
       if (account && !before?.emailVerifiedAt) {
+        await markReferralJoined(account.id, tx, timestamp)
         await emitMemberEvent("verified", account, tx)
       }
 

@@ -34,6 +34,7 @@ local setup docs.
 ## Billing
 
 - [Plans, subscriptions, and entitlements](billing/plans-subscriptions-and-entitlements.md)
+- [Referral program](billing/referral-program.md)
 
 ## Content
 

@@ -4,6 +4,7 @@ import { isPendingDeletion } from "@/lib/account-deletion"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellUsers, type CustomShellUser } from "@/server/schema"
 import { startSessionWithAlert } from "@/server/auth/security-alerts"
+import { markReferralJoined } from "@/server/billing/referrals"
 import { emitMemberEvent } from "@/server/automations/member-events"
 import {
   consumeAuthToken,
@@ -112,6 +113,7 @@ export async function consumeSignInLink(
           .set({ emailVerifiedAt: timestamp, updatedAt: timestamp })
           .where(eq(customShellUsers.id, account.id))
           .returning()
+        await markReferralJoined(verified.id, tx, timestamp)
         await emitMemberEvent("verified", verified, tx)
         return verified
       })
