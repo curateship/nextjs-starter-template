@@ -365,7 +365,9 @@ export type ProtocolEntry = {
     portfolio?(
       network: NetworkId,
       address: string,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletPortfolio>
   }
   /**
@@ -509,7 +511,9 @@ export type ProtocolEntry = {
     portfolio(
       network: NetworkId,
       address: string,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletPortfolio>
     fills(
       network: NetworkId,

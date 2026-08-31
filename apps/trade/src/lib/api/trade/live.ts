@@ -548,6 +548,12 @@ export function getLiveErrorMessage(error: unknown): string {
         : ""
   const auth = describeAuthError(message)
   if (auth) return auth
+  const busy = message.match(/EXCHANGE_BUSY(?::(spent .+))?$/s)
+  if (busy) {
+    return busy[1]
+      ? `The exchange could not answer because Trade had ${busy[1].trim()}. Wait for the minute to roll over, then close again.`
+      : "The exchange could not answer the close right now. Wait a moment, then close again."
+  }
   const targetTotal = message.match(/LIVE_TAKE_PROFIT_TOTAL:([^:]+):([^:]+)/)
   if (targetTotal) {
     return `The targets add up to ${formatUsd(Number(targetTotal[1]))}, but the position holds ${formatUsd(Number(targetTotal[2]))}. Lower one or more target sizes.`

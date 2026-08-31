@@ -535,13 +535,22 @@ export async function closeLivePosition(
 
   try {
     const ref = checkedMarket(row, input.marketKey)
+    // Closing needs only the exchange's current position. Lighter's account
+    // reader supplies that without spending another request on resting orders,
+    // and the order priority uses the room polling is deliberately kept out
+    // of. Other venues fall back to their complete portfolio reader.
+    const readPosition =
+      protocol.account?.portfolio ?? ordersOf(protocol).portfolio
     // The portfolio read is a safety rule, not overhead: the close is sized
     // from the exchange's own number, never a cached one, because a sell
     // bigger than the position becomes a short. The rules read is merely
     // independent of it, so the two go out together.
     const [portfolio, rules] = await Promise.all([
-      ordersOf(protocol).portfolio(row.network, row.address ?? "", () =>
-        credentialFor(row)
+      readPosition(
+        row.network,
+        row.address ?? "",
+        () => credentialFor(row),
+        "order"
       ),
       marketRules(row.protocol, row.network, ref.marketId),
     ])

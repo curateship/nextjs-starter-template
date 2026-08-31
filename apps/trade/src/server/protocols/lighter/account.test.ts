@@ -1,9 +1,34 @@
-import { describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  fetchLighterPortfolio,
   toLighterAccountFigures,
   toLighterPortfolio,
 } from "@/server/protocols/lighter/account"
+import { lighterPublic } from "@/server/protocols/lighter/client"
+
+vi.mock("@/server/protocols/lighter/client", async (importOriginal) => {
+  const real =
+    await importOriginal<typeof import("@/server/protocols/lighter/client")>()
+  return { ...real, lighterPublic: vi.fn() }
+})
+vi.mock("@/server/protocols/lighter/agent", () => ({
+  lighterAccountIndex: vi.fn(async () => 5),
+}))
+vi.mock("@/server/protocols/lighter/private-feed", () => ({
+  heldLighterRead: vi.fn(
+    async (
+      _kind: string,
+      _network: string,
+      _accountIndex: number,
+      load: () => Promise<unknown>
+    ) => await load()
+  ),
+  lighterAccountFromFeed: vi.fn(() => null),
+  openLighterPrivateFeed: vi.fn(),
+}))
+
+const publicRead = vi.mocked(lighterPublic)
 
 /**
  * A trimmed copy of a real Lighter mainnet account, read 26 Aug 2026. The
@@ -34,7 +59,30 @@ const ACCOUNT = {
   ],
 }
 
+beforeEach(() => {
+  publicRead.mockReset()
+  publicRead.mockResolvedValue({ code: 200, accounts: [ACCOUNT] })
+})
+
 describe("a Lighter account", () => {
+  it("uses the reserved order allowance for a close's safety read", async () => {
+    const portfolio = await fetchLighterPortfolio(
+      "mainnet",
+      "0x887960F1faffbEC960F22f8F95aa4f311F91ff19",
+      () => null,
+      "order"
+    )
+
+    expect(portfolio.positions).toHaveLength(1)
+    expect(publicRead).toHaveBeenCalledWith(
+      "mainnet",
+      "/api/v1/account",
+      300,
+      { by: "index", value: 5 },
+      "order"
+    )
+  })
+
   it("reads the figures the wallet card shows", () => {
     const figures = toLighterAccountFigures(ACCOUNT)
     expect(figures?.equity).toBeCloseTo(3.708185, 6)

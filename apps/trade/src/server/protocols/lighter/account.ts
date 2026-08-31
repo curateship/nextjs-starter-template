@@ -60,12 +60,19 @@ const answerSchema = z.object({
 
 async function readAccount(
   network: NetworkId,
-  accountIndex: number
+  accountIndex: number,
+  priority: "background" | "order" = "background"
 ): Promise<z.infer<typeof accountSchema>> {
-  const answer = await lighterPublic(network, "/api/v1/account", UNLISTED_WEIGHT, {
-    by: "index",
-    value: accountIndex,
-  })
+  const answer = await lighterPublic(
+    network,
+    "/api/v1/account",
+    UNLISTED_WEIGHT,
+    {
+      by: "index",
+      value: accountIndex,
+    },
+    priority
+  )
   const parsed = answerSchema.safeParse(answer)
   const first = parsed.success ? parsed.data.accounts[0] : undefined
   const account = accountSchema.safeParse(first)
@@ -181,7 +188,8 @@ export function toLighterPortfolio(raw: unknown): WalletPortfolio {
  */
 async function readAccountPreferringFeed(
   network: NetworkId,
-  accountIndex: number
+  accountIndex: number,
+  priority: "background" | "order" = "background"
 ): Promise<unknown> {
   openLighterPrivateFeed(network, accountIndex)
   const pushed = lighterAccountFromFeed(network, accountIndex)
@@ -190,7 +198,7 @@ async function readAccountPreferringFeed(
   // The socket has nothing yet, so one REST read stands for every caller in
   // the next few seconds — see `heldLighterRead`.
   return heldLighterRead("account", network, accountIndex, () =>
-    readAccount(network, accountIndex)
+    readAccount(network, accountIndex, priority)
   )
 }
 
@@ -214,10 +222,11 @@ export async function fetchLighterAccount(
 export async function fetchLighterPortfolio(
   network: NetworkId,
   address: string,
-  _credential: () => string | null
+  _credential: () => string | null,
+  priority: "background" | "order" = "background"
 ): Promise<WalletPortfolio> {
   const accountIndex = await lighterAccountIndex(network, address)
   return toLighterPortfolio(
-    await readAccountPreferringFeed(network, accountIndex)
+    await readAccountPreferringFeed(network, accountIndex, priority)
   )
 }

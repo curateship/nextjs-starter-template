@@ -635,6 +635,13 @@ to cross the spread and crossing is exactly what closing does. It goes as a
 reduce-only limit priced three percent through the mark, immediate-or-cancel —
 still a price, never a market order.
 
+Before sending, Trade rereads the current position so a stale size can never
+sell past zero and open a position the other way. That safety read uses the
+room reserved for orders and reads positions only. Background account and
+resting-order polls can spend their smaller allowance without blocking Close.
+If the complete order allowance is spent too, the close refusal shows the
+measured request count instead of the generic retry message.
+
 **Its expiry must be zero.** An order that lives only for this instant cannot
 also carry one weeks away, and Lighter's own signer refuses the whole
 transaction with "OrderExpiry is invalid". A close built with the usual
