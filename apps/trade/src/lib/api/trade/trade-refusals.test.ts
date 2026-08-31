@@ -81,9 +81,9 @@ describe("a refusal that carries its own figures", () => {
     expect(said).not.toContain("Try it again")
     // The venue is named from the id, so the next exchange in this position
     // reads correctly without another edit here.
-    expect(getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:kucoin"))).toContain(
-      "KuCoin"
-    )
+    expect(
+      getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:kucoin"))
+    ).toContain("KuCoin")
     // An id this build does not know must not be printed back raw.
     expect(
       getLiveErrorMessage(new Error("PROTOCOL_NO_ORDERS:whatever"))
@@ -106,6 +106,17 @@ describe("a refusal that carries its own figures", () => {
       new Error("LIVE_EXCHANGE:Lighter's signing files are not on this server.")
     )
     expect(missing).toContain("signing files")
+  })
+
+  it("shows the measured Lighter allowance when it blocks a close", () => {
+    const said = getLiveErrorMessage(
+      new Error("EXCHANGE_BUSY:spent 25 of 24 this minute (24 read, 1 socket)")
+    )
+
+    expect(said).toContain("The exchange")
+    expect(said).toContain("25 of 24")
+    expect(said).toContain("24 read")
+    expect(said).not.toContain("That did not go through")
   })
 
   it("names the exchange that would not answer, and guesses no cause", () => {
@@ -132,7 +143,9 @@ describe("a refusal that carries its own figures", () => {
      * said what had been spent. The figures travel with the refusal now.
      */
     const counted = getCandlesErrorMessage(
-      new Error("EXCHANGE_BUSY:Lighter — spent 34 of 34 this minute (22 read, 12 socket)")
+      new Error(
+        "EXCHANGE_BUSY:Lighter — spent 34 of 34 this minute (22 read, 12 socket)"
+      )
     )
     expect(counted).toContain("Lighter")
     expect(counted).toContain("34 of 34")
@@ -144,9 +157,9 @@ describe("a refusal that carries its own figures", () => {
     expect(bare).not.toContain("EXCHANGE_BUSY")
 
     // The exchange saying it, rather than the app, still reads its own way.
-    expect(getCandlesErrorMessage(new Error("429 Too Many Requests"))).toContain(
-      "slow down"
-    )
+    expect(
+      getCandlesErrorMessage(new Error("429 Too Many Requests"))
+    ).toContain("slow down")
     // And anything genuinely unknown keeps the honest fallback.
     expect(getCandlesErrorMessage(new Error("SOMETHING_ELSE"))).toContain(
       "could not load"
@@ -166,17 +179,15 @@ describe("a refusal that carries its own figures", () => {
   })
 
   it("says a refused grid adjustment left the existing grid running", () => {
-    const said = getSmartOrderErrorMessage(
-      new Error("SMART_GRID_ADJUST_BUSY")
-    )
+    const said = getSmartOrderErrorMessage(new Error("SMART_GRID_ADJUST_BUSY"))
     expect(said).toContain("changes were not saved")
     expect(said).toContain("still running")
     expect(said).not.toContain("Nothing was placed")
   })
 
   it("says when an edit lost a race with a grid finishing", () => {
-    expect(
-      getSmartOrderErrorMessage(new Error("SMART_GRID_FINISHED"))
-    ).toBe("That grid has already finished, so nothing was changed.")
+    expect(getSmartOrderErrorMessage(new Error("SMART_GRID_FINISHED"))).toBe(
+      "That grid has already finished, so nothing was changed."
+    )
   })
 })

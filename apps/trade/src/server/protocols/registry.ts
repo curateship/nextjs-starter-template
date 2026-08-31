@@ -365,7 +365,9 @@ export type ProtocolEntry = {
     portfolio?(
       network: NetworkId,
       address: string,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletPortfolio>
   }
   /**
@@ -509,13 +511,17 @@ export type ProtocolEntry = {
     portfolio(
       network: NetworkId,
       address: string,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read needed before money moves may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletPortfolio>
     fills(
       network: NetworkId,
       address: string,
       since: number,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read following a real fill may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletOrderFill[]>
     /**
      * What one order was, asked after it is gone — the only way to tell a

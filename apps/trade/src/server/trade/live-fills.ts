@@ -196,7 +196,9 @@ export async function sweepLiveFills(
   /** Decrypts on demand, for venues whose history needs the key. */
   credential: () => string | null,
   /** Whether the Journal is on screen. False only slows this down. */
-  watched = true
+  watched = true,
+  /** A fill just happened in Trade, so idle history limits must not hide it. */
+  force = false
 ): Promise<void> {
   try {
     await recordTriggers(userId, wallet, portfolio)
@@ -216,10 +218,9 @@ export async function sweepLiveFills(
     const walletKey = `${userId}:${wallet.id}`
     const now = Date.now()
     const last = sweptAt.get(walletKey) ?? 0
-    const pushedRecovery = orders.fillsNeedRecovery?.(
-      wallet.network,
-      wallet.address
-    )
+    const pushedRecovery = force
+      ? true
+      : orders.fillsNeedRecovery?.(wallet.network, wallet.address)
     /**
      * How long this wallet waits between reads. Nobody looking at the Journal
      * makes it four times longer, never infinite — see
@@ -229,8 +230,8 @@ export async function sweepLiveFills(
     // A venue that PUSHES its fills is driven by its own recovery flag, not
     // by a clock — that is the whole saving, and it holds whether or not
     // anyone is watching. Only the venues still read on a timer slow down.
-    if (orders.watchFills && !pushedRecovery) return
-    if (!pushedRecovery && now - last < every) return
+    if (!force && orders.watchFills && !pushedRecovery) return
+    if (!force && !pushedRecovery && now - last < every) return
     sweptAt.set(walletKey, now)
 
     await resolveClosingOrders(userId, wallet, credential)
@@ -252,7 +253,8 @@ export async function sweepLiveFills(
       wallet.network,
       wallet.address,
       since > 0 ? Math.max(0, since - OVERLAP_MS) : 0,
-      credential
+      credential,
+      force ? "order" : "background"
     )
     await recordLiveFills(userId, wallet, fills)
   } catch (error) {

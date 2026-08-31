@@ -23,6 +23,8 @@ import {
 const protocolMocks = vi.hoisted(() => ({
   fills: vi.fn(),
   orderInfo: vi.fn(),
+  watchFills: vi.fn(),
+  fillsNeedRecovery: vi.fn(),
 }))
 
 vi.mock("@/server/trade/notices", () => ({ writeTradeNotice: vi.fn() }))
@@ -30,6 +32,8 @@ vi.mock("@/server/protocols/registry", () => {
   const orders = {
     fills: protocolMocks.fills,
     orderInfo: protocolMocks.orderInfo,
+    watchFills: protocolMocks.watchFills,
+    fillsNeedRecovery: protocolMocks.fillsNeedRecovery,
   }
   return {
     getProtocol: () => ({ orders }),
@@ -48,6 +52,9 @@ beforeEach(async () => {
   protocolMocks.fills.mockReset()
   protocolMocks.fills.mockResolvedValue([])
   protocolMocks.orderInfo.mockReset()
+  protocolMocks.watchFills.mockReset()
+  protocolMocks.fillsNeedRecovery.mockReset()
+  protocolMocks.fillsNeedRecovery.mockReturnValue(true)
 })
 
 afterEach(async () => {
@@ -66,6 +73,77 @@ describe("how often a wallet's history is read", () => {
     expect(sweepWaitMs(false)).toBe(120_000)
     expect(Number.isFinite(sweepWaitMs(false))).toBe(true)
     expect(sweepWaitMs(false)).toBeGreaterThan(sweepWaitMs(true))
+  })
+
+  it("reads a just-made close even while the pushed feed says it is current", async () => {
+    const user = await insertUser(database)
+    const wallet: TradeWallet = {
+      id: crypto.randomUUID(),
+      label: "Lighter",
+      kind: "live",
+      status: "active",
+      protocol: "lighter",
+      network: "mainnet",
+      startingBalance: 0,
+      address: "0x1111111111111111111111111111111111111111",
+      hasKey: true,
+      keyValidUntil: null,
+    }
+    await database.insert(tradeWallets).values({
+      userId: user.id,
+      id: wallet.id,
+      label: wallet.label,
+      kind: wallet.kind,
+      status: wallet.status,
+      protocol: wallet.protocol,
+      network: wallet.network,
+      startingBalance: 0,
+      address: wallet.address,
+    })
+    protocolMocks.fillsNeedRecovery.mockReturnValue(false)
+    protocolMocks.fills.mockResolvedValue([
+      {
+        fillId: "close-fill",
+        orderId: "close-order",
+        marketId: "ETH",
+        side: "buy",
+        px: 2_468.81,
+        sz: 0.0922,
+        at: Date.now(),
+        closedPnl: -0.169648,
+        fee: 0,
+        dir: "Close Short",
+        liquidation: false,
+      },
+    ])
+
+    await sweepLiveFills(
+      user.id,
+      wallet,
+      { positions: [], orders: [] },
+      () => null,
+      false,
+      true
+    )
+
+    expect(protocolMocks.fillsNeedRecovery).not.toHaveBeenCalled()
+    expect(protocolMocks.fills).toHaveBeenCalledWith(
+      "mainnet",
+      wallet.address,
+      0,
+      expect.any(Function),
+      "order"
+    )
+    const saved = await database
+      .select()
+      .from(tradeLiveFills)
+      .where(eq(tradeLiveFills.userId, user.id))
+    expect(saved).toHaveLength(1)
+    expect(saved[0]).toMatchObject({
+      marketKey: "lighter:mainnet:ETH",
+      dir: "Close Short",
+      closedPnl: -0.169648,
+    })
   })
 })
 

@@ -9,6 +9,7 @@ import { snapToTick } from "@/lib/protocols/tick"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
   cancelLiveOrder,
+  closeLivePosition,
   loadLivePortfolio,
   placeLiveOrder,
   setLiveBrackets,
@@ -16,6 +17,7 @@ import {
 import { loadLiveRefusals } from "@/server/trade/live-fills"
 import { randomUUID } from "node:crypto"
 import {
+  tradeLiveFills,
   tradeLiveJournal,
   tradeSmartLadders,
   tradeWallets,
@@ -28,8 +30,10 @@ const prices = vi.fn()
 const place = vi.fn()
 const cancel = vi.fn()
 const close = vi.fn()
+const fills = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
+const actionPortfolio = vi.fn()
 let marketFloor: number | null = null
 let marketMinSize: number | null = null
 let marketTick: number | null = null
@@ -41,34 +45,43 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("@/server/protocols/registry")>()
   return {
-  ...real,
-  // The id and what the venue can do come from the REAL registry, so a test
-  // about a venue that cannot place orders gets the true answer. Only the
-  // market data below is invented.
-  getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
-    id,
-    capabilities: real.getProtocol(id).capabilities,
-    label: "Hyperliquid",
-    markets: {
-      prices,
-      fetch: async () => ({
-        rows: [
-          {
-            marketId: "BTC",
-            sizeDecimals: 3,
-            priceTick: marketTick,
-            minOrderValueUsd: marketFloor,
-            minOrderSize: marketMinSize,
-            maxLeverage: 50,
-            volume24hUsd: 1_000_000,
-          },
-        ],
-      }),
-      roundPx: (px: number, _sizeDecimals: number | null, tick: number | null) =>
-        snapToTick(px, tick),
+    ...real,
+    // The id and what the venue can do come from the REAL registry, so a test
+    // about a venue that cannot place orders gets the true answer. Only the
+    // market data below is invented.
+    getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => {
+      const actual = real.getProtocol(id)
+      return {
+        id,
+        capabilities: actual.capabilities,
+        label: actual.label,
+        markets: {
+          prices,
+          fetch: async () => ({
+            rows: [
+              {
+                marketId: "BTC",
+                sizeDecimals: 3,
+                priceTick: marketTick,
+                minOrderValueUsd: marketFloor,
+                minOrderSize: marketMinSize,
+                maxLeverage: 50,
+                volume24hUsd: 1_000_000,
+              },
+            ],
+          }),
+          roundPx: (
+            px: number,
+            _sizeDecimals: number | null,
+            tick: number | null
+          ) => snapToTick(px, tick),
+        },
+        account: actual.account?.portfolio
+          ? { ...actual.account, portfolio: actionPortfolio }
+          : undefined,
+        orders: { place, cancel, close, fills, setBrackets, portfolio },
+      }
     },
-    orders: { place, cancel, close, setBrackets, portfolio },
-  }),
   }
 })
 
@@ -84,17 +97,26 @@ beforeEach(async () => {
   client = testDb.client
   database = testDb.db
   process.env.CUSTOM_SHELL_SECRET_ENCRYPTION_KEY = "a test-only secret"
-  for (const mock of [prices, place, cancel, close, setBrackets, portfolio]) {
+  for (const mock of [
+    prices,
+    place,
+    cancel,
+    close,
+    fills,
+    setBrackets,
+    portfolio,
+    actionPortfolio,
+  ]) {
     mock.mockReset()
   }
   prices.mockResolvedValue(new Map([["BTC", 100_000]]))
   marketFloor = null
   marketMinSize = null
   marketTick = null
-  const { clearMarketRulesCache } =
-    await import("@/server/trade/market-rules")
+  const { clearMarketRulesCache } = await import("@/server/trade/market-rules")
   clearMarketRulesCache()
   portfolio.mockResolvedValue({ positions: [], orders: [] })
+  fills.mockResolvedValue([])
   setBrackets.mockResolvedValue({ slOrderId: null })
   place.mockResolvedValue({
     status: "resting",
@@ -434,6 +456,138 @@ describe("cancelling", () => {
     const rows = await journalRows(userId)
     expect(rows).toHaveLength(1)
     expect(rows[0].action).toBe("refused")
+  })
+})
+
+describe("closing", () => {
+  it("keeps Lighter's position safety read inside the order allowance", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId, { protocol: "lighter" })
+    const held = {
+      marketId: "BTC",
+      szi: 0.01,
+      entryPx: 100_000,
+      leverage: 5,
+      marginUsed: 200,
+      liquidationPx: null,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+      protectionOrderIds: [],
+    }
+    actionPortfolio.mockResolvedValue({ positions: [held], orders: [] })
+    portfolio.mockRejectedValue(
+      new Error("EXCHANGE_BUSY:spent 24 of 24 this minute")
+    )
+    close.mockResolvedValue({ avgPx: 99_900, filledSz: held.szi })
+
+    await closeLivePosition(userId, {
+      walletId,
+      marketKey: "lighter:mainnet:BTC",
+    })
+
+    expect(actionPortfolio).toHaveBeenCalledWith(
+      "mainnet",
+      ADDRESS,
+      expect.any(Function),
+      "order"
+    )
+    expect(portfolio).not.toHaveBeenCalled()
+    expect(close).toHaveBeenCalledWith(
+      "mainnet",
+      expect.any(Object),
+      expect.objectContaining({ marketId: "BTC", szi: held.szi })
+    )
+  })
+
+  it("returns Lighter's close in the first refreshed Journal", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId, { protocol: "lighter" })
+    const marketKey = "lighter:mainnet:ETH"
+    const openedAt = Date.now() - 60_000
+    await database.insert(tradeLiveFills).values({
+      userId,
+      walletId,
+      fillId: "open-fill",
+      orderId: "open-order",
+      marketKey,
+      side: "sell",
+      px: 2_466.97,
+      sz: 0.0922,
+      at: openedAt,
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Short",
+      liquidation: false,
+    })
+    const held = {
+      marketId: "ETH",
+      szi: -0.0922,
+      entryPx: 2_466.97,
+      leverage: 2,
+      marginUsed: 113.72,
+      liquidationPx: null,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+      protectionOrderIds: [],
+    }
+    actionPortfolio.mockResolvedValue({ positions: [held], orders: [] })
+    close.mockResolvedValue({ avgPx: null, filledSz: null })
+    fills.mockResolvedValue([
+      {
+        fillId: "close-fill",
+        orderId: "close-order",
+        marketId: "ETH",
+        side: "buy",
+        px: 2_468.81,
+        sz: 0.0922,
+        at: openedAt + 60_000,
+        closedPnl: -0.169648,
+        fee: 0,
+        dir: "Close Short",
+        liquidation: false,
+      },
+    ])
+
+    await closeLivePosition(userId, { walletId, marketKey })
+    const answer = await loadLivePortfolio(userId, [
+      {
+        id: walletId,
+        label: "Live",
+        kind: "live",
+        status: "active",
+        protocol: "lighter",
+        network: "mainnet",
+        startingBalance: 1_000,
+        address: ADDRESS,
+        hasKey: true,
+        keyValidUntil: null,
+      },
+    ])
+
+    expect(fills).toHaveBeenCalledWith(
+      "mainnet",
+      ADDRESS,
+      expect.any(Number),
+      expect.any(Function),
+      "order"
+    )
+    expect(answer.trades).toHaveLength(1)
+    expect(answer.trades[0]).toMatchObject({
+      marketKey,
+      direction: "short",
+      entryPx: 2_466.97,
+      exitPx: 2_468.81,
+      sz: 0.0922,
+      pnl: -0.169648,
+    })
   })
 })
 

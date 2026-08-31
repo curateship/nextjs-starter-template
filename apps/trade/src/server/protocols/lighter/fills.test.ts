@@ -9,12 +9,26 @@ import {
   lighterFillsNeedRecovery,
 } from "@/server/protocols/lighter/private-feed"
 
-const lighterAccountFacts = vi.hoisted(() => vi.fn())
+const lighterMocks = vi.hoisted(() => ({
+  accountFacts: vi.fn(),
+  authToken: vi.fn(),
+  privateRead: vi.fn(),
+}))
 
-vi.mock("@/server/protocols/lighter/agent", () => ({ lighterAccountFacts }))
+vi.mock("@/server/protocols/lighter/agent", () => ({
+  lighterAccountFacts: lighterMocks.accountFacts,
+}))
+vi.mock("@/server/protocols/lighter/client", () => ({
+  lighterPrivate: lighterMocks.privateRead,
+}))
+vi.mock("@/server/protocols/lighter/signer", () => ({
+  lighterAuthToken: lighterMocks.authToken,
+}))
 
 afterEach(() => {
-  lighterAccountFacts.mockReset()
+  lighterMocks.accountFacts.mockReset()
+  lighterMocks.authToken.mockReset()
+  lighterMocks.privateRead.mockReset()
   closeLighterPrivateFeeds()
 })
 
@@ -110,19 +124,47 @@ describe("reading one Lighter trade as this wallet's fill", () => {
 
   it("refuses a row it cannot read rather than inventing one", () => {
     expect(toLighterFill(null, 270_812, "BTC")).toBeNull()
-    expect(toLighterFill({ ...TRADE, price: "nonsense" }, 270_812, "BTC")).toBeNull()
+    expect(
+      toLighterFill({ ...TRADE, price: "nonsense" }, 270_812, "BTC")
+    ).toBeNull()
   })
 })
 
 describe("a refused Lighter trade-history read", () => {
   it("starts the one-minute wait before the account lookup can fail", async () => {
     const address = "0x0000000000000000000000000000000000000006"
-    lighterAccountFacts.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+    lighterMocks.accountFacts.mockRejectedValue(new Error("EXCHANGE_BUSY"))
 
     await expect(
       fetchLighterOrderFills("mainnet", address, 0, () => null)
     ).rejects.toThrow("EXCHANGE_BUSY")
 
     expect(lighterFillsNeedRecovery("mainnet", address)).toBe(false)
+  })
+})
+
+describe("a fill read following a close", () => {
+  it("uses the allowance reserved for order work", async () => {
+    const address = "0x0000000000000000000000000000000000000007"
+    lighterMocks.accountFacts.mockResolvedValue({
+      accountIndex: 270_812,
+      apiKeyIndex: 1,
+    })
+    lighterMocks.authToken.mockResolvedValue({
+      token: "signed-token",
+      deadline: Date.now() + 60_000,
+    })
+    lighterMocks.privateRead.mockResolvedValue({ trades: [] })
+
+    await fetchLighterOrderFills("mainnet", address, 123, () => "key", "order")
+
+    expect(lighterMocks.privateRead).toHaveBeenCalledWith(
+      "mainnet",
+      "/api/v1/trades",
+      600,
+      expect.any(String),
+      { account_index: 270_812, sort_by: "timestamp", limit: 100 },
+      "order"
+    )
   })
 })
