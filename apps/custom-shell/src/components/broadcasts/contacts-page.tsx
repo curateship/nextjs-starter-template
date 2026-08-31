@@ -10,6 +10,7 @@ import {
   XIcon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 
 import { DashboardTable } from "@/components/shared/dashboard-table"
@@ -133,6 +134,46 @@ const CONTACT_COLUMNS: TableHeaderColumn<ContactSortColumn>[] = [
 
 function fullName(contact: ContactItem) {
   return [contact.firstName, contact.lastName].filter(Boolean).join(" ")
+}
+
+function ContactStatusButton({
+  contact,
+  onChanged,
+}: {
+  contact: ContactItem
+  onChanged: () => Promise<void>
+}) {
+  const [runStatus, changingStatus] = useAsyncAction(getContactErrorMessage)
+
+  const handleToggleStatus = async () => {
+    if (changingStatus) return
+    const next =
+      contact.status === "subscribed" ? "unsubscribed" : "subscribed"
+    await runStatus(async () => {
+      await setContactsStatus([contact.id], next)
+      toast.success(
+        next === "unsubscribed"
+          ? `${contact.email} will not get any more.`
+          : `${contact.email} is back on the list.`
+      )
+      await onChanged()
+    })
+  }
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      disabled={changingStatus}
+      onClick={() => void handleToggleStatus()}
+    >
+      {changingStatus ? (
+        <Loader2Icon className="size-4 animate-spin" />
+      ) : null}
+      {contact.status === "subscribed" ? "Take off" : "Put back"}
+    </Button>
+  )
 }
 
 /**
@@ -399,22 +440,6 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     }, `Added ${form.email.trim()}.`)
   }
 
-  const handleToggleStatus = async (contact: ContactItem) => {
-    const next = contact.status === "subscribed" ? "unsubscribed" : "subscribed"
-    try {
-      await setContactsStatus([contact.id], next)
-      dismissErrorToast()
-      toast.success(
-        next === "unsubscribed"
-          ? `${contact.email} will not get any more.`
-          : `${contact.email} is back on the list.`
-      )
-      await refresh()
-    } catch (error) {
-      showErrorToast(getContactErrorMessage(error))
-    }
-  }
-
   /**
    * Puts the picked people into a hand-picked segment.
    *
@@ -468,6 +493,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
    */
   const removeContacts = async (
     remove: () => Promise<{ deleted: number }>,
+    requested: number,
     done: () => void
   ) => {
     if (deleting) return
@@ -475,7 +501,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
       const { deleted } = await remove()
       clearSelection()
       toast.success(
-        `Deleted ${deleted.toLocaleString()} ${plural(deleted, "contact", "contacts")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: Math.max(0, requested - deleted),
+          one: "contact",
+          many: "contacts",
+          verb: "deleted",
+        })
       )
       done()
       await refresh()
@@ -757,14 +789,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               {formatDate(contact.created_at)}
             </TableCell>
             <TableCell column="actions">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void handleToggleStatus(contact)}
-                >
-                  {contact.status === "subscribed" ? "Take off" : "Put back"}
-                </Button>
+                <ContactStatusButton contact={contact} onChanged={refresh} />
                 <Button
                   type="button"
                   variant="ghost"
@@ -915,6 +940,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
           const { id } = deleteTarget
           void removeContacts(
             () => deleteContacts([id]),
+            1,
             () => setDeleteTarget(null)
           )
         }}
@@ -941,6 +967,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
               allMatching
                 ? deleteMatchingContacts(currentFilter)
                 : deleteContacts([...selection.selected]),
+            selectedCount,
             () => setMassDeleteOpen(false)
           )
         }}

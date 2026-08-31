@@ -11,3 +11,9 @@ Dashboard controls follow these shared rules:
   `aria-sort` to `ascending`, `descending`, or `none`, so the arrow and
   accessibility tree agree. A column with no meaningful order can remain a
   plain heading.
+- A multi-row action sends one request and reports the server's completed count
+  through `describeBulkResult`. When only part of the selection goes through,
+  the same message names how many did not.
+- A row action disables only the button that started its request and shows
+  `Loader2Icon` until the request ends. Buttons on the other rows stay
+  available.
