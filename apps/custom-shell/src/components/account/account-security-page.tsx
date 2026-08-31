@@ -204,7 +204,9 @@ function ChangePasswordCard({
     <Card>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <CardHeader>
-          <CardTitle>{hasPassword ? "Password" : "Set a password"}</CardTitle>
+          <CardTitle as="h3">
+            {hasPassword ? "Password" : "Set a password"}
+          </CardTitle>
           <CardDescription>
             {hasPassword
               ? "Changing your password signs out every other device."
@@ -368,7 +370,7 @@ function PasskeysCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Passkeys</CardTitle>
+        <CardTitle as="h3">Passkeys</CardTitle>
         <CardDescription>
           Sign in with your fingerprint, face, or device PIN instead of typing
           your password. Your password keeps working either way.
@@ -584,7 +586,7 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Devices</CardTitle>
+        <CardTitle as="h3">Devices</CardTitle>
         <CardDescription>
           Where you are signed in. Sign out anything you do not recognise.
         </CardDescription>
@@ -797,7 +799,7 @@ function DeleteAccountCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Delete account</CardTitle>
+        <CardTitle as="h3">Delete account</CardTitle>
         <CardDescription>
           This closes your account. You have {ACCOUNT_RESTORE_DAYS} days to
           change your mind before it and everything in it are gone for good.
@@ -826,7 +828,7 @@ function DeleteAccountCard({
       >
         <Card size="sm">
           <CardHeader>
-            <CardTitle>Confirm it is you</CardTitle>
+            <CardTitle as="h3">Confirm it is you</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid gap-2">

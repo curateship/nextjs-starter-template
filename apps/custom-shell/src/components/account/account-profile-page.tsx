@@ -83,7 +83,7 @@ export function AccountProfilePage({
     <CardGroup className="w-full">
       <Card>
         <CardHeader>
-          <CardTitle>Account</CardTitle>
+          <CardTitle as="h3">Account</CardTitle>
           <CardDescription>Your profile and current plan.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
@@ -108,7 +108,7 @@ export function AccountProfilePage({
       <Card>
         <form id={formId} onSubmit={handleSubmit} className="flex flex-col gap-4">
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
+            <CardTitle as="h3">Profile</CardTitle>
             <CardDescription>
               This photo and name are how you show up around the app.
             </CardDescription>
@@ -251,7 +251,7 @@ function EmailCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Email</CardTitle>
+        <CardTitle as="h3">Email</CardTitle>
         <CardDescription>
           The address you sign in with and where account email goes.
         </CardDescription>

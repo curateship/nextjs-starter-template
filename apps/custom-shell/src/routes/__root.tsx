@@ -20,61 +20,13 @@ import { loadBranding } from "@/lib/api/shell"
 import { resolveAppName } from "@/lib/branding"
 import { useDismissErrorToastOnNavigate } from "@/lib/toast/error-toast"
 import { noFlashCollapseScript } from "@/lib/remembered-choice"
+import { routePageTitle } from "@/lib/nav/route-title"
 import { useTrafficBeacon } from "@/lib/traffic-beacon"
 import { ThemeProvider } from "@/components/shell/sticky-header/light-dark-switcher"
 
 // The app name and logo change about as rarely as the shell config, so hold
 // them for the same minute rather than re-reading on every navigation.
 const BRANDING_STALE_TIME_MS = 60_000
-
-const ROUTE_TITLES: Record<string, string> = {
-  "/": "Home",
-  "/login": "Sign in",
-  "/register": "Create account",
-  "/forgot-password": "Forgot password",
-  "/reset-password": "Reset password",
-  "/sign-in-link": "Sign-in link",
-  "/verify-email": "Verify email",
-  "/change-email": "Confirm email change",
-  "/revoke-email-change": "Revoke email change",
-  "/report-unwanted-sign-in": "Report unwanted sign-in",
-  "/pricing": "Pricing",
-  "/maintenance": "Maintenance",
-  "/_authenticated/home": "Home",
-  // The one title an app can rename, because it is the one thing an app calls
-  // something else — see `workspaces.word` in `src/lib/app-options.ts`.
-  "/_authenticated/workspaces": capitalise(workspaceWord().many),
-  "/_authenticated/account": "Account",
-  "/_authenticated/account/billing_/success": "Billing success",
-  "/_authenticated/admin/": "Admin dashboard",
-  "/_authenticated/admin/dashboard": "Admin dashboard",
-  "/_authenticated/admin/users": "Users",
-  "/_authenticated/admin/announcements": "Announcements",
-  "/_authenticated/admin/ai": "AI",
-  "/_authenticated/admin/automations": "Automations",
-  "/_authenticated/admin/automations/$automationId": "Automation",
-  "/_authenticated/admin/automations/templates": "Automation templates",
-  "/_authenticated/admin/automations/templates/$templateKey":
-    "Automation template",
-  "/_authenticated/admin/ai-usage": "Metered usage",
-  "/_authenticated/admin/contacts": "Contacts",
-  "/_authenticated/admin/dev-outbox": "Dev outbox",
-  "/_authenticated/admin/feedback": "Feedback",
-  "/_authenticated/admin/media": "Media",
-  "/_authenticated/admin/membership": "Membership",
-  "/_authenticated/admin/newsletter": "Newsletters",
-  "/_authenticated/admin/newsletter/$broadcastId": "Newsletter",
-  "/_authenticated/admin/notifications": "Notifications",
-  "/_authenticated/admin/plans": "Plans",
-  "/_authenticated/admin/settings": "Settings",
-  "/_authenticated/admin/settings/$tab": "Settings",
-  "/_authenticated/admin/system-emails": "System emails",
-  "/_authenticated/admin/system-emails/$kind": "System email",
-  "/_authenticated/admin/traffic": "Traffic",
-  "/_authenticated/changelog": "Changelog",
-  "/_authenticated/changelog/": "Changelog admin",
-  "/_authenticated/changelog/whats-new": "What's new",
-}
 
 const PUBLIC_ROUTE_DESCRIPTIONS: Record<string, string> = {
   "/": "Accounts, workspaces and billing, ready to run.",
@@ -94,7 +46,7 @@ function routeTitle(
   appName: string | null | undefined,
 ) {
   const routeId = matches.at(-1)?.routeId
-  const page = (routeId && ROUTE_TITLES[routeId]) || "Page"
+  const page = routePageTitle(routeId, capitalise(workspaceWord().many))
   return `${page} · ${resolveAppName(appName)}`
 }
 

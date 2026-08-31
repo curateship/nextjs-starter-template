@@ -8,8 +8,13 @@ import { pageGutter } from "@/lib/layout/shell-gutter"
 export function DashboardContent({
   className,
   styling,
+  pageTitle,
+  children,
   ...props
-}: React.ComponentProps<"main"> & { styling?: ShellStyling }) {
+}: React.ComponentProps<"main"> & {
+  styling?: ShellStyling
+  pageTitle?: string
+}) {
   // No styling (e.g. rendered outside the shell) → keep the original defaults.
   if (!styling) {
     return (
@@ -27,7 +32,10 @@ export function DashboardContent({
           gap: pageGutter,
         } as React.CSSProperties}
         {...props}
-      />
+      >
+        {pageTitle ? <h1 className="sr-only">{pageTitle}</h1> : null}
+        {children}
+      </main>
     )
   }
 
@@ -65,6 +73,9 @@ export function DashboardContent({
         ...(borderColor ? { "--shell-card-border-color": borderColor } : {}),
       } as React.CSSProperties}
       {...props}
-    />
+    >
+      {pageTitle ? <h1 className="sr-only">{pageTitle}</h1> : null}
+      {children}
+    </main>
   )
 }

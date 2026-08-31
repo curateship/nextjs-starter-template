@@ -47,7 +47,11 @@ import {
   type ShellSection,
   type ShellSessionPolicy,
 } from "@/lib/custom-shell"
-import { appHeaderRightActionForRole } from "@/lib/app-options"
+import {
+  appHeaderRightActionForRole,
+  capitalise,
+  workspaceWord,
+} from "@/lib/app-options"
 import { normalizePageOverrides } from "@/lib/pages/page-visibility"
 import { normalizeNotificationTypeVisibility } from "@/lib/notification-types"
 import { resolveAppName } from "@/lib/branding"
@@ -76,6 +80,7 @@ import {
 import type { WorkspaceListResponse } from "@/lib/api/people/workspaces"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { normalizeDashboardWidgets } from "@/lib/dashboard/dashboard-widgets"
+import { routePageTitle } from "@/lib/nav/route-title"
 import { clampSidebarWidth } from "@/lib/layout/sidebar-width"
 import { setToastSeconds } from "@/lib/toast/toast-duration"
 import { plural } from "@/lib/format/plural"
@@ -151,6 +156,9 @@ export function ShellLayout({
 }) {
   const currentPath = useRouterState({
     select: (state) => state.location.pathname,
+  })
+  const currentRouteId = useRouterState({
+    select: (state) => state.matches.at(-1)?.routeId,
   })
   const navigate = useNavigate()
   const router = useRouter()
@@ -587,7 +595,16 @@ export function ShellLayout({
               onOpenFeedback={() => openFeedback()}
               onOpenFeedbackThread={openFeedback}
             />
-            <DashboardContent id="main-content" styling={config.styling}>
+            <DashboardContent
+              id="main-content"
+              styling={config.styling}
+              pageTitle={getCurrentPageTitle(
+                config,
+                currentPath,
+                currentRouteId,
+                user.role
+              )}
+            >
               {/* First cards on the page, so a broadcast rides the content
                   gutter and the workspace's own card styling. Remounted per set
                   of ids so a fresh load after one is retired starts from the
@@ -826,6 +843,29 @@ function findActiveSectionItem(items: ShellItem[], currentPath: string) {
         item.children.some((child) =>
           isActiveShellHref(child.href, currentPath)
         ))
+  )
+}
+
+function getCurrentPageTitle(
+  config: ShellConfig,
+  currentPath: string,
+  routeId: string | undefined,
+  role: string
+) {
+  const links = getShellItems(config, role).flatMap((item) => [
+    { href: item.href, label: item.label },
+    ...(item.children ?? []).map((child) => ({
+      href: child.href,
+      label: child.label,
+    })),
+  ])
+  const currentLink = links
+    .filter((link) => isActiveShellHref(link.href, currentPath))
+    .sort((a, b) => b.href.length - a.href.length)[0]
+
+  return (
+    currentLink?.label ??
+    routePageTitle(routeId, capitalise(workspaceWord().many))
   )
 }
 

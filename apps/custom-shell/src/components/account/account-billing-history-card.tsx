@@ -22,7 +22,7 @@ export function AccountBillingHistoryCard({
   return (
     <Card size="sm">
       <CardHeader>
-        <CardTitle>Billing history</CardTitle>
+        <CardTitle as="h3">Billing history</CardTitle>
         <CardDescription>
           Your plan changes since {formatUtcDate(BILLING_HISTORY_START)}.
           Changes before then were not recorded.

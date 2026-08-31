@@ -6,7 +6,6 @@ import { ChevronDown } from "lucide-react"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardTitle,
 } from "@/components/ui/card"
 import {
@@ -60,6 +59,7 @@ export function CollapsibleSettingsCard({
   collapse,
 }: CollapsibleSettingsCardProps) {
   const own = useRememberedCollapse(collapseStorageKey.settingsCard(storageId))
+  const descriptionId = React.useId()
   const [open, setOpen, noFlashKey] = collapse
     ? [collapse.open, collapse.onOpenChange, collapse.noFlashKey]
     : own
@@ -67,25 +67,34 @@ export function CollapsibleSettingsCard({
   return (
     <Card size={size} className={className}>
       <Collapsible open={open} onOpenChange={setOpen}>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className={cn(
-              "group/trigger flex w-full cursor-pointer select-none items-start justify-between gap-3 rounded-md px-4 text-left group-data-[size=sm]/card:px-3",
-              // The header runs the full width of the card, and a card hides
-              // what overflows it, so the ring has to be drawn inside.
-              focusRingInset
-            )}
-          >
-            <div className="grid gap-1">
-              <CardTitle>{title}</CardTitle>
-              {description ? (
-                <CardDescription>{description}</CardDescription>
-              ) : null}
-            </div>
-            <ChevronDown className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover/card:opacity-100 group-focus-visible/trigger:opacity-100 group-data-[state=closed]/trigger:-rotate-90" />
-          </button>
-        </CollapsibleTrigger>
+        <CardTitle>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              aria-label={typeof title === "string" ? title : undefined}
+              aria-describedby={description ? descriptionId : undefined}
+              className={cn(
+                "group/trigger flex w-full cursor-pointer select-none items-start justify-between gap-3 rounded-md px-4 text-left group-data-[size=sm]/card:px-3",
+                // The header runs the full width of the card, and a card hides
+                // what overflows it, so the ring has to be drawn inside.
+                focusRingInset
+              )}
+            >
+              <span className="grid gap-1">
+                <span>{title}</span>
+                {description ? (
+                  <span
+                    id={descriptionId}
+                    className="text-sm font-normal text-muted-foreground"
+                  >
+                    {description}
+                  </span>
+                ) : null}
+              </span>
+              <ChevronDown className="mt-1 size-4 shrink-0 text-muted-foreground opacity-0 transition-[opacity,transform] duration-200 group-hover/card:opacity-100 group-focus-visible/trigger:opacity-100 group-data-[state=closed]/trigger:-rotate-90" />
+            </button>
+          </CollapsibleTrigger>
+        </CardTitle>
         <CollapsibleContent data-collapse-key={noFlashKey}>
           <CardContent className={cn("pt-4", contentClassName)}>
             {children}

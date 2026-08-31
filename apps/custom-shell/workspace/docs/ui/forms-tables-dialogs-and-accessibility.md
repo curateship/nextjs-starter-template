@@ -18,6 +18,12 @@ submitting still sends the current query.
 Selects fill their row on a narrow screen and fit their content from the small
 breakpoint upwards. A feature does not pin a select to its own width.
 
+`FieldLabel` keeps help text beside the visible label in a tooltip. The same
+text also sits inside the linked label as visually hidden text, so a screen
+reader reads the hint when the field receives focus. The info button remains a
+pointer and touch control with `tabIndex={-1}`. It does not interrupt the form's
+keyboard order or submit the form.
+
 Forms keep one visible home for each error:
 
 - A field error sits with the field.
@@ -43,6 +49,8 @@ Admin lists use:
 - Sortable headings that expose `aria-sort`.
 - Route search values for filters, current page, sort, and an open record when
   losing them on reload would interrupt the task.
+- A level-two heading for the table title. A nested table can ask for a lower
+  heading level when its surrounding section already has a title.
 
 At phone width, a list keeps its identifying column and any action that cannot
 be reached another way. Lower-priority details return at 768px. A heading and

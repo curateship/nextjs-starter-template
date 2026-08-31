@@ -79,7 +79,7 @@ export function AccountAiUsageCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI usage</CardTitle>
+        <CardTitle as="h3">AI usage</CardTitle>
         <CardDescription>
           What your account has used this month. The counter starts fresh on
           the 1st.

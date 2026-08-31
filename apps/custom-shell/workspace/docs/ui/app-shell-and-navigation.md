@@ -18,6 +18,18 @@ items the current role may not see, then the browser applies saved labels, order
 groups, and visibility. Route loaders and server functions still enforce access.
 Navigation is a way to find permitted work, not the permission itself.
 
+The link for the current page carries `aria-current="page"` in the sidebar and
+the top bar. A parent section can stay highlighted while one of its children is
+current, but both links never claim the page. The child carries the current-page
+state while it is visible. The parent carries it when the group or the whole
+sidebar is collapsed.
+
+Every signed-in page starts with one visually hidden level-one heading. The
+shell uses the current navigation label, including a saved custom label. A
+fixed route title covers pages that are not in the saved navigation. Cards,
+tables, and dashboard panels then start at level two. A dialog title is level
+two, so cards inside account dialogs use level three.
+
 ## Responsive behavior
 
 Responsive navigation has two modes:

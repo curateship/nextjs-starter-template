@@ -22,6 +22,11 @@ Public search reads visible written pages and any search results supplied by the
 app. It performs simple text matching and returns at most 40 results. Search
 must apply the same visibility rule as opening the result.
 
+The signed-in action on the public front page opens Overview directly for an
+admin and Home directly for a member. The action does not pass through the
+configurable home redirect, because a stale home setting must not turn the
+front page into a missing-page link.
+
 ## Robots and sitemap
 
 `robots.txt` and `sitemap.xml` come from the public page registry and the active

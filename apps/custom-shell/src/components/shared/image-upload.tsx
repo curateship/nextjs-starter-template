@@ -46,20 +46,32 @@ export function ImageUpload({
   className,
 }: ImageUploadProps) {
   const [pickerOpen, setPickerOpen] = React.useState(false)
+  const fieldId = React.useId()
+  const labelId = `${fieldId}-label`
+  const buttonId = `${fieldId}-button`
+  const buttonLabel = value
+    ? `Change ${label.toLowerCase()}`
+    : `Select ${label.toLowerCase()}`
   const aspectClass = aspect === "square" ? "aspect-square" : "aspect-video"
   const isVideo = showVideos && getMediaType(value) === "video"
 
   return (
     <div className={cn("w-full space-y-2", className)}>
-      {showLabel ? <FieldLabel hint={hint}>{label}</FieldLabel> : null}
+      {showLabel ? (
+        <FieldLabel id={labelId} htmlFor={buttonId} hint={hint}>
+          {label}
+        </FieldLabel>
+      ) : null}
 
       <div className="group relative w-full">
         <button
+          id={buttonId}
           type="button"
           onClick={() => setPickerOpen(true)}
           disabled={disabled}
           className="block w-full cursor-pointer overflow-hidden rounded-lg border-2 border-dashed outline-none transition-colors focus-visible:border-ring disabled:cursor-default disabled:opacity-50"
-          aria-label={value ? `Change ${label.toLowerCase()}` : `Select ${label.toLowerCase()}`}
+          aria-labelledby={showLabel ? labelId : undefined}
+          aria-label={showLabel ? undefined : buttonLabel}
         >
           {value ? (
             <MediaThumbnail
