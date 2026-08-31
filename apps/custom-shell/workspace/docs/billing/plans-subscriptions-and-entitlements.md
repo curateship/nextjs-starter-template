@@ -53,6 +53,12 @@ events. That early invoice event is the recovery point for waiting meter events;
 the endpoint returns an error while more rows remain so Stripe delivers it
 again.
 
+The referral program also needs `invoice.payment_succeeded` and
+`charge.refunded`. The first event records a referred member's first real
+subscription payment. The second takes back a pending or granted reward after a
+full refund. [Referral program](referral-program.md) explains the attribution
+and free-month rules.
+
 The Stripe webhook verifies its signature before updating subscriptions,
 billing events, and subscription history. Repeated webhook deliveries must not
 apply the same change twice. An admin can inspect billing and subscription

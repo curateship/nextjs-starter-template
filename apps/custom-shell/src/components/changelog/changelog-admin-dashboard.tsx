@@ -55,6 +55,7 @@ import {
   type ChangelogEntry,
 } from "@/lib/api/content/changelog"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { formatDate } from "@/lib/format/format-time"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -359,8 +360,17 @@ export function ChangelogAdminDashboard({
         onConfirm={async () => {
           setMassDeleting(true)
           try {
-            await deleteAdminChangelogEntries([...selectedIds])
-            toast.success("Updates deleted.")
+            const ids = [...selectedIds]
+            const { count } = await deleteAdminChangelogEntries(ids)
+            toast.success(
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "update",
+                many: "updates",
+                verb: "deleted",
+              })
+            )
             selection.clear()
             setMassDeleteOpen(false)
             await refresh()
@@ -390,8 +400,16 @@ export function ChangelogAdminDashboard({
           if (!target) return
           setDeleting(true)
           try {
-            await deleteAdminChangelogEntries([target.id])
-            toast.success("Update deleted.")
+            const { count } = await deleteAdminChangelogEntries([target.id])
+            toast.success(
+              describeBulkResult({
+                done: count,
+                kept: 1 - count,
+                one: "update",
+                many: "updates",
+                verb: "deleted",
+              })
+            )
             setDeleteTarget(null)
             await refresh()
           } catch (deleteError) {

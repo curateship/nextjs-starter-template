@@ -9,6 +9,7 @@ import {
   Trash2Icon,
 } from "lucide-react"
 import { toast } from "sonner"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 
 import { useShellRuntime } from "@/components/shell/shell-layout"
@@ -205,7 +206,13 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       setBroadcasts((current) => current.filter((item) => !gone.has(item.id)))
       selection.clear()
       toast.success(
-        `Deleted ${deleted} ${plural(deleted, "newsletter", "newsletters")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: ids.length - deleted,
+          one: "newsletter",
+          many: "newsletters",
+          verb: "deleted",
+        })
       )
       done()
     })

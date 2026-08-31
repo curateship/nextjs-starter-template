@@ -62,6 +62,7 @@ import {
 } from "@/lib/api/automations/automations"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatDate, formatDateTime } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
@@ -384,12 +385,16 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     if (!deleteTargets?.length || deleting) return
     await runDelete(async () => {
       const ids = new Set(deleteTargets.map((item) => item.id))
-      await deleteAutomations([...ids])
+      const { count } = await deleteAutomations([...ids])
       setAutomations((current) => current.filter((item) => !ids.has(item.id)))
       toast.success(
-        deleteTargets.length === 1 && deleteTargets[0]
-          ? `Deleted "${deleteTargets[0].name}".`
-          : `Deleted ${deleteTargets.length} automations.`
+        describeBulkResult({
+          done: count,
+          kept: ids.size - count,
+          one: "automation",
+          many: "automations",
+          verb: "deleted",
+        })
       )
       selection.clear()
       setDeleteTargets(null)

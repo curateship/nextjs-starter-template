@@ -72,6 +72,7 @@ import {
 } from "@/lib/api/content/announcements"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { formatUtcDate } from "@/lib/format/format-time"
 import {
   useListSearchNavigate,
@@ -504,13 +505,16 @@ export function AdminAnnouncementsDashboard({
         onConfirm={async () => {
           setRetiring(true)
           try {
-            await retireAdminAnnouncements(
-              retireTargets.map((announcement) => announcement.id)
-            )
+            const ids = retireTargets.map((announcement) => announcement.id)
+            const { count } = await retireAdminAnnouncements(ids)
             toast.success(
-              retireTargets.length === 1
-                ? "Announcement retired."
-                : "Announcements retired."
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "announcement",
+                many: "announcements",
+                verb: "retired",
+              })
             )
             selection.clear()
             setRetireTargets([])
@@ -547,13 +551,16 @@ export function AdminAnnouncementsDashboard({
         onConfirm={async () => {
           setDeleting(true)
           try {
-            await deleteAdminAnnouncements(
-              deleteTargets.map((announcement) => announcement.id)
-            )
+            const ids = deleteTargets.map((announcement) => announcement.id)
+            const { count } = await deleteAdminAnnouncements(ids)
             toast.success(
-              deleteTargets.length === 1
-                ? "Announcement deleted."
-                : "Announcements deleted."
+              describeBulkResult({
+                done: count,
+                kept: ids.length - count,
+                one: "announcement",
+                many: "announcements",
+                verb: "deleted",
+              })
             )
             selection.clear()
             setDeleteTargets([])

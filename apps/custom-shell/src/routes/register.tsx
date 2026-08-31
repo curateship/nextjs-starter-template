@@ -25,11 +25,11 @@ import {
 } from "@/lib/api/auth/auth"
 import { loadPublicPricing } from "@/lib/api/billing/billing"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
-import { readPricingChoice } from "@/lib/billing/pricing-choice"
+import { readRegistrationChoice } from "@/lib/billing/pricing-choice"
 import { authTokenExpiryText } from "@/lib/email/auth-token-expiry"
 
 export const Route = createFileRoute("/register")({
-  validateSearch: readPricingChoice,
+  validateSearch: readRegistrationChoice,
   loaderDeps: ({ search }) => search,
   loader: async ({ deps }) => {
     const [user, options, pricing] = await Promise.all([
@@ -40,13 +40,13 @@ export const Route = createFileRoute("/register")({
     if (user) {
       throw redirect({ to: "/home", replace: true })
     }
-    if (
-      deps.plan &&
-      !pricing?.plans.some((plan) => plan.slug === deps.plan)
-    ) {
+    if (deps.invalidReferral) {
+      throw new Error("REFERRAL_NOT_FOUND")
+    }
+    if (deps.plan && !pricing?.plans.some((plan) => plan.slug === deps.plan)) {
       throw redirect({
         to: "/register",
-        search: { interval: deps.interval },
+        search: { interval: deps.interval, ref: deps.ref },
         replace: true,
       })
     }
@@ -58,6 +58,7 @@ export const Route = createFileRoute("/register")({
 
 function RegisterRoute() {
   const { siteKey, google, linkExpiry } = Route.useLoaderData()
+  const { ref: referralCode } = Route.useSearch()
   const [name, setName] = React.useState("")
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
@@ -88,6 +89,7 @@ function RegisterRoute() {
           email,
           password,
           humanCheckToken: humanCheckToken ?? undefined,
+          referralCode,
         })
         setRegistered(true)
       } catch (registerError) {
@@ -99,7 +101,7 @@ function RegisterRoute() {
         setLoading(false)
       }
     },
-    [email, name, password, siteKey]
+    [email, name, password, referralCode, siteKey]
   )
 
   if (registered) {
@@ -185,7 +187,12 @@ function RegisterRoute() {
           "Create account"
         )}
       </Button>
-      {google ? <GoogleSignIn label="Continue with Google" /> : null}
+      {google ? (
+        <GoogleSignIn
+          label="Continue with Google"
+          referralCode={referralCode}
+        />
+      ) : null}
     </AuthShell>
   )
 }

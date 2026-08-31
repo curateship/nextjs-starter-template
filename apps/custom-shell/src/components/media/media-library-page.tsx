@@ -15,6 +15,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { dismissErrorToast, showErrorToast } from "@/lib/toast/error-toast"
+import { describeBulkResult } from "@/lib/format/bulk-result"
 import { plural } from "@/lib/format/plural"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -520,14 +521,19 @@ export function MediaLibraryPage({
     const ids = deleteIds
     await runDelete(async () => {
       const result = await deleteMediaAsAdminAction(ids)
+      const summary = describeBulkResult({
+        done: result.deletedCount,
+        kept: ids.length - result.deletedCount,
+        one: "file",
+        many: "files",
+        verb: "deleted",
+      })
       if (result.protectedCount) {
         toast.warning(
-          `${result.deletedCount} ${plural(result.deletedCount, "file", "files")} deleted. ${result.protectedCount} ${plural(result.protectedCount, "file was", "files were")} kept because ${plural(result.protectedCount, "it appears", "they appear")} in email already sent.`
+          `${summary} ${result.protectedCount} ${plural(result.protectedCount, "file was", "files were")} kept because ${plural(result.protectedCount, "it appears", "they appear")} in email already sent.`
         )
       } else {
-        toast.success(
-          `Deleted ${result.deletedCount} ${plural(result.deletedCount, "file", "files")}.`
-        )
+        toast.success(summary)
       }
       selection.setSelected((current) => {
         const next = new Set(current)
@@ -562,7 +568,13 @@ export function MediaLibraryPage({
         deleted += result.deletedCount
       }
       toast.success(
-        `Cleaned up ${deleted} ${plural(deleted, "orphan", "orphans")}.`
+        describeBulkResult({
+          done: deleted,
+          kept: selected.length - deleted,
+          one: "orphan",
+          many: "orphans",
+          verb: "deleted",
+        })
       )
       selection.setSelected((current) => {
         const next = new Set(current)

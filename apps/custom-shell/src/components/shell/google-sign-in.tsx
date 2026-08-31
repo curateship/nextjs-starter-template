@@ -11,14 +11,18 @@ import { Separator } from "@/components/ui/separator"
 export function GoogleSignIn({
   label,
   redirectTo,
+  referralCode,
 }: {
   label: string
   /** Carried out to Google so the sign-in lands back on the right page. */
   redirectTo?: string
+  /** The invite a first-time Google account should keep through the round trip. */
+  referralCode?: string
 }) {
-  const href = redirectTo
-    ? `/api/auth/google?redirect=${encodeURIComponent(redirectTo)}`
-    : "/api/auth/google"
+  const query = new URLSearchParams()
+  if (redirectTo) query.set("redirect", redirectTo)
+  if (referralCode) query.set("ref", referralCode)
+  const href = `/api/auth/google${query.size ? `?${query}` : ""}`
 
   return (
     <div className="grid gap-4">
