@@ -18,7 +18,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import { loadActiveTradesHeader } from "@/lib/api/trade/active-trades-header"
+import {
+  loadActiveTradesHeader,
+  saveHeaderProfitVisibility,
+} from "@/lib/api/trade/active-trades-header"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import type { ActiveTradesSnapshot } from "@/lib/trade/dashboard/overview"
 import {
@@ -26,7 +29,12 @@ import {
   summarizeActiveTrades,
 } from "@/lib/trade/dashboard/active-trades"
 import { formatWholeUsd } from "@/lib/trade/format"
+import {
+  listenForHeaderProfitVisibility,
+  publishHeaderProfitVisibility,
+} from "@/lib/trade/header-profit-visibility"
 import { moneyTone } from "@/lib/trade/money-tone"
+import { showErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 const REFRESH_MS = 15_000
@@ -56,16 +64,25 @@ function useActiveTradesHeader() {
     null
   )
   const [failed, setFailed] = React.useState(false)
+  const [profitVisible, setProfitVisible] = React.useState(true)
   const requestRef = React.useRef<Promise<void> | null>(null)
+  const visibilityVersion = React.useRef(0)
+  const writeQueue = React.useRef(Promise.resolve())
 
   const refresh = React.useCallback(() => {
     if (requestRef.current) return requestRef.current
+    const version = visibilityVersion.current
     const request = (async () => {
       try {
         const fresh = await loadActiveTradesHeader()
         setSnapshot((was) =>
-          was ? mergeActiveTradesSnapshot(was, fresh) : fresh
+          was
+            ? mergeActiveTradesSnapshot(was, fresh.snapshot)
+            : fresh.snapshot
         )
+        if (visibilityVersion.current === version) {
+          setProfitVisible(fresh.headerProfitVisible)
+        }
         setFailed(false)
       } catch {
         setFailed(true)
@@ -76,6 +93,31 @@ function useActiveTradesHeader() {
       if (requestRef.current === request) requestRef.current = null
     })
     return request
+  }, [])
+
+  React.useEffect(
+    () =>
+      listenForHeaderProfitVisibility((visible) => {
+        visibilityVersion.current += 1
+        setProfitVisible(visible)
+      }),
+    []
+  )
+
+  const updateProfitVisibility = React.useCallback((visible: boolean) => {
+    visibilityVersion.current += 1
+    setProfitVisible(visible)
+    publishHeaderProfitVisibility(visible)
+    const pending = writeQueue.current.then(() =>
+      saveHeaderProfitVisibility(visible)
+    )
+    writeQueue.current = pending.then(
+      () => undefined,
+      () => undefined
+    )
+    void pending.catch(() =>
+      showErrorToast("The header profit choice could not be saved. Try again.")
+    )
   }, [])
 
   React.useEffect(() => {
@@ -114,13 +156,24 @@ function useActiveTradesHeader() {
     }
   }, [refresh])
 
-  return { snapshot, failed, refresh }
+  return {
+    snapshot,
+    failed,
+    refresh,
+    profitVisible,
+    updateProfitVisibility,
+  }
 }
 
 function AdminActiveTradesHeader() {
-  const { snapshot, failed, refresh } = useActiveTradesHeader()
+  const {
+    snapshot,
+    failed,
+    refresh,
+    profitVisible,
+    updateProfitVisibility,
+  } = useActiveTradesHeader()
   const [open, setOpen] = React.useState(false)
-  const [profitVisible, setProfitVisible] = React.useState(true)
   const closeTimer = React.useRef<number | null>(null)
   const hoverOpen = React.useRef(false)
   const figures = snapshot ? headerFigures(snapshot) : null
@@ -235,7 +288,7 @@ function AdminActiveTradesHeader() {
                         : "Show header profit and loss"
                     }
                     aria-pressed={!profitVisible}
-                    onClick={() => setProfitVisible((visible) => !visible)}
+                    onClick={() => updateProfitVisibility(!profitVisible)}
                   >
                     {profitVisible ? (
                       <EyeIcon className="size-4" />

@@ -5,13 +5,16 @@ import type { ReactNode } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const { loadActiveTradesHeader } = vi.hoisted(() => ({
+const { loadActiveTradesHeader, saveHeaderProfitVisibility } = vi.hoisted(() => ({
   loadActiveTradesHeader: vi.fn(),
+  saveHeaderProfitVisibility: vi.fn(),
 }))
 
 vi.mock("@/lib/api/trade/active-trades-header", () => ({
   loadActiveTradesHeader,
+  saveHeaderProfitVisibility,
 }))
+vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 vi.mock("@/components/trade/active-trades-widget", () => ({
   ActiveTradesWidget: ({ headerAction }: { headerAction?: ReactNode }) => (
@@ -52,24 +55,28 @@ beforeEach(() => {
   document.body.append(host)
   root = createRoot(host)
   loadActiveTradesHeader.mockResolvedValue({
-    readAt: 1,
-    activeTrades: [
-      {
-        id: "position-1",
-        walletId: "wallet-1",
-        walletLabel: "Main",
-        accountType: "Real",
-        protocol: "Hyperliquid",
-        marketKey: "hyperliquid:mainnet:BTC",
-        market: "BTC",
-        side: "long",
-        value: 1_250,
-        profit: -42,
-        profitShare: -0.0336,
-      },
-    ],
-    activeTradesUnavailable: [],
+    snapshot: {
+      readAt: 1,
+      activeTrades: [
+        {
+          id: "position-1",
+          walletId: "wallet-1",
+          walletLabel: "Main",
+          accountType: "Real",
+          protocol: "Hyperliquid",
+          marketKey: "hyperliquid:mainnet:BTC",
+          market: "BTC",
+          side: "long",
+          value: 1_250,
+          profit: -42,
+          profitShare: -0.0336,
+        },
+      ],
+      activeTradesUnavailable: [],
+    },
+    headerProfitVisible: true,
   })
+  saveHeaderProfitVisibility.mockResolvedValue({ saved: true })
 })
 
 afterEach(async () => {
@@ -98,6 +105,7 @@ describe("the Active Trades header", () => {
     expect(trigger?.getAttribute("aria-label")).toContain(
       "profit and loss hidden"
     )
+    expect(saveHeaderProfitVisibility).toHaveBeenCalledWith(false)
 
     const show = host.querySelector<HTMLButtonElement>(
       '[aria-label="Show header profit and loss"]'
@@ -106,5 +114,38 @@ describe("the Active Trades header", () => {
     await act(async () => show?.click())
 
     expect(trigger?.textContent).toContain("-$42")
+    expect(saveHeaderProfitVisibility).toHaveBeenLastCalledWith(true)
+  })
+
+  it("opens with the account's saved hidden choice", async () => {
+    loadActiveTradesHeader.mockResolvedValueOnce({
+      ...(await loadActiveTradesHeader()),
+      headerProfitVisible: false,
+    })
+
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+
+    const trigger = host.querySelector<HTMLButtonElement>(
+      "[data-active-trades-header-trigger]"
+    )
+    expect(trigger?.textContent).toContain("$1,250")
+    expect(trigger?.textContent).not.toContain("-$42")
+  })
+
+  it("follows the eye choice restored by a named layout", async () => {
+    await act(async () => root.render(<ActiveTradesHeader role="admin" />))
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("trade-header-profit-visibility", { detail: false })
+      )
+    })
+
+    const trigger = host.querySelector<HTMLButtonElement>(
+      "[data-active-trades-header-trigger]"
+    )
+    expect(trigger?.textContent).toContain("$1,250")
+    expect(trigger?.textContent).not.toContain("-$42")
+    expect(saveHeaderProfitVisibility).not.toHaveBeenCalled()
   })
 })

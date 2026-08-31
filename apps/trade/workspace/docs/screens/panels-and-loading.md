@@ -20,6 +20,10 @@ fixed in one is fixed in both.
   run and live-run screens keep their six divider arrangements in
   `trade_prefs`. A drag or collapse therefore returns after a reload and on a
   second browser signed into the same account.
+- **The Active trades eye follows the account.** Hiding or showing profit and
+  loss in the page header returns after a reload and on another signed-in
+  browser. A failed save leaves an error message instead of silently forgetting
+  the choice.
 - **An old browser layout crosses over once.** The first browser with one of
   the six earlier local-storage answers sends every valid answer it has to the
   account. The app then removes those browser copies and never uses them as a
