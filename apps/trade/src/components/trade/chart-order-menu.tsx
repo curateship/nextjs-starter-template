@@ -10,6 +10,7 @@ import {
 
 import type { TradeSide } from "@/lib/trade/paper"
 import { LOST_MONEY, MADE_MONEY } from "@/lib/trade/money-tone"
+import type { RecentOrderType } from "@/lib/trade/recent-order-types"
 import { TouchOrderFrame } from "@/components/trade/touch-order-frame"
 import { cn } from "@/lib/utils"
 
@@ -42,6 +43,7 @@ export function ChartOrderMenu({
   menu,
   wide = true,
   smartOrders,
+  recentOrderTypes,
   onPick,
   onPickSmart,
   onPickTakeProfit,
@@ -53,6 +55,8 @@ export function ChartOrderMenu({
   wide?: boolean
   /** Whether the smart-order presets apply to the active wallet at all. */
   smartOrders: boolean
+  /** Unique kinds actually placed by this account, newest first. */
+  recentOrderTypes: readonly RecentOrderType[]
   onPick: (side: TradeSide) => void
   onPickSmart: (preset: SmartOrderPreset) => void
   /**
@@ -95,7 +99,18 @@ export function ChartOrderMenu({
       left: clamp(menu.x, EDGE, window.innerWidth - width - EDGE),
       top: clamp(menu.y, EDGE, window.innerHeight - height - EDGE),
     })
-  }, [menu.x, menu.y, smartOrders, onPickTakeProfit, onPickStopLoss])
+  }, [
+    menu.x,
+    menu.y,
+    smartOrders,
+    recentOrderTypes.length,
+    onPickTakeProfit,
+    onPickStopLoss,
+  ])
+
+  const recent = recentOrderTypes.filter(
+    (orderType) => smartOrders || orderType === "buy" || orderType === "sell"
+  )
 
   return (
     <TouchOrderFrame
@@ -114,29 +129,46 @@ export function ChartOrderMenu({
       {onPickTakeProfit ? (
         <IconRow
           label="Take profit"
-          icon={
-            <TargetIcon className={cn("size-4", MADE_MONEY)} />
-          }
+          icon={<TargetIcon className={cn("size-4", MADE_MONEY)} />}
           onPick={onPickTakeProfit}
         />
       ) : null}
       {onPickStopLoss ? (
         <IconRow
           label="Stop loss"
-          icon={
-            <ShieldAlertIcon className={cn("size-4", LOST_MONEY)} />
-          }
+          icon={<ShieldAlertIcon className={cn("size-4", LOST_MONEY)} />}
           onPick={onPickStopLoss}
         />
       ) : null}
       {onPickTakeProfit || onPickStopLoss ? (
-        <div role="presentation" className="mx-2 my-1 border-t" />
+        <div role="presentation" className="my-1 border-t" />
+      ) : null}
+      {recent.length > 0 ? (
+        <>
+          <div role="group" aria-label="Recent">
+            <p
+              role="presentation"
+              className="px-2 pb-0.5 text-xs font-medium text-muted-foreground"
+            >
+              Recent
+            </p>
+            {recent.map((orderType) => (
+              <OrderTypeRow
+                key={orderType}
+                orderType={orderType}
+                onPick={onPick}
+                onPickSmart={onPickSmart}
+              />
+            ))}
+          </div>
+          <div role="presentation" className="my-1 border-t" />
+        </>
       ) : null}
       <MenuRow side="buy" onPick={() => onPick("buy")} />
       <MenuRow side="sell" onPick={() => onPick("sell")} />
       {smartOrders ? (
         <>
-          <div role="presentation" className="mx-2 my-1 border-t" />
+          <div role="presentation" className="my-1 border-t" />
           {/* A labelled group, not a stray heading: everything inside a menu
                 has to be a menu item or a group, or the heading reads as one. */}
           <div role="group" aria-label="Smart order">
@@ -148,22 +180,48 @@ export function ChartOrderMenu({
             </p>
             <IconRow
               label="DCA ladder"
-              icon={
-                <LayersIcon className={cn("size-4", MADE_MONEY)} />
-              }
+              icon={<LayersIcon className={cn("size-4", MADE_MONEY)} />}
               onPick={() => onPickSmart("dca")}
             />
             <IconRow
               label="Grid"
-              icon={
-                <Grid2x2Icon className={cn("size-4", MADE_MONEY)} />
-              }
+              icon={<Grid2x2Icon className={cn("size-4", MADE_MONEY)} />}
               onPick={() => onPickSmart("grid")}
             />
           </div>
         </>
       ) : null}
     </TouchOrderFrame>
+  )
+}
+
+function OrderTypeRow({
+  orderType,
+  onPick,
+  onPickSmart,
+}: {
+  orderType: RecentOrderType
+  onPick: (side: TradeSide) => void
+  onPickSmart: (preset: SmartOrderPreset) => void
+}) {
+  if (orderType === "buy" || orderType === "sell") {
+    return <MenuRow side={orderType} onPick={() => onPick(orderType)} />
+  }
+  if (orderType === "dca") {
+    return (
+      <IconRow
+        label="DCA ladder"
+        icon={<LayersIcon className={cn("size-4", MADE_MONEY)} />}
+        onPick={() => onPickSmart("dca")}
+      />
+    )
+  }
+  return (
+    <IconRow
+      label="Grid"
+      icon={<Grid2x2Icon className={cn("size-4", MADE_MONEY)} />}
+      onPick={() => onPickSmart("grid")}
+    />
   )
 }
 

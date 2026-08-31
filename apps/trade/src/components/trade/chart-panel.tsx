@@ -7,6 +7,10 @@ import {
   type ChartMenuState,
 } from "@/components/trade/chart-order-menu"
 import {
+  ChartArrowMenu,
+  type ChartArrowMenuState,
+} from "@/components/trade/chart-arrow-menu"
+import {
   ChartQuickOrder,
   type QuickOrderState,
 } from "@/components/trade/chart-quick-order"
@@ -86,12 +90,22 @@ import {
   type SmartGrid,
   type SmartLadder,
 } from "@/lib/trade/smart-plan"
-import { gridHoldingFees, type LiveTrade } from "@/lib/trade/live-trades"
+import {
+  gridHoldingFees,
+  type LiveTrade,
+  type RemovableTradeHistory,
+} from "@/lib/trade/live-trades"
 import { positionFees } from "@/lib/trade/position-fees"
 import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
+import {
+  loadRecentOrderTypes,
+  saveRecentOrderTypes,
+  withRecentOrderType,
+  type RecentOrderType,
+} from "@/lib/trade/recent-order-types"
 import type { Drawing } from "@/lib/trade/drawings"
 import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
@@ -220,6 +234,7 @@ export function ChartPanel({
   initialChart,
   initialDrawings,
   initialQuickOrder,
+  recentOrderScope = null,
   options,
   indicators,
   market,
@@ -227,6 +242,7 @@ export function ChartPanel({
   free,
   equity,
   shownTrade,
+  onClearShownTrade = () => {},
   addTo,
   onAddOpened,
 }: {
@@ -251,6 +267,8 @@ export function ChartPanel({
    * arrive too late to be any use to somebody already typing.
    */
   initialQuickOrder: QuickOrderPrefs
+  /** The signed-in account used to keep this browser's recent kinds separate. */
+  recentOrderScope?: string | null
   /** Which supporting parts of the chart are visible. */
   options: ChartOptions
   /** Which indicators are on and what each is set to, owned by the workspace. */
@@ -272,6 +290,8 @@ export function ChartPanel({
    * whenever nothing is picked, and ignored when it belongs to another market.
    */
   shownTrade: LiveTrade | null
+  /** Clears the Journal selection when its trade is removed from an arrow. */
+  onClearShownTrade?: () => void
   /**
    * A position whose row asked to buy more of it.
    *
@@ -380,6 +400,19 @@ export function ChartPanel({
     setQuickPrefs(next)
     saveQuickOrderPrefs(next).catch(() => {})
   }, [])
+  const [recentOrderTypes, setRecentOrderTypes] = React.useState(() =>
+    recentOrderScope ? loadRecentOrderTypes(recentOrderScope) : []
+  )
+  const recentOrderTypesRef = React.useRef(recentOrderTypes)
+  const rememberRecentOrderType = React.useCallback(
+    (orderType: RecentOrderType) => {
+      const next = withRecentOrderType(recentOrderTypesRef.current, orderType)
+      recentOrderTypesRef.current = next
+      setRecentOrderTypes(next)
+      if (recentOrderScope) saveRecentOrderTypes(recentOrderScope, next)
+    },
+    [recentOrderScope]
+  )
 
   // Right-clicking the chart: the menu that opens under the pointer, and the
   // order window one of its rows opens at the same spot.
@@ -405,6 +438,9 @@ export function ChartPanel({
   // money, so it asks first — the same question the Positions table asks.
   const [closingPosition, setClosingPosition] =
     React.useState<TradePosition | null>(null)
+  const [arrowMenu, setArrowMenu] = React.useState<
+    (ChartArrowMenuState & { history: RemovableTradeHistory }) | null
+  >(null)
   const [reverseGridFor, setReverseGridFor] = React.useState<SmartGrid | null>(
     null
   )
@@ -433,6 +469,7 @@ export function ChartPanel({
   if (selectedKey !== lastMarket) {
     setLastMarket(selectedKey)
     setMenu(null)
+    setArrowMenu(null)
     setQuick(null)
     setTakeProfit(null)
     setSmart(null)
@@ -1303,8 +1340,13 @@ export function ChartPanel({
           trades={marketTrades}
           fills={marketFills}
           focusedTrade={focusTrade}
+          positions={linePositions}
           showArrows={options.orderArrows}
           tradeLimit={options.orderArrowTrades}
+          onOpenArrowMenu={(history, point) => {
+            setMenu(null)
+            setArrowMenu({ history, ...point })
+          }}
         />
         {/* Last, so while Shift is held its sheet is over everything else
             and a drag across a stop line measures rather than moving the
@@ -1453,6 +1495,7 @@ export function ChartPanel({
           menu={menu}
           wide={wide}
           smartOrders={trading.wallet !== null}
+          recentOrderTypes={recentOrderTypes}
           onClose={() => setMenu(null)}
           onPick={(side) => {
             setQuick({ side, px: menu.price, x: menu.x, y: menu.y })
@@ -1521,9 +1564,10 @@ export function ChartPanel({
           prefs={quickPrefs}
           onRemember={rememberQuickOrder}
           onClose={() => setQuick(null)}
-          onPlace={(input) =>
+          onPlace={(input) => {
             trading.place({ marketKey: market.key, ...input })
-          }
+            rememberRecentOrderType(input.side)
+          }}
         />
       ) : null}
       <OrderEditDialog
@@ -1576,9 +1620,14 @@ export function ChartPanel({
             )}
             onPreview={setPreview}
             onClose={() => setSmart(null)}
-            onPlace={(input) =>
-              trading.placeLadder({ marketKey: market.key, ...input })
-            }
+            onPlace={async (input) => {
+              const placed = await trading.placeLadder({
+                marketKey: market.key,
+                ...input,
+              })
+              if (placed) rememberRecentOrderType("dca")
+              return placed
+            }}
           />
         </React.Suspense>
       ) : null}
@@ -1629,9 +1678,14 @@ export function ChartPanel({
             }
             onPreview={setGridPreview}
             onClose={() => setGrid(null)}
-            onPlace={(input) =>
-              trading.placeGrid({ marketKey: market.key, ...input })
-            }
+            onPlace={async (input) => {
+              const placed = await trading.placeGrid({
+                marketKey: market.key,
+                ...input,
+              })
+              if (placed) rememberRecentOrderType("grid")
+              return placed
+            }}
           />
         </React.Suspense>
       ) : null}
@@ -1728,6 +1782,17 @@ export function ChartPanel({
           setSettingsAnchor(null)
         }}
       />
+      {arrowMenu ? (
+        <ChartArrowMenu
+          menu={arrowMenu}
+          onClose={() => setArrowMenu(null)}
+          onPick={() => {
+            if (shownTrade?.id === arrowMenu.history.id) onClearShownTrade()
+            void trading.hideTrades([arrowMenu.history])
+            setArrowMenu(null)
+          }}
+        />
+      ) : null}
       <ConfirmDialog
         open={closingPosition !== null}
         onOpenChange={(open) => {

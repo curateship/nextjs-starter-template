@@ -1,0 +1,204 @@
+// @vitest-environment jsdom
+
+import { act } from "react"
+import { createRoot } from "react-dom/client"
+import { describe, expect, it, vi } from "vitest"
+
+import { JournalMarksLayer } from "@/components/trade/journal-marks-layer"
+import type { ChartSurface } from "@/components/trade/price-chart"
+import type { LiveTrade } from "@/lib/trade/live-trades"
+
+;(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true
+
+const surface: ChartSurface = {
+  width: 800,
+  height: 400,
+  axisWidth: 60,
+  xOf: (time) => time / 10,
+  xOfContainingBar: (time) => time / 10,
+  timeAt: (x) => x * 10,
+  barAt: (time) => time / 1_000,
+  yOf: (price) => 400 - price,
+  priceAt: (y) => 400 - y,
+}
+
+const trade: LiveTrade = {
+  id: "trade-1",
+  walletId: "wallet-1",
+  marketKey: "hyperliquid:mainnet:BTC",
+  live: true,
+  direction: "long",
+  openedAt: 1_000,
+  closedAt: 2_000,
+  heldMs: 1_000,
+  entryPx: 100,
+  exitPx: 110,
+  sz: 1,
+  amountUsd: 100,
+  pnl: 10,
+  returnPct: 10,
+  ending: "closed",
+  stopPx: null,
+  fills: [
+    {
+      fillId: "entry",
+      orderId: "entry-order",
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:mainnet:BTC",
+      side: "buy",
+      px: 100,
+      sz: 1,
+      at: 1_000,
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Long",
+      liquidation: false,
+    },
+    {
+      fillId: "exit",
+      orderId: "exit-order",
+      walletId: "wallet-1",
+      marketKey: "hyperliquid:mainnet:BTC",
+      side: "sell",
+      px: 110,
+      sz: 1,
+      at: 2_000,
+      closedPnl: 10,
+      fee: 0,
+      dir: "Close Long",
+      liquidation: false,
+    },
+  ],
+}
+
+describe("a chart arrow's right-click", () => {
+  it("blocks the chart order menu and opens the arrow menu at the pointer", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onOpenArrowMenu = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <JournalMarksLayer
+          surface={surface}
+          trades={[trade]}
+          fills={[]}
+          focusedTrade={null}
+          showArrows={true}
+          tradeLimit={null}
+          onOpenArrowMenu={onOpenArrowMenu}
+        />
+      )
+    })
+
+    const arrow = host.querySelector<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 160,
+    })
+    await act(async () => arrow?.dispatchEvent(event))
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(onOpenArrowMenu).toHaveBeenCalledWith(trade, { x: 120, y: 160 })
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("offers removal for old fills when no matching position exists", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onOpenArrowMenu = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <JournalMarksLayer
+          surface={surface}
+          trades={[]}
+          fills={[trade.fills[0]]}
+          focusedTrade={null}
+          showArrows={true}
+          tradeLimit={null}
+          onOpenArrowMenu={onOpenArrowMenu}
+        />
+      )
+    })
+
+    const arrow = host.querySelector<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 160,
+    })
+    await act(async () => arrow?.dispatchEvent(event))
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(onOpenArrowMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletId: trade.walletId,
+        marketKey: trade.marketKey,
+        fills: [trade.fills[0]],
+      }),
+      { x: 120, y: 160 }
+    )
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+
+  it("does not offer history removal for a position that still exists", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    const onOpenArrowMenu = vi.fn()
+
+    await act(async () => {
+      root.render(
+        <JournalMarksLayer
+          surface={surface}
+          trades={[]}
+          fills={[trade.fills[0]]}
+          focusedTrade={null}
+          positions={[
+            {
+              walletId: trade.walletId,
+              marketKey: trade.marketKey,
+              szi: 1,
+            },
+          ]}
+          showArrows={true}
+          tradeLimit={null}
+          onOpenArrowMenu={onOpenArrowMenu}
+        />
+      )
+    })
+
+    const arrow = host.querySelector<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 120,
+      clientY: 160,
+    })
+    await act(async () => arrow?.dispatchEvent(event))
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(onOpenArrowMenu).not.toHaveBeenCalled()
+
+    await act(async () => root.unmount())
+    host.remove()
+  })
+})

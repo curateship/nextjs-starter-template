@@ -132,6 +132,12 @@ export type LiveTrade = {
   fills: LiveFill[]
 }
 
+/** The fields needed to remove a finished or otherwise stale fill history. */
+export type RemovableTradeHistory = Pick<
+  LiveTrade,
+  "id" | "walletId" | "marketKey" | "live" | "fills"
+>
+
 /** Sizes below this are the exchange's rounding dust, not a position. */
 const DUST = 1e-9
 

@@ -79,7 +79,11 @@ import {
   type SmartLadder,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
-import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
+import type {
+  LiveFill,
+  LiveTrade,
+  RemovableTradeHistory,
+} from "@/lib/trade/live-trades"
 import type { TradeOrder, TradePosition, TradeSide } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 
@@ -195,7 +199,7 @@ function samePrice(a: number | null, b: number | null): boolean {
 }
 
 /** One trade's fill ids can repeat inside it; the server wants each once. */
-function tradeFillIds(trades: readonly LiveTrade[]): string[] {
+function tradeFillIds(trades: readonly RemovableTradeHistory[]): string[] {
   return [
     ...new Set(
       trades.flatMap((trade) => trade.fills.map((fill) => fill.fillId))
@@ -210,9 +214,11 @@ function tradeFillIds(trades: readonly LiveTrade[]): string[] {
  */
 const FILL_IDS_PER_CALL = 200
 
-function batchTrades(trades: readonly LiveTrade[]): LiveTrade[][] {
-  const batches: LiveTrade[][] = []
-  let batch: LiveTrade[] = []
+function batchTrades(
+  trades: readonly RemovableTradeHistory[]
+): RemovableTradeHistory[][] {
+  const batches: RemovableTradeHistory[][] = []
+  let batch: RemovableTradeHistory[] = []
   let fills = 0
   for (const trade of trades) {
     const own = tradeFillIds([trade]).length
@@ -395,7 +401,7 @@ export type Trading = {
    * sum of its fills, so really removing one would change what the wallet is
    * worth.
    */
-  hideTrades: (trades: readonly LiveTrade[]) => Promise<void>
+  hideTrades: (trades: readonly RemovableTradeHistory[]) => Promise<void>
   /** Places a whole DCA ladder at once; the toast counts any instant buys. */
   placeLadder: (input: {
     marketKey: string
@@ -1266,13 +1272,17 @@ export function useTrading(
     protocol,
   ])
 
-  const fills = React.useMemo(
-    () => [
+  const fills = React.useMemo(() => {
+    const all = [
       ...(paperAnswer?.fills ?? EMPTY_FILLS),
       ...(liveAnswer?.fills ?? EMPTY_FILLS),
-    ],
-    [paperAnswer?.fills, liveAnswer?.fills]
-  )
+    ]
+    if (cancelling.size === 0) return all
+    return all.filter((fill) => {
+      const at = cancelling.get(`fill:${fill.walletId}:${fill.fillId}`)
+      return at === undefined || holdExpired(at)
+    })
+  }, [paperAnswer?.fills, liveAnswer?.fills, cancelling, holdExpired])
 
   /**
    * The just-placed orders still worth drawing.
@@ -2170,7 +2180,12 @@ export function useTrading(
       const pressedAt = Date.now()
       setCancelling((held) => {
         const next = new Map(held)
-        for (const trade of list) next.set(trade.id, pressedAt)
+        for (const trade of list) {
+          next.set(trade.id, pressedAt)
+          for (const fill of trade.fills) {
+            next.set(`fill:${fill.walletId}:${fill.fillId}`, pressedAt)
+          }
+        }
         return next
       })
 
@@ -2180,14 +2195,17 @@ export function useTrading(
       // sent per wallet. Batches never split one trade across two calls:
       // half a hidden trade would come back as a different, wrong-looking
       // trade rebuilt from the fills that were left.
-      const calls: Array<{ trades: LiveTrade[]; live: boolean }> = []
+      const calls: Array<{
+        trades: RemovableTradeHistory[]
+        live: boolean
+      }> = []
       calls.push(
         ...batchTrades(list.filter((trade) => !trade.live)).map((trades) => ({
           trades,
           live: false,
         }))
       )
-      const byWallet = new Map<string, LiveTrade[]>()
+      const byWallet = new Map<string, RemovableTradeHistory[]>()
       for (const trade of list.filter((one) => one.live)) {
         const wallet = byWallet.get(trade.walletId)
         if (wallet) wallet.push(trade)
@@ -2227,7 +2245,15 @@ export function useTrading(
       if (refused.size > 0) {
         setCancelling((held) => {
           const next = new Map(held)
-          for (const id of refused) next.delete(id)
+          for (const call of calls) {
+            for (const trade of call.trades) {
+              if (!refused.has(trade.id)) continue
+              next.delete(trade.id)
+              for (const fill of trade.fills) {
+                next.delete(`fill:${fill.walletId}:${fill.fillId}`)
+              }
+            }
+          }
           return next
         })
       }

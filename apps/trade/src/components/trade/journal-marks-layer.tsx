@@ -7,6 +7,7 @@ import {
   type LiveFill,
   type LiveFillMark,
   type LiveTrade,
+  type RemovableTradeHistory,
 } from "@/lib/trade/live-trades"
 import type { ChartOptions } from "@/lib/trade/chart-options"
 import { cn } from "@/lib/utils"
@@ -68,6 +69,7 @@ type Hovered = { mark: LiveFillMark; x: number; y: number }
 type ChartFillMark = {
   id: string
   tradeId: string
+  history: RemovableTradeHistory | null
   mark: LiveFillMark
 }
 
@@ -76,8 +78,10 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
   trades,
   fills,
   focusedTrade,
+  positions = [],
   showArrows,
   tradeLimit,
+  onOpenArrowMenu,
 }: {
   surface: ChartSurface
   /** Every finished trade for the market currently on screen. */
@@ -86,10 +90,21 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
   fills: readonly LiveFill[]
   /** The trade picked in the Journal, or null when none is. */
   focusedTrade: LiveTrade | null
+  /** Positions that still exist, used to separate current fills from stale history. */
+  positions?: readonly {
+    walletId: string
+    marketKey: string
+    szi: number
+  }[]
   /** Whether fill arrows are enabled in the chart's View options. */
   showArrows: boolean
   /** How many finished trades may leave arrows behind. */
   tradeLimit: ChartOptions["orderArrowTrades"]
+  /** Opens the matching action menu beside any arrow that is right-clicked. */
+  onOpenArrowMenu?: (
+    history: RemovableTradeHistory,
+    point: { x: number; y: number }
+  ) => void
 }) {
   const [hovered, setHovered] = React.useState<Hovered | null>(null)
   const marks = React.useMemo<ChartFillMark[]>(() => {
@@ -107,16 +122,42 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
       tradeFillMarks(trade).map((mark, index) => ({
         id: `${trade.id}:${mark.at}:${mark.side}:${index}`,
         tradeId: trade.id,
+        history: trade,
         mark,
       }))
     )
-    const open = openFillMarks(fills).map((mark, index) => ({
-      id: `open:${mark.at}:${mark.side}:${index}`,
-      tradeId: "open",
-      mark,
-    }))
+    const positionKeys = new Set(
+      positions
+        .filter((position) => Math.abs(position.szi) > 1e-9)
+        .map((position) => `${position.walletId}:${position.marketKey}`)
+    )
+    const byPosition = new Map<string, LiveFill[]>()
+    for (const fill of fills) {
+      const key = `${fill.walletId}:${fill.marketKey}`
+      const grouped = byPosition.get(key)
+      if (grouped) grouped.push(fill)
+      else byPosition.set(key, [fill])
+    }
+    const open = [...byPosition.entries()].flatMap(([key, grouped]) => {
+      const first = grouped[0]
+      const history: RemovableTradeHistory | null = positionKeys.has(key)
+        ? null
+        : {
+            id: `unpaired:${first.walletId}:${first.marketKey}:${first.fillId}`,
+            walletId: first.walletId,
+            marketKey: first.marketKey,
+            live: first.live === true,
+            fills: grouped,
+          }
+      return openFillMarks(grouped).map((mark, index) => ({
+        id: `${history?.id ?? `open:${key}`}:${mark.at}:${mark.side}:${index}`,
+        tradeId: history?.id ?? `open:${key}`,
+        history,
+        mark,
+      }))
+    })
     return [...finished, ...open]
-  }, [fills, focusedTrade, tradeLimit, trades])
+  }, [fills, focusedTrade, positions, tradeLimit, trades])
 
   // Panning away from the arrow under the pointer must take its label with it,
   // rather than leaving one floating over a price it has nothing to do with.
@@ -190,7 +231,7 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
           />
         ) : null}
 
-        {(showArrows ? marks : []).map(({ id, tradeId, mark }) => {
+        {(showArrows ? marks : []).map(({ id, tradeId, history, mark }) => {
           const y = surface.yOf(mark.px)
           if (y === null) return null
           // A candle owns the whole interval from its open until the next
@@ -219,6 +260,7 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
               <polygon
                 data-slot="trade-fill-mark"
                 data-trade-id={tradeId}
+                data-removable={history ? "true" : undefined}
                 points={arrow(x, y, mark.side)}
                 className={
                   mark.side === "buy"
@@ -231,6 +273,20 @@ export const JournalMarksLayer = React.memo(function JournalMarksLayer({
                 style={{ pointerEvents: "all", cursor: "default" }}
                 onPointerEnter={() => setHovered({ mark, x, y })}
                 onPointerLeave={() => setHovered(null)}
+                onContextMenu={
+                  onOpenArrowMenu
+                    ? (event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setHovered(null)
+                        if (!history) return
+                        onOpenArrowMenu(history, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        })
+                      }
+                    : undefined
+                }
               />
             </g>
           )

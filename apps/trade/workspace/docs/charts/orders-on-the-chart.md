@@ -4,6 +4,15 @@ An order is placed by right-clicking the candles at the price you want, and
 from then on it lives on the chart as its own line with a coloured bar at the
 right-hand end.
 
+Once an order has been placed, the right-click menu starts with **Recent**.
+The latest kind is first, followed by the other unique kinds this account has
+placed. Buy limit, Sell limit, DCA ladder and Grid can all appear there. Picking
+one uses the price that was just clicked and opens the same window as its row
+lower in the menu. Closing a window without placing does not change the list.
+The browser saves the list under the signed-in account, so a reload keeps the
+same order without sharing it with another account on the same machine. A new
+browser or a first visit has no Recent section.
+
 With a position open, the same menu offers Take profit when the clicked price
 is on the winning side of the entry and Stop loss when it is on the losing
 side. Stop loss draws at the clicked price as soon as it is picked, while the
@@ -158,3 +167,19 @@ The render order is the backstop for anything the map does not cover:
 indicators, then paint tools, then ladders and grids, then the position's own
 lines, then journal marks — so a residual overlap still leaves the pills, the
 lines a hand acts on, on top.
+
+Right-clicking an arrow from a finished trade opens a small dropdown beside it
+with one **Remove trade** row. Pressing it acts at once. The complete trade
+leaves the Journal and all of its arrows leave the chart. The saved fills are
+hidden rather than deleted, so a practice wallet's money does not change and a
+real exchange cannot send the history straight back.
+
+Old fills do not always add back to exactly zero. The chart checks for a real
+position with the same wallet and market before treating those unmatched fills
+as current. When no such position exists, the fills are old history and every
+arrow in that group offers **Remove trade**. A position in another wallet does
+not block the removal.
+
+An arrow tied to a position that still exists does not offer removal. The app
+still needs those fills to work out the open position. Right-clicking a current
+position arrow closes any arrow label and does not open the chart's order menu.

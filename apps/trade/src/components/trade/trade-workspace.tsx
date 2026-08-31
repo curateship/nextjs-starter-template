@@ -910,6 +910,7 @@ export function TradeWorkspace({
             initialChart={initialChart}
             initialDrawings={initialDrawings}
             initialQuickOrder={initialQuickOrder}
+            recentOrderScope={user.id}
             options={chartOptions.options}
             indicators={indicators.settings}
             market={selection.kind === "market" ? selection.row : null}
@@ -917,6 +918,7 @@ export function TradeWorkspace({
             free={free}
             equity={equity}
             shownTrade={shownTrade}
+            onClearShownTrade={() => setShownTrade(null)}
             // The gate: the chart is on that row's coin AND the traded wallet
             // is that row's wallet. Until both are true this stays null and
             // the order window does not open.

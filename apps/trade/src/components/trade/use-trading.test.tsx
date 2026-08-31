@@ -14,6 +14,8 @@ const api = vi.hoisted(() => ({
   placeLiveOrder: vi.fn(),
   closeLivePositions: vi.fn(),
   closeAllPaperPositions: vi.fn(),
+  hideLiveTrade: vi.fn(),
+  hidePaperTrade: vi.fn(),
   flattenWalletApi: vi.fn(),
   cancelLadderRest: vi.fn(),
   moveGridRange: vi.fn(),
@@ -32,7 +34,7 @@ vi.mock("@/lib/api/trade/live", () => ({
   closeLivePositions: api.closeLivePositions,
   getLiveErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Live order refused",
-  hideLiveTrade: vi.fn(),
+  hideLiveTrade: api.hideLiveTrade,
   loadOlderLiveTrades: vi.fn(),
   loadLiveTrading: api.loadLiveTrading,
   moveLiveOrder: vi.fn(),
@@ -47,7 +49,7 @@ vi.mock("@/lib/api/trade/paper", () => ({
   flipPaperPosition: vi.fn(),
   getPaperErrorMessage: (error: unknown) =>
     error instanceof Error ? error.message : "Practice order refused",
-  hidePaperTrade: vi.fn(),
+  hidePaperTrade: api.hidePaperTrade,
   loadOlderPaperTrades: vi.fn(),
   loadPaperPortfolio: api.loadPaperPortfolio,
   movePaperOrder: vi.fn(),
@@ -158,6 +160,8 @@ beforeEach(() => {
     refused: [],
   })
   api.closeAllPaperPositions.mockReset().mockResolvedValue({ closed: 0 })
+  api.hideLiveTrade.mockReset().mockResolvedValue(undefined)
+  api.hidePaperTrade.mockReset().mockResolvedValue(undefined)
   api.flattenWalletApi.mockReset().mockResolvedValue({
     stood: [],
     cancelRefused: [],
@@ -195,6 +199,90 @@ describe("the first portfolio read", () => {
     expect(latest?.settled).toBe(true)
     expect(latest?.failed).toBe(true)
     expect(latest?.loading).toBe(false)
+  })
+})
+
+function stalePaperFill() {
+  return {
+    fillId: "old-sol-fill",
+    orderId: "old-sol-order",
+    walletId: "paper-wallet",
+    marketKey: "hyperliquid:mainnet:SOL",
+    side: "buy" as const,
+    px: 145,
+    sz: 1,
+    at: Date.now() - 18 * 24 * 60 * 60 * 1_000,
+    closedPnl: 0,
+    fee: 0,
+    dir: "",
+    liquidation: false,
+    live: false,
+  }
+}
+
+function stalePaperHistory(fill: ReturnType<typeof stalePaperFill>) {
+  return {
+    id: "unpaired:paper-wallet:SOL:old-sol-fill",
+    walletId: fill.walletId,
+    marketKey: fill.marketKey,
+    live: false,
+    fills: [fill],
+  }
+}
+
+describe("removing stale fill history", () => {
+  it("takes every arrow off the chart before the save finishes", async () => {
+    const fill = stalePaperFill()
+    api.loadPaperPortfolio.mockResolvedValue({
+      ...emptyPaperAnswer,
+      fills: [fill],
+    })
+    let finishSave!: () => void
+    api.hidePaperTrade.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        })
+    )
+
+    await finishFirstRead()
+    expect(latest?.fills).toEqual([fill])
+
+    let removal!: Promise<void>
+    await act(async () => {
+      removal = latest!.hideTrades([stalePaperHistory(fill)])
+      await Promise.resolve()
+    })
+
+    expect(latest?.fills).toEqual([])
+    expect(api.hidePaperTrade).toHaveBeenCalledWith([fill.fillId])
+
+    await act(async () => {
+      finishSave()
+      await removal
+    })
+  })
+
+  it("puts the arrows back when the save is refused", async () => {
+    const fill = stalePaperFill()
+    api.loadPaperPortfolio.mockResolvedValue({
+      ...emptyPaperAnswer,
+      fills: [fill],
+    })
+    api.hidePaperTrade.mockRejectedValue(
+      new Error("History could not be saved")
+    )
+
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest!.hideTrades([stalePaperHistory(fill)])
+    })
+
+    expect(latest?.fills).toEqual([fill])
+    expect(api.showErrorToast).toHaveBeenCalledWith(
+      "History could not be saved"
+    )
   })
 })
 

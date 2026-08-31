@@ -13,6 +13,7 @@ import type { CandleInterval } from "@/lib/protocols/contracts"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
+import type { LiveTrade } from "@/lib/trade/live-trades"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import type { Trading } from "@/components/trade/use-trading"
 
@@ -616,6 +617,253 @@ describe("the chart take-profit shortcut", () => {
     })
 
     expect(host.textContent).toContain("Take profit")
+  })
+})
+
+describe("removing trade history from its chart arrow", () => {
+  it("opens a dropdown and sends the whole trade in one click", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const marketKey = "hyperliquid:mainnet:BTC"
+    const finished: LiveTrade = {
+      id: "trade-1",
+      walletId: "wallet-1",
+      marketKey,
+      live: true,
+      direction: "long",
+      openedAt: 1_000,
+      closedAt: 2_000,
+      heldMs: 1_000,
+      entryPx: 100,
+      exitPx: 110,
+      sz: 1,
+      amountUsd: 100,
+      pnl: 10,
+      returnPct: 10,
+      ending: "closed",
+      stopPx: null,
+      fills: [
+        {
+          fillId: "entry",
+          orderId: "entry-order",
+          walletId: "wallet-1",
+          marketKey,
+          side: "buy",
+          px: 100,
+          sz: 1,
+          at: 1_000,
+          closedPnl: 0,
+          fee: 0,
+          dir: "Open Long",
+          liquidation: false,
+        },
+        {
+          fillId: "exit",
+          orderId: "exit-order",
+          walletId: "wallet-1",
+          marketKey,
+          side: "sell",
+          px: 110,
+          sz: 1,
+          at: 2_000,
+          closedPnl: 10,
+          fee: 0,
+          dir: "Close Long",
+          liquidation: false,
+        },
+      ],
+    }
+    const hideTrades = vi.fn().mockResolvedValue(undefined)
+    const oneTrading = {
+      ...trading,
+      trades: [finished],
+      hideTrades,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey={marketKey}
+          interval="15m"
+          initialChartView={null}
+          initialChart={{
+            key: `${marketKey}@15m`,
+            interval: "15m",
+            candles: [
+              {
+                openTime: 0,
+                open: 100,
+                high: 110,
+                low: 90,
+                close: 105,
+                volume: 1,
+              },
+            ],
+            error: null,
+            pending: false,
+          }}
+          initialDrawings={{ marketKey, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: marketKey, price: 105 } as never}
+          trading={oneTrading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+
+    const arrow = host.querySelector<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    await act(async () => {
+      arrow?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 120,
+          clientY: 160,
+        })
+      )
+    })
+
+    const remove = Array.from(
+      document.body.querySelectorAll<HTMLElement>("[role=menuitem]")
+    ).find((item) => item.textContent?.includes("Remove trade"))
+    expect(remove).toBeTruthy()
+    expect(document.body.textContent).not.toContain(
+      "Remove this trade from the Journal?"
+    )
+    await act(async () => remove?.click())
+
+    expect(hideTrades).toHaveBeenCalledWith([finished])
+  })
+
+  it("sends every stale fill when its wallet has no matching position", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const marketKey = "hyperliquid:mainnet:SOL"
+    const first = {
+      fillId: "open-1",
+      orderId: "open-order-1",
+      walletId: "paper-wallet",
+      marketKey,
+      side: "buy" as const,
+      px: 100,
+      sz: 1,
+      at: 1_000,
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Long",
+      liquidation: false,
+      live: false,
+    }
+    const hideTrades = vi.fn().mockResolvedValue(undefined)
+    const oneTrading = {
+      ...trading,
+      fills: [
+        first,
+        {
+          ...first,
+          fillId: "open-2",
+          orderId: "open-order-2",
+          sz: 2,
+        },
+      ],
+      // A current SOL position in another wallet must not make the old
+      // Practice history look current. The wallet and market both identify
+      // which fills still belong to a position.
+      positions: [
+        {
+          id: "live-sol-position",
+          walletId: "live-wallet",
+          marketKey,
+          szi: -1,
+          entryPx: 150,
+          leverage: 1,
+          maxLeverage: 20,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          slPx: null,
+          feesPaid: 0,
+          updatedAt: 3_000,
+          live: true,
+        },
+      ],
+      hideTrades,
+    } as unknown as Trading
+
+    await act(async () =>
+      root.render(
+        <ChartPanel
+          selectedKey={marketKey}
+          interval="15m"
+          initialChartView={null}
+          initialChart={{
+            key: `${marketKey}@15m`,
+            interval: "15m",
+            candles: [
+              {
+                openTime: 0,
+                open: 100,
+                high: 110,
+                low: 90,
+                close: 105,
+                volume: 1,
+              },
+            ],
+            error: null,
+            pending: false,
+          }}
+          initialDrawings={{ marketKey, rows: [], error: null }}
+          initialQuickOrder={DEFAULT_QUICK_ORDER}
+          options={DEFAULT_CHART_OPTIONS}
+          indicators={{}}
+          market={{ key: marketKey, price: 105 } as never}
+          trading={oneTrading}
+          free={0}
+          equity={0}
+          shownTrade={null}
+          addTo={null}
+          onAddOpened={() => {}}
+        />
+      )
+    )
+
+    expect(host.querySelectorAll('[data-slot="trade-fill-mark"]')).toHaveLength(
+      2
+    )
+    const arrow = host.querySelector<SVGPolygonElement>(
+      '[data-slot="trade-fill-mark"]'
+    )
+    await act(async () => {
+      arrow?.dispatchEvent(
+        new MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 120,
+          clientY: 160,
+        })
+      )
+    })
+
+    const remove = Array.from(
+      document.body.querySelectorAll<HTMLElement>("[role=menuitem]")
+    ).find((item) => item.textContent?.includes("Remove trade"))
+    expect(remove).toBeTruthy()
+    await act(async () => remove?.click())
+
+    expect(hideTrades).toHaveBeenCalledOnce()
+    expect(hideTrades).toHaveBeenCalledWith([
+      expect.objectContaining({
+        walletId: first.walletId,
+        marketKey,
+        fills: oneTrading.fills,
+      }),
+    ])
   })
 })
 
