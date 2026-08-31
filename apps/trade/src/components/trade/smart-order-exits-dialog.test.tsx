@@ -380,6 +380,49 @@ it("keeps four-decimal fixed exits when the ladder window opens twice", async ()
   expect((control("ladder-sl-pct") as HTMLInputElement).value).toBe("5.6789")
 })
 
+it("edits the mirrored exit gap without changing the other exit rules", async () => {
+  const exitLadder = {
+    ...ladder,
+    plan: {
+      ...ladder.plan,
+      takeProfit: { mode: "exitLadder" as const, pct: null, exitGapPct: 7 },
+    },
+  } as SmartLadder
+  const save = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <SmartLadderExitsDialog
+          ladder={exitLadder}
+          position={null}
+          busy={false}
+          onSave={save}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  expect((control("ladder-exit-gap") as HTMLInputElement).value).toBe("7")
+  await type("ladder-exit-gap", "12")
+  const saveButton = [
+    ...document.querySelectorAll<HTMLButtonElement>("button"),
+  ].find((button) => button.textContent?.includes("Save changes"))
+  await act(async () => saveButton?.click())
+
+  expect(save).toHaveBeenCalledWith(
+    exitLadder,
+    expect.objectContaining({
+      takeProfit: {
+        mode: "exitLadder",
+        pct: 2,
+        exitGapPct: 12,
+      },
+    })
+  )
+})
+
 it("edits borrowing and End Grid from the grid gear window", async () => {
   const reshape = vi.fn(async () => true)
   const setEnd = vi.fn(async () => true)

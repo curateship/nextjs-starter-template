@@ -128,10 +128,19 @@ const reshapeLadderSchema = ladderSchema
   .extend({
     anchorPx: z.number().positive().finite().optional(),
     deepestPx: z.number().positive().finite().optional(),
+    exitIndex: z.number().int().min(0).max(19).optional(),
+    exitPx: z.number().positive().finite().optional(),
   })
   .refine(
-    (input) =>
-      (input.anchorPx === undefined) !== (input.deepestPx === undefined),
+    (input) => {
+      const entryMove =
+        (input.anchorPx === undefined) !== (input.deepestPx === undefined)
+      const anyExitField =
+        input.exitIndex !== undefined || input.exitPx !== undefined
+      const exitMove =
+        input.exitIndex !== undefined && input.exitPx !== undefined
+      return entryMove ? !anyExitField : exitMove
+    },
     { message: "SMART_LADDER_RANGE" }
   )
 
@@ -252,7 +261,7 @@ const cancelLadderRungFn = createServerFn({ method: "POST" })
 const cancelLadderRestFn = createServerFn({ method: "POST" })
   .middleware([userPost])
   .inputValidator(ladderSchema)
-  .handler(async ({ data, context }): Promise<{ cancelled: number }> => {
+  .handler(async ({ data, context }) => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
     return await runWalletOrderAction(
       context.user.id,
@@ -273,7 +282,13 @@ const reshapeLadderFn = createServerFn({ method: "POST" })
     const input =
       data.anchorPx !== undefined
         ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
-        : { ladderId: data.ladderId, deepestPx: data.deepestPx as number }
+        : data.deepestPx !== undefined
+          ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
+          : {
+              ladderId: data.ladderId,
+              exitIndex: data.exitIndex as number,
+              exitPx: data.exitPx as number,
+            }
     return wallet.kind === "live"
       ? await reshapeLiveLadder(context.user.id, wallet, input)
       : await reshapeLadderRows(context.user.id, wallet, input)
@@ -951,6 +966,8 @@ const baseSmartOrderErrorMessage = createErrorMessage(
       "That ladder has already started buying, so its rung prices can no longer be changed. Cancel the waiting rungs and place a new ladder for a different shape.",
     SMART_LADDER_RANGE:
       "Those rung prices no longer make a valid ladder. Keep every rung below the one above it.",
+    SMART_EXIT_GAP:
+      "The exit ladder must stay above its original mirrored prices. Drag the exits upward to add a gap, or back to their starting position for no extra gap.",
     SMART_LADDER_FLOW:
       "A ladder controlled by an automation cannot be moved by hand. Change the automation or stop its run first.",
     SMART_ORDER_NOT_FOUND:

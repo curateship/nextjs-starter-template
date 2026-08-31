@@ -1,8 +1,10 @@
-# Smart orders never rest on the book
+# Smart-order entries never rest on the book
 
-**A smart order places nothing until a price is actually reached.** A level on
+**A smart order places no entry until a price is actually reached.** A level on
 the chart is a price the app is watching. When the market gets there, and only
-then, an order is sent. Nothing sits on the exchange's book waiting.
+then, an entry is sent. Nothing sits on the exchange's book waiting to buy.
+Reduce-only exits may rest after a buy because they can only sell coins already
+held.
 
 This holds for every smart order, now and in future. It is a rule, not a
 preference, and `../rules/trading-rules.md` outranks this file if the two ever disagree.
@@ -274,3 +276,35 @@ The one place a resting rung still exists is inside a backtest. The replay's own
 book models a watched level as an order the bar's wick fills, so crash-day
 results stay comparable with everything measured before. On a real book there
 are no exceptions left.
+
+The ladder has four take-profit choices. Average price keeps one target above
+the changing average. Previous rung gives each buy its own sell one rung up.
+Nearest rung sells everything at the first rung above the deepest buy. Sell
+back up the ladder mirrors every buy gap above the anchor.
+
+Sell back up the ladder reverses the buy sizes. If the buys are $100, $200 and
+$300 as price falls, the exits are $300, $200 and $100 as price rises. The
+largest buy therefore gets the closest exit. Every exit appears on the chart
+as soon as the ladder is placed. A faded dashed exit has not been funded yet;
+a solid exit is a reduce-only sell resting for coins the ladder holds.
+
+The engine funds exits from the lowest one upward. The funded total never
+exceeds the ladder's held coins. When a new buy fills, the engine may replace
+the one partly funded exit and then fund the next level. A market-wide cascade
+hold pauses new exit sells. An exit sale counts against the deepest filled buys
+first, and a ladder ends when the position is flat. Sold rungs do not buy again;
+cycling after a sale is future work.
+
+Extra gap moves the complete exit shape farther above the buys. A zero gap is
+the direct mirror. The percentage steps between exits still come from the buy
+steps, so changing the gap never stretches one exit away from the others.
+Dragging any exit line changes this same value and moves all exit lines
+together. If a funded live exit is resting, the app cancels it before saving
+the new gap and placing its replacement. A refused cancellation leaves that
+sell and the saved gap alone. If another sell in the same change was already
+cancelled, the app records the missing order and the next engine pass restores
+it at the old gap.
+
+A backtest places these exit sells after the bar that filled the buys. A bounce
+inside that same bar therefore cannot fill the mirrored exit until a later bar,
+so this mode's replay is slightly more cautious than the previous-rung replay.

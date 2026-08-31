@@ -645,6 +645,7 @@ function ladderWithStatuses(
         dead: false,
         touched: false,
       })),
+      exitRungs: [],
       takeProfit: null,
       stopLoss: null,
     },
@@ -750,10 +751,7 @@ describe("removing a DCA ladder from the chart", () => {
     const cancelLadder = vi.fn(async () => {})
     await act(async () =>
       root.render(
-        chartWithLadder(
-          ladderWithStatuses(["filled", "waiting"]),
-          cancelLadder
-        )
+        chartWithLadder(ladderWithStatuses(["filled", "waiting"]), cancelLadder)
       )
     )
 

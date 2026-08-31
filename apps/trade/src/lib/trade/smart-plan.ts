@@ -219,7 +219,8 @@ export function forEachPlanOrderId(
     }
     return
   }
-  for (const rung of (plan as LadderPlan).rungs) {
+  const ladder = plan as LadderPlan
+  for (const rung of ladder.rungs) {
     if (rung.orderId) {
       visit(rung.orderId, (next) => {
         rung.orderId = next
@@ -230,5 +231,11 @@ export function forEachPlanOrderId(
         rung.sellOrderId = next
       })
     }
+  }
+  for (const rung of ladder.exitRungs) {
+    if (!rung.orderId) continue
+    visit(rung.orderId, (next) => {
+      rung.orderId = next
+    })
   }
 }

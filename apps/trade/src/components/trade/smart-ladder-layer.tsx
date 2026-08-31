@@ -8,7 +8,13 @@ import {
 
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { DcaPreview } from "@/components/trade/smart-order-dialog"
-import { ladderExitLevels, ladderShapeMovable } from "@/lib/trade/dca"
+import {
+  exitLadderGapPctForPrice,
+  exitLadderLevels,
+  exitLadderPlannedSz,
+  ladderExitLevels,
+  ladderShapeMovable,
+} from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
 import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
 import type { ChartColors } from "@/lib/trade/chart-theme"
@@ -81,7 +87,10 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   onEditExits?: (ladder: SmartLadder) => void
   onReshapeLadder?: (
     ladder: SmartLadder,
-    shape: { anchorPx: number } | { deepestPx: number }
+    shape:
+      | { anchorPx: number }
+      | { deepestPx: number }
+      | { exitIndex: number; exitPx: number }
   ) => Promise<boolean>
 }) {
   const shown = ladders.filter((ladder) => ladder.marketKey === marketKey)
@@ -137,7 +146,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
 })
 
 type PreviewDrag = {
-  kind: "move" | "resize"
+  kind: "move" | "resize" | "exit"
   rungIndex: number
   pointerPx: number
 }
@@ -174,6 +183,7 @@ function PreviewLines({
 
   const shownRungs = React.useMemo(() => {
     if (!dragging) return preview.rungs
+    if (dragging.kind === "exit") return preview.rungs
     if (dragging.kind === "move") {
       const grabbed = preview.rungs[dragging.rungIndex]
       if (!grabbed || !(grabbed.px > 0) || !(dragging.pointerPx > 0)) {
@@ -202,9 +212,38 @@ function PreviewLines({
     }))
   }, [dragging, preview])
 
+  const shownAnchorPx = React.useMemo(() => {
+    if (!dragging || dragging.kind !== "move") return preview.anchorPx
+    const grabbed = preview.rungs[dragging.rungIndex]
+    if (!grabbed || !(grabbed.px > 0) || !(dragging.pointerPx > 0)) {
+      return preview.anchorPx
+    }
+    return preview.anchorPx * (dragging.pointerPx / grabbed.px)
+  }, [dragging, preview])
+
+  const shownExitLevels = React.useMemo(() => {
+    const previewGap = preview.exitGapPct ?? null
+    if (previewGap === null) return []
+    let exitGapPct = previewGap
+    if (dragging?.kind === "exit") {
+      const moved = exitLadderGapPctForPrice(
+        { anchorPx: shownAnchorPx, rungs: shownRungs },
+        dragging.rungIndex,
+        dragging.pointerPx
+      )
+      if (moved !== null) exitGapPct = moved
+    }
+    return exitLadderLevels({
+      anchorPx: shownAnchorPx,
+      rungs: shownRungs,
+      takeProfit: { mode: "exitLadder", exitGapPct },
+    })
+  }, [dragging, preview.exitGapPct, shownAnchorPx, shownRungs])
+
   const startDrag =
     (kind: PreviewDrag["kind"], rungIndex: number) =>
     (event: React.PointerEvent) => {
+      if (event.button !== 0) return
       event.preventDefault()
       event.stopPropagation()
       if (dragging) return
@@ -260,7 +299,20 @@ function PreviewLines({
         }
         setDragging({ kind, rungIndex, pointerPx: px })
         let result: void | Promise<boolean>
-        if (kind === "resize") {
+        if (kind === "exit") {
+          if (
+            !preview.onMoveExit ||
+            exitLadderGapPctForPrice(
+              { anchorPx: preview.anchorPx, rungs: preview.rungs },
+              rungIndex,
+              px
+            ) === null
+          ) {
+            setDragging(null)
+            return
+          }
+          result = preview.onMoveExit(rungIndex, px)
+        } else if (kind === "resize") {
           if (!(px < preview.anchorPx)) {
             setDragging(null)
             return
@@ -292,70 +344,112 @@ function PreviewLines({
   const controls = tool ? "none" : "auto"
   const deepestIndex = shownRungs.length - 1
 
-  return shownRungs.map((rung, index) => {
-    const y = yFor(rung.px)
-    if (y === null) return null
-    return (
-      <div
-        key={`preview-${index}`}
-        className="absolute inset-x-0"
-        style={{ top: y }}
-      >
-        <div
-          className={cn(
-            "border-t border-dashed",
-            placed ? "opacity-100" : "opacity-40"
-          )}
-          style={{ borderColor: colors.up }}
-        />
-        <span
-          className={cn(
-            TAG_CLASS,
-            "tabular-nums",
-            placed ? "opacity-100" : "opacity-80"
-          )}
-          style={{
-            borderColor: colors.up,
-            color: colors.up,
-            pointerEvents: controls,
-          }}
-          data-order-frame-control
-        >
-          <button
-            type="button"
-            className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
-            aria-label={`Move the whole DCA ladder from rung ${index + 1}`}
-            title="Drag to move the whole DCA ladder"
-            onPointerDown={startDrag("move", index)}
+  return (
+    <>
+      {shownRungs.map((rung, index) => {
+        const y = yFor(rung.px)
+        if (y === null) return null
+        return (
+          <div
+            key={`preview-${index}`}
+            className="absolute inset-x-0"
+            style={{ top: y }}
           >
-            <GripVerticalIcon className="size-3" />
-            Rung {index + 1} · {formatUsdRounded(rung.dollars)}
-          </button>
-          {index === deepestIndex ? (
-            <button
-              type="button"
-              className="cursor-ns-resize rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
-              aria-label="Expand or contract the DCA ladder"
-              title="Drag to spread the rungs apart or bring them closer"
-              onPointerDown={startDrag("resize", index)}
+            <div
+              className={cn(
+                "border-t border-dashed",
+                placed ? "opacity-100" : "opacity-40"
+              )}
+              style={{ borderColor: colors.up }}
+            />
+            <span
+              className={cn(
+                TAG_CLASS,
+                "tabular-nums",
+                placed ? "opacity-100" : "opacity-80"
+              )}
+              style={{
+                borderColor: colors.up,
+                color: colors.up,
+                pointerEvents: controls,
+              }}
+              data-order-frame-control
             >
-              <ArrowUpDownIcon className="size-3" />
-            </button>
-          ) : null}
-          {placed && onCancelRung ? (
-            <button
-              type="button"
-              className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
-              aria-label={`Cancel rung ${index + 1}`}
-              onClick={() => onCancelRung(index)}
+              <button
+                type="button"
+                className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
+                aria-label={`Move the whole DCA ladder from rung ${index + 1}`}
+                title="Drag to move the whole DCA ladder"
+                onPointerDown={startDrag("move", index)}
+              >
+                <GripVerticalIcon className="size-3" />
+                Rung {index + 1} · {formatUsdRounded(rung.dollars)}
+              </button>
+              {index === deepestIndex ? (
+                <button
+                  type="button"
+                  className="cursor-ns-resize rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
+                  aria-label="Expand or contract the DCA ladder"
+                  title="Drag to spread the rungs apart or bring them closer"
+                  onPointerDown={startDrag("resize", index)}
+                >
+                  <ArrowUpDownIcon className="size-3" />
+                </button>
+              ) : null}
+              {placed && onCancelRung ? (
+                <button
+                  type="button"
+                  className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
+                  aria-label={`Cancel rung ${index + 1}`}
+                  onClick={() => onCancelRung(index)}
+                >
+                  <XIcon className="size-3" />
+                </button>
+              ) : null}
+            </span>
+          </div>
+        )
+      })}
+
+      {shownExitLevels.map((px, index) => {
+        const y = yFor(px)
+        if (y === null) return null
+        const dollars = shownRungs[shownRungs.length - 1 - index]?.dollars ?? 0
+        return (
+          <div
+            key={`preview-exit-${index}`}
+            className="absolute inset-x-0 opacity-40"
+            style={{ top: y }}
+          >
+            <div
+              className="border-t border-dashed"
+              style={{ borderColor: colors.up }}
+            />
+            <span
+              className={cn(TAG_CLASS, "tabular-nums opacity-80")}
+              style={{
+                borderColor: colors.up,
+                color: colors.up,
+                pointerEvents: controls,
+              }}
+              data-order-frame-control
             >
-              <XIcon className="size-3" />
-            </button>
-          ) : null}
-        </span>
-      </div>
-    )
-  })
+              <button
+                type="button"
+                className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
+                aria-label={`Move the whole exit ladder from exit ${index + 1}`}
+                title="Drag to move every exit and change the gap above the buys"
+                onPointerDown={startDrag("exit", index)}
+              >
+                <GripVerticalIcon className="size-3" />
+                Exit {index + 1} · arms at {formatUsdRounded(dollars)}
+              </button>
+            </span>
+          </div>
+        )
+      })}
+    </>
+  )
 }
 
 function LadderLines({
@@ -383,7 +477,10 @@ function LadderLines({
   onEditExits?: (ladder: SmartLadder) => void
   onReshapeLadder?: (
     ladder: SmartLadder,
-    shape: { anchorPx: number } | { deepestPx: number }
+    shape:
+      | { anchorPx: number }
+      | { deepestPx: number }
+      | { exitIndex: number; exitPx: number }
   ) => Promise<boolean>
   measureTop: () => number | null
   priceFrom: (clientY: number, top: number) => number | null
@@ -394,6 +491,8 @@ function LadderLines({
     (rung) => rung.status === "filled" || rung.status === "sold"
   )
   const exits = ladderExitLevels(plan)
+  const mirroredExits =
+    plan.takeProfit?.mode === "exitLadder" ? exitLadderLevels(plan) : []
   const [movingAnchorPx, setMovingAnchorPx] = React.useState<number | null>(
     null
   )
@@ -572,6 +671,172 @@ function LadderLines({
           </div>
         )
       })}
+
+      <ExitLadderLines
+        ladder={ladder}
+        levels={mirroredExits}
+        colors={colors}
+        yFor={yFor}
+        controls={controls}
+        movable={!readOnly && onReshapeLadder !== undefined && !tool}
+        measureTop={measureTop}
+        priceFrom={priceFrom}
+        onMove={(exitIndex, exitPx) =>
+          onReshapeLadder?.(ladder, { exitIndex, exitPx }) ?? false
+        }
+      />
     </>
   )
+}
+
+function ExitLadderLines({
+  ladder,
+  levels,
+  colors,
+  yFor,
+  controls,
+  movable,
+  measureTop,
+  priceFrom,
+  onMove,
+}: {
+  ladder: SmartLadder
+  levels: readonly number[]
+  colors: ChartColors
+  yFor: (price: number) => number | null
+  controls: "none" | "auto"
+  movable: boolean
+  measureTop: () => number | null
+  priceFrom: (clientY: number, top: number) => number | null
+  onMove: (exitIndex: number, exitPx: number) => boolean | Promise<boolean>
+}) {
+  const [movingScale, setMovingScale] = React.useState<number | null>(null)
+  const activeDragCleanup = React.useRef<() => void>(() => undefined)
+  React.useEffect(() => () => activeDragCleanup.current(), [])
+
+  const shownLevels = React.useMemo(
+    () =>
+      movingScale === null
+        ? levels
+        : levels.map((level) => level * movingScale),
+    [levels, movingScale]
+  )
+
+  const startDrag =
+    (exitIndex: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (!movable || movingScale !== null || event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      const top = measureTop()
+      const startingPx = levels[exitIndex]
+      if (top === null || !(startingPx > 0)) return
+
+      activeDragCleanup.current()
+      const fromY = event.clientY
+      let frame = 0
+      let lastY = event.clientY
+      const readValidPx = (clientY: number) => {
+        const px = priceFrom(clientY, top)
+        return px !== null &&
+          exitLadderGapPctForPrice(ladder.plan, exitIndex, px) !== null
+          ? px
+          : null
+      }
+      const update = () => {
+        frame = 0
+        const px = readValidPx(lastY)
+        if (px !== null) setMovingScale(px / startingPx)
+      }
+      const onPointerMove = (move: PointerEvent) => {
+        lastY = move.clientY
+        if (!frame) frame = requestAnimationFrame(update)
+      }
+      const cleanup = () => {
+        window.removeEventListener("pointermove", onPointerMove)
+        window.removeEventListener("pointerup", onPointerUp)
+        window.removeEventListener("pointercancel", onPointerCancel)
+        if (frame) cancelAnimationFrame(frame)
+        activeDragCleanup.current = () => undefined
+      }
+      const onPointerCancel = () => {
+        cleanup()
+        setMovingScale(null)
+      }
+      const onPointerUp = (up: PointerEvent) => {
+        cleanup()
+        if (Math.abs(up.clientY - fromY) < DRAG_SLOP) {
+          setMovingScale(null)
+          return
+        }
+        const px = readValidPx(up.clientY)
+        if (px === null) {
+          setMovingScale(null)
+          return
+        }
+        setMovingScale(px / startingPx)
+        void Promise.resolve(onMove(exitIndex, px)).finally(() =>
+          setMovingScale(null)
+        )
+      }
+
+      window.addEventListener("pointermove", onPointerMove)
+      window.addEventListener("pointerup", onPointerUp)
+      window.addEventListener("pointercancel", onPointerCancel)
+      activeDragCleanup.current = cleanup
+    }
+
+  return shownLevels.map((px, index) => {
+    const exit = ladder.plan.exitRungs[index]
+    if (exit?.status === "sold") return null
+    const y = yFor(px)
+    if (y === null) return null
+    const armed = Boolean(exit?.orderId && exit.armedSz > 0)
+    const sz = armed
+      ? (exit?.armedSz ?? 0)
+      : exitLadderPlannedSz(ladder.plan, index)
+    const label = armed
+      ? `Exit ${index + 1} sell · ${formatUsdRounded(px * sz)}`
+      : `Exit ${index + 1} · arms at ${formatUsdRounded(px * sz)}`
+    return (
+      <div
+        key={`exit-${index}`}
+        className={cn("absolute inset-x-0", !armed && "opacity-40")}
+        style={{ top: y }}
+      >
+        <div
+          className={cn("border-t", !armed && "border-dashed")}
+          style={{ borderColor: colors.up }}
+        />
+        <span
+          className={TAG_CLASS}
+          style={{
+            borderColor: colors.up,
+            color: colors.up,
+            pointerEvents: controls,
+          }}
+          title={
+            movable
+              ? "Drag to move every exit and change the gap above the buys."
+              : armed
+                ? "A reduce-only sell managed by the ladder."
+                : "This exit becomes active once the ladder holds enough coins to cover it."
+          }
+        >
+          {movable ? (
+            <button
+              type="button"
+              className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
+              aria-label={`Move the whole exit ladder from exit ${index + 1}`}
+              onPointerDown={startDrag(index)}
+            >
+              <GripVerticalIcon className="size-3" />
+              {label}
+            </button>
+          ) : (
+            label
+          )}
+        </span>
+      </div>
+    )
+  })
 }

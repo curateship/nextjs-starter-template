@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  forEachPlanOrderId,
   laddersAndGridsYouPlaced,
   smartOrdersYouPlaced,
   type SmartOrder,
 } from "@/lib/trade/smart-plan"
+import type { LadderPlan } from "@/lib/trade/dca"
 
 /**
  * What one press stands down.
@@ -72,5 +74,20 @@ describe("the smart orders panel", () => {
       "BTC",
       "ETH",
     ])
+  })
+})
+
+describe("ladder order ids", () => {
+  it("rewrites an exit-ladder sell id with the other managed order ids", () => {
+    const plan = {
+      rungs: [],
+      exitRungs: [{ status: "waiting", orderId: "pending:exit", armedSz: 2 }],
+    } as unknown as LadderPlan
+
+    forEachPlanOrderId("dca", plan, (orderId, set) => {
+      if (orderId === "pending:exit") set("exchange-exit")
+    })
+
+    expect(plan.exitRungs[0].orderId).toBe("exchange-exit")
   })
 })

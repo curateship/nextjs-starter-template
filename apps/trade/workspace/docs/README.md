@@ -72,10 +72,12 @@ screen: anything not written there has not been agreed yet.
 
 - `smart-orders.md` — why a smart order sends nothing until the price is
   reached, what watching costs when a market moves fast, how often the engine
-  looks, how repeated failures are counted, and what a backtest does
-  differently.
+  looks, how repeated failures are counted, how a DCA ladder sells back up its
+  mirrored exits, how one extra gap moves those exits together, and what a
+  backtest does differently.
 - `smart-order-windows.md` — the windows a smart order is placed from: the
-  floating frame, the base stop, and the grid window.
+  floating frame, the DCA exit choices and draggable exit gap, the base stop,
+  and the grid window.
 - `grid-orders.md` — how a grid recycles, whether it buys the dips or sells the
   rallies, where its range sits, how the money is split between levels, what a
   sell is worth, and what following price up and down does.

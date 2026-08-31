@@ -1,5 +1,5 @@
 import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
-import { ladderBaseStopOf } from "@/lib/trade/dca"
+import { exitLadderGapPctForPrice, ladderBaseStopOf } from "@/lib/trade/dca"
 import {
   gridEndPx,
   gridStopBeyond,
@@ -168,10 +168,22 @@ export async function updateLadderExitsPlan(
       rung.sellOrderId = null
     }
   }
+  const wasExitLadder = plan.takeProfit?.mode === "exitLadder"
+  const staysExitLadder = input.takeProfit?.mode === "exitLadder"
+  const nextExitGapPct = input.takeProfit?.exitGapPct ?? 0
+  const exitGapChanged =
+    wasExitLadder &&
+    staysExitLadder &&
+    Math.abs((plan.takeProfit?.exitGapPct ?? 0) - nextExitGapPct) > 1e-9
+  if (wasExitLadder && (!staysExitLadder || exitGapChanged)) {
+    await cancelExitLadderOrders(plan, cancelSell)
+    if (!staysExitLadder) plan.exitRungs = []
+  }
   plan.takeProfit = input.takeProfit
     ? {
         mode: input.takeProfit.mode,
         pct: input.takeProfit.mode === "average" ? input.takeProfit.pct : null,
+        exitGapPct: input.takeProfit.mode === "exitLadder" ? nextExitGapPct : 0,
       }
     : null
   plan.stopLoss = input.stopLoss
@@ -182,4 +194,37 @@ export async function updateLadderExitsPlan(
       }
     : null
   if (!plan.stopLoss?.base) plan.reclaim = null
+}
+
+/** Move the complete mirrored exit shape after cancelling any funded sells. */
+export async function moveExitLadderPlan(
+  plan: LadderPlan,
+  input: { exitIndex: number; exitPx: number },
+  cancelSell: (orderId: string) => Promise<void>
+): Promise<void> {
+  if (plan.takeProfit?.mode !== "exitLadder") {
+    throw new Error("SMART_EXIT_GAP")
+  }
+  const exitGapPct = exitLadderGapPctForPrice(
+    plan,
+    input.exitIndex,
+    input.exitPx
+  )
+  if (exitGapPct === null) throw new Error("SMART_EXIT_GAP")
+
+  await cancelExitLadderOrders(plan, cancelSell)
+  plan.takeProfit.exitGapPct = exitGapPct
+}
+
+/** Cancellation finishes before the plan forgets any exchange order id. */
+async function cancelExitLadderOrders(
+  plan: LadderPlan,
+  cancelSell: (orderId: string) => Promise<void>
+): Promise<void> {
+  for (const exit of plan.exitRungs) {
+    if (!exit.orderId) continue
+    await cancelSell(exit.orderId)
+    exit.orderId = null
+    exit.armedSz = 0
+  }
 }

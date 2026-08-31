@@ -39,7 +39,10 @@ import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
+  DEFAULT_DCA_EXIT_GAP_PCT,
   dcaLadderPlan,
+  exitLadderGapPctForPrice,
+  MAX_DCA_EXIT_GAP_PCT,
   resizedDcaDeviations,
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
@@ -77,10 +80,14 @@ export type SmartOrderState = { px: number; x: number; y: number }
 export type DcaPreview = {
   anchorPx: number
   rungs: readonly { px: number; dollars: number }[]
+  /** Null unless the mirrored exit mode is on. */
+  exitGapPct?: number | null
   /** Move the complete shape without changing the gaps between its rungs. */
   onMove: (anchorPx: number) => void | Promise<boolean>
   /** Move the deepest rung and spread every gap by the same proportion. */
   onResize: (deepestPx: number) => void | Promise<boolean>
+  /** Move every mirrored exit while preserving the gaps between them. */
+  onMoveExit?: (exitIndex: number, exitPx: number) => void | Promise<boolean>
 }
 
 /**
@@ -195,6 +202,9 @@ export function SmartOrderDialog({
   const [tpPct, setTpPct] = React.useState(
     seeded?.takeProfit ? String(seeded.takeProfit.pct) : "2"
   )
+  const [exitGapPct, setExitGapPct] = React.useState(
+    String(seeded?.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
+  )
   const [slOn, setSlOn] = React.useState(
     seeded ? seeded.stopLoss !== null : false
   )
@@ -252,6 +262,9 @@ export function SmartOrderDialog({
       if (params.takeProfit) {
         setTpMode(params.takeProfit.mode)
         setTpPct(String(params.takeProfit.pct))
+        setExitGapPct(
+          String(params.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
+        )
       }
       setSlOn(params.stopLoss !== null)
       if (params.stopLoss) {
@@ -300,7 +313,13 @@ export function SmartOrderDialog({
       // whatever is sent here. Carried only because the params type still
       // has the field.
       rungEntry: "limit",
-      takeProfit: tpOn ? { mode: tpMode, pct: parsed(tpPct) ?? -1 } : null,
+      takeProfit: tpOn
+        ? {
+            mode: tpMode,
+            pct: parsed(tpPct) ?? -1,
+            exitGapPct: parsed(exitGapPct) ?? -1,
+          }
+        : null,
       stopLoss: slOn
         ? {
             pct: parsed(slPct) ?? -1,
@@ -326,6 +345,7 @@ export function SmartOrderDialog({
     tpOn,
     tpMode,
     tpPct,
+    exitGapPct,
     slOn,
     slPct,
     baseOn,
@@ -405,17 +425,38 @@ export function SmartOrderDialog({
     [editedRef, hangsFrom, plan, rungs, setShowValidation]
   )
 
+  const moveExitPreview = React.useCallback(
+    (exitIndex: number, exitPx: number) => {
+      if (!plan || hangsFrom === null) return
+      const gapPct = exitLadderGapPctForPrice(
+        { anchorPx: hangsFrom, rungs: plan.rungs },
+        exitIndex,
+        exitPx
+      )
+      if (gapPct === null) return
+      editedRef.current = true
+      setShowValidation(false)
+      setExitGapPct(String(Number(gapPct.toFixed(6))))
+    },
+    [editedRef, hangsFrom, plan, setShowValidation]
+  )
+
   const previewPlan = React.useMemo<DcaPreview | null>(
     () =>
       plan && hangsFrom !== null
         ? {
             anchorPx: hangsFrom,
             rungs: plan.rungs,
+            exitGapPct:
+              params?.takeProfit?.mode === "exitLadder"
+                ? (params.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
+                : null,
             onMove: movePreview,
             onResize: resizePreview,
+            onMoveExit: moveExitPreview,
           }
         : null,
-    [hangsFrom, movePreview, plan, resizePreview]
+    [hangsFrom, moveExitPreview, movePreview, params, plan, resizePreview]
   )
 
   React.useEffect(() => {
@@ -439,6 +480,13 @@ export function SmartOrderDialog({
   const noBase = anchor === "base" && baseRead && basePx === null
   const underBase =
     anchor === "base" && basePx !== null && market.price < basePx
+  const parsedExitGap = parsed(exitGapPct)
+  const badExitGap =
+    tpOn &&
+    tpMode === "exitLadder" &&
+    (parsedExitGap === null ||
+      parsedExitGap < 0 ||
+      parsedExitGap > MAX_DCA_EXIT_GAP_PCT)
 
   const refusal = noBase
     ? "This market has no confirmed base yet, and the ladder hangs from one. Point it at the clicked price in Advanced settings, or wait for the chart to mark a base."
@@ -446,13 +494,15 @@ export function SmartOrderDialog({
       ? `Price is already under the base at ${formatPrice(basePx as number)}, so that level has gone. The ladder starts when price is at or above a base and buys the fall from there.`
       : borrowingInvalid
         ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
-        : !params
-          ? "A number here does not make sense yet — every step needs to be between 0 and 99."
-          : plan && plan.tooSmallIndex !== null
-            ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
-            : plan && plan.totalCost > free
-              ? `The ladder costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
-              : null
+        : badExitGap
+          ? `Extra exit gap must be from 0 to ${MAX_DCA_EXIT_GAP_PCT}%.`
+          : !params
+            ? "A number here does not make sense yet — every step needs to be between 0 and 99."
+            : plan && plan.tooSmallIndex !== null
+              ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
+              : plan && plan.totalCost > free
+                ? `The ladder costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
+                : null
 
   const ready =
     (anchor === "click" || baseRead) &&
@@ -690,6 +740,27 @@ export function SmartOrderDialog({
                       }
                       onChange={(event) =>
                         touched(setTpPct)(event.target.value)
+                      }
+                      onBlur={() => setShowValidation(true)}
+                      className="bg-background"
+                    />
+                  </div>
+                ) : tpMode === "exitLadder" ? (
+                  <div className="grid w-20 shrink-0 gap-2">
+                    <FieldLabel
+                      htmlFor="smart-exit-gap"
+                      hint="Extra room above the mirrored exit prices. Dragging any exit line changes the same number."
+                    >
+                      Extra gap %
+                    </FieldLabel>
+                    <Input
+                      id="smart-exit-gap"
+                      inputMode="decimal"
+                      value={exitGapPct}
+                      disabled={busy}
+                      aria-invalid={showValidation && badExitGap}
+                      onChange={(event) =>
+                        touched(setExitGapPct)(event.target.value)
                       }
                       onBlur={() => setShowValidation(true)}
                       className="bg-background"

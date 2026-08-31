@@ -36,10 +36,12 @@ import {
   DCA_TP_MODE_HINTS,
   DCA_TP_MODE_LABELS,
   DCA_TP_MODES,
+  DEFAULT_DCA_EXIT_GAP_PCT,
   DEFAULT_BASE_STOP_RECLAIM_DAYS,
   DEFAULT_BASE_STOP_UNDER_PCT,
   DEFAULT_DCA_STOP_LOSS_PCT,
   DEFAULT_DCA_TAKE_PROFIT_PCT,
+  MAX_DCA_EXIT_GAP_PCT,
   type DcaParams,
   type DcaTpMode,
 } from "@/lib/trade/dca"
@@ -135,6 +137,9 @@ function ExitsForm({
       ? bracketPercent(position?.entryPx ?? 0, position?.tpPx ?? null)
       : "") || String(plan.takeProfit?.pct ?? DEFAULT_DCA_TAKE_PROFIT_PCT)
   )
+  const [exitGapPct, setExitGapPct] = React.useState(
+    String(plan.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
+  )
   const [slOn, setSlOn] = React.useState(plan.stopLoss !== null)
   const [slPct, setSlPct] = React.useState(
     (slFixed
@@ -153,6 +158,15 @@ function ExitsForm({
   const parsedTp = Number(tpPct)
   const badTp =
     tpOn && tpMode === "average" && !(Number.isFinite(parsedTp) && parsedTp > 0)
+  const parsedExitGap = Number(exitGapPct)
+  const badExitGap =
+    tpOn &&
+    tpMode === "exitLadder" &&
+    !(
+      Number.isFinite(parsedExitGap) &&
+      parsedExitGap >= 0 &&
+      parsedExitGap <= MAX_DCA_EXIT_GAP_PCT
+    )
   const parsedSl = Number(slPct)
   const badSl =
     slOn && !(Number.isFinite(parsedSl) && parsedSl > 0 && parsedSl <= 100)
@@ -168,17 +182,19 @@ function ExitsForm({
   // presses Save to find out. Same order as the cards on screen.
   const refusal = badTp
     ? "Target % has to be a number above zero. It is measured up from the ladder's average buy price."
-    : badSl
-      ? "Stop % has to be a number above zero and no more than 100. It is measured down from the ladder's average buy price."
-      : badBaseUnder
-        ? BASE_STOP_UNDER_REFUSAL
-        : badBaseDays
-          ? BASE_STOP_DAYS_REFUSAL
-          : null
+    : badExitGap
+      ? `Extra exit gap has to be from 0 to ${MAX_DCA_EXIT_GAP_PCT}%.`
+      : badSl
+        ? "Stop % has to be a number above zero and no more than 100. It is measured down from the ladder's average buy price."
+        : badBaseUnder
+          ? BASE_STOP_UNDER_REFUSAL
+          : badBaseDays
+            ? BASE_STOP_DAYS_REFUSAL
+            : null
 
   const save = async () => {
     if (busy) return
-    if (badTp || badSl || badBase) {
+    if (badTp || badExitGap || badSl || badBase) {
       setShowValidation(true)
       if (refusal) showErrorToast(refusal)
       return
@@ -188,6 +204,10 @@ function ExitsForm({
         ? {
             mode: tpMode,
             pct: tpMode === "average" ? parsedTp : DEFAULT_DCA_TAKE_PROFIT_PCT,
+            exitGapPct:
+              tpMode === "exitLadder"
+                ? parsedExitGap
+                : DEFAULT_DCA_EXIT_GAP_PCT,
           }
         : null,
       stopLoss: slOn
@@ -207,8 +227,8 @@ function ExitsForm({
       <DialogHeader>
         <DialogTitle>Exits for the {symbol} ladder</DialogTitle>
         <DialogDescription>
-          Exits are the one safe edit on a live ladder. The rungs are frozen —
-          a different ladder means cancelling and placing again.
+          Exits are the one safe edit on a live ladder. The rungs are frozen — a
+          different ladder means cancelling and placing again.
         </DialogDescription>
       </DialogHeader>
 
@@ -234,7 +254,10 @@ function ExitsForm({
                   setTpOn(next === true)
                 }}
               />
-              <FieldLabel htmlFor="ladder-tp-on" hint={DCA_TP_MODE_HINTS[tpMode]}>
+              <FieldLabel
+                htmlFor="ladder-tp-on"
+                hint={DCA_TP_MODE_HINTS[tpMode]}
+              >
                 Take profit on
               </FieldLabel>
             </div>
@@ -279,6 +302,27 @@ function ExitsForm({
                       onChange={(event) => {
                         setShowValidation(false)
                         setTpPct(event.target.value)
+                      }}
+                      onBlur={() => setShowValidation(true)}
+                    />
+                  </div>
+                ) : tpMode === "exitLadder" ? (
+                  <div className="grid gap-2">
+                    <FieldLabel
+                      htmlFor="ladder-exit-gap"
+                      hint="Extra room above the mirrored exit prices. Dragging any exit line changes this same number."
+                    >
+                      Extra gap %
+                    </FieldLabel>
+                    <Input
+                      id="ladder-exit-gap"
+                      inputMode="decimal"
+                      value={exitGapPct}
+                      aria-invalid={showValidation && badExitGap}
+                      disabled={busy}
+                      onChange={(event) => {
+                        setShowValidation(false)
+                        setExitGapPct(event.target.value)
                       }}
                       onBlur={() => setShowValidation(true)}
                     />

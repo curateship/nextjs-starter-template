@@ -64,21 +64,38 @@ Take profit and Stop loss have no settings chevron while their checkbox is off.
 Turning either one on adds the chevron and opens its settings, matching the Grid
 window.
 
+The Take profit picker includes **Sell back up the ladder**. The choice mirrors
+the buy gaps above the anchor and reverses their sizes, so the largest and
+deepest buy sells at the first exit. The chart draws every exit at placement.
+Waiting exits are faded and dashed; a funded reduce-only sell is solid. The
+same choice appears when editing a running ladder's exits. Its **Extra gap %**
+box starts at zero and moves the complete exit shape farther above the buys.
+The steps between the exits still match the steps between the buys.
+
 While the window is open, dragging any rung moves the complete ladder without
 changing its gaps. The deepest rung has a second handle that spreads every gap
 or brings the rungs closer. Moving a ladder by hand changes it to a clicked-price
 ladder, and Place sends the dropped anchor rather than the original right-click.
 Pressing a drag handle without moving it leaves the anchor and rung gaps alone.
+Every exit has its own handle while Sell back up the ladder is selected.
+Dragging any one moves every exit together and updates Extra gap %. Waiting
+and funded exits use the same drag. A funded live sell is cancelled and
+replaced at its new price; if the exchange refuses that cancellation, the
+chart returns to the saved prices. When several funded sells are moving and a
+later cancellation fails, the app remembers which earlier cancellations
+succeeded so the engine can restore only those sells at the saved gap.
 
 An untouched saved ladder keeps the same handles after the window closes. The
 DCA ladder bar follows the rungs on every drag frame; it does not wait for the
 server save after the pointer is released. Pressing the bar's × calls off an
-empty ladder at once, without another question. Once a rung has bought, the ×
-moves into the position's entry bar and asks before it calls off the remaining
-buys. The server accepts a move only while every rung is still waiting and no
-rung has been called off. Once a rung buys, sells or is cancelled, its prices
-are frozen because moving them would rewrite the prices behind a position
-already in progress. A ladder owned by an automation cannot be moved by hand.
+empty ladder at once, without another question or a success toast. Once a rung
+has bought, the × moves into the position's entry bar and asks before it calls
+off the remaining buys. The success toast appears in that case because the
+bought position stays open. The server accepts a move only while every rung is
+still waiting and no rung has been called off. Once a rung buys, sells or is
+cancelled, its prices are frozen because moving them would rewrite the prices
+behind a position already in progress. A ladder owned by an automation cannot
+be moved by hand.
 A ladder paired with a grid must still keep its first buy below the grid's
 stop, and an invalid drag is refused without changing the saved plan.
 

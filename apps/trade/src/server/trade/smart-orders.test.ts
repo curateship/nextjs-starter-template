@@ -3,7 +3,12 @@ import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CandleBar } from "@/lib/protocols/contracts"
-import type { DcaParams, LadderPlan } from "@/lib/trade/dca"
+import { defaultCascade } from "@/lib/trade/cascade"
+import {
+  exitLadderLevels,
+  type DcaParams,
+  type LadderPlan,
+} from "@/lib/trade/dca"
 import { defaultGridParams } from "@/lib/trade/grid"
 import type { SignalPlan } from "@/lib/trade/signal-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
@@ -67,53 +72,53 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
   const real =
     await importOriginal<typeof import("@/server/protocols/registry")>()
   return {
-  ...real,
-  // The id and what the venue can do come from the REAL registry, so a test
-  // asking about a venue that cannot place orders gets the true answer. Only
-  // the market data below is invented.
-  getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
-    id,
-    capabilities: real.getProtocol(id).capabilities,
-    label: "Hyperliquid",
-    markets: {
-      fetch: async () => ({
-        protocol: "hyperliquid",
-        protocolLabel: "Hyperliquid",
-        network: "mainnet",
-        networkLabel: "Mainnet",
-        rows: [
-          {
-            key: "hyperliquid:mainnet:BTC",
-            marketId: "BTC",
-            symbol: "BTC",
-            subExchange: null,
-            category: "crypto",
-            sizeDecimals,
-            priceTick: null,
-            minOrderValueUsd,
-            minOrderSize,
-            maxLeverage: marketMaxLeverage,
-            isolatedOnly: false,
-            iconUrl: null,
-            price: marks.get("BTC") ?? 100,
-            change24h: null,
-            volume24hUsd: 0,
-            fundingHourly: null,
-            openInterestUsd: null,
-          },
-        ],
-      }),
-      prices: async (_network: string, ids: readonly string[]) =>
-        new Map(
-          ids
-            .filter((id) => marks.has(id))
-            .map((id) => [id, marks.get(id) as number])
-        ),
-      candles: async () => candles,
-      roundPx: (px: number) => px,
-    },
-    account: { fetch: async () => null },
-  }),
+    ...real,
+    // The id and what the venue can do come from the REAL registry, so a test
+    // asking about a venue that cannot place orders gets the true answer. Only
+    // the market data below is invented.
+    getProtocol: (id: Parameters<typeof real.getProtocol>[0]) => ({
+      id,
+      capabilities: real.getProtocol(id).capabilities,
+      label: "Hyperliquid",
+      markets: {
+        fetch: async () => ({
+          protocol: "hyperliquid",
+          protocolLabel: "Hyperliquid",
+          network: "mainnet",
+          networkLabel: "Mainnet",
+          rows: [
+            {
+              key: "hyperliquid:mainnet:BTC",
+              marketId: "BTC",
+              symbol: "BTC",
+              subExchange: null,
+              category: "crypto",
+              sizeDecimals,
+              priceTick: null,
+              minOrderValueUsd,
+              minOrderSize,
+              maxLeverage: marketMaxLeverage,
+              isolatedOnly: false,
+              iconUrl: null,
+              price: marks.get("BTC") ?? 100,
+              change24h: null,
+              volume24hUsd: 0,
+              fundingHourly: null,
+              openInterestUsd: null,
+            },
+          ],
+        }),
+        prices: async (_network: string, ids: readonly string[]) =>
+          new Map(
+            ids
+              .filter((id) => marks.has(id))
+              .map((id) => [id, marks.get(id) as number])
+          ),
+        candles: async () => candles,
+        roundPx: (px: number) => px,
+      },
+      account: { fetch: async () => null },
+    }),
   }
 })
 
@@ -872,6 +877,31 @@ describe("placing a ladder", () => {
     expect(resized.ladder.plan.rungs.at(-1)?.px).toBeCloseTo(60, 9)
   })
 
+  it("drags every mirrored exit and replaces a funded practice sell", async () => {
+    const placed = await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+    const firstSell = (await orders()).find((order) => order.side === "sell")
+    expect(firstSell?.px).toBeCloseTo(105, 9)
+
+    const moved = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      exitIndex: 0,
+      exitPx: 115.5,
+    })
+
+    expect(moved.ladder.plan.takeProfit?.exitGapPct).toBeCloseTo(10, 9)
+    const exits = exitLadderLevels(moved.ladder.plan)
+    expect(exits[0]).toBeCloseTo(115.5, 9)
+    expect(exits[1]).toBeCloseTo(124.74, 9)
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(firstSell?.id)
+    expect(sells[0].px).toBeCloseTo(115.5, 9)
+  })
+
   it("leaves an automation-owned ladder under the automation's control", async () => {
     await insertRunningFlow()
     const placed = await placeDcaLadder(userId, wallet, {
@@ -1136,6 +1166,122 @@ describe("the ladder at work", () => {
     expect(await positions()).toHaveLength(0)
   })
 
+  it("grows the closest exit as buys fill, then arms the next exit", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+
+    await dipTo(95)
+
+    let ladder = await onlyLadder()
+    const firstOrderId = ladder.plan.exitRungs[0].orderId
+    expect(ladder.plan.exitRungs).toMatchObject([
+      { status: "waiting", armedSz: ladder.plan.rungs[0].sz },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual([
+      expect.objectContaining({ px: 105, sz: ladder.plan.rungs[0].sz }),
+    ])
+
+    await dipTo(87.4)
+
+    ladder = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(sells).toHaveLength(2)
+    expect(ladder.plan.exitRungs[0].orderId).not.toBe(firstOrderId)
+    expect(ladder.plan.exitRungs.map((exit) => exit.armedSz)).toEqual([
+      ladder.plan.rungs[1].sz,
+      ladder.plan.rungs[0].sz,
+    ])
+    expect(sells).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ px: 105, sz: ladder.plan.rungs[1].sz }),
+        expect.objectContaining({ px: 113.4, sz: ladder.plan.rungs[0].sz }),
+      ])
+    )
+  })
+
+  it("sells the deepest coins at the closest exit and ends when flat", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+    await dipTo(87.4)
+
+    marks.set("BTC", 105)
+    await settle()
+
+    let ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "filled",
+      "sold",
+    ])
+    expect(ladder.plan.exitRungs.map((exit) => exit.status)).toEqual([
+      "sold",
+      "waiting",
+    ])
+
+    marks.set("BTC", 113.4)
+    await settle()
+
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs.map((rung) => rung.status)).toEqual([
+      "sold",
+      "sold",
+    ])
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("does not arm exit-ladder sells during a cascade hold", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      cascade: defaultCascade(),
+    })
+    await backdate()
+    const ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now()
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+
+    await dipTo(95)
+
+    expect((await onlyLadder()).plan.exitRungs).toEqual([
+      { status: "waiting", orderId: null, armedSz: 0 },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual(
+      []
+    )
+  })
+
+  it("accounts for an exit first placed above its mirrored price", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      cascade: defaultCascade(),
+    })
+    await backdate()
+    let ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now()
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    await dipTo(95)
+
+    ladder = await onlyLadder()
+    ladder.plan.cascadeSeenAt = Date.now() - 5 * HOUR4
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    marks.set("BTC", 110)
+    await settle()
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual([
+      expect.objectContaining({ px: 110 }),
+    ])
+
+    await settle()
+    ladder = await onlyLadder()
+    expect(ladder.status).toBe("done")
+    expect(ladder.plan.rungs[0].status).toBe("sold")
+    expect(ladder.plan.exitRungs[0].status).toBe("sold")
+    expect(await positions()).toHaveLength(0)
+  })
+
   it("keeps the flow's stamp on every order the ladder sends afterwards", async () => {
     // The sell a bought rung rests is as much the flow's as the buy was, and
     // its id is written down the moment it is placed — the plan lets go of it
@@ -1336,10 +1482,26 @@ describe("the ladder at work", () => {
     expect(after.status).toBe("active")
     expect(await orders()).toHaveLength(0)
 
-    await cancelLadderRest(userId, wallet, { ladderId: ladder.id })
+    await expect(
+      cancelLadderRest(userId, wallet, { ladderId: ladder.id })
+    ).resolves.toEqual({ cancelled: 1, hasPosition: false })
     after = await onlyLadder()
     expect(after.status).toBe("done")
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("reports when cancelling the deeper rungs leaves a position open", async () => {
+    await place()
+    await backdate()
+    await dipTo(95)
+    const ladder = await onlyLadder()
+
+    await expect(
+      cancelLadderRest(userId, wallet, { ladderId: ladder.id })
+    ).resolves.toEqual({ cancelled: 1, hasPosition: true })
+
+    expect(await positions()).toHaveLength(1)
+    expect((await onlyLadder()).status).toBe("active")
   })
 
   it("calls off a flow ladder without settling its watched rungs", async () => {
@@ -1482,6 +1644,50 @@ describe("the ladder at work", () => {
     expect(sells[0].px).toBeCloseTo(100, 9)
     expect((await onlyLadder()).plan.takeProfit?.mode).toBe("prevRung")
   })
+
+  it("cancels the mirrored sells when a running ladder changes modes", async () => {
+    await place({ takeProfit: { mode: "exitLadder", pct: 2 } })
+    await backdate()
+    await dipTo(95)
+
+    const ladder = await onlyLadder()
+    expect(ladder.plan.exitRungs[0].orderId).not.toBeNull()
+    await updateLadderExits(userId, wallet, {
+      ladderId: ladder.id,
+      takeProfit: { mode: "average", pct: 2 },
+      stopLoss: null,
+    })
+
+    const changed = await onlyLadder()
+    expect(changed.plan.exitRungs).toEqual([])
+    expect(changed.plan.takeProfit?.mode).toBe("average")
+    expect((await orders()).filter((order) => order.side === "sell")).toEqual(
+      []
+    )
+  })
+
+  it("replaces a funded mirrored sell when its saved gap changes", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+
+    const before = await onlyLadder()
+    const oldSell = (await orders()).find((order) => order.side === "sell")
+    await updateLadderExits(userId, wallet, {
+      ladderId: before.id,
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 10 },
+      stopLoss: null,
+    })
+
+    const after = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(after.plan.takeProfit?.exitGapPct).toBe(10)
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(oldSell?.id)
+    expect(sells[0].px).toBeCloseTo(115.5, 9)
+  })
 })
 
 describe("everything around a ladder", () => {
@@ -1597,6 +1803,30 @@ describe("a stop that rests under the base", () => {
     expect(await orders()).toHaveLength(0)
     await dipTo(87.4)
     expect((await onlyLadder()).plan.rungs[1].status).toBe("filled")
+  })
+
+  it("takes exit-ladder sells off when a stop steps the ladder down", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2 },
+      stopLoss: baseStop(),
+    })
+    await backdate()
+    await dipTo(95)
+    expect((await onlyLadder()).plan.exitRungs[0].orderId).not.toBeNull()
+
+    candles = tapeWithBase(90)
+    await settle()
+    marks.set("BTC", 89)
+    await settle()
+
+    const ladder = await onlyLadder()
+    expect(ladder.status).toBe("active")
+    expect(ladder.plan.steppedDown).toBe(1)
+    expect(ladder.plan.exitRungs).toEqual([
+      { status: "waiting", orderId: null, armedSz: 0 },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ])
+    expect(await orders()).toHaveLength(0)
   })
 
   it("is over for good once the last rung is stopped out, and arms no buy-back", async () => {

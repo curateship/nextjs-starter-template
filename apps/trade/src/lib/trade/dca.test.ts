@@ -11,6 +11,10 @@ import {
   ladderPlanSchema,
   ladderBaseStopOf,
   ladderExitLevels,
+  exitLadderLevels,
+  exitLadderGapPctForPrice,
+  exitLadderPlannedSz,
+  consumeSoldFromRungs,
   ladderFirstBuyPx,
   baseStopPx,
   rungBudget,
@@ -217,7 +221,8 @@ describe("ladder plans", () => {
         touched: false,
       },
     ],
-    takeProfit: { mode: "prevRung", pct: null },
+    exitRungs: [],
+    takeProfit: { mode: "prevRung", pct: null, exitGapPct: 0 },
     stopLoss: null,
     aimedTpPx: null,
     aimedSlPx: null,
@@ -233,6 +238,52 @@ describe("ladder plans", () => {
 
   it("exits each rung at the rung above it, the first at the click", () => {
     expect(ladderExitLevels(plan)).toEqual([100, 95])
+  })
+
+  it("mirrors the stored buy steps above the anchor and reverses their sizes", () => {
+    expect(exitLadderLevels(plan)).toEqual([105, 113.4])
+    expect([0, 1].map((index) => exitLadderPlannedSz(plan, index))).toEqual([
+      2, 1,
+    ])
+  })
+
+  it("moves every mirrored exit by one extra gap", () => {
+    const gapped = {
+      ...plan,
+      takeProfit: { mode: "exitLadder" as const, pct: null, exitGapPct: 10 },
+    }
+    const levels = exitLadderLevels(gapped)
+    expect(levels[0]).toBeCloseTo(115.5, 10)
+    expect(levels[1]).toBeCloseTo(124.74, 10)
+    expect(exitLadderGapPctForPrice(gapped, 1, 124.74)).toBeCloseTo(10, 10)
+    expect(exitLadderGapPctForPrice(gapped, 0, 104)).toBeNull()
+  })
+
+  it("accounts for exit sales from the deepest filled rungs first", () => {
+    const sold = structuredClone(plan)
+    sold.rungs[0].status = "filled"
+    sold.rungs[1].status = "filled"
+
+    consumeSoldFromRungs(sold, 2.5)
+
+    expect(sold.rungs[1].status).toBe("sold")
+    expect(sold.rungs[0]).toMatchObject({ status: "filled", sz: 0.5 })
+  })
+
+  it("reads an old stored plan with no exit-rung state", () => {
+    const { exitRungs: _exitRungs, ...withoutExitRungs } = plan
+    const oldPlan = {
+      ...withoutExitRungs,
+      takeProfit: withoutExitRungs.takeProfit
+        ? {
+            mode: withoutExitRungs.takeProfit.mode,
+            pct: withoutExitRungs.takeProfit.pct,
+          }
+        : null,
+    }
+    const parsed = ladderPlanSchema.parse(oldPlan)
+    expect(parsed.exitRungs).toEqual([])
+    expect(parsed.takeProfit?.exitGapPct).toBe(0)
   })
 
   it("moves an untouched ladder as one shape and keeps each rung's budget", () => {

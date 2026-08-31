@@ -615,6 +615,25 @@ describe("a crash that bounces inside one candle", () => {
   })
 })
 
+describe("an exit-ladder replay", () => {
+  it("arms mirrored sells after buys and fills them on later bars", async () => {
+    const result = await runBacktest(
+      inputFor([coin("hyperliquid:mainnet:AAA", bars(8, 14))], {
+        params: params({ takeProfit: { mode: "exitLadder", pct: 2 } }),
+      })
+    )
+    const fills = result.coins[0].fills
+    const buys = fills.filter((fill) => fill.side === "buy")
+    const sells = fills.filter((fill) => fill.side === "sell")
+
+    expect(buys.length).toBeGreaterThan(0)
+    expect(sells.length).toBeGreaterThan(0)
+    expect(Math.min(...sells.map((fill) => fill.fillTime))).toBeGreaterThan(
+      Math.min(...buys.map((fill) => fill.fillTime))
+    )
+  })
+})
+
 describe("holding through a market-wide crash", () => {
   /**
    * Twelve coins that sit flat, all collapse 80% inside the same four-hour

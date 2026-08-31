@@ -82,6 +82,54 @@ describe("DCA chart ladders", () => {
     expect(host.textContent).not.toContain("$90")
   })
 
+  it("shows and drags the mirrored exits before placement", async () => {
+    const onMoveExit = vi.fn()
+    await act(async () => {
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[]}
+          preview={{
+            anchorPx: 110,
+            rungs: [
+              { px: 100, dollars: 250 },
+              { px: 90, dollars: 500 },
+            ],
+            exitGapPct: 0,
+            onMove: () => undefined,
+            onResize: () => undefined,
+            onMoveExit,
+          }}
+          tool={null}
+          walletName={() => "Wallet"}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain("Exit 1 · arms at $500")
+    expect(host.textContent).toContain("Exit 2 · arms at $250")
+
+    const move = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole exit ladder from exit 1"]'
+    )
+    await act(async () => {
+      move?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 80,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 70 })
+      )
+    })
+
+    expect(onMoveExit).toHaveBeenCalledWith(0, 130)
+  })
+
   it("moves the complete ladder from any rung and resizes from the deepest handle", async () => {
     const onMove = vi.fn()
     const onResize = vi.fn()
@@ -317,5 +365,152 @@ describe("DCA chart ladders", () => {
         'button[aria-label="Expand or contract the DCA ladder"]'
       )
     ).not.toBeNull()
+  })
+
+  it("draws waiting, armed, and sold exit-ladder levels distinctly", async () => {
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      plan: {
+        anchorPx: 110,
+        rungs: [
+          { px: 100, sz: 2, status: "filled", sellOrderId: null },
+          { px: 90, sz: 4, status: "filled", sellOrderId: null },
+          { px: 81, sz: 6, status: "filled", sellOrderId: null },
+        ],
+        exitRungs: [
+          { status: "waiting", orderId: "exit-1", armedSz: 6 },
+          { status: "waiting", orderId: null, armedSz: 0 },
+          { status: "sold", orderId: null, armedSz: 0 },
+        ],
+        takeProfit: { mode: "exitLadder", pct: null, exitGapPct: 0 },
+        stopLoss: null,
+      },
+    } as unknown as SmartLadder
+
+    await act(async () => {
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          readOnly
+          walletName={() => "Wallet"}
+        />
+      )
+    })
+
+    expect(host.textContent).toContain("Exit 1 sell · $720")
+    expect(host.textContent).toContain("Exit 2 · arms at $528")
+    expect(host.textContent).not.toContain("Exit 3")
+    const armed = [...host.querySelectorAll("span")].find((element) =>
+      element.textContent?.startsWith("Exit 1 sell")
+    )?.previousElementSibling
+    const waiting = [...host.querySelectorAll("span")].find((element) =>
+      element.textContent?.startsWith("Exit 2 · arms")
+    )?.previousElementSibling
+    expect(armed?.className).not.toContain("border-dashed")
+    expect(waiting?.className).toContain("border-dashed")
+  })
+
+  it("drags every placed exit from any exit label", async () => {
+    let finish: (saved: boolean) => void = () => undefined
+    const reshape = vi.fn(
+      () => new Promise<boolean>((resolve) => (finish = resolve))
+    )
+    const ladder = {
+      id: "ladder",
+      walletId: "wallet",
+      marketKey: "market",
+      kind: "dca",
+      status: "active",
+      flowRunId: null,
+      createdAt: 1,
+      updatedAt: 1,
+      plan: {
+        anchorPx: 110,
+        rungs: [
+          { px: 100, sz: 2, status: "filled", sellOrderId: null },
+          { px: 90, sz: 4, status: "filled", sellOrderId: null },
+        ],
+        exitRungs: [
+          { status: "waiting", orderId: "exit-1", armedSz: 4 },
+          { status: "waiting", orderId: null, armedSz: 0 },
+        ],
+        takeProfit: { mode: "exitLadder", pct: null, exitGapPct: 0 },
+        stopLoss: null,
+      },
+    } as unknown as SmartLadder
+
+    await act(async () => {
+      root.render(
+        <SmartLadderLayer
+          surface={surface}
+          colors={colors}
+          marketKey="market"
+          ladders={[ladder]}
+          preview={null}
+          tool={null}
+          walletName={() => "Wallet"}
+          onReshapeLadder={reshape}
+        />
+      )
+    })
+
+    const move = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Move the whole exit ladder from exit 1"]'
+    )
+    await act(async () => {
+      move?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 80,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 70 })
+      )
+    })
+
+    expect(reshape).toHaveBeenCalledWith(ladder, {
+      exitIndex: 0,
+      exitPx: 130,
+    })
+
+    await act(async () => {
+      move?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientY: 70,
+        })
+      )
+      window.dispatchEvent(
+        new MouseEvent("pointerup", { bubbles: true, clientY: 60 })
+      )
+    })
+    expect(reshape).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      move?.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          button: 2,
+          clientY: 80,
+        })
+      )
+    })
+    expect(reshape).toHaveBeenCalledTimes(1)
+    await act(async () => finish(true))
   })
 })

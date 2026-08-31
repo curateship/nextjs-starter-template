@@ -56,6 +56,8 @@ export type LadderOrderInput = {
 /** One fill, as an engine matching orders back to its own plan sees it. */
 export type EngineFill = {
   id: string
+  /** The resting order that filled, when the venue or paper book named it. */
+  orderId?: string | null
   marketKey: string
   side: TradeSide
   px: number
@@ -241,16 +243,21 @@ export function nearNullable(a: number | null, b: number | null): boolean {
 export function makeFillClaimer(
   book: { fills: readonly EngineFill[] },
   marketKey: string
-): (side: TradeSide, px: number, maxSz: number) => EngineFill | null {
+): (
+  side: TradeSide,
+  px: number,
+  maxSz: number,
+  orderId?: string
+) => EngineFill | null {
   const used = new Set<string>()
-  return (side, px, maxSz) => {
+  return (side, px, maxSz, orderId) => {
     const found = book.fills.find(
       (fill) =>
         !used.has(fill.id) &&
         fill.marketKey === marketKey &&
         fill.side === side &&
         fill.reason === "order" &&
-        near(fill.px, px) &&
+        (orderId ? fill.orderId === orderId : near(fill.px, px)) &&
         fill.sz <= maxSz + 1e-9
     )
     if (found) used.add(found.id)

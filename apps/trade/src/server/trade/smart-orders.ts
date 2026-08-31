@@ -36,6 +36,7 @@ import { marketRules } from "@/server/trade/market-rules"
 import {
   cancelLadderRestPlan,
   cancelLadderRungPlan,
+  moveExitLadderPlan,
   updateLadderExitsPlan,
 } from "@/server/trade/smart-order-actions"
 import { resumeSmartOrderPlan } from "@/server/trade/smart-order-pause"
@@ -292,8 +293,13 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     maxLeverage,
     leverage,
     rungs,
+    exitRungs: [],
     takeProfit: tp
-      ? { mode: tp.mode, pct: tp.mode === "average" ? tp.pct : null }
+      ? {
+          mode: tp.mode,
+          pct: tp.mode === "average" ? tp.pct : null,
+          exitGapPct: tp.exitGapPct ?? 0,
+        }
       : null,
     stopLoss: params.stopLoss
       ? {
@@ -603,6 +609,18 @@ export async function reshapeLadder(
 ): Promise<MovedLadder> {
   await settleWallet(userId, wallet)
   const firstRead = await ladderById(userId, wallet.id, input.ladderId)
+  if ("exitPx" in input) {
+    const goneSells: string[] = []
+    await moveExitLadderPlan(firstRead.plan, input, async (orderId) => {
+      goneSells.push(orderId)
+    })
+    const at = Date.now()
+    await saveLadderPlan(userId, firstRead.id, firstRead.plan, "active", at)
+    await deleteOrders(userId, goneSells)
+    await settleWallet(userId, wallet)
+    const refreshed = await ladderById(userId, wallet.id, firstRead.id)
+    return movedLadder(wallet.id, refreshed, refreshed.plan, Date.now())
+  }
   const ref = parseMarketKey(firstRead.marketKey)
   if (!ref) throw new Error("PAPER_MARKET")
   const rules = await marketRules(wallet.protocol, wallet.network, ref.marketId)
@@ -616,10 +634,7 @@ export async function reshapeLadder(
       .select({ id: tradeWallets.id })
       .from(tradeWallets)
       .where(
-        and(
-          eq(tradeWallets.userId, userId),
-          eq(tradeWallets.id, wallet.id)
-        )
+        and(eq(tradeWallets.userId, userId), eq(tradeWallets.id, wallet.id))
       )
       .for("update")
     const ladder = await ladderById(userId, wallet.id, input.ladderId, tx)
@@ -727,9 +742,10 @@ export async function cancelLadderRest(
   userId: string,
   wallet: TradeWallet,
   input: { ladderId: string }
-): Promise<{ cancelled: number }> {
-  await settleWallet(userId, wallet)
+): Promise<{ cancelled: number; hasPosition: boolean }> {
+  const book = await settleWallet(userId, wallet)
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
+  const hasPosition = (book.positions.get(ladder.marketKey)?.szi ?? 0) > 0
 
   const gone: string[] = []
   const result = await cancelLadderRestPlan(ladder.plan, async (orderId) => {
@@ -739,7 +755,7 @@ export async function cancelLadderRest(
   await deleteOrders(userId, gone)
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
   await settleWallet(userId, wallet)
-  return result
+  return { ...result, hasPosition }
 }
 
 /** Calls off a flow's unbought ladder without giving its watched rungs a turn. */

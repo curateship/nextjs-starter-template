@@ -7,9 +7,13 @@ import {
   BASE_STOP_BARS,
   BASE_STOP_INTERVAL,
   baseStopPx,
+  consumeSoldFromRungs,
+  exitLadderLevels,
+  exitLadderPlannedSz,
   MIN_ORDER_USD,
   floorSize,
   ladderExitLevels,
+  ladderHeldSz,
   ladderWatchInterval,
   rungBudget,
   type LadderPlan,
@@ -440,6 +444,22 @@ export async function advanceOne(
   // ----- What just happened to the ladder's orders -----------------------
 
   const live = liveOrderIds(book)
+  if (
+    plan.takeProfit?.mode === "exitLadder" &&
+    plan.exitRungs.length !== plan.rungs.length
+  ) {
+    for (const exit of plan.exitRungs) {
+      if (exit.orderId && live.has(exit.orderId)) {
+        deps.dropOrder(book, exit.orderId)
+      }
+    }
+    plan.exitRungs = plan.rungs.map(() => ({
+      status: "waiting",
+      orderId: null,
+      armedSz: 0,
+    }))
+    changed = true
+  }
   // This settle's fills, each spent on at most one rung — two rungs at the
   // same price must not both claim the same fill.
   const fillFor = makeFillClaimer(book, row.marketKey)
@@ -481,12 +501,32 @@ export async function advanceOne(
       // Its sell is gone: sold at the rung above, or dropped because the
       // position it was to reduce is no longer there.
       const target = ladderExitLevels(plan)[plan.rungs.indexOf(rung)]
+      const sellOrderId = rung.sellOrderId
       rung.sellOrderId = null
       if (
         rung.status === "filled" &&
-        fillFor("sell", roundPx(target), rung.sz)
+        fillFor("sell", roundPx(target), rung.sz, sellOrderId)
       ) {
         rung.status = "sold"
+      }
+      changed = true
+    }
+  }
+
+  if (plan.takeProfit?.mode === "exitLadder") {
+    const exits = exitLadderLevels(plan)
+    for (const [index, exit] of plan.exitRungs.entries()) {
+      if (!exit.orderId || live.has(exit.orderId)) continue
+      const orderId = exit.orderId
+      const armedSz = exit.armedSz
+      exit.orderId = null
+      exit.armedSz = 0
+      if (exit.status === "waiting" && armedSz > 0) {
+        const fill = fillFor("sell", roundPx(exits[index]), armedSz, orderId)
+        if (fill) {
+          exit.status = "sold"
+          consumeSoldFromRungs(plan, fill.sz)
+        }
       }
       changed = true
     }
@@ -523,7 +563,9 @@ export async function advanceOne(
     (rung) => rung.status === "filled" || rung.status === "sold"
   )
   const anyWaiting = plan.rungs.some((rung) => rung.status === "waiting")
-  const anySellResting = plan.rungs.some((rung) => rung.sellOrderId !== null)
+  const anySellResting =
+    plan.rungs.some((rung) => rung.sellOrderId !== null) ||
+    plan.exitRungs.some((rung) => rung.orderId !== null)
 
   // Flat and finished, versus flat between rungs. A base-stop ladder that has
   // just stepped down is flat ON PURPOSE: it sold at a stop and the next rung
@@ -583,6 +625,13 @@ export async function advanceOne(
       rung.orderId = null
       rung.sellOrderId = null
       if (rung.status === "waiting") rung.status = "cancelled"
+    }
+    for (const exit of plan.exitRungs) {
+      if (exit.orderId && live.has(exit.orderId)) {
+        deps.dropOrder(book, exit.orderId)
+      }
+      exit.orderId = null
+      exit.armedSz = 0
     }
     await persistLadder(input, deps, row, "done")
     return
@@ -674,6 +723,48 @@ export async function advanceOne(
         changed = true
       }
     }
+
+    if (plan.takeProfit?.mode === "exitLadder" && !holdingOut) {
+      const exits = exitLadderLevels(plan)
+      const mark = input.marks.get(row.marketKey) ?? null
+      let remainingHeld = Math.min(held.szi, ladderHeldSz(plan))
+
+      for (const [index, exit] of plan.exitRungs.entries()) {
+        if (exit.status === "sold") continue
+        const wantedSz = Math.min(
+          exitLadderPlannedSz(plan, index),
+          Math.max(remainingHeld, 0)
+        )
+        remainingHeld -= wantedSz
+
+        if (exit.orderId && wantedSz > 0 && near(exit.armedSz, wantedSz)) {
+          continue
+        }
+
+        if (exit.orderId) {
+          if (live.has(exit.orderId)) deps.dropOrder(book, exit.orderId)
+          exit.orderId = null
+          exit.armedSz = 0
+          changed = true
+        }
+        if (!(wantedSz > 0)) continue
+
+        exit.orderId = await deps.insertOrder({
+          marketKey: row.marketKey,
+          side: "sell",
+          px: roundPx(
+            mark !== null && mark > exits[index] ? mark : exits[index]
+          ),
+          sz: wantedSz,
+          leverage: held.leverage,
+          maxLeverage: plan.maxLeverage,
+          reduceOnly: true,
+          now,
+        })
+        exit.armedSz = wantedSz
+        changed = true
+      }
+    }
   }
 
   // ----- Rungs under the stop come off the book --------------------------
@@ -707,7 +798,12 @@ function aimBrackets(
   let changed = false
 
   const tp = plan.takeProfit
-  if (tp && tp.mode !== "fixed" && tp.mode !== "prevRung") {
+  if (
+    tp &&
+    tp.mode !== "fixed" &&
+    tp.mode !== "prevRung" &&
+    tp.mode !== "exitLadder"
+  ) {
     if (!nearNullable(plan.aimedTpPx, position.tpPx)) {
       tp.mode = "fixed"
       tp.pct = null
@@ -1112,6 +1208,13 @@ function stepDownAfterStop(
     rung.dead = false
     rung.touched = false
     if (rung.status === "filled") rung.status = "sold"
+  }
+  for (const exit of plan.exitRungs) {
+    if (exit.orderId && live.has(exit.orderId)) {
+      deps.dropOrder(book, exit.orderId)
+    }
+    exit.orderId = null
+    exit.armedSz = 0
   }
 
   plan.steppedDown += 1

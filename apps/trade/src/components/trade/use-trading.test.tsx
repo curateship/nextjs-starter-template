@@ -15,12 +15,14 @@ const api = vi.hoisted(() => ({
   closeLivePositions: vi.fn(),
   closeAllPaperPositions: vi.fn(),
   flattenWalletApi: vi.fn(),
+  cancelLadderRest: vi.fn(),
   moveGridRange: vi.fn(),
   reconcileLiveSmartOrders: vi.fn(),
   showErrorToast: vi.fn(),
+  toastSuccess: vi.fn(),
 }))
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn() } }))
+vi.mock("sonner", () => ({ toast: { success: api.toastSuccess } }))
 
 vi.mock("@/lib/api/trade/live", () => ({
   cancelLiveOrder: vi.fn(),
@@ -58,7 +60,7 @@ vi.mock("@/lib/api/trade/smart-orders", () => ({
   cancelAllSmartOrders: vi.fn(),
   cancelGridLevel: vi.fn(),
   cancelGridRest: vi.fn(),
-  cancelLadderRest: vi.fn(),
+  cancelLadderRest: api.cancelLadderRest,
   cancelLadderRung: vi.fn(),
   cancelWatch: vi.fn(),
   closePartOfPosition: vi.fn(),
@@ -162,9 +164,11 @@ beforeEach(() => {
     selling: [],
     sellRefused: [],
   })
+  api.cancelLadderRest.mockReset()
   api.moveGridRange.mockReset()
   api.reconcileLiveSmartOrders.mockReset().mockResolvedValue(undefined)
   api.showErrorToast.mockReset()
+  api.toastSuccess.mockReset()
   host = document.createElement("div")
   root = createRoot(host)
 })
@@ -386,6 +390,42 @@ describe("bulk safety actions", () => {
 
     expect(api.flattenWalletApi).toHaveBeenCalledOnce()
     expect(api.flattenWalletApi).toHaveBeenCalledWith({ walletId: wallet.id })
+  })
+})
+
+describe("removing a DCA ladder", () => {
+  it("stays quiet when the ladder held no position", async () => {
+    api.cancelLadderRest.mockResolvedValue({
+      cancelled: 2,
+      hasPosition: false,
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.cancelLadder(wallet.id, "ladder-1")
+    })
+
+    expect(api.cancelLadderRest).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      ladderId: "ladder-1",
+    })
+    expect(api.toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it("says the bought coins remain when a position is open", async () => {
+    api.cancelLadderRest.mockResolvedValue({
+      cancelled: 1,
+      hasPosition: true,
+    })
+    await finishFirstRead()
+
+    await act(async () => {
+      await latest?.cancelLadder(wallet.id, "ladder-1")
+    })
+
+    expect(api.toastSuccess).toHaveBeenCalledWith(
+      "Ladder stopped in Main — what's bought stays."
+    )
   })
 })
 

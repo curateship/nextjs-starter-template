@@ -415,7 +415,10 @@ export type Trading = {
   reshapeLadder: (
     walletId: string,
     ladderId: string,
-    shape: { anchorPx: number } | { deepestPx: number }
+    shape:
+      | { anchorPx: number }
+      | { deepestPx: number }
+      | { exitIndex: number; exitPx: number }
   ) => Promise<boolean>
   /** Change a live ladder's take profit and stop rules. */
   setLadderExits: (
@@ -1937,9 +1940,15 @@ export function useTrading(
     async (walletId, ladderId) => {
       await callOff(
         ladderId,
-        () => cancelLadderRest({ walletId, ladderId }),
-        getTradingSmartOrderError,
-        `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
+        async () => {
+          const result = await cancelLadderRest({ walletId, ladderId })
+          if (result.hasPosition) {
+            toast.success(
+              `Ladder stopped in ${nameOf(walletId)} — what's bought stays.`
+            )
+          }
+        },
+        getTradingSmartOrderError
       )
     },
     [callOff, nameOf]

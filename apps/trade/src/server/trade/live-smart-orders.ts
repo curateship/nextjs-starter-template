@@ -10,7 +10,9 @@ import {
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import {
+  consumeSoldFromRungs,
   dcaLadderPlan,
+  exitLadderLevels,
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
@@ -81,6 +83,7 @@ import { marketRules } from "@/server/trade/market-rules"
 import {
   cancelLadderRestPlan,
   cancelLadderRungPlan,
+  moveExitLadderPlan,
   updateLadderExitsPlan,
 } from "@/server/trade/smart-order-actions"
 import { walletCredential } from "@/server/trade/wallet-auth"
@@ -368,10 +371,12 @@ function ladderPlan(
     maxLeverage,
     leverage,
     rungs,
+    exitRungs: [],
     takeProfit: takeProfit
       ? {
           mode: takeProfit.mode,
           pct: takeProfit.mode === "average" ? takeProfit.pct : null,
+          exitGapPct: takeProfit.exitGapPct ?? 0,
         }
       : null,
     stopLoss: input.params.stopLoss
@@ -432,7 +437,7 @@ export async function cancelLiveLadderRest(
   userId: string,
   wallet: TradeWallet,
   input: { ladderId: string }
-): Promise<{ cancelled: number }> {
+): Promise<{ cancelled: number; hasPosition: boolean }> {
   return await serializeLiveWallet(userId, wallet, async () => {
     const portfolio =
       wallet.address && wallet.hasKey
@@ -599,7 +604,7 @@ async function cancelLiveLadderRestOnce(
   wallet: TradeWallet,
   input: { ladderId: string },
   portfolio?: WalletPortfolio
-): Promise<{ cancelled: number }> {
+): Promise<{ cancelled: number; hasPosition: boolean }> {
   // Independent reads, one wait.
   const [ladder, recordedIds] = await Promise.all([
     ladderById(userId, wallet.id, input.ladderId),
@@ -617,6 +622,12 @@ async function cancelLiveLadderRestOnce(
     )
   )
   const hasFill = ladder.plan.rungs.some((rung) => rung.status === "filled")
+  const market = parseMarketKey(ladder.marketKey)
+  const hasPosition = portfolio
+    ? (portfolio.positions.find(
+        (position) => position.marketId === market?.marketId
+      )?.szi ?? 0) > 0
+    : hasFill
 
   // Older broken stops cleared ids from the plan without cancelling the real
   // orders. The permanent order record still says which ladder sent them, and
@@ -644,7 +655,7 @@ async function cancelLiveLadderRestOnce(
     })
     const status = hasFill ? "active" : "done"
     await saveLadderPlan(userId, ladder.id, ladder.plan, status)
-    return result
+    return { ...result, hasPosition }
   } catch (error) {
     // Keep every successful cancel. The next pass retries only the rungs that
     // still say waiting instead of asking the exchange to cancel the same
@@ -682,15 +693,23 @@ async function updateLiveLadderExitsOnce(
   const ladder = await ladderById(userId, wallet.id, input.ladderId)
   // One wallet read shared by every cancel — each used to pay its own.
   let sharedRow: LiveWalletRow | null = null
-  await updateLadderExitsPlan(ladder.plan, input, async (orderId) => {
-    sharedRow ??= await liveWallet(userId, wallet.id)
-    await cancelLiveOrder(userId, {
-      walletId: wallet.id,
-      marketKey: ladder.marketKey,
-      orderId,
-      walletRow: sharedRow,
+  try {
+    await updateLadderExitsPlan(ladder.plan, input, async (orderId) => {
+      sharedRow ??= await liveWallet(userId, wallet.id)
+      await cancelLiveOrder(userId, {
+        walletId: wallet.id,
+        marketKey: ladder.marketKey,
+        orderId,
+        walletRow: sharedRow,
+      })
     })
-  })
+  } catch (error) {
+    // A batch cannot put a successfully cancelled exchange order back. Save
+    // each cleared id so the next engine pass restores only that missing sell
+    // at the old rules, while every cancellation that failed stays recorded.
+    await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+    throw error
+  }
   ladder.plan.aimedTpPx = null
   ladder.plan.aimedSlPx = null
   await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
@@ -705,6 +724,28 @@ export async function reshapeLiveLadder(
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const ladder = await ladderById(userId, wallet.id, input.ladderId)
+    if ("exitPx" in input) {
+      let sharedRow: LiveWalletRow | null = null
+      try {
+        await moveExitLadderPlan(ladder.plan, input, async (orderId) => {
+          sharedRow ??= await liveWallet(userId, wallet.id)
+          await cancelLiveOrder(userId, {
+            walletId: wallet.id,
+            marketKey: ladder.marketKey,
+            orderId,
+            walletRow: sharedRow,
+          })
+        })
+      } catch (error) {
+        await saveLadderPlan(userId, ladder.id, ladder.plan, "active")
+        throw error
+      }
+      const at = Date.now()
+      await saveLadderPlan(userId, ladder.id, ladder.plan, "active", at)
+      await reconcileLiveLaddersOnce(userId, wallet, undefined, true)
+      const refreshed = await ladderById(userId, wallet.id, ladder.id)
+      return movedLadder(wallet.id, refreshed, refreshed.plan, Date.now())
+    }
     if (ladder.flowRunId !== null) throw new Error("SMART_LADDER_FLOW")
     const ref = parseMarketKey(ladder.marketKey)
     if (!ref) throw new Error("LIVE_MARKET")
@@ -928,10 +969,7 @@ export async function noteRowFailure(
     held.lastSeenAt = now
     if (now < held.heldUntil) return
     held.heldUntil = now + ROW_FAILURE_HOLD_MS
-    const minutes = Math.max(
-      1,
-      Math.floor((now - held.firstSeenAt) / 60_000)
-    )
+    const minutes = Math.max(1, Math.floor((now - held.firstSeenAt) / 60_000))
     note = `The same engine failure has stopped this order ${held.failures} times in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`
   }
 
@@ -1272,6 +1310,7 @@ export async function reconcileLiveLaddersOnce(
 
     const plan = entry.plan as LadderPlan
     const exits = ladderExitLevels(plan)
+    const exitLadder = exitLadderLevels(plan)
     for (const [index, rung] of plan.rungs.entries()) {
       if (rung.orderId) {
         managedOrders.set(rung.orderId, {
@@ -1289,6 +1328,15 @@ export async function reconcileLiveLaddersOnce(
           sz: rung.sz,
         })
       }
+    }
+    for (const [index, exit] of plan.exitRungs.entries()) {
+      if (!exit.orderId) continue
+      managedOrders.set(exit.orderId, {
+        marketKey: row.marketKey,
+        side: "sell",
+        px: roundPx(exitLadder[index]),
+        sz: exit.armedSz,
+      })
     }
   }
   const managedFillTotals = new Map<
@@ -1554,15 +1602,20 @@ export async function reconcileLiveLaddersOnce(
         saveLadder: async (row, status) => {
           const accepted: string[] = []
           let marketActionStarted = false
+          let statusToSave = status
           try {
             let cancelFailed = false
+            const failedCancels = new Set<string>()
             for (const orderId of pendingCancels) {
               const cancelled = await rollbackLiveOrder(userId, {
                 walletId: wallet.id,
                 marketKey: row.marketKey,
                 orderId,
               })
-              if (!cancelled) cancelFailed = true
+              if (!cancelled) {
+                cancelFailed = true
+                failedCancels.add(orderId)
+              }
             }
             // **A cancel that did not cancel voids the replacement.** The chase
             // swaps an order by dropping the old one and placing a new one, and
@@ -1578,6 +1631,35 @@ export async function reconcileLiveLaddersOnce(
                 })
               }
               pendingPlaces.length = 0
+            }
+            if (entry.kind === "dca" && failedCancels.size > 0) {
+              const before = originalPlan as LadderPlan
+              const current = row.plan as LadderPlan
+              const exitCancelFailed = before.exitRungs.some(
+                (exit) =>
+                  exit.orderId !== null && failedCancels.has(exit.orderId)
+              )
+              if (exitCancelFailed) {
+                const pendingExitIds = new Set(
+                  current.exitRungs.flatMap((exit) =>
+                    exit.orderId?.startsWith("pending:") ? [exit.orderId] : []
+                  )
+                )
+                current.exitRungs = structuredClone(before.exitRungs)
+                for (
+                  let index = pendingPlaces.length - 1;
+                  index >= 0;
+                  index--
+                ) {
+                  if (pendingExitIds.has(pendingPlaces[index].tempId)) {
+                    pendingPlaces.splice(index, 1)
+                  }
+                }
+                // A finished row is no longer reconciled. Keep it active while
+                // the old reduce-only sell may still be live so the next pass
+                // retries the cancellation instead of abandoning the order.
+                statusToSave = "active"
+              }
             }
             for (const pending of pendingPlaces) {
               const outcome = await placeLiveOrder(userId, {
@@ -1739,14 +1821,14 @@ export async function reconcileLiveLaddersOnce(
             // The exchange changes and their matching plan are one logical
             // action. A failed save enters the same recovery path as a failed
             // placement so resting orders never drift away from their record.
-            await saveLadderPlan(userId, row.id, row.plan, status)
+            await saveLadderPlan(userId, row.id, row.plan, statusToSave)
             await announcePause()
           } catch (error) {
             // A market fill cannot be undone. Save the conservative advanced
             // state so a retry cannot buy it twice; the next exchange read
             // corrects the exact position and exits.
             if (marketActionStarted) {
-              await saveLadderPlan(userId, row.id, row.plan, status)
+              await saveLadderPlan(userId, row.id, row.plan, statusToSave)
               throw error
             }
             const recoveryFailed = await restoreLiveOrders({
@@ -2097,6 +2179,7 @@ export async function reconcileLiveLaddersOnce(
 
       const plan = entry.plan as LadderPlan
       const exits = ladderExitLevels(plan)
+      const exitLadder = exitLadderLevels(plan)
       for (const [index, rung] of plan.rungs.entries()) {
         if (rung.orderId && !liveOrderIds.has(rung.orderId)) {
           const total = managedFillTotals.get(rung.orderId)
@@ -2146,6 +2229,33 @@ export async function reconcileLiveLaddersOnce(
             fillTime: total.at,
           })
         }
+      }
+      for (const [index, exit] of plan.exitRungs.entries()) {
+        if (!exit.orderId || liveOrderIds.has(exit.orderId)) continue
+        const total = managedFillTotals.get(exit.orderId)
+        if (!total || !(total.sz > 0)) continue
+        if (total.sz < exit.armedSz - 1e-9) {
+          consumeSoldFromRungs(plan, total.sz)
+          exit.armedSz = floorSize(exit.armedSz - total.sz, plan.sizeDecimals)
+          continue
+        }
+        book.fills.push({
+          id: `managed:${total.fillId}`,
+          orderId: exit.orderId,
+          walletId: wallet.id,
+          marketKey: raw.marketKey,
+          side: "sell",
+          px: protocol.markets.roundPx(
+            exitLadder[index],
+            plan.sizeDecimals,
+            plan.priceTick
+          ),
+          sz: exit.armedSz,
+          fee: 0,
+          closedPnl: 0,
+          reason: "order",
+          fillTime: total.at,
+        })
       }
       await advanceRow(raw, entry, advanceOne as never)
     } catch (error) {

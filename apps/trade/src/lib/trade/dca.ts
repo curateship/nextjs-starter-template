@@ -79,6 +79,8 @@ const DEFAULT_DCA_MAX_POSITION_PCT = 25
 const DEFAULT_DCA_SIZE_MULTIPLIER = 2
 
 export const DEFAULT_DCA_TAKE_PROFIT_PCT = 2
+export const DEFAULT_DCA_EXIT_GAP_PCT = 0
+export const MAX_DCA_EXIT_GAP_PCT = 999
 export const DEFAULT_DCA_STOP_LOSS_PCT = 1
 
 // ----- The stop that rests under the base --------------------------------
@@ -240,15 +242,23 @@ const dcaRungsSchema = z.array(dcaRungSchema).min(1).max(20)
  * How the ladder takes profit. "average" re-aims one target above the average
  * buy price after every fill; "prevRung" rests each rung's own sell at the
  * price of the rung above it; "nearestRung" keeps one sell for everything at
- * the nearest rung above the deepest buy, sliding down as deeper rungs fill.
+ * the nearest rung above the deepest buy, sliding down as deeper rungs fill;
+ * "exitLadder" mirrors the entry gaps above the anchor and sells the largest
+ * buys first at the closest exits.
  */
-export const DCA_TP_MODES = ["average", "prevRung", "nearestRung"] as const
+export const DCA_TP_MODES = [
+  "average",
+  "prevRung",
+  "nearestRung",
+  "exitLadder",
+] as const
 export type DcaTpMode = (typeof DCA_TP_MODES)[number]
 
 export const DCA_TP_MODE_LABELS: Record<DcaTpMode, string> = {
   average: "At the average price",
   prevRung: "Sell at previous rung",
   nearestRung: "Sell everything at nearest rung",
+  exitLadder: "Sell back up the ladder",
 }
 
 /** What each mode does, for the tooltip beside the picker. */
@@ -259,6 +269,8 @@ export const DCA_TP_MODE_HINTS: Record<DcaTpMode, string> = {
     "Each buy sells at the price of the buy above it — the first at the clicked price itself.",
   nearestRung:
     "One sell for everything at the rung above the deepest buy; it slides deeper as more rungs fill.",
+  exitLadder:
+    "Mirrors the buy steps above the anchor, with the biggest buys selling first at the closest exits. Drag an exit line to move every exit and change the gap above the buys.",
 }
 
 /**
@@ -314,6 +326,8 @@ export const dcaParamsSchema = z.object({
       mode: z.enum(DCA_TP_MODES),
       /** Only the "average" mode has a percent; the rung modes aim at rungs. */
       pct: z.number().positive().max(999),
+      /** Extra room above the mirrored exits. Missing on older saved settings. */
+      exitGapPct: z.number().min(0).max(MAX_DCA_EXIT_GAP_PCT).optional(),
     })
     .nullable(),
   /**
@@ -373,7 +387,11 @@ export function defaultDcaParams(): DcaParams {
     anchor: "base",
     baseDetection: baseStopDetection(),
     rungEntry: "limit",
-    takeProfit: { mode: "average", pct: DEFAULT_DCA_TAKE_PROFIT_PCT },
+    takeProfit: {
+      mode: "average",
+      pct: DEFAULT_DCA_TAKE_PROFIT_PCT,
+      exitGapPct: DEFAULT_DCA_EXIT_GAP_PCT,
+    },
     stopLoss: null,
     // Off. A ladder that did not ask for a limit enters as many coins as it
     // always did.
@@ -606,6 +624,18 @@ export type LadderRungState = z.infer<typeof ladderRungStateSchema>
 const ladderTakeProfitSchema = z.object({
   mode: z.enum([...DCA_TP_MODES, "fixed"]),
   pct: z.number().positive().max(999).nullable(),
+  /** One movable gap shifts the whole mirrored exit shape. */
+  exitGapPct: z
+    .number()
+    .min(0)
+    .max(MAX_DCA_EXIT_GAP_PCT)
+    .default(DEFAULT_DCA_EXIT_GAP_PCT),
+})
+
+const exitLadderRungSchema = z.object({
+  status: z.enum(["waiting", "sold"]),
+  orderId: z.string().nullable(),
+  armedSz: z.number().min(0),
 })
 
 /**
@@ -704,6 +734,11 @@ export const ladderPlanSchema = z.object({
    */
   leverage: z.number().int().positive().default(1),
   rungs: z.array(ladderRungStateSchema).min(1).max(20),
+  /**
+   * The mirrored sells. Old plans and mode switches start empty; the engine
+   * builds one entry per buy rung when the exit-ladder mode is active.
+   */
+  exitRungs: z.array(exitLadderRungSchema).max(20).default([]),
   takeProfit: ladderTakeProfitSchema.nullable(),
   stopLoss: ladderStopLossSchema.nullable(),
   /** The market-crash rule this ladder was placed with. Null is off. */
@@ -808,6 +843,12 @@ export type LadderPlan = z.infer<typeof ladderPlanSchema>
 export type LadderShapeChange =
   | { anchorPx: number; deepestPx?: never }
   | { anchorPx?: never; deepestPx: number }
+  | {
+      anchorPx?: never
+      deepestPx?: never
+      exitIndex: number
+      exitPx: number
+    }
 
 /** Re-spread typed rung percentages so the deepest rung lands at one price. */
 export function resizedDcaDeviations(
@@ -862,6 +903,7 @@ export function reshapeLadderPlan(
   change: LadderShapeChange,
   roundPx: (px: number) => number
 ): LadderPlan {
+  if ("exitPx" in change) throw new Error("SMART_EXIT_GAP")
   if (!ladderShapeMovable(plan)) throw new Error("SMART_LADDER_STARTED")
 
   const deepest = plan.rungs.at(-1)
@@ -960,6 +1002,99 @@ export function ladderExitLevels(
   return plan.rungs.map((_rung, index) =>
     index === 0 ? plan.anchorPx : plan.rungs[index - 1].px
   )
+}
+
+/**
+ * Mirrors each stored buy step above the anchor. The plan keeps concrete buy
+ * prices, so this recovers each percentage instead of storing a second copy of
+ * the ladder shape that could drift after a move or resize.
+ */
+export function exitLadderLevels(plan: {
+  anchorPx: number
+  rungs: readonly { px: number }[]
+  takeProfit?: { mode: string; exitGapPct?: number } | null
+}): number[] {
+  let previousBuy = plan.anchorPx
+  const gapPct =
+    plan.takeProfit?.mode === "exitLadder"
+      ? (plan.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
+      : DEFAULT_DCA_EXIT_GAP_PCT
+  let previousExit = plan.anchorPx * (1 + gapPct / 100)
+  return plan.rungs.map((rung) => {
+    const step = 1 - rung.px / previousBuy
+    previousBuy = rung.px
+    previousExit *= 1 + step
+    return previousExit
+  })
+}
+
+/**
+ * Turns one dragged exit price into the single extra gap shared by every exit.
+ * The mirrored spacing stays intact; a price below the no-gap shape is invalid.
+ */
+export function exitLadderGapPctForPrice(
+  plan: { anchorPx: number; rungs: readonly { px: number }[] },
+  exitIndex: number,
+  exitPx: number
+): number | null {
+  if (!Number.isInteger(exitIndex) || !(exitPx > 0)) return null
+  const basePx = exitLadderLevels({
+    anchorPx: plan.anchorPx,
+    rungs: plan.rungs,
+  })[exitIndex]
+  if (!(basePx > 0)) return null
+  const gapPct = (exitPx / basePx - 1) * 100
+  if (
+    !Number.isFinite(gapPct) ||
+    gapPct < -1e-9 ||
+    gapPct > MAX_DCA_EXIT_GAP_PCT
+  ) {
+    return null
+  }
+  return Math.max(DEFAULT_DCA_EXIT_GAP_PCT, gapPct)
+}
+
+/** The deepest buy maps to the closest exit, then the sizes work upward. */
+export function exitLadderPlannedSz(
+  plan: Pick<LadderPlan, "rungs">,
+  exitIndex: number
+): number {
+  return plan.rungs[plan.rungs.length - 1 - exitIndex]?.sz ?? 0
+}
+
+/**
+ * Accounts for an exit sale against the deepest coins still held. A partial
+ * sale leaves the unsold part on that rung; complete rungs become terminal.
+ */
+export function consumeSoldFromRungs(
+  plan: Pick<LadderPlan, "rungs" | "sizeDecimals">,
+  soldSz: number
+): void {
+  let remaining = soldSz
+  if (!Number.isFinite(remaining) || remaining <= 0) return
+
+  for (
+    let index = plan.rungs.length - 1;
+    index >= 0 && remaining > 0;
+    index--
+  ) {
+    const rung = plan.rungs[index]
+    if (rung.status !== "filled") continue
+    if (remaining >= rung.sz - 1e-9) {
+      remaining -= rung.sz
+      rung.status = "sold"
+      continue
+    }
+
+    const left = floorSize(rung.sz - remaining, plan.sizeDecimals)
+    if (left > 0) {
+      rung.sz = left
+      rung.budget = rung.px * left
+    } else {
+      rung.status = "sold"
+    }
+    remaining = 0
+  }
 }
 
 /**

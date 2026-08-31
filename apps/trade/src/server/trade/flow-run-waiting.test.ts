@@ -72,7 +72,10 @@ vi.mock("@/server/trade/live-smart-orders", () => ({
   cancelLiveFlowLadderRemainder: async () => ({ complete: true, done: true }),
   cancelLiveFlowLadderRest: async () => ({ complete: true, done: true }),
   cancelLiveSignalRest: async () => ({ complete: true, done: true }),
-  cancelLiveLadderRest: async () => ({ cancelled: 0 }),
+  cancelLiveLadderRest: async () => ({
+    cancelled: 0,
+    hasPosition: false,
+  }),
 }))
 
 const { advanceFlowRuns } = await import("@/server/trade/flow-run")

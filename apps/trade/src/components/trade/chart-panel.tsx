@@ -806,7 +806,10 @@ export function ChartPanel({
   const onReshapeLadder = React.useCallback(
     (
       ladder: SmartLadder,
-      shape: { anchorPx: number } | { deepestPx: number }
+      shape:
+        | { anchorPx: number }
+        | { deepestPx: number }
+        | { exitIndex: number; exitPx: number }
     ) => tradingReshapeLadder(ladder.walletId, ladder.id, shape),
     [tradingReshapeLadder]
   )
