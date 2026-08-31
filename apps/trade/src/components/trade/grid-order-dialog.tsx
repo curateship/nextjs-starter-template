@@ -119,6 +119,8 @@ export type GridPreviewLine = {
  */
 export type GridPreview = {
   direction: GridDirection
+  /** The rung number printed on each end of the range. */
+  levelCount: number
   lines: GridPreviewLine[]
 }
 
@@ -553,7 +555,7 @@ export function GridOrderDialog({
     if (takeProfitPx !== null)
       lines.push({ px: takeProfitPx, kind: "takeProfit" })
     if (stopPx !== null) lines.push({ px: stopPx, kind: "stopLoss" })
-    onPreview({ direction, lines })
+    onPreview({ direction, levelCount: plan.levels.length, lines })
   }, [plan, direction, onPreview, top, bottom, takeProfitPx, stopPx])
 
   /**

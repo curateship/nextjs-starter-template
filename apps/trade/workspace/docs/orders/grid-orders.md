@@ -646,8 +646,13 @@ the line sits at.
 
 What a level puts in, in dollars, is still on the line, because the axis cannot
 tell you that. So is the name of each of the four lines you set: UPPER PRICE,
-LOWER PRICE, END GRID and STOP LOSS. The levels in between carry no name, because
-a dozen labelled ones is a wall of text over the price action.
+LOWER PRICE, END GRID and STOP LOSS. The two range lines also name the rung and
+trade at that price. On a five-rung selling grid, the upper line says RUNG 5
+SELLS and the lower line says RUNG 1 BUYS BACK. A buying grid says the mirror:
+RUNG 5 BUYS on the lower line and RUNG 1 SELLS on the upper line. Five complete
+round trips need six prices, so the wording explains why one boundary sits a
+step past the nearest entry. The levels in between carry no name, because a
+dozen labelled ones is a wall of text over the price action.
 
 ## The card headers say their answer
 

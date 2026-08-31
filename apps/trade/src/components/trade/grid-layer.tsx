@@ -153,7 +153,12 @@ export const GridLayer = React.memo(function GridLayer({
       {preview?.lines.map((line, index) => {
         const y = yFor(line.px)
         if (y === null) return null
-        const look = lineLook(line.kind, colors, preview.direction)
+        const look = lineLook(
+          line.kind,
+          colors,
+          preview.direction,
+          preview.levelCount
+        )
         return (
           <ChartLine
             key={`grid-preview-${index}`}
@@ -389,6 +394,7 @@ function GridLines({
 }) {
   const plan = grid.plan
   const direction = plan.direction
+  const levelCount = plan.levels.length
   // Green where the grid buys, red where it sells — whichever half of the
   // round trip that is. A buying grid's waiting levels are green and its held
   // ones red; a selling grid is the other way round.
@@ -710,7 +716,7 @@ function GridLines({
           // and nothing opens there.
           usd={bottomLevel?.usd}
           colour={colors.primary}
-          name="LOWER PRICE"
+          name={gridBoundaryName(direction, "bottom", levelCount)}
           dashed={pinBottom.off !== null}
           grip={bottomMovable && grippable}
           onGripDown={
@@ -743,7 +749,7 @@ function GridLines({
           y={pinTop.y}
           usd={topLevel?.usd}
           colour={colors.primary}
-          name="UPPER PRICE"
+          name={gridBoundaryName(direction, "top", levelCount)}
           dashed={pinTop.off !== null}
           grip={topMovable && grippable}
           onGripDown={topMovable ? startDrag("top", plan.topPx) : undefined}
@@ -857,17 +863,49 @@ function GridLines({
   )
 }
 
+/**
+ * What one end of the range means in the grid's direction.
+ *
+ * Five rungs need six prices because every rung has an opening trade and a
+ * closing trade one step away. Naming the trade at each end makes that sixth
+ * line explain itself instead of looking like an extra rung.
+ */
+function gridBoundaryName(
+  direction: GridDirection,
+  end: "top" | "bottom",
+  levelCount: number
+): string {
+  const edge = end === "top" ? "UPPER" : "LOWER"
+  if (direction === "long") {
+    return end === "top"
+      ? `${edge} PRICE · RUNG 1 SELLS`
+      : `${edge} PRICE · RUNG ${levelCount} BUYS`
+  }
+  return end === "top"
+    ? `${edge} PRICE · RUNG ${levelCount} SELLS`
+    : `${edge} PRICE · RUNG 1 BUYS BACK`
+}
+
 /** What each kind of line looks like and what it is called. */
 function lineLook(
   kind: GridPreview["lines"][number]["kind"],
   colors: ChartColors,
-  direction: GridDirection
+  direction: GridDirection,
+  levelCount: number
 ): { colour: string; name: string | null; dashed: boolean } {
   if (kind === "upper") {
-    return { colour: colors.primary, name: "UPPER PRICE", dashed: false }
+    return {
+      colour: colors.primary,
+      name: gridBoundaryName(direction, "top", levelCount),
+      dashed: false,
+    }
   }
   if (kind === "lower") {
-    return { colour: colors.primary, name: "LOWER PRICE", dashed: false }
+    return {
+      colour: colors.primary,
+      name: gridBoundaryName(direction, "bottom", levelCount),
+      dashed: false,
+    }
   }
   if (kind === "takeProfit") {
     return { colour: colors.up, name: "END GRID", dashed: false }
@@ -1038,7 +1076,10 @@ export function gridLineObstacles(
       pricesOf(plan).find((at) => priceKey(at.px) === priceKey(deepPx)) ?? null
     add(
       plan.bottomPx,
-      nameWidth("LOWER PRICE", bottomMovable) +
+      nameWidth(
+        gridBoundaryName(plan.direction, "bottom", plan.levels.length),
+        bottomMovable
+      ) +
         (plan.direction === "long" && deepLevel
           ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
             usdWidth(deepLevel.usd)
@@ -1046,7 +1087,10 @@ export function gridLineObstacles(
     )
     add(
       plan.topPx,
-      nameWidth("UPPER PRICE", topMovable) +
+      nameWidth(
+        gridBoundaryName(plan.direction, "top", plan.levels.length),
+        topMovable
+      ) +
         (plan.direction === "short" && deepLevel
           ? (deepLevel.entry !== null ? OBSTACLE_ICON + 4 : 0) +
             usdWidth(deepLevel.usd)
