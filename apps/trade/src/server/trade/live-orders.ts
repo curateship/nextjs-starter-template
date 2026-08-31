@@ -1207,7 +1207,14 @@ export async function loadLivePortfolio(
             // having been recorded at all.
             if (protocol.orders) {
               if (sweepIsWaitedFor(userId, wallet.id)) {
-                await sweepLiveFills(userId, wallet, portfolio, credential)
+                await sweepLiveFills(
+                  userId,
+                  wallet,
+                  portfolio,
+                  credential,
+                  options.journalOpen ?? false,
+                  true
+                )
               } else {
                 // Still swept when nobody is looking, just far less often:
                 // the record behind the Journal is what sends the bell

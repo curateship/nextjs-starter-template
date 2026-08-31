@@ -17,6 +17,7 @@ import {
 import { loadLiveRefusals } from "@/server/trade/live-fills"
 import { randomUUID } from "node:crypto"
 import {
+  tradeLiveFills,
   tradeLiveJournal,
   tradeSmartLadders,
   tradeWallets,
@@ -29,6 +30,7 @@ const prices = vi.fn()
 const place = vi.fn()
 const cancel = vi.fn()
 const close = vi.fn()
+const fills = vi.fn()
 const setBrackets = vi.fn()
 const portfolio = vi.fn()
 const actionPortfolio = vi.fn()
@@ -77,7 +79,7 @@ vi.mock("@/server/protocols/registry", async (importOriginal) => {
         account: actual.account?.portfolio
           ? { ...actual.account, portfolio: actionPortfolio }
           : undefined,
-        orders: { place, cancel, close, setBrackets, portfolio },
+        orders: { place, cancel, close, fills, setBrackets, portfolio },
       }
     },
   }
@@ -100,6 +102,7 @@ beforeEach(async () => {
     place,
     cancel,
     close,
+    fills,
     setBrackets,
     portfolio,
     actionPortfolio,
@@ -113,6 +116,7 @@ beforeEach(async () => {
   const { clearMarketRulesCache } = await import("@/server/trade/market-rules")
   clearMarketRulesCache()
   portfolio.mockResolvedValue({ positions: [], orders: [] })
+  fills.mockResolvedValue([])
   setBrackets.mockResolvedValue({ slOrderId: null })
   place.mockResolvedValue({
     status: "resting",
@@ -497,6 +501,93 @@ describe("closing", () => {
       expect.any(Object),
       expect.objectContaining({ marketId: "BTC", szi: held.szi })
     )
+  })
+
+  it("returns Lighter's close in the first refreshed Journal", async () => {
+    const userId = await person()
+    const walletId = await liveWallet(userId, { protocol: "lighter" })
+    const marketKey = "lighter:mainnet:ETH"
+    const openedAt = Date.now() - 60_000
+    await database.insert(tradeLiveFills).values({
+      userId,
+      walletId,
+      fillId: "open-fill",
+      orderId: "open-order",
+      marketKey,
+      side: "sell",
+      px: 2_466.97,
+      sz: 0.0922,
+      at: openedAt,
+      closedPnl: 0,
+      fee: 0,
+      dir: "Open Short",
+      liquidation: false,
+    })
+    const held = {
+      marketId: "ETH",
+      szi: -0.0922,
+      entryPx: 2_466.97,
+      leverage: 2,
+      marginUsed: 113.72,
+      liquidationPx: null,
+      targets: [],
+      tpPx: null,
+      tpSz: null,
+      slPx: null,
+      tpOrderId: null,
+      slOrderId: null,
+      protectionOrderIds: [],
+    }
+    actionPortfolio.mockResolvedValue({ positions: [held], orders: [] })
+    close.mockResolvedValue({ avgPx: null, filledSz: null })
+    fills.mockResolvedValue([
+      {
+        fillId: "close-fill",
+        orderId: "close-order",
+        marketId: "ETH",
+        side: "buy",
+        px: 2_468.81,
+        sz: 0.0922,
+        at: openedAt + 60_000,
+        closedPnl: -0.169648,
+        fee: 0,
+        dir: "Close Short",
+        liquidation: false,
+      },
+    ])
+
+    await closeLivePosition(userId, { walletId, marketKey })
+    const answer = await loadLivePortfolio(userId, [
+      {
+        id: walletId,
+        label: "Live",
+        kind: "live",
+        status: "active",
+        protocol: "lighter",
+        network: "mainnet",
+        startingBalance: 1_000,
+        address: ADDRESS,
+        hasKey: true,
+        keyValidUntil: null,
+      },
+    ])
+
+    expect(fills).toHaveBeenCalledWith(
+      "mainnet",
+      ADDRESS,
+      expect.any(Number),
+      expect.any(Function),
+      "order"
+    )
+    expect(answer.trades).toHaveLength(1)
+    expect(answer.trades[0]).toMatchObject({
+      marketKey,
+      direction: "short",
+      entryPx: 2_466.97,
+      exitPx: 2_468.81,
+      sz: 0.0922,
+      pnl: -0.169648,
+    })
   })
 })
 

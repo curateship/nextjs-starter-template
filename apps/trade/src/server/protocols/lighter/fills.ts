@@ -170,7 +170,8 @@ export async function fetchLighterOrderFills(
   network: NetworkId,
   address: string,
   since: number,
-  credential: () => string | null
+  credential: () => string | null,
+  priority: "background" | "order" = "background"
 ): Promise<WalletOrderFill[]> {
   markLighterFillsAttempted(network, address)
   const facts = await lighterAccountFacts(network, address, credential)
@@ -192,7 +193,8 @@ export async function fetchLighterOrderFills(
         sort_by: "timestamp",
         limit: PAGE_ROWS,
         ...(cursor === undefined ? {} : { cursor }),
-      }
+      },
+      priority
     )
     const parsed = tradesAnswerSchema.safeParse(answer)
     if (!parsed.success) break

@@ -642,6 +642,12 @@ resting-order polls can spend their smaller allowance without blocking Close.
 If the complete order allowance is spent too, the close refusal shows the
 measured request count instead of the generic retry message.
 
+After Lighter accepts a close, Trade reads the resulting fill before returning
+the refreshed Positions and Journal panel. The post-close fill read may use the
+room reserved for orders and ignores the one-minute and five-minute waits used
+by idle history checks. The close arrow and Journal trade arrive with the
+position change instead of several minutes later.
+
 **Its expiry must be zero.** An order that lives only for this instant cannot
 also carry one weeks away, and Lighter's own signer refuses the whole
 transaction with "OrderExpiry is invalid". A close built with the usual

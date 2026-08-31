@@ -519,7 +519,9 @@ export type ProtocolEntry = {
       network: NetworkId,
       address: string,
       since: number,
-      credential: () => string | null
+      credential: () => string | null,
+      /** A read following a real fill may use the room kept from polling. */
+      priority?: "background" | "order"
     ): Promise<WalletOrderFill[]>
     /**
      * What one order was, asked after it is gone — the only way to tell a
