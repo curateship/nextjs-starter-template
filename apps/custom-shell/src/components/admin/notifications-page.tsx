@@ -76,11 +76,16 @@ type NotificationSortColumn =
   "activity" | "recipient" | "type" | "status" | "created"
 
 const NOTIFICATION_COLUMNS: SortableColumn<NotificationSortColumn>[] = [
-  { key: "activity", label: "Activity", column: "main" },
-  { key: "recipient", label: "Recipient", column: "meta" },
-  { key: "type", label: "Type", column: "meta" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "created", label: "Created", column: "meta" },
+  {
+    key: "activity",
+    label: "Activity",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "recipient", label: "Recipient", column: "preview" },
+  { key: "type", label: "Type", column: "preview" },
+  { key: "status", label: "Status", column: "preview" },
+  { key: "created", label: "Created", column: "preview" },
 ]
 
 /**
@@ -449,7 +454,15 @@ export function NotificationsPage({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={<SelectAllTableHead noun="notifications" checked={selection.selectAllState(visibleNotificationIds)} onCheckedChange={() => selection.toggleVisible(visibleNotificationIds)} />}
+            leading={
+              <SelectAllTableHead
+                noun="notifications"
+                checked={selection.selectAllState(visibleNotificationIds)}
+                onCheckedChange={() =>
+                  selection.toggleVisible(visibleNotificationIds)
+                }
+              />
+            }
           />
         }
         isEmpty={!loading && notifications.length === 0}
@@ -484,8 +497,8 @@ export function NotificationsPage({
                   aria-label={`Select ${notificationTypeLabels[item.type]} notification`}
                 />
               </TableCell>
-              <TableCell column="main">
-                <div className="flex items-center gap-2">
+              <TableCell column="main" className="min-w-0 md:min-w-80">
+                <div className="flex max-w-64 items-center gap-2 sm:max-w-none">
                   {item.type === "changelog" ? (
                     <SparklesIcon className="size-4 text-muted-foreground" />
                   ) : item.type === "announcement" ? (
@@ -507,11 +520,21 @@ export function NotificationsPage({
                   )}
                   <div className="min-w-0">
                     {opens ? (
-                      <button type="button" className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline" title={notificationSubjectDetail(item)} onClick={() => openNotification(item)}>
+                      <button
+                        type="button"
+                        className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
+                        title={notificationSubjectDetail(item)}
+                        onClick={() => openNotification(item)}
+                      >
                         {subject}
                       </button>
                     ) : (
-                      <p className="max-w-96 truncate text-sm font-medium" title={notificationSubjectDetail(item)}>{subject}</p>
+                      <p
+                        className="max-w-96 truncate text-sm font-medium"
+                        title={notificationSubjectDetail(item)}
+                      >
+                        {subject}
+                      </p>
                     )}
                     <p
                       className="max-w-96 truncate text-xs text-muted-foreground"
@@ -522,13 +545,13 @@ export function NotificationsPage({
                   </div>
                 </div>
               </TableCell>
-              <TableCell column="mutedMeta">{item.recipient_name}</TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">{item.recipient_name}</TableCell>
+              <TableCell column="preview">
                 <Badge variant="secondary">
                   {notificationTypeLabels[item.type]}
                 </Badge>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <Badge
                   variant={item.read_at ? "secondary" : "default"}
                   className={cn(!item.read_at && "bg-primary")}
@@ -537,7 +560,7 @@ export function NotificationsPage({
                 </Badge>
               </TableCell>
               <TableCell
-                column="mutedMeta"
+                column="preview"
                 title={formatDateTime(item.created_at)}
               >
                 {formatRelativeTime(item.created_at, formatDateTime)}

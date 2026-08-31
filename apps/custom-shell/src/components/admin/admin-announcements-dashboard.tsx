@@ -88,10 +88,15 @@ const announcementsRoute = getRouteApi("/_authenticated/admin/announcements")
 type AnnouncementSortColumn = "title" | "where" | "status" | "shows"
 
 const ANNOUNCEMENT_COLUMNS: SortableColumn<AnnouncementSortColumn>[] = [
-  { key: "title", label: "Announcement", column: "main" },
-  { key: "where", label: "Where", column: "meta" },
-  { key: "status", label: "Status", column: "meta" },
-  { key: "shows", label: "Shows", column: "meta" },
+  {
+    key: "title",
+    label: "Announcement",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "where", label: "Where", column: "preview" },
+  { key: "status", label: "Status", column: "preview" },
+  { key: "shows", label: "Shows", column: "preview" },
 ]
 
 /** Showing first, then what is still coming, then what is over. */
@@ -387,22 +392,22 @@ export function AdminAnnouncementsDashboard({
                   aria-label={`Select ${announcement.title}`}
                 />
               </TableCell>
-              <TableCell column="main">
+              <TableCell column="main" className="min-w-0 md:min-w-80">
                 <button
                   type="button"
-                  className="block text-left text-sm font-medium group-hover:underline"
+                  className="block max-w-28 truncate text-left text-sm font-medium group-hover:underline sm:max-w-none"
                   onClick={() => openAnnouncement(announcement)}
                 >
                   {announcement.title}
                 </button>
                 <span
-                  className="line-clamp-2 whitespace-normal text-xs text-muted-foreground"
+                  className="line-clamp-2 max-w-28 whitespace-normal text-xs text-muted-foreground sm:max-w-none"
                   title={announcement.body}
                 >
                   {announcement.body}
                 </span>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <div className="flex flex-wrap items-center gap-1">
                   {channelLabels(announcement).map((label) => (
                     <Badge key={label} variant="outline">
@@ -411,14 +416,14 @@ export function AdminAnnouncementsDashboard({
                   ))}
                 </div>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <Badge
                   variant={status === "showing" ? "secondary" : "outline"}
                 >
                   {statusLabels[status]}
                 </Badge>
               </TableCell>
-              <TableCell column="meta">
+              <TableCell column="preview">
                 <span className="block truncate" title={windowText(announcement)}>
                   {windowText(announcement)}
                 </span>

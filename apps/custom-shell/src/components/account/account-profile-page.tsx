@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { ImageUpload } from "@/components/shared/image-upload"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
@@ -263,7 +263,7 @@ function EmailCard({
         </div>
 
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => setReloads((count) => count + 1)}
           />

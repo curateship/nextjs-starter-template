@@ -7,6 +7,15 @@ A newsletter is a saved broadcast sent to contacts. The editor gives an admin:
 - Audience selection and test sending.
 - Send-now and scheduled-send choices.
 
+The message sheet stays white in light and dark themes because it previews the
+email a recipient gets. The move, copy, remove, and add-block controls are app
+controls, so they use the active app theme and the shared button and tooltip
+components even while they float over that sheet.
+
+Ticked newsletters clear when the search, sort, page, or rows-per-page changes.
+The bulk delete count therefore refers only to rows that remained on screen
+after they were selected.
+
 The audience can be a contact segment rather than a copied list. The server
 takes the audience snapshot needed for the send, then creates delivery records.
 That keeps a changing segment from quietly changing work that has already
@@ -29,6 +38,8 @@ records keep provider states such as:
 - Failed.
 
 A provider accepting a message does not mean the recipient read it.
+Long delivery lists use the shared Load more button. A second click while the
+next page is loading does not start another request.
 
 ## Templates and unsubscribe
 

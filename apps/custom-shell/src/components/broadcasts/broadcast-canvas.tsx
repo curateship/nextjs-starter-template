@@ -21,10 +21,10 @@ import {
 import * as React from "react"
 
 import {
-  DRAG_HANDLE_CLASS,
   useNavSensors,
   useSortableRow,
 } from "@/components/settings/nav-editor-shared"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,6 +32,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import {
   BROADCAST_BLOCK_KINDS,
   BROADCAST_BLOCK_META,
@@ -141,7 +146,10 @@ export function BroadcastCanvas({
    */
   const handleBackgroundClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement
-    if (target.closest("[data-block]") || target.closest("[data-subject-card]")) {
+    if (
+      target.closest("[data-block]") ||
+      target.closest("[data-subject-card]")
+    ) {
       return
     }
     onSelect(null)
@@ -293,7 +301,9 @@ function EmptyEmail({
   return (
     <div className="flex flex-col items-center justify-center rounded-b-lg px-6 py-20 text-center">
       <MailIcon className="mb-3 size-9 text-neutral-300" />
-      <p className="text-sm font-medium text-neutral-600">This email is empty</p>
+      <p className="text-sm font-medium text-neutral-600">
+        This email is empty
+      </p>
       <p className="mb-4 text-xs text-neutral-400">
         Add a block from the left, or start here.
       </p>
@@ -302,10 +312,16 @@ function EmptyEmail({
           label="Add the first block"
           onInsert={(kind) => onInsert(kind, 0)}
         >
-          <span className="inline-flex items-center gap-1.5 rounded-md border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm hover:bg-neutral-50">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label="Add the first block"
+            onClick={(event) => event.stopPropagation()}
+          >
             <PlusIcon className="size-3.5" />
             Add a block
-          </span>
+          </Button>
         </InsertMenu>
       )}
     </div>
@@ -495,6 +511,10 @@ function EmptyBlock({
  * Hidden until you hover or tab to the block, and kept on screen while that
  * block is the selected one, so the controls for what you are editing do not
  * disappear the moment the pointer leaves.
+ *
+ * The toolbar changes the app's editor state, not the email a reader receives.
+ * It therefore uses app theme tokens even while it floats over the fixed white
+ * email sheet below it.
  */
 function BlockControls({
   name,
@@ -514,51 +534,61 @@ function BlockControls({
   return (
     <div
       className={cn(
-        "absolute -top-4 right-2 z-30 flex items-center gap-0.5 rounded-lg border border-black/10 bg-white p-0.5 shadow-md transition-opacity",
+        "absolute -top-4 right-2 z-30 flex items-center gap-0.5 rounded-lg border bg-popover p-0.5 text-popover-foreground shadow-md transition-opacity",
         "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
         selected && "opacity-100"
       )}
     >
-      <button
-        type="button"
-        aria-label={`Move the ${name} block`}
-        title="Drag to move"
-        className={cn(DRAG_HANDLE_CLASS, "size-7 touch-none hover:bg-neutral-100")}
-        {...attributes}
-        {...listeners}
-      >
-        <GripVerticalIcon className="size-4" />
-      </button>
-      <button
-        type="button"
-        aria-label={`Copy the ${name} block`}
-        title="Make a copy"
-        className={cn(
-          "flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900",
-          focusRing
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onDuplicate()
-        }}
-      >
-        <CopyIcon className="size-4" />
-      </button>
-      <button
-        type="button"
-        aria-label={`Remove the ${name} block`}
-        title="Remove"
-        className={cn(
-          "flex size-7 items-center justify-center rounded-md text-neutral-500 hover:bg-red-50 hover:text-red-600",
-          focusRing
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onDelete()
-        }}
-      >
-        <Trash2Icon className="size-4" />
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Move the ${name} block`}
+            className="touch-none cursor-grab active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVerticalIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Drag to move</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Copy the ${name} block`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onDuplicate()
+            }}
+          >
+            <CopyIcon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Make a copy</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="destructive"
+            size="icon-sm"
+            aria-label={`Remove the ${name} block`}
+            onClick={(event) => {
+              event.stopPropagation()
+              onDelete()
+            }}
+          >
+            <Trash2Icon className="size-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Remove</TooltipContent>
+      </Tooltip>
     </div>
   )
 }
@@ -576,16 +606,23 @@ function InsertHere({
 }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 -bottom-3 z-30 flex justify-center">
-      <InsertMenu label={`Add a block after the ${name} block`} onInsert={onInsert}>
-        <span
+      <InsertMenu
+        label={`Add a block after the ${name} block`}
+        onInsert={onInsert}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="icon-xs"
+          aria-label={`Add a block after the ${name} block`}
+          onClick={(event) => event.stopPropagation()}
           className={cn(
-            "pointer-events-auto flex size-6 items-center justify-center rounded-full border border-black/10 bg-white text-neutral-500 shadow-sm transition-opacity",
-            "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
-            "hover:bg-foreground hover:text-background"
+            "pointer-events-auto rounded-full shadow-sm transition-opacity",
+            "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
           )}
         >
           <PlusIcon className="size-3.5" />
-        </span>
+        </Button>
       </InsertMenu>
     </div>
   )
@@ -598,21 +635,16 @@ function InsertMenu({
 }: {
   label: string
   onInsert: (kind: BroadcastBlockKind) => void
-  children: React.ReactNode
+  children: React.ReactElement
 }) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={label}
-          title={label}
-          onClick={(event) => event.stopPropagation()}
-          className="pointer-events-auto focus-visible:outline-none"
-        >
-          {children}
-        </button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>{children}</DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="center" className="w-44">
         {BROADCAST_BLOCK_KINDS.map((kind) => (
           <DropdownMenuItem key={kind} onSelect={() => onInsert(kind)}>

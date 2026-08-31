@@ -1,6 +1,11 @@
 import * as React from "react"
 import { getRouteApi, useNavigate, useRouter } from "@tanstack/react-router"
-import { PlusIcon, SettingsIcon, Trash2Icon, UsersRoundIcon } from "lucide-react"
+import {
+  PlusIcon,
+  SettingsIcon,
+  Trash2Icon,
+  UsersRoundIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 import { SegmentDialog } from "@/components/broadcasts/segment-dialog"
@@ -46,10 +51,15 @@ const segmentsRoute = getRouteApi("/_authenticated/admin/segments")
 export type SegmentSortColumn = "name" | "kind" | "people" | "updated"
 
 const SEGMENT_COLUMNS: SortableColumn<SegmentSortColumn>[] = [
-  { key: "name", label: "Segment", column: "main" },
-  { key: "kind", label: "How it is decided", column: "meta" },
-  { key: "people", label: "People", column: "meta" },
-  { key: "updated", label: "Changed", column: "meta" },
+  {
+    key: "name",
+    label: "Segment",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "kind", label: "How it is decided", column: "preview" },
+  { key: "people", label: "People", column: "preview" },
+  { key: "updated", label: "Changed", column: "preview" },
 ]
 
 function compareSegments(
@@ -268,7 +278,13 @@ export function SegmentsPage({
             sort={sort}
             direction={direction}
             onSort={toggleSort}
-            leading={<SelectAllTableHead noun="segments" checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />}
+            leading={
+              <SelectAllTableHead
+                noun="segments"
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
+            }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
         }
@@ -306,16 +322,16 @@ export function SegmentsPage({
                 aria-label={`Select ${segment.name}`}
               />
             </TableCell>
-            <TableCell column="main">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
               <button
                 type="button"
-                className="block text-left text-sm font-medium group-hover:underline"
+                className="block max-w-36 truncate text-left text-sm font-medium group-hover:underline sm:max-w-none"
                 onClick={() => openSegment(segment)}
               >
                 {segment.name}
               </button>
               <span
-                className="line-clamp-2 whitespace-normal text-xs text-muted-foreground"
+                className="line-clamp-2 max-w-36 whitespace-normal text-xs text-muted-foreground sm:max-w-none"
                 title={
                   segment.description ||
                   describeSegmentRules(segment.rules, segmentNames)
@@ -327,19 +343,19 @@ export function SegmentsPage({
                     : describeSegmentRules(segment.rules, segmentNames))}
               </span>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <Badge variant="outline">
                 {segment.kind === "static" ? "Hand-picked" : "Rules"}
               </Badge>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {segment.total === 0 ? (
                 <span className="text-muted-foreground">Nobody yet</span>
               ) : (
                 `${segment.total.toLocaleString()} ${plural(segment.total, "person", "people")}`
               )}
             </TableCell>
-            <TableCell column="mutedMeta">
+            <TableCell column="preview">
               {formatDate(segment.updated_at)}
             </TableCell>
             <TableCell column="actions">

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/card"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { Input } from "@/components/ui/input"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Label } from "@/components/ui/label"
@@ -375,15 +375,15 @@ function PasskeysCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* The failure is raised outside the surface rather than inside it.
-            The banner is a toast and draws nothing here, so a surface holding
-            only it is an empty box still wearing its one-pixel ring — which
-            paints as a stray hairline, not as nothing. */}
+        {/* The failed list keeps its message and retry inside the same framed
+            region that normally holds its rows. */}
         {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+          <TableSurface>
+            <ErrorRow
+              message={loadError}
+              onRetry={() => setReloads((count) => count + 1)}
+            />
+          </TableSurface>
         ) : (
           <TableSurface>
             {!list ? (
@@ -590,14 +590,15 @@ function SessionsCard({ devicesChanged }: { devicesChanged: number }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {/* Outside the surface, for the reason given on the Passkeys table
-            above: a surface holding only the banner is an empty box wearing a
-            one-pixel ring, and that paints as a stray hairline. */}
+        {/* The failed list keeps its message and retry inside the same framed
+            region that normally holds its rows. */}
         {loadError ? (
-          <ErrorBanner
-            message={loadError}
-            onRetry={() => setReloads((count) => count + 1)}
-          />
+          <TableSurface>
+            <ErrorRow
+              message={loadError}
+              onRetry={() => setReloads((count) => count + 1)}
+            />
+          </TableSurface>
         ) : (
           <TableSurface>
             {!list ? (

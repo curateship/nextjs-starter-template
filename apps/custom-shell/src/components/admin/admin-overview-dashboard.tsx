@@ -563,40 +563,40 @@ function PlanMembership({ overview }: { overview: AdminOverview }) {
 
   return (
     <>
-      <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-4 sm:px-5 sm:py-5">
+      <ScrollArea className="min-h-0 flex-1">
         {plans.length === 0 ? (
-          <p className="py-4 text-center text-sm text-muted-foreground">
-            No plans set up yet.
-          </p>
+          <EmptyRow>No plans set up yet.</EmptyRow>
         ) : (
-          plans.map((plan) => {
-            const share = formatSharePercent(plan.people, everyone)
-            return (
-              <MeterRow
-                key={plan.planId}
-                label={plan.planName}
-                value={
-                  <>
-                    {plan.people.toLocaleString()}{" "}
-                    <span className="font-normal text-muted-foreground">
-                      {share}
-                    </span>
-                  </>
-                }
-                meter={{
-                  value: plan.people,
-                  max: everyone,
-                  label: plan.planName,
-                  valueText: `${plan.people.toLocaleString()} of ${everyone.toLocaleString()} people`,
-                  // A shade, never the only thing saying which is which — the
-                  // plan's own name is on the row above it.
-                  tone: plan.isPaid ? "default" : "muted",
-                }}
-              />
-            )
-          })
+          <CardContent className="flex flex-col gap-4 py-4 sm:px-5 sm:py-5">
+            {plans.map((plan) => {
+              const share = formatSharePercent(plan.people, everyone)
+              return (
+                <MeterRow
+                  key={plan.planId}
+                  label={plan.planName}
+                  value={
+                    <>
+                      {plan.people.toLocaleString()}{" "}
+                      <span className="font-normal text-muted-foreground">
+                        {share}
+                      </span>
+                    </>
+                  }
+                  meter={{
+                    value: plan.people,
+                    max: everyone,
+                    label: plan.planName,
+                    valueText: `${plan.people.toLocaleString()} of ${everyone.toLocaleString()} people`,
+                    // A shade, never the only thing saying which is which — the
+                    // plan's own name is on the row above it.
+                    tone: plan.isPaid ? "default" : "muted",
+                  }}
+                />
+              )
+            })}
+          </CardContent>
         )}
-      </CardContent>
+      </ScrollArea>
       <CardFooter className="grid grid-cols-3 gap-3 border-t bg-muted/40 p-4 sm:px-5">
         <FooterFigure label="Admins" value={membership.admins} />
         <FooterFigure label="Members" value={membership.members} />
@@ -651,14 +651,15 @@ function AutomationsCard({
         }
       />
       {shown.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 px-4 py-8 sm:px-5">
-          <p className="text-center text-sm text-muted-foreground">
-            No automations yet.
-          </p>
-          <Button asChild variant="outline">
-            <Link to="/admin/automations">Build one</Link>
-          </Button>
-        </div>
+        <EmptyRow
+          action={
+            <Button asChild variant="outline">
+              <Link to="/admin/automations">Build one</Link>
+            </Button>
+          }
+        >
+          No automations yet.
+        </EmptyRow>
       ) : (
         <>
           <div className="flex items-center justify-between gap-3 border-b bg-muted/40 px-4 py-2 sm:px-5">

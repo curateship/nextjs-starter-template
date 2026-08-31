@@ -58,6 +58,7 @@ import { formatDate } from "@/lib/format/format-time"
 import { quoteOneLine } from "@/lib/format/quote-text"
 import { useLastValue } from "@/lib/hooks/use-last-value"
 import { useAsyncAction } from "@/lib/hooks/use-async-action"
+import { useClearSelectionOnListChange } from "@/lib/hooks/use-clear-selection"
 import { useSelection } from "@/lib/hooks/use-selection"
 import { useTableSort } from "@/lib/hooks/use-table-sort"
 
@@ -159,6 +160,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const visible = React.useMemo(
     () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
     [currentPage, pageSize, sorted]
+  )
+
+  useClearSelectionOnListChange(
+    selection.setSelected,
+    `${search}|${sort}|${direction}|${currentPage}|${pageSize}`
   )
 
   const openEditor = (broadcastId: string) =>

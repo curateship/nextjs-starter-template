@@ -14,7 +14,9 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
+import { ErrorRow } from "@/components/ui/error-row"
+import { InlineError } from "@/components/ui/inline-error"
 import { EmptyRow } from "@/components/shared/feed-card"
 import {
   DashboardCardTab,
@@ -97,9 +99,8 @@ export function AutomationRunsPanel({
   )
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const [deleteTarget, setDeleteTarget] = React.useState<AutomationRunItem | null>(
-    null
-  )
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<AutomationRunItem | null>(null)
   const [runDelete, deleting] = useAsyncAction(getAutomationRunErrorMessage)
 
   const refresh = React.useCallback(async () => {
@@ -188,9 +189,9 @@ export function AutomationRunsPanel({
           <ScrollArea className="h-full">
             <div className="grid gap-2 p-3">
               {error ? (
-                <ErrorBanner message={error} onRetry={() => void refresh()} />
+                <ErrorRow message={error} onRetry={() => void refresh()} />
               ) : null}
-              {runs.length === 0 ? (
+              {!error && runs.length === 0 ? (
                 <EmptyRow>
                   This flow has not run yet. Press Run above the canvas to try
                   it.
@@ -213,19 +214,11 @@ export function AutomationRunsPanel({
                 ))
               )}
               {runs.length < total ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
+                <LoadMoreButton
                   className="justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  {loadingMore ? (
-                    <Loader2Icon className="size-3.5 animate-spin" />
-                  ) : null}
-                  Load more ({total - runs.length} older)
-                </Button>
+                />
               ) : null}
             </div>
           </ScrollArea>
@@ -235,9 +228,9 @@ export function AutomationRunsPanel({
           <ScrollArea className="h-full">
             <div className="grid gap-2 p-3">
               {error ? (
-                <ErrorBanner message={error} onRetry={() => void refresh()} />
+                <ErrorRow message={error} onRetry={() => void refresh()} />
               ) : null}
-              {waiting.length === 0 ? (
+              {!error && waiting.length === 0 ? (
                 <EmptyRow>
                   Nothing is waiting on you. Runs that stop at an approval
                   checkpoint appear here, from every flow you own.
@@ -432,10 +425,16 @@ function RunRow({
             }
             className="shrink-0"
           >
-            {automationRunStatusLabel(current.status, current.approval_decision)}
+            {automationRunStatusLabel(
+              current.status,
+              current.approval_decision
+            )}
           </Badge>
           {showFlow ? (
-            <span className="min-w-0 truncate text-xs font-medium" title={run.automation_name}>
+            <span
+              className="min-w-0 truncate text-xs font-medium"
+              title={run.automation_name}
+            >
               {run.automation_name}
             </span>
           ) : null}
@@ -476,7 +475,7 @@ function RunRow({
       {expanded ? (
         <div className="grid min-w-0 gap-3 border-t p-3">
           {detailError ? (
-            <ErrorBanner message={detailError} onRetry={() => void load()} />
+            <ErrorRow message={detailError} onRetry={() => void load()} />
           ) : !detail ? (
             <LoadingRow label="Loading…" />
           ) : (
@@ -525,7 +524,9 @@ function RunRow({
                         <span className="font-medium">{step.step_name}</span>
                         <Badge
                           variant={
-                            step.status === "completed" ? "secondary" : "destructive"
+                            step.status === "completed"
+                              ? "secondary"
+                              : "destructive"
                           }
                         >
                           {automationRunStepStatusLabels[step.status]}
@@ -539,7 +540,7 @@ function RunRow({
                       </div>
                       <p className="text-muted-foreground">{step.summary}</p>
                       {step.error ? (
-                        <p className="text-destructive">{step.error}</p>
+                        <InlineError>{step.error}</InlineError>
                       ) : null}
                       {latestDeliveryStepIds.has(step.id) ? (
                         <AutomationDeliveryHistory
@@ -558,7 +559,7 @@ function RunRow({
               )}
 
               {detail.status === "failed" && detail.error ? (
-                <p className="text-xs text-destructive">{detail.error}</p>
+                <InlineError>{detail.error}</InlineError>
               ) : null}
               {detail.approval_decided_at ? (
                 <p className="text-xs text-muted-foreground">
@@ -576,9 +577,7 @@ function RunRow({
 }
 
 /** A retried Send Email step shares one delivery set across every attempt. */
-function latestSendEmailStepIds(
-  steps: AutomationRunStepItem[]
-): Set<string> {
+function latestSendEmailStepIds(steps: AutomationRunStepItem[]): Set<string> {
   const latestByNode = new Map<string, string>()
   for (const step of steps) {
     if (step.kind === "sendEmail") latestByNode.set(step.node_id, step.id)

@@ -4,7 +4,8 @@ import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
+import { ErrorRow } from "@/components/ui/error-row"
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -50,7 +51,9 @@ export function BroadcastStatusPanel({
   segmentNames: Record<string, string>
   onUpdated: (detail: BroadcastDetail) => void
 }) {
-  const [deliveries, setDeliveries] = React.useState<BroadcastDeliveryItem[]>([])
+  const [deliveries, setDeliveries] = React.useState<BroadcastDeliveryItem[]>(
+    []
+  )
   const [hasMore, setHasMore] = React.useState(false)
   const [loadingMore, setLoadingMore] = React.useState(false)
   const [statusBusy, setStatusBusy] = React.useState(false)
@@ -91,6 +94,7 @@ export function BroadcastStatusPanel({
   }, [broadcast.id, started, sentSoFar])
 
   const loadMore = async () => {
+    if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
       const page = await loadBroadcastDeliveries(broadcast.id, {
@@ -173,10 +177,10 @@ export function BroadcastStatusPanel({
 
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-4 p-4 sm:p-5">
-          {error ? <ErrorBanner message={error} /> : null}
+          {error ? <ErrorRow message={error} /> : null}
 
           {broadcast.pausedReason ? (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <p className="text-sm text-muted-foreground">
               {broadcast.pausedReason}
             </p>
           ) : null}
@@ -190,7 +194,10 @@ export function BroadcastStatusPanel({
               />
               <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-5">
                 <Stat label="Sent" value={broadcast.totalSent} />
-                <Stat label="Did not go through" value={broadcast.totalFailed} />
+                <Stat
+                  label="Did not go through"
+                  value={broadcast.totalFailed}
+                />
                 <Stat label="Still to go" value={remaining} />
                 <Stat label="Everyone" value={broadcast.totalRecipients} />
                 <Stat label="Batches" value={broadcast.batchesSent} />
@@ -198,8 +205,8 @@ export function BroadcastStatusPanel({
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Nothing has gone out yet. Everything you write is saved as you go —
-              use Review and send when it is ready.
+              Nothing has gone out yet. Everything you write is saved as you go
+              — use Review and send when it is ready.
             </p>
           )}
 
@@ -229,7 +236,9 @@ export function BroadcastStatusPanel({
                     )}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 truncate">{delivery.toEmail}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {delivery.toEmail}
+                  </span>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {delivery.status === "sent"
                       ? formatDateTime(delivery.created_at)
@@ -238,16 +247,11 @@ export function BroadcastStatusPanel({
                 </div>
               ))}
               {hasMore ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <LoadMoreButton
                   className="mt-1 justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  {loadingMore ? "Loading…" : "Show more"}
-                </Button>
+                />
               ) : null}
             </div>
           ) : null}

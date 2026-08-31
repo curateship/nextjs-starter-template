@@ -1,9 +1,10 @@
 import * as React from "react"
-import { ChevronDownIcon, Loader2Icon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 
+import { LoadMoreButton } from "@/components/shared/load-more-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   getAutomationRunErrorMessage,
@@ -48,7 +49,9 @@ export function AutomationDeliveryHistory({
           const freshIds = new Set(fresh.deliveries.map((row) => row.id))
           return [
             ...fresh.deliveries,
-            ...current.slice(fresh.deliveries.length).filter((row) => !freshIds.has(row.id)),
+            ...current
+              .slice(fresh.deliveries.length)
+              .filter((row) => !freshIds.has(row.id)),
           ]
         })
         setError(null)
@@ -99,10 +102,7 @@ export function AutomationDeliveryHistory({
   }
   if (!page) {
     return error ? (
-      <ErrorBanner
-        message={error}
-        onRetry={() => void loadFirstPage()}
-      />
+      <ErrorRow message={error} onRetry={() => void loadFirstPage()} />
     ) : null
   }
   if (page.total === 0) return null
@@ -110,7 +110,7 @@ export function AutomationDeliveryHistory({
   return (
     <div className="grid min-w-0 gap-2 pt-1">
       {error ? (
-        <ErrorBanner message={error} onRetry={() => void loadFirstPage()} />
+        <ErrorRow message={error} onRetry={() => void loadFirstPage()} />
       ) : null}
       <p className="text-xs font-medium" aria-live="polite">
         {page.sent} sent
@@ -129,7 +129,10 @@ export function AutomationDeliveryHistory({
         onClick={() => setShowRecipients((current) => !current)}
       >
         <ChevronDownIcon
-          className={cn("transition-transform", !showRecipients && "-rotate-90")}
+          className={cn(
+            "transition-transform",
+            !showRecipients && "-rotate-90"
+          )}
         />
         {showRecipients ? "Hide recipients" : `Show ${page.total} recipients`}
       </Button>
@@ -148,7 +151,9 @@ export function AutomationDeliveryHistory({
                 {delivery.to_email}
               </span>
               <Badge
-                variant={delivery.state === "failed" ? "destructive" : "secondary"}
+                variant={
+                  delivery.state === "failed" ? "destructive" : "secondary"
+                }
                 title={formatDateTime(delivery.occurred_at)}
               >
                 {deliveryStateLabel(delivery.state)}
@@ -157,16 +162,10 @@ export function AutomationDeliveryHistory({
           ))}
           {deliveries.length < page.total ? (
             <div className="p-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                disabled={loadingMore}
+              <LoadMoreButton
+                loading={loadingMore}
                 onClick={() => void loadMore()}
-              >
-                {loadingMore ? <Loader2Icon className="animate-spin" /> : null}
-                Load more ({page.total - deliveries.length} remaining)
-              </Button>
+              />
             </div>
           ) : null}
         </div>
@@ -175,9 +174,7 @@ export function AutomationDeliveryHistory({
   )
 }
 
-function deliveryStateLabel(
-  state: AutomationRunDeliveryItem["state"]
-): string {
+function deliveryStateLabel(state: AutomationRunDeliveryItem["state"]): string {
   return {
     sent: "Sent",
     delivered: "Delivered",

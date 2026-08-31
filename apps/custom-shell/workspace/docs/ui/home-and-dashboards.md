@@ -33,6 +33,8 @@ links back to widget settings instead of looking broken.
 Wide layouts give dashboard panels their saved share of the available space.
 Narrow layouts stack the cards. Long card content scrolls inside its panel so a
 single feed does not make the whole signed-in shell grow without limit.
+Every scrolling card uses the themed `ScrollArea`. The Plans view in the People
+card follows the same rule, including when many plans exceed the card height.
 
 ## Refresh behavior
 

@@ -104,8 +104,11 @@ export function WorkspacesDashboard({
   const [massDeleteOpen, setMassDeleteOpen] = React.useState(false)
   const [creating, setCreating] = React.useState(false)
   const [run, busy] = useAsyncAction(getWorkspaceErrorMessage)
-  const { sort, direction: sortDirection, toggleSort } =
-    useTableSort<WorkspaceSortColumn>("name")
+  const {
+    sort,
+    direction: sortDirection,
+    toggleSort,
+  } = useTableSort<WorkspaceSortColumn>("name")
   const selection = useSelection()
   // The same act as the sidebar switcher, and deliberately the same code —
   // switching has to throw the page away, and that reasoning lives in one file.
@@ -126,7 +129,8 @@ export function WorkspacesDashboard({
     [navigate]
   )
   const editing = React.useMemo(
-    () => workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
+    () =>
+      workspaces.find((workspace) => workspace.id === openWorkspaceId) ?? null,
     [openWorkspaceId, workspaces]
   )
   const formOpen = creating || Boolean(editing)
@@ -138,9 +142,14 @@ export function WorkspacesDashboard({
   // so a memo keyed on it would rebuild every render anyway while looking as
   // though it did not.
   const columns: SortableColumn<WorkspaceSortColumn>[] = [
-    { key: "name", label: capitalise(word.one), column: "main" },
-    { key: "address", label: "Address", column: "meta" },
-    { key: "status", label: "Status", column: "meta" },
+    {
+      key: "name",
+      label: capitalise(word.one),
+      column: "main",
+      className: "min-w-0 md:min-w-80",
+    },
+    { key: "address", label: "Address", column: "preview" },
+    { key: "status", label: "Status", column: "preview" },
   ]
 
   // Worked out once per render and reused by the search, the sort and the cell,
@@ -298,7 +307,11 @@ export function WorkspacesDashboard({
             direction={sortDirection}
             onSort={toggleSort}
             leading={
-              <SelectAllTableHead noun={word.many} checked={selection.selectAllState(visibleIds)} onCheckedChange={() => selection.toggleVisible(visibleIds)} />
+              <SelectAllTableHead
+                noun={word.many}
+                checked={selection.selectAllState(visibleIds)}
+                onCheckedChange={() => selection.toggleVisible(visibleIds)}
+              />
             }
             trailing={<TableHead column="meta">Actions</TableHead>}
           />
@@ -321,8 +334,8 @@ export function WorkspacesDashboard({
                 aria-label={`Select ${workspace.name}`}
               />
             </TableCell>
-            <TableCell column="main">
-              <div className="flex items-center gap-3">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
+              <div className="flex max-w-28 items-center gap-3 sm:max-w-none">
                 <span className="flex h-8 min-w-8 shrink-0 items-center justify-center border-border">
                   {workspace.favicon ? (
                     <img
@@ -354,7 +367,7 @@ export function WorkspacesDashboard({
                 </div>
               </div>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {(() => {
                 const address = addressOf(workspace)
                 // A domain of its own is the real address, so it is set in the
@@ -381,7 +394,7 @@ export function WorkspacesDashboard({
                 )
               })()}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <Badge variant={STATUS_BADGES[workspace.status].variant}>
                 {STATUS_BADGES[workspace.status].label}
               </Badge>

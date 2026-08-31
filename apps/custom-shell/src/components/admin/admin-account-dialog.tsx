@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { Input } from "@/components/ui/input"
@@ -230,7 +230,7 @@ export function AdminAccountDialog({
 
               {loadError ? (
                 <DialogBody>
-                  <ErrorBanner
+                  <ErrorRow
                     message={loadError}
                     onRetry={() => {
                       setLoadError(null)

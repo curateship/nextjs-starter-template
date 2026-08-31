@@ -6,7 +6,6 @@ import {
   InspectorCard,
   InspectorNote,
 } from "@/components/automations/inspector-card"
-import { ErrorBanner } from "@/components/ui/error-banner"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import {
@@ -39,7 +38,10 @@ import {
   type AutomationAudienceKind,
 } from "@/lib/automations/nodes/audience"
 import { plural } from "@/lib/format/plural"
-import { dismissErrorToast } from "@/lib/toast/error-toast"
+import {
+  dismissErrorToast,
+  useErrorToast,
+} from "@/lib/toast/error-toast"
 import { MEMBER_TAG_MAX_LENGTH } from "@/lib/member-tags"
 
 /**
@@ -389,6 +391,10 @@ function AudiencePreviewNote({
   const preview = current?.preview ?? null
   const error = current?.error ?? ""
   const loading = ready && current === null
+  useErrorToast(
+    error || null,
+    () => setAttempt((value) => value + 1)
+  )
 
   // A failure that has been overtaken by a fresh count is not a live failure,
   // so it must not still be sitting there next to a good number. Only a
@@ -423,10 +429,6 @@ function AudiencePreviewNote({
               also offers the retry. This line is here so the panel does not sit
               blank and silent where a number used to be. */}
           <span role="status">Not counted just now.</span>
-          <ErrorBanner
-            message={error}
-            onRetry={() => setAttempt((value) => value + 1)}
-          />
         </>
       ) : null}
 

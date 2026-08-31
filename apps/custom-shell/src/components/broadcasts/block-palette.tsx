@@ -22,7 +22,7 @@ import {
 } from "@/components/shared/dashboard-card-header"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent } from "@/components/ui/tabs"
@@ -369,7 +369,7 @@ function TemplatesTab({
       <ScrollArea className="min-h-0 flex-1">
         <div className="grid gap-2 p-3">
           {error ? (
-            <ErrorBanner message={error} />
+            <ErrorRow message={error} />
           ) : templates === null ? (
             <LoadingRow label="Loading…" />
           ) : templates.length === 0 ? (

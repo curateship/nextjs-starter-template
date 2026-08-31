@@ -77,11 +77,16 @@ const plansRoute = getRouteApi("/_authenticated/admin/plans")
 type PlanSortColumn = "name" | "monthly" | "yearly" | "stripe" | "visibility"
 
 const PLAN_COLUMNS: SortableColumn<PlanSortColumn>[] = [
-  { key: "name", label: "Plan", column: "main" },
-  { key: "monthly", label: "Monthly", column: "meta" },
-  { key: "yearly", label: "Yearly", column: "meta" },
-  { key: "stripe", label: "Stripe", column: "meta" },
-  { key: "visibility", label: "Visibility", column: "meta" },
+  {
+    key: "name",
+    label: "Plan",
+    column: "main",
+    className: "min-w-0 md:min-w-80",
+  },
+  { key: "monthly", label: "Monthly", column: "preview" },
+  { key: "yearly", label: "Yearly", column: "preview" },
+  { key: "stripe", label: "Stripe", column: "preview" },
+  { key: "visibility", label: "Visibility", column: "preview" },
 ]
 
 function comparePlans(a: AdminPlan, b: AdminPlan, column: PlanSortColumn) {
@@ -384,7 +389,7 @@ export function AdminPlansDashboard({
                 />
               </DisabledReason>
             </TableCell>
-            <TableCell column="main">
+            <TableCell column="main" className="min-w-0 md:min-w-80">
               <button
                 type="button"
                 className="block max-w-96 truncate text-left text-sm font-medium group-hover:underline"
@@ -394,27 +399,34 @@ export function AdminPlansDashboard({
                 {plan.name}
               </button>
               <span
-                className="ml-2 inline-block max-w-96 truncate align-bottom text-xs text-muted-foreground"
+                className="hidden max-w-full truncate text-xs text-muted-foreground md:ml-2 md:inline-block md:max-w-96 md:align-bottom"
                 title={plan.slug}
               >
                 {plan.slug}
               </span>
+              <span className="block text-xs text-muted-foreground md:hidden">
+                {formatPlanPrice(
+                  plan.priceMonthlyCents,
+                  plan.priceYearlyCents,
+                  plan.currency
+                )}
+              </span>
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {formatPlanPrice(
                 plan.priceMonthlyCents,
                 plan.priceYearlyCents,
                 plan.currency
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {formatPlanPrice(
                 plan.priceYearlyCents,
                 plan.priceMonthlyCents,
                 plan.currency
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               {plan.stripePriceIdMonthly || plan.stripePriceIdYearly ? (
                 <Badge variant="secondary">
                   {plan.usageMeter ? "Metered" : "Connected"}
@@ -423,7 +435,7 @@ export function AdminPlansDashboard({
                 <Badge variant="outline">Not connected</Badge>
               )}
             </TableCell>
-            <TableCell column="meta">
+            <TableCell column="preview">
               <div className="flex flex-wrap gap-1.5">
                 {plan.isDefault ? <Badge>Default</Badge> : null}
                 {plan.isPublic ? null : <Badge variant="outline">Hidden</Badge>}

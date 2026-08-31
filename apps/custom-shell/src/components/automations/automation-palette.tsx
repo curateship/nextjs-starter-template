@@ -1,6 +1,7 @@
 import * as React from "react"
 import { LayoutGridIcon, PlusIcon, StarIcon } from "lucide-react"
 
+import { EmptyRow } from "@/components/shared/feed-card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   DashboardCardTab,
@@ -142,11 +143,11 @@ function PaletteTab({
             </section>
           ))}
           {groups.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted-foreground">
+            <EmptyRow>
               {value === "fav"
                 ? "No favorite nodes yet. Open All nodes, select a node, and use the star in its settings."
                 : "No nodes are available."}
-            </p>
+            </EmptyRow>
           ) : null}
         </div>
       </ScrollArea>

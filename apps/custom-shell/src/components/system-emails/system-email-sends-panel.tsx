@@ -1,10 +1,11 @@
 import * as React from "react"
-import { Loader2Icon, SendIcon } from "lucide-react"
+import { SendIcon } from "lucide-react"
 
 import { DashboardCardTitleHeader } from "@/components/shared/dashboard-card-header"
-import { Button } from "@/components/ui/button"
 import { EmptyRow } from "@/components/shared/feed-card"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
 import { ErrorRow } from "@/components/ui/error-row"
+import { InlineError } from "@/components/ui/inline-error"
 import { LoadingRow } from "@/components/ui/loading-row"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
@@ -12,7 +13,10 @@ import {
   loadSystemEmailSends,
   type SystemEmailSendItem,
 } from "@/lib/api/email/system-emails"
-import { SYSTEM_EMAIL_META, type SystemEmailKind } from "@/lib/system-emails/kinds"
+import {
+  SYSTEM_EMAIL_META,
+  type SystemEmailKind,
+} from "@/lib/system-emails/kinds"
 import { formatDateTime } from "@/lib/format/format-time"
 import { cn } from "@/lib/utils"
 
@@ -71,6 +75,7 @@ export function SystemEmailSendsPanel({
   }, [kind, requestKey])
 
   const loadMore = async () => {
+    if (loadingMore || !hasMore) return
     setLoadingMore(true)
     try {
       const page = await loadSystemEmailSends(kind, {
@@ -177,30 +182,18 @@ export function SystemEmailSendsPanel({
                       only half the answer; "at 2pm, and here is why" is the
                       other half. */}
                   {send.status === "failed" ? (
-                    <p className="pl-3.5 text-xs text-destructive">
+                    <InlineError className="pl-3.5">
                       {send.error ?? "Did not go through"}
-                    </p>
+                    </InlineError>
                   ) : null}
                 </div>
               ))}
               {hasMore ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
+                <LoadMoreButton
                   className="mt-1 justify-self-start"
-                  disabled={loadingMore}
+                  loading={loadingMore}
                   onClick={() => void loadMore()}
-                >
-                  <Loader2Icon
-                    className={cn(
-                      "size-4",
-                      loadingMore ? "animate-spin" : "invisible"
-                    )}
-                    aria-hidden
-                  />
-                  Show more
-                </Button>
+                />
               ) : null}
             </div>
           ) : null}

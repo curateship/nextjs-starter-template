@@ -19,6 +19,9 @@ changes future mail only. It does not rewrite earlier send records.
 Each attempt creates a system email send record with the recipient, message
 kind, provider id, status, and failure detail. The Recent sends panel reads
 those records inside the dashboard's shared panel frame.
+The panel uses the shared Load more button for older attempts and keeps one
+button width while it loads. A failed attempt keeps its shared inline error
+text beside that recipient and time.
 
 A temporary provider failure can create a pending send. The background pass
 retries eligible pending mail and stops after the saved retry policy says the

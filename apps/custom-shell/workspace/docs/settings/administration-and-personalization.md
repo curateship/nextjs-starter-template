@@ -50,3 +50,9 @@ Styling settings control:
 The shell turns those values into its runtime configuration and CSS variables.
 UI code still uses shared components so a saved theme affects one system rather
 than a set of one-off screens.
+
+Divider lines write the shared `--border` colour. Card frames, table lines,
+editor panels, sign-in cards, and resize handles all read that value through a
+plain border class. Selected outlines and the fixed white email preview keep
+their own colours because they are controls or message content, not app
+dividers.

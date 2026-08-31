@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { CardGroup } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -361,7 +361,7 @@ export function StripeSettings() {
         contentClassName="space-y-6"
       >
         {loadError ? (
-          <ErrorBanner
+          <ErrorRow
             message={loadError}
             onRetry={() => setReloads((count) => count + 1)}
           />

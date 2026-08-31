@@ -11,6 +11,7 @@ import {
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { EmptyRow } from "@/components/shared/feed-card"
 import {
   Card,
   CardAction,
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { FormDialog } from "@/components/ui/form-dialog"
 import { LoadingRow } from "@/components/ui/loading-row"
@@ -137,27 +138,19 @@ const feedbackSortLabels: Record<FeedbackSort, string> = {
   most_comments: "Most comments",
 }
 
-/**
- * Nothing in the list, said the way the media gallery says it: an icon and a
- * line about what would be here. `filtered` separates a filter that matched
- * nothing from a board that is genuinely empty — only one of the two is fixed
- * by changing the dropdowns.
- */
+/** A filter miss and a genuinely empty board need different instructions. */
 function EmptyFeedback({ filtered }: { filtered: boolean }) {
   return (
-    <div className="grid h-40 place-items-center text-center text-sm text-muted-foreground">
-      <div>
-        <MessageSquareIcon className="mx-auto mb-3 size-10" />
-        <p className="font-medium text-foreground">
-          {filtered ? "Nothing matches these filters" : "No feedback yet"}
-        </p>
-        <p className="mt-1">
-          {filtered
-            ? "Set the type, tag, and status back to All to see everything else."
-            : "Be the first — say what you'd like changed in the box above."}
-        </p>
-      </div>
-    </div>
+    <EmptyRow className="h-40 place-content-center gap-1">
+      <span className="font-medium text-foreground">
+        {filtered ? "Nothing matches these filters" : "No feedback yet"}
+      </span>
+      <span>
+        {filtered
+          ? "Set the type, tag, and status back to All to see everything else."
+          : "Be the first — say what you'd like changed in the box above."}
+      </span>
+    </EmptyRow>
   )
 }
 
@@ -838,10 +831,7 @@ export function FeedbackModal({
                   </CardContent>
                 </Card>
               ) : loadError ? (
-                // No card around it. The banner is a toast now and draws
-                // nothing here, so a card would be an empty one — and an empty
-                // card is a stray hairline across the modal, not nothing.
-                <ErrorBanner
+                <ErrorRow
                   message={loadError}
                   onRetry={() => setReloads((count) => count + 1)}
                 />
@@ -1043,9 +1033,7 @@ export function FeedbackModal({
                                   {loadingThreadId === item.id ? (
                                     <LoadingRow label="Loading comments…" />
                                   ) : comments.length === 0 ? (
-                                    <p className="text-sm text-muted-foreground">
-                                      No comments yet.
-                                    </p>
+                                    <EmptyRow>No comments yet.</EmptyRow>
                                   ) : (
                                     <div className="space-y-4">
                                       {comments.map((comment) => (

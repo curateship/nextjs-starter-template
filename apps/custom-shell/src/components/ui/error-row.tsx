@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import { Button } from "@/components/ui/button"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { useErrorToast } from "@/lib/toast/error-toast"
 import { cn } from "@/lib/utils"
 
 /**
@@ -18,22 +18,22 @@ export function ErrorRow({
   onRetry?: () => void
   className?: string
 }) {
+  useErrorToast(message, onRetry)
+
   return (
-    <>
-      <ErrorBanner message={message} onRetry={onRetry} />
-      <div
-        className={cn(
-          "grid justify-items-center gap-3 px-4 py-8 text-center",
-          className
-        )}
-      >
-        <p className="text-sm text-muted-foreground">{message}</p>
-        {onRetry ? (
-          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-            Try again
-          </Button>
-        ) : null}
-      </div>
-    </>
+    <div
+      role="alert"
+      className={cn(
+        "grid justify-items-center gap-3 px-4 py-8 text-center",
+        className
+      )}
+    >
+      <div className="text-sm text-muted-foreground">{message}</div>
+      {onRetry ? (
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          Try again
+        </Button>
+      ) : null}
+    </div>
   )
 }

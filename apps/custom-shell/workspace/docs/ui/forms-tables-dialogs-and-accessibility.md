@@ -23,13 +23,29 @@ Admin lists use:
 
 - The shared dashboard table frame and row actions.
 - Shared selection, pagination, and empty states.
+- An error row inside the table when loading fails. The error names the failed
+  list and offers Try again, and the empty message stays hidden until a load
+  succeeds.
 - Sortable headings that expose `aria-sort`.
 - Route search values for filters, current page, sort, and an open record when
   losing them on reload would interrupt the task.
 
+At phone width, a list keeps its identifying column and any action that cannot
+be reached another way. Lower-priority details return at 768px. A heading and
+its cells always hide together, and the main cell may show one compact detail
+under its title when that avoids keeping a whole column.
+
 Bulk actions name how many records they affect and ask before a destructive
 change. The action works from stable ids, not from row positions that could
 change after a sort or refresh.
+
+Changing the search, sort, page, or rows-per-page clears selected rows. A bulk
+action never keeps acting on rows that have left the screen.
+
+`EmptyRow` owns the spacing and type for an empty card or panel. `ErrorRow` owns
+a failed data surface and its retry. `InlineError` owns a saved failure detail
+that must remain beside its record. Lists that extend in place use the shared
+ghost `LoadMoreButton`; its label keeps its width while the spinner runs.
 
 ## Dialogs and panels
 

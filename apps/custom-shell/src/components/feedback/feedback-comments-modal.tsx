@@ -18,7 +18,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { ErrorBanner } from "@/components/ui/error-banner"
+import { ErrorRow } from "@/components/ui/error-row"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
@@ -113,7 +113,7 @@ export function FeedbackCommentsModal({
           </DialogHeader>
           <DialogBody>
             {visibleError ? (
-              <ErrorBanner
+              <ErrorRow
                 message={visibleError}
                 onRetry={() => setReloadCount((count) => count + 1)}
               />

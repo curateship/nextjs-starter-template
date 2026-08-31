@@ -38,6 +38,10 @@ the run when the graph has finished. A step can:
 - Create a delivery record for later work.
 
 The Runs panel shows the saved history and step details.
+Runs and delivery histories use the same Load more button and block a repeated
+click until the next page returns. A failed load stays in the panel with Try
+again. A saved step failure uses the shared inline error text, so it remains
+beside the step that produced it without opening a second alert box.
 
 The global pause switch stops automation work without deleting flows or runs.
 The system records who paused it and when. Turning the switch back on lets the

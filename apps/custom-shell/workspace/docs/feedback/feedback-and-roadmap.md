@@ -11,6 +11,9 @@ Signed-in people can use the feedback window to:
 The public feedback list can be filtered by type, tag, and status, then sorted
 by recent activity, votes, or comments. The current filter and open item live in
 the address, so reload and browser navigation keep the same view.
+An empty filter result, an empty feedback board, and an empty comment thread use
+the same centred empty-state spacing. The board keeps its fixed height when no
+feedback matches, so changing a filter does not resize the window.
 
 ## Admin work
 

@@ -8,6 +8,7 @@ import { NotificationRow } from "@/components/shared/notification-row"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ErrorRow } from "@/components/ui/error-row"
+import { LoadMoreButton } from "@/components/shared/load-more-button"
 import { LoadingRow } from "@/components/ui/loading-row"
 import {
   Popover,
@@ -224,16 +225,19 @@ export function NotificationCenter({
   })
 
   const loading = open && !firstPageLoaded
-  const loadMoreFromElement = React.useCallback((element: HTMLDivElement) => {
-    const distanceFromBottom =
-      element.scrollHeight - element.scrollTop - element.clientHeight
+  const loadMoreFromElement = React.useCallback(
+    (element: HTMLDivElement) => {
+      const distanceFromBottom =
+        element.scrollHeight - element.scrollTop - element.clientHeight
 
-    if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
-      return
-    }
+      if (distanceFromBottom > 80 || !nextCursor || loading || loadingMore) {
+        return
+      }
 
-    void loadMoreNotificationRows(nextCursor)
-  }, [loadMoreNotificationRows, loading, loadingMore, nextCursor])
+      void loadMoreNotificationRows(nextCursor)
+    },
+    [loadMoreNotificationRows, loading, loadingMore, nextCursor]
+  )
 
   React.useEffect(() => {
     const element = scrollAreaRootRef.current?.querySelector<HTMLDivElement>(
@@ -471,20 +475,12 @@ export function NotificationCenter({
                       ? "1 unread notice further back"
                       : `${hiddenUnreadCount} unread notices further back`}
                   </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={loading || loadingMore}
+                  <LoadMoreButton
+                    loading={loading || loadingMore}
                     onClick={() => {
                       if (nextCursor) void loadMoreNotificationRows(nextCursor)
                     }}
-                  >
-                    {loadingMore ? (
-                      <Loader2Icon className="size-3.5 animate-spin" />
-                    ) : null}
-                    Load more
-                  </Button>
+                  />
                 </div>
               ) : loadingMore ? (
                 <div className="flex justify-center pt-4" role="status">
