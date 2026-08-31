@@ -856,7 +856,7 @@ function GridLines({
           dashed={false}
           grip
           onGripDown={startDrag("stopLoss", stop)}
-          title={`Price cutting through this closes everything and ends the grid. Drag it anywhere ${direction === "long" ? "below" : "above"} the range.`}
+          title={`Price cutting through this closes everything and ends the grid. Drag it anywhere ${direction === "long" ? "below" : "above"} the current price — inside the range trails the stop, and the rungs past it go quiet until it moves clear again.`}
         />
       ) : null}
     </>

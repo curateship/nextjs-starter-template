@@ -995,7 +995,9 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_GRID_TARGET_IN_RANGE:
       "The End Grid line has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
     SMART_GRID_STOP_IN_RANGE:
-      "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
+      "The exchange would not give a current price, so the stop could only be put past the losing end of the range. Try again in a moment for a stop inside it.",
+    SMART_GRID_STOP_PASSED:
+      "The price is already past there, so that stop would close the grid the moment it was set. Put it on the far side of the current price.",
     SMART_GRID_TARGET_PASSED:
       "The End Grid line sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
     PART_CLOSE_MARKET: "That market is not one this wallet can trade.",

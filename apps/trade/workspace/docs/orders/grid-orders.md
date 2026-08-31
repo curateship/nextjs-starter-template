@@ -607,6 +607,21 @@ It can rest under the confirmed 4h base instead, but only when a base has
 confirmed below the range. A base inside the range is a level the grid fully
 intends to buy at, not a level at which to give up.
 
+**A stop dragged by hand may sit inside the range.** That is the trailing
+move: price has worked the low rungs and come back up, and the stop is pulled
+up behind it to lock in what the cycles have made. The rungs at or past a stop
+like that fade on the chart and cannot buy — price cannot reach them without
+ending the grid first — and they wake again if the stop is later dragged back
+out. Only the automatic stop keeps off the inside, because it follows a rule
+rather than a hand; the paragraph above says why the rule must measure from
+the range's edge.
+
+The one place a dragged stop may not go is at or past the current price, where
+it would fire the moment the hand let go. That drop is refused with "The price
+is already past there". If the venue will not give a current price at that
+moment, only the always-safe drop past the losing end of the range is
+accepted, and trying again a moment later unlocks the inside.
+
 A grid never writes a take profit onto the position. Its exits are its own
 sells, one per level, and a single target would sell the lot at one price and
 defeat the whole order.
@@ -635,6 +650,12 @@ reached. On exchanges that hold the stop, the untriggered leg at the same price
 is not drawn. The grid was the one that showed both, so a grey pill carrying
 the same price sat right behind the red one and read as some second thing at
 that level.
+
+The STOP LOSS label states what the grid's currently held levels would make or
+lose if they all closed at that price, before fees. Carried levels count too.
+The figure follows the line while it is dragged, and reads $0.00 while the grid
+is between positions. Money already banked by completed rounds stays out of the
+figure because the stop cannot lose it.
 
 ## No line on the chart carries its own price
 
