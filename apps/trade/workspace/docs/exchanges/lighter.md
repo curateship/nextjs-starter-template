@@ -561,6 +561,39 @@ complete signed transaction, so everything up to the moment of posting is
 checked by tests. Only the posting itself is unproven, and the first proof of
 it will be a real order from the server.
 
+**A refused country blocks itself, for a minute at a time.** Tyler's rules,
+31 Aug 2026: "block it ourself ... even before sending it", and then "doesnt
+make sense to block local. what if Im in another country? we just need to
+block the country." So the block follows the country, not the machine, and
+Lighter's own answer is the authority on which country that is — not a copied
+list of theirs that would rot, and not a third-party lookup of our own
+address. Once a send comes back 20558, `lighterSendTx` refuses every send for
+the next minute by itself, before anything is signed or sent, with the same
+plain country sentence. A person clicking in a blocked country sees the real
+answer once and the instant local one after that.
+
+One minute and no longer, because the answer is measurably flaky: the deployed
+server was refused at 03:32:09 on 31 Aug 2026 and placed the same coin's order
+at 03:32:33. A longer memory would turn one wobble into a real outage, and
+trading is never switched off on a guess. The first send after a quiet minute
+still goes out and learns afresh.
+
+## The sequence number, and the three codes that mean it
+
+Every transaction carries the next number in the API key's running count (the
+nonce), and a number Lighter did not expect is refused. Three codes all mean
+that: `21104` ("invalid nonce", the one Lighter's docs name), `21120` and
+`21121`. All three map to the same sentence in `refusals.ts` — the count was
+refused, Trade throws its copy away and asks Lighter for the right one before
+the next order.
+
+The count also resets after ANY refused send (`send` in `orders.ts`), because a
+refused transaction may or may not have spent its number. That is why a nonce
+refusal shows up at most once and then heals: seen live on 31 Aug 2026, when a
+country-block refusal left the count out of step and the next send answered
+`21104`. Before `21104` was on the list it surfaced as "a reason Trade does not
+recognize", which reads like an outage and is only the count re-syncing.
+
 ## The send proves nothing, so every order is read back
 
 **Lighter answers `sendTx` with 200 and then cancels the order without a

@@ -42,7 +42,11 @@ export function lighterRefusalCode(
   // Measured 26 Aug 2026: Lighter answers 20558 on `sendTx` from a country it
   // does not serve, while every read from the same address still answers 200.
   if (code === "20558") return "LIGHTER_REGION_BLOCKED"
-  if (code === "21120" || code === "21121") return "LIGHTER_NONCE"
+  // 21104 is "invalid nonce" in Lighter's docs; 21120 and 21121 arrive for
+  // the same thing. Seen live 31 Aug 2026, right after a country-block
+  // refusal left the count out of step.
+  if (code === "21104" || code === "21120" || code === "21121")
+    return "LIGHTER_NONCE"
   if (status === 401 || status === 403) return "LIGHTER_AUTH"
   if (status === 404 || code === "21500") return "LIGHTER_NOT_FOUND"
   return null

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   clearLighterClientState,
   lighterPublic,
+  lighterSendTx,
 } from "@/server/protocols/lighter/client"
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -80,6 +81,37 @@ describe("the Lighter client", () => {
       lighterPublic("testnet", "/api/v1/candles", 300)
     ).rejects.toThrow("LIGHTER_NETWORK_UNSUPPORTED")
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("remembers a country refusal for a minute and blocks itself", async () => {
+    // Tyler's rule, 31 Aug 2026: "we just need to block the country". Lighter
+    // is the authority on which country that is — one 20558 answer and the
+    // next minute's sends refuse locally, before anything is sent.
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { code: 20_558 }))
+    await expect(
+      lighterSendTx("mainnet", { txType: 14, txInfo: "{}" })
+    ).rejects.toThrow("country")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    await expect(
+      lighterSendTx("mainnet", { txType: 14, txInfo: "{}" })
+    ).rejects.toThrow("country")
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it("lets the country hold lapse, because the answer can be flaky", async () => {
+    // The deployed server was refused at 03:32:09 on 31 Aug 2026 and placed
+    // an order 24 seconds later. Believing one answer for long would turn a
+    // wobble into a real outage, and trading is never switched off on a guess.
+    fetchMock.mockResolvedValueOnce(jsonResponse(403, { code: 20_558 }))
+    await expect(
+      lighterSendTx("mainnet", { txType: 14, txInfo: "{}" })
+    ).rejects.toThrow("country")
+
+    vi.advanceTimersByTime(61_000)
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { code: 200 }))
+    await lighterSendTx("mainnet", { txType: 14, txInfo: "{}" })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it("keeps Lighter's refusal code and drops its free-form text", async () => {
