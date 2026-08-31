@@ -415,6 +415,10 @@ async function sendOrder(
       ...body,
     }
   )) as { orderId?: unknown } | null
+  // `placeKucoinOrder` reads the portfolio before sending. Without this drop,
+  // the next engine pass can reuse that pre-order book, fail to see the order
+  // it just placed, and send the same part close again.
+  dropKucoinOrderBook(network, credential)
   const orderId = typeof answer?.orderId === "string" ? answer.orderId : ""
   if (!orderId) throw new Error("LIVE_UNREADABLE")
   return { orderId }
@@ -618,14 +622,16 @@ export async function cancelKucoinOrder(
   params: { marketId: string; orderId: string }
 ): Promise<void> {
   await assertRealMoneyAllowed(network)
+  const credential = auth(orderAuth)
   try {
     await kucoinSigned(
       network,
-      auth(orderAuth),
+      credential,
       "DELETE",
       `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
       {}
     )
+    dropKucoinOrderBook(network, credential)
   } catch (error) {
     throw exchangeError(error)
   }
@@ -706,6 +712,7 @@ export async function modifyKucoinOrder(
       `/api/v1/orders/${encodeURIComponent(params.orderId)}`,
       {}
     )
+    dropKucoinOrderBook(network, credential)
   } catch (error) {
     // The old order may simply have gone while the new one was going on —
     // filled, or cancelled from somewhere else — and then nothing is doubled
@@ -942,6 +949,7 @@ export async function setKucoinBrackets(
         `/api/v1/orders/${encodeURIComponent(orderId)}`,
         {}
       )
+      dropKucoinOrderBook(network, credential)
     } catch (error) {
       throw new Error(
         `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} an old protection order could not be cancelled: ${scrubbedMessage(error)}`
@@ -1038,6 +1046,14 @@ export function clearKucoinOrderCaches(): void {
   orderBooksCache.clear()
   fillsCache.clear()
   clearVenueTouched("kucoin")
+}
+
+/** A successful order mutation makes the held open-order list obsolete. */
+function dropKucoinOrderBook(
+  network: NetworkId,
+  credential: KucoinCredential
+): void {
+  orderBooksCache.delete(`${network}:${credential.keyId}`)
 }
 
 /**

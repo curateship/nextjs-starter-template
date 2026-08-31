@@ -20,9 +20,9 @@
  * - **`resting`** — the exchange listed it. Carry on.
  * - **`unproven`** — it is not listed, and nothing else says what became of
  *   it. Do nothing at all: do not chase, do not replace, do not finish. Wait.
- * - **`gone`** — the account itself shows what became of it, or it has been
- *   missing long enough that the list cannot still be catching up. Now it is
- *   safe to let go of the id.
+ * - **`gone`** — the account itself shows what became of it, or, where it is
+ *   safe, it has been missing long enough that the list cannot still be
+ *   catching up. Now it is safe to let go of the id.
  *
  * **What the account showing it means depends on the order**, so the caller
  * decides that and passes the answer in. An order that was buying is proven
@@ -65,6 +65,12 @@ export function judgeOrder(input: {
   /** When it first went missing, or 0 if it has not. */
   missingSince: number
   now: number
+  /**
+   * Whether a long absence may count as gone without another account change.
+   * False for a part close: a second half-size order can meet the first one
+   * before the position read shrinks, which sells the whole position.
+   */
+  absenceCanProveGone?: boolean
 }): { presence: OrderPresence; missingSince: number } {
   if (input.seenOnTheBook) return { presence: "resting", missingSince: 0 }
 
@@ -74,7 +80,10 @@ export function judgeOrder(input: {
   if (input.accountShowsItDone) return { presence: "gone", missingSince: 0 }
 
   const since = input.missingSince > 0 ? input.missingSince : input.now
-  if (input.now - since >= ORDER_GONE_AFTER_MS) {
+  if (
+    input.absenceCanProveGone !== false &&
+    input.now - since >= ORDER_GONE_AFTER_MS
+  ) {
     return { presence: "gone", missingSince: 0 }
   }
   return { presence: "unproven", missingSince: since }

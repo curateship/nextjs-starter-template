@@ -80,12 +80,22 @@ The one way that can be wrong is something else reducing the position, a stop
 firing or a ladder exit on the same coin, and then the close stops early. Early
 sells less than asked and never more.
 
+**A missing order does not mean a part close is gone.** The exchange's open
+order list can briefly leave out an order that is still working. Trade waits
+until the whole requested piece has left the position before it releases that
+order number. A partial fill does not prove the unsold remainder has gone. A
+replacement could meet the first order and sell too much.
+
 ## Calling one off
 
 The resting order shows under Open orders like any other. The × on it stops the
 close rather than taking that one order back — taking it back would be answered
 by the engine placing another a few seconds later, and the row would come back
 looking like the press had missed.
+
+Cancel a part close from Trade, not from the exchange's own screen. If an order
+vanishes outside Trade before the requested piece has left, Trade waits instead
+of guessing that another order is safe.
 
 ## The stop and the target on what is left
 

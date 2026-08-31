@@ -171,6 +171,106 @@ describe("the real-money gate", () => {
 })
 
 describe("placing", () => {
+  it("drops the pre-order book after placing so the next read sees the order", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    let activeReads = 0
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (rawUrl: string | URL, init?: RequestInit) => {
+        const url = new URL(String(rawUrl))
+        const method = init?.method ?? "GET"
+        sent.push({
+          method,
+          url,
+          body: init?.body ? JSON.parse(String(init.body)) : null,
+        })
+        if (url.pathname === "/api/v1/contracts/active") {
+          return Response.json(CONTRACTS)
+        }
+        if (url.pathname === "/api/v1/positions") {
+          return Response.json(ok([]))
+        }
+        if (url.pathname === "/api/v1/stopOrders") {
+          return Response.json(ok({ items: [] }))
+        }
+        if (url.pathname === "/api/v2/position/getMarginMode") {
+          return Response.json(
+            ok({ symbol: "XBTUSDTM", marginMode: "ISOLATED" })
+          )
+        }
+        if (url.pathname === "/api/v1/orders" && method === "POST") {
+          return Response.json(ok({ orderId: "half-close" }))
+        }
+        if (url.pathname === "/api/v1/orders" && method === "GET") {
+          activeReads += 1
+          return Response.json(
+            ok({
+              items:
+                activeReads === 1
+                  ? []
+                  : [
+                      {
+                        id: "half-close",
+                        symbol: "XBTUSDTM",
+                        side: "sell",
+                        price: 70_000,
+                        size: 5,
+                        reduceOnly: true,
+                        status: "open",
+                        isActive: true,
+                      },
+                    ],
+            })
+          )
+        }
+        if (url.pathname === "/api/v1/orders/half-close") {
+          return Response.json(
+            ok({
+              id: "half-close",
+              symbol: "XBTUSDTM",
+              status: "open",
+              isActive: true,
+              filledSize: 0,
+            })
+          )
+        }
+        return Response.json(ok(null))
+      })
+    )
+
+    expect(
+      (await fetchKucoinPortfolio("mainnet", "key-id", () => AUTH.agentKey))
+        .orders
+    ).toEqual([])
+
+    await placeKucoinOrder("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      side: "sell",
+      kind: "postOnly",
+      px: 70_000,
+      sz: 0.005,
+      reduceOnly: true,
+      leverage: null,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const after = await fetchKucoinPortfolio(
+      "mainnet",
+      "key-id",
+      () => AUTH.agentKey
+    )
+    expect(activeReads).toBe(2)
+    expect(after.orders).toEqual([
+      expect.objectContaining({
+        orderId: "half-close",
+        sz: 0.005,
+        reduceOnly: true,
+      }),
+    ])
+  })
+
   it("sends a market order as a capped IOC limit, sized in whole contracts", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []
@@ -931,9 +1031,9 @@ describe("reading the account back", () => {
       () => AUTH.agentKey
     )
 
-    const stopRead = vi.mocked(fetch).mock.calls.find((call) =>
-      String(call[0]).includes("/api/v1/stopOrders")
-    )
+    const stopRead = vi
+      .mocked(fetch)
+      .mock.calls.find((call) => String(call[0]).includes("/api/v1/stopOrders"))
     expect(new URL(String(stopRead?.[0])).searchParams.get("status")).toBe(
       "active"
     )

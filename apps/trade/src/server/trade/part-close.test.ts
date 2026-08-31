@@ -2,6 +2,7 @@ import { PGlite } from "@electric-sql/pglite"
 import { eq } from "drizzle-orm"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import { ORDER_GONE_AFTER_MS } from "@/lib/trade/order-presence"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
@@ -245,7 +246,7 @@ describe("selling part of a position", () => {
     expect(rest[0].szi).toBeCloseTo(6, 6)
   })
 
-  it("never asks for more than is left after a part fill", async () => {
+  it("never asks for more than is left while a part fill remains visible", async () => {
     await openTen()
     await openPartClose(userId, wallet, {
       marketKey: BTC,
@@ -253,13 +254,14 @@ describe("selling part of a position", () => {
     })
     await priceTo(140)
 
-    // Half the piece is taken by hand, standing in for a partial fill: the
-    // order goes, and the holding is down by two. The chase must then ask for
-    // the two that are LEFT, not the four it started with. Asking for four
-    // again is how selling part of a position sells six coins of ten.
+    // Half the piece is taken by hand, standing in for a partial fill. The
+    // visible order keeps the other half at a price the next settle will not
+    // cross. The chase must ask for the two that are LEFT, not the four it
+    // started with.
     const resting = (await orders())[0]
     await database
-      .delete(tradePaperOrders)
+      .update(tradePaperOrders)
+      .set({ sz: 2, px: 300 })
       .where(eq(tradePaperOrders.id, resting.id))
     await database
       .update(tradePaperPositions)
@@ -271,6 +273,59 @@ describe("selling part of a position", () => {
     const again = await orders()
     expect(again).toHaveLength(1)
     expect(again[0].sz).toBeCloseTo(2, 6)
+  })
+
+  it("does not replace a missing order after only a partial fill", async () => {
+    await openTen()
+    await openPartClose(userId, wallet, {
+      marketKey: BTC,
+      size: { unit: "coins", amount: 4 },
+    })
+    await priceTo(140)
+
+    const first = (await orders())[0]
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.id, first.id))
+    await database
+      .update(tradePaperPositions)
+      .set({ szi: 8 })
+      .where(eq(tradePaperPositions.userId, userId))
+
+    await priceTo(180)
+    vi.advanceTimersByTime(ORDER_GONE_AFTER_MS + 1)
+    await priceTo(200)
+
+    expect(await orders()).toHaveLength(0)
+    const row = await watchRow()
+    expect(row.status).toBe("active")
+    expect(row.plan.orderId).toBe(first.id)
+  })
+
+  it("does not send a second half when the first order is briefly missing", async () => {
+    await openTen()
+    await openPartClose(userId, wallet, {
+      marketKey: BTC,
+      size: { unit: "coins", amount: 5 },
+    })
+    await priceTo(140)
+
+    const first = (await orders())[0]
+    await database
+      .delete(tradePaperOrders)
+      .where(eq(tradePaperOrders.id, first.id))
+
+    // The position has not shrunk, so the missing order may still be live on
+    // the exchange. A second half-size sell here would let both halves fill
+    // together and close the whole position.
+    await priceTo(180)
+    vi.advanceTimersByTime(ORDER_GONE_AFTER_MS + 1)
+    await priceTo(200)
+
+    expect(await orders()).toHaveLength(0)
+    const row = await watchRow()
+    expect(row.status).toBe("active")
+    expect(row.plan.orderId).toBe(first.id)
   })
 
   it("stops once the holding has come down by the whole piece", async () => {

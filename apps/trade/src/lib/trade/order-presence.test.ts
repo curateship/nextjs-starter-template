@@ -65,6 +65,18 @@ describe("judging whether an order is still out there", () => {
     ).toEqual({ presence: "gone", missingSince: 0 })
   })
 
+  it("never treats absence alone as proof when another order could sell twice", () => {
+    expect(
+      judgeOrder({
+        seenOnTheBook: false,
+        accountShowsItDone: false,
+        missingSince: NOW,
+        now: NOW + ORDER_GONE_AFTER_MS,
+        absenceCanProveGone: false,
+      })
+    ).toEqual({ presence: "unproven", missingSince: NOW })
+  })
+
   it("takes the account's own answer as proof, without waiting", () => {
     // The position appearing after a buy, or going after a sell. Waiting past
     // that would only delay the stop and target the order was placed to earn.
