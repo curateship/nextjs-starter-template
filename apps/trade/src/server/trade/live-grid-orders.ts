@@ -629,9 +629,24 @@ export async function moveLiveGridExit(
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
     const protocol = getProtocol(wallet.protocol)
+    // Today's price decides whether a dragged stop may sit inside the range
+    // or would fire at once — see `moveGridExitPlan`. Best-effort: a venue
+    // that will not answer leaves only the always-safe move open instead of
+    // refusing the drag with a rationing error.
+    let mark: number | null = null
+    if (input.which === "stopLoss") {
+      const ref = parseMarketKey(grid.marketKey)
+      if (!ref) throw new Error("LIVE_MARKET")
+      try {
+        mark = await liveGridAdjustmentMark(protocol, wallet, ref.marketId)
+      } catch {
+        mark = null
+      }
+    }
     const { px, movedStop } = moveGridExitPlan(
       plan,
       input,
+      mark,
       (value) =>
         protocol.markets.roundPx(value, plan.sizeDecimals, plan.priceTick),
       "LIVE_PRICE"

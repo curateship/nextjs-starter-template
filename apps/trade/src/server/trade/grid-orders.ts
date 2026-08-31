@@ -1139,9 +1139,17 @@ export async function moveGridExit(
   const grid = await gridById(userId, wallet.id, input.gridId)
   const plan = grid.plan
   const protocol = getProtocol(wallet.protocol)
+  // Today's price decides whether a dragged stop may sit inside the range or
+  // would fire at once — see `moveGridExitPlan`. Null lets only the
+  // always-safe move through rather than blocking the drag altogether.
+  const mark =
+    input.which === "stopLoss"
+      ? ((await marksForKeys([grid.marketKey])).get(grid.marketKey) ?? null)
+      : null
   const { px, movedStop } = moveGridExitPlan(
     plan,
     input,
+    mark,
     (value) =>
       protocol.markets.roundPx(value, plan.sizeDecimals, plan.priceTick),
     "PAPER_PRICE"

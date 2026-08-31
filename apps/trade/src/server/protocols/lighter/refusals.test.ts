@@ -32,7 +32,9 @@ describe("Lighter refusals", () => {
   })
 
   it("names a refused sequence number so the count gets thrown away", () => {
+    expect(lighterRefusalCode(400, "21104")).toBe("LIGHTER_NONCE")
     expect(lighterRefusalCode(400, "21120")).toBe("LIGHTER_NONCE")
+    expect(lighterRefusalCode(400, "21121")).toBe("LIGHTER_NONCE")
     expect(lighterRefusalSentence("LIGHTER_NONCE")).toContain("sequence")
   })
 

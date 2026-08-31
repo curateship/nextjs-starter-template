@@ -71,6 +71,23 @@ vi.mock("@/server/protocols/hyperliquid/client", () => ({
 const TEST_KEY = `0x${"0".repeat(63)}1`
 const TEST_ADDRESS = "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
 
+/** The exact bulk-error shape Hyperliquid's SDK throws for a mixed response. */
+function cancelApiError(
+  statuses: Array<"success" | { error: string }>
+): Error {
+  const message = statuses
+    .flatMap((status, index) =>
+      typeof status === "object" ? [`cancel ${index}: ${status.error}`] : []
+    )
+    .join(", ")
+  return Object.assign(new Error(message), {
+    response: {
+      status: "ok",
+      response: { type: "cancel", data: { statuses } },
+    },
+  })
+}
+
 describe("numbers as the wire wants them", () => {
   it("never prints an exponent", () => {
     expect(decimalString(1e-7)).toBe("0.0000001")
@@ -626,8 +643,11 @@ describe("the protection on a real position", () => {
   const HELD = { szi: 0.5, protectionOrderIds: ["11", "12"] }
 
   beforeEach(() => {
+    forgetHyperliquidPortfolios()
     exchangeOrder.mockReset()
     exchangeCancel.mockReset()
+    clearinghouseState.mockReset()
+    frontendOpenOrders.mockReset()
     perpDexs.mockReset()
     allPerpMetas.mockReset()
     perpDexs.mockResolvedValue([null])
@@ -853,6 +873,71 @@ describe("the protection on a real position", () => {
     expect(cancelled.map((one: { o: number }) => one.o)).toEqual([
       41, 42, 43, 44,
     ])
+  })
+
+  it("accepts a thrown cancel batch when every old order is already gone", async () => {
+    const gone = "Order was never placed, already canceled, or filled"
+    exchangeCancel.mockRejectedValue(
+      cancelApiError([
+        { error: gone },
+        { error: gone },
+        { error: gone },
+      ])
+    )
+
+    await expect(
+      setHyperliquidBrackets("testnet", AUTH, {
+        marketId: "BTC",
+        position: { szi: 0.5, protectionOrderIds: ["11", "12", "13"] },
+        targets: [{ px: 120_000, sz: null }],
+        slPx: 90_000,
+        slSz: null,
+      })
+    ).resolves.toEqual({ slOrderId: "21" })
+    expect(exchangeCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it("still warns when a thrown cancel batch contains a real failure", async () => {
+    exchangeCancel.mockRejectedValue(
+      cancelApiError([
+        {
+          error: "Order was never placed, already canceled, or filled",
+        },
+        { error: "Too many requests" },
+      ])
+    )
+
+    await expect(
+      setHyperliquidBrackets("testnet", AUTH, {
+        marketId: "BTC",
+        position: HELD,
+        targets: [],
+        slPx: 90_000,
+        slSz: null,
+      })
+    ).rejects.toThrow(
+      "LIVE_BRACKET_REPLACE_DOUBLED:The new stop at 90000 is on, but the old protection could not be cancelled"
+    )
+  })
+
+  it("drops the cached order ids after replacing protection", async () => {
+    clearinghouseState.mockResolvedValue({ assetPositions: [] })
+    frontendOpenOrders.mockResolvedValue([])
+
+    await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)
+    const portfolioCalls = clearinghouseState.mock.calls.length
+    const openOrderCalls = frontendOpenOrders.mock.calls.length
+    await setHyperliquidBrackets("testnet", AUTH, {
+      marketId: "BTC",
+      position: HELD,
+      targets: [],
+      slPx: 90_000,
+      slSz: null,
+    })
+    await fetchHyperliquidPortfolio("testnet", TEST_ADDRESS)
+
+    expect(clearinghouseState.mock.calls.length).toBeGreaterThan(portfolioCalls)
+    expect(frontendOpenOrders.mock.calls.length).toBeGreaterThan(openOrderCalls)
   })
 
   it("clears both sides by cancelling and sending nothing", async () => {

@@ -3,7 +3,10 @@ import {
   reserveLighterRequest,
   clearLighterBudgets,
 } from "@/server/protocols/lighter/budget"
-import { lighterRefusalError } from "@/server/protocols/lighter/refusals"
+import {
+  lighterRefusalError,
+  lighterRefusalSentence,
+} from "@/server/protocols/lighter/refusals"
 import { LIGHTER_PRIVATE_KEY_BYTES } from "@/server/protocols/lighter/signer"
 import {
   isTimeout,
@@ -50,6 +53,29 @@ function assertAvailable(network: NetworkId): void {
     return
   }
   throw new Error("EXCHANGE_BUSY")
+}
+
+/**
+ * How long a "restricted jurisdiction" answer is believed.
+ *
+ * Long enough that somebody clicking in a blocked country sees the plain
+ * country sentence instantly instead of a new confusing refusal per click;
+ * short enough that one flaky answer cannot stop a served server's trading.
+ */
+const REGION_HOLD_MS = 60_000
+
+const regionHolds = new Map<NetworkId, number>()
+
+function assertRegionAllowed(network: NetworkId): void {
+  const until = regionHolds.get(network)
+  if (until === undefined) return
+  if (Date.now() >= until) {
+    regionHolds.delete(network)
+    return
+  }
+  throw new Error(
+    `LIGHTER_REGION_BLOCKED:${lighterRefusalSentence("LIGHTER_REGION_BLOCKED")}`
+  )
 }
 
 type LighterEnvelope = { code?: unknown; message?: unknown }
@@ -135,6 +161,21 @@ export async function lighterSendTx(
   network: NetworkId,
   input: { txType: number; txInfo: string }
 ): Promise<unknown> {
+  // **A country Lighter refused stays refused here, for a minute.** Tyler's
+  // rule, 31 Aug 2026: "we just need to block the country" — not the machine,
+  // because the same laptop trades fine from a country Lighter serves. The
+  // machine's country is not guessed at; Lighter's own last answer is the
+  // authority. Once a send comes back 20558 ("restricted jurisdiction"),
+  // every send for the next minute refuses right here, before anything is
+  // sent — so a person clicking away in a blocked country gets the plain
+  // country sentence at once instead of a fresh confusing refusal each time.
+  //
+  // One minute and no longer, because the answer is measurably flaky: the
+  // deployed server was refused at 03:32:09 on 31 Aug 2026 and placed the
+  // same coin's order at 03:32:33. A longer memory would have turned that
+  // wobble into a real outage on the wallet, and trading is never switched
+  // off on a guess.
+  assertRegionAllowed(network)
   assertAvailable(network)
   const base = restBase(network)
   reserveLighterRequest(network, { weight: SEND_TX_WEIGHT, priority: "order" })
@@ -173,6 +214,9 @@ export async function lighterSendTx(
       ? String(payload.code)
       : String(response.status)
   if (!response.ok || (payload !== null && code !== "200")) {
+    // Lighter's word for "this country is not served". Remembered, so the
+    // next minute's sends refuse themselves — see `assertRegionAllowed`.
+    if (code === "20558") regionHolds.set(network, Date.now() + REGION_HOLD_MS)
     throw lighterRefusalError({ status: response.status, code })
   }
   return payload
@@ -266,5 +310,6 @@ function bareLighterKey(value: string): string | null {
 /** Test state must not carry a hold or a spent minute into another case. */
 export function clearLighterClientState(): void {
   holds.clear()
+  regionHolds.clear()
   clearLighterBudgets()
 }

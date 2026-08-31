@@ -134,6 +134,10 @@ add up to.
 
 ## Ladders
 
+- Tyler, 31 Aug 2026: **"if I buy at rung 3 then I expect to sell it at the
+  level above rung 1".** In Sell back up the ladder, the deepest buy sells at
+  Exit 1. Exit 1 is the clicked or base price immediately above Rung 1. There
+  is no empty anchor level between the buys and sells.
 - **Stopping a flow calls off every waiting ladder that flow placed.** A ladder
   that already bought stays in place with its stop and target. A hand-placed
   ladder on the same coin is never the flow's to cancel. A real exchange order
@@ -268,6 +272,11 @@ add up to.
 
 ## Money
 
+- **Placing a watched ladder or grid reserves no money.** Today's free cash
+  never blocks the plan itself, however many plans are already waiting. Each
+  rung asks for its full chosen size only when price reaches it. The margin it
+  needs is the coin value divided by the chosen borrowing. A rung the wallet
+  cannot afford then stays waiting and is never made smaller.
 - Tyler, 26 Aug 2026: **A wallet flow has no hand-set spending cap.** Its
   orders wait inside Trade and commit no money until their price arrives. The
   strategy and the market's own limits decide each order's size. A buy the

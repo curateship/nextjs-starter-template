@@ -20,9 +20,22 @@ pairs sat at the same two prices.
 
 ## Replacing the protection takes every leg off
 
-When you move a stop or a target, the app cancels what is there before placing
-the new one. It cancels **every** reduce-only leg the exchange is holding on
-that market, not the two it happens to show you.
+When you move a stop or a target, the app places the new protection first, then
+cancels what was there. The position stays protected while the exchange
+answers. After the replacement is accepted, the app cancels **every**
+reduce-only leg the exchange is holding on that market, not the two it happens
+to show you.
+
+Hyperliquid throws a whole cancellation request when one named order is already
+gone, even though an absent order has nothing left to cancel. Trade reads each
+answer inside that thrown request. The replacement finishes when every failed
+cancel says the order was already cancelled, filled or never placed. Any other
+failure still raises the warning that old and new protection may both be on.
+
+Each Hyperliquid replacement also clears the four-second portfolio answer and
+stops trusting order lists pushed before the change. A retry therefore reads
+the replacement's current order ids instead of placing another pair beside an
+old cached list.
 
 Before the replacement is sent, every new stop and target is rounded to the
 market's legal price step. A chart can produce a price with many decimal

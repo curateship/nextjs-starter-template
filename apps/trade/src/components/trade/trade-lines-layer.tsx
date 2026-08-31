@@ -202,6 +202,7 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   walletName,
   tool,
   entryBadge,
+  feesPaidFor,
   obstacles,
   onMoveOrder,
   onMoveOrderStop,
@@ -230,6 +231,8 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
   tool: string | null
   /** What a position's entry pill carries besides "Entry", if anything. */
   entryBadge?: (position: TradePosition) => EntryBadge | null
+  /** Fees already charged to this position, or null when the fills cannot say. */
+  feesPaidFor?: (position: TradePosition) => number | null
   /**
    * Right-edge furniture other layers have already put down — a grid level's
    * money chip, a range line's name — so this layer's pills slide LEFT of
@@ -321,9 +324,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
     if (!marketKey) break
     const tag = whose(position.walletId)
     const badge = entryBadge?.(position) ?? null
-    const profit = currentPx === null ? null : positionProfit(position, currentPx)
+    const profit =
+      currentPx === null ? null : positionProfit(position, currentPx)
     const profitText = profit === null ? null : formatSignedUsd(profit)
     const afterProfit = `${tag}${badge ? ` · ${badge.text}` : ""}`
+    const feesPaid = feesPaidFor ? feesPaidFor(position) : position.feesPaid
+    const resultAfterFees = (at: number) =>
+      feesPaid === null ? null : projectedProfit(position, at) - feesPaid
 
     lines.push({
       id: `entry:${position.id}`,
@@ -356,11 +363,27 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
       ? position.live.liquidationPx
       : liquidationPx(position)
     if (liq !== null) {
+      const liquidationResult = resultAfterFees(liq)
+      const liquidationText =
+        liquidationResult === null ? "—" : formatSignedUsd(liquidationResult)
       lines.push({
         id: `liq:${position.id}`,
         kind: "liquidation",
         price: liq,
-        label: () => `Liquidation${tag}`,
+        label: () => `Liquidation ${liquidationText}${tag}`,
+        money:
+          liquidationResult === null
+            ? undefined
+            : {
+                before: "Liquidation ",
+                text: liquidationText,
+                after: tag,
+                value: liquidationResult,
+              },
+        hint:
+          liquidationResult === null
+            ? "The fills on hand do not cover this position's fees."
+            : "After fees charged so far. The closing fee is known only after the order fills.",
       })
     }
 
@@ -402,8 +425,14 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
         id: `sl:${position.id}`,
         kind: "stop_loss",
         price: position.slPx,
-        label: (at) =>
-          `Stop Loss ${formatSignedUsd(projectedProfit(position, at))}${tag}`,
+        label: (at) => {
+          const result = resultAfterFees(at)
+          return `Stop Loss ${result === null ? "—" : formatSignedUsd(result)}${tag}`
+        },
+        hint:
+          feesPaid === null
+            ? "The fills on hand do not cover this position's fees."
+            : "After fees charged so far. The closing fee is known only after the order fills.",
         onMove: (price) =>
           onSetBrackets(position, {
             targets: position.targets.map((target) => ({

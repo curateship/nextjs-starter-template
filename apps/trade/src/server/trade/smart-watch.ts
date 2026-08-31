@@ -71,6 +71,9 @@ export async function advanceWatch(
   const enteredHeld = plan.heldWhenPlaced
   const live = liveOrderIds(book)
   const position = book.positions.get(row.marketKey) ?? null
+  const positionSize = Math.abs(position?.szi ?? 0)
+  const partCloseRemaining =
+    plan.sz - Math.max(0, plan.heldAtStart - positionSize)
 
   // ----- Is the order we placed still out there? -------------------------
   //
@@ -81,15 +84,19 @@ export async function advanceWatch(
   if (plan.orderId) {
     const seen = judgeOrder({
       seenOnTheBook: live.has(plan.orderId),
-      // The amount held CHANGED, which no lagging list can fake. Reading it
-      // this way covers every case with one number: a buy that opened a
-      // position, a sell that closed one, a part fill, and a watch adding to
-      // a coin the wallet already held — where "is there a position" would
-      // have said yes from the very first pass and protected nothing.
-      accountShowsItDone:
-        Math.abs((position?.szi ?? 0) - plan.heldWhenPlaced) > 1e-9,
+      // For an ordinary watch, an amount change proves the order affected the
+      // account. A part close is stricter: a partial fill may leave the rest
+      // of the same order live, so only the whole requested piece proves the
+      // order has finished.
+      accountShowsItDone: plan.maker
+        ? partCloseRemaining <= 1e-9
+        : Math.abs((position?.szi ?? 0) - plan.heldWhenPlaced) > 1e-9,
       missingSince: plan.missingSince,
       now,
+      // A part close is allowed to let go only after the whole requested piece
+      // has left. Two reduce-only orders can otherwise fill together and sell
+      // more than the person asked for.
+      absenceCanProveGone: !plan.maker,
     })
     if (seen.missingSince !== plan.missingSince) {
       plan.missingSince = seen.missingSince
@@ -183,13 +190,9 @@ export async function advanceWatch(
   // person calls the watch off. Placing here instead is how one $50 watch
   // bought $150 of coin on 20 Aug 2026.
   //
-  // **A close does not need this wait, because its size is not fixed.** What
-  // the guard protects against is placing the SAME size again — that is how a
-  // $50 watch bought $150 of coin. A close asks for what is still held, less
-  // what has already come off (see `heldAtStart`), so placing again can only
-  // ever ask for the part that is genuinely left. Waiting here instead would
-  // strand a close that had been cancelled on the exchange's own website:
-  // nothing clears `sent` but a fill, and a close is meant not to give up.
+  // A part close never reaches this guard. Its missing order number stays
+  // attached until the whole requested piece has left the position, because
+  // a partial fill does not prove the order's unfilled remainder is gone.
   if (plan.orderId === null && plan.sent && !plan.maker) {
     if (changed) await deps.saveLadder(row, "active", now)
     return
@@ -290,9 +293,7 @@ export async function advanceWatch(
    * position that has gone entirely leaves nothing to reduce, and the close is
    * over rather than resting an order against something that is not there.
    */
-  const stillToDo = plan.maker
-    ? plan.sz - Math.max(0, plan.heldAtStart - Math.abs(position?.szi ?? 0))
-    : plan.sz
+  const stillToDo = plan.maker ? partCloseRemaining : plan.sz
   if (plan.maker && (position === null || stillToDo <= 0)) {
     if (plan.orderId) deps.dropOrder(book, plan.orderId)
     plan.orderId = null

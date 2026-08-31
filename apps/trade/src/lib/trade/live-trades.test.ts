@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   buildLiveTrades,
+  gridHoldingFees,
   gridRoundTrips,
   journalPageCursor,
   journalTradePageCursor,
@@ -551,5 +552,73 @@ describe("a grid level's own round trip", () => {
       at: 2,
     })
     expect(gridRoundTrips([mine, theirs]).size).toBe(0)
+  })
+
+  it.each([
+    ["long", "buy", "sell"],
+    ["short", "sell", "buy"],
+  ] as const)(
+    "keeps only the opening fees on the %s levels still held",
+    (direction, opens, closes) => {
+      const openFirst = CHIP({
+        side: opens,
+        px: 100,
+        sz: 2,
+        fee: 2,
+        at: 10,
+      })
+      const openLast = CHIP({
+        side: opens,
+        px: 90,
+        sz: 1,
+        fee: 1,
+        fillId: "last-open",
+        at: 20,
+      })
+      const closeLast = CHIP({
+        side: closes,
+        px: 95,
+        sz: 0.5,
+        fee: 9,
+        fillId: "part-close",
+        at: 30,
+      })
+      const grid = {
+        walletId: "w1",
+        marketKey: "hyperliquid:mainnet:CHIP",
+        createdAt: 5,
+        plan: {
+          direction,
+          levels: [{ status: "holding" as const, heldSz: 2 }],
+          carriedLevels: [{ status: "holding" as const, heldSz: 0.5 }],
+        },
+      }
+
+      // The close fee belongs to money already banked. Half of the newest
+      // opening fee went with it, leaving $2.50 attached to the open lots.
+      expect(
+        gridHoldingFees([openFirst, openLast, closeLast], grid)
+      ).toBeCloseTo(2.5, 10)
+    }
+  )
+
+  it("does not state an after-fee figure from an incomplete fill history", () => {
+    const grid = {
+      walletId: "w1",
+      marketKey: "hyperliquid:mainnet:CHIP",
+      createdAt: 5,
+      plan: {
+        direction: "long" as const,
+        levels: [{ status: "holding" as const, heldSz: 2 }],
+        carriedLevels: [],
+      },
+    }
+
+    expect(
+      gridHoldingFees(
+        [CHIP({ side: "buy", px: 100, sz: 1, fee: 1, at: 10 })],
+        grid
+      )
+    ).toBeNull()
   })
 })

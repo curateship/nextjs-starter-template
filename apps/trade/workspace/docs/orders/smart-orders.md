@@ -6,6 +6,13 @@ then, an entry is sent. Nothing sits on the exchange's book waiting to buy.
 Reduce-only exits may rest after a buy because they can only sell coins already
 held.
 
+Placing a ladder or grid does not reserve its planned buys from today's free
+cash. The window may show that the complete plan controls more dollars than are
+free now, but that does not block Place. Each level checks the wallet again
+when its price arrives. For a borrowed ladder, that check uses the margin the
+buy needs rather than its larger coin value. A level that cannot afford its
+full size stays waiting.
+
 This holds for every smart order, now and in future. It is a rule, not a
 preference, and `../rules/trading-rules.md` outranks this file if the two ever disagree.
 Plain orders are a separate story with a setting of their own, told in
@@ -280,13 +287,49 @@ are no exceptions left.
 The ladder has four take-profit choices. Average price keeps one target above
 the changing average. Previous rung gives each buy its own sell one rung up.
 Nearest rung sells everything at the first rung above the deepest buy. Sell
-back up the ladder mirrors every buy gap above the anchor.
+back up the ladder uses the clicked or base anchor as Exit 1. Exit 1 is the
+first level above Rung 1, not a second step above it. Later exits continue
+upward using the gaps between the remaining buy rungs.
 
 Sell back up the ladder reverses the buy sizes. If the buys are $100, $200 and
 $300 as price falls, the exits are $300, $200 and $100 as price rises. The
 largest buy therefore gets the closest exit. Every exit appears on the chart
 as soon as the ladder is placed. A faded dashed exit has not been funded yet;
 a solid exit is a reduce-only sell resting for coins the ladder holds.
+
+### Exit-ladder cutover record
+
+Plans saved before 31 August 2026 used an empty anchor and put every exit one
+step too high. The engine recognizes those old prices long enough to account
+for a fill. It then cancels and replaces the funded sells at the corrected
+levels. A real sell stays at its old higher price while the corrected level is
+already at or below the market, because cancelling it there would leave the
+position without a resting replacement. The engine changes it after price is
+below the corrected level. Exit drags and gap changes are refused during that
+wait, so an edit cannot bypass the same protection and cancel the old sell.
+
+This compatibility path is a temporary staged cutover because the old sell is
+an order on an exchange, outside the database transaction that changes the
+plan. The Trade engine owns the cutover. A failed cancellation keeps version 1
+and its old order IDs, so the next pass can retry without placing a duplicate.
+The tracked cleanup is to remove `exitLadderVersion`, the version-1 formula and
+the cutover block after this query returns zero in every production database
+for 24 hours:
+
+```sql
+SELECT count(*)
+FROM trade_smart_ladders
+WHERE kind = 'dca'
+  AND status = 'active'
+  AND plan #>> '{takeProfit,mode}' = 'exitLadder'
+  AND COALESCE((plan ->> 'exitLadderVersion')::int, 1) = 1;
+```
+
+Zero active version-1 exit ladders also means no managed version-1 sell remains,
+because every managed sell ID belongs to its active plan. Before cleanup, a
+rollback can run the previous release against plans still marked version 1.
+After cleanup, Git is the rollback record and the corrected shape is the only
+accepted exit-ladder shape.
 
 The engine funds exits from the lowest one upward. The funded total never
 exceeds the ladder's held coins. When a new buy fills, the engine may replace

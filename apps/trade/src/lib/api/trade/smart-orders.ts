@@ -967,7 +967,9 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_LADDER_RANGE:
       "Those rung prices no longer make a valid ladder. Keep every rung below the one above it.",
     SMART_EXIT_GAP:
-      "The exit ladder must stay above its original mirrored prices. Drag the exits upward to add a gap, or back to their starting position for no extra gap.",
+      "The exit ladder must stay at or above its starting prices. Drag the exits upward to add a gap, or back to where they started for no extra gap.",
+    SMART_EXIT_MIGRATING:
+      "This ladder still has a sell at the old exit prices. The app will move it after price is below the corrected Exit 1, then the exits can be changed.",
     SMART_LADDER_FLOW:
       "A ladder controlled by an automation cannot be moved by hand. Change the automation or stop its run first.",
     SMART_ORDER_NOT_FOUND:
@@ -995,7 +997,9 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_GRID_TARGET_IN_RANGE:
       "The End Grid line has to sit above the top of the range — inside it is where the grid is working, so a line in there would close it on an ordinary swing.",
     SMART_GRID_STOP_IN_RANGE:
-      "The stop has to sit below the bottom of the range — inside it is where the grid is working, so a stop in there would sell it on an ordinary dip.",
+      "The exchange would not give a current price, so the stop could only be put past the losing end of the range. Try again in a moment for a stop inside it.",
+    SMART_GRID_STOP_PASSED:
+      "The price is already past there, so that stop would close the grid the moment it was set. Put it on the far side of the current price.",
     SMART_GRID_TARGET_PASSED:
       "The End Grid line sits below the price already, so the grid would close the moment it was placed. Put it above the price, or switch it off.",
     PART_CLOSE_MARKET: "That market is not one this wallet can trade.",

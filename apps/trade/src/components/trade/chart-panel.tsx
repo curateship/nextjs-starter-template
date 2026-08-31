@@ -86,7 +86,8 @@ import {
   type SmartGrid,
   type SmartLadder,
 } from "@/lib/trade/smart-plan"
-import type { LiveTrade } from "@/lib/trade/live-trades"
+import { gridHoldingFees, type LiveTrade } from "@/lib/trade/live-trades"
+import { positionFees } from "@/lib/trade/position-fees"
 import { floorSize } from "@/lib/trade/dca"
 import { TAKER_FEE_RATE } from "@/lib/trade/paper"
 import { resizeForStop } from "@/lib/trade/risk-size"
@@ -868,6 +869,36 @@ export function ChartPanel({
     () => trading.fills.filter((fill) => fill.marketKey === selectedKey),
     [trading.fills, selectedKey]
   )
+  const positionFeeTotals = React.useMemo(
+    () =>
+      new Map(
+        trading.positions.map((position) => {
+          if (!position.live) return [position.id, position.feesPaid] as const
+          const fees = positionFees(trading.fills, position)
+          return [position.id, fees?.whole ? fees.paid : null] as const
+        })
+      ),
+    [trading.fills, trading.positions]
+  )
+  const feesPaidForPosition = React.useCallback(
+    (position: TradePosition): number | null =>
+      positionFeeTotals.get(position.id) ?? null,
+    [positionFeeTotals]
+  )
+  const gridFeeTotals = React.useMemo(
+    () =>
+      new Map(
+        trading.grids.map(
+          (grid) =>
+            [grid.id, gridHoldingFees(trading.fills, grid)] as const
+        )
+      ),
+    [trading.fills, trading.grids]
+  )
+  const feesPaidForGrid = React.useCallback(
+    (grid: SmartGrid): number | null => gridFeeTotals.get(grid.id) ?? null,
+    [gridFeeTotals]
+  )
 
   /**
    * Where to put the chart, with a picked trade taken into account.
@@ -1208,6 +1239,7 @@ export function ChartPanel({
           preview={gridPreview}
           tool={paintTool}
           walletName={walletNameOf}
+          feesPaidFor={feesPaidForGrid}
           onReverseGrid={setReverseGridFor}
           reverseDisabledReason={reverseDisabledReason}
           onCancelLevel={onCancelGridLevel}
@@ -1232,10 +1264,15 @@ export function ChartPanel({
           // The grid's chips as things the pills slide around, so an Entry
           // pill at a level's own price sits BESIDE its money chip and both
           // stay readable.
-          obstacles={gridLineObstacles(gridsShown, selectedKey, (px) => {
-            const y = surface.yOf(px)
-            return y === null || y < 0 || y > surface.height ? null : y
-          })}
+          obstacles={gridLineObstacles(
+            gridsShown,
+            selectedKey,
+            (px) => {
+              const y = surface.yOf(px)
+              return y === null || y < 0 || y > surface.height ? null : y
+            },
+            feesPaidForGrid
+          )}
           // This layer paints over the paint tools, so it has to know when
           // one is in hand and keep its hands off the pointer — otherwise
           // starting a line near a stop drags the stop.
@@ -1244,6 +1281,7 @@ export function ChartPanel({
           // below is a link to its own market, and it would be a dead end if
           // the chart then showed nothing.
           positions={linePositions}
+          feesPaidFor={feesPaidForPosition}
           onClosePosition={setClosingPosition}
           orders={looseOrders}
           walletName={walletNameOf}
@@ -1314,6 +1352,8 @@ export function ChartPanel({
       onCancelLadder,
       openGridSettings,
       reverseDisabledReason,
+      feesPaidForGrid,
+      feesPaidForPosition,
       marketTrades,
       marketFills,
       focusTrade,

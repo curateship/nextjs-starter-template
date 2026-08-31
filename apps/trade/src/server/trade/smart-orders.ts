@@ -294,6 +294,7 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     leverage,
     rungs,
     exitRungs: [],
+    exitLadderVersion: 2,
     takeProfit: tp
       ? {
           mode: tp.mode,

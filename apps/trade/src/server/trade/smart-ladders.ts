@@ -532,6 +532,36 @@ export async function advanceOne(
     }
   }
 
+  // Temporary cutover for sells already placed by the empty-anchor shape.
+  // The owner and exact deletion condition are in smart-orders.md.
+  if (plan.takeProfit?.mode === "exitLadder" && plan.exitLadderVersion === 1) {
+    const nextExitLadder = exitLadderLevels({
+      ...plan,
+      exitLadderVersion: 2,
+    })
+    const nextWaitingExit = plan.exitRungs.findIndex(
+      (exit) => exit.status === "waiting"
+    )
+    const mark = input.marks.get(row.marketKey) ?? null
+    const replacementCanRest =
+      ladderHeldSz(plan) <= 0 ||
+      (nextWaitingExit >= 0 &&
+        mark !== null &&
+        roundPx(nextExitLadder[nextWaitingExit]) > mark)
+
+    if (replacementCanRest) {
+      for (const exit of plan.exitRungs) {
+        if (exit.orderId && live.has(exit.orderId)) {
+          deps.dropOrder(book, exit.orderId)
+        }
+        exit.orderId = null
+        exit.armedSz = 0
+      }
+      plan.exitLadderVersion = 2
+      changed = true
+    }
+  }
+
   // ----- The 4h base the stop rides, and the buy-back clock ---------------
 
   if (plan.stopLoss?.base || plan.anchor === "base") {
@@ -1278,7 +1308,7 @@ function reclaimRung(
   }
   // Not affordable this minute. Left armed rather than thrown away: cash frees
   // up when another market's trade closes.
-  if (cost > deps.freeCash(input.book) + 1e-9) return false
+  if (cost / plan.leverage > deps.freeCash(input.book) + 1e-9) return false
 
   const rung = plan.rungs[reclaim.rungIndex]
   const priorStatus = rung?.status
@@ -1291,7 +1321,7 @@ function reclaimRung(
     px: slippedPx(mark, "buy", input.book.costs.slippageRate),
     sz,
     feeRate: input.book.costs.takerFeeRate,
-    leverage: 1,
+    leverage: plan.leverage,
     maxLeverage: plan.maxLeverage,
     reduceOnly: false,
     reason: "order",
@@ -1384,7 +1414,7 @@ function watchCandles(
     if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
       continue
     }
-    if (px * sz > deps.freeCash(input.book) + 1e-9) continue
+    if ((px * sz) / plan.leverage > deps.freeCash(input.book) + 1e-9) continue
     const priorSz = next.sz
 
     deps.fill(input.book, {
@@ -1394,7 +1424,7 @@ function watchCandles(
       px,
       sz,
       feeRate: input.book.costs.takerFeeRate,
-      leverage: 1,
+      leverage: plan.leverage,
       maxLeverage: plan.maxLeverage,
       reduceOnly: false,
       reason: "order",
@@ -1486,7 +1516,7 @@ function fireRungsOnMark(
     if (!mayOpenCoin(input.book, marketKey, plan.maxLeverage, input.now)) {
       continue
     }
-    if (px * sz > deps.freeCash(input.book) + 1e-9) continue
+    if ((px * sz) / plan.leverage > deps.freeCash(input.book) + 1e-9) continue
     const priorSz = rung.sz
     deps.fill(input.book, {
       marketKey,
@@ -1494,7 +1524,7 @@ function fireRungsOnMark(
       px,
       sz,
       feeRate: input.book.costs.takerFeeRate,
-      leverage: 1,
+      leverage: plan.leverage,
       maxLeverage: plan.maxLeverage,
       reduceOnly: false,
       reason: "order",

@@ -64,11 +64,13 @@ describe("theme colours on chart overlays", () => {
         grids={[]}
         preview={{
           direction: "long",
+          levelCount: 5,
           lines: [
             { px: 130, kind: "upper" },
             { px: 120, kind: "level" },
             { px: 110, kind: "takeProfit" },
             { px: 100, kind: "stopLoss" },
+            { px: 90, kind: "lower" },
           ],
         }}
         tool={null}
@@ -86,5 +88,39 @@ describe("theme colours on chart overlays", () => {
     expect(html).toContain("theme-primary")
     expect(html).toContain("theme-up")
     expect(html).toContain("theme-down")
+    expect(html).toContain("UPPER PRICE · RUNG 1 SELLS")
+    expect(html).toContain("LOWER PRICE · RUNG 5 BUYS")
+  })
+
+  it("explains both ends of a selling grid's range", () => {
+    const html = renderToStaticMarkup(
+      <GridLayer
+        surface={surface}
+        colors={colors}
+        marketKey="market"
+        currentPx={100}
+        grids={[]}
+        preview={{
+          direction: "short",
+          levelCount: 5,
+          lines: [
+            { px: 130, kind: "upper" },
+            { px: 90, kind: "lower" },
+          ],
+        }}
+        tool={null}
+        walletName={() => "Wallet"}
+        onCancelLevel={() => undefined}
+        onCancelGrid={() => undefined}
+        onReverseGrid={() => undefined}
+        reverseDisabledReason={() => null}
+        onOpenSettings={() => undefined}
+        onMoveRange={async () => true}
+        onMoveExit={async () => true}
+      />
+    )
+
+    expect(html).toContain("UPPER PRICE · RUNG 5 SELLS")
+    expect(html).toContain("LOWER PRICE · RUNG 1 BUYS BACK")
   })
 })

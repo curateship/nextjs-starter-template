@@ -99,7 +99,8 @@ function render(kind: "target" | "stop", orderId = "bracket-order"): string {
 function renderLines(
   held: TradePosition,
   orders: readonly TradeOrder[],
-  currentPx: number | null = null
+  currentPx: number | null = null,
+  feesPaidFor?: (position: TradePosition) => number | null
 ): string {
   return renderToStaticMarkup(
     <TradeLinesLayer
@@ -108,6 +109,7 @@ function renderLines(
       marketKey={MARKET}
       currentPx={currentPx}
       positions={[held]}
+      feesPaidFor={feesPaidFor}
       orders={orders}
       walletName={() => "Wallet"}
       tool={null}
@@ -126,6 +128,16 @@ function entryLabel(html: string): Element {
   )
   if (!entry) throw new Error("Entry label is missing")
   return entry
+}
+
+function lineLabel(html: string, startsWith: string): Element {
+  const host = document.createElement("div")
+  host.innerHTML = html
+  const label = [...host.querySelectorAll("text")].find((one) =>
+    one.textContent?.startsWith(startsWith)
+  )
+  if (!label) throw new Error(`${startsWith} label is missing`)
+  return label
 }
 
 describe("chart bracket lines", () => {
@@ -223,6 +235,56 @@ describe("chart bracket lines", () => {
     expect(html).toContain(label)
     expect(html).not.toContain("Sell $")
     expect(html).not.toContain("theme-neutral")
+  })
+
+  it.each([
+    ["a long", 2, 70, "-$65.00"],
+    ["a short", -2, 130, "-$65.00"],
+  ] as const)(
+    "shows how much %s loses after fees at the exchange liquidation price",
+    (_, size, liquidation, loss) => {
+      const held = position("target")
+      held.szi = size
+      held.feesPaid = 5
+      held.live = { ...held.live!, liquidationPx: liquidation }
+
+      const label = lineLabel(renderLines(held, []), "Liquidation")
+      expect(label.textContent).toBe(`Liquidation ${loss}`)
+      expect(label.querySelector("tspan")?.textContent).toBe(loss)
+      expect(label.querySelector("tspan")?.getAttribute("fill")).toBe(
+        "theme-down"
+      )
+    }
+  )
+
+  it("shows the amount at Trade's estimated liquidation price for practice", () => {
+    const held = position("target")
+    held.szi = 2
+    held.leverage = 2
+    held.maxLeverage = 50
+    held.feesPaid = 5
+    delete held.live
+
+    const label = lineLabel(renderLines(held, []), "Liquidation")
+    expect(label.textContent).toBe("Liquidation -$103.00")
+  })
+
+  it("keeps the stop loss amount tied to the dragged price", () => {
+    const held = position("stop")
+    held.szi = 2
+    held.feesPaid = 5
+
+    const label = lineLabel(renderLines(held, []), "Stop Loss")
+    expect(label.textContent).toBe("Stop Loss -$25.00")
+  })
+
+  it("shows no after-fee amount when the fee history is incomplete", () => {
+    const held = position("stop")
+    held.live = { ...held.live!, liquidationPx: 70 }
+    const html = renderLines(held, [], null, () => null)
+
+    expect(lineLabel(html, "Stop Loss").textContent).toBe("Stop Loss —")
+    expect(lineLabel(html, "Liquidation").textContent).toBe("Liquidation —")
   })
 
   it("names a spare protection leg for what it is, not as a plain sell", () => {

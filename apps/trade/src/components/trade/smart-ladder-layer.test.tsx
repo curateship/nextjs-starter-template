@@ -108,11 +108,11 @@ describe("DCA chart ladders", () => {
       )
     })
 
-    expect(host.textContent).toContain("Exit 1 · arms at $500")
-    expect(host.textContent).toContain("Exit 2 · arms at $250")
+    expect(host.textContent).toContain("Exit rung 2 for profit at +$111.11")
+    expect(host.textContent).toContain("Exit rung 1 for profit at +$52.50")
 
     const move = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Move the whole exit ladder from exit 1"]'
+      'button[aria-label="Move the whole exit ladder from rung 2\'s exit"]'
     )
     await act(async () => {
       move?.dispatchEvent(
@@ -333,10 +333,20 @@ describe("DCA chart ladders", () => {
     const move = host.querySelector<HTMLButtonElement>(
       'button[aria-label="Move the whole DCA ladder from rung 1"]'
     )
-    const ladderBar = [...host.querySelectorAll("span")].find((element) =>
-      element.textContent?.startsWith("DCA ladder")
-    )?.parentElement
-    expect(ladderBar?.style.top).toBe("90px")
+    const ladderBar = host.querySelector<HTMLElement>(
+      "[data-dca-ladder-summary]"
+    )
+    const rungTops = () =>
+      [
+        ...host.querySelectorAll<HTMLButtonElement>(
+          'button[aria-label^="Move the whole DCA ladder from rung"]'
+        ),
+      ].map((button) => button.closest("span")?.parentElement?.style.top)
+    // The ladder-wide controls are a footer below the lowest rung. The summary
+    // must not cover a priced rung or exit.
+    expect(ladderBar?.style.top).toBe("138px")
+    expect(rungTops()).toEqual(["100px", "110px"])
+    expect(ladderBar?.querySelector(".border-t")).toBeNull()
 
     await act(async () => {
       move?.dispatchEvent(
@@ -349,9 +359,11 @@ describe("DCA chart ladders", () => {
         requestAnimationFrame(() => resolve())
       )
     })
-    // Rung 1 moved from $100 to $120. The anchor bar must paint the matching
-    // $132 position in the same frame, before the server sees the drop.
-    expect(ladderBar?.style.top).toBe("68px")
+    // Rung 1 moved from $100 to $120 and rung 2 moved to $108. The footer
+    // follows the lowest rung in the same frame, before the server sees the
+    // drop.
+    expect(ladderBar?.style.top).toBe("120px")
+    expect(rungTops()).toEqual(["80px", "92px"])
 
     await act(async () => {
       window.dispatchEvent(
@@ -409,14 +421,14 @@ describe("DCA chart ladders", () => {
       )
     })
 
-    expect(host.textContent).toContain("Exit 1 sell · $720")
-    expect(host.textContent).toContain("Exit 2 · arms at $528")
-    expect(host.textContent).not.toContain("Exit 3")
+    expect(host.textContent).toContain("Exit rung 3 for profit at +$174.00")
+    expect(host.textContent).toContain("Exit rung 2 for profit at +$124.00")
+    expect(host.textContent).not.toContain("Exit rung 1")
     const armed = [...host.querySelectorAll("span")].find((element) =>
-      element.textContent?.startsWith("Exit 1 sell")
+      element.textContent?.startsWith("Exit rung 3 for profit at")
     )?.previousElementSibling
     const waiting = [...host.querySelectorAll("span")].find((element) =>
-      element.textContent?.startsWith("Exit 2 · arms")
+      element.textContent?.startsWith("Exit rung 2 for profit at")
     )?.previousElementSibling
     expect(armed?.className).not.toContain("border-dashed")
     expect(waiting?.className).toContain("border-dashed")
@@ -467,7 +479,7 @@ describe("DCA chart ladders", () => {
     })
 
     const move = host.querySelector<HTMLButtonElement>(
-      'button[aria-label="Move the whole exit ladder from exit 1"]'
+      'button[aria-label="Move the whole exit ladder from rung 2\'s exit"]'
     )
     await act(async () => {
       move?.dispatchEvent(

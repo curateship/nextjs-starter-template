@@ -607,6 +607,21 @@ It can rest under the confirmed 4h base instead, but only when a base has
 confirmed below the range. A base inside the range is a level the grid fully
 intends to buy at, not a level at which to give up.
 
+**A stop dragged by hand may sit inside the range.** That is the trailing
+move: price has worked the low rungs and come back up, and the stop is pulled
+up behind it to lock in what the cycles have made. The rungs at or past a stop
+like that fade on the chart and cannot buy — price cannot reach them without
+ending the grid first — and they wake again if the stop is later dragged back
+out. Only the automatic stop keeps off the inside, because it follows a rule
+rather than a hand; the paragraph above says why the rule must measure from
+the range's edge.
+
+The one place a dragged stop may not go is at or past the current price, where
+it would fire the moment the hand let go. That drop is refused with "The price
+is already past there". If the venue will not give a current price at that
+moment, only the always-safe drop past the losing end of the range is
+accepted, and trying again a moment later unlocks the inside.
+
 A grid never writes a take profit onto the position. Its exits are its own
 sells, one per level, and a single target would sell the lot at one price and
 defeat the whole order.
@@ -636,6 +651,14 @@ is not drawn. The grid was the one that showed both, so a grey pill carrying
 the same price sat right behind the red one and read as some second thing at
 that level.
 
+The STOP LOSS label states what the grid's currently held levels would make or
+lose if they all closed at that price after their opening fees. Carried levels
+count too. The future closing fee stays out because the venue does not state it
+until the order fills. The figure follows the line while it is dragged, and
+reads $0.00 while the grid is between positions. Money and fees already banked
+by completed rounds stay out because the stop cannot lose them. The label shows
+a dash when the fills on hand do not add up to what the grid says it holds.
+
 ## No line on the chart carries its own price
 
 A grid draws a dozen lines at once. Each of them used to wear a chip with its
@@ -646,8 +669,13 @@ the line sits at.
 
 What a level puts in, in dollars, is still on the line, because the axis cannot
 tell you that. So is the name of each of the four lines you set: UPPER PRICE,
-LOWER PRICE, END GRID and STOP LOSS. The levels in between carry no name, because
-a dozen labelled ones is a wall of text over the price action.
+LOWER PRICE, END GRID and STOP LOSS. The two range lines also name the rung and
+trade at that price. On a five-rung selling grid, the upper line says RUNG 5
+SELLS and the lower line says RUNG 1 BUYS BACK. A buying grid says the mirror:
+RUNG 5 BUYS on the lower line and RUNG 1 SELLS on the upper line. Five complete
+round trips need six prices, so the wording explains why one boundary sits a
+step past the nearest entry. The levels in between carry no name, because a
+dozen labelled ones is a wall of text over the price action.
 
 ## The card headers say their answer
 

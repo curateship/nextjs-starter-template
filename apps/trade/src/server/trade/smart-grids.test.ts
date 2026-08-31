@@ -780,6 +780,70 @@ describe("the stop", () => {
     expect(grid.plan.levels[0].dead).toBe(false)
   })
 
+  it("lets the stop trail inside the range and fades the rungs past it", async () => {
+    // The trailing move: price has worked the low rungs and come back up, and
+    // the stop is dragged up INSIDE the range to lock that in. The rungs at
+    // or under it go quiet; the ones still clear of it keep cycling.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(105)
+
+    let grid = await onlyGrid()
+    await moveGridExit(userId, wallet, {
+      gridId: grid.id,
+      which: "stopLoss",
+      px: 95,
+    })
+    await settle()
+    grid = await onlyGrid()
+    expect(gridStopPx(grid.plan)).toBe(95)
+    // The 80 and 90 buys sit past the stop and can never trade now.
+    expect(grid.plan.levels.map((one) => one.dead)).toEqual([
+      true,
+      true,
+      false,
+      false,
+    ])
+  })
+
+  it("closes everything when price falls to a stop inside the range", async () => {
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(105)
+    let grid = await onlyGrid()
+    await moveGridExit(userId, wallet, {
+      gridId: grid.id,
+      which: "stopLoss",
+      px: 95,
+    })
+
+    await priceTo(95)
+    grid = await onlyGrid()
+    expect(grid.status).toBe("done")
+    expect((grid.plan as GridPlan).closedReason).toBe("stop")
+    expect(await positions()).toHaveLength(0)
+  })
+
+  it("refuses a stop dropped at or past the current price", async () => {
+    // A stop the price has already reached would close the grid the moment
+    // the hand let go — that is a mis-drop, not a stop.
+    await place({ stopLoss: { underPct: 5, base: null } })
+    await priceTo(105)
+    const grid = await onlyGrid()
+    await expect(
+      moveGridExit(userId, wallet, {
+        gridId: grid.id,
+        which: "stopLoss",
+        px: 110,
+      })
+    ).rejects.toThrow("SMART_GRID_STOP_PASSED")
+    await expect(
+      moveGridExit(userId, wallet, {
+        gridId: grid.id,
+        which: "stopLoss",
+        px: 105,
+      })
+    ).rejects.toThrow("SMART_GRID_STOP_PASSED")
+  })
+
   it("stops following a stop a hand moved", async () => {
     await place({ stopLoss: { underPct: 5, base: null } })
     await priceTo(109)

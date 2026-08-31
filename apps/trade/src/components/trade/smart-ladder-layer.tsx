@@ -16,7 +16,11 @@ import {
   ladderShapeMovable,
 } from "@/lib/trade/dca"
 import type { SmartLadder } from "@/lib/trade/smart-plan"
-import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatUsdRounded,
+} from "@/lib/trade/format"
 import type { ChartColors } from "@/lib/trade/chart-theme"
 import { cn } from "@/lib/utils"
 
@@ -37,11 +41,12 @@ import { cn } from "@/lib/utils"
  * with — its job is to report, and a × there would be a way to call off a real
  * rung from a page that is supposed to be a record.
  *
- * The ladder's control tag exists only before anything buys — a line at the
- * clicked price, which is all the ladder is at that point. The moment the
- * first rung buys, the controls fold into the position's own entry pill
- * ("Entry · DCA ladder: 2 waiting ⚙ ×", built by the trade-lines layer) and
- * the clicked price stops pretending to be anything.
+ * The ladder's control tag exists only before anything buys. It sits below the
+ * last visible rung as a footer for the complete ladder, rather than covering
+ * a priced ladder level. The anchor may also be Exit 1, but that line belongs
+ * to the exit rather than to the summary. The moment the first rung buys, the
+ * controls fold into the position's own entry pill
+ * ("Entry · DCA ladder: 2 waiting ⚙ ×", built by the trade-lines layer).
  */
 
 /**
@@ -55,6 +60,26 @@ import { cn } from "@/lib/utils"
  */
 const TAG_CLASS =
   "absolute right-1 top-0 flex -translate-y-1/2 items-center gap-0.5 rounded-lg border bg-card/90 px-1.5 py-0.5 text-xs font-semibold"
+
+/** One label row of breathing room between the deepest rung and its footer. */
+const LADDER_SUMMARY_GAP = 28
+const LADDER_SUMMARY_EDGE_INSET = 14
+
+function ladderSummaryY(
+  rungs: readonly { px: number }[],
+  yFor: (price: number) => number | null,
+  chartHeight: number
+): number | null {
+  const shown = rungs
+    .map((rung) => yFor(rung.px))
+    .filter((y): y is number => y !== null)
+  if (shown.length === 0) return null
+  const bottomRung = Math.max(...shown)
+  return Math.min(
+    bottomRung + LADDER_SUMMARY_GAP,
+    Math.max(LADDER_SUMMARY_EDGE_INSET, chartHeight - LADDER_SUMMARY_EDGE_INSET)
+  )
+}
 
 export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   surface,
@@ -128,6 +153,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
           ladder={ladder}
           colors={colors}
           yFor={yFor}
+          chartHeight={surface.height}
           tool={tool}
           readOnly={readOnly}
           walletName={walletName}
@@ -163,7 +189,8 @@ function PreviewLines({
   priceFrom,
   placed = false,
   onCancelRung,
-  onAnchorPreview,
+  summary,
+  chartHeight,
 }: {
   preview: DcaPreview
   colors: ChartColors
@@ -173,8 +200,9 @@ function PreviewLines({
   priceFrom: (clientY: number, top: number) => number | null
   placed?: boolean
   onCancelRung?: (rungIndex: number) => void
-  /** Paint a placed ladder's anchor bar beside its locally dragged rungs. */
-  onAnchorPreview?: (anchorPx: number | null) => void
+  /** The placed ladder's whole-ladder controls, drawn after its last rung. */
+  summary?: React.ReactNode
+  chartHeight?: number
 }) {
   const [dragging, setDragging] = React.useState<PreviewDrag | null>(null)
   const activeDragCleanup = React.useRef<() => void>(() => undefined)
@@ -259,12 +287,6 @@ function PreviewLines({
         const px = priceFrom(lastY, top)
         if (px !== null && px > 0) {
           setDragging({ kind, rungIndex, pointerPx: px })
-          if (kind === "move") {
-            const grabbed = preview.rungs[rungIndex]
-            if (grabbed && grabbed.px > 0) {
-              onAnchorPreview?.(preview.anchorPx * (px / grabbed.px))
-            }
-          }
         }
       }
       const onMove = (move: PointerEvent) => {
@@ -282,19 +304,16 @@ function PreviewLines({
       const onCancel = () => {
         cleanup()
         setDragging(null)
-        onAnchorPreview?.(null)
       }
       const onUp = (up: PointerEvent) => {
         cleanup()
         if (Math.abs(up.clientY - fromY) < DRAG_SLOP) {
           setDragging(null)
-          onAnchorPreview?.(null)
           return
         }
         const px = priceFrom(up.clientY, top)
         if (px === null || !(px > 0)) {
           setDragging(null)
-          onAnchorPreview?.(null)
           return
         }
         setDragging({ kind, rungIndex, pointerPx: px })
@@ -322,16 +341,13 @@ function PreviewLines({
           const grabbed = preview.rungs[rungIndex]
           if (!grabbed || !(grabbed.px > 0)) {
             setDragging(null)
-            onAnchorPreview?.(null)
             return
           }
           const anchorPx = preview.anchorPx * (px / grabbed.px)
-          onAnchorPreview?.(anchorPx)
           result = preview.onMove(anchorPx)
         }
         void Promise.resolve(result).finally(() => {
           setDragging(null)
-          onAnchorPreview?.(null)
         })
       }
 
@@ -343,6 +359,10 @@ function PreviewLines({
 
   const controls = tool ? "none" : "auto"
   const deepestIndex = shownRungs.length - 1
+  const summaryY =
+    summary && chartHeight !== undefined
+      ? ladderSummaryY(shownRungs, yFor, chartHeight)
+      : null
 
   return (
     <>
@@ -414,7 +434,10 @@ function PreviewLines({
       {shownExitLevels.map((px, index) => {
         const y = yFor(px)
         if (y === null) return null
-        const dollars = shownRungs[shownRungs.length - 1 - index]?.dollars ?? 0
+        const sourceRungIndex = shownRungs.length - 1 - index
+        const sourceRung = shownRungs[sourceRungIndex]
+        const sourceSz = sourceRung ? sourceRung.dollars / sourceRung.px : 0
+        const profit = sourceRung ? (px - sourceRung.px) * sourceSz : 0
         return (
           <div
             key={`preview-exit-${index}`}
@@ -437,17 +460,28 @@ function PreviewLines({
               <button
                 type="button"
                 className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
-                aria-label={`Move the whole exit ladder from exit ${index + 1}`}
+                aria-label={`Move the whole exit ladder from rung ${sourceRungIndex + 1}'s exit`}
                 title="Drag to move every exit and change the gap above the buys"
                 onPointerDown={startDrag("exit", index)}
               >
                 <GripVerticalIcon className="size-3" />
-                Exit {index + 1} · arms at {formatUsdRounded(dollars)}
+                Exit rung {sourceRungIndex + 1} for profit at{" "}
+                {formatSignedUsd(profit)}
               </button>
             </span>
           </div>
         )
       })}
+
+      {summaryY !== null ? (
+        <div
+          data-dca-ladder-summary
+          className="absolute inset-x-0"
+          style={{ top: summaryY }}
+        >
+          {summary}
+        </div>
+      ) : null}
     </>
   )
 }
@@ -456,6 +490,7 @@ function LadderLines({
   ladder,
   colors,
   yFor,
+  chartHeight,
   tool,
   readOnly,
   walletName,
@@ -469,6 +504,7 @@ function LadderLines({
   ladder: SmartLadder
   colors: ChartColors
   yFor: (price: number) => number | null
+  chartHeight: number
   tool: string | null
   readOnly: boolean
   walletName: (walletId: string) => string
@@ -493,61 +529,54 @@ function LadderLines({
   const exits = ladderExitLevels(plan)
   const mirroredExits =
     plan.takeProfit?.mode === "exitLadder" ? exitLadderLevels(plan) : []
-  const [movingAnchorPx, setMovingAnchorPx] = React.useState<number | null>(
-    null
-  )
   const shapeMoves =
     !readOnly && onReshapeLadder !== undefined && ladderShapeMovable(plan)
   // While a paint tool is held, these controls must not steal its presses.
   const controls = tool || readOnly ? "none" : "auto"
+  const visibleRungs = plan.rungs.filter(
+    (rung) => rung.status === "waiting" || rung.status === "skipped"
+  )
+  const settledSummaryY = ladderSummaryY(visibleRungs, yFor, chartHeight)
 
-  // Only before anything buys: the clicked price is all the ladder is, so its
-  // controls sit on a line there. From the first buy on, the entry pill built
-  // by the trade-lines layer carries them instead.
-  const tagY = bought ? null : yFor(movingAnchorPx ?? plan.anchorPx)
+  // Whole-ladder controls sit after the final rung instead of covering the
+  // anchor. In exit-ladder mode the anchor is Exit 1, and the exit line already
+  // owns that price. After the first buy, the position entry carries them.
+  const summary = bought ? null : (
+    <span
+      className={TAG_CLASS}
+      style={{
+        borderColor: colors.up,
+        color: colors.up,
+        pointerEvents: controls,
+      }}
+      title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}.${shapeMoves ? " Drag any rung to move it, or use the deepest rung's resize handle." : " Rung prices are frozen after the ladder starts buying."}`}
+    >
+      DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
+      {readOnly ? null : (
+        <button
+          type="button"
+          aria-label="Change the ladder's exits"
+          className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
+          onClick={() => onEditExits?.(ladder)}
+        >
+          <SettingsIcon className="size-3" />
+        </button>
+      )}
+      {waiting > 0 && !readOnly ? (
+        <button
+          type="button"
+          aria-label="Stop buying deeper — cancel every waiting rung"
+          className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
+          onClick={() => onCancelLadder?.(ladder)}
+        >
+          <XIcon className="size-3" />
+        </button>
+      ) : null}
+    </span>
+  )
 
   return (
     <>
-      {tagY !== null ? (
-        <div className="absolute inset-x-0" style={{ top: tagY }}>
-          <div
-            className="border-t opacity-60"
-            style={{ borderColor: colors.up }}
-          />
-          <span
-            className={TAG_CLASS}
-            style={{
-              borderColor: colors.up,
-              color: colors.up,
-              pointerEvents: controls,
-            }}
-            title={`${walletName(ladder.walletId)} — the ladder hangs from ${formatPrice(plan.anchorPx)}.${shapeMoves ? " Drag any rung to move it, or use the deepest rung's resize handle." : " Rung prices are frozen after the ladder starts buying."}`}
-          >
-            DCA ladder{waiting > 0 ? ` · ${waiting} waiting` : ""}
-            {readOnly ? null : (
-              <button
-                type="button"
-                aria-label="Change the ladder's exits"
-                className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
-                onClick={() => onEditExits?.(ladder)}
-              >
-                <SettingsIcon className="size-3" />
-              </button>
-            )}
-            {waiting > 0 && !readOnly ? (
-              <button
-                type="button"
-                aria-label="Stop buying deeper — cancel every waiting rung"
-                className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
-                onClick={() => onCancelLadder?.(ladder)}
-              >
-                <XIcon className="size-3" />
-              </button>
-            ) : null}
-          </span>
-        </div>
-      ) : null}
-
       {shapeMoves ? (
         <PreviewLines
           preview={{
@@ -565,10 +594,11 @@ function LadderLines({
           yFor={yFor}
           tool={tool}
           placed
-          onAnchorPreview={setMovingAnchorPx}
           onCancelRung={(index) =>
             onCancelRung?.(ladder.walletId, ladder.id, index)
           }
+          summary={summary}
+          chartHeight={chartHeight}
           measureTop={measureTop}
           priceFrom={priceFrom}
         />
@@ -642,6 +672,16 @@ function LadderLines({
           )
         })
       )}
+
+      {!shapeMoves && summary && settledSummaryY !== null ? (
+        <div
+          data-dca-ladder-summary
+          className="absolute inset-x-0"
+          style={{ top: settledSummaryY }}
+        >
+          {summary}
+        </div>
+      ) : null}
 
       {plan.rungs.map((rung, index) => {
         if (!rung.sellOrderId) return null
@@ -791,12 +831,13 @@ function ExitLadderLines({
     const y = yFor(px)
     if (y === null) return null
     const armed = Boolean(exit?.orderId && exit.armedSz > 0)
-    const sz = armed
+    const sourceRungIndex = ladder.plan.rungs.length - 1 - index
+    const sourceRung = ladder.plan.rungs[sourceRungIndex]
+    const sourceSz = armed
       ? (exit?.armedSz ?? 0)
       : exitLadderPlannedSz(ladder.plan, index)
-    const label = armed
-      ? `Exit ${index + 1} sell · ${formatUsdRounded(px * sz)}`
-      : `Exit ${index + 1} · arms at ${formatUsdRounded(px * sz)}`
+    const profit = sourceRung ? (px - sourceRung.px) * sourceSz : 0
+    const label = `Exit rung ${sourceRungIndex + 1} for profit at ${formatSignedUsd(profit)}`
     return (
       <div
         key={`exit-${index}`}
@@ -826,7 +867,7 @@ function ExitLadderLines({
             <button
               type="button"
               className="flex cursor-ns-resize items-center gap-0.5 rounded focus-visible:outline-none"
-              aria-label={`Move the whole exit ladder from exit ${index + 1}`}
+              aria-label={`Move the whole exit ladder from rung ${sourceRungIndex + 1}'s exit`}
               onPointerDown={startDrag(index)}
             >
               <GripVerticalIcon className="size-3" />

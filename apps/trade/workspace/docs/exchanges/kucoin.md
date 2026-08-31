@@ -50,3 +50,16 @@ markets whose allowed range is wider.
 
 A watched rung remains only in Trade while it waits. KuCoin sees the boundary
 read and the immediate order only after Trade sees the rung's price reached.
+
+## Part closes and fresh order reads
+
+Trade drops its saved KuCoin open-order answer after every accepted placement
+or cancellation. The next account read must ask KuCoin again. Reusing the
+answer taken just before a half-size sell would hide the new order from the
+engine and could make the engine send the same half a second time.
+
+A part close also keeps its order number when KuCoin briefly leaves the order
+out of an open-order answer. Trade releases the number only after the whole
+requested piece has left the position. A partial fill does not prove the
+unfilled remainder has gone. Replacing that remainder while the first order
+can still fill would sell too much.

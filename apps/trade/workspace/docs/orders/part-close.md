@@ -25,6 +25,11 @@ pressed.
 - **An amount, in dollars or in coins**, with 25%, 50% and All of it as
   presses that fill the box. Switching the unit says the same amount in the
   other unit, so switching never quietly changes what would be sold.
+- **All of it follows the live price while the window is open.** The dollar
+  figure changes with the market price instead of becoming larger than the
+  position after a price drop. Typing a figure ends that preset, so an amount
+  entered by hand stays exactly as entered and is still refused when it is too
+  large.
 - **What happens to the rest**, in dollars, including where its stop is. "$49.62
   of the $99.23 position, about 17.852132 coins at $2.7795. $49.61 keeps
   running, with its stop at $2.40."
@@ -80,12 +85,22 @@ The one way that can be wrong is something else reducing the position, a stop
 firing or a ladder exit on the same coin, and then the close stops early. Early
 sells less than asked and never more.
 
+**A missing order does not mean a part close is gone.** The exchange's open
+order list can briefly leave out an order that is still working. Trade waits
+until the whole requested piece has left the position before it releases that
+order number. A partial fill does not prove the unsold remainder has gone. A
+replacement could meet the first order and sell too much.
+
 ## Calling one off
 
 The resting order shows under Open orders like any other. The × on it stops the
 close rather than taking that one order back — taking it back would be answered
 by the engine placing another a few seconds later, and the row would come back
 looking like the press had missed.
+
+Cancel a part close from Trade, not from the exchange's own screen. If an order
+vanishes outside Trade before the requested piece has left, Trade waits instead
+of guessing that another order is safe.
 
 ## The stop and the target on what is left
 

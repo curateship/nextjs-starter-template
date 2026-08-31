@@ -19,7 +19,8 @@ import {
 } from "@/components/trade/smart-order-dialog"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketRow } from "@/lib/protocols/contracts"
-import { resizedDcaDeviations } from "@/lib/trade/dca"
+import { defaultDcaParams, resizedDcaDeviations } from "@/lib/trade/dca"
+import { rememberDcaPrefs } from "@/lib/trade/smart-prefs-cache"
 
 Object.assign(globalThis, {
   ResizeObserver: class {
@@ -137,5 +138,86 @@ describe("the DCA ladder window", () => {
         params: expect.objectContaining({ anchor: "click" }),
       })
     )
+  })
+
+  it("places a watched ladder without reserving its rungs from today's free cash", async () => {
+    let preview: DcaPreview | null = null
+    const onPlace = vi.fn(async () => true)
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 105, x: 20, y: 20 }}
+            market={market}
+            wallet="Practice"
+            equity={10_000}
+            free={1}
+            interval="15m"
+            busy={false}
+            onPreview={(next) => {
+              preview = next
+            }}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+      await Promise.resolve()
+    })
+
+    expect(preview).not.toBeNull()
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    expect(place?.disabled).toBe(false)
+
+    await act(async () => place?.click())
+    expect(host.textContent).not.toContain("nothing would fit")
+    expect(onPlace).toHaveBeenCalledOnce()
+  })
+
+  it("puts each take-profit field on its own full-width row", async () => {
+    rememberDcaPrefs({
+      ...defaultDcaParams(),
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 105, x: 20, y: 20 }}
+            market={market}
+            wallet="Practice"
+            equity={10_000}
+            free={10_000}
+            interval="15m"
+            busy={false}
+            onPreview={() => undefined}
+            onPlace={async () => false}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+      await Promise.resolve()
+    })
+
+    const exitMode = host.querySelector<HTMLElement>("#smart-tp-mode")
+    const exitGap = host.querySelector<HTMLElement>("#smart-exit-gap")
+    const exitLabel = host.querySelector<HTMLLabelElement>(
+      'label[for="smart-tp-mode"]'
+    )
+    const exitGapLabel = host.querySelector<HTMLLabelElement>(
+      'label[for="smart-exit-gap"]'
+    )
+    const fieldRows = exitMode?.parentElement?.parentElement
+
+    expect(exitMode).not.toBeNull()
+    expect(exitGap).not.toBeNull()
+    expect(exitLabel?.className).toBe(exitGapLabel?.className)
+    expect(fieldRows).toBe(exitGap?.parentElement?.parentElement)
+    expect(fieldRows?.className).toBe("grid gap-4")
+    expect(exitMode?.parentElement?.className).toBe("grid gap-2")
+    expect(exitGap?.parentElement?.className).toBe("grid gap-2")
   })
 })

@@ -1,3 +1,4 @@
+import type { GridPlan } from "@/lib/trade/grid"
 import type { TradeSide } from "@/lib/trade/paper"
 
 /**
@@ -392,6 +393,81 @@ export function gridRoundTrips(
   }
 
   return out
+}
+
+/**
+ * Fees paid by the grid levels that are still open.
+ *
+ * A grid can finish many round trips without ever taking the whole position
+ * flat. Those finished levels have already put their fees into Banked, so a
+ * stop on what remains must only carry the opening fees still attached to the
+ * unsold lots. The grid closes newest lots first, matching `gridRoundTrips`.
+ *
+ * Null means the fills on hand do not add up to what the plan says it holds.
+ * A partial fee history must not turn into a smaller, believable-looking
+ * after-fee loss on the chart.
+ */
+export function gridHoldingFees(
+  fills: readonly LiveFill[],
+  grid: {
+    walletId: string
+    marketKey: string
+    createdAt: number
+    plan: {
+      direction: GridPlan["direction"]
+      levels: readonly Pick<GridPlan["levels"][number], "status" | "heldSz">[]
+      carriedLevels: readonly Pick<
+        GridPlan["carriedLevels"][number],
+        "status" | "heldSz"
+      >[]
+    }
+  }
+): number | null {
+  const heldSz = [...grid.plan.levels, ...grid.plan.carriedLevels].reduce(
+    (sum, level) => (level.status === "holding" ? sum + level.heldSz : sum),
+    0
+  )
+  if (heldSz <= DUST) return 0
+
+  const mine = fills
+    .filter(
+      (fill) =>
+        fill.grid === true &&
+        fill.walletId === grid.walletId &&
+        fill.marketKey === grid.marketKey &&
+        fill.at >= grid.createdAt &&
+        fill.sz > DUST
+    )
+    .sort(
+      (left, right) =>
+        left.at - right.at || left.fillId.localeCompare(right.fillId)
+    )
+  if (mine.length === 0) return null
+
+  const opens = grid.plan.direction === "long" ? "buy" : "sell"
+  const lots: { sz: number; fee: number }[] = []
+  for (const fill of mine) {
+    if (fill.side === opens) {
+      lots.push({ sz: fill.sz, fee: fill.fee })
+      continue
+    }
+
+    let left = fill.sz
+    while (left > DUST && lots.length > 0) {
+      const lot = lots[lots.length - 1]
+      const part = Math.min(left, lot.sz)
+      const share = part / lot.sz
+      lot.fee -= lot.fee * share
+      lot.sz -= part
+      left -= part
+      if (lot.sz <= DUST) lots.pop()
+    }
+  }
+
+  const openSz = lots.reduce((sum, lot) => sum + lot.sz, 0)
+  const tolerance = Math.max(DUST, heldSz * 1e-6)
+  if (Math.abs(openSz - heldSz) > tolerance) return null
+  return lots.reduce((sum, lot) => sum + lot.fee, 0)
 }
 
 /**

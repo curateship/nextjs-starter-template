@@ -5,6 +5,7 @@ import {
   gridStopBeyond,
   gridStopPx,
   lossEdge,
+  reachedEntry,
   reachedExit,
   readyWhen,
   winEdge,
@@ -98,6 +99,8 @@ export function updateGridEndPlan(
 export function moveGridExitPlan(
   plan: GridPlan,
   input: { which: "takeProfit" | "stopLoss"; px: number },
+  /** Today's price, or null when the venue would not give one. */
+  mark: number | null,
   roundPx: (px: number) => number,
   invalidPrice: string
 ): { px: number; movedStop: boolean } {
@@ -112,8 +115,25 @@ export function moveGridExitPlan(
     return { px, movedStop: false }
   }
 
-  if (!readyWhen(plan.direction, lossEdge(plan.direction, plan), px)) {
-    throw new Error("SMART_GRID_STOP_IN_RANGE")
+  /**
+   * **A stop may sit inside the range.** That is how a grid's stop trails:
+   * dragged up behind the price, it locks in what the cycles have made, the
+   * levels past it fade out (`reconcileDeadLevels`), and the ones still clear
+   * of it keep cycling. The engine has always understood such a stop — only
+   * this door refused it.
+   *
+   * What it may not do is sit where it would fire at once — at or past the
+   * current price on the losing side — because that closes the whole grid the
+   * moment the hand lets go, which is a mis-drop, not a stop. And when the
+   * venue would not give a price, there is no telling those apart, so only
+   * the always-safe move is taken: past the losing end of the range.
+   */
+  if (mark === null) {
+    if (!readyWhen(plan.direction, lossEdge(plan.direction, plan), px)) {
+      throw new Error("SMART_GRID_STOP_IN_RANGE")
+    }
+  } else if (reachedEntry(plan.direction, mark, px)) {
+    throw new Error("SMART_GRID_STOP_PASSED")
   }
   plan.stopLoss = {
     mode: "fixed",
@@ -175,10 +195,14 @@ export async function updateLadderExitsPlan(
     wasExitLadder &&
     staysExitLadder &&
     Math.abs((plan.takeProfit?.exitGapPct ?? 0) - nextExitGapPct) > 1e-9
+  if (exitGapChanged && plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
+  }
   if (wasExitLadder && (!staysExitLadder || exitGapChanged)) {
     await cancelExitLadderOrders(plan, cancelSell)
     if (!staysExitLadder) plan.exitRungs = []
   }
+  if (!wasExitLadder && staysExitLadder) plan.exitLadderVersion = 2
   plan.takeProfit = input.takeProfit
     ? {
         mode: input.takeProfit.mode,
@@ -204,6 +228,9 @@ export async function moveExitLadderPlan(
 ): Promise<void> {
   if (plan.takeProfit?.mode !== "exitLadder") {
     throw new Error("SMART_EXIT_GAP")
+  }
+  if (plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
   }
   const exitGapPct = exitLadderGapPctForPrice(
     plan,
