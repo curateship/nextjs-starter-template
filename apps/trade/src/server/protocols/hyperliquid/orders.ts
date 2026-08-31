@@ -43,7 +43,10 @@ import {
 } from "@/server/protocols/hyperliquid/open-orders-feed"
 import { agentSigner } from "@/server/protocols/hyperliquid/signing"
 import { fetchHyperliquidPrices } from "@/server/protocols/hyperliquid/prices"
-import { hyperliquidRefusalError } from "@/server/protocols/hyperliquid/refusals"
+import {
+  hyperliquidRefusalCode,
+  hyperliquidRefusalError,
+} from "@/server/protocols/hyperliquid/refusals"
 import { assertRealMoneyAllowed } from "@/server/protocols/real-money"
 import { scrubbedMessage } from "@/server/protocols/scrub"
 
@@ -306,6 +309,44 @@ function statusError(status: OrderStatus | undefined): string | null {
   if (status === undefined) return "The exchange did not answer for this order."
   if (typeof status === "object" && "error" in status) return status.error
   return null
+}
+
+const bulkCancelErrorSchema = z.object({
+  response: z.object({
+    response: z.object({
+      type: z.literal("cancel"),
+      data: z.object({
+        statuses: z.array(
+          z.union([z.literal("success"), z.object({ error: z.string() })])
+        ),
+      }),
+    }),
+  }),
+})
+
+/** The per-order statuses carried on the SDK error for a mixed bulk answer. */
+function bulkErrorStatuses(error: unknown): OrderStatus[] | null {
+  const parsed = bulkCancelErrorSchema.safeParse(error)
+  return parsed.success ? parsed.data.response.response.data.statuses : null
+}
+
+function cancelErrors(statuses: OrderStatus[]): string[] {
+  return statuses
+    .map(statusError)
+    .filter((error): error is string => error !== null)
+}
+
+/** Already absent satisfies a cancel, even though the SDK throws the batch. */
+function everyFailedCancelIsGone(error: unknown): boolean {
+  const statuses = bulkErrorStatuses(error)
+  if (!statuses) return false
+  const errors = cancelErrors(statuses)
+  return (
+    errors.length > 0 &&
+    errors.every(
+      (reason) => hyperliquidRefusalCode(reason) === "HYPERLIQUID_ORDER_GONE"
+    )
+  )
 }
 
 // ----- Placing ------------------------------------------------------------
@@ -658,6 +699,10 @@ export async function setHyperliquidBrackets(
     slSz: number | null
   }
 ): Promise<{ slOrderId: string | null }> {
+  // A retry must read the orders this replacement leaves behind, not the list
+  // its caller just used. This also distrusts every socket snapshot pushed
+  // before the mutation.
+  forgetHyperliquidPortfolios()
   const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
 
@@ -737,8 +782,10 @@ export async function setHyperliquidBrackets(
         })),
         grouping,
       })
+      forgetHyperliquidPortfolios()
       statuses = response.response.data.statuses as OrderStatus[]
     } catch (error) {
+      forgetHyperliquidPortfolios()
       throw new Error(
         `LIVE_BRACKET_REPLACE_PARTIAL:The old protection is still on.${landed.length > 0 ? ` The new ${landed.join(" and ")} also went on.` : ""} The replacement was refused: ${scrubbedMessage(error)}`
       )
@@ -782,18 +829,24 @@ export async function setHyperliquidBrackets(
       const response = await client.cancel({
         cancels: oldLegs.map((oid) => ({ a: asset.assetId, o: oid })),
       })
+      forgetHyperliquidPortfolios()
       const statuses = response.response.data.statuses as OrderStatus[]
-      const failed = statuses.map(statusError).find((error) => error !== null)
-      if (
-        failed &&
-        !/never placed|already|filled|canceled|cancelled/i.test(failed)
-      ) {
-        throw new Error(failed)
-      }
-    } catch (error) {
-      throw new Error(
-        `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} the old protection could not be cancelled: ${scrubbedMessage(error)}`
+      const failed = cancelErrors(statuses).find(
+        (reason) =>
+          hyperliquidRefusalCode(reason) !== "HYPERLIQUID_ORDER_GONE"
       )
+      if (failed) throw new Error(failed)
+    } catch (error) {
+      forgetHyperliquidPortfolios()
+      // Version 0.33 of the SDK throws when any item in a bulk response is an
+      // error. The raw response still says which cancels succeeded and which
+      // named orders were already absent. In that second case every old order
+      // is off the exchange, which is the result this block needed.
+      if (!everyFailedCancelIsGone(error)) {
+        throw new Error(
+          `LIVE_BRACKET_REPLACE_DOUBLED:${landed.length > 0 ? `The new ${landed.join(" and ")} is on, but` : "Nothing new was requested, and"} the old protection could not be cancelled: ${scrubbedMessage(error)}`
+        )
+      }
     }
   }
   return { slOrderId }
