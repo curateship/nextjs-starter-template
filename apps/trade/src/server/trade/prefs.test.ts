@@ -6,6 +6,7 @@ import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { createDefaultTradingDashboardWidgets } from "@/lib/trade/dashboard/widgets"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
 import type { ChartView } from "@/lib/trade/chart-view"
+import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
 import {
@@ -27,6 +28,12 @@ import {
   saveMinimumMarketVolume,
   saveLiquidationWarning,
   saveTradingDashboardWidgets,
+  applyNamedTradePanelLayout,
+  createNamedTradePanelLayout,
+  deleteNamedTradePanelLayout,
+  importLegacyTradePanelLayouts,
+  loadTradePanelLayouts,
+  saveTradePanelLayout,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
 
@@ -197,6 +204,166 @@ describe("the trading dashboard arrangement", () => {
       left: ["trades"],
       right: [],
     })
+  })
+})
+
+describe("the remembered trade panel layouts", () => {
+  const horizontal = { markets: 20, chart: 58, "smart-orders": 22 }
+  const vertical = { workspace: 72, activity: 28 }
+
+  it("starts empty and keeps each panel group in the account", async () => {
+    const { id } = await insertUser(database)
+    expect(await loadTradePanelLayouts(id, database)).toEqual({
+      legacyImported: false,
+      current: {},
+      named: [],
+    })
+
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceHorizontal,
+      horizontal,
+      database
+    )
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceVertical,
+      vertical,
+      database
+    )
+
+    expect(await loadTradePanelLayouts(id, database)).toMatchObject({
+      legacyImported: true,
+      current: {
+        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+        [tradePanelLayoutKey.workspaceVertical]: vertical,
+      },
+    })
+  })
+
+  it("replaces a damaged current value when the next valid group is saved", async () => {
+    const { id } = await insertUser(database)
+    await database
+      .update(tradePrefs)
+      .set({
+        panelLayouts: {
+          legacyImported: true,
+          current: [],
+          named: [],
+        } as never,
+      })
+      .where(eq(tradePrefs.userId, id))
+
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceHorizontal,
+      horizontal,
+      database
+    )
+
+    expect(await loadTradePanelLayouts(id, database)).toMatchObject({
+      current: {
+        [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
+      },
+    })
+  })
+
+  it("accepts the first old browser layout and refuses a later import", async () => {
+    const { id } = await insertUser(database)
+    await importLegacyTradePanelLayouts(
+      id,
+      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      database
+    )
+    const saved = await importLegacyTradePanelLayouts(
+      id,
+      {
+        [tradePanelLayoutKey.workspaceHorizontal]: {
+          markets: 10,
+          chart: 80,
+          "smart-orders": 10,
+        },
+      },
+      database
+    )
+
+    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
+      horizontal
+    )
+  })
+
+  it("creates, applies and deletes a named workspace layout", async () => {
+    const { id } = await insertUser(database)
+    const created = await createNamedTradePanelLayout(
+      id,
+      { name: "Reading", horizontal, vertical },
+      database
+    )
+    const named = created.named[0]
+    expect(named?.name).toBe("Reading")
+
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceHorizontal,
+      { markets: 10, chart: 80, "smart-orders": 10 },
+      database
+    )
+    const applied = await applyNamedTradePanelLayout(id, named!.id, database)
+    expect(applied.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
+      horizontal
+    )
+
+    const deleted = await deleteNamedTradePanelLayout(id, named!.id, database)
+    expect(deleted.named).toEqual([])
+  })
+
+  it("keeps another account's named layouts out of reach", async () => {
+    const mine = await insertUser(database)
+    const theirs = await insertUser(database)
+    const created = await createNamedTradePanelLayout(
+      theirs.id,
+      { name: "Reading", horizontal, vertical },
+      database
+    )
+
+    await expect(
+      applyNamedTradePanelLayout(mine.id, created.named[0]!.id, database)
+    ).rejects.toThrow("PANEL_LAYOUT_NOT_FOUND")
+    expect((await loadTradePanelLayouts(mine.id, database)).named).toEqual([])
+    expect(
+      (await loadTradePanelLayouts(theirs.id, database)).named
+    ).toHaveLength(1)
+  })
+
+  it("refuses duplicate names and a sixth saved layout", async () => {
+    const { id } = await insertUser(database)
+    await createNamedTradePanelLayout(
+      id,
+      { name: "Reading", horizontal, vertical },
+      database
+    )
+    await expect(
+      createNamedTradePanelLayout(
+        id,
+        { name: "reading", horizontal, vertical },
+        database
+      )
+    ).rejects.toThrow("PANEL_LAYOUT_NAME_TAKEN")
+
+    for (const name of ["Two", "Three", "Four", "Five"]) {
+      await createNamedTradePanelLayout(
+        id,
+        { name, horizontal, vertical },
+        database
+      )
+    }
+    await expect(
+      createNamedTradePanelLayout(
+        id,
+        { name: "Six", horizontal, vertical },
+        database
+      )
+    ).rejects.toThrow("PANEL_LAYOUT_LIMIT")
   })
 })
 

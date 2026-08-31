@@ -396,11 +396,17 @@ describe("a grid edit that finishes before it saves", () => {
 
     await act(async () => {
       await latest?.moveGridRange(wallet.id, "grid-1", {
-        topPx: 120,
-        bottomPx: 80,
+        end: "top",
+        px: 120,
       })
     })
 
+    expect(api.moveGridRange).toHaveBeenCalledWith({
+      walletId: wallet.id,
+      gridId: "grid-1",
+      end: "top",
+      px: 120,
+    })
     expect(api.showErrorToast).toHaveBeenCalledWith(
       "That grid has already finished, so nothing was changed."
     )

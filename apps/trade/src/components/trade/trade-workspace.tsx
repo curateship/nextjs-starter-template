@@ -25,9 +25,11 @@ import {
   WalletSettingsDialog,
 } from "@/components/trade/wallet-dialogs"
 import { ChartOptionsMenu } from "@/components/trade/chart-options-menu"
+import { ChartFullscreenButton } from "@/components/trade/chart-fullscreen-button"
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import { IndicatorsMenu } from "@/components/trade/indicators-menu"
 import { useChartOptions } from "@/components/trade/use-chart-options"
+import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
   MarketHeader,
   type MarketSelection,
@@ -36,6 +38,7 @@ import { CardFolds } from "@/components/trade/card-folds"
 import type { CardFolds as CardFoldsValue } from "@/lib/trade/card-folds"
 import { useChartIndicators } from "@/components/trade/use-indicators"
 import { MarketFoldersPanel } from "@/components/trade/market-folders-panel"
+import { PanelLayoutsMenu } from "@/components/trade/panel-layouts-menu"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -82,8 +85,11 @@ import {
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
 import { usePanelFit } from "@/lib/trade/panel-fit"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
-import { useRememberedPanelLayoutInPlace } from "@/lib/trade/panel-layout"
+import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import {
+  type TradePanelLayouts,
+  useRememberedPanelLayoutInPlace,
+} from "@/lib/trade/panel-layout"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
@@ -98,6 +104,8 @@ import {
   type FilteredMarketCatalog,
 } from "@/lib/trade/market-volume"
 import { useWideScreen } from "@/lib/layout/wide-screen"
+import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { cn } from "@/lib/utils"
 
 /**
  * No focus ring on a panel divider.
@@ -107,9 +115,6 @@ import { useWideScreen } from "@/lib/layout/wide-screen"
  * last, so it beats the shell's own class without editing a shell file.
  */
 const NO_RING = "focus-visible:ring-0"
-
-const HORIZONTAL_PANEL_IDS = ["markets", "chart", "smart-orders"] as const
-const VERTICAL_PANEL_IDS = ["workspace", "activity"] as const
 
 /** Who is signed in, read the way the shell's own pages read it. */
 const authenticatedRoute = getRouteApi("/_authenticated")
@@ -179,6 +184,7 @@ export function TradeWorkspace({
   initialIndicators,
   initialCardFolds,
   initialQuickOrder,
+  initialPanelLayouts,
   initialRunningBots,
   initialWallets,
   selectedKey,
@@ -219,6 +225,8 @@ export function TradeWorkspace({
   initialCardFolds: CardFoldsValue
   /** How the right-click order window was last set up. */
   initialQuickOrder: QuickOrderPrefs
+  /** Divider positions and named arrangements owned by this account. */
+  initialPanelLayouts: TradePanelLayouts
   /** The Bots tab's first answer from the dashboard's one opening call. */
   initialRunningBots: { rows: RunningBot[]; error: string | null }
   /** The account panel's first answer from the same opening call. */
@@ -463,14 +471,126 @@ export function TradeWorkspace({
   const marketsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const smartOrdersPanelRef = React.useRef<PanelImperativeHandle | null>(null)
   const activityPanelRef = React.useRef<PanelImperativeHandle | null>(null)
+  const horizontalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
+  const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
+  const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
+  const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
+  const verticalKey = tradePanelLayoutKey.workspaceVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.workspaceHorizontal,
-    HORIZONTAL_PANEL_IDS
+    tradePanelIds[horizontalKey],
+    panelLayouts.layouts.current[horizontalKey],
+    (layout) => panelLayouts.remember(horizontalKey, layout)
   )
   const verticalLayout = useRememberedPanelLayoutInPlace(
-    tradePanelLayoutKey.workspaceVertical,
-    VERTICAL_PANEL_IDS
+    tradePanelIds[verticalKey],
+    panelLayouts.layouts.current[verticalKey],
+    (layout) => panelLayouts.remember(verticalKey, layout)
+  )
+  const [chartFullscreen, setChartFullscreen] = React.useState(false)
+  const fullscreenLayouts = React.useRef<{
+    horizontal: ReturnType<typeof horizontalLayout.getLayout>
+    vertical: ReturnType<typeof verticalLayout.getLayout>
+  }>({ horizontal: null, vertical: null })
+  const fullscreenSheet = React.useRef<SideSheet | null>(null)
+  const restoreFullscreenLayouts = React.useRef(false)
+
+  const enterChartFullscreen = React.useCallback(() => {
+    if (selection.kind !== "market") return
+    restoreFullscreenLayouts.current = false
+    fullscreenLayouts.current = {
+      horizontal: horizontalLayout.getLayout(),
+      vertical: verticalLayout.getLayout(),
+    }
+    fullscreenSheet.current = sideSheet
+    setSideSheet((current) => ({ ...current, open: false }))
+    horizontalLayout.setLayout({ markets: 0, chart: 100, "smart-orders": 0 })
+    verticalLayout.setLayout({ workspace: 100, activity: 0 })
+    setChartFullscreen(true)
+  }, [horizontalLayout, selection.kind, sideSheet, verticalLayout])
+
+  const exitChartFullscreen = React.useCallback(() => {
+    restoreFullscreenLayouts.current = true
+    if (fullscreenSheet.current) setSideSheet(fullscreenSheet.current)
+    fullscreenSheet.current = null
+    setChartFullscreen(false)
+  }, [])
+
+  // The full-screen frame is wider than the shell workspace. Restoring the
+  // percentages while the panel group still measures that wider frame converts
+  // them into larger pixel widths, and preserve-pixel-size carries those widths
+  // back into the shell. Our observer was registered after the panel group's,
+  // so its callback runs once that group has seen the normal shell size and can
+  // safely accept the saved percentages again.
+  useEffectBeforePaint(() => {
+    if (chartFullscreen || !restoreFullscreenLayouts.current) return
+    const restore = () => {
+      if (!restoreFullscreenLayouts.current) return
+      restoreFullscreenLayouts.current = false
+      const before = fullscreenLayouts.current
+      fullscreenLayouts.current = { horizontal: null, vertical: null }
+      if (before.horizontal) horizontalLayout.setLayout(before.horizontal)
+      if (before.vertical) verticalLayout.setLayout(before.vertical)
+    }
+    const horizontal = horizontalGroupElementRef.current
+    const vertical = verticalGroupElementRef.current
+    if (typeof ResizeObserver !== "undefined" && (horizontal || vertical)) {
+      const observer = new ResizeObserver(() => {
+        observer.disconnect()
+        restore()
+      })
+      if (horizontal) observer.observe(horizontal)
+      if (vertical) observer.observe(vertical)
+      return () => observer.disconnect()
+    }
+    let secondFrame: number | null = null
+    const firstFrame = window.requestAnimationFrame(() => {
+      secondFrame = window.requestAnimationFrame(restore)
+    })
+    return () => {
+      window.cancelAnimationFrame(firstFrame)
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame)
+    }
+  }, [chartFullscreen, horizontalLayout.setLayout, verticalLayout.setLayout])
+
+  const toggleChartFullscreen = React.useCallback(() => {
+    if (chartFullscreen) exitChartFullscreen()
+    else enterChartFullscreen()
+  }, [chartFullscreen, enterChartFullscreen, exitChartFullscreen])
+
+  React.useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && chartFullscreen) {
+        event.preventDefault()
+        exitChartFullscreen()
+        return
+      }
+      if (
+        event.key.toLocaleLowerCase() !== "f" ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        event.repeat ||
+        editableTarget(event.target)
+      ) {
+        return
+      }
+      event.preventDefault()
+      toggleChartFullscreen()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [chartFullscreen, exitChartFullscreen, toggleChartFullscreen])
+
+  const createNamedLayout = React.useCallback(
+    async (name: string) => {
+      const horizontal = horizontalLayout.getLayout()
+      const vertical = verticalLayout.getLayout()
+      if (!horizontal || !vertical) throw new Error("PANEL_LAYOUT_INVALID")
+      await panelLayouts.createNamed(name, horizontal, vertical)
+    },
+    [horizontalLayout, panelLayouts, verticalLayout]
   )
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
@@ -480,8 +600,16 @@ export function TradeWorkspace({
     verticalLayout.onLayoutChanged
   )
 
-  const toggleMarkets = usePanelToggle(marketsPanelRef)
-  const toggleSmartOrders = usePanelToggle(smartOrdersPanelRef)
+  const toggleMarketsPanel = usePanelToggle(marketsPanelRef)
+  const toggleMarkets = React.useCallback(() => {
+    toggleMarketsPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleMarketsPanel])
+  const toggleSmartOrdersPanel = usePanelToggle(smartOrdersPanelRef)
+  const toggleSmartOrders = React.useCallback(() => {
+    toggleSmartOrdersPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleSmartOrdersPanel])
   // Double-clicking the bottom panel's blank space shuts it, and this is the
   // one panel where that has to be spelled out rather than handed to
   // `usePanelToggle`.
@@ -500,7 +628,8 @@ export function TradeWorkspace({
     shrinkActivity()
     if (wasOpen) panel.collapse()
     else panel.expand()
-  }, [shrinkActivity])
+    verticalLayout.rememberLayout()
+  }, [shrinkActivity, verticalLayout])
 
   // Double-clicking the empty part of a panel shuts it, and double-clicking
   // what is left of it opens it again.
@@ -738,6 +867,18 @@ export function TradeWorkspace({
                 context={{ zone: chartOptions.options.zone, interval }}
               />
               <ChartOptionsMenu control={chartOptions} />
+              {desktop && !chartFullscreen ? (
+                <PanelLayoutsMenu
+                  layouts={panelLayouts.layouts.named}
+                  onCreate={createNamedLayout}
+                  onApply={panelLayouts.applyNamed}
+                  onDelete={panelLayouts.deleteNamed}
+                />
+              ) : null}
+              <ChartFullscreenButton
+                active={chartFullscreen}
+                onToggle={toggleChartFullscreen}
+              />
               <span className="h-5 border-l" aria-hidden />
               {walletManagement}
             </>
@@ -755,6 +896,10 @@ export function TradeWorkspace({
               : () => setSideSheet({ side: "smart-orders", open: true })
           }
         />
+      ) : chartFullscreen ? (
+        <div className="flex justify-end border-b p-1">
+          <ChartFullscreenButton active onToggle={exitChartFullscreen} />
+        </div>
       ) : null}
       <div className="relative flex min-h-0 flex-1">
         <div className="min-h-0 flex-1">
@@ -787,14 +932,14 @@ export function TradeWorkspace({
         </div>
         {/* Shown where the panel disappeared, so getting it back is findable
             without remembering that the divider is still draggable. */}
-        {desktop && marketsCollapsed ? (
+        {desktop && marketsCollapsed && !chartFullscreen ? (
           <PanelReopenTab
             side="left"
             label="Show markets"
             onClick={toggleMarkets}
           />
         ) : null}
-        {desktop && smartOrdersCollapsed ? (
+        {desktop && smartOrdersCollapsed && !chartFullscreen ? (
           <PanelReopenTab
             side="right"
             label="Show smart orders"
@@ -807,6 +952,7 @@ export function TradeWorkspace({
 
   const upper = desktop ? (
     <ResizablePanelGroup
+      elementRef={horizontalGroupElementRef}
       groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
@@ -872,8 +1018,16 @@ export function TradeWorkspace({
     // here — the ladder window and a live ladder's exits both draw the same
     // cards, and folding one in one place should mean it is folded in both.
     <CardFolds initial={initialCardFolds}>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        data-chart-fullscreen={chartFullscreen ? "true" : undefined}
+        className={cn(
+          "flex min-h-0 flex-1 flex-col",
+          chartFullscreen &&
+            "fixed inset-0 z-50 bg-background p-[var(--shell-gutter,0.75rem)]"
+        )}
+      >
         <ResizablePanelGroup
+          elementRef={verticalGroupElementRef}
           groupRef={verticalLayout.groupRef}
           orientation="vertical"
           className="min-h-0 flex-1"
@@ -885,10 +1039,14 @@ export function TradeWorkspace({
           {/* Keeps its gap even while the panel below is collapsed — that
             collapsed tab row is still a panel on screen, and this handle is
             what makes it draggable back open. */}
-          <ResizableHandle gap className={NO_RING} />
+          <ResizableHandle
+            gap
+            className={cn(NO_RING, chartFullscreen && "hidden")}
+          />
           <ResizablePanel
             id="activity"
             panelRef={activityPanelRef}
+            className={chartFullscreen ? "hidden" : undefined}
             defaultSize="28%"
             minSize="12%"
             maxSize="60%"
@@ -989,5 +1147,15 @@ export function TradeWorkspace({
         />
       </div>
     </CardFolds>
+  )
+}
+
+function editableTarget(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement)
   )
 }

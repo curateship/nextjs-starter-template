@@ -25,6 +25,7 @@ import { saveLastMarket } from "@/lib/api/trade/markets"
 import { DEFAULT_CHART_INTERVAL } from "@/lib/trade/chart-interval"
 import { DEFAULT_CHART_OPTIONS } from "@/lib/trade/chart-options"
 import { DEFAULT_QUICK_ORDER } from "@/lib/trade/quick-order"
+import { emptyTradePanelLayouts } from "@/lib/trade/panel-layout"
 import { seedSmartPrefs } from "@/lib/trade/smart-prefs-cache"
 import { defaultIndicatorSettings } from "@/lib/trade/indicators/registry"
 import { DEFAULT_MARKET_PANEL_ROWS } from "@/lib/trade/market-folders"
@@ -89,6 +90,7 @@ function coreUnanswered(): DashboardCore {
     indicators: defaultIndicatorSettings(),
     cardFolds: {},
     quickOrder: DEFAULT_QUICK_ORDER,
+    panelLayouts: emptyTradePanelLayouts(),
     smartDca: null,
     smartGrid: null,
     runningBots: {
@@ -310,6 +312,7 @@ function ExchangeDashboard({ protocol, label }: ExchangePage) {
       initialIndicators={core.indicators}
       initialCardFolds={core.cardFolds}
       initialQuickOrder={core.quickOrder}
+      initialPanelLayouts={core.panelLayouts}
       initialRunningBots={core.runningBots}
       initialWallets={wallets}
       selectedKey={selectedKey}

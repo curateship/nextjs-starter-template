@@ -690,8 +690,8 @@ const reverseGridFn = createServerFn({ method: "POST" })
 const moveGridRangeSchema = z.object({
   walletId: z.string().max(36),
   gridId: z.string().max(36),
-  topPx: z.number().positive().finite(),
-  bottomPx: z.number().positive().finite(),
+  end: z.enum(["top", "bottom"]),
+  px: z.number().positive().finite(),
 })
 
 const moveGridRangeFn = createServerFn({ method: "POST" })
@@ -993,7 +993,9 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     PART_CLOSE_SIZE:
       "How much to sell has to be a number above zero. Nothing was placed.",
     SMART_GRID_STARTED:
-      "This grid is holding coins, so its range cannot be moved. Those coins were bought at a level's own price and sell one step above it, and sliding the range under them would leave that level selling coins it never paid that price for.",
+      "This grid is holding coin, so its level count, account share, borrowing and rung split cannot change. With one open entry, the range lines can still compress or expand around it.",
+    SMART_GRID_RANGE_FIXED:
+      "That range edge cannot move without moving an entry the grid already opened. If only one entry is open, try the other edge. Otherwise, wait until an open level closes.",
   },
   "That did not go through. Try it again."
 )

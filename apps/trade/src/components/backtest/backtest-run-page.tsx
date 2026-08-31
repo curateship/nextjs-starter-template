@@ -6,6 +6,7 @@ import { BacktestChartPanel } from "@/components/backtest/backtest-chart-panel"
 import { BacktestMarketsPanel } from "@/components/backtest/backtest-markets-panel"
 import { BacktestStatsPanel } from "@/components/backtest/backtest-stats-panel"
 import { BacktestTradesPanel } from "@/components/backtest/backtest-trades-panel"
+import { useTradePanelLayouts } from "@/components/trade/use-panel-layouts"
 import {
   BOTTOM_COLLAPSED_HEIGHT,
   PanelReopenTab,
@@ -44,7 +45,6 @@ import {
   useBlankSpaceDoubleClick,
   usePanelToggle,
 } from "@/lib/layout/panel-collapse"
-import { useRememberedPanelLayout } from "@/lib/layout/panel-layout"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import {
   firstBacktestMarket,
@@ -53,7 +53,11 @@ import {
   rememberBacktestSelection,
 } from "@/lib/trade/backtest/selection"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
+import {
+  type TradePanelLayouts,
+  useRememberedPanelLayoutInPlace,
+} from "@/lib/trade/panel-layout"
 
 /**
  * One backtest, laid out as a workspace: the settings it ran with on the left,
@@ -103,21 +107,30 @@ export function BacktestRunPage({
   run,
   coins,
   openCoin,
+  initialPanelLayouts,
 }: {
   run: BacktestRunView
   coins: BacktestCoinRow[]
   /** `?run=<market key>` — which coin's chart is open. */
   openCoin: string | null
+  initialPanelLayouts: TradePanelLayouts
 }) {
   const navigate = useNavigate()
   const router = useRouter()
   const desktop = useWideScreen()
 
-  const horizontalLayout = useRememberedPanelLayout(
-    tradePanelLayoutKey.backtestHorizontal
+  const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
+  const horizontalKey = tradePanelLayoutKey.backtestHorizontal
+  const verticalKey = tradePanelLayoutKey.backtestVertical
+  const horizontalLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[horizontalKey],
+    panelLayouts.layouts.current[horizontalKey],
+    (layout) => panelLayouts.remember(horizontalKey, layout)
   )
-  const verticalLayout = useRememberedPanelLayout(
-    tradePanelLayoutKey.backtestVertical
+  const verticalLayout = useRememberedPanelLayoutInPlace(
+    tradePanelIds[verticalKey],
+    panelLayouts.layouts.current[verticalKey],
+    (layout) => panelLayouts.remember(verticalKey, layout)
   )
 
   const statsPanelRef = React.useRef<PanelImperativeHandle | null>(null)
@@ -128,13 +141,24 @@ export function BacktestRunPage({
 
   // Double-clicking a panel's blank space shuts it, the same gesture the Trade
   // workspace and the canvas use.
-  const toggleStats = usePanelToggle(statsPanelRef)
-  const toggleMarkets = usePanelToggle(marketsPanelRef)
+  const toggleStatsPanel = usePanelToggle(statsPanelRef)
+  const toggleStats = React.useCallback(() => {
+    toggleStatsPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleStatsPanel])
+  const toggleMarketsPanel = usePanelToggle(marketsPanelRef)
+  const toggleMarkets = React.useCallback(() => {
+    toggleMarketsPanel()
+    horizontalLayout.rememberLayout()
+  }, [horizontalLayout, toggleMarketsPanel])
   const statsDoubleClick = useBlankSpaceDoubleClick(toggleStats)
   const marketsDoubleClick = useBlankSpaceDoubleClick(toggleMarkets)
-  const tradesDoubleClick = useBlankSpaceDoubleClick(
-    usePanelToggle(tradesPanelRef)
-  )
+  const toggleTradesPanel = usePanelToggle(tradesPanelRef)
+  const toggleTrades = React.useCallback(() => {
+    toggleTradesPanel()
+    verticalLayout.rememberLayout()
+  }, [toggleTradesPanel, verticalLayout])
+  const tradesDoubleClick = useBlankSpaceDoubleClick(toggleTrades)
 
   const fallbackCoin = React.useMemo(() => firstBacktestMarket(coins), [coins])
   const [activeCoin, setActiveCoin] = React.useState(
@@ -441,10 +465,9 @@ export function BacktestRunPage({
 
   const upper = desktop ? (
     <ResizablePanelGroup
-      key={horizontalLayout.layoutKey}
+      groupRef={horizontalLayout.groupRef}
       orientation="horizontal"
       className="min-h-0 flex-1"
-      defaultLayout={horizontalLayout.defaultLayout}
       onLayoutChanged={horizontalLayout.onLayoutChanged}
     >
       <ResizablePanel
@@ -524,10 +547,9 @@ export function BacktestRunPage({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ResizablePanelGroup
-        key={verticalLayout.layoutKey}
+        groupRef={verticalLayout.groupRef}
         orientation="vertical"
         className="min-h-0 flex-1"
-        defaultLayout={verticalLayout.defaultLayout}
         onLayoutChanged={verticalLayout.onLayoutChanged}
       >
         <ResizablePanel id="workspace" defaultSize="68%" minSize="35%">

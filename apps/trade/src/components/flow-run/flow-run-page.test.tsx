@@ -62,15 +62,21 @@ vi.mock("@/components/trade/use-chart-view", () => ({
   }),
 }))
 
+vi.mock("@/components/trade/use-panel-layouts", () => ({
+  useTradePanelLayouts: () => ({
+    layouts: { legacyImported: true, current: {}, named: [] },
+    remember: vi.fn(),
+  }),
+}))
+
 vi.mock("@/lib/layout/panel-collapse", () => ({
   useBlankSpaceDoubleClick: () => vi.fn(),
   usePanelToggle: () => vi.fn(),
 }))
 
-vi.mock("@/lib/layout/panel-layout", () => ({
-  useRememberedPanelLayout: () => ({
-    layoutKey: "test-layout",
-    defaultLayout: undefined,
+vi.mock("@/lib/trade/panel-layout", () => ({
+  useRememberedPanelLayoutInPlace: () => ({
+    groupRef: vi.fn(),
     onLayoutChanged: vi.fn(),
   }),
 }))
@@ -178,6 +184,11 @@ describe("a live run coin's chart", () => {
           initial={report(false)}
           openCoin={MARKET}
           chartView={null}
+          initialPanelLayouts={{
+            legacyImported: true,
+            current: {},
+            named: [],
+          }}
         />
       )
     })

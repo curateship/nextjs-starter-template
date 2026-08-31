@@ -1627,28 +1627,121 @@ export function isGridStopLeg(
   return at.some((px) => Math.abs(order.px - px) <= Math.abs(px) * 1e-6)
 }
 
+export type GridRangeEnd = "top" | "bottom"
+
+type GridRangeState = Pick<GridPlan, "levels"> & {
+  carriedLevels?: GridLevelState[]
+}
+
+type AdjustableGridRange = GridRangeState &
+  Pick<GridPlan, "topPx" | "bottomPx" | "spacing" | "direction">
+
 /**
- * Can this grid's range be moved? **Only while it is holding nothing.**
+ * Can the grid's level count, money or borrowing be changed?
  *
- * A move redraws every level from the new range, and a level that is holding
- * bought at a price and sells against it, so sliding the range under it would
- * leave a level selling coins it never paid that price for. That is the same
- * lump this whole order type exists to avoid.
- *
- * This rule was removed once, for a good reason that has since gone away: a
- * grid used to buy every level above the price the moment it was placed, so it
- * always held something and the range locked forever after one move. A grid
- * buys nothing on the way in now, so most of the time there is nothing holding
- * and the range moves freely. Once it is holding, it stays put.
+ * Those edits redraw every level and stay limited to a flat grid. Compressing
+ * the price range has its own narrower rule below: one open level can stay at
+ * its entry while the rest of the range moves around it.
  */
-export function gridRangeMovable(
-  plan: Pick<GridPlan, "levels"> & { carriedLevels?: GridLevelState[] }
-): boolean {
+export function gridRangeReshapable(plan: GridRangeState): boolean {
   return (
     plan.levels.some((level) => level.status === "waiting") &&
     !plan.levels.some((level) => level.status === "holding") &&
     !(plan.carriedLevels ?? []).some((level) => level.status === "holding")
   )
+}
+
+/** The open level and its fixed place within an evenly spread range. */
+function gridRangeAnchor(
+  plan: AdjustableGridRange
+): { level: GridLevelState; position: number } | null {
+  if ((plan.carriedLevels ?? []).some((level) => level.status === "holding")) {
+    return null
+  }
+  const held = plan.levels
+    .map((level, index) => ({ level, index }))
+    .filter(({ level }) => level.status === "holding")
+  if (held.length !== 1) return null
+  const [{ level, index }] = held
+  const position =
+    plan.direction === "long"
+      ? index / plan.levels.length
+      : (index + 1) / plan.levels.length
+  return { level, position }
+}
+
+/**
+ * Can this end of the range be dragged?
+ *
+ * A flat grid moves as before. With one open level, that level's entry is the
+ * fixed point and the other prices spread out or pull in around it. The end
+ * that is itself the open entry stays fixed. Two open entries lock the range,
+ * because one equal-dollar or equal-percent spacing cannot keep both prices
+ * fixed while changing its width.
+ */
+export function gridRangeEndMovable(
+  plan: AdjustableGridRange,
+  end: GridRangeEnd
+): boolean {
+  if (!plan.levels.some((level) => level.status === "waiting")) return false
+  if (gridRangeReshapable(plan)) return true
+  const anchor = gridRangeAnchor(plan)
+  if (!anchor) return false
+  return end === "top" ? anchor.position < 1 : anchor.position > 0
+}
+
+/**
+ * The range made by dragging one end, with one open entry kept fixed.
+ *
+ * `position` is the open level's place between the bottom and top. Dollar
+ * spacing solves the straight line through that point. Percent spacing solves
+ * the same relation in logarithms, where equal percentages are equal gaps.
+ * A flat grid needs no fixed point and simply takes the dragged price.
+ */
+export function gridRangeAfterMove(
+  plan: AdjustableGridRange,
+  move: { end: GridRangeEnd; px: number }
+): { topPx: number; bottomPx: number } | null {
+  if (!gridRangeEndMovable(plan, move.end) || !(move.px > 0)) return null
+  const anchor = gridRangeAnchor(plan)
+  if (!anchor) {
+    const range =
+      move.end === "top"
+        ? { topPx: move.px, bottomPx: plan.bottomPx }
+        : { topPx: plan.topPx, bottomPx: move.px }
+    return range.topPx > range.bottomPx ? range : null
+  }
+
+  const { position } = anchor
+  const entryPx = anchor.level.buyPx
+  let topPx: number
+  let bottomPx: number
+  if (plan.spacing === "compounding") {
+    const entry = Math.log(entryPx)
+    if (move.end === "top") {
+      topPx = move.px
+      bottomPx = Math.exp((entry - position * Math.log(topPx)) / (1 - position))
+    } else {
+      bottomPx = move.px
+      topPx = Math.exp((entry - (1 - position) * Math.log(bottomPx)) / position)
+    }
+  } else if (move.end === "top") {
+    topPx = move.px
+    bottomPx = (entryPx - position * topPx) / (1 - position)
+  } else {
+    bottomPx = move.px
+    topPx = (entryPx - (1 - position) * bottomPx) / position
+  }
+
+  if (
+    !Number.isFinite(topPx) ||
+    !Number.isFinite(bottomPx) ||
+    !(bottomPx > 0) ||
+    !(topPx > bottomPx)
+  ) {
+    return null
+  }
+  return { topPx, bottomPx }
 }
 
 // ----- Turning a grid around -----------------------------------------------

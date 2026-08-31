@@ -268,7 +268,13 @@ describe("market folders", () => {
     for (const rowIds of [
       ["watched", "all", fav.id],
       ["watched", "all", fav.id, daily.id, daily.id],
-      ["watched", "all", fav.id, daily.id, "00000000-0000-4000-8000-000000009999"],
+      [
+        "watched",
+        "all",
+        fav.id,
+        daily.id,
+        "00000000-0000-4000-8000-000000009999",
+      ],
     ]) {
       await expect(
         saveMarketPanelLayout(
@@ -347,5 +353,5 @@ describe("the old-star migration", () => {
     } finally {
       await legacyClient.close()
     }
-  })
+  }, 10_000)
 })

@@ -7,7 +7,8 @@ import {
   DEFAULT_GRID_ABOVE_PCT,
   DEFAULT_GRID_BELOW_PCT,
   gridEndAfterRangeMove,
-  gridRangeMovable,
+  gridRangeAfterMove,
+  gridRangeReshapable,
   gridStopPx,
   holdsEntry,
   type GridPlan,
@@ -21,11 +22,13 @@ import { db } from "@/server/db"
 import { accountOf, getProtocol, ordersOf } from "@/server/protocols/registry"
 import {
   draftGridOrder,
+  gridPlanAfterRangeMove,
   gridById,
   movedGrid,
   reshapedGridSplit,
   saveGridPlan,
   type MovedGrid,
+  type MoveGridRangeInput,
   type ReshapeGridShape,
   type PlaceGridInput,
   type PlacedGrid,
@@ -466,15 +469,23 @@ export async function reshapeLiveGrid(
   wallet: TradeWallet,
   input: ReshapeGridShape & {
     gridId: string
-    topPx?: number
-    bottomPx?: number
+    rangeMove?: Omit<MoveGridRangeInput, "gridId">
   }
 ): Promise<MovedGrid> {
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
     const grid = await gridById(userId, wallet.id, input.gridId)
     const plan = grid.plan
-    if (!gridRangeMovable(plan)) throw new Error("SMART_GRID_STARTED")
+    const canReshape = gridRangeReshapable(plan)
+    const changesSlices =
+      input.levels !== undefined ||
+      input.potPct !== undefined ||
+      input.leverage !== undefined ||
+      input.manualSizing !== undefined ||
+      input.manualRungPcts !== undefined
+    if (!canReshape && (!input.rangeMove || changesSlices)) {
+      throw new Error("SMART_GRID_STARTED")
+    }
 
     const ref = parseMarketKey(grid.marketKey)
     if (!ref) throw new Error("LIVE_MARKET")
@@ -502,78 +513,90 @@ export async function reshapeLiveGrid(
         credential
       ),
     ])
-    // Drawn and fully checked BEFORE a single order is cancelled, so a refused
-    // move leaves the grid resting exactly where it was.
-    const split = reshapedGridSplit(plan, input)
-    const draft = draftGridOrder({
-      marketKey: grid.marketKey,
-      params: {
-        // Frozen at placement — a re-shape redraws prices, never the side.
-        direction: plan.direction,
-        levels: split.levels,
-        potPct: input.potPct ?? plan.potPct,
-        compound: true,
-        leverage: input.leverage ?? plan.leverage,
-        maxOrderVolPct: plan.maxOrderVolPct,
-        spacing: plan.spacing,
-        sizing: plan.sizing,
-        manualSizing: split.manualSizing,
-        manualRungPcts: split.manualRungPcts,
-        follow: plan.follow,
-        followDown: plan.followDown,
-        // Only read when the window pre-fills; a re-shape has its own prices.
-        anchor: "price",
-        abovePct: DEFAULT_GRID_ABOVE_PCT,
-        rangePct: DEFAULT_GRID_BELOW_PCT,
-        baseDetection: plan.baseDetection,
-        stopLoss: plan.stopLoss
-          ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
-          : null,
-        takeProfitPct: null,
-        reverseWhenStopped: plan.reverseWhenStopped,
-      },
-      topPx: input.topPx ?? plan.topPx,
-      bottomPx: input.bottomPx ?? plan.bottomPx,
-      mark,
-      rules,
-      roundPx,
-      equity: account.equity,
-      takerFeeRate: defaultPaperCosts().takerFeeRate,
-      startedAt: plan.startedAt,
-      held: (() => {
-        const position = portfolio.positions.find(
-          (one) => one.marketId === ref.marketId
-        )
-        return position
-          ? { szi: position.szi, leverage: position.leverage }
-          : null
-      })(),
-    })
+    // Drawn and fully checked before anything is saved, so a refused move
+    // leaves the grid exactly where it was.
+    let next: GridPlan
+    if (!canReshape && input.rangeMove) {
+      next = gridPlanAfterRangeMove({
+        plan,
+        move: input.rangeMove,
+        mark,
+        roundPx,
+        takerFeeRate: defaultPaperCosts().takerFeeRate,
+      })
+    } else {
+      const movedRange = input.rangeMove
+        ? gridRangeAfterMove(plan, input.rangeMove)
+        : null
+      if (input.rangeMove && !movedRange) throw new Error("SMART_GRID_RANGE")
+      const split = reshapedGridSplit(plan, input)
+      const draft = draftGridOrder({
+        marketKey: grid.marketKey,
+        params: {
+          // Frozen at placement: a re-shape redraws prices, never the side.
+          direction: plan.direction,
+          levels: split.levels,
+          potPct: input.potPct ?? plan.potPct,
+          compound: true,
+          leverage: input.leverage ?? plan.leverage,
+          maxOrderVolPct: plan.maxOrderVolPct,
+          spacing: plan.spacing,
+          sizing: plan.sizing,
+          manualSizing: split.manualSizing,
+          manualRungPcts: split.manualRungPcts,
+          follow: plan.follow,
+          followDown: plan.followDown,
+          // Only read when the window pre-fills; a re-shape has its own prices.
+          anchor: "price",
+          abovePct: DEFAULT_GRID_ABOVE_PCT,
+          rangePct: DEFAULT_GRID_BELOW_PCT,
+          baseDetection: plan.baseDetection,
+          stopLoss: plan.stopLoss
+            ? { underPct: plan.stopLoss.underPct, base: plan.stopLoss.base }
+            : null,
+          takeProfitPct: null,
+          reverseWhenStopped: plan.reverseWhenStopped,
+        },
+        topPx: movedRange?.topPx ?? plan.topPx,
+        bottomPx: movedRange?.bottomPx ?? plan.bottomPx,
+        mark,
+        rules,
+        roundPx,
+        equity: account.equity,
+        takerFeeRate: defaultPaperCosts().takerFeeRate,
+        startedAt: plan.startedAt,
+        held: (() => {
+          const position = portfolio.positions.find(
+            (one) => one.marketId === ref.marketId
+          )
+          return position
+            ? { szi: position.szi, leverage: position.leverage }
+            : null
+        })(),
+      })
 
-    // No orders to cancel, none to place, and no position to settle: every
-    // redrawn level starts waiting and owns nothing, and `gridRangeMovable`
-    // refused this while anything was held.
-    const next = {
-      ...draft.plan,
-      stopLoss: plan.stopLoss,
-      takeProfitPx: (() => {
-        const px = gridEndAfterRangeMove(plan, draft.plan, mark)
-        return px === null ? null : roundPx(px)
-      })(),
-      takeProfitPct: plan.takeProfitPct,
-      baseWatch: plan.baseWatch,
-      aimedSlPx: plan.aimedSlPx,
-      pairedStop: plan.pairedStop,
-      seenFillsTo: plan.seenFillsTo,
-      // A move re-prices the levels; it does not reset the grid's history.
-      cycles: plan.cycles,
-      shifts: plan.shifts,
-      downShifts: plan.downShifts,
-      carriedLevels: plan.carriedLevels,
-      // A move re-prices levels; it does not forget which grid this one
-      // continues, nor a refusal already written on it.
-      reversedFrom: plan.reversedFrom,
-      reverseFailReason: plan.reverseFailReason,
+      next = {
+        ...draft.plan,
+        stopLoss: plan.stopLoss,
+        takeProfitPx: (() => {
+          const px = gridEndAfterRangeMove(plan, draft.plan, mark)
+          return px === null ? null : roundPx(px)
+        })(),
+        takeProfitPct: plan.takeProfitPct,
+        baseWatch: plan.baseWatch,
+        aimedSlPx: plan.aimedSlPx,
+        pairedStop: plan.pairedStop,
+        seenFillsTo: plan.seenFillsTo,
+        // A move re-prices the levels; it does not reset the grid's history.
+        cycles: plan.cycles,
+        shifts: plan.shifts,
+        downShifts: plan.downShifts,
+        carriedLevels: plan.carriedLevels,
+        // A move re-prices levels; it does not forget which grid this one
+        // continues, nor a refusal already written on it.
+        reversedFrom: plan.reversedFrom,
+        reverseFailReason: plan.reverseFailReason,
+      }
     }
     // A percent-mode stop rides the bottom of the range, so moving the range
     // moves the stop — and while a ladder shares the coin the stop may not
@@ -659,9 +682,12 @@ export async function moveLiveGridExit(
 export function moveLiveGridRange(
   userId: string,
   wallet: TradeWallet,
-  input: { gridId: string; topPx: number; bottomPx: number }
+  input: MoveGridRangeInput
 ): Promise<MovedGrid> {
-  return reshapeLiveGrid(userId, wallet, input)
+  return reshapeLiveGrid(userId, wallet, {
+    gridId: input.gridId,
+    rangeMove: { end: input.end, px: input.px },
+  })
 }
 
 /**

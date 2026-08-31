@@ -132,6 +132,41 @@ async function type(id: string, value: string) {
   })
 }
 
+it("keeps money and level edits locked while one grid entry is open", async () => {
+  const held = {
+    ...grid,
+    plan: {
+      ...grid.plan,
+      levels: [
+        grid.plan.levels[0],
+        { ...grid.plan.levels[1], status: "holding", heldSz: 1 },
+      ],
+    },
+  } as SmartGrid
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <GridSettingsWindow
+          grid={held}
+          wallet="Test wallet"
+          mark={100}
+          busy={false}
+          onSave={async () => true}
+          onReshape={async () => true}
+          onSetEnd={async () => true}
+          onSetFollow={async () => true}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  expect(control("grid-edit-levels").disabled).toBe(true)
+  expect(control("grid-edit-pot").disabled).toBe(true)
+  expect(control("grid-edit-leverage").disabled).toBe(true)
+})
+
 describe.each([
   [
     "ladder",

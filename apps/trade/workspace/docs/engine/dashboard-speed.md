@@ -132,20 +132,31 @@ does not include the other queries in that call, whose shapes did not change.
 
 ## The screen is built once
 
-The three resizable panel groups remember their divider positions in the
-browser. The shell's hook learns the saved positions after the first paint and
-rebuilds the group under a new React key. On this page the group holds the
+The three resizable panel groups used to remember their divider positions in
+the browser. The shell's hook learnt the saved positions after the first paint
+and rebuilt the group under a new React key. On this page the group holds the
 market list, the chart and every panel, so the rebuild set up the whole screen
 twice: once for the server render, once a beat later. The chart library and
 the candle request both ran twice.
 
 Trade's own `useRememberedPanelLayoutInPlace` (`src/lib/trade/panel-layout.ts`)
-reads the same saved positions and hands them to the group that is already on
-screen through its `setLayout` handle, the moment the group reports its
-starting layout. Nothing is rebuilt. It does this every time a group appears,
-not once per page: the groups only exist on a wide screen, so narrowing the
-window and widening it again brings the saved dividers back and never writes
-the defaults over them.
+now receives the account's positions from the preference-row query that already
+opens the page. It hands them to the group already on screen through its
+`setLayout` handle when that group reports its starting layout. Nothing is
+rebuilt. A first old-browser import, a named layout switch and the temporary
+full-screen shape use that same handle. None changes a React key. The hook does
+this every time a group appears, not once per page, so narrowing the window and
+widening it again brings the saved dividers back and never writes the defaults
+over them. Backtest and live-run screens use the same in-place path now.
+
+The account column is `trade_prefs.panel_layouts`, added by migration `0152`.
+Adding the column to the existing preference read adds no browser server call
+to the dashboard opening path.
+
+A divider writes once when the pointer is released, not on every pixel of the
+drag. Layout writes from one open page wait their turn in interaction order,
+and the database merges different panel groups inside the JSON column. A slow
+earlier request therefore cannot replace the last arrangement somebody chose.
 
 ## The poll, every four seconds
 

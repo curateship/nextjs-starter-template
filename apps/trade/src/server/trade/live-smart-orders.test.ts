@@ -18,6 +18,7 @@ import { defaultGridParams, type GridPlan } from "@/lib/trade/grid"
 import type { WatchPlan } from "@/lib/trade/watch-order"
 import {
   moveLiveGridExit,
+  moveLiveGridRange,
   placeLiveGridOrder,
   reshapeLiveGrid,
   setLiveGridFollow,
@@ -1749,6 +1750,58 @@ describe("changing a live grid while it is flat", () => {
     expect(prices).toHaveBeenCalledWith(wallet.network, ["BTC"], {
       forOrder: true,
     })
+  })
+
+  it("compresses a live grid around its one open entry", async () => {
+    const base = gridState()
+    await restingGrid(null)
+    await database
+      .update(tradeSmartLadders)
+      .set({
+        plan: {
+          ...base,
+          levels: [
+            base.levels[0],
+            {
+              ...base.levels[1],
+              status: "holding",
+              heldSz: base.levels[1].sz,
+            },
+          ],
+        },
+      })
+      .where(eq(tradeSmartLadders.id, "grid-1"))
+    prices.mockResolvedValue(new Map([["BTC", 85]]))
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: 1,
+          buyPx: 85,
+          leverage: 1,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [],
+    })
+
+    await moveLiveGridRange(userId, wallet, {
+      gridId: "grid-1",
+      end: "top",
+      px: 95,
+    })
+
+    const plan = await gridPlan()
+    expect(plan).toMatchObject({ topPx: 95, bottomPx: 75 })
+    expect(plan.levels[1]).toMatchObject({
+      status: "holding",
+      buyPx: 85,
+      sellPx: 95,
+      heldSz: 1,
+      budget: 85,
+    })
+    expect(place).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
   })
 
   it("switches End Grid on and off", async () => {
