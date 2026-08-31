@@ -9,7 +9,11 @@ import {
 import type { GridPreview } from "@/components/trade/grid-order-dialog"
 import type { ChartSurface } from "@/components/trade/price-chart"
 import type { ChartColors } from "@/lib/trade/chart-theme"
-import { formatPrice, formatUsdRounded } from "@/lib/trade/format"
+import {
+  formatPrice,
+  formatSignedUsd,
+  formatUsdRounded,
+} from "@/lib/trade/format"
 import {
   entrySide,
   exitSide,
@@ -50,6 +54,7 @@ export const GridLayer = React.memo(function GridLayer({
   preview,
   tool,
   walletName,
+  feesPaidFor,
   onCancelLevel,
   onCancelGrid,
   onOpenSettings,
@@ -70,6 +75,8 @@ export const GridLayer = React.memo(function GridLayer({
   /** A paint tool in hand takes the pointer; these controls step aside. */
   tool: string | null
   walletName: (walletId: string) => string
+  /** Opening fees still attached to held levels, or null when fills are short. */
+  feesPaidFor?: (grid: SmartGrid) => number | null
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
   onOpenSettings: (grid: SmartGrid, anchor: HTMLElement) => void
@@ -181,6 +188,7 @@ export const GridLayer = React.memo(function GridLayer({
           yPinned={yPinned}
           tool={tool}
           walletName={walletName}
+          feesPaid={feesPaidFor ? feesPaidFor(grid) : 0}
           onCancelLevel={onCancelLevel}
           onCancelGrid={onCancelGrid}
           onOpenSettings={onOpenSettings}
@@ -341,6 +349,26 @@ function pricesOf(plan: SmartGrid["plan"]): AtPrice[] {
   return [...at.values()].sort((a, b) => a.px - b.px)
 }
 
+/** What the grid's open levels would make or lose if they all closed here. */
+function gridResultAt(plan: SmartGrid["plan"], exitPx: number): number {
+  const sign = plan.direction === "long" ? 1 : -1
+  let result = 0
+  for (const level of [...plan.levels, ...plan.carriedLevels]) {
+    if (level.status !== "holding") continue
+    result += (exitPx - level.buyPx) * level.heldSz * sign
+  }
+  return result
+}
+
+function gridStopName(
+  plan: SmartGrid["plan"],
+  stopPx: number,
+  feesPaid: number | null
+): string {
+  if (feesPaid === null) return "STOP LOSS —"
+  return `STOP LOSS ${formatSignedUsd(gridResultAt(plan, stopPx) - feesPaid)}`
+}
+
 /** Which of the grid's four lines a drag is moving. */
 type DragEnd = "top" | "bottom" | "takeProfit" | "stopLoss"
 
@@ -352,6 +380,7 @@ function GridLines({
   yPinned,
   tool,
   walletName,
+  feesPaid,
   onCancelLevel,
   onCancelGrid,
   onOpenSettings,
@@ -371,6 +400,7 @@ function GridLines({
   ) => { y: number; off: "above" | "below" | null } | null
   tool: string | null
   walletName: (walletId: string) => string
+  feesPaid: number | null
   onCancelLevel: (walletId: string, gridId: string, levelIndex: number) => void
   onCancelGrid: (grid: SmartGrid) => void
   onOpenSettings: (grid: SmartGrid, anchor: HTMLElement) => void
@@ -591,6 +621,8 @@ function GridLines({
   const stop = gridStopPx(plan)
   const stopY =
     shownStop !== null ? yFor(shownStop) : stop === null ? null : yFor(stop)
+  const stopName =
+    shownStop === null ? null : gridStopName(plan, shownStop, feesPaid)
   const prices = pricesOf(plan)
   /**
    * The level sitting exactly on the losing end of the range, if any.
@@ -848,15 +880,19 @@ function GridLines({
           title={`Reaching this closes everything the grid holds and ends it. Drag it anywhere ${direction === "long" ? "above" : "below"} the range.`}
         />
       ) : null}
-      {stopY !== null && stop !== null ? (
+      {stopY !== null && stop !== null && stopName !== null ? (
         <ChartLine
           y={stopY}
           colour={colors.down}
-          name="STOP LOSS"
+          name={stopName}
           dashed={false}
           grip
           onGripDown={startDrag("stopLoss", stop)}
-          title={`Price cutting through this closes everything and ends the grid. Drag it anywhere ${direction === "long" ? "below" : "above"} the current price — inside the range trails the stop, and the rungs past it go quiet until it moves clear again.`}
+          title={`Price cutting through this closes everything and ends the grid. ${
+            feesPaid === null
+              ? "The fills on hand do not cover the opening fees."
+              : "The dollar figure takes off the opening fees already charged. The closing fee is known only after the order fills."
+          } Drag it anywhere ${direction === "long" ? "below" : "above"} the current price — inside the range trails the stop, and the rungs past it go quiet until it moves clear again.`}
         />
       ) : null}
     </>
@@ -1039,7 +1075,8 @@ const OBSTACLE_HEIGHT = 22
 export function gridLineObstacles(
   grids: readonly SmartGrid[],
   marketKey: string | null,
-  yFor: (price: number) => number | null
+  yFor: (price: number) => number | null,
+  feesPaidFor?: (grid: SmartGrid) => number | null
 ): GridLineObstacle[] {
   const obstacles: GridLineObstacle[] = []
   const add = (px: number, width: number) => {
@@ -1103,7 +1140,15 @@ export function gridLineObstacles(
     const target = gridTakeProfitPx(plan)
     if (target !== null) add(target, nameWidth("END GRID", true))
     const stop = gridStopPx(plan)
-    if (stop !== null) add(stop, nameWidth("STOP LOSS", true))
+    if (stop !== null) {
+      add(
+        stop,
+        nameWidth(
+          gridStopName(plan, stop, feesPaidFor ? feesPaidFor(grid) : 0),
+          true
+        )
+      )
+    }
   }
   return obstacles
 }

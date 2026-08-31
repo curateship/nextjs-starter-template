@@ -652,10 +652,12 @@ the same price sat right behind the red one and read as some second thing at
 that level.
 
 The STOP LOSS label states what the grid's currently held levels would make or
-lose if they all closed at that price, before fees. Carried levels count too.
-The figure follows the line while it is dragged, and reads $0.00 while the grid
-is between positions. Money already banked by completed rounds stays out of the
-figure because the stop cannot lose it.
+lose if they all closed at that price after their opening fees. Carried levels
+count too. The future closing fee stays out because the venue does not state it
+until the order fills. The figure follows the line while it is dragged, and
+reads $0.00 while the grid is between positions. Money and fees already banked
+by completed rounds stay out because the stop cannot lose them. The label shows
+a dash when the fills on hand do not add up to what the grid says it holds.
 
 ## No line on the chart carries its own price
 

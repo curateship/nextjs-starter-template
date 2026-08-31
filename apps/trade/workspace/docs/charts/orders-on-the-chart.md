@@ -22,6 +22,21 @@ stop bar. Each target label states the dollars sold and the profit at its
 price. This includes a grid's own STOP LOSS line. The chart does not draw the
 exchange's copy of that order as a second gray Sell bar.
 
+A position's Stop Loss and Liquidation labels state how many dollars the whole
+position would make or lose at that price after the fees charged so far. The
+Stop Loss figure changes while the line is dragged. A real position uses the
+exchange's liquidation price, while a practice position uses Trade's estimate.
+The fee on the future close is not included because the venue does not state it
+until the order fills. A live position shows a dash when the fills on hand do
+not cover its whole fee history.
+
+A grid's uppercase STOP LOSS label gives the same answer for the levels that
+grid currently holds, including levels carried from an older range. It takes
+off the opening fees still attached to those levels. A flat grid shows $0.00
+because ending it at the stop would close no coin. Profit and fees already
+banked by completed rounds are not part of the figure. A grid shows a dash when
+the fills on hand do not add up to the amount its plan says it holds.
+
 The Entry line, border and name are chart blue. Its current dollar profit is
 green and its loss is red; exactly zero stays blue. The figure updates with the
 market price and stays out until a price has arrived, rather than showing a
@@ -143,4 +158,3 @@ The render order is the backstop for anything the map does not cover:
 indicators, then paint tools, then ladders and grids, then the position's own
 lines, then journal marks — so a residual overlap still leaves the pills, the
 lines a hand acts on, on top.
-
