@@ -37,7 +37,10 @@ Four areas on each exchange screen, at `/admin/hyper-liquid`, `/admin/phemex`,
   market logo, name, top leverage, arrow and info button sit in one outlined
   group. The leverage is secondary 12px text beside the larger market name.
   Every control in that row is 32px high. The saved-layout button keeps up to
-  five named arrangements of the surrounding panels. The full-screen button,
+  five named arrangements of the surrounding panels and the Folders row left
+  open on each exchange. Its plus makes a new name. A checked name updates
+  itself whenever its panels, folder row or header profit eye changes. The
+  layout menu has no save button. The full-screen button,
   or F from outside a field, leaves the chart and its own header on screen and
   hides the rest of the workspace and page chrome. Escape returns to the exact
   panel arrangement from before. Pressing the market name

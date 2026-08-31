@@ -1,14 +1,20 @@
 import { createServerFn } from "@tanstack/react-start"
 import { z } from "zod"
 
+import { KNOWN_PROTOCOLS } from "@/lib/protocols/contracts"
+import { ALL_ROW, WATCHED_ROW } from "@/lib/trade/market-folders"
 import { TRADE_PANEL_LAYOUT_KEYS } from "@/lib/trade/panel-keys"
-import type { TradePanelLayouts } from "@/lib/trade/panel-layout"
+import type {
+  MarketPanelScope,
+  TradePanelLayouts,
+} from "@/lib/trade/panel-layout"
 import { userPost } from "@/server/guards"
 import {
   applyNamedTradePanelLayout,
   createNamedTradePanelLayout,
   deleteNamedTradePanelLayout,
   importLegacyTradePanelLayouts,
+  saveOpenMarketRow as saveOpenMarketRowForUser,
   saveTradePanelLayout,
 } from "@/server/trade/prefs"
 
@@ -18,6 +24,13 @@ const layoutKeySchema = z.enum(TRADE_PANEL_LAYOUT_KEYS)
 const layoutSchema = z
   .record(z.string().min(1).max(40), z.number().finite().min(0).max(100))
   .refine((layout) => Object.keys(layout).length <= 3)
+const openMarketRowIdSchema = z
+  .union([z.literal(WATCHED_ROW), z.literal(ALL_ROW), z.string().uuid()])
+  .nullable()
+const marketPanelScopeSchema = z.object({
+  protocol: z.enum(KNOWN_PROTOCOLS),
+  network: z.enum(["mainnet", "testnet"]),
+})
 
 const savePanelLayoutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
@@ -43,6 +56,9 @@ const createNamedPanelLayoutFn = createServerFn({ method: "POST" })
       name: z.string().trim().min(1).max(32),
       horizontal: layoutSchema,
       vertical: layoutSchema,
+      scope: marketPanelScopeSchema,
+      openMarketRowId: openMarketRowIdSchema,
+      headerProfitVisible: z.boolean(),
     })
   )
   .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
@@ -53,9 +69,9 @@ const namedIdSchema = z.object({ id: z.string().min(1).max(36) })
 
 const applyNamedPanelLayoutFn = createServerFn({ method: "POST" })
   .middleware([userPost])
-  .inputValidator(namedIdSchema)
+  .inputValidator(namedIdSchema.extend({ scope: marketPanelScopeSchema }))
   .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
-    return applyNamedTradePanelLayout(context.user.id, data.id)
+    return applyNamedTradePanelLayout(context.user.id, data.id, data.scope)
   })
 
 const deleteNamedPanelLayoutFn = createServerFn({ method: "POST" })
@@ -63,6 +79,16 @@ const deleteNamedPanelLayoutFn = createServerFn({ method: "POST" })
   .inputValidator(namedIdSchema)
   .handler(async ({ data, context }): Promise<TradePanelLayouts> => {
     return deleteNamedTradePanelLayout(context.user.id, data.id)
+  })
+
+const saveOpenMarketRowFn = createServerFn({ method: "POST" })
+  .middleware([userPost])
+  .inputValidator(
+    marketPanelScopeSchema.extend({ openMarketRowId: openMarketRowIdSchema })
+  )
+  .handler(async ({ data, context }): Promise<{ saved: true }> => {
+    await saveOpenMarketRowForUser(context.user.id, data, data.openMarketRowId)
+    return { saved: true }
   })
 
 export function savePanelLayout(
@@ -82,16 +108,26 @@ export function createNamedPanelLayout(input: {
   name: string
   horizontal: Record<string, number>
   vertical: Record<string, number>
+  scope: MarketPanelScope
+  openMarketRowId: string | null
+  headerProfitVisible: boolean
 }) {
   return createNamedPanelLayoutFn({ data: input })
 }
 
-export function applyNamedPanelLayout(id: string) {
-  return applyNamedPanelLayoutFn({ data: { id } })
+export function applyNamedPanelLayout(id: string, scope: MarketPanelScope) {
+  return applyNamedPanelLayoutFn({ data: { id, scope } })
 }
 
 export function deleteNamedPanelLayout(id: string) {
   return deleteNamedPanelLayoutFn({ data: { id } })
+}
+
+export function saveOpenMarketRow(
+  scope: MarketPanelScope,
+  openMarketRowId: string | null
+) {
+  return saveOpenMarketRowFn({ data: { ...scope, openMarketRowId } })
 }
 
 export const getPanelLayoutErrorMessage = createErrorMessage(

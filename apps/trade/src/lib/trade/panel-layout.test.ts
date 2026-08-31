@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  marketPanelScopeKey,
   matchingPanelLayout,
   readLegacyTradePanelLayouts,
   readTradePanelLayouts,
@@ -10,6 +11,11 @@ import { tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 const panels = ["markets", "chart", "smart-orders"] as const
 
 describe("remembered trade panel layouts", () => {
+  const scope = marketPanelScopeKey({
+    protocol: "hyperliquid",
+    network: "mainnet",
+  })
+
   it("accepts sizes for the panels now on screen", () => {
     expect(
       matchingPanelLayout(
@@ -74,6 +80,49 @@ describe("remembered trade panel layouts", () => {
       workspace: 72,
       activity: 28,
     })
+  })
+
+  it("reads the active layout and its open folder without dropping old layouts", () => {
+    const saved = readTradePanelLayouts({
+      legacyImported: true,
+      current: {},
+      openMarketRows: { [scope]: null, unknown: "watched" },
+      headerProfitVisible: false,
+      activeNamedId: "layout-1",
+      named: [
+        {
+          id: "layout-1",
+          name: "Reading",
+          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
+          vertical: { workspace: 72, activity: 28 },
+          openMarketRows: { [scope]: "watched", unknown: "all" },
+          headerProfitVisible: false,
+        },
+        {
+          id: "layout-2",
+          name: "Older saved layout",
+          horizontal: { markets: 20, chart: 58, "smart-orders": 22 },
+          vertical: { workspace: 72, activity: 28 },
+        },
+      ],
+    })
+
+    expect(saved.openMarketRows).toEqual({ [scope]: null })
+    expect(saved.headerProfitVisible).toBe(false)
+    expect(saved.activeNamedId).toBe("layout-1")
+    expect(saved.named[0]?.openMarketRows).toEqual({ [scope]: "watched" })
+    expect(saved.named[0]?.headerProfitVisible).toBe(false)
+    expect(saved.named[1]?.openMarketRows).toEqual({})
+    expect(saved.named[1]?.headerProfitVisible).toBeUndefined()
+  })
+
+  it("clears an active id that no longer names a readable layout", () => {
+    expect(
+      readTradePanelLayouts({
+        activeNamedId: "missing",
+        named: [],
+      }).activeNamedId
+    ).toBeNull()
   })
 
   it("reads every valid old browser key and ignores malformed neighbours", () => {

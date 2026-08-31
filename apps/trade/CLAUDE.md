@@ -80,6 +80,8 @@ The repo's `docs/shell/working-rules.md` has the commands. Two of them are
 absolute: never start a dev server, and never call browser work done without
 opening it in a real browser through the `validate-app` skill.
 
-For tests, `npm run test:app` is the suite for audits and pre-commit checks in
-this app. `workspace/docs/app/running-tests-fast.md` says what it skips and when
-the full `npm run test` still runs.
+For tests, run only the smallest focused files that cover the change. Never run
+`npm run test:app` or the full `npm run test` unless Tyler explicitly asks for
+that suite in the current request. An audit, pre-commit check or earlier request
+does not grant permission. `workspace/docs/app/running-tests-fast.md` explains
+the available commands.

@@ -15,6 +15,7 @@ const api = vi.hoisted(() => ({
   remove: vi.fn(),
   importLegacy: vi.fn(),
   save: vi.fn(),
+  saveOpenRow: vi.fn(),
 }))
 
 vi.mock("@/lib/api/trade/panel-layouts", () => ({
@@ -23,15 +24,20 @@ vi.mock("@/lib/api/trade/panel-layouts", () => ({
   deleteNamedPanelLayout: api.remove,
   getPanelLayoutErrorMessage: () => "The panel arrangement could not be saved.",
   importLegacyPanelLayouts: api.importLegacy,
+  saveOpenMarketRow: api.saveOpenRow,
   savePanelLayout: api.save,
 }))
 vi.mock("@/lib/toast/error-toast", () => ({ showErrorToast: vi.fn() }))
 
 const marker = "trade-panel-layouts-account-import-v1"
 const horizontal = { markets: 20, chart: 58, "smart-orders": 22 }
+const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 const empty: TradePanelLayouts = {
   legacyImported: false,
   current: {},
+  openMarketRows: {},
+  headerProfitVisible: true,
+  activeNamedId: null,
   named: [],
 }
 
@@ -81,6 +87,9 @@ describe("the browser-to-account panel layout handoff", () => {
     const imported: TradePanelLayouts = {
       legacyImported: true,
       current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      openMarketRows: {},
+      headerProfitVisible: true,
+      activeNamedId: null,
       named: [],
     }
     api.importLegacy.mockResolvedValue(imported)
@@ -198,6 +207,9 @@ describe("the browser-to-account panel layout handoff", () => {
       importing.resolve({
         legacyImported: true,
         current: { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+        openMarketRows: {},
+        headerProfitVisible: true,
+        activeNamedId: null,
         named: [],
       })
       await importing.promise
@@ -235,7 +247,7 @@ describe("the browser-to-account panel layout handoff", () => {
 
     let switched!: Promise<void>
     act(() => {
-      switched = latest.current!.applyNamed("layout-1")
+      switched = latest.current!.applyNamed("layout-1", scope)
     })
     act(() => {
       latest.current?.remember(tradePanelLayoutKey.workspaceHorizontal, newer)
@@ -252,6 +264,9 @@ describe("the browser-to-account panel layout handoff", () => {
             activity: 35,
           },
         },
+        openMarketRows: { "hyperliquid:mainnet": "watched" },
+        headerProfitVisible: false,
+        activeNamedId: "layout-1",
         named: [],
       })
       await switched
@@ -269,6 +284,44 @@ describe("the browser-to-account panel layout handoff", () => {
       tradePanelLayoutKey.workspaceHorizontal,
       newer
     )
+  })
+
+  it("remembers a closed folder row", async () => {
+    const latest: {
+      current: ReturnType<typeof useTradePanelLayouts> | null
+    } = { current: null }
+    const named = {
+      id: "layout-1",
+      name: "Reading",
+      horizontal,
+      vertical: { workspace: 72, activity: 28 },
+      openMarketRows: { "hyperliquid:mainnet": "watched" },
+    }
+    const initial: TradePanelLayouts = {
+      ...empty,
+      legacyImported: true,
+      openMarketRows: { "hyperliquid:mainnet": "watched" },
+      activeNamedId: named.id,
+      named: [named],
+    }
+    api.saveOpenRow.mockResolvedValue({ saved: true })
+    await act(async () => {
+      root.render(
+        <Harness
+          initial={initial}
+          onRead={(value) => {
+            latest.current = value
+          }}
+        />
+      )
+    })
+
+    act(() => latest.current?.rememberOpenMarketRow(scope, null))
+    expect(latest.current?.layouts.openMarketRows).toEqual({
+      "hyperliquid:mainnet": null,
+    })
+    await act(async () => Promise.resolve())
+    expect(api.saveOpenRow).toHaveBeenCalledWith(scope, null)
   })
 })
 

@@ -104,9 +104,11 @@ export function MarketFoldersPanel({
   marketsPending,
   watchedOrders,
   walletName,
+  expandedId,
   selectedMarketKey,
   onFoldersChange,
   onPanelRowsChange,
+  onExpandedIdChange,
   onSelectMarket,
   onRetryMarkets,
 }: {
@@ -135,17 +137,15 @@ export function MarketFoldersPanel({
   }
   /** Each wallet's name, so a waiting price says which wallet it is in. */
   walletName: (walletId: string) => string
+  /** The one row this account left open on this exchange, or null for none. */
+  expandedId: string | null
   selectedMarketKey: string | null
   onFoldersChange: (folders: MarketFolder[]) => void
   onPanelRowsChange: (rows: MarketPanelRows) => void
+  onExpandedIdChange: (id: string | null) => void
   onSelectMarket: (marketKey: string) => void
   onRetryMarkets: () => void
 }) {
-  // Watched opens the panel: a price you have money committed to beats a
-  // market you might look at, which is the same reason the old panel opened
-  // on its Watched tab. Whichever row now sits first wins if Watched has been
-  // hidden or dragged down the list.
-  const [expandedId, setExpandedId] = React.useState<string | null>(WATCHED_ROW)
   const [creating, setCreating] = React.useState(false)
   const [newName, setNewName] = React.useState("")
   const [managing, setManaging] = React.useState(false)
@@ -350,6 +350,7 @@ export function MarketFoldersPanel({
 
   function toggleHidden(row: PanelRow) {
     if (busy) return
+    if (!row.hidden && expandedId === row.id) onExpandedIdChange(null)
     saveLayout(
       rows.map((one) => one.id),
       row.hidden
@@ -465,7 +466,7 @@ export function MarketFoldersPanel({
                       "flex h-full min-w-0 flex-1 items-center gap-2 px-3 text-left text-sm font-medium",
                       expanded ? "bg-muted" : "hover:bg-muted"
                     )}
-                    onClick={() => setExpandedId(expanded ? null : row.id)}
+                    onClick={() => onExpandedIdChange(expanded ? null : row.id)}
                   >
                     <span className="min-w-0 flex-1 truncate">{row.name}</span>
                     <span className="w-[4.5rem] shrink-0 text-right text-xs font-normal text-muted-foreground tabular-nums">
@@ -602,7 +603,7 @@ export function MarketFoldersPanel({
           void deleteFolder(removedId)
             .then((next) => {
               onFoldersChange(next)
-              if (expandedId === removedId) setExpandedId(null)
+              if (expandedId === removedId) onExpandedIdChange(null)
               setDeleting(null)
             })
             .catch((error) =>

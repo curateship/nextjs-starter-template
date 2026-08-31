@@ -7,9 +7,11 @@ import {
   deleteNamedPanelLayout,
   getPanelLayoutErrorMessage,
   importLegacyPanelLayouts,
+  saveOpenMarketRow,
   savePanelLayout,
 } from "@/lib/api/trade/panel-layouts"
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
+import { publishHeaderProfitVisibility } from "@/lib/trade/header-profit-visibility"
 import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
@@ -17,7 +19,9 @@ import {
 } from "@/lib/trade/panel-keys"
 import {
   clearLegacyTradePanelLayouts,
+  marketPanelScopeKey,
   readLegacyTradePanelLayouts,
+  type MarketPanelScope,
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -35,6 +39,7 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
   const currentVersions = React.useRef<
     Partial<Record<TradePanelLayoutKey, number>>
   >({})
+  const openMarketRowVersions = React.useRef<Record<string, number>>({})
   if (loaded.source !== initial) {
     setLoaded({ source: initial, value: initial })
   }
@@ -124,25 +129,65 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
     [enqueue]
   )
 
+  const rememberOpenMarketRow = React.useCallback(
+    (scope: MarketPanelScope, rowId: string | null) => {
+      const key = marketPanelScopeKey(scope)
+      openMarketRowVersions.current[key] =
+        (openMarketRowVersions.current[key] ?? 0) + 1
+      setLoaded((state) => ({
+        ...state,
+        value: {
+          ...state.value,
+          legacyImported: true,
+          openMarketRows: { ...state.value.openMarketRows, [key]: rowId },
+        },
+      }))
+      void enqueue(() => saveOpenMarketRow(scope, rowId)).catch(
+        (error: unknown) => showErrorToast(getPanelLayoutErrorMessage(error))
+      )
+    },
+    [enqueue]
+  )
+
   const createNamed = React.useCallback(
-    async (name: string, horizontal: Layout, vertical: Layout) => {
+    async (
+      name: string,
+      horizontal: Layout,
+      vertical: Layout,
+      scope: MarketPanelScope,
+      openMarketRowId: string | null,
+      headerProfitVisible: boolean
+    ) => {
       const saved = await enqueue(() =>
-        createNamedPanelLayout({ name, horizontal, vertical })
+        createNamedPanelLayout({
+          name,
+          horizontal,
+          vertical,
+          scope,
+          openMarketRowId,
+          headerProfitVisible,
+        })
       )
       // Creating a name does not move the panels. A drag made while the save
       // was travelling keeps its newer on-screen answer.
       setLoaded((state) => ({
         ...state,
-        value: { ...saved, current: state.value.current },
+        value: {
+          ...saved,
+          current: state.value.current,
+          openMarketRows: state.value.openMarketRows,
+        },
       }))
     },
     [enqueue]
   )
 
   const applyNamed = React.useCallback(
-    async (id: string) => {
+    async (id: string, scope: MarketPanelScope) => {
       const versions = { ...currentVersions.current }
-      const saved = await enqueue(() => applyNamedPanelLayout(id))
+      const scopeKey = marketPanelScopeKey(scope)
+      const openVersion = openMarketRowVersions.current[scopeKey] ?? 0
+      const saved = await enqueue(() => applyNamedPanelLayout(id, scope))
       setLoaded((state) => ({
         ...state,
         value: {
@@ -157,8 +202,16 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
               tradePanelLayoutKey.workspaceVertical,
             ]
           ),
+          openMarketRows:
+            (openMarketRowVersions.current[scopeKey] ?? 0) === openVersion
+              ? saved.openMarketRows
+              : {
+                  ...saved.openMarketRows,
+                  [scopeKey]: state.value.openMarketRows[scopeKey] ?? null,
+                },
         },
       }))
+      publishHeaderProfitVisibility(saved.headerProfitVisible)
     },
     [enqueue]
   )
@@ -169,13 +222,24 @@ export function useTradePanelLayouts(initial: TradePanelLayouts) {
       // Deleting a name never moves the dividers.
       setLoaded((state) => ({
         ...state,
-        value: { ...saved, current: state.value.current },
+        value: {
+          ...saved,
+          current: state.value.current,
+          openMarketRows: state.value.openMarketRows,
+        },
       }))
     },
     [enqueue]
   )
 
-  return { layouts, remember, createNamed, applyNamed, deleteNamed }
+  return {
+    layouts,
+    remember,
+    rememberOpenMarketRow,
+    createNamed,
+    applyNamed,
+    deleteNamed,
+  }
 }
 
 function markLegacyRead() {

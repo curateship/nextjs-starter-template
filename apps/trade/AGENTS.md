@@ -4,7 +4,7 @@ The map for this app is `CLAUDE.md`, in this folder. Read it first. It routes to
 the skills in `.agents/skills/`, the shared docs in the repo's `docs/`, and this
 app's own docs in `workspace/docs/`, and it holds nothing that is not a pointer.
 
-Three rules never wait for a file to be opened:
+These rules never wait for a file to be opened:
 
 - **Re-read `.agents/skills/unslop/SKILL.md` before every reply**, not once a
   session, and check your draft against it before sending.
@@ -24,6 +24,10 @@ Three rules never wait for a file to be opened:
   are the default stopping point. A database change may need a deployment, but
   explain why and wait for Tyler to authorize it. Never treat an earlier deploy
   request as standing permission for later fixes.
+- **Never run a full test suite unless Tyler explicitly asks for it in the
+  current request.** Use the smallest focused test files that cover the change.
+  Do not run `npm run test:app` or the full `npm run test` for an audit,
+  pre-commit check or because an earlier request asked for one.
 - **Solve small in-scope problems instead of only reporting them.** When a
   clear fix is safe, narrow and does not need Tyler's decision or new
   authority, make the fix and verify it. Tell Tyler about suggestions when he

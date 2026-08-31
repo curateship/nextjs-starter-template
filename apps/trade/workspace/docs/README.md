@@ -21,9 +21,8 @@ screen: anything not written there has not been agreed yet.
 ## app/ — the app as a whole
 
 - `architecture-overview.md` — how Trade is put together on top of the shell.
-- `running-tests-fast.md` — `npm run test:app`, the everyday test command: what
-  it skips, how the saved database copy works, and when the full suite still
-  runs.
+- `running-tests-fast.md` — the focused-test rule, what the two full-suite
+  commands include, and why only Tyler decides when either one runs.
 - `database-link-encryption.md` — the TLS on the database connection: what the
   server presents, the exact connection-string suffix, why a bare
   `sslmode=require` refuses, and how to check every connection is encrypted.

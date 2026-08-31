@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react"
+import { act, useState, type ComponentProps } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -10,6 +10,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import type { MarketKey, MarketRow } from "@/lib/protocols/contracts"
 import {
   DEFAULT_MARKET_PANEL_ROWS,
+  WATCHED_ROW,
   type MarketFolder,
 } from "@/lib/trade/market-folders"
 import type { TradeOrder } from "@/lib/trade/paper"
@@ -104,6 +105,22 @@ const shared = {
   onPanelRowsChange: () => {},
   onSelectMarket: () => {},
   onRetryMarkets: () => {},
+}
+
+function TestMarketFoldersPanel(
+  props: Omit<
+    ComponentProps<typeof MarketFoldersPanel>,
+    "expandedId" | "onExpandedIdChange"
+  >
+) {
+  const [expandedId, setExpandedId] = useState<string | null>(WATCHED_ROW)
+  return (
+    <MarketFoldersPanel
+      {...props}
+      expandedId={expandedId}
+      onExpandedIdChange={setExpandedId}
+    />
+  )
 }
 
 let host: HTMLDivElement
@@ -213,7 +230,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[savedFav, namedFolder]}
             catalogs={catalogs}
@@ -238,9 +255,7 @@ describe("the market folder controls", () => {
       'button[aria-label="Add folder"]'
     )!
     await act(async () => click(addFolder))
-    expect(
-      folderPanel.querySelector("#new-market-folder-name")
-    ).not.toBeNull()
+    expect(folderPanel.querySelector("#new-market-folder-name")).not.toBeNull()
     const manageFolders = folderPanel.querySelector(
       'button[aria-label="Manage folders"]'
     )!
@@ -309,6 +324,30 @@ describe("the market folder controls", () => {
     expect(testToggle.parentElement?.className).toContain("border-t")
   })
 
+  it("draws the saved open folder and reports when it is closed", async () => {
+    const onExpandedIdChange = vi.fn()
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <MarketFoldersPanel
+            {...shared}
+            folders={[{ ...fav, marketKeys: [btc.key] }]}
+            catalogs={catalogs}
+            expandedId={fav.id}
+            onExpandedIdChange={onExpandedIdChange}
+          />
+        </TooltipProvider>
+      )
+    })
+
+    const favToggle = Array.from(
+      host.querySelectorAll('button[aria-expanded="true"]')
+    ).find((button) => button.textContent?.includes("Fav"))!
+    expect(host.textContent).toContain("BTC")
+    await act(async () => click(favToggle))
+    expect(onExpandedIdChange).toHaveBeenCalledWith(null)
+  })
+
   it("counts and draws one watched row per market", async () => {
     const watched: TradeOrder = {
       id: "farther",
@@ -329,7 +368,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[fav]}
             catalogs={catalogs}
@@ -388,7 +427,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[folder]}
             catalogs={sortedCatalogs}
@@ -424,7 +463,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[{ ...fav, marketKeys: [longMarket.key] }]}
             catalogs={[{ ...catalogs[0], rows: [longMarket] }]}
@@ -457,7 +496,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[fav, named]}
             catalogs={catalogs}
@@ -505,7 +544,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[fav, named]}
             catalogs={catalogs}
@@ -533,7 +572,11 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel {...shared} folders={[fav]} catalogs={catalogs} />
+          <TestMarketFoldersPanel
+            {...shared}
+            folders={[fav]}
+            catalogs={catalogs}
+          />
         </TooltipProvider>
       )
     })
@@ -556,7 +599,7 @@ describe("the market folder controls", () => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <MarketFoldersPanel
+          <TestMarketFoldersPanel
             {...shared}
             folders={[{ ...fav, marketKeys: [btc.key] }]}
             catalogs={[

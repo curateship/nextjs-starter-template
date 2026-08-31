@@ -23,6 +23,7 @@ import {
   saveTradeSoundsEnabled,
   saveChartView,
   saveChartOptions,
+  saveHeaderProfitVisibility,
   saveLastMarketKey,
   saveLastWalletId,
   saveMinimumMarketVolume,
@@ -33,6 +34,7 @@ import {
   deleteNamedTradePanelLayout,
   importLegacyTradePanelLayouts,
   loadTradePanelLayouts,
+  saveOpenMarketRow,
   saveTradePanelLayout,
 } from "@/server/trade/prefs"
 import { tradePrefs } from "@/server/trade/schema"
@@ -210,12 +212,16 @@ describe("the trading dashboard arrangement", () => {
 describe("the remembered trade panel layouts", () => {
   const horizontal = { markets: 20, chart: 58, "smart-orders": 22 }
   const vertical = { workspace: 72, activity: 28 }
+  const scope = { protocol: "hyperliquid", network: "mainnet" } as const
 
   it("starts empty and keeps each panel group in the account", async () => {
     const { id } = await insertUser(database)
     expect(await loadTradePanelLayouts(id, database)).toEqual({
       legacyImported: false,
       current: {},
+      openMarketRows: {},
+      headerProfitVisible: true,
+      activeNamedId: null,
       named: [],
     })
 
@@ -292,29 +298,92 @@ describe("the remembered trade panel layouts", () => {
     )
   })
 
-  it("creates, applies and deletes a named workspace layout", async () => {
+  it("keeps the eye choice when old browser panel sizes are imported", async () => {
+    const { id } = await insertUser(database)
+    await saveHeaderProfitVisibility(id, false, database)
+
+    const saved = await importLegacyTradePanelLayouts(
+      id,
+      { [tradePanelLayoutKey.workspaceHorizontal]: horizontal },
+      database
+    )
+
+    expect(saved.headerProfitVisible).toBe(false)
+    expect(saved.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
+      horizontal
+    )
+  })
+
+  it("creates, automatically updates, applies and deletes a named workspace layout", async () => {
     const { id } = await insertUser(database)
     const created = await createNamedTradePanelLayout(
       id,
-      { name: "Reading", horizontal, vertical },
+      {
+        name: "Reading",
+        horizontal,
+        vertical,
+        scope,
+        openMarketRowId: "watched",
+        headerProfitVisible: false,
+      },
       database
     )
     const named = created.named[0]
     expect(named?.name).toBe("Reading")
+    expect(created.activeNamedId).toBe(named?.id)
+    expect(named?.headerProfitVisible).toBe(false)
+    expect(named?.openMarketRows).toEqual({
+      "hyperliquid:mainnet": "watched",
+    })
 
+    const overwrittenHorizontal = {
+      markets: 10,
+      chart: 80,
+      "smart-orders": 10,
+    }
+    const overwrittenVertical = { workspace: 60, activity: 40 }
     await saveTradePanelLayout(
       id,
       tradePanelLayoutKey.workspaceHorizontal,
-      { markets: 10, chart: 80, "smart-orders": 10 },
+      overwrittenHorizontal,
       database
     )
-    const applied = await applyNamedTradePanelLayout(id, named!.id, database)
-    expect(applied.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
-      horizontal
+    await saveTradePanelLayout(
+      id,
+      tradePanelLayoutKey.workspaceVertical,
+      overwrittenVertical,
+      database
     )
+    await saveOpenMarketRow(id, scope, null, database)
+    await saveHeaderProfitVisibility(id, true, database)
+
+    const automaticallySaved = await loadTradePanelLayouts(id, database)
+    expect(automaticallySaved.named[0]).toMatchObject({
+      id: named!.id,
+      horizontal: overwrittenHorizontal,
+      vertical: overwrittenVertical,
+      openMarketRows: { "hyperliquid:mainnet": null },
+      headerProfitVisible: true,
+    })
+
+    const applied = await applyNamedTradePanelLayout(
+      id,
+      named!.id,
+      scope,
+      database
+    )
+    expect(applied.current[tradePanelLayoutKey.workspaceHorizontal]).toEqual(
+      overwrittenHorizontal
+    )
+    expect(applied.current[tradePanelLayoutKey.workspaceVertical]).toEqual(
+      overwrittenVertical
+    )
+    expect(applied.openMarketRows["hyperliquid:mainnet"]).toBeNull()
+    expect(applied.headerProfitVisible).toBe(true)
 
     const deleted = await deleteNamedTradePanelLayout(id, named!.id, database)
     expect(deleted.named).toEqual([])
+    expect(deleted.activeNamedId).toBeNull()
   })
 
   it("keeps another account's named layouts out of reach", async () => {
@@ -322,12 +391,19 @@ describe("the remembered trade panel layouts", () => {
     const theirs = await insertUser(database)
     const created = await createNamedTradePanelLayout(
       theirs.id,
-      { name: "Reading", horizontal, vertical },
+      {
+        name: "Reading",
+        horizontal,
+        vertical,
+        scope,
+        openMarketRowId: "watched",
+        headerProfitVisible: true,
+      },
       database
     )
 
     await expect(
-      applyNamedTradePanelLayout(mine.id, created.named[0]!.id, database)
+      applyNamedTradePanelLayout(mine.id, created.named[0]!.id, scope, database)
     ).rejects.toThrow("PANEL_LAYOUT_NOT_FOUND")
     expect((await loadTradePanelLayouts(mine.id, database)).named).toEqual([])
     expect(
@@ -339,13 +415,27 @@ describe("the remembered trade panel layouts", () => {
     const { id } = await insertUser(database)
     await createNamedTradePanelLayout(
       id,
-      { name: "Reading", horizontal, vertical },
+      {
+        name: "Reading",
+        horizontal,
+        vertical,
+        scope,
+        openMarketRowId: "watched",
+        headerProfitVisible: true,
+      },
       database
     )
     await expect(
       createNamedTradePanelLayout(
         id,
-        { name: "reading", horizontal, vertical },
+        {
+          name: "reading",
+          horizontal,
+          vertical,
+          scope,
+          openMarketRowId: "watched",
+          headerProfitVisible: true,
+        },
         database
       )
     ).rejects.toThrow("PANEL_LAYOUT_NAME_TAKEN")
@@ -353,14 +443,28 @@ describe("the remembered trade panel layouts", () => {
     for (const name of ["Two", "Three", "Four", "Five"]) {
       await createNamedTradePanelLayout(
         id,
-        { name, horizontal, vertical },
+        {
+          name,
+          horizontal,
+          vertical,
+          scope,
+          openMarketRowId: "watched",
+          headerProfitVisible: true,
+        },
         database
       )
     }
     await expect(
       createNamedTradePanelLayout(
         id,
-        { name: "Six", horizontal, vertical },
+        {
+          name: "Six",
+          horizontal,
+          vertical,
+          scope,
+          openMarketRowId: "watched",
+          headerProfitVisible: true,
+        },
         database
       )
     ).rejects.toThrow("PANEL_LAYOUT_LIMIT")

@@ -20,10 +20,6 @@ fixed in one is fixed in both.
   run and live-run screens keep their six divider arrangements in
   `trade_prefs`. A drag or collapse therefore returns after a reload and on a
   second browser signed into the same account.
-- **The Active trades eye follows the account.** Hiding or showing profit and
-  loss in the page header returns after a reload and on another signed-in
-  browser. A failed save leaves an error message instead of silently forgetting
-  the choice.
 - **An old browser layout crosses over once.** The first browser with one of
   the six earlier local-storage answers sends every valid answer it has to the
   account. The app then removes those browser copies and never uses them as a
@@ -33,10 +29,23 @@ fixed in one is fixed in both.
   current screen. When a redesign replaces a panel, the old sizes are ignored
   and the current layout opens at its defaults instead of stopping the page.
 - **Up to five trade-workspace layouts can have names.** The layout button in
-  the chart header saves the current left, right and bottom arrangement under
-  a name. Pressing a saved name moves both dividers in place. Its delete button
-  removes the name without moving the current panels. This is a short switcher,
-  not a separate manager screen.
+  the chart header opens the same compact checkbox list used by the market
+  folder picker. The plus creates a name from the panel arrangement on screen.
+  The checked name updates itself after every divider drag, panel collapse,
+  open folder row change and press of the eye in the Active trades window.
+  There is no save button. Pressing any name restores its panels, folder row
+  and eye choice in place.
+- **A named layout includes the open folder row.** The saved name remembers
+  which Folders row is open, or that every row is closed, for each exchange
+  where that name has been saved. Older names that do not contain a folder
+  choice still restore their panel sizes and leave the current folder alone.
+- **The open folder row follows the account even before a layout is named.**
+  Opening or closing Watched, Fav, a named folder or All markets returns after
+  a reload on that exchange. Another exchange keeps its own open row.
+- **Layout deletion stays out of the way.** A row shows its bin only under the
+  pointer or keyboard focus. The bin is a plain low-emphasis button and asks
+  for confirmation before removing the name. Deleting a name never moves the
+  current panels.
 - **The chart has its own full-screen view.** Press the full-screen button or F
   while no field is being typed in. The side panels, bottom panel and page
   chrome leave, while the chart header stays with an exit button. Press the

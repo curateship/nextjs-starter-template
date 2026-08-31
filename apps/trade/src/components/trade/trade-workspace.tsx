@@ -87,12 +87,15 @@ import {
 import { usePanelFit } from "@/lib/trade/panel-fit"
 import { tradePanelIds, tradePanelLayoutKey } from "@/lib/trade/panel-keys"
 import {
+  marketPanelScopeKey,
   type TradePanelLayouts,
   useRememberedPanelLayoutInPlace,
 } from "@/lib/trade/panel-layout"
+import { listenForHeaderProfitVisibility } from "@/lib/trade/header-profit-visibility"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import type { RunningBot } from "@/lib/trade/running-bots"
 import {
+  WATCHED_ROW,
   favFolder,
   type MarketFolder,
   type MarketFolderActions,
@@ -475,6 +478,28 @@ export function TradeWorkspace({
   const verticalGroupElementRef = React.useRef<HTMLDivElement | null>(null)
 
   const panelLayouts = useTradePanelLayouts(initialPanelLayouts)
+  const headerProfitVisibleRef = React.useRef(
+    initialPanelLayouts.headerProfitVisible
+  )
+  React.useEffect(
+    () =>
+      listenForHeaderProfitVisibility((visible) => {
+        headerProfitVisibleRef.current = visible
+      }),
+    []
+  )
+  const marketPanelScope = React.useMemo(
+    () => ({ protocol, network }),
+    [network, protocol]
+  )
+  const marketPanelScopeId = marketPanelScopeKey(marketPanelScope)
+  const hasSavedOpenMarketRow = Object.prototype.hasOwnProperty.call(
+    panelLayouts.layouts.openMarketRows,
+    marketPanelScopeId
+  )
+  const expandedMarketRowId = hasSavedOpenMarketRow
+    ? (panelLayouts.layouts.openMarketRows[marketPanelScopeId] ?? null)
+    : WATCHED_ROW
   const horizontalKey = tradePanelLayoutKey.workspaceHorizontal
   const verticalKey = tradePanelLayoutKey.workspaceVertical
   const horizontalLayout = useRememberedPanelLayoutInPlace(
@@ -588,9 +613,26 @@ export function TradeWorkspace({
       const horizontal = horizontalLayout.getLayout()
       const vertical = verticalLayout.getLayout()
       if (!horizontal || !vertical) throw new Error("PANEL_LAYOUT_INVALID")
-      await panelLayouts.createNamed(name, horizontal, vertical)
+      await panelLayouts.createNamed(
+        name,
+        horizontal,
+        vertical,
+        marketPanelScope,
+        expandedMarketRowId,
+        headerProfitVisibleRef.current
+      )
     },
-    [horizontalLayout, panelLayouts, verticalLayout]
+    [
+      expandedMarketRowId,
+      horizontalLayout,
+      marketPanelScope,
+      panelLayouts,
+      verticalLayout,
+    ]
+  )
+  const applyNamedLayout = React.useCallback(
+    (id: string) => panelLayouts.applyNamed(id, marketPanelScope),
+    [marketPanelScope, panelLayouts]
   )
   // Pressing a tab in the bottom panel grows it to fit that tab's rows, through
   // the same resizable panel the divider drags. It also takes over saving the
@@ -784,10 +826,14 @@ export function TradeWorkspace({
           onRetry: trading.retry,
         }}
         walletName={walletNameOf}
+        expandedId={expandedMarketRowId}
         selectedMarketKey={selectedKey}
         panelRows={panelRows}
         onFoldersChange={setFolders}
         onPanelRowsChange={setPanelRows}
+        onExpandedIdChange={(id) =>
+          panelLayouts.rememberOpenMarketRow(marketPanelScope, id)
+        }
         onSelectMarket={onSelectMarket}
         onRetryMarkets={onRetryMarkets}
       />
@@ -870,8 +916,9 @@ export function TradeWorkspace({
               {desktop && !chartFullscreen ? (
                 <PanelLayoutsMenu
                   layouts={panelLayouts.layouts.named}
+                  activeId={panelLayouts.layouts.activeNamedId}
                   onCreate={createNamedLayout}
-                  onApply={panelLayouts.applyNamed}
+                  onApply={applyNamedLayout}
                   onDelete={panelLayouts.deleteNamed}
                 />
               ) : null}

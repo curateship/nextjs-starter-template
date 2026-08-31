@@ -7,6 +7,12 @@ import type {
 
 import { useEffectBeforePaint } from "@/lib/hooks/use-effect-before-paint"
 import {
+  KNOWN_PROTOCOLS,
+  type NetworkId,
+  type ProtocolId,
+} from "@/lib/protocols/contracts"
+import { ALL_ROW, WATCHED_ROW } from "@/lib/trade/market-folders"
+import {
   TRADE_PANEL_LAYOUT_KEYS,
   type TradePanelLayoutKey,
   tradePanelIds,
@@ -15,22 +21,48 @@ import {
 
 export const MAX_NAMED_PANEL_LAYOUTS = 5
 
+export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
+
+/** One stable key for the folder row left open on each exchange and network. */
+export function marketPanelScopeKey(scope: MarketPanelScope) {
+  return `${scope.protocol}:${scope.network}`
+}
+
+export type OpenMarketRows = Record<string, string | null>
+
 export type NamedPanelLayout = {
   id: string
   name: string
   horizontal: Layout
   vertical: Layout
+  /** The folder row this layout opens on each exchange where it was saved. */
+  openMarketRows: OpenMarketRows
+  /** Older saved layouts leave the current header choice alone. */
+  headerProfitVisible?: boolean
 }
 
 /** Every panel arrangement kept in the account's one preference column. */
 export type TradePanelLayouts = {
   legacyImported: boolean
   current: Partial<Record<TradePanelLayoutKey, Layout>>
+  /** The folder row currently open on each exchange, including closed rows. */
+  openMarketRows: OpenMarketRows
+  /** Whether the sticky header shows profit beside the active-trade value. */
+  headerProfitVisible: boolean
+  /** The named layout that follows later dashboard changes. */
+  activeNamedId: string | null
   named: NamedPanelLayout[]
 }
 
 export function emptyTradePanelLayouts(): TradePanelLayouts {
-  return { legacyImported: false, current: {}, named: [] }
+  return {
+    legacyImported: false,
+    current: {},
+    openMarketRows: {},
+    headerProfitVisible: true,
+    activeNamedId: null,
+    named: [],
+  }
 }
 
 /**
@@ -230,10 +262,21 @@ export function readTradePanelLayouts(value: unknown): TradePanelLayouts {
         .filter((layout): layout is NamedPanelLayout => layout !== null)
         .slice(0, MAX_NAMED_PANEL_LAYOUTS)
     : []
+  const activeNamedId =
+    typeof record.activeNamedId === "string" &&
+    named.some((layout) => layout.id === record.activeNamedId)
+      ? record.activeNamedId
+      : null
 
   return {
     legacyImported: record.legacyImported === true,
     current,
+    openMarketRows: readOpenMarketRows(record.openMarketRows),
+    headerProfitVisible:
+      typeof record.headerProfitVisible === "boolean"
+        ? record.headerProfitVisible
+        : true,
+    activeNamedId,
     named,
   }
 }
@@ -263,7 +306,46 @@ function readNamedPanelLayout(value: unknown): NamedPanelLayout | null {
   ) {
     return null
   }
-  return { id: record.id, name, horizontal, vertical }
+  const layout: NamedPanelLayout = {
+    id: record.id,
+    name,
+    horizontal,
+    vertical,
+    openMarketRows: readOpenMarketRows(record.openMarketRows),
+  }
+  if (typeof record.headerProfitVisible === "boolean") {
+    layout.headerProfitVisible = record.headerProfitVisible
+  }
+  return layout
+}
+
+const MARKET_PANEL_SCOPE_KEYS = new Set(
+  KNOWN_PROTOCOLS.flatMap((protocol) => [
+    marketPanelScopeKey({ protocol, network: "mainnet" }),
+    marketPanelScopeKey({ protocol, network: "testnet" }),
+  ])
+)
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+/** Invalid scope or row entries are dropped without hiding valid neighbours. */
+export function readOpenMarketRows(value: unknown): OpenMarketRows {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return {}
+  }
+  const rows: OpenMarketRows = {}
+  for (const [scope, rowId] of Object.entries(value)) {
+    if (!MARKET_PANEL_SCOPE_KEYS.has(scope)) continue
+    if (
+      rowId === null ||
+      rowId === WATCHED_ROW ||
+      rowId === ALL_ROW ||
+      (typeof rowId === "string" && UUID_PATTERN.test(rowId))
+    ) {
+      rows[scope] = rowId
+    }
+  }
+  return rows
 }
 
 /** Read all six old browser keys for the one-time account import. */

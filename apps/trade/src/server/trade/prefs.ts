@@ -1,10 +1,6 @@
 import { eq, sql } from "drizzle-orm"
 
-import {
-  parseMarketKey,
-  type NetworkId,
-  type ProtocolId,
-} from "@/lib/protocols/contracts"
+import { parseMarketKey, type ProtocolId } from "@/lib/protocols/contracts"
 import { readCardFolds, type CardFolds } from "@/lib/trade/card-folds"
 import { readChartOptions, type ChartOptions } from "@/lib/trade/chart-options"
 import { readChartView, type ChartView } from "@/lib/trade/chart-view"
@@ -25,9 +21,12 @@ import {
 import { readOrderStyle, type OrderStyle } from "@/lib/trade/order-style"
 import {
   emptyTradePanelLayouts,
+  marketPanelScopeKey,
   MAX_NAMED_PANEL_LAYOUTS,
   matchingPanelLayout,
+  readOpenMarketRows,
   readTradePanelLayouts,
+  type MarketPanelScope,
   type TradePanelLayouts,
 } from "@/lib/trade/panel-layout"
 import {
@@ -71,13 +70,6 @@ export type DashboardPrefs = {
   smartGrid: GridParams | null
 }
 
-/** One exchange and network — the scope a panel layout belongs to. */
-export type MarketPanelScope = { protocol: ProtocolId; network: NetworkId }
-
-function panelScopeKey(scope: MarketPanelScope) {
-  return `${scope.protocol}:${scope.network}`
-}
-
 /**
  * The dashboard's eight preferences in ONE round trip.
  *
@@ -113,7 +105,7 @@ export async function loadDashboardPrefs(
   return {
     lastMarketKey: lastMarketKeyFor(found?.lastMarketKeys, scope.protocol),
     marketPanelRows: readMarketPanelRows(
-      found?.marketPanelRows?.[panelScopeKey(scope)]
+      found?.marketPanelRows?.[marketPanelScopeKey(scope)]
     ),
     panelLayouts: readTradePanelLayouts(found?.panelLayouts),
     minimumMarketVolumeUsd: readMinimumMarketVolume(
@@ -605,7 +597,7 @@ export async function saveMarketPanelRows(
   rows: MarketPanelRows,
   database: CustomShellDb = db
 ): Promise<MarketPanelRows> {
-  const patch = { [panelScopeKey(scope)]: rows }
+  const patch = { [marketPanelScopeKey(scope)]: rows }
   await database
     .insert(tradePrefs)
     .values({ userId, marketPanelRows: patch, updatedAt: new Date() })
@@ -635,6 +627,54 @@ export async function loadTradePanelLayouts(
   return readTradePanelLayouts(row?.panelLayouts)
 }
 
+/** Remember the eye choice and carry it into the selected named layout. */
+export async function saveHeaderProfitVisibility(
+  userId: string,
+  visible: boolean,
+  database: CustomShellDb = db
+): Promise<void> {
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    headerProfitVisible: visible,
+    named: updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      headerProfitVisible: visible,
+    })),
+  }))
+}
+
+function updateActiveNamedLayout(
+  layouts: TradePanelLayouts,
+  change: (
+    layout: TradePanelLayouts["named"][number]
+  ) => TradePanelLayouts["named"][number]
+) {
+  if (!layouts.activeNamedId) return layouts.named
+  return layouts.named.map((layout) =>
+    layout.id === layouts.activeNamedId ? change(layout) : layout
+  )
+}
+
+function namedLayoutPanelChange(
+  layouts: TradePanelLayouts,
+  key: TradePanelLayoutKey,
+  layout: Record<string, number>
+) {
+  if (key === tradePanelLayoutKey.workspaceHorizontal) {
+    return updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      horizontal: layout,
+    }))
+  }
+  if (key === tradePanelLayoutKey.workspaceVertical) {
+    return updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      vertical: layout,
+    }))
+  }
+  return layouts.named
+}
+
 /** The two account-owned answers the live-run route needs, in one row read. */
 export async function loadChartWorkspacePrefs(
   userId: string,
@@ -654,11 +694,7 @@ export async function loadChartWorkspacePrefs(
   }
 }
 
-/**
- * Remember one group without reading the row first. The nested JSON merge lets
- * two open pages save different groups at the same moment without either one
- * dropping the other's answer.
- */
+/** Remember one panel group and update the selected workspace layout. */
 export async function saveTradePanelLayout(
   userId: string,
   key: TradePanelLayoutKey,
@@ -667,28 +703,31 @@ export async function saveTradePanelLayout(
 ): Promise<void> {
   const layout = matchingPanelLayout(value, tradePanelIds[key])
   if (!layout) throw new Error("PANEL_LAYOUT_INVALID")
-  const currentPatch = { [key]: layout }
-  const fresh: TradePanelLayouts = {
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
     legacyImported: true,
-    current: currentPatch,
-    named: [],
-  }
-  const base = validPanelLayoutsSql()
-  const current = validCurrentPanelLayoutsSql()
-  await database
-    .insert(tradePrefs)
-    .values({ userId, panelLayouts: fresh, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: tradePrefs.userId,
-      set: {
-        panelLayouts: sql`jsonb_set(
-          ${base} || '{"legacyImported":true}'::jsonb,
-          '{current}',
-          ${current} || ${JSON.stringify(currentPatch)}::jsonb
-        )`,
-        updatedAt: new Date(),
-      },
-    })
+    current: { ...layouts.current, [key]: layout },
+    named: namedLayoutPanelChange(layouts, key, layout),
+  }))
+}
+
+/** Remember the open folder row in both the account and selected layout. */
+export async function saveOpenMarketRow(
+  userId: string,
+  scope: MarketPanelScope,
+  value: unknown,
+  database: CustomShellDb = db
+): Promise<void> {
+  const { key, rowId } = validOpenMarketRow(scope, value)
+  await updateTradePanelLayouts(userId, database, (layouts) => ({
+    ...layouts,
+    legacyImported: true,
+    openMarketRows: { ...layouts.openMarketRows, [key]: rowId },
+    named: updateActiveNamedLayout(layouts, (named) => ({
+      ...named,
+      openMarketRows: { ...named.openMarketRows, [key]: rowId },
+    })),
+  }))
 }
 
 /**
@@ -719,7 +758,10 @@ export async function importLegacyTradePanelLayouts(
       set: {
         panelLayouts: sql`case
           when ${base}->>'legacyImported' = 'true' then ${base}
-          else ${JSON.stringify(imported)}::jsonb
+          else ${JSON.stringify(imported)}::jsonb || jsonb_build_object(
+            'headerProfitVisible',
+            coalesce(${base}->'headerProfitVisible', 'true'::jsonb)
+          )
         end`,
         updatedAt: new Date(),
       },
@@ -731,7 +773,14 @@ export async function importLegacyTradePanelLayouts(
 /** Save the current trade workspace as one of at most five named choices. */
 export async function createNamedTradePanelLayout(
   userId: string,
-  input: { name: string; horizontal: unknown; vertical: unknown },
+  input: {
+    name: string
+    horizontal: unknown
+    vertical: unknown
+    scope: MarketPanelScope
+    openMarketRowId: unknown
+    headerProfitVisible: boolean
+  },
   database: CustomShellDb = db
 ): Promise<TradePanelLayouts> {
   const name = input.name.trim()
@@ -743,9 +792,19 @@ export async function createNamedTradePanelLayout(
     input.vertical,
     tradePanelIds[tradePanelLayoutKey.workspaceVertical]
   )
-  if (!name || name.length > 32 || !horizontal || !vertical) {
+  if (
+    !name ||
+    name.length > 32 ||
+    !horizontal ||
+    !vertical ||
+    typeof input.headerProfitVisible !== "boolean"
+  ) {
     throw new Error("PANEL_LAYOUT_INVALID")
   }
+  const { key: scopeKey, rowId: openMarketRowId } = validOpenMarketRow(
+    input.scope,
+    input.openMarketRowId
+  )
 
   return database.transaction(async (tx) => {
     await tx
@@ -768,6 +827,11 @@ export async function createNamedTradePanelLayout(
     if (layouts.named.length >= MAX_NAMED_PANEL_LAYOUTS) {
       throw new Error("PANEL_LAYOUT_LIMIT")
     }
+    const id = crypto.randomUUID()
+    const openMarketRows = {
+      ...layouts.openMarketRows,
+      [scopeKey]: openMarketRowId,
+    }
     const saved: TradePanelLayouts = {
       legacyImported: true,
       current: {
@@ -775,9 +839,19 @@ export async function createNamedTradePanelLayout(
         [tradePanelLayoutKey.workspaceHorizontal]: horizontal,
         [tradePanelLayoutKey.workspaceVertical]: vertical,
       },
+      openMarketRows,
+      headerProfitVisible: input.headerProfitVisible,
+      activeNamedId: id,
       named: [
         ...layouts.named,
-        { id: crypto.randomUUID(), name, horizontal, vertical },
+        {
+          id,
+          name,
+          horizontal,
+          vertical,
+          openMarketRows: { [scopeKey]: openMarketRowId },
+          headerProfitVisible: input.headerProfitVisible,
+        },
       ],
     }
     await tx
@@ -792,11 +866,17 @@ export async function createNamedTradePanelLayout(
 export async function applyNamedTradePanelLayout(
   userId: string,
   id: string,
+  scope: MarketPanelScope,
   database: CustomShellDb = db
 ): Promise<TradePanelLayouts> {
-  return updateNamedTradePanelLayouts(userId, database, (layouts) => {
+  return updateTradePanelLayouts(userId, database, (layouts) => {
     const named = layouts.named.find((layout) => layout.id === id)
     if (!named) throw new Error("PANEL_LAYOUT_NOT_FOUND")
+    const scopeKey = marketPanelScopeKey(scope)
+    const hasOpenRow = Object.prototype.hasOwnProperty.call(
+      named.openMarketRows,
+      scopeKey
+    )
     return {
       ...layouts,
       legacyImported: true,
@@ -805,6 +885,15 @@ export async function applyNamedTradePanelLayout(
         [tradePanelLayoutKey.workspaceHorizontal]: named.horizontal,
         [tradePanelLayoutKey.workspaceVertical]: named.vertical,
       },
+      openMarketRows: hasOpenRow
+        ? {
+            ...layouts.openMarketRows,
+            [scopeKey]: named.openMarketRows[scopeKey] ?? null,
+          }
+        : layouts.openMarketRows,
+      headerProfitVisible:
+        named.headerProfitVisible ?? layouts.headerProfitVisible,
+      activeNamedId: id,
     }
   })
 }
@@ -815,21 +904,30 @@ export async function deleteNamedTradePanelLayout(
   id: string,
   database: CustomShellDb = db
 ): Promise<TradePanelLayouts> {
-  return updateNamedTradePanelLayouts(userId, database, (layouts) => {
+  return updateTradePanelLayouts(userId, database, (layouts) => {
     const named = layouts.named.filter((layout) => layout.id !== id)
     if (named.length === layouts.named.length) {
       throw new Error("PANEL_LAYOUT_NOT_FOUND")
     }
-    return { ...layouts, named }
+    return {
+      ...layouts,
+      activeNamedId:
+        layouts.activeNamedId === id ? null : layouts.activeNamedId,
+      named,
+    }
   })
 }
 
-async function updateNamedTradePanelLayouts(
+async function updateTradePanelLayouts(
   userId: string,
   database: CustomShellDb,
   change: (layouts: TradePanelLayouts) => TradePanelLayouts
 ) {
   return database.transaction(async (tx) => {
+    await tx
+      .insert(tradePrefs)
+      .values({ userId, panelLayouts: emptyTradePanelLayouts() })
+      .onConflictDoNothing()
     const [row] = await tx
       .select({ panelLayouts: tradePrefs.panelLayouts })
       .from(tradePrefs)
@@ -855,12 +953,11 @@ function validPanelLayoutsSql() {
   end`
 }
 
-/** A damaged nested value must not turn a later valid save into another array. */
-function validCurrentPanelLayoutsSql() {
-  const base = validPanelLayoutsSql()
-  return sql`case
-    when jsonb_typeof(${base}->'current') = 'object'
-      then ${base}->'current'
-    else '{}'::jsonb
-  end`
+function validOpenMarketRow(scope: MarketPanelScope, value: unknown) {
+  const key = marketPanelScopeKey(scope)
+  const rows = readOpenMarketRows({ [key]: value })
+  if (!Object.prototype.hasOwnProperty.call(rows, key)) {
+    throw new Error("PANEL_LAYOUT_INVALID")
+  }
+  return { key, rowId: rows[key] ?? null }
 }

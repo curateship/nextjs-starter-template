@@ -226,7 +226,14 @@ export const tradePrefs = pgTable("trade_prefs", {
   panelLayouts: jsonb("panel_layouts")
     .$type<TradePanelLayouts>()
     .notNull()
-    .default({ legacyImported: false, current: {}, named: [] }),
+    .default({
+      legacyImported: false,
+      current: {},
+      openMarketRows: {},
+      headerProfitVisible: true,
+      activeNamedId: null,
+      named: [],
+    }),
   /**
    * What a plain order does while it waits: rest on the exchange, or be
    * watched here and sent when the price is reached. See `order-style.ts`;

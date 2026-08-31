@@ -1,9 +1,10 @@
 # Running tests fast
 
 Both test commands start each test's database from a saved copy instead of
-replaying every migration. `npm run test:app` remains the everyday command and
-skips shell-owned test files. `npm run test` runs the complete Trade and shell
-suite after a shell merge.
+replaying every migration. `npm run test:app` skips shell-owned test files, and
+`npm run test` includes the complete Trade and shell suite. Neither command is
+an everyday check. Run the smallest focused test files for the change unless
+Tyler explicitly asks for a full suite in the current request.
 
 ## What it skips and why that is safe
 
@@ -33,11 +34,12 @@ that setup was most of the suite's running time.
   shell's settings without excluding its tests. The shell's `test-support.ts`
   and `vitest.config.ts` stay untouched, so the shell merge stays clean.
 
-## When to run the full suite
+## Who decides when to run a full suite
 
-Run plain `npm run test` after a shell merge, or when a change touches a shell
-file on purpose. Everything else, including audits and pre-commit checks, uses
-`npm run test:app`.
+Only Tyler chooses when to run `npm run test:app` or the full `npm run test`.
+An audit, pre-commit check, shell merge or earlier request does not grant
+permission. Use focused test files unless Tyler asks for one of those suites in
+the current request.
 
 ## Measured on 28 August 2026
 

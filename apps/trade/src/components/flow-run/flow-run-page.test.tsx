@@ -64,7 +64,14 @@ vi.mock("@/components/trade/use-chart-view", () => ({
 
 vi.mock("@/components/trade/use-panel-layouts", () => ({
   useTradePanelLayouts: () => ({
-    layouts: { legacyImported: true, current: {}, named: [] },
+    layouts: {
+      legacyImported: true,
+      current: {},
+      openMarketRows: {},
+      headerProfitVisible: true,
+      activeNamedId: null,
+      named: [],
+    },
     remember: vi.fn(),
   }),
 }))
@@ -187,6 +194,9 @@ describe("a live run coin's chart", () => {
           initialPanelLayouts={{
             legacyImported: true,
             current: {},
+            openMarketRows: {},
+            headerProfitVisible: true,
+            activeNamedId: null,
             named: [],
           }}
         />

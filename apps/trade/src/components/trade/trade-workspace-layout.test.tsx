@@ -7,15 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TooltipProvider } from "@/components/ui/tooltip"
 
-const { chartMounts, rememberedLayouts, layoutSetEvents } = vi.hoisted(() => ({
-  chartMounts: { count: 0 },
-  rememberedLayouts: vi.fn(),
-  layoutSetEvents: [] as Array<{
-    orientation: "horizontal" | "vertical"
-    fullscreen: boolean
-    layout: Record<string, number>
-  }>,
-}))
+const { chartMounts, createNamedLayout, rememberedLayouts, layoutSetEvents } =
+  vi.hoisted(() => ({
+    chartMounts: { count: 0 },
+    createNamedLayout: vi.fn().mockResolvedValue(undefined),
+    rememberedLayouts: vi.fn(),
+    layoutSetEvents: [] as Array<{
+      orientation: "horizontal" | "vertical"
+      fullscreen: boolean
+      layout: Record<string, number>
+    }>,
+  }))
 
 vi.mock("@tanstack/react-router", () => ({
   getRouteApi: () => ({
@@ -114,13 +116,20 @@ vi.mock("@/components/trade/market-folders-panel", () => ({
   MarketFoldersPanel: () => null,
 }))
 vi.mock("@/components/trade/panel-layouts-menu", () => ({
-  PanelLayoutsMenu: () => <button type="button">Saved panel layouts</button>,
+  PanelLayoutsMenu: ({ onCreate }: { onCreate: (name: string) => void }) => (
+    <button
+      type="button"
+      aria-label="Save test layout"
+      onClick={() => onCreate("Eye layout")}
+    />
+  ),
 }))
 vi.mock("@/components/trade/use-panel-layouts", () => ({
   useTradePanelLayouts: (initial: unknown) => ({
     layouts: initial,
     remember: rememberedLayouts,
-    createNamed: vi.fn(),
+    rememberOpenMarketRow: vi.fn(),
+    createNamed: createNamedLayout,
     applyNamed: vi.fn(),
     deleteNamed: vi.fn(),
   }),
@@ -179,6 +188,7 @@ vi.mock("@/lib/remembered-choice", () => ({
     React.useState(initial),
 }))
 vi.mock("@/lib/trade/market-folders", () => ({
+  WATCHED_ROW: "watched",
   favFolder: () => null,
 }))
 vi.mock("@/lib/trade/market-volume", () => ({
@@ -278,6 +288,7 @@ beforeEach(() => {
   root = createRoot(host)
   chartMounts.count = 0
   rememberedLayouts.mockClear()
+  createNamedLayout.mockClear()
   layoutSetEvents.length = 0
 })
 
@@ -333,6 +344,9 @@ describe("the trade workspace chart full screen", () => {
                 },
                 "trade-workspace-vertical": { workspace: 72, activity: 28 },
               },
+              openMarketRows: {},
+              headerProfitVisible: true,
+              activeNamedId: null,
               named: [],
             }}
             initialRunningBots={{ rows: [], error: null }}
@@ -407,6 +421,22 @@ describe("the trade workspace chart full screen", () => {
     )
     expect(host.querySelector('[data-chart-fullscreen="true"]')).toBeNull()
     expect(chartMounts.count).toBe(1)
+
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("trade-header-profit-visibility", { detail: false })
+      )
+      clickButton("Save test layout")
+      await Promise.resolve()
+    })
+    expect(createNamedLayout).toHaveBeenCalledWith(
+      "Eye layout",
+      { markets: 20, chart: 58, "smart-orders": 22 },
+      { workspace: 72, activity: 28 },
+      { protocol: "hyperliquid", network: "mainnet" },
+      "watched",
+      false
+    )
 
     await act(async () => clickButton("Resize vertical group"))
     expect(rememberedLayouts).toHaveBeenCalledWith("trade-workspace-vertical", {

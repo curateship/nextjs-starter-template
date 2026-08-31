@@ -1,16 +1,15 @@
 import * as React from "react"
-import { LayoutTemplateIcon, Trash2Icon } from "lucide-react"
+import { LayoutTemplateIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { DisabledReason } from "@/components/ui/disabled-reason"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
   PopoverTrigger,
 } from "@/components/ui/popover"
 import {
@@ -27,18 +26,20 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 export function PanelLayoutsMenu({
   layouts,
+  activeId,
   onCreate,
   onApply,
   onDelete,
 }: {
   layouts: NamedPanelLayout[]
+  activeId: string | null
   onCreate: (name: string) => Promise<void>
   onApply: (id: string) => Promise<void>
   onDelete: (id: string) => Promise<void>
 }) {
   const [open, setOpen] = React.useState(false)
   const [name, setName] = React.useState("")
-  const [invalid, setInvalid] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const [deleting, setDeleting] = React.useState<NamedPanelLayout | null>(null)
   const full = layouts.length >= MAX_NAMED_PANEL_LAYOUTS
@@ -46,8 +47,8 @@ export function PanelLayoutsMenu({
   async function create(event: React.FormEvent) {
     event.preventDefault()
     const trimmed = name.trim()
+    setAttempted(true)
     if (!trimmed) {
-      setInvalid(true)
       showErrorToast("Enter a name for this panel layout.")
       return
     }
@@ -55,7 +56,8 @@ export function PanelLayoutsMenu({
     try {
       await onCreate(trimmed)
       setName("")
-      setInvalid(false)
+      setAttempted(false)
+      toast.success(`Created "${trimmed}".`)
     } catch (error) {
       showErrorToast(getPanelLayoutErrorMessage(error))
     } finally {
@@ -67,7 +69,6 @@ export function PanelLayoutsMenu({
     setBusy(true)
     try {
       await onApply(id)
-      setOpen(false)
     } catch (error) {
       showErrorToast(getPanelLayoutErrorMessage(error))
     } finally {
@@ -77,10 +78,12 @@ export function PanelLayoutsMenu({
 
   async function remove() {
     if (!deleting) return
+    const removed = deleting
     setBusy(true)
     try {
       await onDelete(deleting.id)
       setDeleting(null)
+      toast.success(`Deleted "${removed.name}".`)
     } catch (error) {
       showErrorToast(getPanelLayoutErrorMessage(error))
     } finally {
@@ -107,36 +110,44 @@ export function PanelLayoutsMenu({
           </TooltipTrigger>
           <TooltipContent>Saved panel layouts</TooltipContent>
         </Tooltip>
-        <PopoverContent align="end" className="w-72">
-          <PopoverHeader>
-            <PopoverTitle>Panel layouts</PopoverTitle>
-          </PopoverHeader>
+        <PopoverContent align="end" className="w-56 p-1.5">
+          <p className="px-2 py-1.5 text-xs font-medium">Saved layouts</p>
 
           {layouts.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="px-2 py-1.5 text-xs text-muted-foreground">
               No saved layouts yet.
             </p>
           ) : (
-            <div className="grid gap-1">
+            <div className="grid gap-0.5">
               {layouts.map((layout) => (
-                <div key={layout.id} className="flex items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="min-w-0 flex-1 justify-start"
+                <div
+                  key={layout.id}
+                  className="group flex h-8 items-center rounded-md focus-within:bg-muted hover:bg-muted"
+                >
+                  <Checkbox
+                    id={`panel-layout-${layout.id}`}
+                    className="ml-2"
+                    checked={layout.id === activeId}
                     disabled={busy}
-                    onClick={() => void apply(layout.id)}
+                    aria-label={`Use ${layout.name}`}
+                    onCheckedChange={() => void apply(layout.id)}
+                  />
+                  <label
+                    htmlFor={`panel-layout-${layout.id}`}
+                    aria-disabled={busy}
+                    className="flex h-full min-w-0 flex-1 cursor-pointer items-center truncate px-2 text-sm"
                   >
-                    <span className="truncate">{layout.name}</span>
-                  </Button>
+                    {layout.name}
+                  </label>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
                         type="button"
-                        variant="destructive"
-                        size="icon"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label={`Delete ${layout.name}`}
                         disabled={busy}
+                        className="mr-0.5 text-muted-foreground opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 hover:text-destructive"
                         onClick={() => {
                           setOpen(false)
                           setDeleting(layout)
@@ -152,30 +163,36 @@ export function PanelLayoutsMenu({
             </div>
           )}
 
-          <form className="grid gap-2 border-t pt-2" onSubmit={create}>
-            <Label htmlFor="panel-layout-name">Save current layout</Label>
-            <div className="flex gap-2">
-              <Input
-                id="panel-layout-name"
-                value={name}
-                maxLength={32}
-                disabled={busy || full}
-                aria-invalid={invalid}
-                onBlur={() => setInvalid(name.trim().length === 0)}
-                onChange={(event) => {
-                  setName(event.target.value)
-                  if (event.target.value.trim()) setInvalid(false)
-                }}
-              />
-              <DisabledReason
-                disabled={full}
-                reason="Delete a saved layout before adding another."
-              >
-                <Button type="submit" disabled={busy || full}>
-                  Save
-                </Button>
-              </DisabledReason>
-            </div>
+          <form className="mt-1 flex gap-2 px-1 pb-1" onSubmit={create}>
+            <Input
+              aria-label="Layout name"
+              placeholder="Layout name"
+              value={name}
+              maxLength={32}
+              disabled={busy || full}
+              aria-invalid={attempted && !name.trim()}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <DisabledReason
+              disabled={full}
+              reason="Delete a saved layout before adding another."
+            >
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="submit"
+                    variant="outline"
+                    size="icon"
+                    disabled={busy || full}
+                    aria-disabled={busy || full || !name.trim()}
+                    aria-label="Create layout"
+                  >
+                    <PlusIcon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Create layout</TooltipContent>
+              </Tooltip>
+            </DisabledReason>
           </form>
         </PopoverContent>
       </Popover>
