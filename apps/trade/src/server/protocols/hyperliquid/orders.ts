@@ -208,8 +208,20 @@ async function resolveAsset(network: NetworkId, marketId: string) {
  */
 export function decimalString(value: number): string {
   if (!Number.isFinite(value) || value < 0) throw new Error("LIVE_PRICE")
-  if (Number.isInteger(value)) return String(value)
-  return value.toFixed(12).replace(/0+$/, "").replace(/\.$/, "")
+  const printed = String(value)
+  const exponentAt = printed.search(/e/i)
+  if (exponentAt === -1) return printed
+
+  const coefficient = printed.slice(0, exponentAt)
+  const exponent = Number(printed.slice(exponentAt + 1))
+  const [whole, fraction = ""] = coefficient.split(".")
+  const digits = `${whole}${fraction}`
+  const pointAt = whole.length + exponent
+  if (pointAt <= 0) return `0.${"0".repeat(-pointAt)}${digits}`
+  if (pointAt >= digits.length) {
+    return `${digits}${"0".repeat(pointAt - digits.length)}`
+  }
+  return `${digits.slice(0, pointAt)}.${digits.slice(pointAt)}`
 }
 
 /**

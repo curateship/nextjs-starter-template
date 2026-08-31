@@ -21,3 +21,10 @@ orders can therefore refuse an undersized order before signing or saving it.
 The check uses the coin size after rounding. If a $10 request becomes five
 whole coins worth $8.75, Trade reports $8.75 and says how much the first valid
 whole-coin order costs.
+
+Trade sends prices and coin sizes as the shortest plain decimal that represents
+the rounded value. Scientific notation is expanded, but the formatter never
+pads an ordinary decimal to a fixed number of places. Padding through JavaScript
+floating-point arithmetic once turned an STX size of `12724.7` into
+`12724.700000000001`. Hyperliquid could not read that as a one-decimal STX size
+and returned HTTP 422 before considering the order.

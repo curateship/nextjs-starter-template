@@ -76,11 +76,19 @@ describe("numbers as the wire wants them", () => {
     expect(decimalString(1e-7)).toBe("0.0000001")
     expect(decimalString(0.000012345)).toBe("0.000012345")
     expect(decimalString(118205)).toBe("118205")
+    expect(decimalString(1e21)).toBe("1000000000000000000000")
   })
 
   it("trims trailing zeros without eating whole numbers", () => {
     expect(decimalString(1.5)).toBe("1.5")
     expect(decimalString(2)).toBe("2")
+  })
+
+  it("does not expose floating-point dust as extra decimals", () => {
+    // This exact STX position size became `12724.700000000001` on the wire,
+    // which Hyperliquid refused with HTTP 422 instead of reading as 12724.7.
+    expect(decimalString(12_724.7)).toBe("12724.7")
+    expect(formatSize(12_724.7, 1)).toBe("12724.7")
   })
 
   it("floors sizes to the market's step — never rounds up", () => {
