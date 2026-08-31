@@ -118,12 +118,19 @@ function CloseForm({
 
   const [unit, setUnit] = React.useState<"usd" | "coins">("usd")
   // Starts on all of it: that is what this button did before it could do
-  // anything else, and the old behaviour is never something to fill in.
+  // anything else, and the old behaviour is never something to fill in. Keep
+  // that choice separate from the displayed figure. The mark keeps moving
+  // while this window is open, and a stored dollar value would become more
+  // than the holding as soon as the price fell.
+  const [allPreset, setAllPreset] = React.useState(true)
   const [amount, setAmount] = React.useState(() => String(round(heldUsd, 2)))
   const [showValidation, setShowValidation] = React.useState(false)
 
-  const typed = Number(amount.trim())
-  const ok = amount.trim() !== "" && Number.isFinite(typed) && typed > 0
+  const shownAmount = allPreset
+    ? String(round(unit === "usd" ? heldUsd : heldCoin, unit === "usd" ? 2 : 8))
+    : amount
+  const typed = Number(shownAmount.trim())
+  const ok = shownAmount.trim() !== "" && Number.isFinite(typed) && typed > 0
   const askedCoin = !ok ? 0 : unit === "usd" ? typed / mark : typed
   /**
    * How close to the whole position still counts as the whole position.
@@ -137,11 +144,11 @@ function CloseForm({
    */
   const grain = unit === "usd" ? 0.005 / mark : 5e-9
   const slack = Math.max(grain, heldCoin * 1e-6)
-  const tooBig = askedCoin > heldCoin + slack
+  const tooBig = !allPreset && askedCoin > heldCoin + slack
   // Never "all of it" when it is more than all of it: the title and the button
   // would then offer to close the whole position while the line underneath
   // said the amount was refused.
-  const all = !tooBig && askedCoin >= heldCoin - slack
+  const all = allPreset || (!tooBig && askedCoin >= heldCoin - slack)
   const leftCoin = all ? 0 : heldCoin - askedCoin
 
   const refusal = !ok
@@ -151,8 +158,14 @@ function CloseForm({
       : null
 
   const setShare = (share: number) => {
+    setAllPreset(share === 100)
+    if (share === 100) return
     const coins = (heldCoin * share) / 100
-    setAmount(String(round(unit === "usd" ? coins * mark : coins, unit === "usd" ? 2 : 8)))
+    setAmount(
+      String(
+        round(unit === "usd" ? coins * mark : coins, unit === "usd" ? 2 : 8)
+      )
+    )
   }
 
   const confirm = () => {
@@ -196,10 +209,11 @@ function CloseForm({
                   id="close-amount"
                   inputMode="decimal"
                   className="flex-1"
-                  value={amount}
+                  value={shownAmount}
                   disabled={busy}
                   onChange={(event) => {
                     setShowValidation(false)
+                    setAllPreset(false)
                     setAmount(event.target.value)
                   }}
                   onBlur={() => setShowValidation(true)}
@@ -215,7 +229,7 @@ function CloseForm({
                     const chosen = next as "usd" | "coins"
                     // The same amount, said in the other unit, so switching
                     // never quietly changes what would be sold.
-                    if (ok) {
+                    if (ok && !allPreset) {
                       setAmount(
                         String(
                           chosen === "usd"

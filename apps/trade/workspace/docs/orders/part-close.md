@@ -25,6 +25,11 @@ pressed.
 - **An amount, in dollars or in coins**, with 25%, 50% and All of it as
   presses that fill the box. Switching the unit says the same amount in the
   other unit, so switching never quietly changes what would be sold.
+- **All of it follows the live price while the window is open.** The dollar
+  figure changes with the market price instead of becoming larger than the
+  position after a price drop. Typing a figure ends that preset, so an amount
+  entered by hand stays exactly as entered and is still refused when it is too
+  large.
 - **What happens to the rest**, in dollars, including where its stop is. "$49.62
   of the $99.23 position, about 17.852132 coins at $2.7795. $49.61 keeps
   running, with its stop at $2.40."
