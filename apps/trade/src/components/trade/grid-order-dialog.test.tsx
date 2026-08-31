@@ -74,7 +74,8 @@ describe("the grid window's saved settings", () => {
     >["onPlace"] = async () => false,
     onPreview: React.ComponentProps<typeof GridOrderDialog>["onPreview"] = () =>
       undefined,
-    positionLeverage: number | null = null
+    positionLeverage: number | null = null,
+    free = 1_000
   ) => {
     await act(async () => {
       root.render(
@@ -84,7 +85,7 @@ describe("the grid window's saved settings", () => {
             market={market}
             wallet="Practice"
             equity={1_000}
-            free={1_000}
+            free={free}
             takerFeeRate={0.00045}
             busy={false}
             positionLeverage={positionLeverage}
@@ -279,6 +280,20 @@ describe("the grid window's saved settings", () => {
         params: expect.objectContaining({ direction: "short" }),
       })
     )
+  })
+
+  it("places a watched grid without reserving its levels from today's free cash", async () => {
+    vi.mocked(loadSmartGridParams).mockResolvedValue({ params: null })
+    const onPlace = vi.fn(async () => true)
+    await renderDialog(onPlace, undefined, null, 1)
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(host.textContent).not.toContain("nothing would fit")
+    expect(onPlace).toHaveBeenCalledOnce()
   })
 
   it("asks how far ABOVE a click a selling grid reaches", async () => {

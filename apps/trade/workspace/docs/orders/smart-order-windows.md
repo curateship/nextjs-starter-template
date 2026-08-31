@@ -55,22 +55,36 @@ Changing the frame does not change the order sent to the server.
 ## The DCA window and chart shape
 
 The Ladder card shows the dollars each rung will order. It leaves out the coin
-price because the preview line already marks that price on the chart. The chart
-tag also shows the order dollars, not a second copy of the price. The Position
-card puts Max position, Size ramp and Borrowing on separate rows. The window no
-longer repeats the line saying where the ladder hangs.
+price because the preview line already marks that price on the chart. A buy
+rung's chart tag also shows its order dollars. An exit tag instead says **Exit
+rung 3 for profit at +$…**, using that rung's buy price, coin size and exit
+price to show the projected gross profit. The Position card puts Max position,
+Size ramp and Borrowing on separate rows. The window no longer repeats the line
+saying where the ladder hangs.
+
+The free-cash figure names what the wallet has available now, but it never
+blocks Place. A watched ladder spends nothing until a rung's price arrives, so
+the window does not compare the complete ladder cost with today's free cash.
+The engine checks the full rung's margin at that later moment, including its
+chosen borrowing, and leaves it waiting when the wallet cannot afford it.
 
 Take profit and Stop loss have no settings chevron while their checkbox is off.
 Turning either one on adds the chevron and opens its settings, matching the Grid
 window.
 
-The Take profit picker includes **Sell back up the ladder**. The choice mirrors
-the buy gaps above the anchor and reverses their sizes, so the largest and
-deepest buy sells at the first exit. The chart draws every exit at placement.
+The Take profit picker includes **Sell back up the ladder**. The clicked or
+base anchor is Exit 1, exactly one ladder level above Rung 1. The largest and
+deepest buy sells there. The remaining exits continue upward using the gaps
+between the remaining buy rungs, and their sizes run in reverse. The chart
+draws every exit at placement. The closest exit is labelled Exit rung 3 because
+it sells Rung 3 first; the next is Exit rung 2, then Exit rung 1.
 Waiting exits are faded and dashed; a funded reduce-only sell is solid. The
 same choice appears when editing a running ladder's exits. Its **Extra gap %**
 box starts at zero and moves the complete exit shape farther above the buys.
-The steps between the exits still match the steps between the buys.
+The steps between the exits still match the steps between the buys. The Exit
+picker and its Target % or Extra gap % setting each use a full-width row, so
+neither control is squeezed against the edge of the order window. Their labels
+use the same field-label treatment as the rest of the order form.
 
 While the window is open, dragging any rung moves the complete ladder without
 changing its gaps. The deepest rung has a second handle that spreads every gap
@@ -84,18 +98,23 @@ replaced at its new price; if the exchange refuses that cancellation, the
 chart returns to the saved prices. When several funded sells are moving and a
 later cancellation fails, the app remembers which earlier cancellations
 succeeded so the engine can restore only those sells at the saved gap.
+An old ladder still carrying sells from the empty-anchor shape refuses an exit
+drag or gap change until the engine can move those sells to the corrected
+levels without leaving the position uncovered.
 
 An untouched saved ladder keeps the same handles after the window closes. The
-DCA ladder bar follows the rungs on every drag frame; it does not wait for the
-server save after the pointer is released. Pressing the bar's × calls off an
-empty ladder at once, without another question or a success toast. Once a rung
-has bought, the × moves into the position's entry bar and asks before it calls
-off the remaining buys. The success toast appears in that case because the
-bought position stays open. The server accepts a move only while every rung is
-still waiting and no rung has been called off. Once a rung buys, sells or is
-cancelled, its prices are frozen because moving them would rewrite the prices
-behind a position already in progress. A ladder owned by an automation cannot
-be moved by hand.
+DCA ladder summary sits below its deepest visible rung. The anchor still sets
+the rung prices, and Sell back up the ladder uses it as Exit 1. The summary is
+not a priced level of its own. The summary follows the rungs on every drag
+frame; it does not wait for the server save after the pointer is released.
+Pressing the summary's × calls off an empty ladder at once, without another
+question or a success toast. Once a rung has bought, the × moves into the
+position's entry bar and asks before it calls off the remaining buys. The
+success toast appears in that case because the bought position stays open. The
+server accepts a move only while every rung is still waiting and no rung has
+been called off. Once a rung buys, sells or is cancelled, its prices are frozen
+because moving them would rewrite the prices behind a position already in
+progress. A ladder owned by an automation cannot be moved by hand.
 A ladder paired with a grid must still keep its first buy below the grid's
 stop, and an invalid drag is refused without changing the saved plan.
 
@@ -146,6 +165,9 @@ does with each of these is in `grid-orders.md`; this is what is on screen.
   size. Those prices are already on the chart. **Share of account %** sits in
   this card beside Levels. The card shows the dollars of coin each buy controls,
   the margin behind that buy, and the dollars of coin the whole grid controls.
+  The complete grid may control more than the wallet has free now because none
+  of those buys is placed yet. Today's free cash never blocks Place; each level
+  has to fit only when its own price arrives.
   Every control works the moment the window opens, on the settings last used —
   the saved grid setup arrives with the page itself, in the same bootstrap
   call that carries the quick-order window's setup, so even the first

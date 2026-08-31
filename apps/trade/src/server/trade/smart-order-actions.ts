@@ -195,10 +195,14 @@ export async function updateLadderExitsPlan(
     wasExitLadder &&
     staysExitLadder &&
     Math.abs((plan.takeProfit?.exitGapPct ?? 0) - nextExitGapPct) > 1e-9
+  if (exitGapChanged && plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
+  }
   if (wasExitLadder && (!staysExitLadder || exitGapChanged)) {
     await cancelExitLadderOrders(plan, cancelSell)
     if (!staysExitLadder) plan.exitRungs = []
   }
+  if (!wasExitLadder && staysExitLadder) plan.exitLadderVersion = 2
   plan.takeProfit = input.takeProfit
     ? {
         mode: input.takeProfit.mode,
@@ -224,6 +228,9 @@ export async function moveExitLadderPlan(
 ): Promise<void> {
   if (plan.takeProfit?.mode !== "exitLadder") {
     throw new Error("SMART_EXIT_GAP")
+  }
+  if (plan.exitLadderVersion !== 2) {
+    throw new Error("SMART_EXIT_MIGRATING")
   }
   const exitGapPct = exitLadderGapPctForPrice(
     plan,

@@ -904,6 +904,39 @@ describe("live Smart orders", () => {
     expect(plan.rungs[0].sz).toBeCloseTo(2.105, 9)
   })
 
+  it("fires a borrowed live rung when its margin fits", async () => {
+    await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({
+        rungs: [{ deviation: 5 }],
+        maxPositionPct: 100,
+        leverage: 3,
+      }),
+    })
+    await database
+      .update(tradeSmartLadders)
+      .set({ updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.userId, userId))
+    prices.mockResolvedValue(new Map([["BTC", 94]]))
+    place.mockResolvedValue({
+      status: "filled",
+      orderId: "borrowed-buy",
+      avgPx: 94,
+      filledSz: null,
+    })
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(place).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ side: "buy", leverage: 3 })
+    )
+    expect((await ladder()).rungs[0].status).toBe("filled")
+  })
+
   it("uses the market maximum when chosen borrowing is higher", async () => {
     marketMaxLeverage = 2
     clearMarketRulesCache()
@@ -1740,6 +1773,84 @@ describe("live Smart orders", () => {
     )
   })
 
+  it("replaces a live sell from the old empty-anchor shape", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params({ takeProfit: { mode: "exitLadder", pct: 2 } }),
+    })
+    const plan = await ladder()
+    plan.exitLadderVersion = 1
+    plan.rungs[0].status = "filled"
+    plan.exitRungs = [
+      {
+        status: "waiting",
+        orderId: "old-exit",
+        armedSz: plan.rungs[0].sz,
+      },
+      { status: "waiting", orderId: null, armedSz: 0 },
+    ]
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan, updatedAt: new Date(Date.now() - 3_000) })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    portfolio.mockResolvedValue({
+      positions: [
+        {
+          marketId: "BTC",
+          szi: plan.rungs[0].sz,
+          entryPx: 95,
+          leverage: 1,
+          marginUsed: 100,
+          liquidationPx: null,
+          targets: [],
+          tpPx: null,
+          tpSz: null,
+          tpOrderId: null,
+          slPx: null,
+          slOrderId: null,
+          protectionOrderIds: [],
+        },
+      ],
+      orders: [
+        {
+          orderId: "old-exit",
+          marketId: "BTC",
+          side: "sell",
+          px: 105,
+          sz: plan.rungs[0].sz,
+          reduceOnly: true,
+          trigger: false,
+        },
+      ],
+    })
+    place.mockResolvedValue({
+      status: "resting",
+      orderId: "new-exit",
+      avgPx: null,
+      filledSz: null,
+    })
+    prices.mockResolvedValue(new Map([["BTC", 95]]))
+    dropEngineExchangeReads(wallet)
+
+    await reconcileLiveLadders(userId, wallet)
+
+    expect(cancel).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ orderId: "old-exit" })
+    )
+    expect(place).toHaveBeenCalledWith(
+      wallet.network,
+      expect.anything(),
+      expect.objectContaining({ side: "sell", px: 100, reduceOnly: true })
+    )
+    const upgraded = await ladder()
+    expect(upgraded.exitLadderVersion).toBe(2)
+    expect(upgraded.exitRungs[0].orderId).toBe("new-exit")
+  })
+
   it("drags every live exit after cancelling the funded sell", async () => {
     const placed = await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,
@@ -1804,7 +1915,7 @@ describe("live Smart orders", () => {
     const moved = await reshapeLiveLadder(userId, wallet, {
       ladderId: placed.ladder.id,
       exitIndex: 0,
-      exitPx: 115.5,
+      exitPx: 110,
     })
 
     expect(cancel).toHaveBeenCalledWith(
@@ -1817,7 +1928,7 @@ describe("live Smart orders", () => {
       expect.anything(),
       expect.objectContaining({
         side: "sell",
-        px: expect.closeTo(115.5, 9),
+        px: expect.closeTo(110, 9),
         reduceOnly: true,
       })
     )
@@ -1885,7 +1996,7 @@ describe("live Smart orders", () => {
       reshapeLiveLadder(userId, wallet, {
         ladderId: placed.ladder.id,
         exitIndex: 0,
-        exitPx: 115.5,
+        exitPx: 110,
       })
     ).rejects.toThrow("exchange busy")
 
@@ -1974,7 +2085,7 @@ describe("live Smart orders", () => {
       reshapeLiveLadder(userId, wallet, {
         ladderId: placed.ladder.id,
         exitIndex: 0,
-        exitPx: 115.5,
+        exitPx: 110,
       })
     ).rejects.toThrow("exchange busy")
 
@@ -2047,6 +2158,7 @@ describe("live Smart orders", () => {
       params: params({ takeProfit: { mode: "exitLadder", pct: 2 } }),
     })
     const plan = await ladder()
+    plan.exitLadderVersion = 1
     for (const rung of plan.rungs) rung.status = "filled"
     plan.exitRungs = [
       {
@@ -2097,7 +2209,9 @@ describe("live Smart orders", () => {
 
     expect(cancel).toHaveBeenCalledTimes(1)
     expect(place).not.toHaveBeenCalled()
-    expect((await ladder()).exitRungs).toEqual([
+    const unchanged = await ladder()
+    expect(unchanged.exitLadderVersion).toBe(1)
+    expect(unchanged.exitRungs).toEqual([
       {
         status: "waiting",
         orderId: "old-partial-exit",

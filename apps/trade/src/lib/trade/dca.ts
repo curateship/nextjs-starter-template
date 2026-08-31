@@ -739,6 +739,13 @@ export const ladderPlanSchema = z.object({
    * builds one entry per buy rung when the exit-ladder mode is active.
    */
   exitRungs: z.array(exitLadderRungSchema).max(20).default([]),
+  /**
+   * Version 1 left an empty anchor between Rung 1 and Exit 1. Version 2 uses
+   * the anchor as Exit 1, so the deepest buy sells at the first level above
+   * Rung 1. The engine matches fills at old prices, then upgrades the plan when
+   * corrected replacement sells can rest safely.
+   */
+  exitLadderVersion: z.union([z.literal(1), z.literal(2)]).default(1),
   takeProfit: ladderTakeProfitSchema.nullable(),
   stopLoss: ladderStopLossSchema.nullable(),
   /** The market-crash rule this ladder was placed with. Null is off. */
@@ -1005,24 +1012,33 @@ export function ladderExitLevels(
 }
 
 /**
- * Mirrors each stored buy step above the anchor. The plan keeps concrete buy
- * prices, so this recovers each percentage instead of storing a second copy of
- * the ladder shape that could drift after a move or resize.
+ * Uses the anchor as Exit 1, then mirrors the remaining stored buy steps above
+ * it. Version 1 remains readable so an already-resting sell can be matched or
+ * cancelled at the price where the old engine placed it.
  */
 export function exitLadderLevels(plan: {
   anchorPx: number
   rungs: readonly { px: number }[]
+  exitLadderVersion?: 1 | 2
   takeProfit?: { mode: string; exitGapPct?: number } | null
 }): number[] {
-  let previousBuy = plan.anchorPx
   const gapPct =
     plan.takeProfit?.mode === "exitLadder"
       ? (plan.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
       : DEFAULT_DCA_EXIT_GAP_PCT
   let previousExit = plan.anchorPx * (1 + gapPct / 100)
-  return plan.rungs.map((rung) => {
-    const step = 1 - rung.px / previousBuy
-    previousBuy = rung.px
+  if (plan.exitLadderVersion === 1) {
+    let previousBuy = plan.anchorPx
+    return plan.rungs.map((rung) => {
+      const step = 1 - rung.px / previousBuy
+      previousBuy = rung.px
+      previousExit *= 1 + step
+      return previousExit
+    })
+  }
+  return plan.rungs.map((rung, index) => {
+    if (index === 0) return previousExit
+    const step = 1 - rung.px / plan.rungs[index - 1].px
     previousExit *= 1 + step
     return previousExit
   })
@@ -1041,6 +1057,7 @@ export function exitLadderGapPctForPrice(
   const basePx = exitLadderLevels({
     anchorPx: plan.anchorPx,
     rungs: plan.rungs,
+    exitLadderVersion: 2,
   })[exitIndex]
   if (!(basePx > 0)) return null
   const gapPct = (exitPx / basePx - 1) * 100

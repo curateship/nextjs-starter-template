@@ -884,22 +884,22 @@ describe("placing a ladder", () => {
     await backdate()
     await dipTo(95)
     const firstSell = (await orders()).find((order) => order.side === "sell")
-    expect(firstSell?.px).toBeCloseTo(105, 9)
+    expect(firstSell?.px).toBeCloseTo(100, 9)
 
     const moved = await reshapeLadder(userId, wallet, {
       ladderId: placed.ladder.id,
       exitIndex: 0,
-      exitPx: 115.5,
+      exitPx: 110,
     })
 
     expect(moved.ladder.plan.takeProfit?.exitGapPct).toBeCloseTo(10, 9)
     const exits = exitLadderLevels(moved.ladder.plan)
-    expect(exits[0]).toBeCloseTo(115.5, 9)
-    expect(exits[1]).toBeCloseTo(124.74, 9)
+    expect(exits[0]).toBeCloseTo(110, 9)
+    expect(exits[1]).toBeCloseTo(118.8, 9)
     const sells = (await orders()).filter((order) => order.side === "sell")
     expect(sells).toHaveLength(1)
     expect(sells[0].id).not.toBe(firstSell?.id)
-    expect(sells[0].px).toBeCloseTo(115.5, 9)
+    expect(sells[0].px).toBeCloseTo(110, 9)
   })
 
   it("leaves an automation-owned ladder under the automation's control", async () => {
@@ -951,6 +951,23 @@ describe("placing a ladder", () => {
     expect(ladder.plan.leverage).toBe(3)
     expect(ladder.plan.rungs[0].sz).toBeCloseTo(21.052, 9)
     expect(ladder.plan.rungs[1].sz).toBeCloseTo(45.766, 9)
+  })
+
+  it("fires a borrowed watched rung when its margin fits", async () => {
+    await place({
+      rungs: [{ deviation: 5 }],
+      maxPositionPct: 100,
+      leverage: 3,
+    })
+    await backdate()
+    await dipTo(95)
+
+    const [held] = await positions()
+    expect(held).toBeDefined()
+    expect(held.leverage).toBe(3)
+    expect((held.szi * held.entryPx) / held.leverage).toBeLessThanOrEqual(
+      10_000
+    )
   })
 
   it("uses the market maximum when chosen borrowing is higher", async () => {
@@ -1179,7 +1196,7 @@ describe("the ladder at work", () => {
       { status: "waiting", orderId: null, armedSz: 0 },
     ])
     expect((await orders()).filter((order) => order.side === "sell")).toEqual([
-      expect.objectContaining({ px: 105, sz: ladder.plan.rungs[0].sz }),
+      expect.objectContaining({ px: 100, sz: ladder.plan.rungs[0].sz }),
     ])
 
     await dipTo(87.4)
@@ -1194,8 +1211,8 @@ describe("the ladder at work", () => {
     ])
     expect(sells).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ px: 105, sz: ladder.plan.rungs[1].sz }),
-        expect.objectContaining({ px: 113.4, sz: ladder.plan.rungs[0].sz }),
+        expect.objectContaining({ px: 100, sz: ladder.plan.rungs[1].sz }),
+        expect.objectContaining({ px: 108, sz: ladder.plan.rungs[0].sz }),
       ])
     )
   })
@@ -1206,7 +1223,7 @@ describe("the ladder at work", () => {
     await dipTo(95)
     await dipTo(87.4)
 
-    marks.set("BTC", 105)
+    marks.set("BTC", 100)
     await settle()
 
     let ladder = await onlyLadder()
@@ -1220,7 +1237,7 @@ describe("the ladder at work", () => {
       "waiting",
     ])
 
-    marks.set("BTC", 113.4)
+    marks.set("BTC", 108)
     await settle()
 
     ladder = await onlyLadder()
@@ -1385,7 +1402,7 @@ describe("the ladder at work", () => {
   })
 
   it("watches its candles in two-green mode and buys on the second green close", async () => {
-    await place({ twoGreen: true })
+    await place({ twoGreen: true, leverage: 2 })
     expect(await orders()).toHaveLength(0)
 
     // The ladder was placed ten minutes ago; three one-minute candles have
@@ -1425,10 +1442,11 @@ describe("the ladder at work", () => {
     // Bought at the confirming candle's close, not at the rung's line — and
     // sized so the rung spends its DOLLARS at that price rather than carrying
     // a coin count fixed at a price it never filled at. The rung's budget is
-    // 95 × 7.017 = $666.62, and $666.62 at 96 is 6.943 coins.
+    // 95 × 14.035 = $1,333.33, and $1,333.33 at 96 is 13.888 coins.
     expect(held[0].entryPx).toBeCloseTo(96, 9)
-    expect(held[0].szi).toBeCloseTo(6.943, 3)
-    expect(held[0].szi * held[0].entryPx).toBeCloseTo(95 * 7.017, 0)
+    expect(held[0].leverage).toBe(2)
+    expect(held[0].szi).toBeCloseTo(13.888, 3)
+    expect(held[0].szi * held[0].entryPx).toBeCloseTo(95 * 14.035, 0)
     const ladder = await onlyLadder()
     expect(ladder.plan.rungs[0].status).toBe("filled")
     expect(ladder.plan.rungs[1].status).toBe("waiting")
@@ -1686,7 +1704,61 @@ describe("the ladder at work", () => {
     expect(after.plan.takeProfit?.exitGapPct).toBe(10)
     expect(sells).toHaveLength(1)
     expect(sells[0].id).not.toBe(oldSell?.id)
-    expect(sells[0].px).toBeCloseTo(115.5, 9)
+    expect(sells[0].px).toBeCloseTo(110, 9)
+  })
+
+  it("replaces a funded sell from the old empty-anchor shape", async () => {
+    await place({
+      takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },
+    })
+    await backdate()
+    await dipTo(95)
+
+    const before = await onlyLadder()
+    const oldSell = (await orders()).find((order) => order.side === "sell")
+    if (!oldSell) throw new Error("expected funded exit")
+    before.plan.exitLadderVersion = 1
+    await saveLadderPlan(userId, before.id, before.plan, "active")
+    await database
+      .update(tradePaperOrders)
+      .set({ px: 105 })
+      .where(eq(tradePaperOrders.id, oldSell.id))
+
+    marks.set("BTC", 100)
+    await settle()
+
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: before.id,
+        exitIndex: 0,
+        exitPx: 110,
+      })
+    ).rejects.toThrow("SMART_EXIT_MIGRATING")
+    await expect(
+      updateLadderExits(userId, wallet, {
+        ladderId: before.id,
+        takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 10 },
+        stopLoss: null,
+      })
+    ).rejects.toThrow("SMART_EXIT_MIGRATING")
+
+    const covered = await onlyLadder()
+    const coveredSells = (await orders()).filter(
+      (order) => order.side === "sell"
+    )
+    expect(covered.plan.exitLadderVersion).toBe(1)
+    expect(coveredSells).toHaveLength(1)
+    expect(coveredSells[0]).toMatchObject({ id: oldSell.id, px: 105 })
+
+    marks.set("BTC", 95)
+    await settle()
+
+    const after = await onlyLadder()
+    const sells = (await orders()).filter((order) => order.side === "sell")
+    expect(after.plan.exitLadderVersion).toBe(2)
+    expect(sells).toHaveLength(1)
+    expect(sells[0].id).not.toBe(oldSell.id)
+    expect(sells[0].px).toBeCloseTo(100, 9)
   })
 })
 
@@ -1852,7 +1924,7 @@ describe("a stop that rests under the base", () => {
   })
 
   it("puts the rung back when price reclaims the level, for the money it was allowed", async () => {
-    await place({ stopLoss: baseStop() })
+    await place({ stopLoss: baseStop(), leverage: 2 })
     await backdate()
     await dipTo(95)
     // Bought off the 100 base, then the lower one confirms under the buy.
@@ -1882,6 +1954,7 @@ describe("a stop that rests under the base", () => {
     const held = (await positions())[0]
     // Bought back HIGHER than it was cut, and for the rung's own budget — not
     // for the coin count it used to hold, which at 96 would have cost more.
+    expect(held.leverage).toBe(2)
     expect(held.entryPx).toBeCloseTo(96, 9)
     expect(held.szi * 96).toBeLessThanOrEqual(budget + 0.01)
     expect(held.szi * 96).toBeGreaterThan(budget * 0.99)

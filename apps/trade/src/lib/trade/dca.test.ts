@@ -222,6 +222,7 @@ describe("ladder plans", () => {
       },
     ],
     exitRungs: [],
+    exitLadderVersion: 2,
     takeProfit: { mode: "prevRung", pct: null, exitGapPct: 0 },
     stopLoss: null,
     aimedTpPx: null,
@@ -240,23 +241,29 @@ describe("ladder plans", () => {
     expect(ladderExitLevels(plan)).toEqual([100, 95])
   })
 
-  it("mirrors the stored buy steps above the anchor and reverses their sizes", () => {
-    expect(exitLadderLevels(plan)).toEqual([105, 113.4])
+  it("uses the anchor as the first exit and reverses the rung sizes", () => {
+    expect(exitLadderLevels(plan)).toEqual([100, 108])
     expect([0, 1].map((index) => exitLadderPlannedSz(plan, index))).toEqual([
       2, 1,
     ])
   })
 
-  it("moves every mirrored exit by one extra gap", () => {
+  it("can still identify sells placed by the old empty-anchor shape", () => {
+    expect(exitLadderLevels({ ...plan, exitLadderVersion: 1 })).toEqual([
+      105, 113.4,
+    ])
+  })
+
+  it("moves every exit by one extra gap", () => {
     const gapped = {
       ...plan,
       takeProfit: { mode: "exitLadder" as const, pct: null, exitGapPct: 10 },
     }
     const levels = exitLadderLevels(gapped)
-    expect(levels[0]).toBeCloseTo(115.5, 10)
-    expect(levels[1]).toBeCloseTo(124.74, 10)
-    expect(exitLadderGapPctForPrice(gapped, 1, 124.74)).toBeCloseTo(10, 10)
-    expect(exitLadderGapPctForPrice(gapped, 0, 104)).toBeNull()
+    expect(levels[0]).toBeCloseTo(110, 10)
+    expect(levels[1]).toBeCloseTo(118.8, 10)
+    expect(exitLadderGapPctForPrice(gapped, 1, 118.8)).toBeCloseTo(10, 10)
+    expect(exitLadderGapPctForPrice(gapped, 0, 99)).toBeNull()
   })
 
   it("accounts for exit sales from the deepest filled rungs first", () => {

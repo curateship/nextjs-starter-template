@@ -967,7 +967,9 @@ const baseSmartOrderErrorMessage = createErrorMessage(
     SMART_LADDER_RANGE:
       "Those rung prices no longer make a valid ladder. Keep every rung below the one above it.",
     SMART_EXIT_GAP:
-      "The exit ladder must stay above its original mirrored prices. Drag the exits upward to add a gap, or back to their starting position for no extra gap.",
+      "The exit ladder must stay at or above its starting prices. Drag the exits upward to add a gap, or back to where they started for no extra gap.",
+    SMART_EXIT_MIGRATING:
+      "This ladder still has a sell at the old exit prices. The app will move it after price is below the corrected Exit 1, then the exits can be changed.",
     SMART_LADDER_FLOW:
       "A ladder controlled by an automation cannot be moved by hand. Change the automation or stop its run first.",
     SMART_ORDER_NOT_FOUND:

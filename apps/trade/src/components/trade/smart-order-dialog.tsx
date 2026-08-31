@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { FieldLabel } from "@/components/ui/field-label"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Select,
@@ -500,9 +499,7 @@ export function SmartOrderDialog({
             ? "A number here does not make sense yet — every step needs to be between 0 and 99."
             : plan && plan.tooSmallIndex !== null
               ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
-              : plan && plan.totalCost > free
-                ? `The ladder costs ${formatUsd(plan.totalCost)} but only ${formatUsd(free)} is free — nothing would fit.`
-                : null
+              : null
 
   const ready =
     (anchor === "click" || baseRead) &&
@@ -701,11 +698,9 @@ export function SmartOrderDialog({
             }}
           >
             {tpOn ? (
-              <div className="flex items-end gap-2">
-                <div className="grid min-w-0 flex-1 gap-2">
-                  <Label htmlFor="smart-tp-mode" className="text-xs">
-                    Exit
-                  </Label>
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <FieldLabel htmlFor="smart-tp-mode">Exit</FieldLabel>
                   <Select
                     value={tpMode}
                     disabled={busy}
@@ -726,10 +721,8 @@ export function SmartOrderDialog({
                   </Select>
                 </div>
                 {tpMode === "average" ? (
-                  <div className="grid w-16 shrink-0 gap-2">
-                    <Label htmlFor="smart-tp-pct" className="text-xs">
-                      Target %
-                    </Label>
+                  <div className="grid gap-2">
+                    <FieldLabel htmlFor="smart-tp-pct">Target %</FieldLabel>
                     <Input
                       id="smart-tp-pct"
                       inputMode="decimal"
@@ -746,7 +739,7 @@ export function SmartOrderDialog({
                     />
                   </div>
                 ) : tpMode === "exitLadder" ? (
-                  <div className="grid w-20 shrink-0 gap-2">
+                  <div className="grid gap-2">
                     <FieldLabel
                       htmlFor="smart-exit-gap"
                       hint="Extra room above the mirrored exit prices. Dragging any exit line changes the same number."

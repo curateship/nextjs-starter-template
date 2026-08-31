@@ -372,6 +372,7 @@ function ladderPlan(
     leverage,
     rungs,
     exitRungs: [],
+    exitLadderVersion: 2,
     takeProfit: takeProfit
       ? {
           mode: takeProfit.mode,
@@ -1646,6 +1647,7 @@ export async function reconcileLiveLaddersOnce(
                   )
                 )
                 current.exitRungs = structuredClone(before.exitRungs)
+                current.exitLadderVersion = before.exitLadderVersion
                 for (
                   let index = pendingPlaces.length - 1;
                   index >= 0;

@@ -499,8 +499,6 @@ export function GridOrderDialog({
         : null,
     [params, top, bottom, equity, market.sizeDecimals, market.volume24hUsd]
   )
-  const marginNeeded =
-    plan !== null && borrowing !== null ? plan.totalCost / borrowing : null
 
   // The preview dies with the window, whichever way it closes.
   React.useEffect(() => () => onPreview(null), [onPreview])
@@ -606,11 +604,9 @@ export function GridOrderDialog({
                       ? manualOn
                         ? `Rung ${gridRungNumber(plan.tooSmallIndex, plan.levels.length, direction)} is too small to be an order on this market. Give it a bigger share, or raise the share of the account.`
                         : `Level ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer levels or a bigger share.`
-                      : marginNeeded !== null && marginNeeded > free
-                        ? `The grid needs ${formatUsd(marginNeeded)} of margin but only ${formatUsd(free)} is free — nothing would fit.`
-                        : stopPastLiquidation
-                          ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
-                          : null
+                      : stopPastLiquidation
+                        ? "The exchange would close this short out before the stop was reached, so the stop would never fire. Move the stop closer to the range, use less borrowing, use a smaller share of the account, or use fewer levels."
+                        : null
 
   const ready = !busy && refusal === null && plan !== null
 
