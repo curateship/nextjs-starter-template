@@ -58,7 +58,10 @@ export default function TimeActivateFields({
             )
           }
         >
-          <SelectTrigger id={`time-${node.id}-frequency`} className="w-full">
+          <SelectTrigger
+            id={`time-${node.id}-frequency`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -130,7 +133,10 @@ export default function TimeActivateFields({
               setSchedule({ ...schedule, dayOfWeek: Number(value) })
             }
           >
-            <SelectTrigger id={`time-${node.id}-weekday`} className="w-full">
+            <SelectTrigger
+              id={`time-${node.id}-weekday`}
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -174,7 +180,10 @@ export default function TimeActivateFields({
             }
           }}
         >
-          <SelectTrigger id={`time-${node.id}-timezone`} className="w-full">
+          <SelectTrigger
+            id={`time-${node.id}-timezone`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -549,6 +549,9 @@ function PlanDialog({
     plan ? toDraft(plan) : emptyDraft
   )
   const [saving, setSaving] = React.useState(false)
+  const [nameTouched, setNameTouched] = React.useState(false)
+  const [slugTouched, setSlugTouched] = React.useState(false)
+  const [attempted, setAttempted] = React.useState(false)
   const nameInputRef = React.useRef<HTMLInputElement>(null)
 
   // What the window opened with, so closing it can tell real edits from a
@@ -567,6 +570,7 @@ function PlanDialog({
 
   const handleSave = React.useCallback(async () => {
     dismissErrorToast()
+    setAttempted(true)
 
     if (!draft.name.trim()) {
       showErrorToast("Plan name is required.")
@@ -722,7 +726,11 @@ function PlanDialog({
                       ref={nameInputRef}
                       value={draft.name}
                       onChange={(event) => update("name", event.target.value)}
-                      aria-invalid={!draft.name.trim() || undefined}
+                      onBlur={() => setNameTouched(true)}
+                      aria-invalid={
+                        (!draft.name.trim() && (nameTouched || attempted)) ||
+                        undefined
+                      }
                     />
                   </Field>
                   <Field
@@ -734,7 +742,11 @@ function PlanDialog({
                       id="plan-slug"
                       value={draft.slug}
                       onChange={(event) => update("slug", event.target.value)}
-                      aria-invalid={!draft.slug.trim() || undefined}
+                      onBlur={() => setSlugTouched(true)}
+                      aria-invalid={
+                        (!draft.slug.trim() && (slugTouched || attempted)) ||
+                        undefined
+                      }
                     />
                   </Field>
                 </div>

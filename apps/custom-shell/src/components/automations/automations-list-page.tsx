@@ -138,11 +138,15 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const [confirmPauseOpen, setConfirmPauseOpen] = React.useState(false)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
+  const [createNameTouched, setCreateNameTouched] = React.useState(false)
+  const [createAttempted, setCreateAttempted] = React.useState(false)
   const [createChoice, setCreateChoice] = React.useState<CreateChoice>("blank")
   const [runCreate, creating] = useAsyncAction(getAutomationErrorMessage)
   const [renameTarget, setRenameTarget] =
     React.useState<AutomationListItem | null>(null)
   const [renameName, setRenameName] = React.useState("")
+  const [renameNameTouched, setRenameNameTouched] = React.useState(false)
+  const [renameAttempted, setRenameAttempted] = React.useState(false)
   const [runRename, renaming] = useAsyncAction(getAutomationErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [runningId, setRunningId] = React.useState<string | null>(null)
@@ -229,6 +233,8 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
     setCreateOpen(false)
     setCreateName("")
     setCreateChoice("blank")
+    setCreateNameTouched(false)
+    setCreateAttempted(false)
   }
 
   const chooseCreateStart = (choice: CreateChoice) => {
@@ -242,6 +248,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
 
   const handleCreate = async () => {
     if (creating) return
+    setCreateAttempted(true)
     if (!createName.trim()) {
       showErrorToast("Automation name is required.")
       return
@@ -252,9 +259,7 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
         createChoice === "blank" ? null : createChoice
       )
       toast.success(`Created "${created.name}".`)
-      setCreateOpen(false)
-      setCreateName("")
-      setCreateChoice("blank")
+      closeCreate()
       await openEditor(created.id)
     })
   }
@@ -262,16 +267,21 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
   const openRename = (automation: AutomationListItem) => {
     setRenameTarget(automation)
     setRenameName(automation.name)
+    setRenameNameTouched(false)
+    setRenameAttempted(false)
   }
 
   const closeRename = () => {
     setRenameTarget(null)
     setRenameName("")
+    setRenameNameTouched(false)
+    setRenameAttempted(false)
   }
 
   const handleRename = async () => {
     const target = renameTarget
     if (!target || renaming) return
+    setRenameAttempted(true)
     if (!renameName.trim()) {
       showErrorToast("Automation name is required.")
       return
@@ -683,7 +693,12 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   maxLength={80}
                   placeholder="Weekly changelog email"
                   onChange={(event) => setCreateName(event.target.value)}
-                  aria-invalid={!createName.trim() || undefined}
+                  onBlur={() => setCreateNameTouched(true)}
+                  aria-invalid={
+                    (!createName.trim() &&
+                      (createNameTouched || createAttempted)) ||
+                    undefined
+                  }
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault()
@@ -752,7 +767,12 @@ export function AutomationsListPage({ initial }: { initial: AutomationsPage }) {
                   maxLength={80}
                   placeholder="Weekly changelog email"
                   onChange={(event) => setRenameName(event.target.value)}
-                  aria-invalid={!renameName.trim() || undefined}
+                  onBlur={() => setRenameNameTouched(true)}
+                  aria-invalid={
+                    (!renameName.trim() &&
+                      (renameNameTouched || renameAttempted)) ||
+                    undefined
+                  }
                 />
               </DialogBody>
               <DialogFooter>

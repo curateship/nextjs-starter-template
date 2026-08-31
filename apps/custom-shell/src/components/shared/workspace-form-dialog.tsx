@@ -343,7 +343,10 @@ export function WorkspaceFormDialog({
                           }))
                         }}
                       >
-                        <SelectTrigger id={copySourceId} className="w-full">
+                        <SelectTrigger
+                          id={copySourceId}
+                          className="w-full sm:w-fit"
+                        >
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

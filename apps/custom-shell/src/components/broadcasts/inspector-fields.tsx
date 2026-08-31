@@ -55,18 +55,20 @@ export function InspectorCard({
         "[&_[data-slot=input]]:bg-background [&_[data-slot=select-trigger]]:bg-background [&_[data-slot=textarea]]:bg-background"
       )}
     >
-      <CollapsibleTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
-            focusRingInset
-          )}
-        >
-          <h3 className="text-[15px] font-semibold">{title}</h3>
-          <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
-        </button>
-      </CollapsibleTrigger>
+      <h2 className="text-[15px] font-semibold">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className={cn(
+              "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md text-left select-none",
+              focusRingInset
+            )}
+          >
+            <span>{title}</span>
+            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/card:-rotate-90" />
+          </button>
+        </CollapsibleTrigger>
+      </h2>
       <CollapsibleContent data-collapse-key={noFlashKey}>
         {description ? (
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

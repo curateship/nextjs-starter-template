@@ -36,6 +36,7 @@ describe("DashboardTable states", () => {
     )
 
     expect(markup).toContain("Accounts could not be loaded.")
+    expect(markup).toContain(">Accounts</h2>")
     expect(markup).toContain("Try again")
     expect(markup).not.toContain("No accounts yet.")
     expect(markup).not.toContain("Hidden row")

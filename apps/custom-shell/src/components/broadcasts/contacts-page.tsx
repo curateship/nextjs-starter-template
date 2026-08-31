@@ -317,6 +317,8 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
     lastName: "",
     tags: "",
   })
+  const [emailTouched, setEmailTouched] = React.useState(false)
+  const [addAttempted, setAddAttempted] = React.useState(false)
   /** Anything typed into the add form, which closing would throw away. */
   const formDirty = Object.values(form).some((value) => value.trim())
   const [deleteTarget, setDeleteTarget] = React.useState<ContactItem | null>(
@@ -420,6 +422,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
 
   const handleAdd = async () => {
     if (saving) return
+    setAddAttempted(true)
     if (!form.email.trim()) {
       showErrorToast("Email address is required.")
       return
@@ -436,6 +439,8 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
       })
       setAddOpen(false)
       setForm({ email: "", firstName: "", lastName: "", tags: "" })
+      setEmailTouched(false)
+      setAddAttempted(false)
       await refresh()
     }, `Added ${form.email.trim()}.`)
   }
@@ -623,7 +628,13 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                 Save as segment
               </DashboardToolbarButton>
             ) : null}
-            <DashboardToolbarButton onClick={() => setAddOpen(true)}>
+            <DashboardToolbarButton
+              onClick={() => {
+                setEmailTouched(false)
+                setAddAttempted(false)
+                setAddOpen(true)
+              }}
+            >
               <PlusIcon className="size-4" />
               Add someone
             </DashboardToolbarButton>
@@ -810,7 +821,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
         open={addOpen}
         dirty={formDirty}
         busy={saving}
-        onClose={() => setAddOpen(false)}
+        onClose={() => {
+          setEmailTouched(false)
+          setAddAttempted(false)
+          setAddOpen(false)
+        }}
       >
         {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
@@ -838,7 +853,11 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                     type="email"
                     autoFocus
                     value={form.email}
-                    aria-invalid={!form.email.trim() || undefined}
+                    aria-invalid={
+                      (!form.email.trim() &&
+                        (emailTouched || addAttempted)) ||
+                      undefined
+                    }
                     placeholder="ada@example.com"
                     onChange={(event) =>
                       setForm((current) => ({
@@ -846,6 +865,7 @@ export function ContactsPage({ data }: { data: ContactsPageData }) {
                         email: event.target.value,
                       }))
                     }
+                    onBlur={() => setEmailTouched(true)}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">

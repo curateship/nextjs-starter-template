@@ -404,7 +404,10 @@ function BackgroundField({
             onChange({ mode: mode as ShellBackgroundMode })
           }
         >
-          <SelectTrigger id={`${idPrefix}-mode`} className="w-48">
+          <SelectTrigger
+            id={`${idPrefix}-mode`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

@@ -77,7 +77,10 @@ export default function JoinedSegmentFields({
             })
           }}
         >
-          <SelectTrigger id={`joined-segment-${node.id}`} className="w-full">
+          <SelectTrigger
+            id={`joined-segment-${node.id}`}
+            className="w-full sm:w-fit"
+          >
             <SelectValue
               placeholder={
                 segments === null ? "Loading segments…" : "Choose a segment"

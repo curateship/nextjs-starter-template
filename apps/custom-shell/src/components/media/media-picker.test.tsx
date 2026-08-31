@@ -164,7 +164,7 @@ describe("MediaPicker", () => {
     await act(async () => await Promise.resolve())
 
     expect(host.textContent).toContain("Nothing matched")
-    expect(footerSelectButton(host).getAttribute("aria-invalid")).toBe("true")
+    expect(footerSelectButton(host).hasAttribute("aria-invalid")).toBe(false)
     await act(async () => footerSelectButton(host).click())
 
     expect(onSelectMedia).not.toHaveBeenCalled()

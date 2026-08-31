@@ -993,7 +993,7 @@ function MergeFeedbackDialog({
                   onValueChange={setTargetId}
                   disabled={merging || targets.length === 0}
                 >
-                  <SelectTrigger id="merge-target" className="w-full">
+                  <SelectTrigger id="merge-target" className="w-full sm:w-fit">
                     <SelectValue
                       placeholder={
                         targets.length

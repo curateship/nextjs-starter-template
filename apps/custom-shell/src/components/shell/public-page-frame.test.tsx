@@ -5,6 +5,8 @@ import { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+const router = vi.hoisted(() => ({ navigate: vi.fn() }))
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({
     to,
@@ -37,7 +39,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
   useLocation: ({ select }: { select: (value: { pathname: string }) => string }) =>
     select({ pathname: "/" }),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => router.navigate,
 }))
 
 vi.mock("@/lib/branding", () => ({
@@ -67,6 +69,7 @@ describe("PublicPageFrame navigation", () => {
     ;(
       globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true
+    router.navigate.mockReset()
   })
 
   afterEach(() => {
@@ -128,6 +131,60 @@ describe("PublicPageFrame navigation", () => {
     expect(
       document.body.querySelector('[role="menuitem"][href="/pricing"]')
     ).toBeNull()
+
+    await act(async () => root.unmount())
+  })
+
+  it("clears the shared site search and submits its q value", async () => {
+    const host = document.createElement("div")
+    document.body.appendChild(host)
+    const root = createRoot(host)
+
+    await act(async () => {
+      root.render(<PublicPageFrame>Page</PublicPageFrame>)
+    })
+
+    const input = host.querySelector<HTMLInputElement>(
+      'input[aria-label="Search this site"]'
+    )
+    expect(input).not.toBeNull()
+
+    await act(async () => {
+      if (!input) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(input, "pricing")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    const clear = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Clear search"]'
+    )
+    expect(clear).not.toBeNull()
+    await act(async () => clear?.click())
+    expect(input?.value).toBe("")
+
+    await act(async () => {
+      if (!input) return
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set
+      setter?.call(input, "guides")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      input?.form?.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      )
+    })
+
+    expect(router.navigate).toHaveBeenCalledWith({
+      to: "/search",
+      search: { q: "guides" },
+    })
 
     await act(async () => root.unmount())
   })

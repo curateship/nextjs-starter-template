@@ -98,6 +98,7 @@ function NavLink({
         rel="noreferrer"
         onClick={link.onClick}
         className={classes}
+        aria-current={link.active ? "page" : undefined}
       >
         <NavLinkBody link={link} />
       </a>
@@ -105,7 +106,12 @@ function NavLink({
   }
 
   return (
-    <Link {...toLinkProps(link.href)} onClick={link.onClick} className={classes}>
+    <Link
+      {...toLinkProps(link.href)}
+      onClick={link.onClick}
+      className={classes}
+      aria-current={link.active ? "page" : undefined}
+    >
       <NavLinkBody link={link} />
     </Link>
   )
@@ -145,6 +151,7 @@ function MenuNavLink({
         rel="noreferrer"
         onClick={handleClick}
         className={classes}
+        aria-current={link.active ? "page" : undefined}
       >
         <NavLinkBody link={link} />
       </a>
@@ -157,6 +164,7 @@ function MenuNavLink({
       {...toLinkProps(link.href)}
       onClick={handleClick}
       className={classes}
+      aria-current={link.active ? "page" : undefined}
     >
       <NavLinkBody link={link} />
     </Link>

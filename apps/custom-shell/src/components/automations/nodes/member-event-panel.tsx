@@ -45,7 +45,7 @@ export default function MemberEventFields({
         >
           <SelectTrigger
             id={`member-event-${node.id}-event`}
-            className="w-full"
+            className="w-full sm:w-fit"
           >
             <SelectValue />
           </SelectTrigger>

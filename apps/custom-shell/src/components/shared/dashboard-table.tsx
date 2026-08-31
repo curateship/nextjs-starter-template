@@ -69,6 +69,7 @@ type DashboardTableFooter =
 
 type DashboardTableBaseProps = {
   title: string
+  titleAs?: "h2" | "h3" | "h4" | "h5" | "h6"
   icon?: React.ReactNode
   count: number
   controls?: React.ReactNode
@@ -150,6 +151,7 @@ type DashboardTableProps = DashboardTableBaseProps &
 export function DashboardTable(props: DashboardTableProps) {
   const {
     title,
+    titleAs: Title = "h2",
     icon,
     count,
     controls,
@@ -184,7 +186,7 @@ export function DashboardTable(props: DashboardTableProps) {
               {icon}
             </span>
           ) : null}
-          <span className="text-sm font-medium sm:text-base">{title}</span>
+          <Title className="text-sm font-medium sm:text-base">{title}</Title>
           <Badge variant="secondary">
             {countsPending ? "—" : count.toLocaleString()}
           </Badge>

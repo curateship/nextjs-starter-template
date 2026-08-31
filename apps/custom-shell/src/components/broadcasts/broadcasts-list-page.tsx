@@ -121,6 +121,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
   const [pageSize, setPageSize] = React.useState(config.dashboardRowsPerPage)
   const [createOpen, setCreateOpen] = React.useState(false)
   const [createName, setCreateName] = React.useState("")
+  const [createNameTouched, setCreateNameTouched] = React.useState(false)
+  const [createAttempted, setCreateAttempted] = React.useState(false)
   const [runCreate, creating] = useAsyncAction(getBroadcastErrorMessage)
   const [duplicatingId, setDuplicatingId] = React.useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] =
@@ -175,6 +177,7 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
 
   const handleCreate = async () => {
     if (creating) return
+    setCreateAttempted(true)
     if (!createName.trim()) {
       showErrorToast("Newsletter name is required.")
       return
@@ -184,6 +187,8 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
       toast.success(`Created "${created.name}".`)
       setCreateOpen(false)
       setCreateName("")
+      setCreateNameTouched(false)
+      setCreateAttempted(false)
       await openEditor(created.id)
     })
   }
@@ -255,7 +260,13 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-            <DashboardToolbarButton onClick={() => setCreateOpen(true)}>
+            <DashboardToolbarButton
+              onClick={() => {
+                setCreateNameTouched(false)
+                setCreateAttempted(false)
+                setCreateOpen(true)
+              }}
+            >
               <PlusIcon className="size-4" />
               New newsletter
             </DashboardToolbarButton>
@@ -372,7 +383,11 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
         open={createOpen}
         dirty={Boolean(createName.trim())}
         busy={creating}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateNameTouched(false)
+          setCreateAttempted(false)
+          setCreateOpen(false)
+        }}
       >
         {(requestClose) => (
         <DialogContent variant="admin" className="sm:max-w-lg">
@@ -394,7 +409,12 @@ export function BroadcastsListPage({ initial }: { initial: BroadcastsPage }) {
                     autoFocus
                     placeholder="March update"
                     onChange={(event) => setCreateName(event.target.value)}
-                    aria-invalid={!createName.trim() || undefined}
+                    onBlur={() => setCreateNameTouched(true)}
+                    aria-invalid={
+                      (!createName.trim() &&
+                        (createNameTouched || createAttempted)) ||
+                      undefined
+                    }
                     onKeyDown={(event) => {
                       if (event.key !== "Enter") return
                       event.preventDefault()

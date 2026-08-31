@@ -1,12 +1,12 @@
 import * as React from "react"
 import { Link, useLocation } from "@tanstack/react-router"
-import { MenuIcon, SearchIcon } from "lucide-react"
+import { MenuIcon } from "lucide-react"
 
 import { AnnouncementBanner } from "@/components/shell/announcement-banner"
 import { BrandLogo } from "@/components/shell/brand-logo"
+import { DashboardToolbarSearch } from "@/components/shared/dashboard-toolbar"
 import { SiteSearchForm } from "@/components/shared/site-search-form"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +62,7 @@ export function PublicPageFrame({
   const [dismissedVisitorIds, setDismissedVisitorIds] = React.useState<
     Set<string>
   >(() => new Set())
+  const [siteSearch, setSiteSearch] = React.useState("")
 
   React.useEffect(() => {
     let active = true
@@ -141,20 +142,17 @@ export function PublicPageFrame({
           </Link>
           {pathname === "/search" ? null : (
             <SiteSearchForm className="ml-auto min-w-0 flex-1 md:max-w-56">
-              <div className="relative">
-                <SearchIcon
-                  aria-hidden="true"
-                  className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-                />
-                <Input
-                  name="q"
-                  type="search"
-                  aria-label="Search this site"
-                  placeholder="Search this site"
-                  maxLength={120}
-                  className="pl-8"
-                />
-              </div>
+              <DashboardToolbarSearch
+                className="min-w-0 flex-1 sm:flex-1"
+                inputClassName="sm:w-full lg:w-full"
+                name="q"
+                type="search"
+                aria-label="Search this site"
+                placeholder="Search this site"
+                maxLength={120}
+                value={siteSearch}
+                onChange={(event) => setSiteSearch(event.target.value)}
+              />
             </SiteSearchForm>
           )}
           {navigation.length ? (

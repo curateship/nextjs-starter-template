@@ -29,7 +29,7 @@ export function AccountMeteredUsageCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+        <CardTitle as="h3" className="flex items-center gap-2">
           <GaugeIcon className="size-4 text-muted-foreground" />
           Metered usage
         </CardTitle>

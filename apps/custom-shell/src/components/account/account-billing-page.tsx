@@ -199,7 +199,7 @@ export function AccountBillingPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Your plan</CardTitle>
+          <CardTitle as="h3">Your plan</CardTitle>
           <CardDescription>{planSummary(overview)}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-center gap-2">
@@ -306,7 +306,7 @@ export function AccountBillingPage({
       {cancelledEndsAt ? (
         <Card>
           <CardHeader>
-            <CardTitle>Your plan is set to end</CardTitle>
+            <CardTitle as="h3">Your plan is set to end</CardTitle>
             <CardDescription>
               You keep {overview.planName} until {formatDate(cancelledEndsAt)}.
               It will not renew, and you will not be charged again.
@@ -377,7 +377,7 @@ function CancellationSurveyCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Why are you leaving?</CardTitle>
+        <CardTitle as="h3">Why are you leaving?</CardTitle>
         <CardDescription>
           This is optional. You can continue without answering.
         </CardDescription>
@@ -443,7 +443,7 @@ function CancellationConfirmCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Cancel {planName}?</CardTitle>
+        <CardTitle as="h3">Cancel {planName}?</CardTitle>
         <CardDescription>
           You keep your plan until{" "}
           {endsAt ? formatDate(endsAt) : "the end of the period you paid for"}.
@@ -502,7 +502,7 @@ function CardExpiryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>
+        <CardTitle as="h3">
           {warning.expired
             ? "Your saved card has expired"
             : "Your card expires before your next renewal"}
@@ -541,7 +541,7 @@ function InvoicesCard({ invoices }: { invoices: BillingInvoice[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Invoices</CardTitle>
+        <CardTitle as="h3">Invoices</CardTitle>
         <CardDescription>Your last two years of receipts.</CardDescription>
       </CardHeader>
       <CardContent>

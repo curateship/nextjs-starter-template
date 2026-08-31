@@ -388,7 +388,10 @@ function VisibilitySelect({
       >
         {/* Named per row rather than leaning on the column heading, so the
             control says which page it belongs to when read out on its own. */}
-        <SelectTrigger className="w-fit" aria-label={`Who can see ${row.name}`}>
+        <SelectTrigger
+          className="w-full sm:w-fit"
+          aria-label={`Who can see ${row.name}`}
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

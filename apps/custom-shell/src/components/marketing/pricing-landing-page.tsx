@@ -17,6 +17,7 @@ import type { BillingInterval } from "@/lib/billing/pricing-choice"
 
 type LandingData = {
   signedIn: boolean
+  userRole: string | null
   plans: PlanOption[]
   billingEnabled: boolean
   trialUsed: boolean
@@ -60,6 +61,7 @@ export const pricingLandingPage = definePublicPage({
 
     return {
       signedIn: Boolean(user),
+      userRole: user?.role ?? null,
       plans: pricing.plans,
       billingEnabled: pricing.billingEnabled,
       trialUsed: Boolean(overview?.trialUsed),
@@ -78,10 +80,14 @@ export const pricingLandingPage = definePublicPage({
 })
 
 function PricingLanding({ data }: { data: LandingData }) {
-  const { signedIn, plans, billingEnabled, trialUsed } = data
+  const { signedIn, userRole, plans, billingEnabled, trialUsed } = data
   const appName = useAppName()
   const navigate = useNavigate()
   const [interval, setInterval] = React.useState<BillingInterval>("monthly")
+  const signedInAction =
+    userRole === "admin"
+      ? ({ to: "/admin/dashboard", label: "Go to overview" } as const)
+      : ({ to: "/home", label: "Go to home" } as const)
 
   // Picking a plan never checks out from here. A visitor has no account to bill
   // yet, and a member's own plan and the Stripe portal both live on /pricing,
@@ -108,7 +114,7 @@ function PricingLanding({ data }: { data: LandingData }) {
           <div className="flex flex-wrap justify-center gap-2">
             {signedIn ? (
               <Button asChild>
-                <Link to="/home">Go to dashboard</Link>
+                <Link to={signedInAction.to}>{signedInAction.label}</Link>
               </Button>
             ) : (
               <>
