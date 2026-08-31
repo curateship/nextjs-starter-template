@@ -1,5 +1,10 @@
 import * as React from "react"
-import { CandlestickChartIcon, Loader2Icon } from "lucide-react"
+import {
+  CandlestickChartIcon,
+  EyeIcon,
+  EyeOffIcon,
+  Loader2Icon,
+} from "lucide-react"
 
 import { ActiveTradesWidget } from "@/components/trade/active-trades-widget"
 import { Button } from "@/components/ui/button"
@@ -8,6 +13,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { loadActiveTradesHeader } from "@/lib/api/trade/active-trades-header"
 import type { AppHeaderActionProps } from "@/lib/app-options"
 import type { ActiveTradesSnapshot } from "@/lib/trade/dashboard/overview"
@@ -110,6 +120,7 @@ function useActiveTradesHeader() {
 function AdminActiveTradesHeader() {
   const { snapshot, failed, refresh } = useActiveTradesHeader()
   const [open, setOpen] = React.useState(false)
+  const [profitVisible, setProfitVisible] = React.useState(true)
   const closeTimer = React.useRef<number | null>(null)
   const hoverOpen = React.useRef(false)
   const figures = snapshot ? headerFigures(snapshot) : null
@@ -145,7 +156,9 @@ function AdminActiveTradesHeader() {
   }, [cancelClose, closeSoon, open])
 
   const label = figures
-    ? `Active trades, ${figures.value} in trades, ${figures.profit} profit and loss`
+    ? profitVisible
+      ? `Active trades, ${figures.value} in trades, ${figures.profit} profit and loss`
+      : `Active trades, ${figures.value} in trades, profit and loss hidden`
     : failed
       ? "Active trades could not be read"
       : "Reading active trades"
@@ -182,14 +195,18 @@ function AdminActiveTradesHeader() {
           <span className="font-mono text-xs tabular-nums">
             {figures?.value ?? "—"}
           </span>
-          <span
-            className={cn(
-              "font-mono text-xs font-medium tabular-nums",
-              figures ? moneyTone(figures.profitValue) : "text-muted-foreground"
-            )}
-          >
-            {figures?.profit ?? "—"}
-          </span>
+          {profitVisible ? (
+            <span
+              className={cn(
+                "font-mono text-xs font-medium tabular-nums",
+                figures
+                  ? moneyTone(figures.profitValue)
+                  : "text-muted-foreground"
+              )}
+            >
+              {figures?.profit ?? "—"}
+            </span>
+          ) : null}
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -205,6 +222,35 @@ function AdminActiveTradesHeader() {
             overview={snapshot}
             className="w-max max-w-full rounded-[inherit] bg-popover shadow-none ring-0 [&_[data-slot=table-container]]:w-max [&_table]:w-max"
             onTradeOpen={() => setOpen(false)}
+            headerAction={
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label={
+                      profitVisible
+                        ? "Hide header profit and loss"
+                        : "Show header profit and loss"
+                    }
+                    aria-pressed={!profitVisible}
+                    onClick={() => setProfitVisible((visible) => !visible)}
+                  >
+                    {profitVisible ? (
+                      <EyeIcon className="size-4" />
+                    ) : (
+                      <EyeOffIcon className="size-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {profitVisible
+                    ? "Hide header profit and loss"
+                    : "Show header profit and loss"}
+                </TooltipContent>
+              </Tooltip>
+            }
           />
         ) : failed ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">

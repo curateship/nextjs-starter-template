@@ -115,8 +115,12 @@ keyboard use. The menu fits the width its table needs, up to the available
 browser width. Moving away closes it. The header asks for a fresh answer every
 15 seconds while the browser tab is visible. The Active trades item can be
 moved or hidden under Settings → Top right menu. It appears only in the admin
-menu. A wallet that misses a read keeps its last known rows, and the header uses
-dashes rather than claiming a partial account-wide total.
+menu. The eye beside Filter hides the profit or loss from the header button and
+changes to a crossed eye. The value held stays visible, so the button still
+opens and the crossed eye can show the profit or loss again. The table keeps
+its P/L column either way. A wallet that misses a read keeps its last known
+rows, and the header uses dashes rather than claiming a partial account-wide
+total.
 
 Running bots is the fourth trading-overview widget. A new or reset dashboard
 puts it in the left column, beside All trades. A saved arrangement keeps its

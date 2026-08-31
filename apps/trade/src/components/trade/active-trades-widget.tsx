@@ -43,10 +43,12 @@ export function ActiveTradesWidget({
   overview,
   className,
   onTradeOpen,
+  headerAction,
 }: {
   overview: Pick<TradingOverview, "activeTrades" | "activeTradesUnavailable">
   className: string
   onTradeOpen?: () => void
+  headerAction?: React.ReactNode
 }) {
   const navigate = useNavigate()
   const [protocol, setProtocol] = React.useState<string | null>(null)
@@ -118,17 +120,20 @@ export function ActiveTradesWidget({
             </span>
           }
           action={
-            <ActiveTradeFilters
-              trades={overview.activeTrades}
-              protocol={protocol}
-              walletId={walletId}
-              onProtocolChange={setProtocol}
-              onWalletChange={setWalletId}
-              onClear={() => {
-                setProtocol(null)
-                setWalletId(null)
-              }}
-            />
+            <div className="flex items-center gap-2">
+              {headerAction}
+              <ActiveTradeFilters
+                trades={overview.activeTrades}
+                protocol={protocol}
+                walletId={walletId}
+                onProtocolChange={setProtocol}
+                onWalletChange={setWalletId}
+                onClear={() => {
+                  setProtocol(null)
+                  setWalletId(null)
+                }}
+              />
+            </div>
           }
         />
       }
