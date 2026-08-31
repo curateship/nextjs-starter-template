@@ -22,6 +22,7 @@ export type AdminPlan = {
   currency: string
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
@@ -46,6 +47,8 @@ const getPlanErrorMessageForCode = createErrorMessage(
       "Add the Stripe price id for the monthly price, or set the monthly price to 0.",
     PLAN_YEARLY_PRICE_REQUIRED:
       "Add the Stripe price id for the yearly price, or set the yearly price to 0.",
+    PLAN_USAGE_METER_INVALID:
+      "Use the exact Stripe meter event name, without spaces.",
     FEATURES_INVALID: "Features must be valid JSON, like {\"seats\": 3}.",
     duplicate: "Another plan already uses that id, Stripe price, or pricing-page highlight.",
   },
@@ -75,6 +78,7 @@ const planInputSchema = z.object({
   currency: z.string().trim().min(1).max(10).default("usd"),
   stripePriceIdMonthly: z.string().trim().max(120).nullable().default(null),
   stripePriceIdYearly: z.string().trim().max(120).nullable().default(null),
+  usageMeter: z.string().trim().max(100).nullable().default(null),
   trialDays: z.number().int().min(0).max(365).default(0),
   features: z
     .record(
@@ -164,6 +168,7 @@ function serializePlan(plan: {
   currency: string
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
@@ -184,6 +189,7 @@ function serializePlan(plan: {
     currency: plan.currency,
     stripePriceIdMonthly: plan.stripePriceIdMonthly,
     stripePriceIdYearly: plan.stripePriceIdYearly,
+    usageMeter: plan.usageMeter,
     trialDays: plan.trialDays,
     features: plan.features ?? {},
     isDefault: plan.isDefault,

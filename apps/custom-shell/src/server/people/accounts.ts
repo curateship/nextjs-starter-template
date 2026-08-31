@@ -878,7 +878,12 @@ export async function loadRevenueSummary(
         ? Math.round(row.plan.priceYearlyCents / 12)
         : row.plan.priceMonthlyCents
 
-    monthlyRecurringCents += monthlyCents
+    // A usage price is a per-unit rate, not recurring revenue. Stripe works
+    // out its variable invoice from meter events, so counting the unit price
+    // here as monthly revenue would make the headline knowingly wrong.
+    if (!row.plan.usageMeter) {
+      monthlyRecurringCents += monthlyCents
+    }
 
     const entry = breakdown.get(row.plan.id) ?? {
       planId: row.plan.id,

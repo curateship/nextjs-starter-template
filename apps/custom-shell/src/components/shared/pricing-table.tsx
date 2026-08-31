@@ -14,6 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatMoney } from "@/lib/format/money"
 import type { PlanOption } from "@/lib/api/billing/billing"
 import { describePlanFeatures } from "@/lib/billing/plan-features"
+import { describeCode } from "@/lib/format/code-label"
 import type { BillingInterval } from "@/lib/billing/pricing-choice"
 import { cn } from "@/lib/utils"
 
@@ -182,7 +183,9 @@ function PlanCard({
                 : "not sold monthly"
               : priceCents === 0
                 ? "forever"
-                : interval === "yearly"
+                : plan.usageMeter
+                  ? `per ${describeCode(plan.usageMeter).toLowerCase()}, billed ${interval}`
+                  : interval === "yearly"
                   ? "per year"
                   : "per month"}
           </span>

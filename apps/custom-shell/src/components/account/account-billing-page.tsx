@@ -5,6 +5,7 @@ import { showErrorToast } from "@/lib/toast/error-toast"
 
 import { AccountAiUsageCard } from "@/components/account/account-ai-usage-card"
 import { AccountBillingHistoryCard } from "@/components/account/account-billing-history-card"
+import { AccountMeteredUsageCard } from "@/components/account/account-metered-usage-card"
 import { EmptyRow } from "@/components/shared/feed-card"
 import { PaymentsOffCard } from "@/components/shared/payments-off-card"
 import { PricingTable } from "@/components/shared/pricing-table"
@@ -48,6 +49,7 @@ import {
   type BillingOverview,
   type CardExpiryWarning,
   type PlanOption,
+  type MemberUsageSummary,
 } from "@/lib/api/billing/billing"
 import {
   CANCELLATION_FEEDBACK_MAX_LENGTH,
@@ -86,12 +88,14 @@ export function AccountBillingPage({
   invoices,
   cardWarning,
   billingHistory,
+  usage,
   onChanged,
 }: {
   overview: BillingOverview
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
   billingHistory: MemberSubscriptionEvent[]
+  usage: MemberUsageSummary
   /** Re-reads the page after a pause or a resume changed what it says. */
   onChanged: () => void
 }) {
@@ -327,6 +331,8 @@ export function AccountBillingPage({
       />
 
       <AccountBillingHistoryCard events={billingHistory} />
+
+      <AccountMeteredUsageCard usage={usage} />
 
       <AccountAiUsageCard />
 

@@ -22,6 +22,7 @@ import {
 } from "@/server/billing/stripe"
 import { loadEntitlements } from "@/server/billing/entitlements"
 import { listMemberSubscriptionEvents } from "@/server/billing/subscription-events"
+import { loadMemberUsage, type MemberUsageSummary } from "@/server/billing/usage"
 import { getPlanBySlug, listPurchasablePlans } from "@/server/billing/plans"
 import { enforceRateLimit } from "@/server/auth/rate-limit"
 import type { CustomShellUser } from "@/server/schema"
@@ -37,6 +38,7 @@ export type PlanOption = {
   priceMonthlyCents: number
   priceYearlyCents: number
   currency: string
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
@@ -262,12 +264,14 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
       invoices: BillingInvoice[]
       cardWarning: CardExpiryWarning | null
       billingHistory: MemberSubscriptionEvent[]
+      usage: MemberUsageSummary
     }> => {
       // No account id comes from the browser. The session supplies the only id
       // used for this history read, so another member's events are unreachable.
-      const [{ overview, subscription }, billingHistory] = await Promise.all([
+      const [{ overview, subscription }, billingHistory, usage] = await Promise.all([
         buildBillingOverview(context.user),
         listMemberSubscriptionEvents(context.user.id),
+        loadMemberUsage(context.user.id),
       ])
 
       // Both of these are calls out to Stripe, so make them at the same time
@@ -284,7 +288,7 @@ const loadBillingPageFn = createServerFn({ method: "GET" })
           : null,
       ])
 
-      return { overview, invoices, cardWarning, billingHistory }
+      return { overview, invoices, cardWarning, billingHistory, usage }
     }
   )
 
@@ -339,7 +343,7 @@ export function loadBillingPage() {
 
 // Types only — a runtime value re-exported from @/server/* would drag the
 // database driver into the browser bundle and kill hydration app-wide.
-export type { BillingInvoice, CardExpiryWarning }
+export type { BillingInvoice, CardExpiryWarning, MemberUsageSummary }
 
 function toPlanOption(plan: {
   id: string
@@ -349,6 +353,7 @@ function toPlanOption(plan: {
   priceMonthlyCents: number
   priceYearlyCents: number
   currency: string
+  usageMeter: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
@@ -365,6 +370,7 @@ function toPlanOption(plan: {
     priceMonthlyCents: plan.priceMonthlyCents,
     priceYearlyCents: plan.priceYearlyCents,
     currency: plan.currency,
+    usageMeter: plan.usageMeter,
     trialDays: plan.trialDays,
     features: plan.features ?? {},
     isDefault: plan.isDefault,

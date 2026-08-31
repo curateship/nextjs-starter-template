@@ -1,6 +1,7 @@
 import * as React from "react"
-import { getRouteApi, useNavigate } from "@tanstack/react-router"
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router"
 import {
+  GaugeIcon,
   Loader2Icon,
   PackageIcon,
   PlusIcon,
@@ -113,6 +114,7 @@ type PlanDraft = {
   currency: string
   stripePriceIdMonthly: string
   stripePriceIdYearly: string
+  usageMeter: string
   trialDays: string
   /** Dollars of AI a month, its own field so nobody has to hand-edit JSON. */
   aiDollars: string
@@ -134,6 +136,7 @@ const emptyDraft: PlanDraft = {
   currency: "usd",
   stripePriceIdMonthly: "",
   stripePriceIdYearly: "",
+  usageMeter: "",
   trialDays: "0",
   aiDollars: "",
   features: "{}",
@@ -312,6 +315,12 @@ export function AdminPlansDashboard({
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
             />
+            <DashboardToolbarButton asChild type="button" variant="outline">
+              <Link to="/admin/ai-usage">
+                <GaugeIcon className="size-4" />
+                Metered usage
+              </Link>
+            </DashboardToolbarButton>
             <DashboardToolbarButton type="button" onClick={() => setCreating(true)}>
               <PlusIcon className="size-4" />
               New plan
@@ -400,7 +409,9 @@ export function AdminPlansDashboard({
             </TableCell>
             <TableCell column="meta">
               {plan.stripePriceIdMonthly || plan.stripePriceIdYearly ? (
-                <Badge variant="secondary">Connected</Badge>
+                <Badge variant="secondary">
+                  {plan.usageMeter ? "Metered" : "Connected"}
+                </Badge>
               ) : (
                 <Badge variant="outline">Not connected</Badge>
               )}
@@ -577,6 +588,7 @@ function PlanDialog({
       currency: draft.currency,
       stripePriceIdMonthly: draft.stripePriceIdMonthly.trim() || null,
       stripePriceIdYearly: draft.stripePriceIdYearly.trim() || null,
+      usageMeter: draft.usageMeter.trim() || null,
       trialDays: Number.parseInt(draft.trialDays || "0", 10) || 0,
       features,
       isDefault: draft.isDefault,
@@ -785,6 +797,18 @@ function PlanDialog({
                   </Field>
                 </div>
                 <Field
+                  label="Stripe meter event name"
+                  htmlFor="plan-usage-meter"
+                  help="Leave empty for a fixed recurring price. For usage pricing, copy the event name from Stripe and keep its default customer and value payload keys."
+                >
+                  <Input
+                    id="plan-usage-meter"
+                    placeholder="api_requests"
+                    value={draft.usageMeter}
+                    onChange={(event) => update("usageMeter", event.target.value)}
+                  />
+                </Field>
+                <Field
                   label="Free trial days"
                   htmlFor="plan-trial"
                   help="0 means no trial."
@@ -949,6 +973,7 @@ function toDraft(plan: AdminPlan): PlanDraft {
     currency: plan.currency,
     stripePriceIdMonthly: plan.stripePriceIdMonthly ?? "",
     stripePriceIdYearly: plan.stripePriceIdYearly ?? "",
+    usageMeter: plan.usageMeter ?? "",
     trialDays: plan.trialDays.toString(),
     aiDollars: aiIsNumber ? aiValue.toString() : "",
     features: JSON.stringify(

@@ -26,6 +26,7 @@ import {
   type BillingInvoice,
   type BillingOverview,
   type CardExpiryWarning,
+  type MemberUsageSummary,
   type PlanSummary,
 } from "@/lib/api/billing/billing"
 import type { MemberSubscriptionEvent } from "@/lib/billing/subscription-events"
@@ -285,6 +286,7 @@ type BillingTabData = {
   invoices: BillingInvoice[]
   cardWarning: CardExpiryWarning | null
   billingHistory: MemberSubscriptionEvent[]
+  usage: MemberUsageSummary
 }
 
 /**
@@ -355,6 +357,7 @@ function BillingTab({ userId }: { userId: string }) {
       invoices={data.invoices}
       cardWarning={data.cardWarning}
       billingHistory={data.billingHistory}
+      usage={data.usage}
       // Pausing changes the plan, the badges and the buttons all at once, so
       // the tab re-reads itself rather than trying to patch what it is showing.
       onChanged={() => setReloads((count) => count + 1)}

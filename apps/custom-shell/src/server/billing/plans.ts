@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, ne, or } from "drizzle-orm"
 
 import type { PlanFeatures } from "@/lib/billing/plan-features"
+import { isUsageMeter } from "@/lib/billing/usage-meter"
 import { db, type CustomShellDb } from "@/server/db"
 import { customShellPlans, type CustomShellPlan } from "@/server/schema"
 import { now, uuid } from "@/server/auth/security"
@@ -14,6 +15,7 @@ export type PlanInput = {
   currency: string
   stripePriceIdMonthly: string | null
   stripePriceIdYearly: string | null
+  usageMeter?: string | null
   trialDays: number
   features: PlanFeatures
   isDefault: boolean
@@ -219,6 +221,9 @@ function validatePlanInput(input: PlanInput) {
   if (!input.name.trim()) {
     throw new Error("PLAN_NAME_REQUIRED")
   }
+  if (input.usageMeter && !isUsageMeter(input.usageMeter.trim())) {
+    throw new Error("PLAN_USAGE_METER_INVALID")
+  }
   if (input.isDefault && (input.priceMonthlyCents > 0 || input.priceYearlyCents > 0)) {
     throw new Error("DEFAULT_PLAN_MUST_BE_FREE")
   }
@@ -246,6 +251,7 @@ function normalizePlanInput(input: PlanInput) {
     currency: input.currency.trim().toLowerCase().slice(0, 10) || "usd",
     stripePriceIdMonthly: emptyToNull(input.stripePriceIdMonthly),
     stripePriceIdYearly: emptyToNull(input.stripePriceIdYearly),
+    usageMeter: emptyToNull(input.usageMeter, 100),
     trialDays: input.trialDays,
     features: input.features,
     isDefault: input.isDefault,

@@ -222,6 +222,12 @@ comes from the Stripe price id on that row. The browser only ever sends a plan
 slug and a billing period, so a tampered request cannot buy Pro at another
 plan's price.
 
+A plan may also carry one Stripe meter event name. Its Stripe price must be a
+metered recurring price tied to a meter with that event name. Checkout omits the
+fixed quantity Stripe rejects on metered prices, and the pricing card labels the
+amount as a unit price billed on the selected period. The meter keeps Stripe's
+default `stripe_customer_id` and `value` payload keys.
+
 Rules the server enforces:
 
 - Exactly one plan is the default, and the default must cost nothing. It is what
@@ -279,6 +285,19 @@ changes, plan switches and cancellation. This app never handles card details.
 **Invoices** are read live from Stripe on the billing page rather than mirrored
 into a table, so they cannot drift.
 
+**Metered usage.** Product code calls
+`recordUsage(userId, meter, quantity)` from `src/server/billing/usage.ts` after
+the measured work succeeds. The helper accepts whole positive quantities. It
+writes `usage_events` before sending a Stripe meter event, using the local row id
+as Stripe's retry identifier. A Stripe failure leaves the local row pending and
+does not undo product work that already happened.
+
+Only an active Stripe subscription whose plan names the same meter is reported.
+All other events remain local and still count on the member and admin
+dashboards. Invoice webhooks retry pending events for their customer one at a
+time. Events past Stripe's 35-day limit become failed records for an admin to
+see rather than an endless retry.
+
 **Webhook.** Authenticated by verifying Stripe's signature over the raw body —
 deliberately no browser-origin check, because Stripe is a server and sends no
 Origin. Handled events:
@@ -287,6 +306,7 @@ Origin. Handled events:
 | --- | --- |
 | `checkout.session.completed` | Fetches the real subscription from Stripe and upserts it |
 | `customer.subscription.created` / `.updated` / `.deleted` | Upserts status, plan, interval, period end, cancel flag, trial end |
+| `invoice.created` | Retries pending meter events for that Stripe customer before invoice finalization |
 
 Processing is idempotent: the transaction claims the Stripe event id first, so a
 duplicate delivery — even two copies arriving at once — writes nothing the
@@ -338,13 +358,17 @@ state, upgrade, Stripe portal, invoices), `/account/billing/success`.
 restore, edit modal for role / status / granted plan / cancelling a paid plan,
 plus a "Locked out" window showing who the rate limiter is currently blocking,
 with one-click unblock), `/admin/plans` (create, edit, archive),
-`/admin/billing` (monthly recurring revenue, subscriber counts, revenue by plan).
+`/admin/ai-usage` (metered units by meter and account, plus Stripe reporting
+status). The shell adds Metered usage to the saved Dashboard group as part of
+its navigation upgrade. That group supplies the top-left menu on the page. The
+upgrade also moves an existing copy from another saved group, changes an
+absolute address for this page to its internal route, and removes duplicates.
 
-Both admin tables follow `.agents/skills/Ui-standards`: a selection column with
-select-all, an interactive title that opens the edit modal, every data column
-sortable, the multi-selection action first in the toolbar and the primary button
-last, and each row ending with the same two ghost icon buttons — settings then
-delete.
+The editable Users and Plans tables follow `.agents/skills/Ui-standards`: a
+selection column with select-all, an interactive title that opens the edit
+modal, every data column sortable, the multi-selection action first in the
+toolbar and the primary button last, and each row ending with the same two ghost
+icon buttons — settings then delete.
 
 **Navigation.** New workspaces get an Account section, an admin-only
 Administration section, and the existing Platform Settings section
@@ -468,6 +492,6 @@ in `users.role`; change it from `/admin/users`.
 
 ## 15. Not included
 
-Teams or organisations (billing is per user), seats and invites, usage-based
-metering, coupons and promotion codes, tax handling, and dunning email beyond
-Stripe's own.
+Teams or organisations (billing is per user), seats and invites, coupons and
+promotion codes, tax handling, complex metered-pricing controls, and dunning
+email beyond Stripe's own.
