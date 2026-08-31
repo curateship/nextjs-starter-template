@@ -69,6 +69,7 @@ import {
   panelLayoutKey,
   useRememberedPanelLayout,
 } from "@/lib/layout/panel-layout"
+import { pageGutter } from "@/lib/layout/shell-gutter"
 import { useWideScreen } from "@/lib/layout/wide-screen"
 import type { SaveStatus } from "@/components/shell/sticky-header/sticky-header"
 
@@ -877,7 +878,7 @@ export function AutomationEditor({
   return (
     <div
       className="flex min-h-0 flex-1 flex-col"
-      style={{ gap: "var(--shell-gutter, 0.75rem)" }}
+      style={{ gap: pageGutter }}
       onKeyDown={(event) => {
         // Escape backs out of a node picked in the palette but not yet added.
         // It calls what the panel's Cancel button calls, so there is one way to

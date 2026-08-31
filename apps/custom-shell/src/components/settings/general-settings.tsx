@@ -155,7 +155,10 @@ export function GeneralSettings({
               })
             }
           >
-            <SelectTrigger id="dashboard-rows-per-page" className="w-32">
+            <SelectTrigger
+              id="dashboard-rows-per-page"
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -184,7 +187,10 @@ export function GeneralSettings({
               })
             }
           >
-            <SelectTrigger id="top-left-nav-limit" className="w-32">
+            <SelectTrigger
+              id="top-left-nav-limit"
+              className="w-full sm:w-fit"
+            >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

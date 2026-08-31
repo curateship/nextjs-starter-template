@@ -29,7 +29,9 @@ Responsive navigation has two modes:
 
 Public pages use a separate signed-out frame with their own header, footer,
 navigation, and sign-in actions. Internal public links use router navigation.
-External links remain normal document navigation.
+External links remain normal document navigation. The header search uses the
+same clearable field as signed-in lists and submits its current `q` value to the
+public search page.
 
 ## Shared state
 

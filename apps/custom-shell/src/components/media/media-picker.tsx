@@ -529,7 +529,6 @@ function MediaPickerSession({
               </Button>
               <Button
                 type="button"
-                aria-invalid={!activeSelectedMedia || undefined}
                 onClick={() => {
                   if (!activeSelectedMedia) {
                     showErrorToast("Choose a file before selecting it.")
