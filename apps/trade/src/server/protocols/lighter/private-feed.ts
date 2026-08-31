@@ -98,7 +98,8 @@ type Account = {
   /** Lighter's own rows, kept raw so `account.ts` does the reading. */
   positions: unknown[]
   stats: Record<string, unknown> | null
-  restingOrders: unknown[] | null
+  /** Each market's current resting orders, keyed the way Lighter pushes them. */
+  restingOrders: Record<string, unknown[]> | null
   /** When each part last arrived, so a half-open line is never called fresh. */
   positionsAt: number
   statsAt: number
@@ -318,6 +319,48 @@ export function lighterPositionsFromFrame(packet: unknown): unknown[] | null {
     : Object.values(positions as Record<string, unknown>)
 }
 
+/**
+ * An update frame folded into the positions already held, market by market.
+ *
+ * **Lighter's updates carry only the markets that changed.** Measured against
+ * the live socket on 31 Aug 2026: the opening snapshot named all six of the
+ * account's markets, then each of four updates named exactly one — `LINK`,
+ * size 0 — at the moments an order touched that market. Taking an update as
+ * the whole list is what blanked every position on screen the moment any
+ * order was worked: two real positions were standing on the exchange while
+ * the feed held one row that said LINK holds nothing.
+ *
+ * So a snapshot replaces and an update merges. Each row lands on its own
+ * market's slot — a zeroed row lands too, which is how a closed position
+ * leaves the screen. A row whose market cannot be read is kept by neither
+ * side of the doubt: it replaces nothing and is appended to the end, so the
+ * account converters can still refuse it on its own terms.
+ */
+export function mergeLighterPositions(
+  held: readonly unknown[],
+  pushed: readonly unknown[]
+): unknown[] {
+  const marketOf = (row: unknown): string | null => {
+    if (!row || typeof row !== "object") return null
+    const id = (row as { market_id?: unknown }).market_id
+    if (typeof id === "number" || typeof id === "string") return String(id)
+    return null
+  }
+  const merged = new Map<string, unknown>()
+  const unkeyed: unknown[] = []
+  for (const row of held) {
+    const key = marketOf(row)
+    if (key === null) unkeyed.push(row)
+    else merged.set(key, row)
+  }
+  for (const row of pushed) {
+    const key = marketOf(row)
+    if (key === null) unkeyed.push(row)
+    else merged.set(key, row)
+  }
+  return [...merged.values(), ...unkeyed]
+}
+
 /** The money figures on a `user_stats` frame. */
 export function lighterStatsFromFrame(
   packet: unknown
@@ -349,7 +392,12 @@ function apply(hub: Hub, packet: unknown): void {
   if (type.endsWith("/account_all")) {
     const positions = lighterPositionsFromFrame(frame)
     if (positions) {
-      account.positions = positions
+      // A snapshot is the whole account; an update names only the markets
+      // that changed, so it folds into what is held — see
+      // `mergeLighterPositions` for the measurement behind the difference.
+      account.positions = type.startsWith("update")
+        ? mergeLighterPositions(account.positions, positions)
+        : positions
       account.positionsAt = now
     }
     pushTrades(account, frame.trades)
@@ -366,11 +414,28 @@ function apply(hub: Hub, packet: unknown): void {
   if (type.endsWith("/account_all_orders")) {
     const orders = frame.orders
     if (orders && typeof orders === "object") {
-      account.restingOrders = Array.isArray(orders)
-        ? orders
-        : Object.values(orders as Record<string, unknown>).flatMap((one) =>
-            Array.isArray(one) ? one : [one]
-          )
+      if (Array.isArray(orders)) {
+        // An unkeyed list says nothing about which markets it covers, so it
+        // can only stand as the whole answer.
+        account.restingOrders = { "": orders }
+      } else {
+        /**
+         * Keyed by market, each key carrying that market's CURRENT list — an
+         * empty one included, which is how a cancelled order leaves. An
+         * update names only the markets it is about (the same delta shape the
+         * positions channel was measured sending on 31 Aug 2026), so its
+         * keys land on the held map rather than becoming the whole of it.
+         */
+        const pushed: Record<string, unknown[]> = {}
+        for (const [key, one] of Object.entries(
+          orders as Record<string, unknown>
+        )) {
+          pushed[key] = Array.isArray(one) ? one : [one]
+        }
+        account.restingOrders = type.startsWith("update")
+          ? { ...(account.restingOrders ?? {}), ...pushed }
+          : pushed
+      }
       account.ordersAt = now
     }
   }
@@ -602,7 +667,7 @@ export function lighterOrdersFromFeed(
   const hub = hubs().get(network)
   const held = hub?.accounts.get(accountIndex)
   if (!held || held.restingOrders === null || held.ordersAt === 0) return null
-  return isOpen(hub) ? held.restingOrders : null
+  return isOpen(hub) ? Object.values(held.restingOrders).flat() : null
 }
 
 /** Whether the line is up. A closed one has already cleared its snapshots. */

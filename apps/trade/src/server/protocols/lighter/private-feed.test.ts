@@ -12,6 +12,7 @@ import {
   lighterStatsFromFrame,
   markLighterFillsAttempted,
   markLighterFillsReconciled,
+  mergeLighterPositions,
 } from "@/server/protocols/lighter/private-feed"
 import { lighterMarginFraction } from "@/server/protocols/lighter/signer"
 
@@ -159,6 +160,50 @@ describe("a Lighter account arriving over the socket", () => {
     expect(lighterPositionsFromFrame({ type: "connected" })).toBeNull()
     expect(lighterPositionsFromFrame(null)).toBeNull()
     expect(lighterStatsFromFrame({ channel: "user_stats:1" })).toBeNull()
+  })
+
+  it("folds an update into the held positions instead of replacing them", () => {
+    /**
+     * Measured on the live socket, 31 Aug 2026: the snapshot named all six of
+     * the account's markets, then each update named exactly ONE — LINK, size
+     * 0 — at the moments an order touched it. Taking that update as the whole
+     * list wiped two real positions off the screen while both still stood on
+     * the exchange.
+     */
+    const held = lighterPositionsFromFrame(ACCOUNT_ALL) ?? []
+    const update = lighterPositionsFromFrame({
+      type: "update/account_all",
+      channel: "account_all:337499",
+      positions: {
+        "8": { market_id: 8, symbol: "LINK", sign: 1, position: "0.0" },
+      },
+    })
+    const merged = mergeLighterPositions(held, update ?? [])
+    const symbols = merged.map((one) => (one as { symbol: string }).symbol)
+    expect(symbols).toEqual(["ETH", "PUMP", "LINK"])
+  })
+
+  it("lets an update replace its own market's row", () => {
+    const held = lighterPositionsFromFrame(ACCOUNT_ALL) ?? []
+    const merged = mergeLighterPositions(held, [
+      { market_id: 0, symbol: "ETH", sign: 1, position: "0.0205" },
+    ])
+    expect(merged).toHaveLength(2)
+    const eth = merged.find(
+      (one) => (one as { symbol: string }).symbol === "ETH"
+    ) as { position: string }
+    // The pushed row stands for its market; the other market is untouched.
+    expect(eth.position).toBe("0.0205")
+  })
+
+  it("keeps a row it cannot key rather than guessing a market for it", () => {
+    const merged = mergeLighterPositions(
+      [{ market_id: 0, symbol: "ETH" }],
+      [{ symbol: "???" }]
+    )
+    // Appended, not dropped and not replacing anything: the account
+    // converters refuse it on its own terms downstream.
+    expect(merged).toHaveLength(2)
   })
 })
 

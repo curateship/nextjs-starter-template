@@ -229,6 +229,161 @@ async function applyLighterLeverage(
   await send(network, where, LIGHTER_TX_TYPE.updateLeverage, signed.txInfo)
 }
 
+/**
+ * Reads a just-sent order back off the exchange, because Lighter's `sendTx`
+ * answer proves nothing about the order.
+ *
+ * **Lighter accepts the transaction and then cancels the order without a
+ * word.** Measured 31 Aug 2026: a watched LINK sell triggered, the engine
+ * placed and chased it, every send was answered `200`, and the app journaled
+ * "Resting on the exchange" four times — while Lighter's own order history
+ * says `canceled-post-only` and the book held nothing. The silent cancel left
+ * the watch's money-was-sent flag raised with no order behind it, so the
+ * watch died instead of re-resting, which is the exact freeze
+ * `watched-orders.md` describes on Hyperliquid — except Hyperliquid says the
+ * refusal out loud and Lighter does not.
+ *
+ * So the refusal is fetched. The order is looked up by the app's own number:
+ * on the active list it is resting; on the inactive list its status says
+ * plainly whether it filled or why it was cancelled; on neither, the
+ * transaction itself died and the nonce count is thrown away. A cancelled or
+ * missing order becomes `LIVE_ORDER_REFUSED`, the one prefix `nothingStood`
+ * trusts to mean the exchange kept nothing — which frees the chase to try
+ * again on its next pass instead of waiting forever.
+ *
+ * **When the check itself cannot be made, the order is called resting.** A
+ * refusal invented on a failed read would send the chase back in while the
+ * real order still rests, and the same thing would be bought twice. An
+ * unverified "resting" is exactly what every placement answered before this
+ * existed, so it is the safe wrong answer.
+ */
+const CONFIRM_DELAYS_MS = [400, 1200]
+let confirmDelays: readonly number[] = CONFIRM_DELAYS_MS
+
+/** Tests only: shrinks the confirm's waits so a case is not seconds long. */
+export function setLighterConfirmDelaysForTests(
+  delays: readonly number[] | null
+): void {
+  confirmDelays = delays ?? CONFIRM_DELAYS_MS
+}
+
+/** How much of the inactive list is searched for the order just sent. */
+const CONFIRM_ROWS = 20
+
+const confirmOrderSchema = z.object({
+  client_order_index: z.number(),
+  status: z.string().optional(),
+  filled_base_amount: z.union([z.string(), z.number()]).optional(),
+  filled_quote_amount: z.union([z.string(), z.number()]).optional(),
+})
+
+const confirmAnswerSchema = z.object({
+  orders: z.array(z.unknown()).default([]),
+})
+
+function confirmRowFor(
+  answer: unknown,
+  clientOrderIndex: number
+): z.infer<typeof confirmOrderSchema> | null {
+  const parsed = confirmAnswerSchema.safeParse(answer)
+  if (!parsed.success) return null
+  for (const raw of parsed.data.orders) {
+    const row = confirmOrderSchema.safeParse(raw)
+    if (row.success && row.data.client_order_index === clientOrderIndex) {
+      return row.data
+    }
+  }
+  return null
+}
+
+type ConfirmedOrder =
+  | { stood: "resting" }
+  | { stood: "filled"; avgPx: number | null; filledSz: number | null }
+
+async function confirmLighterOrder(
+  network: NetworkId,
+  where: { accountIndex: number; apiKeyIndex: number; marketIndex: number },
+  clientOrderIndex: number
+): Promise<ConfirmedOrder> {
+  let inactive: z.infer<typeof confirmOrderSchema> | null = null
+  let bothListsAnswered = false
+  try {
+    for (const delay of confirmDelays) {
+      // The cancel that matters lands within the same second as the send,
+      // but "not there yet" and "never there" look identical, so a missing
+      // order gets a second, later look before it is called dead.
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      const token = await lighterAuthToken(where)
+      const active = await lighterPrivate(
+        network,
+        "/api/v1/accountActiveOrders",
+        UNLISTED_WEIGHT,
+        token.token,
+        { account_index: where.accountIndex, market_id: where.marketIndex },
+        "order"
+      )
+      if (!confirmAnswerSchema.safeParse(active).success) {
+        return { stood: "resting" }
+      }
+      if (confirmRowFor(active, clientOrderIndex)) return { stood: "resting" }
+      const done = await lighterPrivate(
+        network,
+        "/api/v1/accountInactiveOrders",
+        UNLISTED_WEIGHT,
+        token.token,
+        {
+          account_index: where.accountIndex,
+          market_id: where.marketIndex,
+          limit: CONFIRM_ROWS,
+        },
+        "order"
+      )
+      if (!confirmAnswerSchema.safeParse(done).success) {
+        return { stood: "resting" }
+      }
+      bothListsAnswered = true
+      inactive = confirmRowFor(done, clientOrderIndex)
+      if (inactive) break
+    }
+  } catch {
+    return { stood: "resting" }
+  }
+
+  if (inactive) {
+    // Lighter's inactive rows state amounts in ordinary units, so the fill
+    // price is their plain quotient rather than anything rescaled.
+    const filledSz = num(inactive.filled_base_amount)
+    const filledQuote = num(inactive.filled_quote_amount)
+    if (filledSz !== null && filledSz > 0) {
+      return {
+        stood: "filled",
+        avgPx:
+          filledQuote !== null && filledQuote > 0
+            ? filledQuote / filledSz
+            : null,
+        filledSz,
+      }
+    }
+    if (inactive.status === "canceled-post-only") {
+      throw new Error(
+        "LIVE_ORDER_REFUSED:Lighter cancelled the order rather than let it take the market — post-only may only rest. Nothing was kept."
+      )
+    }
+    throw new Error(
+      `LIVE_ORDER_REFUSED:Lighter cancelled the order without filling it (${inactive.status ?? "no reason given"}). Nothing was kept.`
+    )
+  }
+
+  if (!bothListsAnswered) return { stood: "resting" }
+  // On neither list after two looks: the transaction itself never made an
+  // order. The likeliest cause is a spent sequence number, so the count is
+  // thrown away and the next order asks Lighter where the sequence really is.
+  forgetLighterNonce(network, where.accountIndex, where.apiKeyIndex)
+  throw new Error(
+    "LIVE_ORDER_REFUSED:Lighter never kept the order — the transaction was accepted and produced nothing. Nothing was kept."
+  )
+}
+
 export async function placeLighterOrder(
   network: NetworkId,
   auth: OrderAuth,
@@ -294,12 +449,21 @@ export async function placeLighterOrder(
   })
   await send(network, where, LIGHTER_TX_TYPE.createOrder, signed.txInfo)
 
+  /**
+   * The send proves nothing — Lighter cancels a crossing post-only order
+   * without telling the sender, so the order is read back and a cancelled or
+   * missing one becomes a refusal instead of a journal line about an order
+   * that does not exist. See `confirmLighterOrder`.
+   */
+  const confirmed = await confirmLighterOrder(network, where, clientOrderIndex)
+
   return {
-    // Post-only never fills on arrival: it rests or it is refused.
-    status: "resting",
+    // Resting when the book holds it; filled when Lighter's history says a
+    // fast market took it before the read-back.
+    status: confirmed.stood,
     orderId: String(clientOrderIndex),
-    avgPx: null,
-    filledSz: null,
+    avgPx: confirmed.stood === "filled" ? confirmed.avgPx : null,
+    filledSz: confirmed.stood === "filled" ? confirmed.filledSz : null,
     /**
      * Lighter cannot carry a stop or target on the entry itself — each one is
      * its own order, placed by `setBrackets` once the position exists. So an

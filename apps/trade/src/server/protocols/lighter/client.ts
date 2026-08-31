@@ -194,9 +194,10 @@ export async function lighterPrivate(
   path: string,
   weight: number,
   token: string,
-  params: Record<string, string | number> = {}
+  params: Record<string, string | number> = {},
+  priority: "background" | "watched" | "order" = "background"
 ): Promise<unknown> {
-  return lighterPublic(network, path, weight, { ...params, auth: token })
+  return lighterPublic(network, path, weight, { ...params, auth: token }, priority)
 }
 
 /**

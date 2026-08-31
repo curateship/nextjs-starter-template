@@ -217,6 +217,19 @@ on a timer tore the socket down and rebuilt it forever, and left every read
 falling back to REST — the exact thing the feed exists to stop. So the snapshot
 stands until Lighter replaces it or the line closes.
 
+**An update names only the markets that changed, and it must be folded in,
+never taken as the whole account.** Measured on the live socket on
+31 Aug 2026: the opening snapshot named all six of the account's markets, then
+each of four updates named exactly one — LINK, size zero — at the moments an
+order touched that market. The feed used to take each frame as the full list,
+so the first order worked on any market wiped every other position from the
+screen: two real positions stood on the exchange while the app showed none,
+and the money figures stayed right because they ride `user_stats`. Now a
+snapshot replaces and an update merges, market by market
+(`mergeLighterPositions` in `private-feed.ts`), and the resting-orders channel
+is merged the same way by its own market keys. A zeroed row still lands, which
+is how a closed position leaves the screen.
+
 ### It went round in a circle, and that was the real problem
 
 Reading the account down a socket was not enough on its own, and the reason is
@@ -548,6 +561,40 @@ complete signed transaction, so everything up to the moment of posting is
 checked by tests. Only the posting itself is unproven, and the first proof of
 it will be a real order from the server.
 
+## The send proves nothing, so every order is read back
+
+**Lighter answers `sendTx` with 200 and then cancels the order without a
+word.** Every other venue answers the placement itself — Hyperliquid says
+"post only order would have immediately matched" in the reply, and the chase
+knows that wording means nothing stood. Lighter's answer only means the
+transaction was accepted; whether an order came of it is decided later, in
+silence.
+
+That silence killed a real trade on 31 Aug 2026. A watched LINK sell
+triggered, the engine placed it and chased the price, every send was answered
+200, and the journal said "Resting on the exchange" four times — while
+Lighter's own order history says `canceled-post-only` on each and the book
+held nothing. The watch's money-was-sent flag stayed raised with no order
+behind it, so the watch died quietly instead of re-resting: the exact freeze
+`watched-orders.md` describes, minus the refusal that would have cleared it.
+
+So after every placement the order is looked up by the app's own number
+(`confirmLighterOrder` in `orders.ts`, two short waits so "not there yet" is
+not mistaken for "never there"):
+
+- **On the active list** — resting, which is what the send claimed all along.
+- **On the inactive list** — its status speaks: a fill is reported at
+  Lighter's own price, and a cancel becomes `LIVE_ORDER_REFUSED`, the one
+  prefix `nothingStood` trusts, so the chase is free to try again.
+- **On neither list, twice** — the transaction itself died. The nonce count is
+  thrown away and the refusal says Lighter never kept the order.
+- **The check itself failed** — the order is called resting, because a refusal
+  invented on a failed read would buy the same thing twice. That is the answer
+  every placement gave before the read-back existed.
+
+It costs one or two requests at order priority, spent from the fifth of the
+minute the background reads are kept out of.
+
 ## Closing, and the expiry that has to be zero
 
 Closing is the one order here that is not post-only, because post-only refuses
@@ -619,6 +666,12 @@ exchange at all.
 
 ## Still to prove
 
+- **That `account_all_orders` updates are deltas like the positions channel.**
+  The positions channel was measured sending per-market updates on
+  31 Aug 2026 and the orders channel is merged by the same market keys on the
+  strength of it, but an orders update has not been watched during a real
+  order yet. If a full frame ever omits a market whose last order was
+  cancelled, that market's list would linger until the socket reconnects.
 - **A day with all five wallets trading at once**, with Lighter blocked at the
   network on purpose while the other four carry on. That is a real day's
   running, not something a test can stand in for.

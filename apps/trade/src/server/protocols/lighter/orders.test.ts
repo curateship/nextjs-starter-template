@@ -8,6 +8,7 @@ import {
   modifyLighterOrder,
   placeLighterOrder,
   setLighterBrackets,
+  setLighterConfirmDelaysForTests,
 } from "@/server/protocols/lighter/orders"
 import {
   lighterPrivate,
@@ -18,7 +19,10 @@ import {
   lighterMarketByIndex,
   lighterMarketFacts,
 } from "@/server/protocols/lighter/markets"
-import { clearLighterNonces } from "@/server/protocols/lighter/nonces"
+import {
+  clearLighterNonces,
+  forgetLighterNonce,
+} from "@/server/protocols/lighter/nonces"
 import { forgetLighterHeldReads } from "@/server/protocols/lighter/private-feed"
 import { loadLighterKey } from "@/server/protocols/lighter/signer"
 
@@ -94,6 +98,9 @@ beforeEach(async () => {
   byIndex.mockReset()
   byIndex.mockResolvedValue({ symbol: "BTC", facts: BTC })
   privateRead.mockReset()
+  // No real waiting between the read-backs; the cases below say what each
+  // look answers, so the clock adds nothing but seconds.
+  setLighterConfirmDelaysForTests([0, 0])
   clearLighterNonces()
   // The resting orders and the account are held for ten seconds while the
   // socket is down, so one case would otherwise be answered with the last
@@ -104,9 +111,30 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  setLighterConfirmDelaysForTests(null)
   clearLighterNonces()
   forgetLighterHeldReads("mainnet", 5)
 })
+
+/**
+ * The read-backs a placement makes, answered by path. The order goes out,
+ * then the active list is asked, then the inactive list — this stands in for
+ * Lighter's answers to those two.
+ */
+function confirmAnswers(input: {
+  active?: unknown[]
+  inactive?: unknown[]
+}): void {
+  privateRead.mockImplementation(async (_network, path) => {
+    if (path === "/api/v1/accountActiveOrders") {
+      return { orders: input.active ?? [] }
+    }
+    if (path === "/api/v1/accountInactiveOrders") {
+      return { orders: input.inactive ?? [] }
+    }
+    return { orders: [] }
+  })
+}
 
 describe("placing a Lighter order", () => {
   it("scales the price and size into Lighter's whole numbers", async () => {
@@ -186,6 +214,72 @@ describe("placing a Lighter order", () => {
     )
     expect(outcome.protection).toBe("partial")
     expect(outcome.protectionNote).toContain("its own order")
+  }, 60_000)
+
+  it("calls the order resting once the book actually holds it", async () => {
+    confirmAnswers({ active: [{ client_order_index: 42, status: "open" }] })
+    const outcome = await placeLighterOrder("mainnet", auth(), order())
+    expect(outcome.status).toBe("resting")
+  }, 60_000)
+
+  it("turns a silent post-only cancel into a refusal", async () => {
+    // Lighter answers the send with 200 and cancels the order without a
+    // word — measured 31 Aug 2026, four times on one watched LINK sell. The
+    // refusal has to carry the LIVE_ORDER_REFUSED prefix, because that is
+    // the one wording `nothingStood` trusts to let the chase try again.
+    confirmAnswers({
+      inactive: [
+        {
+          client_order_index: 42,
+          status: "canceled-post-only",
+          filled_base_amount: "0.0",
+          filled_quote_amount: "0.000000",
+        },
+      ],
+    })
+    await expect(
+      placeLighterOrder("mainnet", auth(), order())
+    ).rejects.toThrow(/^LIVE_ORDER_REFUSED:.*post-only/)
+  }, 60_000)
+
+  it("reports a fill the read-back finds, at Lighter's own price", async () => {
+    // A fast market can take the order between the send and the look. The
+    // inactive row states plain-unit amounts, so the fill price is their
+    // quotient and nothing rescaled.
+    confirmAnswers({
+      inactive: [
+        {
+          client_order_index: 42,
+          status: "filled",
+          filled_base_amount: "0.0006",
+          filled_quote_amount: "47.15",
+        },
+      ],
+    })
+    const outcome = await placeLighterOrder("mainnet", auth(), order())
+    expect(outcome.status).toBe("filled")
+    expect(outcome.filledSz).toBeCloseTo(0.0006)
+    expect(outcome.avgPx).toBeCloseTo(47.15 / 0.0006)
+  }, 60_000)
+
+  it("refuses an order on neither list, and resets the nonce count", async () => {
+    // Both lists answered properly and twice, and the order is nowhere: the
+    // transaction itself died, most likely on a spent sequence number.
+    confirmAnswers({ active: [], inactive: [] })
+    await expect(
+      placeLighterOrder("mainnet", auth(), order())
+    ).rejects.toThrow(/^LIVE_ORDER_REFUSED:.*never kept/)
+    expect(vi.mocked(forgetLighterNonce)).toHaveBeenCalledWith("mainnet", 5, 2)
+  }, 60_000)
+
+  it("calls the order resting when the read-back itself fails", async () => {
+    // A refusal invented on a failed read would send the chase back in while
+    // the real order still rests, and the same thing would be bought twice.
+    // An unverified "resting" is what every placement answered before the
+    // read-back existed, so it is the safe wrong answer.
+    privateRead.mockRejectedValue(new Error("EXCHANGE_BUSY"))
+    const outcome = await placeLighterOrder("mainnet", auth(), order())
+    expect(outcome.status).toBe("resting")
   }, 60_000)
 })
 
