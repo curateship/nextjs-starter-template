@@ -863,6 +863,103 @@ describe("changing an open position", () => {
     expect(sent.some((one) => one.method === "DELETE")).toBe(false)
   })
 
+  it("sizes a whole-position target and proves KuCoin kept it active", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "new-target" }) },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "new-target",
+                symbol: "XBTUSDTM",
+                status: "open",
+                isActive: true,
+              },
+            ],
+          }),
+        },
+      ],
+      sent
+    )
+
+    await setKucoinBrackets("mainnet", AUTH, {
+      marketId: "XBTUSDTM",
+      position: { szi: 0.01, protectionOrderIds: [] },
+      targets: [{ px: 75_000, sz: null }],
+      slPx: null,
+      slSz: null,
+    })
+
+    const target = sent.find(
+      (one) => one.url.pathname === "/api/v1/orders" && one.method === "POST"
+    )?.body as Record<string, unknown>
+    expect(target).toMatchObject({
+      reduceOnly: true,
+      size: 10,
+      stopPrice: "75000",
+    })
+    expect(target.closeOrder).toBeUndefined()
+    expect(
+      sent
+        .filter((one) => one.url.pathname === "/api/v1/stopOrders")
+        .every((one) => one.url.searchParams.get("status") === "active")
+    ).toBe(true)
+  })
+
+  it("refuses to record a KuCoin target that finished immediately", async () => {
+    process.env.TRADE_ENABLE_MAINNET = "true"
+    const sent: Sent[] = []
+    stubExchange(
+      [
+        { path: "/api/v1/contracts/active", answer: CONTRACTS },
+        {
+          path: "/api/v2/position/getMarginMode",
+          answer: ok({ symbol: "XBTUSDTM", marginMode: "CROSS" }),
+        },
+        { path: "/api/v1/orders", answer: ok({ orderId: "failed-target" }) },
+        {
+          path: "/api/v1/stopOrders",
+          answer: ok({
+            currentPage: 1,
+            totalPage: 1,
+            items: [
+              {
+                id: "failed-target",
+                symbol: "XBTUSDTM",
+                status: "done",
+                isActive: false,
+                stopTriggered: false,
+              },
+            ],
+          }),
+        },
+      ],
+      sent
+    )
+
+    await expect(
+      setKucoinBrackets("mainnet", AUTH, {
+        marketId: "XBTUSDTM",
+        position: { szi: 0.01, protectionOrderIds: ["old-target"] },
+        targets: [{ px: 75_000, sz: null }],
+        slPx: null,
+        slSz: null,
+      })
+    ).rejects.toThrow(/did not keep the target active/)
+    expect(sent.some((one) => one.method === "DELETE")).toBe(false)
+  })
+
   it("changes cross leverage through KuCoin's account setting", async () => {
     process.env.TRADE_ENABLE_MAINNET = "true"
     const sent: Sent[] = []

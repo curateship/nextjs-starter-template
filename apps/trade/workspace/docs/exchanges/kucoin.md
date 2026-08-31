@@ -11,13 +11,14 @@ with a cancel button.
 Trade sends protection added to an open KuCoin position with the exact number
 of contracts held at that moment. KuCoin accepted the more general
 `closeOrder` form and returned an order id, but the exchange marked those stops
-finished immediately without triggering them. A grid replaces the sized stop
-whenever its held amount changes.
+and take-profit targets finished without triggering them. A grid replaces its
+sized stop whenever its held amount changes. A whole-position target keeps the
+size held when the target was placed.
 
-An order id does not prove that a stop is working. Trade reads the new stop
-back from KuCoin and requires it to be active before recording success or
-removing the old protection. A stop that is already finished, or cannot be
-found after three reads, is reported as refused.
+An order id does not prove that protection is working. Trade reads every new
+stop and target back from KuCoin. Each one must be active before Trade records
+success or removes the old protection. A leg that is already finished, or
+cannot be found after three reads, is reported as refused.
 
 ## Refusals
 

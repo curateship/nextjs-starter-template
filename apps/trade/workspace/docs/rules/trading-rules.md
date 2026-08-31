@@ -12,6 +12,13 @@ mechanism docs — `orders/watched-orders.md`, `backtests/minute-zoom.md` and
 `wallets/wallet-reads.md` — say how the machinery works; this file says what it must
 add up to.
 
+## Dashboard
+
+- Tyler, 31 Aug 2026: **"Whatever I adjust in the dashboard should
+  automatically be saved. I don't need to save them."** Dashboard choices save
+  as they change. A selected named layout updates itself, and its menu has no
+  separate save button.
+
 ## Exchange connections
 
 - **Aster work targets mainnet.** Aster testnet is not a completion step and

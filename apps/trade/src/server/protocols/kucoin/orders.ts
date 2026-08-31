@@ -260,8 +260,8 @@ async function orderById(
   return parsed.success ? parsed.data : null
 }
 
-/** Confirm that KuCoin kept a newly placed stop in its working stop book. */
-async function stopOrderIsActive(
+/** Confirm that KuCoin kept a newly placed protection leg in its stop book. */
+async function protectionOrderIsActive(
   network: NetworkId,
   credential: KucoinCredential,
   marketId: string,
@@ -873,8 +873,11 @@ export async function setKucoinBrackets(
 
   const replacing = [...new Set(params.position.protectionOrderIds)]
   const targets = params.targets.map((target) => {
-    const lots = target.sz === null ? null : lotsOf(target.sz, lot)
-    if (lots !== null && !(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
+    // KuCoin has the same failure with whole-position targets as with stops:
+    // it can return an id for `closeOrder`, then finish the row without ever
+    // triggering it. Freeze a whole-position target at today's held size.
+    const lots = lotsOf(target.sz ?? size, lot)
+    if (!(lots > 0)) throw new Error("LIVE_SIZE_TOO_SMALL")
     return { ...target, lots }
   })
   // KuCoin accepts `closeOrder` stop requests and returns an id, but has been
@@ -904,7 +907,7 @@ export async function setKucoinBrackets(
       )
       slOrderId = placed.orderId
       if (
-        !(await stopOrderIsActive(
+        !(await protectionOrderIsActive(
           network,
           credential,
           params.marketId,
@@ -918,7 +921,7 @@ export async function setKucoinBrackets(
       landed.push(`stop at ${params.slPx}`)
     }
     for (const target of targets) {
-      await sendOrder(
+      const placed = await sendOrder(
         network,
         credential,
         protectionBody({
@@ -930,6 +933,18 @@ export async function setKucoinBrackets(
           lots: target.lots,
         })
       )
+      if (
+        !(await protectionOrderIsActive(
+          network,
+          credential,
+          params.marketId,
+          placed.orderId
+        ))
+      ) {
+        throw new Error(
+          "KuCoin returned an order id but did not keep the target active."
+        )
+      }
       landed.push(`target at ${target.px}`)
     }
   } catch (error) {
