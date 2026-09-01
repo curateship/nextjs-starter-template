@@ -341,6 +341,8 @@ export type Trading = {
     sz: number
     leverage: number
     reduceOnly: boolean
+    /** Fill at the venue's current price instead of waiting at `px`. */
+    market?: boolean
     tpPx: number | null
     slPx: number | null
   }) => void
@@ -1437,6 +1439,7 @@ export function useTrading(
                 // `TradeOrder`. Everything that would reach for one steps
                 // aside; the × still works and goes the smart-order way.
                 watched: true,
+                triggerDirection: order.plan.triggerDirection,
               },
             ]
           : []

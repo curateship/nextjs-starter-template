@@ -371,7 +371,7 @@ afterEach(async () => {
 })
 
 describe("a watched order's market minimum", () => {
-  it("uses the current price when a buy level is already through the market", async () => {
+  it("uses the watched level when a Long starts above the market", async () => {
     sizeDecimals = 0
     minOrderValueUsd = 10
     marks.set("BTC", 0.1489)
@@ -383,24 +383,47 @@ describe("a watched order's market minimum", () => {
       hasKey: true,
     }
 
-    await expect(
-      placeWatchOrder(userId, realWallet, {
-        marketKey: BTC,
-        side: "buy",
-        // 67 coins clear $10 at the clicked level but are only worth $9.98
-        // at the price where this marketable order will execute.
-        px: 0.15053287920550548,
-        sz: 67,
-        leverage: 1,
-        reduceOnly: false,
-        tpPx: null,
-        slPx: null,
-      })
-    ).rejects.toThrow(
-      "Hyperliquid's smallest order here is $10.13, and this order is $9.98"
-    )
+    await placeWatchOrder(userId, realWallet, {
+      marketKey: BTC,
+      side: "buy",
+      // 67 coins clear $10 at the watched level. The lower current price no
+      // longer matters because this order waits for a rise instead of filling.
+      px: 0.15053287920550548,
+      sz: 67,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
 
-    expect(await listActiveSmartOrders(userId, [wallet.id])).toEqual([])
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan).toMatchObject({
+      triggerDirection: "up",
+      triggerPx: 0.15053287920550548,
+      sz: 67,
+    })
+  })
+
+  it("records a fall when a Short starts below the market", async () => {
+    marks.set("BTC", 100)
+
+    await placeWatchOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "sell",
+      px: 95,
+      sz: 1,
+      leverage: 1,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+    })
+
+    const [watch] = await listActiveSmartOrders(userId, [wallet.id])
+    expect(watch.kind).toBe("watch")
+    if (watch.kind !== "watch") throw new Error("expected watch")
+    expect(watch.plan.triggerDirection).toBe("down")
   })
 
   it("refuses a live watch on an exchange Trade cannot order on", async () => {

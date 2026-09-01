@@ -29,10 +29,21 @@ const WATCH_PHASES = [
   "stopping",
 ] as const
 
+export const WATCH_TRIGGER_DIRECTIONS = ["up", "down"] as const
+export type WatchTriggerDirection = (typeof WATCH_TRIGGER_DIRECTIONS)[number]
+
 const watchPlanSchema = z.object({
   ...smartOrderPauseFields,
   /** The price that starts it: the level that was clicked. */
   triggerPx: z.number().positive(),
+  /**
+   * Which way price must travel into the level before this watch starts.
+   *
+   * Missing means the row predates directional watches. Those rows keep the
+   * old side-based rule below, so an upgrade never changes an order already
+   * waiting in somebody's account.
+   */
+  triggerDirection: z.enum(WATCH_TRIGGER_DIRECTIONS).optional(),
   side: z.enum(["buy", "sell"]),
   /** How much of the coin to trade, frozen when the watch was set. */
   sz: z.number().positive(),
@@ -54,13 +65,11 @@ const watchPlanSchema = z.object({
   /**
    * Never take the market: rest just off it and follow, however far price goes.
    *
-   * **This is what a part close is made of.** An ordinary watch takes the
-   * market when the level is already through it, because a level drawn past
-   * the price means "get me in, I will pay up to here". A close is the
-   * opposite errand: the trading rules say a close chases a post-only limit
-   * and never pays the spread, so there is no price at which taking the market
-   * is the right answer. With this on, the market-take path is skipped and the
-   * order rests and follows for as long as it takes.
+   * **This is what a part close is made of.** New Long and Short watches also
+   * avoid the market, through `triggerDirection`. `maker` is the stronger
+   * close rule: the plan starts in its chase, sizes itself from what remains
+   * held and never pays the spread. It also keeps a close out of the legacy
+   * market-take path used only by older stored watches.
    *
    * It pairs with `chaseGiveUp` at zero, which means it never gives up. That
    * is deliberate and it is the app's existing rule: being half out of a
@@ -145,19 +154,28 @@ export function readWatchPlan(value: unknown): WatchPlan | null {
 /**
  * Whether the market has reached the level.
  *
- * A buy waits for the price to come DOWN to it and a sell waits for it to come
- * up, which is what "waiting at a price" has always meant on a chart. A level
- * already through the market when it is set is reached immediately — the
- * window says so before anything is placed.
+ * New watches remember whether the clicked level started above or below the
+ * market. Old stored watches have no direction and keep the former rule: a
+ * buy is reached at or below its level, and a sell at or above it.
  */
 export function watchReached(
   // Only the side and the level decide it, so the screens can ask this of a
   // row that is not a whole plan — the Watched tab holds its levels as orders.
   // One rule, so a list and the engine can never disagree about "reached".
-  plan: Pick<WatchPlan, "side" | "triggerPx">,
+  plan: Pick<WatchPlan, "side" | "triggerPx" | "triggerDirection">,
   mark: number
 ): boolean {
+  if (plan.triggerDirection === "up") return mark >= plan.triggerPx
+  if (plan.triggerDirection === "down") return mark <= plan.triggerPx
   return plan.side === "buy" ? mark <= plan.triggerPx : mark >= plan.triggerPx
+}
+
+/** The direction from today's price to a newly clicked watched level. */
+export function watchTriggerDirection(
+  triggerPx: number,
+  mark: number
+): WatchTriggerDirection {
+  return triggerPx >= mark ? "up" : "down"
 }
 
 /**

@@ -35,12 +35,17 @@ function order(over: Partial<TradeOrder>): TradeOrder {
 
 describe("watchedLevelLine", () => {
   it("leaves the distance empty when no price has been quoted", () => {
-    expect(watchedLevelLine(order({}), null)).toEqual({ at: "at $100", away: "" })
+    expect(watchedLevelLine(order({}), null)).toEqual({
+      at: "at $100",
+      away: "",
+    })
   })
 
   it("measures how far today's price is from the level", () => {
     expect(watchedLevelLine(order({}), 105).away).toBe("5.00% away")
-    expect(watchedLevelLine(order({ side: "sell" }), 95).away).toBe("5.00% away")
+    expect(watchedLevelLine(order({ side: "sell" }), 95).away).toBe(
+      "5.00% away"
+    )
   })
 
   it("calls a buy reached once the price has come down to it", () => {
@@ -51,6 +56,26 @@ describe("watchedLevelLine", () => {
   it("calls a sell reached once the price has come up to it", () => {
     expect(watchedLevelLine(order({ side: "sell" }), 101).away).toBe("reached")
     // A sell below its level is still waiting, where a buy there would be done.
-    expect(watchedLevelLine(order({ side: "sell" }), 99).away).toBe("1.00% away")
+    expect(watchedLevelLine(order({ side: "sell" }), 99).away).toBe(
+      "1.00% away"
+    )
+  })
+
+  it("keeps a breakout Long and breakdown Short waiting from the stored side", () => {
+    expect(watchedLevelLine(order({ triggerDirection: "up" }), 99).away).toBe(
+      "1.00% away"
+    )
+    expect(
+      watchedLevelLine(order({ side: "sell", triggerDirection: "down" }), 101)
+        .away
+    ).toBe("1.00% away")
+
+    expect(watchedLevelLine(order({ triggerDirection: "up" }), 101).away).toBe(
+      "reached"
+    )
+    expect(
+      watchedLevelLine(order({ side: "sell", triggerDirection: "down" }), 99)
+        .away
+    ).toBe("reached")
   })
 })

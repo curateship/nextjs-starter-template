@@ -13,12 +13,7 @@ import type { LiveRefusal } from "@/lib/trade/live"
 import type { LiveFill, LiveTrade } from "@/lib/trade/live-trades"
 import { orderIdSchema } from "@/lib/trade/order-id"
 import type { SmartOrder } from "@/lib/trade/smart-plan"
-import {
-  isMarketable,
-  type TradeOrder,
-  type TradePosition,
-} from "@/lib/trade/paper"
-import { getProtocol } from "@/server/protocols/registry"
+import type { TradeOrder, TradePosition } from "@/lib/trade/paper"
 import { formatUsd } from "@/lib/trade/format"
 import { userGet, userPost } from "@/server/guards"
 import {
@@ -74,6 +69,7 @@ const placeSchema = z.object({
   sz: z.number().positive().finite(),
   leverage: z.number().min(1).max(100),
   reduceOnly: z.boolean(),
+  market: z.boolean().optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })
@@ -212,54 +208,19 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
       // two waits where one would do. The catch keeps a rate-limited request
       // from leaving an unhandled refusal behind; the await below still
       // surfaces a real failure.
-      const style = loadOrderStyle(context.user.id)
+      const style = data.market
+        ? Promise.resolve(null)
+        : loadOrderStyle(context.user.id)
       style.catch(() => undefined)
       return await runLiveOrderAction(context.user.id, "order", async () => {
-        // Watched rather than rested, when that is what the account is set to.
-        // Nothing reaches the exchange until the price is actually there, so the
-        // answer here is "it is waiting", the same shape a resting order gives.
-        if ((await style) === "watch") {
-          const wallet = await findWallet(context.user.id, data.walletId)
+        const { market = false, ...order } = data
+        const watch = async () => {
+          const wallet = await findWallet(context.user.id, order.walletId)
           if (!wallet) throw new Error("LIVE_WALLET")
-          // A click at a price the market is already through is not a level
-          // to wait at — it is this order, now, and the engine's next pass
-          // would only fire it at market a few seconds later. Firing it in
-          // the same call takes those seconds out of every marketable
-          // click, through the exact door the engine uses: `marketOnly`
-          // with the level as its guard, so a quote that slipped away
-          // between the two reads refuses the fire and the click becomes
-          // the watch it always was.
-          if (wallet.kind === "live") {
-            const ref = parseMarketKey(data.marketKey)
-            const protocol = getProtocol(wallet.protocol)
-            const mark = ref
-              ? (
-                  await protocol.markets.prices(wallet.network, [ref.marketId])
-                ).get(ref.marketId)
-              : undefined
-            if (mark !== undefined && isMarketable(data.side, data.px, mark)) {
-              try {
-                return {
-                  outcome: await placeOrderRow(context.user.id, {
-                    ...data,
-                    marketOnly: true,
-                    marketGuardPx: data.px,
-                  }),
-                }
-              } catch (error) {
-                if (!(
-                  error instanceof Error &&
-                  error.message === "LIVE_SMART_ORDER_PRICE_MOVED"
-                )) {
-                  throw error
-                }
-              }
-            }
-          }
-          await placeWatchOrder(context.user.id, wallet, data)
+          await placeWatchOrder(context.user.id, wallet, order)
           return {
             outcome: {
-              status: "resting",
+              status: "resting" as const,
               // No exchange order to name: there is not one yet, and the whole
               // point is that there will not be until the price is reached.
               orderId: null,
@@ -272,7 +233,39 @@ const placeLiveOrderFn = createServerFn({ method: "POST" })
             },
           }
         }
-        return { outcome: await placeOrderRow(context.user.id, data) }
+        if (market) {
+          return {
+            outcome: await placeOrderRow(context.user.id, {
+              ...order,
+              marketOnly: true,
+            }),
+          }
+        }
+        // Watched rather than rested, when that is what the account is set to.
+        // Nothing reaches the exchange until the price is actually there, so the
+        // answer here is "it is waiting", the same shape a resting order gives.
+        if ((await style) === "watch") {
+          return await watch()
+        }
+        // Rest mode may put a passive limit on the exchange, but an unchecked
+        // Long or Short may never turn into a market order. A level already
+        // through the price therefore falls back to the same local watch.
+        try {
+          return {
+            outcome: await placeOrderRow(context.user.id, {
+              ...order,
+              restingOnly: true,
+            }),
+          }
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            error.message !== "LIVE_SMART_ORDER_NOT_RESTING"
+          ) {
+            throw error
+          }
+          return await watch()
+        }
       })
     }
   )

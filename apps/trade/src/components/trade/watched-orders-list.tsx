@@ -264,7 +264,17 @@ function nearestWatchedLevels(
 }
 
 function distanceFromMark(level: WatchedLevel, mark: number): number {
-  if (watchReached({ side: level.side, triggerPx: level.px }, mark)) return 0
+  if (
+    watchReached(
+      {
+        side: level.side,
+        triggerPx: level.px,
+        triggerDirection: level.triggerDirection,
+      },
+      mark
+    )
+  )
+    return 0
   return level.px > 0 ? Math.abs(mark - level.px) / level.px : Infinity
 }
 
@@ -423,12 +433,21 @@ function RefusalNote({ refusal }: { refusal: LiveRefusal }) {
  * be made up, and a dash there would read as zero.
  */
 export function watchedLevelLine(
-  level: Pick<WatchedLevel, "side" | "px">,
+  level: Pick<WatchedLevel, "side" | "px" | "triggerDirection">,
   mark: number | null
 ): { at: string; away: string } {
   const at = `at ${formatPrice(level.px)}`
   if (mark === null || level.px <= 0) return { at, away: "" }
-  if (watchReached({ side: level.side, triggerPx: level.px }, mark)) {
+  if (
+    watchReached(
+      {
+        side: level.side,
+        triggerPx: level.px,
+        triggerDirection: level.triggerDirection,
+      },
+      mark
+    )
+  ) {
     return { at, away: "reached" }
   }
   return {

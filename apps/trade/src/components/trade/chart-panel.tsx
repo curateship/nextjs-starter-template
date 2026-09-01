@@ -1626,7 +1626,7 @@ export function ChartPanel({
           onClose={() => setQuick(null)}
           onPlace={(input) => {
             trading.place({ marketKey: market.key, ...input })
-            rememberRecentOrderType(input.side)
+            if (!input.market) rememberRecentOrderType(input.side)
           }}
         />
       ) : null}

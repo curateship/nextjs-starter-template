@@ -345,6 +345,7 @@ describe("the rails around placing", () => {
       })
     ).rejects.toThrow("LIVE_SMART_ORDER_NOT_RESTING")
     expect(place).not.toHaveBeenCalled()
+    expect(await journalRows(userId)).toEqual([])
   })
 
   it("sends a click through the price as a capped market order at the mark", async () => {
@@ -1198,8 +1199,8 @@ describe("reading refusals back", () => {
   })
 })
 
-describe("the guarded market fire — a watched click already at its price", () => {
-  it("fires at market while the fresh quote is still at the level", async () => {
+describe("an explicit market order", () => {
+  it("fires at market even when the clicked chart price is not through it", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
     place.mockResolvedValue({
@@ -1213,9 +1214,8 @@ describe("the guarded market fire — a watched click already at its price", () 
 
     const outcome = await placeLiveOrder(userId, {
       ...orderInput(walletId),
-      px: 101_000,
+      px: 99_000,
       marketOnly: true,
-      marketGuardPx: 101_000,
     })
 
     expect(outcome.status).toBe("filled")
@@ -1225,8 +1225,10 @@ describe("the guarded market fire — a watched click already at its price", () 
       px: 100_000,
     })
   })
+})
 
-  it("refuses the fire when the quote left the level, placing nothing", async () => {
+describe("a guarded smart-order market fire", () => {
+  it("refuses the fire when the quote left its trigger, placing nothing", async () => {
     const userId = await person()
     const walletId = await liveWallet(userId)
 
@@ -1240,8 +1242,8 @@ describe("the guarded market fire — a watched click already at its price", () 
     ).rejects.toThrow("LIVE_SMART_ORDER_PRICE_MOVED")
 
     expect(place).not.toHaveBeenCalled()
-    // This refusal is the caller's cue to fall back to the watch row, not a
-    // failure to record — the journal stays clean.
+    // This is the caller's cue to put the smart order back to waiting, not a
+    // venue refusal to record in the journal.
     expect(await journalRows(userId)).toEqual([])
   })
 })

@@ -24,9 +24,9 @@ import type {
  * **It sends nothing until the level is touched.** Every pass it asks one
  * question — has the market reached the price? — and only then does it start
  * asking for an order, which it rests just off the touch and follows, the same
- * chase a signal trade uses. A newly placed limit that is already through the
- * market takes the available price immediately, which matches an ordinary
- * marketable limit order.
+ * chase a signal trade uses. New Long and Short watches record which side of
+ * the level price started on, so a breakout or breakdown waits for the touch.
+ * Rows saved before that direction existed keep their former behavior.
  *
  * The pass runs inside the engine that already works ladders and grids, so a
  * watch survives the browser being closed exactly as they do — and, like them,
@@ -198,26 +198,15 @@ export async function advanceWatch(
     return
   }
 
-  // ----- Already through the market: take it ------------------------------
-  //
-  // **A level the price has gone past cannot be waited for.** Draw a buy
-  // ABOVE the market and you are saying "get me in, I will pay up to here" —
-  // the market is already cheaper than that, so there is nothing to wait for
-  // and nothing to rest. A limit at your level would cross the book, and a
-  // post-only order that crosses is refused outright, which is why this used
-  // to quietly rest just under the market instead and sit there: the line was
-  // drawn well above the price and the app bought nothing.
-  //
-  // Same rule mirrored for a sell drawn below the market, and the same rule a
-  // ladder rung already follows — it fires at market the moment price crosses
-  // it. This makes a watched price behave like the rest of the app.
-  // A maker plan is never taken at the market, whatever the price has done —
-  // see `maker` on `WatchPlan`. A part close is the only thing that sets it,
-  // and paying the spread is the one thing it exists to avoid.
-  const throughAlready =
+  // Rows written before directional watches keep their old market-take rule.
+  // New Long and Short rows always carry `triggerDirection`, so after their
+  // level is reached they continue into the post-only chase below. A part
+  // close has no direction either, but `maker` keeps it out of this branch.
+  const legacyThroughAlready =
+    plan.triggerDirection === undefined &&
     !plan.maker &&
     (plan.side === "buy" ? mark < plan.triggerPx : mark > plan.triggerPx)
-  if (throughAlready && plan.orderId === null && !plan.sent) {
+  if (legacyThroughAlready && plan.orderId === null && !plan.sent) {
     const takeSz = floorSize(plan.sz, plan.sizeDecimals)
     const smallestSize =
       plan.minOrderSize ??

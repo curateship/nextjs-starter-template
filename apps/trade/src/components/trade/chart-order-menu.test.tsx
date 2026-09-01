@@ -48,7 +48,7 @@ describe("the chart order menu's position exits", () => {
     )
 
     expect(html).toContain("Alert at $3,600")
-    expect(html).not.toContain("Buy limit")
+    expect(html).not.toContain("Long")
     expect(html).not.toContain("Smart order")
   })
 
@@ -78,16 +78,16 @@ describe("the chart order menu's position exits", () => {
 })
 
 describe("the chart order menu's recent orders", () => {
-  it("lists the latest placed kind first above the limit rows", () => {
+  it("lists the latest placed kind first above the Long and Short rows", () => {
     const html = draw({
       recentOrderTypes: ["grid", "buy", "dca"],
       smartOrders: true,
     })
     const recentAt = html.indexOf("Recent")
     const gridAt = html.indexOf("Grid", recentAt)
-    const buyAt = html.indexOf("Buy limit", recentAt)
+    const buyAt = html.indexOf("Long", recentAt)
     const dcaAt = html.indexOf("DCA ladder", recentAt)
-    const ordinaryBuyAt = html.indexOf("Buy limit", buyAt + 1)
+    const ordinaryBuyAt = html.indexOf("Long", buyAt + 1)
 
     expect(recentAt).toBeGreaterThan(-1)
     expect(gridAt).toBeLessThan(buyAt)
@@ -99,11 +99,29 @@ describe("the chart order menu's recent orders", () => {
     const html = draw({ recentOrderTypes: ["grid", "sell"] })
     const recent = html.slice(html.indexOf("Recent"))
 
-    expect(recent).toContain("Sell limit")
+    expect(recent).toContain("Short")
     expect(recent).not.toContain("Grid")
   })
 
   it("does not show an empty Recent section on a first visit", () => {
     expect(draw()).not.toContain("Recent")
+  })
+})
+
+describe("the chart order menu's plain orders", () => {
+  it("calls watched orders Long and Short without limit wording", () => {
+    const html = draw()
+
+    expect(html).toContain(">Long<")
+    expect(html).toContain(">Short<")
+    expect(html).not.toContain("Buy limit")
+    expect(html).not.toContain("Sell limit")
+  })
+
+  it("leaves the Market choice inside the Long and Short window", () => {
+    const html = draw()
+
+    expect(html).not.toContain("Market long")
+    expect(html).not.toContain("Market short")
   })
 })

@@ -54,9 +54,19 @@ add up to.
   watched order does not keep an older margin choice. Isolated changes Aster
   to Single-Asset Mode. Cross changes Aster to Multi-Assets Mode.
 - **A waiting plain order chases as a maker when price reaches it.** The engine
-  rests a post-only limit just off the current price and follows it. A buy
-  placed above the current price, or a sell placed below it, is already
-  marketable and takes the current price immediately, with the taker fee.
+  rests a post-only limit just off the current price and follows it. Long and
+  Short remember which side of the clicked level price started on, so a Long
+  above the market waits for a rise and a Short below it waits for a fall.
+- **Directional Long and Short orders ship with the trading engine.** The web
+  app saves which way price must move, and the engine reads that field. An old
+  engine does not know the field and applies the former rule, which turns a
+  Short below the market into an immediate market sell. Deploy the trading
+  engine first, then the web app from the same commit. Never put the new web
+  app in front of the old engine.
+- **The Market checkbox is the only plain-order choice that explicitly asks to
+  fill now.** It sits inside the Long and Short window. When checked, the order
+  uses the venue's current price, pays the taker fee, does not become a watched
+  level and ignores the account's Watch or Rest choice.
 - **A plain order is a watched trigger by default.** The level stays in this
   app, invisible to the book, spending nothing until it fires. Resting on the
   exchange remains a choice in Settings → Trading engine, and its honest cost

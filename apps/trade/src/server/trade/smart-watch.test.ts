@@ -214,19 +214,14 @@ describe("a price being watched", () => {
     expect(order).toBeDefined()
     // The whole claim: an order on the wrong side of the price cannot have
     // been taken at it.
-    expect(isMarketable("buy", order.px, marks.get("BTC") as number)).toBe(false)
+    expect(isMarketable("buy", order.px, marks.get("BTC") as number)).toBe(
+      false
+    )
     expect((await row()).plan.phase).toBe("taking")
     expect(await positions()).toHaveLength(0)
   })
 
-  it("takes the market when the buy level is already above the price", async () => {
-    // **A level the price has gone past cannot be waited for.** Drawing a buy
-    // above the market means "get me in, I will pay up to here" — the market
-    // is already cheaper, so there is nothing to wait for. A limit at that
-    // level would cross the book and a post-only order that crosses is
-    // refused, which is why this used to rest just under the market instead
-    // and sit there unfilled: on 20 Aug 2026 a buy drawn well above the price
-    // bought nothing at all.
+  it("keeps the old instant buy behavior for a stored watch with no direction", async () => {
     await watchAt({ triggerPx: 105 })
     await priceTo(100)
 
@@ -248,8 +243,7 @@ describe("a price being watched", () => {
     expect(await positions()).toHaveLength(0)
   })
 
-  it("takes the market when the sell level is already below the price", async () => {
-    // The same rule mirrored. Nothing about a sell makes it different.
+  it("keeps the old instant sell behavior for a stored watch with no direction", async () => {
     await watchAt({ side: "sell", triggerPx: 95, reduceOnly: false })
     await priceTo(100)
 
@@ -257,6 +251,44 @@ describe("a price being watched", () => {
     expect(held).toBeDefined()
     expect(held.szi).toBeCloseTo(-1)
     expect(await orders()).toHaveLength(0)
+  })
+
+  it("keeps a Long above the market waiting until price rises to it", async () => {
+    await watchAt({ triggerPx: 105, triggerDirection: "up" })
+
+    await priceTo(100)
+    await priceTo(104)
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("waiting")
+
+    await priceTo(105)
+    const [order] = await orders()
+    expect(order).toBeDefined()
+    expect(isMarketable("buy", order.px, 105)).toBe(false)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("taking")
+  })
+
+  it("keeps a Short below the market waiting until price falls to it", async () => {
+    await watchAt({
+      side: "sell",
+      triggerPx: 95,
+      triggerDirection: "down",
+    })
+
+    await priceTo(100)
+    await priceTo(96)
+    expect(await orders()).toHaveLength(0)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("waiting")
+
+    await priceTo(95)
+    const [order] = await orders()
+    expect(order).toBeDefined()
+    expect(isMarketable("sell", order.px, 95)).toBe(false)
+    expect(await positions()).toHaveLength(0)
+    expect((await row()).plan.phase).toBe("taking")
   })
 
   it("rests rather than taking when price merely arrives at the level", async () => {
@@ -347,7 +379,13 @@ describe("a price being watched", () => {
     // The position is the proof. The instant it shows, the watch hands over
     // the stop and target it was keeping and ends — it does not stay stuck
     // just because it once lost sight of the order.
-    await watchAt({ phase: "taking", sent: true, orderId: null, tpPx: 110, slPx: 88 })
+    await watchAt({
+      phase: "taking",
+      sent: true,
+      orderId: null,
+      tpPx: 110,
+      slPx: 88,
+    })
     await database.insert(tradePaperPositions).values({
       userId,
       id: "p-1",

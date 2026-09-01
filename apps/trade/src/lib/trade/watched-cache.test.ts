@@ -65,6 +65,17 @@ describe("the watched-price cache", () => {
     ])
   })
 
+  it("keeps the direction a watched level must be touched from", () => {
+    writeWatchedCache("user-1:hyperliquid", [
+      order({ side: "sell", triggerDirection: "down" }),
+    ])
+
+    expect(readWatchedCache("user-1:hyperliquid")?.rows[0]).toMatchObject({
+      side: "sell",
+      triggerDirection: "down",
+    })
+  })
+
   it("keeps one account's levels away from another's", () => {
     writeWatchedCache("user-1:hyperliquid", [order({})])
     expect(readWatchedCache("user-2:hyperliquid")).toBeNull()

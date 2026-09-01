@@ -6,9 +6,11 @@ right-hand end.
 
 Once an order has been placed, the right-click menu starts with **Recent**.
 The latest kind is first, followed by the other unique kinds this account has
-placed. Buy limit, Sell limit, DCA ladder and Grid can all appear there. Picking
-one uses the price that was just clicked and opens the same window as its row
-lower in the menu. Closing a window without placing does not change the list.
+placed. Long, Short, DCA ladder and Grid can all appear there. Picking one uses
+the price that was just clicked and opens the same window as its row lower in
+the menu. The Long and Short window has a Market checkbox. Checking it fills
+the chosen side now, but does not add a separate Market kind to Recent. Closing
+a window without placing does not change the list.
 The browser saves the list under the signed-in account, so a reload keeps the
 same order without sharing it with another account on the same machine. A new
 browser or a first visit has no Recent section.

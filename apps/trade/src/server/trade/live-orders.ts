@@ -212,15 +212,11 @@ export async function placeLiveOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
-    /** Smart rungs must rest; they may never turn into an untracked instant fill. */
+    /** Stay passive; refuse instead of turning into an instant fill. */
     restingOnly?: boolean
-    /**
-     * A watched smart-order level has already decided to trade at market.
-     * Keep it out of the resting-order path. A watched level can pair this
-     * with `marketGuardPx` when the fresh quote must still be at the level.
-     */
+    /** Fill at the fresh venue price and keep out of the resting-order path. */
     marketOnly?: boolean
-    /** A watched market order is skipped if the fresh quote left its level. */
+    /** A smart order is skipped if the fresh quote left its trigger level. */
     marketGuardPx?: number
   }
 ): Promise<PlaceOrderOutcome> {
@@ -361,8 +357,12 @@ export async function placeLiveOrder(
   } catch (error) {
     if (
       error instanceof Error &&
-      error.message === "LIVE_SMART_ORDER_PRICE_MOVED"
+      (error.message === "LIVE_SMART_ORDER_PRICE_MOVED" ||
+        error.message === "LIVE_SMART_ORDER_NOT_RESTING")
     ) {
+      // Both answers keep the order inside this app. The caller either leaves
+      // its smart order waiting or creates a watched Long or Short, so neither
+      // is an exchange refusal to show in the Journal.
       throw error
     }
     return await refuse(userId, row.id, input.marketKey, input.side, error)

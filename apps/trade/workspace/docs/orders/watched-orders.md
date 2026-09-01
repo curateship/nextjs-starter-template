@@ -19,25 +19,26 @@ The code lives in `src/lib/trade/order-style.ts` (the setting),
 - **Watch** (the default): the level stays inside this app as a row in the
   database. Nothing is sent to the exchange until the market touches the
   price. The money stays free until that moment, the level is nobody else's
-  business — it never shows in the public book — and it does not use up the
-  exchange's cap on open orders.
-
-  **Except a click at a price the market is already through.** That was never
-  a level to wait at — it is this order, now — and since 29 Aug 2026 the
-  click itself fires the market order in the same call, through the same
-  guarded door the engine uses, so the position is on screen in about a
-  second. Before that the click wrote a watch row and the engine's next pass
-  fired it a few seconds later, which made every marketable click feel slow.
-  The fresh quote still guards the fire: a price that slipped away between
-  the click and the check falls back to the watch row it always was. A
-  practice wallet keeps the old road — its engine settles on every read, so
-  there is nothing to save.
+  business, it never shows in the public book, and it does not use up the
+  exchange's cap on open orders. The watch remembers which side of the level
+  price started on. A Long above today's price waits for the rise and a Short
+  below it waits for the fall. A Long below today's price also waits for the
+  fall, and a Short above it waits for the rise.
 - **Rest** (the old way, still choosable in Settings → Trading engine): the
   order sits on the exchange itself. It fills even when this app is switched
-  off, and anyone reading the book can see it.
+  off, and anyone reading the book can see it. Only a passive limit can rest.
+  If the clicked level is already through today's price, the order becomes a
+  local watch instead of quietly filling at market.
 
 Every account starts on watch. One saved setting flips the whole account back
 to resting.
+
+The web app and the trading engine must run this behavior from the same commit.
+The web app records whether price must rise or fall into the level. An older
+engine ignores that new field and treats the row as an older watch, so a Short
+below the market becomes a market sell. Deploy the trading engine first and the
+web app second. Never expose the new window while the old engine still owns the
+trading lock.
 
 The watch keeps the chosen leverage while it waits. DCA ladders start at 1×
 and use a higher number only when somebody chooses it. Aster still reads the
@@ -62,11 +63,10 @@ still become smaller when a market only trades whole coins. At $1.75, for
 example, a $10 request becomes five coins worth $8.75. Trade refuses the watch
 and reports the first legal size.
 
-The check uses today's market price when the clicked level is already through
-the market. A buy above today's price fills at today's lower price, so the
-clicked price can make an order look large enough even though the order sent at
-the current price is too small. The same protocol check refuses it before the
-watch is saved.
+The first size check uses the clicked level because that is where a watched
+Long or Short is meant to start. The engine checks the venue's current minimum
+again when the level fires, so a coin that became too small while it waited is
+refused rather than sent as an invalid order.
 
 A press draws a temporary price line marked "sending" while the app waits for
 the answer. A refusal removes that line as soon as the reason returns because
@@ -88,11 +88,19 @@ When the market reaches a watched buy:
 4. The stop and target typed on the order ride along and are handed to the
    position the moment it opens.
 
-A buy placed above the current price, or a sell placed below it, has already
-reached its level. The engine takes the current price immediately. This is the
-same result as an ordinary limit order placed through the market, and it pays
-the taker fee. The post-only chase applies when the market reaches a level that
-was still waiting after placement.
+A watched Long or Short always enters through this post-only chase. The side of
+the level decides what the touch means: a Long or Short placed above the market
+waits for price to rise to it, and either one below waits for price to fall to
+it. Rows saved before this direction was recorded keep their old behavior, so
+an order already waiting does not change meaning during an upgrade.
+
+The Long and Short window has a **Market** checkbox for filling now. With the
+box clear, the account's Watch or Rest choice still decides where the level
+waits whenever the level can rest passively. A crossed Rest level becomes a
+local watch, because the unchecked box means it may not take the market. With
+the box checked, the chosen side uses the venue's fresh current price, pays the
+taker fee and never creates a watched row. A checked Market box works the same
+whether the account setting is Watch or Rest.
 
 The DCA ladder's rungs work the same way on real and practice wallets, and the
 grid always has. In a backtest a rung is modelled as a resting order the
@@ -246,7 +254,7 @@ So the browser keeps the last answer and draws it at once. The code is
   browser rather than to whoever is signed in, so without the account in the
   key the next person to sign in on that machine would see somebody else's
   levels. A different account looks in a different place and finds nothing.
-- **Only the seven fields a row is drawn from are stored**, and at most sixty
+- **Only the eight fields a row is drawn from are stored**, and at most sixty
   levels. A blob is read back by whatever build is running months later, so the
   less of the order's shape it copies, the less there is to go stale. Anything
   that will not parse is dropped rather than patched. Coin art is deliberately

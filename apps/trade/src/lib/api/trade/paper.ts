@@ -61,6 +61,7 @@ const placeSchema = z.object({
   sz: z.number().positive().finite(),
   leverage: z.number().min(1).max(100),
   reduceOnly: z.boolean(),
+  market: z.boolean().optional(),
   tpPx: z.number().positive().finite().nullable(),
   slPx: z.number().positive().finite().nullable(),
 })
@@ -210,14 +211,38 @@ const placePaperOrderFn = createServerFn({ method: "POST" })
   .inputValidator(placeSchema)
   .handler(async ({ data, context }): Promise<{ placed: true }> => {
     const wallet = await paperWallet(context.user.id, data.walletId, true)
+    const { market = false, ...order } = data
+    if (market) {
+      await placeOrderRow(context.user.id, wallet, {
+        ...order,
+        marketOnly: true,
+      })
+      return { placed: true }
+    }
     // Asked here rather than sent up from the window: which way an order waits
     // is an account setting, and a browser that could name it could place an
     // order the setting says it may not.
     if ((await loadOrderStyle(context.user.id)) === "watch") {
-      await placeWatchOrder(context.user.id, wallet, data)
+      await placeWatchOrder(context.user.id, wallet, order)
       return { placed: true }
     }
-    await placeOrderRow(context.user.id, wallet, data)
+    // A passive Rest limit may sit on the practice book. A level already
+    // through the price becomes a local watch instead of an unchecked order
+    // quietly turning into a market fill.
+    try {
+      await placeOrderRow(context.user.id, wallet, {
+        ...order,
+        restingOnly: true,
+      })
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        error.message !== "PAPER_ORDER_NOT_RESTING"
+      ) {
+        throw error
+      }
+      await placeWatchOrder(context.user.id, wallet, order)
+    }
     return { placed: true }
   })
 

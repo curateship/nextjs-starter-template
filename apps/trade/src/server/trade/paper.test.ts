@@ -231,6 +231,47 @@ describe("placing an order", () => {
     expect(await reasons()).toEqual(["order"])
   })
 
+  it("fills an explicit market order even when the clicked level is not through it", async () => {
+    await placePaperOrder(userId, wallet, {
+      marketKey: BTC,
+      side: "buy",
+      // This would normally wait and is too small at the clicked level. At the
+      // current $100 market price it is a legal $10 order.
+      px: 1,
+      sz: 0.1,
+      leverage: 5,
+      reduceOnly: false,
+      tpPx: null,
+      slPx: null,
+      marketOnly: true,
+    })
+
+    const held = await positions()
+    expect(held).toHaveLength(1)
+    expect(held[0].entryPx).toBe(100)
+    expect(held[0].szi).toBeCloseTo(0.1)
+    expect(await orders()).toHaveLength(0)
+  })
+
+  it("refuses an unchecked resting Short below market so it can be watched", async () => {
+    await expect(
+      placePaperOrder(userId, wallet, {
+        marketKey: BTC,
+        side: "sell",
+        px: 90,
+        sz: 1,
+        leverage: 5,
+        reduceOnly: false,
+        tpPx: null,
+        slPx: null,
+        restingOnly: true,
+      })
+    ).rejects.toThrow("PAPER_ORDER_NOT_RESTING")
+
+    expect(await positions()).toHaveLength(0)
+    expect(await orders()).toHaveLength(0)
+  })
+
   it("leaves an order waiting when its price is not reached", async () => {
     await placePaperOrder(userId, wallet, {
       marketKey: BTC,

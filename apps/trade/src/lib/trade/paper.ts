@@ -206,6 +206,8 @@ export type TradeOrder = {
    * a real exchange.
    */
   watched?: true
+  /** Which way price must touch a watched level. Missing on older watches. */
+  triggerDirection?: "up" | "down"
   /**
    * A real order that waits at a trigger price rather than resting in the
    * book — a stop or target leg the exchange holds. Its price is not a limit

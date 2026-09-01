@@ -20,18 +20,9 @@ import { bracketPrice } from "@/lib/trade/brackets"
 import { affordableCoins, coinsForRisk } from "@/lib/trade/risk-size"
 import { formatPrice, formatUsd, formatUsdRounded } from "@/lib/trade/format"
 import { useLiveFigures } from "@/lib/trade/live-market"
-import {
-  BUY_BUTTON,
-  LOST_MONEY,
-  SELL_BUTTON,
-  WARNING,
-} from "@/lib/trade/money-tone"
+import { BUY_BUTTON, LOST_MONEY, SELL_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
-import {
-  isMarketable,
-  type TradePosition,
-  type TradeSide,
-} from "@/lib/trade/paper"
+import { type TradePosition, type TradeSide } from "@/lib/trade/paper"
 import type { QuickOrderPrefs } from "@/lib/trade/quick-order"
 import { cn } from "@/lib/utils"
 
@@ -127,6 +118,7 @@ export function ChartQuickOrder({
     sz: number
     leverage: number
     reduceOnly: boolean
+    market: boolean
     tpPx: number | null
     slPx: number | null
   }) => void
@@ -140,13 +132,13 @@ export function ChartQuickOrder({
 }) {
   const maxLeverage = Math.max(1, Math.floor(market.maxLeverage ?? 1))
 
-  // What the market costs right now. An order asking for a price already
-  // through it is taken immediately at this instead, so this — not the level
-  // clicked — is the price the stop and the target have to be measured from.
+  // Long and Short use the clicked level. Checking Market uses the live mark,
+  // which is the closest answer the window has before the server gets the
+  // venue's fresh quote.
   const live = useLiveFigures(market.key)
   const mark = live?.price ?? market.price
-  const takenNow = isMarketable(quick.side, quick.px, mark)
-  const entryPx = takenNow ? mark : quick.px
+  const [marketOrder, setMarketOrder] = React.useState(false)
+  const entryPx = marketOrder ? mark : quick.px
 
   // How this window was left the last time it placed something. Every field
   // below opens on that answer, so a way of sizing trades is chosen once
@@ -302,10 +294,11 @@ export function ChartQuickOrder({
     // already on the chart, and a refusal arrives as a toast if one comes.
     onPlace({
       side: quick.side,
-      px: quick.px,
+      px: marketOrder ? mark : quick.px,
       sz: sizeCoin,
       leverage,
       reduceOnly,
+      market: marketOrder,
       tpPx: targetPx,
       slPx: stopPx,
     })
@@ -325,12 +318,16 @@ export function ChartQuickOrder({
 
   return (
     <FloatingOrderWindow
-      label={`${buy ? "Buy" : "Sell"} ${market.symbol} at ${formatPrice(quick.px)}`}
+      label={
+        marketOrder
+          ? `Market ${buy ? "long" : "short"} ${market.symbol} at the current price`
+          : `${buy ? "Long" : "Short"} ${market.symbol} at ${formatPrice(quick.px)}`
+      }
       wide={wide}
       openedAt={quick}
       width={PANEL_WIDTH}
       height={PANEL_HEIGHT}
-      title={buy ? "Buy limit" : "Sell limit"}
+      title={buy ? "Long" : "Short"}
       titleClassName={buy ? undefined : LOST_MONEY}
       wallet={wallet}
       free={free}
@@ -363,6 +360,14 @@ export function ChartQuickOrder({
             )}
           </p>
         ) : null}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="quick-market"
+            checked={marketOrder}
+            onCheckedChange={(next) => setMarketOrder(next === true)}
+          />
+          <Label htmlFor="quick-market">Market</Label>
+        </div>
         <div className="grid gap-2">
           <Label htmlFor="quick-size">Size</Label>
           <div className="flex items-start gap-2">
@@ -447,14 +452,6 @@ export function ChartQuickOrder({
               </Button>
             ))}
           </div>
-          {takenNow ? (
-            // The level clicked is already past the market, so this is not
-            // going to wait for anything. Better said here than discovered
-            // after the fact.
-            <p className={cn("text-xs", WARNING)}>
-              Fills straight away at {formatPrice(mark)}.
-            </p>
-          ) : null}
         </div>
 
         {/* Adding to a position cannot change its leverage. The server sends
@@ -582,7 +579,9 @@ export function ChartQuickOrder({
             }
             className={cn("w-full", buy ? BUY_BUTTON : SELL_BUTTON)}
           >
-            {`${buy ? "Buy" : "Sell"} ${market.symbol}`}
+            {marketOrder
+              ? `Market ${buy ? "long" : "short"} ${market.symbol}`
+              : `${buy ? "Long" : "Short"} ${market.symbol}`}
           </Button>
         </div>
       </div>

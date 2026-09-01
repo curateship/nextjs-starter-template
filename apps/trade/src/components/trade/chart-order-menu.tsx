@@ -282,7 +282,7 @@ function MenuRow({ side, onPick }: { side: TradeSide; onPick: () => void }) {
       ) : (
         <TrendingDownIcon className={cn("size-4", LOST_MONEY)} />
       )}
-      <span className="font-medium">{buy ? "Buy limit" : "Sell limit"}</span>
+      <span className="font-medium">{buy ? "Long" : "Short"}</span>
     </button>
   )
 }

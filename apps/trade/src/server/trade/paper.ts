@@ -1048,6 +1048,10 @@ export async function placePaperOrder(
     reduceOnly: boolean
     tpPx: number | null
     slPx: number | null
+    /** A checked Market box fills now, whatever chart price opened the window. */
+    marketOnly?: boolean
+    /** An unchecked order may rest, but it may never take the market. */
+    restingOnly?: boolean
   }
 ): Promise<void> {
   const ref = parseMarketKey(input.marketKey)
@@ -1074,15 +1078,23 @@ export async function placePaperOrder(
   )
   const sz = roundSize(input.sz, rules.sizeDecimals)
   if (!(px > 0)) throw new Error("PAPER_PRICE")
-  if (!(sz > 0) || px * sz < MIN_ORDER_VALUE_USD) throw new Error("PAPER_SIZE")
+  if (!(sz > 0)) throw new Error("PAPER_SIZE")
+  if (input.marketOnly && input.restingOnly) throw new Error("PAPER_ORDER_KIND")
+  if (!input.marketOnly && px * sz < MIN_ORDER_VALUE_USD) {
+    throw new Error("PAPER_SIZE")
+  }
 
   const mark = await markOf(wallet, input.marketKey)
+  const marketable = isMarketable(input.side, px, mark)
+  if (input.restingOnly && marketable) {
+    throw new Error("PAPER_ORDER_NOT_RESTING")
+  }
   const book = await settleWallet(userId, wallet)
 
   if (book.orders.length >= MAX_OPEN_ORDERS)
     throw new Error("PAPER_ORDER_LIMIT")
 
-  const taken = isMarketable(input.side, px, mark)
+  const taken = input.marketOnly === true || marketable
   // A price already through the market is not going to wait for anything, so
   // it is taken now — at the market's price, never at the worse one asked for.
   // Which means the price this order opens at is not always the price it asked
@@ -1091,6 +1103,9 @@ export async function placePaperOrder(
   // the margin against that price would let a trade through that the account
   // cannot actually afford.
   const entryPx = taken ? mark : px
+  if (input.marketOnly && entryPx * sz < MIN_ORDER_VALUE_USD) {
+    throw new Error("PAPER_SIZE")
+  }
   const long = input.side === "buy"
 
   const held = book.positions.get(input.marketKey) ?? null

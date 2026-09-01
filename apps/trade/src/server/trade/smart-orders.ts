@@ -18,7 +18,11 @@ import {
 } from "@/lib/trade/dca"
 import type { GridPlan } from "@/lib/trade/grid"
 import type { TradeSide } from "@/lib/trade/paper"
-import { readWatchPlan, type WatchPlan } from "@/lib/trade/watch-order"
+import {
+  readWatchPlan,
+  watchTriggerDirection,
+  type WatchPlan,
+} from "@/lib/trade/watch-order"
 import { readSignalPlan, type SignalPlan } from "@/lib/trade/signal-order"
 import {
   readSmartOrderKind,
@@ -1337,17 +1341,13 @@ export async function placeWatchOrder(
   if (mark === undefined) {
     throw new Error(wallet.kind === "paper" ? "PAPER_PRICE" : "LIVE_NO_PRICE")
   }
-  // A buy above today's market or a sell below it executes at today's price,
-  // not at the clicked level. The minimum check must use the same price or an
-  // order can be accepted here and silently die as too small in the engine.
-  const executionPx = isMarketable(input.side, input.px, mark) ? mark : input.px
   const minimum = checkOrderMinimum(
     {
       sizeDecimals: rules.sizeDecimals,
       minOrderValueUsd: rules.minOrderValueUsd ?? null,
       minOrderSize: rules.minOrderSize ?? null,
     },
-    executionPx,
+    input.px,
     input.sz
   )
   const sz = minimum.size
@@ -1361,6 +1361,7 @@ export async function placeWatchOrder(
   const now = new Date()
   const plan: WatchPlan = {
     triggerPx: input.px,
+    triggerDirection: watchTriggerDirection(input.px, mark),
     side: input.side,
     sz,
     leverage: input.leverage,
@@ -1372,9 +1373,8 @@ export async function placeWatchOrder(
     tpPx: input.tpPx,
     slPx: input.slPx,
     reduceOnly: input.reduceOnly,
-    // A plain order still takes the market when the level is already through
-    // it, which is what somebody drawing a line past the price is asking for.
-    // Only a part close refuses to — see `maker` on `WatchPlan`.
+    // Long and Short always wait for the direction recorded above. `maker`
+    // remains the separate part-close rule that never pays the spread.
     maker: false,
     heldAtStart: 0,
     // It waits at the level rather than following the price away from it,
