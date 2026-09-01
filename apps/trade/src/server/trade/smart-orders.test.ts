@@ -877,6 +877,49 @@ describe("placing a ladder", () => {
     expect(resized.ladder.plan.rungs.at(-1)?.px).toBeCloseTo(60, 9)
   })
 
+  it("rebuilds every setting before a buy and refuses the same edit after one", async () => {
+    const placed = await place()
+    const settings = params({
+      rungs: [{ deviation: 6 }, { deviation: 9 }, { deviation: 12 }],
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      leverage: 2,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      takeProfit: { mode: "average", pct: 4, exitGapPct: 0 },
+      stopLoss: { pct: 5, base: { underPct: 1, reclaimDays: 2 } },
+    })
+    const changed = await reshapeLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      settings,
+      greenInterval: "15m",
+    })
+
+    expect(changed.ladder.plan).toMatchObject({
+      leverage: 2,
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      greenInterval: "15m",
+      takeProfit: { mode: "average", pct: 4 },
+      stopLoss: { mode: "percent", pct: 5 },
+    })
+    expect(changed.ladder.plan.rungs).toHaveLength(3)
+
+    await cancelLadderRung(userId, wallet, {
+      ladderId: placed.ladder.id,
+      rungIndex: 0,
+    })
+    await expect(
+      reshapeLadder(userId, wallet, {
+        ladderId: placed.ladder.id,
+        settings,
+        greenInterval: "15m",
+      })
+    ).rejects.toThrow("SMART_LADDER_STARTED")
+  })
+
   it("drags every mirrored exit and replaces a funded practice sell", async () => {
     const placed = await place({
       takeProfit: { mode: "exitLadder", pct: 2, exitGapPct: 0 },

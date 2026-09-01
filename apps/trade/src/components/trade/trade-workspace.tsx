@@ -428,6 +428,14 @@ export function TradeWorkspace({
     : null
   const free = activeSummary?.state === "ok" ? activeSummary.free : 0
   const equity = activeSummary?.state === "ok" ? activeSummary.equity : 0
+  const summaryOfWallet = account.summaryOf
+  const equityOfWallet = React.useCallback(
+    (walletId: string) => {
+      const summary = summaryOfWallet(walletId)
+      return summary?.state === "ok" ? summary.equity : null
+    },
+    [summaryOfWallet]
+  )
 
   // A trade changes what the account is worth, so the two polls are nudged
   // into step: the moment the trading side goes quiet, the wallet figures are
@@ -1044,6 +1052,7 @@ export function TradeWorkspace({
             trading={trading}
             free={free}
             equity={equity}
+            equityOfWallet={equityOfWallet}
             shownTrade={shownTrade}
             onClearShownTrade={() => setShownTrade(null)}
             // The gate: the chart is on that row's coin AND the traded wallet

@@ -118,6 +118,26 @@ progress. A ladder owned by an automation cannot be moved by hand.
 A ladder paired with a grid must still keep its first buy below the grid's
 stop, and an invalid drag is refused without changing the saved plan.
 
+The gear on a placed ladder opens a small draggable window beside the gear. It
+has no screen-covering backdrop. Escape or a press outside closes it. While
+every rung is waiting, the window can change the rung list, account share, size
+ramp, borrowing, liquidity limit, two-green choice, anchor, take profit, stop
+loss and confirmed-base stop. Save redraws and resizes the complete ladder.
+The dollar preview uses the account value of the wallet that owns the ladder,
+even when another wallet is selected for new orders.
+The server checks again that every rung is untouched while it holds the wallet
+row, so an old browser cannot rewrite a ladder that bought during the save.
+
+Once one rung buys or gets called off, the same gear window keeps only take
+profit and stop loss. The window says that the rung shape and position size are
+frozen. Percentage boxes draw the percent sign beside the number, and they also
+accept a typed value such as `5%`. A bad stop names Stop loss in the refusal.
+
+Changing borrowing before the first buy changes only the saved watched plan.
+Placing a ladder sends no order to a live exchange. The venue receives the
+chosen borrowing when the first rung reaches its price, so no exchange has a
+placement-time borrowing setting to change or undo.
+
 ## A stop that rests under the base
 
 A DCA ladder can put its stop on the confirmed base instead of a fixed distance

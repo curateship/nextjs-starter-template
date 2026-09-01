@@ -92,7 +92,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   walletName,
   onCancelRung,
   onCancelLadder,
-  onEditExits,
+  onOpenSettings,
   onReshapeLadder,
 }: {
   surface: ChartSurface
@@ -109,7 +109,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
   walletName: (walletId: string) => string
   onCancelRung?: (walletId: string, ladderId: string, rungIndex: number) => void
   onCancelLadder?: (ladder: SmartLadder) => void
-  onEditExits?: (ladder: SmartLadder) => void
+  onOpenSettings?: (ladder: SmartLadder, anchor: Element) => void
   onReshapeLadder?: (
     ladder: SmartLadder,
     shape:
@@ -159,7 +159,7 @@ export const SmartLadderLayer = React.memo(function SmartLadderLayer({
           walletName={walletName}
           onCancelRung={onCancelRung}
           onCancelLadder={onCancelLadder}
-          onEditExits={onEditExits}
+          onOpenSettings={onOpenSettings}
           onReshapeLadder={onReshapeLadder}
           measureTop={() =>
             layerRef.current?.getBoundingClientRect().top ?? null
@@ -496,7 +496,7 @@ function LadderLines({
   walletName,
   onCancelRung,
   onCancelLadder,
-  onEditExits,
+  onOpenSettings,
   onReshapeLadder,
   measureTop,
   priceFrom,
@@ -510,7 +510,7 @@ function LadderLines({
   walletName: (walletId: string) => string
   onCancelRung?: (walletId: string, ladderId: string, rungIndex: number) => void
   onCancelLadder?: (ladder: SmartLadder) => void
-  onEditExits?: (ladder: SmartLadder) => void
+  onOpenSettings?: (ladder: SmartLadder, anchor: Element) => void
   onReshapeLadder?: (
     ladder: SmartLadder,
     shape:
@@ -555,9 +555,9 @@ function LadderLines({
       {readOnly ? null : (
         <button
           type="button"
-          aria-label="Change the ladder's exits"
+          aria-label="Change the ladder settings"
           className="rounded p-0.5 hover:bg-current/15 focus-visible:bg-current/15 focus-visible:outline-none"
-          onClick={() => onEditExits?.(ladder)}
+          onClick={(event) => onOpenSettings?.(ladder, event.currentTarget)}
         >
           <SettingsIcon className="size-3" />
         </button>

@@ -25,7 +25,7 @@ export function LazyOrderWindowFallback({
   state: { x: number; y: number }
   wide: boolean
   wallet: string
-  free: number
+  free?: number
   title: string
   onClose: () => void
 }) {

@@ -7,6 +7,7 @@ import {
   MIN_ORDER_WINDOW_HEIGHT,
   ORDER_WINDOW_HEIGHT,
   ORDER_WINDOW_WIDTH,
+  orderWindowBeside,
 } from "@/components/trade/order-window-form"
 import { OptionCard } from "@/components/trade/option-card"
 import { OrderRefusal } from "@/components/trade/order-refusal"
@@ -97,9 +98,8 @@ function currentLevelPcts(plan: GridPlan): number[] {
  * say: how many slices the range is cut into, how much of the account each one
  * spends, and the two prices that end the grid.
  *
- * Its own small window rather than a branch inside the ladder's exits window,
- * which is eight hundred lines and asks about three things a grid does not
- * have.
+ * The grid keeps its own small window because its slices, range and follow
+ * rules do not belong in the DCA ladder form.
  */
 export function GridSettingsWindow({
   grid,
@@ -151,16 +151,12 @@ export function GridSettingsWindow({
   onClose: () => void
 }) {
   if (!grid) return null
-  const at = anchor?.getBoundingClientRect()
 
   return (
     <FloatingOrderWindow
       label={`Settings for the ${marketSymbol(grid.marketKey)} grid`}
       wide={wide}
-      openedAt={{
-        x: at ? at.left - ORDER_WINDOW_WIDTH - 8 : 8,
-        y: at ? at.top + at.height / 2 - ORDER_WINDOW_HEIGHT / 2 : 8,
-      }}
+      openedAt={orderWindowBeside(anchor)}
       width={ORDER_WINDOW_WIDTH}
       height={ORDER_WINDOW_HEIGHT}
       minimumHeight={MIN_ORDER_WINDOW_HEIGHT}

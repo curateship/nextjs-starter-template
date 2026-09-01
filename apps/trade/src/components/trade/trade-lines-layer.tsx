@@ -106,7 +106,7 @@ type Line = {
   /** The × throws it away. */
   onRemove?: () => void
   /** The ⚙ opens whatever settings the thing behind it has. */
-  onSettings?: () => void
+  onSettings?: (anchor: Element) => void
   /** Words that belong on hover, not in the pill. */
   hint?: string
 }
@@ -121,7 +121,7 @@ export type EntryBadge = {
   text: string
   /** The sentence, shown on hover. */
   hint: string
-  onSettings: () => void
+  onSettings: (anchor: Element) => void
   /** Null when there is nothing left to call off. */
   onRemove: (() => void) | null
 }
@@ -961,13 +961,13 @@ export const TradeLinesLayer = React.memo(function TradeLinesLayer({
                         Math.abs(event.clientY - grab.top - grab.fromY) >
                           DRAG_SLOP)
                     endGrab(event, line)
-                    if (!dragged) line.onSettings?.()
+                    if (!dragged) line.onSettings?.(event.currentTarget)
                   }}
                   onPointerCancel={(event) => endGrab(event, line)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault()
-                      line.onSettings?.()
+                      line.onSettings?.(event.currentTarget)
                     }
                   }}
                 >

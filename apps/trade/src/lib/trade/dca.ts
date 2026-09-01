@@ -373,6 +373,25 @@ export const dcaParamsSchema = z.object({
 
 export type DcaParams = z.infer<typeof dcaParamsSchema>
 
+/**
+ * The settings a person may change after placing a ladder, while every rung
+ * is still waiting. Flow-only rules stay off this contract so a chart window
+ * cannot rewrite the automation that created a ladder.
+ */
+export const dcaLadderSettingsSchema = dcaParamsSchema.pick({
+  rungs: true,
+  maxPositionPct: true,
+  sizeMultiplier: true,
+  leverage: true,
+  maxOrderVolPct: true,
+  twoGreen: true,
+  anchor: true,
+  takeProfit: true,
+  stopLoss: true,
+})
+
+export type DcaLadderSettings = z.infer<typeof dcaLadderSettingsSchema>
+
 export function defaultDcaParams(): DcaParams {
   return {
     rungs: DEFAULT_DCA_RUNGS.map((rung) => ({ ...rung })),
@@ -733,6 +752,10 @@ export const ladderPlanSchema = z.object({
    * doing. New ladders also use 1 unless somebody chooses borrowing.
    */
   leverage: z.number().int().positive().default(1),
+  /** Exact placement values, added so an untouched ladder can be edited. */
+  maxPositionPct: dcaParamsSchema.shape.maxPositionPct.optional(),
+  sizeMultiplier: dcaParamsSchema.shape.sizeMultiplier.optional(),
+  maxOrderVolPct: dcaParamsSchema.shape.maxOrderVolPct.optional(),
   rungs: z.array(ladderRungStateSchema).min(1).max(20),
   /**
    * The mirrored sells. Old plans and mode switches start empty; the engine
@@ -846,6 +869,76 @@ export const ladderPlanSchema = z.object({
 })
 
 export type LadderPlan = z.infer<typeof ladderPlanSchema>
+
+/**
+ * Read an editable setup back from a placed plan.
+ *
+ * Plans written before the editor existed do not carry the three placement
+ * values above. Their rung prices and budgets are the only honest fallback,
+ * so the old plan is reconstructed from those rather than replaced by today's
+ * defaults.
+ */
+export function dcaLadderSettingsFromPlan(
+  plan: LadderPlan,
+  equity: number
+): DcaLadderSettings {
+  let previousPx = plan.anchorPx
+  const rungs = plan.rungs.map((rung) => {
+    const deviation = (1 - rung.px / previousPx) * 100
+    previousPx = rung.px
+    return { deviation: Number(deviation.toFixed(6)) }
+  })
+  const budgets = plan.rungs.map(rungBudget)
+  const ratios = budgets.slice(1).flatMap((budget, index) => {
+    const before = budgets[index]
+    return before > 0 && budget >= before ? [budget / before] : []
+  })
+  const inferredMultiplier =
+    ratios.length > 0
+      ? ratios.reduce((sum, ratio) => sum + ratio, 0) / ratios.length
+      : DEFAULT_DCA_SIZE_MULTIPLIER
+  const inferredPositionPct =
+    equity > 0
+      ? (budgets.reduce((sum, budget) => sum + budget, 0) /
+          Math.max(1, plan.leverage) /
+          equity) *
+        100
+      : DEFAULT_DCA_MAX_POSITION_PCT
+  const takeProfit =
+    plan.takeProfit === null
+      ? null
+      : {
+          mode:
+            plan.takeProfit.mode === "fixed"
+              ? ("average" as const)
+              : plan.takeProfit.mode,
+          pct: plan.takeProfit.pct ?? DEFAULT_DCA_TAKE_PROFIT_PCT,
+          exitGapPct: plan.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT,
+        }
+  const stopLoss =
+    plan.stopLoss === null
+      ? null
+      : {
+          pct: plan.stopLoss.pct ?? DEFAULT_DCA_STOP_LOSS_PCT,
+          base: plan.stopLoss.base ? { ...plan.stopLoss.base } : null,
+        }
+
+  return dcaLadderSettingsSchema.parse({
+    rungs,
+    maxPositionPct:
+      plan.maxPositionPct ??
+      Number(Math.min(100, Math.max(0.000001, inferredPositionPct)).toFixed(6)),
+    sizeMultiplier:
+      plan.sizeMultiplier ??
+      Number(Math.min(10, Math.max(1, inferredMultiplier)).toFixed(6)),
+    leverage: plan.leverage,
+    maxOrderVolPct: plan.maxOrderVolPct ?? 0,
+    twoGreen: plan.twoGreen,
+    anchor: plan.anchor,
+    takeProfit,
+    stopLoss,
+  })
+}
 
 export type LadderShapeChange =
   | { anchorPx: number; deepestPx?: never }
@@ -966,6 +1059,92 @@ export function reshapeLadderPlan(
     // A hand-set shape must not jump back to the next detected base.
     anchor: "click",
     rungs,
+    green: null,
+    baseWatch: null,
+  }
+}
+
+/** Replace every editable setting while an untouched ladder still holds no coin. */
+export function reshapeLadderSettingsPlan(
+  plan: LadderPlan,
+  settings: DcaLadderSettings,
+  input: {
+    anchorPx: number
+    equity: number
+    volume24hUsd: number | null
+    greenInterval: CandleInterval
+    roundPx: (px: number) => number
+  }
+): LadderPlan {
+  if (!ladderShapeMovable(plan)) throw new Error("SMART_LADDER_STARTED")
+  const checked = dcaLadderSettingsSchema.parse(settings)
+  const leverage = Math.min(checked.leverage, plan.maxLeverage)
+  const anchorPx = input.roundPx(input.anchorPx)
+  if (!(anchorPx > 0)) throw new Error("SMART_LADDER_RANGE")
+
+  const drawn = dcaLadderPlan({
+    anchorPx,
+    equity: input.equity,
+    params: { ...checked, leverage },
+    sizeDecimals: plan.sizeDecimals,
+    volume24hUsd: input.volume24hUsd,
+  })
+  if (drawn.tooSmallIndex !== null) throw new Error("SMART_RUNG_TOO_SMALL")
+
+  const rungs = drawn.rungs.map((rung, index): LadderRungState => {
+    const px = input.roundPx(rung.px)
+    const sz = floorSize(rung.sz, plan.sizeDecimals)
+    if (
+      !(px > 0) ||
+      !(sz > 0) ||
+      (index > 0 && !(input.roundPx(drawn.rungs[index - 1].px) > px))
+    ) {
+      throw new Error("SMART_LADDER_RANGE")
+    }
+    return {
+      px,
+      sz,
+      budget: px * sz,
+      status: "waiting",
+      orderId: null,
+      sellOrderId: null,
+      dead: false,
+      touched: false,
+    }
+  })
+
+  return {
+    ...plan,
+    anchorPx,
+    anchor: checked.anchor,
+    leverage,
+    maxPositionPct: checked.maxPositionPct,
+    sizeMultiplier: checked.sizeMultiplier,
+    maxOrderVolPct: checked.maxOrderVolPct,
+    rungs,
+    exitRungs: [],
+    exitLadderVersion: 2,
+    takeProfit: checked.takeProfit
+      ? {
+          mode: checked.takeProfit.mode,
+          pct:
+            checked.takeProfit.mode === "average"
+              ? checked.takeProfit.pct
+              : null,
+          exitGapPct: checked.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT,
+        }
+      : null,
+    stopLoss: checked.stopLoss
+      ? {
+          mode: "percent",
+          pct: checked.stopLoss.pct,
+          base: ladderBaseStopOf(checked.stopLoss.base),
+        }
+      : null,
+    aimedTpPx: null,
+    aimedSlPx: null,
+    twoGreen: checked.twoGreen,
+    greenInterval: checked.twoGreen ? input.greenInterval : null,
     green: null,
     baseWatch: null,
   }

@@ -69,7 +69,7 @@ still runs and remains the truth.
 - The paper portfolio read asks for smart orders after the settle, not
   alongside it, so a ladder a stop just finished is already gone from the
   answer. The comment in `loadPaperPortfolioFn` says so.
-- The exits dialog still runs the engine catch-up pass twice: once before
+- The ladder settings window still runs the engine catch-up pass twice: once before
   the edit so it sees current fills, once after (forced) so the new
   protection goes onto the exchange now rather than on the engine's next
   turn.

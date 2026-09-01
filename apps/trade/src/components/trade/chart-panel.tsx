@@ -33,10 +33,8 @@ import type {
   GridPreview,
 } from "@/components/trade/grid-order-dialog"
 import { GridSettingsWindow } from "@/components/trade/grid-settings-window"
-import {
-  LazyDialogFallback,
-  LazyOrderWindowFallback,
-} from "@/components/trade/lazy-window-fallback"
+import { LazyOrderWindowFallback } from "@/components/trade/lazy-window-fallback"
+import { orderWindowBeside } from "@/components/trade/order-window-form"
 import { SmartLadderLayer } from "@/components/trade/smart-ladder-layer"
 import type {
   DcaPreview,
@@ -135,9 +133,9 @@ const SmartOrderDialog = React.lazy(() =>
     default: module.SmartOrderDialog,
   }))
 )
-const SmartLadderExitsDialog = React.lazy(() =>
-  import("@/components/trade/smart-ladder-exits-dialog").then((module) => ({
-    default: module.SmartLadderExitsDialog,
+const SmartLadderSettingsWindow = React.lazy(() =>
+  import("@/components/trade/smart-ladder-settings-window").then((module) => ({
+    default: module.SmartLadderSettingsWindow,
   }))
 )
 
@@ -248,6 +246,7 @@ export function ChartPanel({
   trading,
   free,
   equity,
+  equityOfWallet,
   shownTrade,
   onClearShownTrade = () => {},
   addTo,
@@ -305,6 +304,8 @@ export function ChartPanel({
   free: number
   /** What the account is worth — the pot a DCA ladder's shares are cut from. */
   equity: number
+  /** The account value for a placed ladder that belongs to another wallet. */
+  equityOfWallet?: (walletId: string) => number | null
   /**
    * The finished trade picked in the Journal, drawn over the candles. Null
    * whenever nothing is picked, and ignored when it belongs to another market.
@@ -442,11 +443,14 @@ export function ChartPanel({
   // exit may sell only part of a position. Stop loss saves at once.
   const [takeProfit, setTakeProfit] =
     React.useState<ChartTakeProfitState | null>(null)
-  // The DCA window, its live preview lines, and the exits window of a placed
+  // The DCA window, its live preview lines, and the settings window of a placed
   // ladder — the smart-order half of the same right-click.
   const [smart, setSmart] = React.useState<SmartOrderState | null>(null)
   const [preview, setPreview] = React.useState<DcaPreview | null>(null)
-  const [exitsFor, setExitsFor] = React.useState<SmartLadder | null>(null)
+  const [ladderSettingsFor, setLadderSettingsFor] =
+    React.useState<SmartLadder | null>(null)
+  const [ladderSettingsAnchor, setLadderSettingsAnchor] =
+    React.useState<Element | null>(null)
   // The grid's half of the same right-click: its window, its preview lines,
   // and the two things a placed grid can be asked to do.
   const [grid, setGrid] = React.useState<GridOrderState | null>(null)
@@ -494,7 +498,8 @@ export function ChartPanel({
     setTakeProfit(null)
     setSmart(null)
     setPreview(null)
-    setExitsFor(null)
+    setLadderSettingsFor(null)
+    setLadderSettingsAnchor(null)
     setGrid(null)
     setGridPreview(null)
     setSettingsFor(null)
@@ -849,8 +854,11 @@ export function ChartPanel({
         text: `${waiting}`,
         hint: `DCA ladder — ${waiting} ${
           waiting === 1 ? "rung" : "rungs"
-        } still waiting to buy. The gear changes its exits; the × stops it buying deeper.`,
-        onSettings: () => setExitsFor(ladder),
+        } still waiting to buy. The gear changes its settings; the × stops it buying deeper.`,
+        onSettings: (anchor: Element) => {
+          setLadderSettingsFor(ladder)
+          setLadderSettingsAnchor(anchor)
+        },
         onRemove: waiting > 0 ? () => onCancelLadder(ladder) : null,
       }
     },
@@ -1255,6 +1263,13 @@ export function ChartPanel({
     },
     []
   )
+  const openLadderSettings = React.useCallback(
+    (one: SmartLadder, anchor: Element) => {
+      setLadderSettingsFor(one)
+      setLadderSettingsAnchor(anchor)
+    },
+    []
+  )
   const overlay = React.useCallback(
     (surface: ChartSurface, colors: ChartColors) => (
       <>
@@ -1285,7 +1300,7 @@ export function ChartPanel({
           walletName={walletNameOf}
           onCancelRung={onCancelRung}
           onCancelLadder={onCancelLadder}
-          onEditExits={setExitsFor}
+          onOpenSettings={openLadderSettings}
           onReshapeLadder={onReshapeLadder}
         />
         <GridLayer
@@ -1427,6 +1442,7 @@ export function ChartPanel({
       onMoveGridExit,
       onCancelLadder,
       openGridSettings,
+      openLadderSettings,
       reverseDisabledReason,
       feesPaidForGrid,
       feesPaidForPosition,
@@ -1885,29 +1901,57 @@ export function ChartPanel({
           setCancelGridFor(null)
         }}
       />
-      {exitsFor ? (
+      {ladderSettingsFor ? (
         <React.Suspense
           fallback={
-            <LazyDialogFallback
-              title="Edit DCA exits"
-              onClose={() => setExitsFor(null)}
+            <LazyOrderWindowFallback
+              state={orderWindowBeside(ladderSettingsAnchor)}
+              wide={wide}
+              wallet={
+                trading.walletNames.get(ladderSettingsFor.walletId) ??
+                "Another wallet"
+              }
+              title="DCA ladder settings"
+              onClose={() => {
+                setLadderSettingsFor(null)
+                setLadderSettingsAnchor(null)
+              }}
             />
           }
         >
-          <SmartLadderExitsDialog
-            ladder={exitsFor}
+          <SmartLadderSettingsWindow
+            ladder={ladderSettingsFor}
+            anchor={ladderSettingsAnchor}
+            wide={wide}
+            wallet={
+              trading.walletNames.get(ladderSettingsFor.walletId) ??
+              "Another wallet"
+            }
+            equity={
+              equityOfWallet
+                ? equityOfWallet(ladderSettingsFor.walletId)
+                : equity
+            }
+            market={market}
+            interval={interval}
             position={
               trading.positions.find(
                 (one) =>
-                  one.walletId === exitsFor.walletId &&
-                  one.marketKey === exitsFor.marketKey
+                  one.walletId === ladderSettingsFor.walletId &&
+                  one.marketKey === ladderSettingsFor.marketKey
               ) ?? null
             }
             busy={trading.busy}
-            onSave={(ladder, exits) =>
+            onSaveExits={(ladder, exits) =>
               trading.setLadderExits(ladder.walletId, ladder.id, exits)
             }
-            onClose={() => setExitsFor(null)}
+            onReshape={(ladder, change) =>
+              trading.reshapeLadder(ladder.walletId, ladder.id, change)
+            }
+            onClose={() => {
+              setLadderSettingsFor(null)
+              setLadderSettingsAnchor(null)
+            }}
           />
         </React.Suspense>
       ) : null}

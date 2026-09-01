@@ -1936,6 +1936,60 @@ describe("live Smart orders", () => {
     expect(moved.ladder.plan.exitRungs[0].orderId).toBe("moved-exit")
   })
 
+  it("changes every untouched live setting without touching the exchange", async () => {
+    const placed = await placeLiveDcaLadder(userId, wallet, {
+      marketKey: MARKET,
+      clickPx: 100,
+      interval: "1m",
+      params: params(),
+    })
+    place.mockClear()
+    const settings = params({
+      rungs: [{ deviation: 6 }, { deviation: 9 }, { deviation: 12 }],
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      leverage: 2,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      takeProfit: { mode: "average", pct: 4, exitGapPct: 0 },
+      stopLoss: { pct: 5, base: { underPct: 1, reclaimDays: 2 } },
+    })
+
+    const changed = await reshapeLiveLadder(userId, wallet, {
+      ladderId: placed.ladder.id,
+      settings,
+      greenInterval: "15m",
+    })
+
+    expect(changed.ladder.plan).toMatchObject({
+      leverage: 2,
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      greenInterval: "15m",
+      takeProfit: { mode: "average", pct: 4 },
+      stopLoss: { mode: "percent", pct: 5 },
+    })
+    expect(changed.ladder.plan.rungs).toHaveLength(3)
+    expect(place).not.toHaveBeenCalled()
+
+    const started = structuredClone(changed.ladder.plan)
+    started.rungs[0].status = "cancelled"
+    await database
+      .update(tradeSmartLadders)
+      .set({ plan: started })
+      .where(eq(tradeSmartLadders.id, placed.ladder.id))
+    dropEngineExchangeReads(wallet)
+    await expect(
+      reshapeLiveLadder(userId, wallet, {
+        ladderId: placed.ladder.id,
+        settings,
+        greenInterval: "15m",
+      })
+    ).rejects.toThrow("SMART_LADDER_STARTED")
+  })
+
   it("keeps the old live exit and gap when its cancellation fails", async () => {
     const placed = await placeLiveDcaLadder(userId, wallet, {
       marketKey: MARKET,

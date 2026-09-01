@@ -48,7 +48,10 @@ function Probe({ name }: { name: string }) {
 describe("the shared order-window form plumbing", () => {
   it("accepts a decimal that is still being typed", () => {
     expect(parseOrderNumber("0.")).toBe(0)
+    expect(parseOrderNumber("5%")).toBe(5)
+    expect(parseOrderNumber("5.5 %")).toBe(5.5)
     expect(parseOrderNumber("")).toBeNull()
+    expect(parseOrderNumber("5%%")).toBeNull()
     expect(parseOrderNumber("not a number")).toBeNull()
   })
 

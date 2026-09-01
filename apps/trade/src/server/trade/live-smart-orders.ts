@@ -7,6 +7,7 @@ import {
   marketKey as toMarketKey,
   marketSymbol,
   parseMarketKey,
+  type CandleInterval,
   type WalletPortfolio,
 } from "@/lib/protocols/contracts"
 import {
@@ -17,7 +18,9 @@ import {
   ladderBaseStopOf,
   ladderExitLevels,
   ladderHeldSz,
+  reshapeLadderSettingsPlan,
   reshapeLadderPlan,
+  type DcaLadderSettings,
   type LadderShapeChange,
   type LadderPlan,
   type LadderRungState,
@@ -370,6 +373,9 @@ function ladderPlan(
     priceTick,
     maxLeverage,
     leverage,
+    maxPositionPct: input.params.maxPositionPct,
+    sizeMultiplier: input.params.sizeMultiplier,
+    maxOrderVolPct: input.params.maxOrderVolPct,
     rungs,
     exitRungs: [],
     exitLadderVersion: 2,
@@ -720,7 +726,10 @@ async function updateLiveLadderExitsOnce(
 export async function reshapeLiveLadder(
   userId: string,
   wallet: TradeWallet,
-  input: LadderShapeChange & { ladderId: string }
+  input: { ladderId: string } & (
+    | LadderShapeChange
+    | { settings: DcaLadderSettings; greenInterval: CandleInterval }
+  )
 ): Promise<MovedLadder> {
   return await serializeLiveWallet(userId, wallet, async () => {
     await reconcileLiveLaddersOnce(userId, wallet)
@@ -757,13 +766,39 @@ export async function reshapeLiveLadder(
     )
     if (!rules) throw new Error("LIVE_MARKET")
     const protocol = getProtocol(wallet.protocol)
-    const plan = reshapeLadderPlan(ladder.plan, input, (px) =>
+    const roundPx = (px: number) =>
       protocol.markets.roundPx(
         px,
         ladder.plan.sizeDecimals,
         ladder.plan.priceTick
       )
-    )
+    let plan: LadderPlan
+    if ("settings" in input) {
+      const account = await heldEngineAccount(
+        wallet,
+        await walletCredential(userId, wallet.id)
+      )
+      const anchorPx =
+        input.settings.anchor === "base"
+          ? await marketBaseInForce(
+              wallet.protocol,
+              wallet.network,
+              ref.marketId,
+              Date.now(),
+              ladder.plan.baseDetection
+            )
+          : ladder.plan.anchorPx
+      if (anchorPx === null) throw new Error("SMART_LADDER_NO_BASE")
+      plan = reshapeLadderSettingsPlan(ladder.plan, input.settings, {
+        anchorPx,
+        equity: account.equity,
+        volume24hUsd: rules.volume24hUsd,
+        greenInterval: input.greenInterval,
+        roundPx,
+      })
+    } else {
+      plan = reshapeLadderPlan(ladder.plan, input, roundPx)
+    }
     assertLadderRungsTradable(plan, rules)
     const pairedGrid = await pairedGridPlan(userId, wallet.id, ladder.marketKey)
     if (pairedGrid) {

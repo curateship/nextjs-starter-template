@@ -18,6 +18,8 @@ import {
   ladderFirstBuyPx,
   baseStopPx,
   rungBudget,
+  dcaLadderSettingsFromPlan,
+  reshapeLadderSettingsPlan,
   reshapeLadderPlan,
   floorSize,
   volumeCapUsd,
@@ -199,6 +201,9 @@ describe("ladder plans", () => {
     priceTick: null,
     maxLeverage: 50,
     leverage: 1,
+    maxPositionPct: 20,
+    sizeMultiplier: 2,
+    maxOrderVolPct: 0,
     rungs: [
       {
         px: 95,
@@ -309,6 +314,69 @@ describe("ladder plans", () => {
     expect(resized.rungs.at(-1)?.px).toBeCloseTo(80, 10)
     expect(resized.rungs[0].px).toBeLessThan(95)
     expect(resized.anchor).toBe("click")
+  })
+
+  it("reads and replaces every editable setting before the first buy", () => {
+    expect(dcaLadderSettingsFromPlan(plan, 1_000)).toMatchObject({
+      rungs: [{ deviation: 5 }, { deviation: 8 }],
+      maxPositionPct: 20,
+      sizeMultiplier: 2,
+      leverage: 1,
+      maxOrderVolPct: 0,
+    })
+
+    const settings = {
+      ...dcaLadderSettingsFromPlan(plan, 1_000),
+      rungs: [{ deviation: 6 }, { deviation: 9 }, { deviation: 12 }],
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      leverage: 2,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      takeProfit: { mode: "average" as const, pct: 4, exitGapPct: 0 },
+      stopLoss: { pct: 5, base: { underPct: 1, reclaimDays: 2 } },
+    }
+    const changed = reshapeLadderSettingsPlan(plan, settings, {
+      anchorPx: 110,
+      equity: 1_000,
+      volume24hUsd: 1_000_000,
+      greenInterval: "15m",
+      roundPx: (price) => price,
+    })
+
+    expect(changed).toMatchObject({
+      anchorPx: 110,
+      leverage: 2,
+      maxPositionPct: 30,
+      sizeMultiplier: 3,
+      maxOrderVolPct: 1,
+      twoGreen: true,
+      greenInterval: "15m",
+      takeProfit: { mode: "average", pct: 4 },
+      stopLoss: { mode: "percent", pct: 5 },
+    })
+    expect(changed.rungs).toHaveLength(3)
+    expect(changed.rungs.every((rung) => rung.status === "waiting")).toBe(true)
+  })
+
+  it("refuses a full settings change after a rung starts", () => {
+    const started = {
+      ...plan,
+      rungs: [{ ...plan.rungs[0], status: "filled" as const }, plan.rungs[1]],
+    }
+    expect(() =>
+      reshapeLadderSettingsPlan(
+        started,
+        dcaLadderSettingsFromPlan(started, 1_000),
+        {
+          anchorPx: 100,
+          equity: 1_000,
+          volume24hUsd: null,
+          greenInterval: "1m",
+          roundPx: (price) => price,
+        }
+      )
+    ).toThrow("SMART_LADDER_STARTED")
   })
 
   it("refuses to move a ladder after a rung starts", () => {

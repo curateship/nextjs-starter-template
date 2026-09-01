@@ -8,7 +8,9 @@ import {
   floorSize,
   ladderBaseStopOf,
   ladderExitLevels,
+  reshapeLadderSettingsPlan,
   reshapeLadderPlan,
+  type DcaLadderSettings,
   type DcaParams,
   type LadderShapeChange,
   type LadderPlan,
@@ -292,6 +294,9 @@ export function draftDcaLadder(input: LadderDraftInput): LadderDraft {
     priceTick: rules.priceTick,
     maxLeverage,
     leverage,
+    maxPositionPct: params.maxPositionPct,
+    sizeMultiplier: params.sizeMultiplier,
+    maxOrderVolPct: params.maxOrderVolPct,
     rungs,
     exitRungs: [],
     exitLadderVersion: 2,
@@ -606,10 +611,53 @@ export function assertLadderRungsTradable(
 export async function reshapeLadder(
   userId: string,
   wallet: TradeWallet,
-  input: LadderShapeChange & { ladderId: string }
+  input: { ladderId: string } & (
+    | LadderShapeChange
+    | { settings: DcaLadderSettings; greenInterval: CandleInterval }
+  )
 ): Promise<MovedLadder> {
-  await settleWallet(userId, wallet)
-  const firstRead = await ladderById(userId, wallet.id, input.ladderId)
+  let firstRead: Awaited<ReturnType<typeof ladderById>>
+  let settingsContext:
+    | {
+        anchorPx: number
+        equity: number
+      }
+    | undefined
+  if ("settings" in input) {
+    const beforeSettle = await ladderById(userId, wallet.id, input.ladderId)
+    const ref = parseMarketKey(beforeSettle.marketKey)
+    if (!ref) throw new Error("PAPER_MARKET")
+    const keys = await exposedMarketKeys(userId, [wallet.id])
+    const marks = await marksForKeys([
+      ...new Set([...keys, beforeSettle.marketKey]),
+    ])
+    const book = await settleWallet(userId, wallet, { marks })
+    firstRead = await ladderById(userId, wallet.id, input.ladderId)
+    const figures = paperAccountFigures({
+      startingBalance: wallet.startingBalance,
+      realized: book.cash - wallet.startingBalance,
+      positions: [...book.positions.values()],
+      marks,
+    })
+    const anchorPx =
+      input.settings.anchor === "base"
+        ? await marketBaseInForce(
+            wallet.protocol,
+            wallet.network,
+            ref.marketId,
+            Date.now(),
+            firstRead.plan.baseDetection
+          )
+        : firstRead.plan.anchorPx
+    if (anchorPx === null) throw new Error("SMART_LADDER_NO_BASE")
+    settingsContext = {
+      anchorPx,
+      equity: figures.equity,
+    }
+  } else {
+    await settleWallet(userId, wallet)
+    firstRead = await ladderById(userId, wallet.id, input.ladderId)
+  }
   if ("exitPx" in input) {
     const goneSells: string[] = []
     await moveExitLadderPlan(firstRead.plan, input, async (orderId) => {
@@ -640,13 +688,24 @@ export async function reshapeLadder(
       .for("update")
     const ladder = await ladderById(userId, wallet.id, input.ladderId, tx)
     if (ladder.flowRunId !== null) throw new Error("SMART_LADDER_FLOW")
-    const plan = reshapeLadderPlan(ladder.plan, input, (px) =>
+    const roundPx = (px: number) =>
       protocol.markets.roundPx(
         px,
         ladder.plan.sizeDecimals,
         ladder.plan.priceTick
       )
-    )
+    let plan: LadderPlan
+    if ("settings" in input) {
+      if (!settingsContext) throw new Error("SMART_LADDER_RANGE")
+      plan = reshapeLadderSettingsPlan(ladder.plan, input.settings, {
+        ...settingsContext,
+        volume24hUsd: rules.volume24hUsd,
+        greenInterval: input.greenInterval,
+        roundPx,
+      })
+    } else {
+      plan = reshapeLadderPlan(ladder.plan, input, roundPx)
+    }
     assertLadderRungsTradable(plan, rules)
 
     const at = Date.now()

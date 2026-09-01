@@ -5,8 +5,9 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GridSettingsWindow } from "@/components/trade/grid-settings-window"
-import { SmartLadderExitsDialog } from "@/components/trade/smart-ladder-exits-dialog"
+import { SmartLadderSettingsWindow } from "@/components/trade/smart-ladder-settings-window"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { baseStopDetection } from "@/lib/trade/dca"
 import type { SmartGrid, SmartLadder } from "@/lib/trade/smart-plan"
 
 const shared = {
@@ -23,12 +24,61 @@ const ladder = {
   id: "ladder",
   kind: "dca",
   plan: {
+    anchorPx: 100,
+    anchor: "click",
+    rungEntry: "market",
+    startedAt: 1,
+    baseDetection: baseStopDetection(),
+    sizeDecimals: 3,
+    priceTick: null,
+    maxLeverage: 50,
+    leverage: 1,
+    maxPositionPct: 20,
+    sizeMultiplier: 2,
+    maxOrderVolPct: 0,
+    rungs: [
+      {
+        px: 95,
+        sz: 1,
+        budget: 95,
+        status: "filled",
+        orderId: null,
+        sellOrderId: null,
+        dead: false,
+        touched: false,
+      },
+      {
+        px: 87.4,
+        sz: 2,
+        budget: 174.8,
+        status: "waiting",
+        orderId: null,
+        sellOrderId: null,
+        dead: false,
+        touched: false,
+      },
+    ],
+    exitRungs: [],
+    exitLadderVersion: 2,
     takeProfit: { mode: "average", pct: 2 },
     stopLoss: {
-      mode: "average",
+      mode: "percent",
       pct: 5,
       base: { underPct: 1, reclaimDays: 2 },
     },
+    aimedTpPx: null,
+    aimedSlPx: null,
+    twoGreen: false,
+    greenInterval: null,
+    green: null,
+    steppedDown: 0,
+    awaitingSteppedRung: false,
+    awaitingRungAfterWipe: false,
+    baseWatch: null,
+    reclaim: null,
+    cascade: null,
+    cascadeSeenAt: null,
+    entryLimit: null,
   },
 } as unknown as SmartLadder
 
@@ -92,11 +142,16 @@ async function draw(kind: "ladder" | "grid", busy: boolean) {
     root.render(
       <TooltipProvider>
         {kind === "ladder" ? (
-          <SmartLadderExitsDialog
+          <SmartLadderSettingsWindow
             ladder={ladder}
+            wallet="Test wallet"
+            equity={1_000}
+            market={null}
+            interval="1m"
             position={null}
             busy={busy}
-            onSave={async () => true}
+            onSaveExits={async () => true}
+            onReshape={async () => true}
             onClose={() => undefined}
           />
         ) : (
@@ -195,7 +250,7 @@ describe.each([
       "base-stop-reclaim",
     ],
   ],
-] as const)("the %s exits window", (kind, controlIds) => {
+] as const)("the %s settings window", (kind, controlIds) => {
   it("locks every saved value only while the save is running", async () => {
     await draw(kind, false)
     for (const id of controlIds) expect(control(id).disabled).toBe(false)
@@ -216,8 +271,7 @@ describe.each([
     ].find((button) => button.textContent?.trim() === "Cancel")
     expect(save?.disabled).toBe(true)
     expect(save?.querySelector(".animate-spin")).not.toBeNull()
-    if (kind === "ladder") expect(cancel?.disabled).toBe(true)
-    else expect(cancel).toBeUndefined()
+    expect(cancel).toBeUndefined()
 
     await draw(kind, false)
     for (const id of controlIds) expect(control(id).disabled).toBe(false)
@@ -340,6 +394,190 @@ it("opens grid settings beside the cog with the Grid order UI", async () => {
   expect(settings?.textContent).not.toContain("working between")
 })
 
+it("opens an untouched ladder beside its cog and saves every placement setting", async () => {
+  const untouched = {
+    ...ladder,
+    plan: {
+      ...ladder.plan,
+      rungs: ladder.plan.rungs.map((rung) => ({
+        ...rung,
+        status: "waiting" as const,
+      })),
+    },
+  } as SmartLadder
+  const cog = document.createElement("button")
+  cog.getBoundingClientRect = () =>
+    ({
+      x: 700,
+      y: 400,
+      left: 700,
+      top: 400,
+      right: 716,
+      bottom: 416,
+      width: 16,
+      height: 16,
+      toJSON: () => ({}),
+    }) as DOMRect
+  const reshape = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <SmartLadderSettingsWindow
+          ladder={untouched}
+          anchor={cog}
+          wallet="Test wallet"
+          equity={1_000}
+          market={null}
+          interval="15m"
+          position={null}
+          busy={false}
+          onSaveExits={async () => true}
+          onReshape={reshape}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  const settings = document.querySelector<HTMLElement>(
+    '[role="dialog"][aria-label="Settings for the BTC DCA ladder"]'
+  )
+  expect(settings?.style.left).toBe("388px")
+  expect(settings?.style.top).toBe("128px")
+  for (const id of [
+    "ladder-rung-1",
+    "ladder-pot",
+    "ladder-ramp",
+    "ladder-leverage",
+    "ladder-tp-mode",
+    "ladder-tp-pct",
+    "ladder-sl-pct",
+  ]) {
+    expect(document.getElementById(id)).not.toBeNull()
+  }
+  const showAdvanced = [
+    ...document.querySelectorAll<HTMLButtonElement>("button"),
+  ].find((button) => button.ariaLabel === "Show Advanced settings")
+  await act(async () => showAdvanced?.click())
+  for (const id of ["ladder-anchor", "ladder-vol-guard", "ladder-two-green"]) {
+    expect(document.getElementById(id)).not.toBeNull()
+  }
+
+  await type("ladder-rung-1", "6")
+  await type("ladder-pot", "30")
+  await type("ladder-ramp", "3")
+  await type("ladder-leverage", "2")
+  await type("ladder-sl-pct", "5%")
+  await type("ladder-vol-guard", "1")
+  await act(async () => control("ladder-two-green").click())
+  const add = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Add rung")
+  )
+  await act(async () => add?.click())
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(reshape).toHaveBeenCalledWith(
+    untouched,
+    expect.objectContaining({
+      greenInterval: "15m",
+      settings: expect.objectContaining({
+        rungs: [{ deviation: 6 }, { deviation: 8 }, { deviation: 11 }],
+        maxPositionPct: 30,
+        sizeMultiplier: 3,
+        leverage: 2,
+        maxOrderVolPct: 1,
+        twoGreen: true,
+        stopLoss: expect.objectContaining({ pct: 5 }),
+      }),
+    })
+  )
+})
+
+it("keeps an untouched ladder's candle interval when the chart interval differs", async () => {
+  const untouched = {
+    ...ladder,
+    plan: {
+      ...ladder.plan,
+      twoGreen: true,
+      greenInterval: "1h" as const,
+      rungs: ladder.plan.rungs.map((rung) => ({
+        ...rung,
+        status: "waiting" as const,
+      })),
+    },
+  } as SmartLadder
+  const reshape = vi.fn(async () => true)
+
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <SmartLadderSettingsWindow
+          ladder={untouched}
+          wallet="Test wallet"
+          equity={1_000}
+          market={null}
+          interval="15m"
+          position={null}
+          busy={false}
+          onSaveExits={async () => true}
+          onReshape={reshape}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(reshape).toHaveBeenCalledWith(
+    untouched,
+    expect.objectContaining({ greenInterval: "1h" })
+  )
+})
+
+it("names a bad stop loss and keeps started ladders exits-only", async () => {
+  const reshape = vi.fn(async () => true)
+  await act(async () => {
+    root.render(
+      <TooltipProvider>
+        <SmartLadderSettingsWindow
+          ladder={ladder}
+          wallet="Test wallet"
+          equity={1_000}
+          market={null}
+          interval="1m"
+          position={null}
+          busy={false}
+          onSaveExits={async () => true}
+          onReshape={reshape}
+          onClose={() => undefined}
+        />
+      </TooltipProvider>
+    )
+  })
+
+  expect(document.getElementById("ladder-rung-1")).toBeNull()
+  expect(document.body.textContent).toContain("This ladder has started")
+  await type("ladder-sl-pct", "not a stop")
+  const save = [...document.querySelectorAll<HTMLButtonElement>("button")].find(
+    (button) => button.textContent?.includes("Save changes")
+  )
+  await act(async () => save?.click())
+
+  expect(document.body.textContent).toContain(
+    "Stop loss has to be a number above zero"
+  )
+  expect(document.body.textContent).not.toContain("Every rung step has to be")
+  expect(reshape).not.toHaveBeenCalled()
+})
+
 it("keeps four-decimal fixed exits when the ladder window opens twice", async () => {
   const fixed = {
     ...ladder,
@@ -353,17 +591,22 @@ it("keeps four-decimal fixed exits when the ladder window opens twice", async ()
     entryPx: 100,
     tpPx: 102.34567,
     slPx: 94.32109,
-  } as Parameters<typeof SmartLadderExitsDialog>[0]["position"]
+  } as Parameters<typeof SmartLadderSettingsWindow>[0]["position"]
 
   const render = async (open: boolean) => {
     await act(async () => {
       root.render(
         <TooltipProvider>
-          <SmartLadderExitsDialog
+          <SmartLadderSettingsWindow
             ladder={open ? fixed : null}
+            wallet="Test wallet"
+            equity={1_000}
+            market={null}
+            interval="1m"
             position={position}
             busy={false}
-            onSave={async () => true}
+            onSaveExits={async () => true}
+            onReshape={async () => true}
             onClose={() => undefined}
           />
         </TooltipProvider>
@@ -393,11 +636,16 @@ it("edits the mirrored exit gap without changing the other exit rules", async ()
   await act(async () => {
     root.render(
       <TooltipProvider>
-        <SmartLadderExitsDialog
+        <SmartLadderSettingsWindow
           ladder={exitLadder}
+          wallet="Test wallet"
+          equity={1_000}
+          market={null}
+          interval="1m"
           position={null}
           busy={false}
-          onSave={save}
+          onSaveExits={save}
+          onReshape={async () => true}
           onClose={() => undefined}
         />
       </TooltipProvider>
@@ -556,16 +804,21 @@ it("keeps the ladder draft when a save is refused", async () => {
     const [busy, setBusy] = useState(false)
     return (
       <TooltipProvider>
-        <SmartLadderExitsDialog
+        <SmartLadderSettingsWindow
           ladder={ladder}
+          wallet="Test wallet"
+          equity={1_000}
+          market={null}
+          interval="1m"
           position={null}
           busy={busy}
-          onSave={async () => {
+          onSaveExits={async () => {
             setBusy(true)
             const saved = await saving
             setBusy(false)
             return saved
           }}
+          onReshape={async () => true}
           onClose={() => undefined}
         />
       </TooltipProvider>

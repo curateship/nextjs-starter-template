@@ -122,6 +122,7 @@ describe("the DCA ladder window", () => {
 
     const position =
       host.querySelector("#smart-pot")?.parentElement?.parentElement
+        ?.parentElement
     expect(position?.className).toContain("grid gap-4")
     expect(position?.className).not.toContain("grid-cols")
 
@@ -215,9 +216,55 @@ describe("the DCA ladder window", () => {
     expect(exitMode).not.toBeNull()
     expect(exitGap).not.toBeNull()
     expect(exitLabel?.className).toBe(exitGapLabel?.className)
-    expect(fieldRows).toBe(exitGap?.parentElement?.parentElement)
+    expect(fieldRows).toBe(exitGap?.parentElement?.parentElement?.parentElement)
     expect(fieldRows?.className).toBe("grid gap-4")
     expect(exitMode?.parentElement?.className).toBe("grid gap-2")
-    expect(exitGap?.parentElement?.className).toBe("grid gap-2")
+    expect(exitGap?.parentElement?.parentElement?.className).toBe("grid gap-2")
+  })
+
+  it("keeps flow-only rules out of a hand-placed ladder", async () => {
+    rememberDcaPrefs({
+      ...defaultDcaParams(),
+      compound: false,
+      rungEntry: "market",
+      entryLimit: { coins: 1, withinHours: 1 },
+    })
+    const onPlace = vi.fn(async () => false)
+
+    await act(async () => {
+      root.render(
+        <TooltipProvider>
+          <SmartOrderDialog
+            state={{ px: 105, x: 20, y: 20 }}
+            market={market}
+            wallet="Practice"
+            equity={10_000}
+            free={10_000}
+            interval="15m"
+            busy={false}
+            onPreview={() => undefined}
+            onPlace={onPlace}
+            onClose={() => undefined}
+          />
+        </TooltipProvider>
+      )
+      await Promise.resolve()
+    })
+
+    const place = [...host.querySelectorAll<HTMLButtonElement>("button")].find(
+      (button) => button.textContent?.startsWith("Place")
+    )
+    await act(async () => place?.click())
+
+    expect(onPlace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        params: expect.objectContaining({
+          cascade: null,
+          compound: true,
+          entryLimit: null,
+          rungEntry: "limit",
+        }),
+      })
+    )
   })
 })

@@ -4,6 +4,7 @@ import { z } from "zod"
 import { CANDLE_INTERVALS, parseMarketKey } from "@/lib/protocols/contracts"
 import {
   baseStopDetection,
+  dcaLadderSettingsSchema,
   dcaParamsSchema,
   type DcaParams,
 } from "@/lib/trade/dca"
@@ -130,6 +131,8 @@ const reshapeLadderSchema = ladderSchema
     deepestPx: z.number().positive().finite().optional(),
     exitIndex: z.number().int().min(0).max(19).optional(),
     exitPx: z.number().positive().finite().optional(),
+    settings: dcaLadderSettingsSchema.optional(),
+    greenInterval: z.enum(CANDLE_INTERVALS).optional(),
   })
   .refine(
     (input) => {
@@ -139,7 +142,16 @@ const reshapeLadderSchema = ladderSchema
         input.exitIndex !== undefined || input.exitPx !== undefined
       const exitMove =
         input.exitIndex !== undefined && input.exitPx !== undefined
-      return entryMove ? !anyExitField : exitMove
+      const settingsChange =
+        input.settings !== undefined && input.greenInterval !== undefined
+      const anySettingsField =
+        input.settings !== undefined || input.greenInterval !== undefined
+      return (
+        Number(entryMove && !anyExitField && !anySettingsField) +
+          Number(exitMove && !entryMove && !anySettingsField) +
+          Number(settingsChange && !entryMove && !anyExitField) ===
+        1
+      )
     },
     { message: "SMART_LADDER_RANGE" }
   )
@@ -280,15 +292,21 @@ const reshapeLadderFn = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const wallet = await tradingWallet(context.user.id, data.walletId)
     const input =
-      data.anchorPx !== undefined
-        ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
-        : data.deepestPx !== undefined
-          ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
-          : {
-              ladderId: data.ladderId,
-              exitIndex: data.exitIndex as number,
-              exitPx: data.exitPx as number,
-            }
+      data.settings !== undefined && data.greenInterval !== undefined
+        ? {
+            ladderId: data.ladderId,
+            settings: data.settings,
+            greenInterval: data.greenInterval,
+          }
+        : data.anchorPx !== undefined
+          ? { ladderId: data.ladderId, anchorPx: data.anchorPx }
+          : data.deepestPx !== undefined
+            ? { ladderId: data.ladderId, deepestPx: data.deepestPx }
+            : {
+                ladderId: data.ladderId,
+                exitIndex: data.exitIndex as number,
+                exitPx: data.exitPx as number,
+              }
     return wallet.kind === "live"
       ? await reshapeLiveLadder(context.user.id, wallet, input)
       : await reshapeLadderRows(context.user.id, wallet, input)

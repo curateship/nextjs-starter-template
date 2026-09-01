@@ -4,10 +4,26 @@ export const ORDER_WINDOW_WIDTH = 304
 export const ORDER_WINDOW_HEIGHT = 560
 export const MIN_ORDER_WINDOW_HEIGHT = 260
 
+/** Put a settings window immediately left of the chart control that opened it. */
+export function orderWindowBeside(anchor: Element | null): {
+  x: number
+  y: number
+} {
+  const at = anchor?.getBoundingClientRect()
+  return {
+    x: at ? at.left - ORDER_WINDOW_WIDTH - 8 : 8,
+    y: at ? at.top + at.height / 2 - ORDER_WINDOW_HEIGHT / 2 : 8,
+  }
+}
+
 /** Read a number without rejecting a value that is still being typed. */
 export function parseOrderNumber(value: string): number | null {
-  const number = Number(value)
-  return value.trim() !== "" && Number.isFinite(number) ? number : null
+  const trimmed = value.trim()
+  const withoutPercent = trimmed.endsWith("%")
+    ? trimmed.slice(0, -1).trim()
+    : trimmed
+  const number = Number(withoutPercent)
+  return withoutPercent !== "" && Number.isFinite(number) ? number : null
 }
 
 /**

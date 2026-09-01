@@ -69,7 +69,7 @@ import {
   refusalAlertsForActiveWatches,
   type LiveRefusal,
 } from "@/lib/trade/live"
-import type { DcaParams } from "@/lib/trade/dca"
+import type { DcaLadderSettings, DcaParams } from "@/lib/trade/dca"
 import { orderCancelKind } from "@/lib/trade/cancel-order"
 import { formatUsd } from "@/lib/trade/format"
 import type { GridStop, PlaceGridParams } from "@/lib/trade/grid"
@@ -425,6 +425,10 @@ export type Trading = {
       | { anchorPx: number }
       | { deepestPx: number }
       | { exitIndex: number; exitPx: number }
+      | {
+          settings: DcaLadderSettings
+          greenInterval: CandleInterval
+        }
   ) => Promise<boolean>
   /** Change a live ladder's take profit and stop rules. */
   setLadderExits: (

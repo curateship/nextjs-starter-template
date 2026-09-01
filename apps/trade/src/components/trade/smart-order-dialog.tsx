@@ -1,9 +1,12 @@
 import * as React from "react"
-import { Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react"
+import { Loader2Icon } from "lucide-react"
 
-import { BaseStopFields } from "@/components/trade/base-stop-fields"
+import {
+  dcaSettingsFormState,
+  inspectDcaSettingsForm,
+} from "@/components/trade/dca-settings-form"
+import { DcaSettingsFields } from "@/components/trade/dca-settings-fields"
 import { FloatingOrderWindow } from "@/components/trade/floating-order-window"
-import { OptionCard } from "@/components/trade/option-card"
 import {
   MIN_ORDER_WINDOW_HEIGHT,
   ORDER_WINDOW_HEIGHT,
@@ -13,17 +16,7 @@ import {
 } from "@/components/trade/order-window-form"
 import { OrderRefusal } from "@/components/trade/order-refusal"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
-import { FieldLabel } from "@/components/ui/field-label"
-import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { ladderBase } from "@/lib/trade/ladder-base-cache"
 import {
   freshDcaPrefs,
@@ -32,28 +25,18 @@ import {
 } from "@/lib/trade/smart-prefs-cache"
 import { type CandleInterval, type MarketRow } from "@/lib/protocols/contracts"
 import {
-  DCA_ANCHOR_HINTS,
-  DCA_ANCHOR_LABELS,
-  DCA_ANCHORS,
-  DCA_TP_MODE_HINTS,
-  DCA_TP_MODE_LABELS,
-  DCA_TP_MODES,
   DEFAULT_DCA_EXIT_GAP_PCT,
+  baseStopDetection,
   dcaLadderPlan,
+  dcaLadderSettingsSchema,
   exitLadderGapPctForPrice,
-  MAX_DCA_EXIT_GAP_PCT,
   resizedDcaDeviations,
-  DEFAULT_BASE_STOP_RECLAIM_DAYS,
-  DEFAULT_BASE_STOP_UNDER_PCT,
   DEFAULT_DCA_STOP_LOSS_PCT,
   dcaParamsSchema,
   defaultDcaParams,
-  type DcaAnchor,
   type DcaParams,
-  type DcaTpMode,
-  baseStopDetection,
 } from "@/lib/trade/dca"
-import { formatPrice, formatUsd } from "@/lib/trade/format"
+import { formatPrice } from "@/lib/trade/format"
 import { marketLeverageLimit } from "@/lib/trade/leverage"
 import { BUY_BUTTON } from "@/lib/trade/money-tone"
 import { showErrorToast } from "@/lib/toast/error-toast"
@@ -87,29 +70,6 @@ export type DcaPreview = {
   onResize: (deepestPx: number) => void | Promise<boolean>
   /** Move every mirrored exit while preserving the gaps between them. */
   onMoveExit?: (exitIndex: number, exitPx: number) => void | Promise<boolean>
-}
-
-/**
- * One rung of the ladder while it is being typed: what is in its box, and a
- * name of its own that outlives its position in the list.
- *
- * **The name is why it exists.** React tells two rows apart by their key, and
- * keying these by position meant removing the third rung handed the fourth
- * rung's box to the third rung's row — same DOM box, new number, and whatever
- * was half-typed, selected or undone in it belonged to a different rung. The
- * name is minted once when the rung appears and never changes, so a removal
- * takes exactly one row away and leaves every other box where it was.
- */
-type Rung = { id: string; value: string }
-
-/** Counts up for the life of the tab; nothing is stored or compared to it. */
-let nextRungId = 0
-
-function rungsFrom(deviations: readonly number[]): Rung[] {
-  return deviations.map((deviation) => ({
-    id: `rung-${(nextRungId += 1)}`,
-    value: String(deviation),
-  }))
 }
 
 export function SmartOrderDialog({
@@ -167,60 +127,19 @@ export function SmartOrderDialog({
     showValidation,
     setShowValidation,
   } = useOrderWindowForm()
-  const [rungs, setRungs] = React.useState<Rung[]>(() =>
-    rungsFrom(
-      (seeded ?? defaultDcaParams()).rungs.map((rung) => rung.deviation)
+  const [form, setForm] = React.useState(() =>
+    dcaSettingsFormState(
+      dcaLadderSettingsSchema.parse(seeded ?? defaultDcaParams())
     )
   )
-  const [maxPositionPct, setMaxPositionPct] = React.useState(
-    String(seeded?.maxPositionPct ?? defaultDcaParams().maxPositionPct)
-  )
-  const [sizeMultiplier, setSizeMultiplier] = React.useState(
-    String(seeded?.sizeMultiplier ?? defaultDcaParams().sizeMultiplier)
-  )
-  const [leverage, setLeverage] = React.useState(
-    String(seeded?.leverage ?? defaultDcaParams().leverage)
-  )
-  const [maxOrderVolPct, setMaxOrderVolPct] = React.useState(
-    seeded ? String(seeded.maxOrderVolPct) : "0"
-  )
-  const [twoGreen, setTwoGreen] = React.useState(seeded?.twoGreen ?? false)
-  const [anchor, setAnchor] = React.useState<DcaAnchor>(
-    seeded?.anchor ?? "base"
+  const changeForm = React.useCallback(
+    (next: typeof form) => touched(setForm)(next),
+    [touched]
   )
   // A chart drag turns the preview into a click-anchored ladder at the dropped
   // price. Kept apart from `state.px`, which is the original right-click and
   // still owns where the floating window opened.
   const [movedClickPx, setMovedClickPx] = React.useState<number | null>(null)
-  const [tpOn, setTpOn] = React.useState(
-    seeded ? seeded.takeProfit !== null : true
-  )
-  const [tpMode, setTpMode] = React.useState<DcaTpMode>(
-    seeded?.takeProfit?.mode ?? "average"
-  )
-  const [tpPct, setTpPct] = React.useState(
-    seeded?.takeProfit ? String(seeded.takeProfit.pct) : "2"
-  )
-  const [exitGapPct, setExitGapPct] = React.useState(
-    String(seeded?.takeProfit?.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
-  )
-  const [slOn, setSlOn] = React.useState(
-    seeded ? seeded.stopLoss !== null : false
-  )
-  const [slPct, setSlPct] = React.useState(
-    seeded?.stopLoss ? String(seeded.stopLoss.pct) : "1"
-  )
-  const [baseOn, setBaseOn] = React.useState(
-    seeded ? seeded.stopLoss?.base != null : false
-  )
-  const [baseUnderPct, setBaseUnderPct] = React.useState(
-    String(seeded?.stopLoss?.base?.underPct ?? DEFAULT_BASE_STOP_UNDER_PCT)
-  )
-  const [baseReclaimDays, setBaseReclaimDays] = React.useState(
-    String(
-      seeded?.stopLoss?.base?.reclaimDays ?? DEFAULT_BASE_STOP_RECLAIM_DAYS
-    )
-  )
   // The level the ladder hangs from — the confirmed base. Asked for in the
   // background (and usually prefetched as the menu opened); until it lands the
   // preview hangs from the click so something honest is on screen at once, and
@@ -250,30 +169,7 @@ export function SmartOrderDialog({
       // settings lost the race and the hand wins. Values equal to what the
       // fields were seeded with change nothing on screen.
       if (stale || !params || editedRef.current) return
-      setRungs(rungsFrom(params.rungs.map((rung) => rung.deviation)))
-      setMaxPositionPct(String(params.maxPositionPct))
-      setSizeMultiplier(String(params.sizeMultiplier))
-      setLeverage(String(params.leverage))
-      setMaxOrderVolPct(String(params.maxOrderVolPct))
-      setTwoGreen(params.twoGreen)
-      setAnchor(params.anchor)
-      setTpOn(params.takeProfit !== null)
-      if (params.takeProfit) {
-        setTpMode(params.takeProfit.mode)
-        setTpPct(String(params.takeProfit.pct))
-        setExitGapPct(
-          String(params.takeProfit.exitGapPct ?? DEFAULT_DCA_EXIT_GAP_PCT)
-        )
-      }
-      setSlOn(params.stopLoss !== null)
-      if (params.stopLoss) {
-        setSlPct(String(params.stopLoss.pct))
-        setBaseOn(params.stopLoss.base !== null)
-        if (params.stopLoss.base) {
-          setBaseUnderPct(String(params.stopLoss.base.underPct))
-          setBaseReclaimDays(String(params.stopLoss.base.reclaimDays))
-        }
-      }
+      setForm(dcaSettingsFormState(dcaLadderSettingsSchema.parse(params)))
     })
     return () => {
       stale = true
@@ -282,88 +178,29 @@ export function SmartOrderDialog({
 
   // ----- The honest arithmetic, live -------------------------------------
 
+  const maxBorrowing = marketLeverageLimit(market.maxLeverage)
+  const inspection = React.useMemo(
+    () => inspectDcaSettingsForm(form, maxBorrowing, true),
+    [form, maxBorrowing]
+  )
   const params = React.useMemo((): DcaParams | null => {
-    const deviations = rungs.map((rung) => parsed(rung.value))
-    if (deviations.some((one) => one === null)) return null
-    const candidate: DcaParams = {
-      rungs: deviations.map((deviation) => ({
-        deviation: deviation as number,
-      })),
-      // A ladder placed by hand from the chart. The crash rule needs to watch
-      // a whole list of coins at once, which only a flow has, so there is
-      // nothing sensible to offer here. Same for the entry limit: it counts
-      // coins across a wallet, and one hand-placed ladder is one coin.
+    if (!inspection.settings) return null
+    const checked = dcaParamsSchema.safeParse({
+      ...inspection.settings,
       cascade: null,
       entryLimit: null,
-      // The one place still on the indicator's factory numbers, and the one
-      // place that arguably should not be: you are clicking a base the chart
-      // drew, so this ought to follow whatever the chart was drawing it with.
-      // The page has those settings; they are not threaded down here yet.
       baseDetection: baseStopDetection(),
-      maxPositionPct: parsed(maxPositionPct) ?? -1,
-      sizeMultiplier: parsed(sizeMultiplier) ?? -1,
-      // Hand-placed ladders have no repeat cycle. Keep their existing sizing.
       compound: true,
-      leverage: parsed(leverage) ?? -1,
-      maxOrderVolPct: parsed(maxOrderVolPct) ?? -1,
-      twoGreen,
-      anchor,
-      // Inert: the placement path forces every ladder onto watched triggers,
-      // whatever is sent here. Carried only because the params type still
-      // has the field.
       rungEntry: "limit",
-      takeProfit: tpOn
-        ? {
-            mode: tpMode,
-            pct: parsed(tpPct) ?? -1,
-            exitGapPct: parsed(exitGapPct) ?? -1,
-          }
-        : null,
-      stopLoss: slOn
-        ? {
-            pct: parsed(slPct) ?? -1,
-            base: baseOn
-              ? {
-                  underPct: parsed(baseUnderPct) ?? -1,
-                  reclaimDays: parsed(baseReclaimDays) ?? -1,
-                }
-              : null,
-          }
-        : null,
-    }
-    const checked = dcaParamsSchema.safeParse(candidate)
+    })
     return checked.success ? checked.data : null
-  }, [
-    rungs,
-    maxPositionPct,
-    sizeMultiplier,
-    leverage,
-    maxOrderVolPct,
-    twoGreen,
-    anchor,
-    tpOn,
-    tpMode,
-    tpPct,
-    exitGapPct,
-    slOn,
-    slPct,
-    baseOn,
-    baseUnderPct,
-    baseReclaimDays,
-  ])
-  const borrowing = parsed(leverage)
-  const maxBorrowing = marketLeverageLimit(market.maxLeverage)
-  const borrowingInvalid =
-    borrowing === null ||
-    !Number.isInteger(borrowing) ||
-    borrowing < 1 ||
-    borrowing > maxBorrowing
+  }, [inspection.settings])
 
   // The click stands in for the base until the base read lands, so the rungs
   // draw in the same frame the window opens. Placing still waits for the real
   // base — see `ready` — so nothing measured from the stand-in can be placed.
   const hangsFrom =
-    anchor === "click"
+    form.anchor === "click"
       ? (movedClickPx ?? state.px)
       : baseRead
         ? basePx
@@ -390,17 +227,17 @@ export function SmartOrderDialog({
       setShowValidation(false)
       // A hand-moved ladder no longer follows the confirmed base. The price
       // under the hand becomes the click price sent when Place is pressed.
-      setAnchor("click")
+      changeForm({ ...form, anchor: "click" })
       setMovedClickPx(anchorPx)
     },
-    [editedRef, setShowValidation]
+    [changeForm, editedRef, form, setShowValidation]
   )
 
   const resizePreview = React.useCallback(
     (deepestPx: number) => {
       const currentDeepest = plan?.rungs.at(-1)?.px
       if (hangsFrom === null || currentDeepest === undefined) return
-      const deviations = rungs.map((rung) => parsed(rung.value))
+      const deviations = form.rungs.map((rung) => parsed(rung.value))
       if (deviations.some((value) => value === null)) return
       const resized = resizedDcaDeviations(
         deviations as number[],
@@ -412,16 +249,17 @@ export function SmartOrderDialog({
 
       editedRef.current = true
       setShowValidation(false)
-      setRungs((held) =>
-        held.map((rung, index) => ({
+      changeForm({
+        ...form,
+        rungs: form.rungs.map((rung, index) => ({
           ...rung,
           // Six places keeps the dropped line still after the percentages are
           // put back through the planner, without filling the boxes with noise.
           value: String(Number(resized[index].toFixed(6))),
-        }))
-      )
+        })),
+      })
     },
-    [editedRef, hangsFrom, plan, rungs, setShowValidation]
+    [changeForm, editedRef, form, hangsFrom, plan, setShowValidation]
   )
 
   const moveExitPreview = React.useCallback(
@@ -435,9 +273,12 @@ export function SmartOrderDialog({
       if (gapPct === null) return
       editedRef.current = true
       setShowValidation(false)
-      setExitGapPct(String(Number(gapPct.toFixed(6))))
+      changeForm({
+        ...form,
+        exitGapPct: String(Number(gapPct.toFixed(6))),
+      })
     },
-    [editedRef, hangsFrom, plan, setShowValidation]
+    [changeForm, editedRef, form, hangsFrom, plan, setShowValidation]
   )
 
   const previewPlan = React.useMemo<DcaPreview | null>(
@@ -476,39 +317,30 @@ export function SmartOrderDialog({
         )
       : DEFAULT_DCA_STOP_LOSS_PCT
 
-  const noBase = anchor === "base" && baseRead && basePx === null
+  const noBase = form.anchor === "base" && baseRead && basePx === null
   const underBase =
-    anchor === "base" && basePx !== null && market.price < basePx
-  const parsedExitGap = parsed(exitGapPct)
-  const badExitGap =
-    tpOn &&
-    tpMode === "exitLadder" &&
-    (parsedExitGap === null ||
-      parsedExitGap < 0 ||
-      parsedExitGap > MAX_DCA_EXIT_GAP_PCT)
+    form.anchor === "base" && basePx !== null && market.price < basePx
 
   const refusal = noBase
     ? "This market has no confirmed base yet, and the ladder hangs from one. Point it at the clicked price in Advanced settings, or wait for the chart to mark a base."
     : underBase
       ? `Price is already under the base at ${formatPrice(basePx as number)}, so that level has gone. The ladder starts when price is at or above a base and buys the fall from there.`
-      : borrowingInvalid
-        ? `Borrowing must be a whole number from 1× to ${maxBorrowing}× on this market.`
-        : badExitGap
-          ? `Extra exit gap must be from 0 to ${MAX_DCA_EXIT_GAP_PCT}%.`
-          : !params
-            ? "A number here does not make sense yet — every step needs to be between 0 and 99."
-            : plan && plan.tooSmallIndex !== null
-              ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
-              : null
+      : inspection.refusal
+        ? inspection.refusal
+        : !params
+          ? "Finish the ladder settings before placing it."
+          : plan && plan.tooSmallIndex !== null
+            ? `Rung ${plan.tooSmallIndex + 1} is too small to be an order on this market. Use fewer rungs, a gentler ramp, or a bigger share.`
+            : null
 
   const ready =
-    (anchor === "click" || baseRead) &&
+    (form.anchor === "click" || baseRead) &&
     !busy &&
     refusal === null &&
     plan !== null
   const blockedReason =
     refusal ??
-    (anchor === "base" && !baseRead
+    (form.anchor === "base" && !baseRead
       ? "Still reading the confirmed base for this market."
       : "Finish the ladder settings before placing it.")
   const submit = async () => {
@@ -519,7 +351,8 @@ export function SmartOrderDialog({
       return
     }
     const placed = await onPlace({
-      clickPx: anchor === "click" && hangsFrom !== null ? hangsFrom : state.px,
+      clickPx:
+        form.anchor === "click" && hangsFrom !== null ? hangsFrom : state.px,
       interval,
       params,
     })
@@ -528,22 +361,6 @@ export function SmartOrderDialog({
     if (placed) rememberDcaPrefs(params)
     if (placed) onClose()
   }
-
-  const setRung = (id: string, value: string) =>
-    setRungs((held) =>
-      held.map((one) => (one.id === id ? { ...one, value } : one))
-    )
-  const removeRung = (id: string) =>
-    setRungs((held) => held.filter((one) => one.id !== id))
-  // Each added rung steps 3 deeper than the last, the old app's pattern —
-  // 5, 8, 11 — so an added ladder widens instead of bunching up.
-  const addRung = () =>
-    setRungs((held) => {
-      const last = Number(held[held.length - 1]?.value)
-      const next =
-        Number.isFinite(last) && last > 0 ? Math.min(99, last + 3) : 5
-      return [...held, ...rungsFrom([next])]
-    })
 
   return (
     <FloatingOrderWindow
@@ -561,354 +378,20 @@ export function SmartOrderDialog({
     >
       <ScrollArea className="h-full">
         <div className="grid gap-4 p-3">
-          <OptionCard
-            id="smart-ladder"
-            title="Ladder"
-            hint="Each step is measured below the buy above it, so the drops compound. Drag any preview rung on the chart to move the whole ladder, or drag the deepest rung's resize handle to spread the rungs apart or bring them closer."
-          >
-            {rungs.map((rung, index) => {
-              const planned = plan?.rungs[index]
-              return (
-                <div key={rung.id} className="flex items-center gap-2">
-                  <span className="w-4 text-right text-xs text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <Input
-                    id={`smart-rung-${index + 1}`}
-                    inputMode="decimal"
-                    value={rung.value}
-                    disabled={busy}
-                    aria-label={`Rung ${index + 1}, percent below the buy above`}
-                    aria-invalid={showValidation && parsed(rung.value) === null}
-                    onChange={(event) =>
-                      touched(setRung)(rung.id, event.target.value)
-                    }
-                    onBlur={() => setShowValidation(true)}
-                    className="w-16 bg-background"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground tabular-nums">
-                    {planned ? formatUsd(planned.dollars) : "—"}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 text-muted-foreground"
-                    disabled={busy || rungs.length <= 1}
-                    aria-label={`Remove rung ${index + 1}`}
-                    onClick={() => touched(removeRung)(rung.id)}
-                  >
-                    <Trash2Icon className="size-4" />
-                  </Button>
-                </div>
-              )
-            })}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="justify-start"
-              disabled={busy || rungs.length >= 20}
-              onClick={touched(addRung)}
-            >
-              <PlusIcon className="size-4" />
-              Add rung
-            </Button>
-          </OptionCard>
-
-          <OptionCard
-            id="smart-position"
-            title="Position"
-            hint="How much of the account this ladder may put to work, and how that money is spread across the buys."
-          >
-            <div className="grid gap-4">
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="smart-pot"
-                  hint="The most of the account the whole ladder can spend, split across the buys by the size ramp."
-                >
-                  Max position %
-                </FieldLabel>
-                <Input
-                  id="smart-pot"
-                  inputMode="decimal"
-                  value={maxPositionPct}
-                  disabled={busy}
-                  aria-invalid={
-                    showValidation &&
-                    params === null &&
-                    parsed(maxPositionPct) === null
-                  }
-                  onChange={(event) =>
-                    touched(setMaxPositionPct)(event.target.value)
-                  }
-                  onBlur={() => setShowValidation(true)}
-                  className="bg-background"
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="smart-ramp"
-                  hint="How much bigger each buy is than the one above it. 1 = all equal; 2 = each buy doubles the last."
-                >
-                  Size ramp ×
-                </FieldLabel>
-                <Input
-                  id="smart-ramp"
-                  inputMode="decimal"
-                  value={sizeMultiplier}
-                  disabled={busy}
-                  onChange={(event) =>
-                    touched(setSizeMultiplier)(event.target.value)
-                  }
-                  onBlur={() => setShowValidation(true)}
-                  className="bg-background"
-                />
-              </div>
-              <div className="grid gap-2">
-                <FieldLabel
-                  htmlFor="smart-leverage"
-                  hint="How many dollars of coin each dollar of the account buys. 1 is cash. A higher choice lets the exchange close the position if it falls far enough."
-                >
-                  Borrowing ×
-                </FieldLabel>
-                <Input
-                  id="smart-leverage"
-                  inputMode="numeric"
-                  value={leverage}
-                  disabled={busy}
-                  aria-invalid={showValidation && borrowingInvalid}
-                  onChange={(event) => touched(setLeverage)(event.target.value)}
-                  onBlur={() => setShowValidation(true)}
-                  className="bg-background"
-                />
-              </div>
-            </div>
-          </OptionCard>
-
-          <OptionCard
-            id="smart-tp-on"
-            title="Take profit"
-            hint={DCA_TP_MODE_HINTS[tpMode]}
-            foldWhenOff={false}
-            toggle={{
-              checked: tpOn,
-              disabled: busy,
-              onChange: touched(setTpOn),
-            }}
-          >
-            {tpOn ? (
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <FieldLabel htmlFor="smart-tp-mode">Exit</FieldLabel>
-                  <Select
-                    value={tpMode}
-                    disabled={busy}
-                    onValueChange={touched((next: string) =>
-                      setTpMode(next as DcaTpMode)
-                    )}
-                  >
-                    <SelectTrigger id="smart-tp-mode" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent data-order-frame-control>
-                      {DCA_TP_MODES.map((mode) => (
-                        <SelectItem key={mode} value={mode}>
-                          {DCA_TP_MODE_LABELS[mode]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {tpMode === "average" ? (
-                  <div className="grid gap-2">
-                    <FieldLabel htmlFor="smart-tp-pct">Target %</FieldLabel>
-                    <Input
-                      id="smart-tp-pct"
-                      inputMode="decimal"
-                      value={tpPct}
-                      disabled={busy}
-                      aria-invalid={
-                        showValidation && tpOn && parsed(tpPct) === null
-                      }
-                      onChange={(event) =>
-                        touched(setTpPct)(event.target.value)
-                      }
-                      onBlur={() => setShowValidation(true)}
-                      className="bg-background"
-                    />
-                  </div>
-                ) : tpMode === "exitLadder" ? (
-                  <div className="grid gap-2">
-                    <FieldLabel
-                      htmlFor="smart-exit-gap"
-                      hint="Extra room above the mirrored exit prices. Dragging any exit line changes the same number."
-                    >
-                      Extra gap %
-                    </FieldLabel>
-                    <Input
-                      id="smart-exit-gap"
-                      inputMode="decimal"
-                      value={exitGapPct}
-                      disabled={busy}
-                      aria-invalid={showValidation && badExitGap}
-                      onChange={(event) =>
-                        touched(setExitGapPct)(event.target.value)
-                      }
-                      onBlur={() => setShowValidation(true)}
-                      className="bg-background"
-                    />
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-          </OptionCard>
-
-          <OptionCard
-            id="smart-sl-on"
-            title="Stop loss"
-            hint="Percent below the average buy, following it as it moves. If the stop hits, everything sells and the waiting rungs are cancelled — unless the base rule below is on, which steps the ladder down to its next rung instead."
-            foldWhenOff={false}
-            toggle={{
-              checked: slOn,
-              disabled: busy,
-              onChange: touched((on: boolean) => {
-                setSlOn(on)
-                // Switched on, it starts below the deepest rung rather than
-                // wherever it was last — a stop above rungs disarms them.
-                if (on) setSlPct(String(suggestedSlPct))
-              }),
-            }}
-          >
-            {slOn ? (
-              <>
-                <div className="grid gap-2">
-                  <FieldLabel
-                    htmlFor="smart-sl-pct"
-                    hint="Where the stop rests until a base takes over. 100 means price would have to reach zero, which is how you say no stop before then."
-                  >
-                    Stop %
-                  </FieldLabel>
-                  <Input
-                    id="smart-sl-pct"
-                    inputMode="decimal"
-                    value={slPct}
-                    disabled={busy}
-                    aria-invalid={
-                      showValidation && slOn && parsed(slPct) === null
-                    }
-                    onChange={(event) => touched(setSlPct)(event.target.value)}
-                    onBlur={() => setShowValidation(true)}
-                    className="bg-background"
-                  />
-                </div>
-                <BaseStopFields
-                  on={baseOn}
-                  underPct={baseUnderPct}
-                  reclaimDays={baseReclaimDays}
-                  disabled={busy}
-                  showErrors={showValidation}
-                  onOn={touched(setBaseOn)}
-                  onUnderPct={touched(setBaseUnderPct)}
-                  onReclaimDays={touched(setBaseReclaimDays)}
-                  onBlur={() => setShowValidation(true)}
-                />
-              </>
-            ) : null}
-          </OptionCard>
-
-          {/* The two settings a ladder rarely needs, out of the way of the
-                ones it always does. Its own card, in a grey light enough to
-                separate it from the fields above without reading as a
-                different part of the app. Both settings are off unless
-                somebody opens this and turns them on, so a shut card is never
-                hiding something at work — except the liquidity guard, which
-                says so on the face of the card whether it is open or not. */}
-          <OptionCard
-            id="smart-advanced"
-            title="Advanced settings"
-            defaultOpen={false}
-            footer={
-              // Outside the fold on purpose: the guard shrinking buys
-              // explains amounts printed above it, and a note nobody can see
-              // explains nothing.
-              plan?.volumeCapped ? (
-                <p className="text-xs text-muted-foreground">
-                  The liquidity guard is shrinking some buys — the amounts above
-                  show it.
-                </p>
-              ) : null
-            }
-          >
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="smart-anchor"
-                hint={DCA_ANCHOR_HINTS[anchor]}
-              >
-                Rungs measured from
-              </FieldLabel>
-              <Select
-                value={anchor}
-                disabled={busy}
-                onValueChange={touched((next: string) =>
-                  setAnchor(next as DcaAnchor)
-                )}
-              >
-                <SelectTrigger
-                  id="smart-anchor"
-                  className="w-full bg-background"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent data-order-frame-control>
-                  {DCA_ANCHORS.map((one) => (
-                    <SelectItem key={one} value={one}>
-                      {DCA_ANCHOR_LABELS[one]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="grid gap-2">
-              <FieldLabel
-                htmlFor="smart-vol-guard"
-                hint="Liquidity guard: no single buy bigger than this share of the coin's last-24-hours trading volume, so thin coins get small orders. 0 = off."
-              >
-                Max order, % of day's volume
-              </FieldLabel>
-              <Input
-                id="smart-vol-guard"
-                inputMode="decimal"
-                value={maxOrderVolPct}
-                disabled={busy}
-                // The shared field is see-through, which on a grey card
-                // means a box you type into looks like one you cannot.
-                className="bg-background"
-                onChange={(event) =>
-                  touched(setMaxOrderVolPct)(event.target.value)
-                }
-                onBlur={() => setShowValidation(true)}
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="smart-two-green"
-                checked={twoGreen}
-                disabled={busy}
-                onCheckedChange={touched((next: boolean | "indeterminate") =>
-                  setTwoGreen(next === true)
-                )}
-              />
-              <FieldLabel
-                htmlFor="smart-two-green"
-                hint={`Nothing rests on the book: the ladder watches the ${interval} candles and buys at market once two green closes confirm the turn — so fills can sit a little off the lines.`}
-              >
-                Only buy after 2 green {interval} candles
-              </FieldLabel>
-            </div>
-          </OptionCard>
+          <DcaSettingsFields
+            idPrefix="smart"
+            form={form}
+            full
+            interval={interval}
+            busy={busy}
+            showValidation={showValidation}
+            inspection={inspection}
+            suggestedSlPct={suggestedSlPct}
+            plannedRungs={plan?.rungs}
+            volumeCapped={plan?.volumeCapped}
+            onChange={changeForm}
+            onBlur={() => setShowValidation(true)}
+          />
         </div>
       </ScrollArea>
 

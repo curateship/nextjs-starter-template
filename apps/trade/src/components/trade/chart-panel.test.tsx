@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ChartPanel, IntervalPicker } from "@/components/trade/chart-panel"
 import type { ChartSurface } from "@/components/trade/price-chart"
+import { TooltipProvider } from "@/components/ui/tooltip"
 import { loadCandles } from "@/lib/api/trade/candles"
 import { bracketsWithStopAt } from "@/lib/trade/bracket-shortcuts"
 import type { CandleInterval } from "@/lib/protocols/contracts"
@@ -963,7 +964,8 @@ function ladderWithStatuses(
 
 function chartWithLadder(
   ladder: SmartLadder,
-  cancelLadder: (walletId: string, ladderId: string) => Promise<void>
+  cancelLadder: (walletId: string, ladderId: string) => Promise<void>,
+  equityOfWallet?: (walletId: string) => number | null
 ) {
   const positions = ladder.plan.rungs.some((rung) => rung.status === "filled")
     ? [
@@ -994,42 +996,79 @@ function chartWithLadder(
   } as unknown as Trading
 
   return (
-    <ChartPanel
-      selectedKey={ladder.marketKey}
-      interval="15m"
-      initialChartView={null}
-      initialChart={{
-        key: `${ladder.marketKey}@15m`,
-        interval: "15m",
-        candles: [
-          {
-            openTime: 0,
-            open: 100,
-            high: 110,
-            low: 90,
-            close: 100,
-            volume: 1,
-          },
-        ],
-        error: null,
-        pending: false,
-      }}
-      initialDrawings={{ marketKey: ladder.marketKey, rows: [], error: null }}
-      initialQuickOrder={DEFAULT_QUICK_ORDER}
-      options={DEFAULT_CHART_OPTIONS}
-      indicators={{}}
-      market={{ key: ladder.marketKey, price: 100 } as never}
-      trading={oneTrading}
-      free={1000}
-      equity={1000}
-      shownTrade={null}
-      addTo={null}
-      onAddOpened={() => {}}
-    />
+    <TooltipProvider>
+      <ChartPanel
+        selectedKey={ladder.marketKey}
+        interval="15m"
+        initialChartView={null}
+        initialChart={{
+          key: `${ladder.marketKey}@15m`,
+          interval: "15m",
+          candles: [
+            {
+              openTime: 0,
+              open: 100,
+              high: 110,
+              low: 90,
+              close: 100,
+              volume: 1,
+            },
+          ],
+          error: null,
+          pending: false,
+        }}
+        initialDrawings={{ marketKey: ladder.marketKey, rows: [], error: null }}
+        initialQuickOrder={DEFAULT_QUICK_ORDER}
+        options={DEFAULT_CHART_OPTIONS}
+        indicators={{}}
+        market={{ key: ladder.marketKey, price: 100 } as never}
+        trading={oneTrading}
+        free={1000}
+        equity={1000}
+        equityOfWallet={equityOfWallet}
+        shownTrade={null}
+        addTo={null}
+        onAddOpened={() => {}}
+      />
+    </TooltipProvider>
   )
 }
 
 describe("removing a DCA ladder from the chart", () => {
+  it("opens settings with the account value of the ladder's own wallet", async () => {
+    vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
+    const ladder = ladderWithStatuses(["waiting", "waiting"])
+    ladder.plan = {
+      ...ladder.plan,
+      anchor: "click",
+      leverage: 1,
+      maxLeverage: 50,
+      sizeDecimals: 3,
+      priceTick: null,
+      twoGreen: false,
+      greenInterval: null,
+    }
+    const equityOfWallet = vi.fn(() => 2_000)
+
+    await act(async () =>
+      root.render(chartWithLadder(ladder, async () => {}, equityOfWallet))
+    )
+    const settings = host.querySelector<HTMLButtonElement>(
+      'button[aria-label="Change the ladder settings"]'
+    )
+    await act(async () => {
+      settings?.click()
+      await import("@/components/trade/smart-ladder-settings-window")
+    })
+
+    await vi.waitFor(() => {
+      const maxPosition = document.getElementById("ladder-pot")
+      expect(maxPosition).toBeInstanceOf(HTMLInputElement)
+      expect((maxPosition as HTMLInputElement).value).toBe("9.5")
+    })
+    expect(equityOfWallet).toHaveBeenCalledWith("wallet-1")
+  })
+
   it("removes an empty ladder on the first press", async () => {
     vi.mocked(loadCandles).mockReturnValue(new Promise(() => {}))
     const cancelLadder = vi.fn(async () => {})
