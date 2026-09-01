@@ -361,6 +361,10 @@ export async function placeHyperliquidOrder(
   // account address — and a cache of two entries is not worth being clever
   // about when the alternative is showing somebody a stale position.
   forgetHyperliquidPortfolios()
+  // Written down BEFORE the order goes out: the next portfolio read must ask
+  // this market's venue even when the exchange's venue feed has not caught up
+  // yet, or a fill on a first-touched venue is invisible to it.
+  rememberPlacedVenue(network, auth.accountAddress, params.marketId)
   const client = await exchangeClient(network, auth)
   const asset = await resolveAsset(network, params.marketId)
   const isBuy = params.side === "buy"
@@ -1011,6 +1015,54 @@ const ACTIVE_VENUES_MS = 60_000
 const activeVenues = new Map<string, { at: number; names: string[] }>()
 
 /**
+ * Venues this app itself just placed an order on, per wallet.
+ *
+ * The socket above says which venues a wallet uses, but it pushes on change
+ * and the push can lose the race against the read that follows a fill. The
+ * first-ever order on a hosted venue then fills into a position no read can
+ * see: on 1 Sep 2026 a grid on para:ANSEM bought 1,315 coins and the very
+ * next pass, three seconds later, read a venue list without "para", found no
+ * position, and declared the grid stopped out — leaving a real position with
+ * no stop and nothing managing it.
+ *
+ * Placing an order is the one moment the app KNOWS the wallet is using a
+ * venue, so placement writes the venue down here and every read unions it in
+ * until the exchange's own answer has had ample time to catch up.
+ */
+const PLACED_VENUES_MS = 5 * 60_000
+const placedVenues = new Map<string, Map<string, number>>()
+
+export function rememberPlacedVenue(
+  network: NetworkId,
+  accountAddress: string | undefined,
+  marketId: string
+): void {
+  if (!accountAddress) return
+  const splitAt = marketId.indexOf(":")
+  // The main venue is on every read already.
+  if (splitAt === -1) return
+  const key = `${network}:${accountAddress.toLowerCase()}`
+  const venuesPlaced = placedVenues.get(key) ?? new Map<string, number>()
+  venuesPlaced.set(marketId.slice(0, splitAt), Date.now())
+  placedVenues.set(key, venuesPlaced)
+}
+
+function recentlyPlacedVenues(network: NetworkId, user: string): string[] {
+  const key = `${network}:${user.toLowerCase()}`
+  const venuesPlaced = placedVenues.get(key)
+  if (!venuesPlaced) return []
+  const now = Date.now()
+  for (const [dex, at] of venuesPlaced) {
+    if (now - at >= PLACED_VENUES_MS) venuesPlaced.delete(dex)
+  }
+  if (venuesPlaced.size === 0) {
+    placedVenues.delete(key)
+    return []
+  }
+  return [...venuesPlaced.keys()]
+}
+
+/**
  * Everything one live wallet holds and has waiting — on every venue the
  * exchange hosts, from the exchange's own mouth. Market ids come back
  * namespaced ("xyz:IBM") exactly as the market list names them, so a row's
@@ -1156,12 +1208,16 @@ async function readHyperliquidPortfolio(
     !walletFeedWarmingUp(network, user) &&
     (!remembered || Date.now() - remembered.at >= ACTIVE_VENUES_MS)
 
+  // Venues this app placed an order on minutes ago are read regardless of
+  // what the socket says — see `rememberPlacedVenue` for the race this ends.
+  const placed = recentlyPlacedVenues(network, user)
+
   // Told, remembered, or — only when neither can say — every market there is.
   const names = told
-    ? [...new Set(["", ...told, ...(remembered?.names ?? [])])]
+    ? [...new Set(["", ...told, ...(remembered?.names ?? []), ...placed])]
     : sweeping
       ? venues
-      : ["", ...(remembered?.names ?? []).filter((name) => name !== "")]
+      : [...new Set(["", ...(remembered?.names ?? []), ...placed])]
 
   const reads = await Promise.all(
     names.map(async (dex) => {

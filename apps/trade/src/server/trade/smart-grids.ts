@@ -80,6 +80,25 @@ import {
 const NEXT_LEVEL_OFF_TICK =
   "The next grid level does not fit this market's price step. The grid paused before placing it."
 
+/**
+ * How long a holding grid's position must be missing from the wallet read
+ * before the absence is believed to mean the position is gone.
+ *
+ * Longer than the four seconds one portfolio read stands for, on purpose: a
+ * blind read served from cache must not be counted twice. The grid freezes
+ * while it waits, so the delay costs nothing but the "done" row arriving a
+ * few seconds after a real stop-out. See the note at "Is the grid over?".
+ */
+const POSITION_GONE_CONFIRM_MS = 15_000
+
+/** When each grid's position first went missing from a read, by row id. */
+const positionGoneSince = new Map<string, number>()
+
+/** Test support: forgets every grid's missing-position clock. */
+export function resetGridPositionGoneMemory(): void {
+  positionGoneSince.clear()
+}
+
 export type GridRow = {
   id: string
   marketKey: string
@@ -222,15 +241,46 @@ export async function advanceGrid(
   )
   const anyWaiting = plan.levels.some((level) => level.status === "waiting")
 
+  // **One read saying the position is not there is not the position being
+  // gone.** A live read can be blind for a few seconds — on 1 Sep 2026 a grid
+  // on para:ANSEM bought 1,315 coins, and the next pass read a venue list that
+  // did not yet include that venue, found no position, and declared itself
+  // stopped out three seconds after buying. The position stayed open with no
+  // stop and nothing managing it. So a holding grid whose position has
+  // vanished FREEZES — no entries, no exits, no ending — until the position
+  // has been missing long enough to outlast a slow read, and only then is the
+  // absence believed. A stop that really fired loses nothing by being written
+  // down a few seconds later: the coins are already sold either way.
+  //
+  // Real money only. A practice book settles its own fills, so its positions
+  // map cannot be behind — and a backtest waiting fifteen simulated seconds
+  // would end every stopped grid one candle late for no protection at all.
+  const positionMissing = anyHolding && !position
+  if (
+    positionMissing &&
+    !stopped &&
+    !ended &&
+    book.wallet.kind === "live"
+  ) {
+    const missingSince = positionGoneSince.get(row.id) ?? now
+    positionGoneSince.set(row.id, missingSince)
+    if (now - missingSince < POSITION_GONE_CONFIRM_MS) {
+      if (changed) await deps.saveLadder(row, "active", now)
+      return
+    }
+  } else {
+    positionGoneSince.delete(row.id)
+  }
+
   const over =
     stopped ||
     ended ||
     // Turned the wrong way round by hand: a buying grid has no business adding
     // to a short, and a selling grid none adding to a long.
     (position !== null && heldWrongWay(direction, position.szi)) ||
-    // It believed it was holding and the position has gone — stopped out,
-    // closed by hand, or liquidated.
-    (anyHolding && !position) ||
+    // It believed it was holding and the position has stayed gone past the
+    // grace above — stopped out, closed by hand, or liquidated.
+    positionMissing ||
     // Every level called off and nothing held: there is no grid left. A
     // paired grid cannot wait for the POSITION to go — the ladder's coins
     // keep it alive forever — so its own emptiness is the test, or a grid
@@ -243,6 +293,7 @@ export async function advanceGrid(
   // between one cycle and the next.
 
   if (over) {
+    positionGoneSince.delete(row.id)
     for (const level of plan.levels) {
       if (level.status === "waiting") level.status = "cancelled"
     }

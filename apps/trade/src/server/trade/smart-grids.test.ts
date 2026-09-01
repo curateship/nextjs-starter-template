@@ -10,9 +10,17 @@ import {
   type GridParams,
   type GridPlan,
 } from "@/lib/trade/grid"
+import { defaultPaperCosts, type TradePosition } from "@/lib/trade/paper"
 import type { TradeWallet } from "@/lib/trade/wallets"
 import { type CustomShellDb } from "@/server/db"
 import { createTestDatabase, insertUser } from "@/server/test-support"
+import type { WalletBook } from "@/server/trade/paper-replay"
+import type { LadderEngineDeps } from "@/server/trade/smart-engine"
+import {
+  advanceGrid,
+  resetGridPositionGoneMemory,
+  type GridRow,
+} from "@/server/trade/smart-grids"
 import {
   cancelGridLevel,
   cancelGridRest,
@@ -2191,5 +2199,151 @@ describe("reversing a grid", () => {
     const chained = rows.find((row) => row.status === "active")
     expect((chained!.plan as GridPlan).direction).toBe("long")
     expect((chained!.plan as GridPlan).reversedFrom).toBe(short!.id)
+  })
+})
+
+describe("a read with no position", () => {
+  /**
+   * A real wallet's positions come from an exchange read, and one read can be
+   * blind for a few seconds — on 1 Sep 2026 a grid on para:ANSEM bought and
+   * was declared stopped out three seconds later because the read had not
+   * caught up with the venue the coin lives on. These drive `advanceGrid`
+   * directly, because the blind read only exists on the live side and the
+   * settle harness above is a practice book that cannot lie.
+   */
+  beforeEach(() => resetGridPositionGoneMemory())
+
+  function bookWith(
+    kind: "live" | "paper",
+    positions: Map<string, TradePosition>
+  ): WalletBook {
+    // Only the fields the grid pass reads. A frozen grid must not fill,
+    // so the rest of the book is never reached.
+    return {
+      wallet: { ...wallet, kind },
+      costs: defaultPaperCosts(),
+      positions,
+      touchedMarkets: new Set<string>(),
+    } as unknown as WalletBook
+  }
+
+  function depsInto(saves: string[]): LadderEngineDeps {
+    return {
+      fill: () => {
+        throw new Error("a grid with no read position must not trade")
+      },
+      dropOrder: () => {},
+      freeCash: () => 10_000,
+      insertOrder: async () => "order-1",
+      saveLadder: async (_row, status) => {
+        saves.push(status)
+      },
+    }
+  }
+
+  /** A grid whose $110 level has bought, read back as the engine holds it. */
+  async function holdingGridRow(): Promise<GridRow> {
+    await place()
+    await priceTo(115)
+    await priceTo(109)
+    const grid = await onlyGrid()
+    expect(grid.plan.levels[3].status).toBe("holding")
+    return { id: grid.id, marketKey: BTC, plan: grid.plan }
+  }
+
+  function passAt(now: number, book: WalletBook) {
+    return {
+      book,
+      marks: new Map([[BTC, 109]]),
+      ladderBars: new Map(),
+      now,
+    }
+  }
+
+  const heldPosition = (row: GridRow, now: number): TradePosition => ({
+    id: BTC,
+    walletId: "w1",
+    marketKey: BTC,
+    szi: row.plan.levels[3].heldSz,
+    entryPx: 110,
+    leverage: row.plan.leverage,
+    maxLeverage: 50,
+    targets: [],
+    tpPx: null,
+    slPx: null,
+    feesPaid: 0,
+    updatedAt: now,
+  })
+
+  it("freezes a live grid rather than ending it on one blind read", async () => {
+    const row = await holdingGridRow()
+    const saves: string[] = []
+    const now = Date.now()
+
+    await advanceGrid(passAt(now, bookWith("live", new Map())), depsInto(saves), row)
+
+    expect(saves).toEqual([])
+    expect(row.plan.closedReason).toBeNull()
+    expect(row.plan.levels[3].status).toBe("holding")
+  })
+
+  it("believes the absence once it has outlasted a slow read", async () => {
+    const row = await holdingGridRow()
+    const saves: string[] = []
+    const now = Date.now()
+
+    await advanceGrid(passAt(now, bookWith("live", new Map())), depsInto(saves), row)
+    await advanceGrid(
+      passAt(now + 16_000, bookWith("live", new Map())),
+      depsInto(saves),
+      row
+    )
+
+    expect(saves).toEqual(["done"])
+    expect(row.plan.closedReason).toBe("stop")
+    expect(
+      row.plan.levels.filter((level) => level.status === "waiting")
+    ).toHaveLength(0)
+  })
+
+  it("forgets the clock the moment the position is read again", async () => {
+    const row = await holdingGridRow()
+    const saves: string[] = []
+    const now = Date.now()
+
+    await advanceGrid(passAt(now, bookWith("live", new Map())), depsInto(saves), row)
+    // The read catches up: the position is there after all.
+    await advanceGrid(
+      passAt(
+        now + 8_000,
+        bookWith("live", new Map([[BTC, heldPosition(row, now)]]))
+      ),
+      depsInto(saves),
+      row
+    )
+    // A later blind read starts a fresh clock rather than inheriting the old
+    // one — 16 seconds after the FIRST blind read is only 8 into this one.
+    await advanceGrid(
+      passAt(now + 16_000, bookWith("live", new Map())),
+      depsInto(saves),
+      row
+    )
+
+    expect(saves).toEqual([])
+    expect(row.plan.closedReason).toBeNull()
+  })
+
+  it("still ends a practice grid at once — its book cannot be behind", async () => {
+    const row = await holdingGridRow()
+    const saves: string[] = []
+
+    await advanceGrid(
+      passAt(Date.now(), bookWith("paper", new Map())),
+      depsInto(saves),
+      row
+    )
+
+    expect(saves).toEqual(["done"])
+    expect(row.plan.closedReason).toBe("stop")
   })
 })

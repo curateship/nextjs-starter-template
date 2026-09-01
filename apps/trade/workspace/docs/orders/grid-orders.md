@@ -559,6 +559,18 @@ the three outcomes.
 Money the grid made never came from that line. It arrived in cash on each
 level's own sell, one round trip at a time.
 
+A grid holding coins also ends when its position is gone — stopped out, closed
+by hand, or liquidated. On real money that judgement waits: the exchange read
+can be blind for a few seconds (on 1 Sep 2026 a grid's first buy on a hosted
+Hyperliquid market was invisible to the very next read, and the grid declared
+itself stopped out three seconds after buying, leaving a real position with no
+stop and nothing managing it). A live grid whose position is missing from a
+read now freezes — no buys, no sells, no ending — and only believes the
+position is gone once it has stayed missing for fifteen seconds. A stop that
+really fired loses nothing by being written down a few seconds later; the coins
+are already sold. A practice grid keeps the same-moment answer, because the
+practice book settles its own fills and cannot be behind.
+
 ## Changing a running grid
 
 The gear beside UPPER PRICE opens Grid settings to the left of the gear,

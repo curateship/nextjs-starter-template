@@ -10,6 +10,7 @@ import {
   formatPx,
   formatSize,
   orderTimeInForce,
+  rememberPlacedVenue,
   venueAssetId,
 } from "@/server/protocols/hyperliquid/orders"
 import {
@@ -596,6 +597,53 @@ describe("reading the portfolio", () => {
         `0x${"8".repeat(40)}`
       )
       expect(portfolio.orders.map((one) => one.marketId)).toContain("xyz:IBM")
+    } finally {
+      feedState.moneyOn = null
+    }
+  })
+
+  it("reads a venue the app just placed on before the exchange's feed says so", async () => {
+    // The race this ends: the first-ever order on a hosted venue fills, the
+    // venue feed has not pushed the change yet, and the read that followed
+    // skipped the venue — so the grid that had just bought found no position
+    // and declared itself stopped out (para:ANSEM, 1 Sep 2026). Placement
+    // writes the venue down, and the read must ask it even though the feed
+    // only names the main venue.
+    feedState.moneyOn = [""]
+    try {
+      perpDexs.mockResolvedValue([null, { name: "xyz" }])
+      allPerpMetas.mockResolvedValue([
+        { universe: [{ name: "BTC", szDecimals: 5 }] },
+        { universe: [{ name: "IBM", szDecimals: 2 }] },
+      ])
+      clearinghouseState.mockImplementation(async ({ dex }: { dex: string }) =>
+        dex === "xyz"
+          ? {
+              assetPositions: [
+                {
+                  position: {
+                    coin: "xyz:IBM",
+                    szi: "0.69",
+                    entryPx: "224.82",
+                    leverage: { value: 1 },
+                    liquidationPx: null,
+                    marginUsed: "155",
+                  },
+                },
+              ],
+            }
+          : { assetPositions: [] }
+      )
+      frontendOpenOrders.mockResolvedValue([])
+
+      rememberPlacedVenue("testnet", `0x${"7".repeat(40)}`, "xyz:IBM")
+      const portfolio = await fetchHyperliquidPortfolio(
+        "testnet",
+        `0x${"7".repeat(40)}`
+      )
+      expect(portfolio.positions.map((one) => one.marketId)).toContain(
+        "xyz:IBM"
+      )
     } finally {
       feedState.moneyOn = null
     }

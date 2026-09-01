@@ -90,6 +90,14 @@ cannot have changed (pace / don't ask).
   the 249-market sweep is gone. The old REST read stays as the fallback if
   the socket goes quiet for 5 minutes, because a stale position about real
   money is worse than a slow one. (`user-markets.ts`)
+- **A market the app just placed on is read whatever the socket says.** The
+  socket pushes on change, and the push can arrive after the read that
+  follows a fill. On 1 Sep 2026 a grid's first-ever buy on one of the hosted
+  markets (para:ANSEM) filled, the next read had no idea that market was in
+  use, found no position, and the grid declared itself stopped out three
+  seconds after buying. Placing an order now writes its market's venue down
+  for five minutes, and every read asks those venues too. (`orders.ts`,
+  `rememberPlacedVenue`)
 - **Market descriptions are one call, kept for 10 minutes.** `allPerpMetas`
   returns every market's coin list at once; the answer is cached because it
   only changes when a coin is listed. The reconnect storm is dead twice
